@@ -10,7 +10,7 @@
  * near the physical process and clients consuming the data at runtime. In the
  * previous tutorial, we saw how to add variables to an OPC UA information
  * model. This tutorial shows how to connect a variable to runtime information,
- * for example from measurements of a physical process. For simplicty, we take
+ * for example from measurements of a physical process. For simplicity, we take
  * the system clock as the underlying "process".
  *
  * The following code snippets are each concerned with a different way of

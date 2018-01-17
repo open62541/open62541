@@ -208,7 +208,7 @@ In its simplest form, an invokation of the namespace compiler will look like thi
 
    $ python ./generate_open62541CCode.py <Opc.Ua.NodeSet2.xml> myNS.xml myNS
 
-The first argument points to the XML definition of the standard-defined namespace 0. Namespace 0 is assumed to be loaded beforehand and provides defintions for data type, reference types, and so. The second argument points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then creates the files ``myNS.c`` and ``myNS.h`` containing the C code necessary to instantiate those namespaces.
+The first argument points to the XML definition of the standard-defined namespace 0. Namespace 0 is assumed to be loaded beforehand and provides definitions for data type, reference types, and so. The second argument points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then creates the files ``myNS.c`` and ``myNS.h`` containing the C code necessary to instantiate those namespaces.
 
 Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (toplevel directory), you will find that compiling the stack with ``DUA_ENABLE_GENERATE_NAMESPACE0`` will execute the following command::
 
@@ -268,7 +268,7 @@ A minor list of some of the things that can go wrong:
   * Your file was not found. The namespace compiler will complain, print a help message, and exit.
   * A structure/DataType you created with a value was not encoded. The namespace compiler can currently not handle nested extensionObjects.
   * Nodes are not or wrongly encoded or you get nodeId errors.  The namespace compiler can currently not encode bytestring or guid node id's and external server uris are not supported either.
-  * You get compiler complaints for non-existant variants. Check that you have removed any namespace qualifiers (like "uax:") from the XML file.
+  * You get compiler complaints for non-existent variants. Check that you have removed any namespace qualifiers (like "uax:") from the XML file.
   * You get "invalid reference to addMethodNode" style errors. Make sure ``-DUA_ENABLE_METHODCALLS=On`` is defined.
 
 Creating object instances

@@ -146,6 +146,8 @@ connection_releaserecvbuffer(UA_Connection *connection,
 
 static UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     /* Prevent OS signals when sending to a closed socket */
     int flags = 0;
 #ifdef MSG_NOSIGNAL
@@ -178,6 +180,8 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
 static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     /* Listen on the socket for the given timeout until a message arrives */
     if(timeout > 0) {
         fd_set fdset;
@@ -192,6 +196,12 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         /* No result */
         if(resultsize == 0)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+        /* Error occurred */
+        if (resultsize == -1) {
+            connection->close(connection);
+            return UA_STATUSCODE_BADCONNECTIONCLOSED;
+        }
     }
 
     response->data = (UA_Byte*)
@@ -294,6 +304,8 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
  * socket is returned from select. */
 static void
 ServerNetworkLayerTCP_close(UA_Connection *connection) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return;
     shutdown((SOCKET)connection->sockfd, 2);
     connection->state = UA_CONNECTION_CLOSED;
 }
@@ -570,7 +582,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
     UA_DateTime now = UA_DateTime_nowMonotonic();
     LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
         if ((e->connection.state == UA_CONNECTION_OPENING) &&
-            (now > (e->connection.openingDate + (NOHELLOTIMEOUT * UA_MSEC_TO_DATETIME)))){
+            (now > (e->connection.openingDate + (NOHELLOTIMEOUT * UA_DATETIME_MSEC)))){
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                         "Connection %i | Closed by the server (no Hello Message)",
                          e->connection.sockfd);
@@ -652,7 +664,6 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ConnectionEntry *e, *e_tmp;
     LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
         LIST_REMOVE(e, pointers);
-        ServerNetworkLayerTCP_close(&e->connection);
         CLOSESOCKET(e->connection.sockfd);
         UA_free(e);
     }
@@ -694,6 +705,8 @@ typedef struct TCPClientConnection {
 
 static void
 ClientNetworkLayerTCP_close(UA_Connection *connection) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return;
     shutdown((SOCKET)connection->sockfd, 2);
     CLOSESOCKET(connection->sockfd);
     connection->state = UA_CONNECTION_CLOSED;
@@ -712,7 +725,7 @@ UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data) {
 		return UA_STATUSCODE_GOOD;
 	}
 	if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
-			* UA_DATETIME_TO_MSEC > tcpConnection->timeout) {
+			* UA_DATETIME_MSEC > tcpConnection->timeout) {
 		freeaddrinfo(tcpConnection->server);
 		// connection timeout
 		ClientNetworkLayerTCP_close(connection);
@@ -766,7 +779,7 @@ UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data) {
 
 		UA_UInt32 timeSinceStart =
 				(UA_UInt32) ((UA_Double) (UA_DateTime_nowMonotonic() - connStart)
-						* UA_DATETIME_TO_MSEC);
+						* UA_DATETIME_MSEC);
 
 		fd_set fdset;
 		FD_ZERO(&fdset);
@@ -962,9 +975,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
         return connection;
     }
 
-
     UA_Boolean connected = UA_FALSE;
-
+    UA_DateTime dtTimeout = timeout * UA_DATETIME_MSEC;
     UA_DateTime connStart = UA_DateTime_nowMonotonic();
     SOCKET clientsockfd;
 
@@ -972,8 +984,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
      * want to try to connect. So use a loop and retry until timeout is
      * reached. */
     do {
-
         connection.state = UA_CONNECTION_OPENING;
+
         /* Get a socket */
         clientsockfd = socket(server->ai_family,
                               server->ai_socktype,
@@ -983,9 +995,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
     #else
         if(clientsockfd < 0) {
     #endif
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                                          "Could not create client socket: %s", errno_str));
+            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                                    "Could not create client socket: %s", errno_str));
             freeaddrinfo(server);
             return connection;
         }
@@ -1003,8 +1014,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
         }
 
         /* Non blocking connect */
-        error = connect(clientsockfd, server->ai_addr,
-                        WIN32_INT server->ai_addrlen);
+        error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
 
         if ((error == -1) && (errno__ != ERR_CONNECTION_PROGRESS)) {
             ClientNetworkLayerTCP_close(&connection);
@@ -1019,25 +1029,23 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
         /* Use select to wait and check if connected */
         if (error == -1 && (errno__ == ERR_CONNECTION_PROGRESS)) {
             /* connection in progress. Wait until connected using select */
-            UA_UInt32 timeSinceStart = (UA_UInt32)
-                ((UA_Double)(UA_DateTime_nowMonotonic() - connStart) * UA_DATETIME_TO_MSEC);
-            if(timeSinceStart > timeout)
+            UA_DateTime timeSinceStart = UA_DateTime_nowMonotonic() - connStart;
+            if(timeSinceStart > dtTimeout)
                 break;
 
             fd_set fdset;
             FD_ZERO(&fdset);
             UA_fd_set(clientsockfd, &fdset);
-            UA_UInt32 timeout_usec = (timeout - timeSinceStart) * 1000;
+            UA_DateTime timeout_usec = (dtTimeout - timeSinceStart) / UA_DATETIME_USEC;
             struct timeval tmptv = {(long int) (timeout_usec / 1000000),
                                     (long int) (timeout_usec % 1000000)};
 
-            int resultsize = select((UA_Int32)(clientsockfd + 1), NULL, &fdset,
-                                    NULL, &tmptv);
+            int resultsize = select((UA_Int32)(clientsockfd + 1), NULL, &fdset, NULL, &tmptv);
 
-            if (resultsize == 1) {
+            if(resultsize == 1) {
+#ifdef _WIN32
                 /* Windows does not have any getsockopt equivalent and it is not
                  * needed there */
-#ifdef _WIN32
                 connected = true;
                 break;
 #else
@@ -1072,12 +1080,14 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
         }
         ClientNetworkLayerTCP_close(&connection);
 
-    } while ((UA_Double)(UA_DateTime_nowMonotonic() - connStart)*UA_DATETIME_TO_MSEC < timeout);
+    } while ((UA_DateTime_nowMonotonic() - connStart) < dtTimeout);
 
     freeaddrinfo(server);
-    if (!connected) {
+
+    if(!connected) {
         /* connection timeout */
-        ClientNetworkLayerTCP_close(&connection);
+        if (connection.state != UA_CONNECTION_CLOSED)
+            ClientNetworkLayerTCP_close(&connection);
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Trying to connect to %s timed out",
                        endpointUrl);

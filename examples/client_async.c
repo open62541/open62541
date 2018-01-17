@@ -7,13 +7,13 @@
 
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
-static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
-		void *status) {
-	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
-		*(UA_Boolean *) connected = true;
-	printf("Async connect returned with status code %s\n",
-			UA_StatusCode_name(*(UA_StatusCode *) status));
-}
+//static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
+//		void *status) {
+//	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
+//		*(UA_Boolean *) connected = true;
+//	printf("Async connect returned with status code %s\n",
+//			UA_StatusCode_name(*(UA_StatusCode *) status));
+//}
 
 /*raw service callbacks*/
 static void valueWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
@@ -138,9 +138,9 @@ int main(int argc, char *argv[]) {
 	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-	/*connected gets updated when client is connected*/
-	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-			&connected);
+//	/*connected gets updated when client is connected*/
+//	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
+//			&connected);
 
 	UA_StatusCode retval;
 	/*Demo: raw services*/
@@ -148,8 +148,10 @@ int main(int argc, char *argv[]) {
 	/*what happens if client tries to send request before connected?*/
 	UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed, &userdata,
 			&reqId);
+	connected = 1;
 	do {
 		if (connected) {
+			UA_Client_connect(client, "opc.tcp://localhost:4840");
 			/*if not connected requests are not sent*/
 			UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed,
 					&userdata, &reqId);

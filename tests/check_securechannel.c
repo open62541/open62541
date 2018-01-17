@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <src_generated/ua_types_generated.h>
-#include <testing_networklayers.h>
 #include <ua_types_encoding_binary.h>
 #include <src_generated/ua_transport_generated_encoding_binary.h>
 #include <src_generated/ua_transport_generated.h>
@@ -14,6 +13,7 @@
 #include <ua_plugin_securitypolicy.h>
 #include <src_generated/ua_transport_generated_handling.h>
 
+#include "testing_networklayers.h"
 #include "testing_policy.h"
 #include "ua_securechannel.h"
 
@@ -44,7 +44,7 @@ setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
     UA_SecureChannel_init(&testChannel, &dummyPolicy, &dummyCertificate);
 
-    testingConnection = createDummyConnection(&sentData);
+    testingConnection = createDummyConnection(65535, &sentData);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
     testChannel.connection = &testingConnection;
 }
@@ -53,8 +53,7 @@ static void
 teardown_secureChannel(void) {
     UA_SecureChannel_deleteMembersCleanup(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
-
-    memset(&testingConnection, 0, sizeof(UA_Connection));
+    testingConnection.close(&testingConnection);
 }
 
 static void

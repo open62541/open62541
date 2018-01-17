@@ -182,7 +182,7 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 }
 END_TEST
 
-START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
+START_TEST(failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries) {
     UA_Node* n1 = createNode(0,2253);
     ns.insertNode(ns.context, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
@@ -272,7 +272,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSingleEntry);
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSeveralEntries);
     tcase_add_test (tc_find, findNodeInExpandedNamespace);
-    tcase_add_test (tc_find, failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries);
+    tcase_add_test (tc_find, failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries);
     tcase_add_test (tc_find, failToFindNodeInOtherUA_NodeStore);
     suite_add_tcase (s, tc_find);
 

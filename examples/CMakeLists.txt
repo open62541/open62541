@@ -60,6 +60,10 @@ add_example(client_async client_async.c)
 
 add_example(client_connect_loop client_connect_loop.c)
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+add_example(client_subscription_loop client_subscription_loop.c)
+endif()
+
 ####################
 # Feature Examples #
 ####################

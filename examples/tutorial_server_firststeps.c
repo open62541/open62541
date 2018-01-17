@@ -71,7 +71,7 @@ int main(void) {
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  *
  * *open62541* provides a flexible framework for building OPC UA servers and
- * clients. The goals is to have a core library that accomodates for all use
+ * clients. The goals is to have a core library that accommodates for all use
  * cases and runs on all platforms. Users can then adjust the library to fit
  * their use case via configuration and by developing (platform-specific)
  * plugins. The core library is based on C99 only and does not even require

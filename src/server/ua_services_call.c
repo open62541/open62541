@@ -246,4 +246,12 @@ void Service_Call(UA_Server *server, UA_Session *session,
                   &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
 }
 
+UA_CallMethodResult UA_EXPORT
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    Operation_CallMethod(server, &adminSession, request, &result);
+    return result;
+}
+
 #endif /* UA_ENABLE_METHODCALLS */

@@ -302,7 +302,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
         UA_ClientConnectionTCP_init, /* for async client */
         UA_ClientConnectionTCPPoll, /*poll function (async connection) */
     0, /* .customDataTypesSize */
-    NULL /*.customDataTypes */
+    NULL, /*.customDataTypes */
+    NULL /*.stateCallback */
 };
 
 /****************************************/
@@ -315,7 +316,7 @@ const UA_SubscriptionSettings UA_SubscriptionSettings_default = {
     500.0, /* .requestedPublishingInterval */
     10000, /* .requestedLifetimeCount */
     1, /* .requestedMaxKeepAliveCount */
-    10, /* .maxNotificationsPerPublish */
+    0, /* .maxNotificationsPerPublish */
     true, /* .publishingEnabled */
     0 /* .priority */
 };

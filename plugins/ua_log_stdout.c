@@ -2,7 +2,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <stdio.h>
-#include <stdarg.h>
 #include "ua_log_stdout.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
@@ -47,16 +46,21 @@ __attribute__((__format__(__printf__, 3 , 0)))
 void
 UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
               const char *msg, va_list args) {
-    UA_String t = UA_DateTime_toString(UA_DateTime_now());
+    UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
+    UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
+
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_lock(&printf_mutex);
 #endif
-    printf("[%.23s] %s/%s" ANSI_COLOR_RESET "\t", t.data, logLevelNames[level], logCategoryNames[category]);
+
+    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
+           dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
+           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[level], logCategoryNames[category]);
     vprintf(msg, args);
     printf("\n");
     fflush(stdout);
+
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_unlock(&printf_mutex);
 #endif
-    UA_ByteString_deleteMembers(&t);
 }

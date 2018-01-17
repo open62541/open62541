@@ -95,7 +95,7 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
 
 void UA_Session_updateLifetime(UA_Session *session) {
     session->validTill = UA_DateTime_nowMonotonic() +
-        (UA_DateTime)(session->timeout * UA_MSEC_TO_DATETIME);
+        (UA_DateTime)(session->timeout * UA_DATETIME_MSEC);
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

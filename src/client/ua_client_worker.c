@@ -277,13 +277,13 @@ UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_S
 	UA_DateTime now = UA_DateTime_nowMonotonic();
 	UA_DateTime nextRepeated = UA_Timer_process(&client->timer, now,
 			(UA_TimerDispatchCallback) UA_Client_workerCallback, client);
-	UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_MSEC_TO_DATETIME);
+	UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
 	if (nextRepeated > latest)
 		nextRepeated = latest;
 
 	UA_UInt16 timeout = 0;
 	if (waitInternal)
-		timeout = (UA_UInt16) ((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+		timeout = (UA_UInt16) ((nextRepeated - now) / UA_DATETIME_MSEC);
 	UA_ClientState cs = UA_Client_getState(client);
 	*retval = UA_Client_connect_iterate(client);
 
@@ -322,19 +322,7 @@ UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_S
 	now = UA_DateTime_nowMonotonic();
 	timeout = 0;
 	if (nextRepeated > now)
-		timeout = (UA_UInt16) ((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+		timeout = (UA_UInt16) ((nextRepeated - now) / UA_DATETIME_MSEC);
 	return timeout;
 }
 
-UA_StatusCode UA_Client_run_shutdown(UA_Client *client) {
-	/* Stop the netowrk layer */
-	UA_Client_disconnect(client);
-	return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_Client_run(UA_Client *client, volatile UA_Boolean *running) {
-
-	while (*running)
-		UA_Client_run_iterate(client, true, UA_STATUSCODE_GOOD);
-	return UA_Client_run_shutdown(client);
-}

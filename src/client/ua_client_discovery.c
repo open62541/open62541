@@ -5,135 +5,127 @@
 #include "ua_client.h"
 #include "ua_client_internal.h"
 
-UA_StatusCode UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
-		size_t* endpointDescriptionsSize,
-		UA_EndpointDescription** endpointDescriptions) {
-	UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
-	/* Client is already connected to a different server */
-	if (connected
-			&& strncmp((const char*) client->endpointUrl.data, serverUrl,
-					client->endpointUrl.length) != 0) {
-		return UA_STATUSCODE_BADINVALIDARGUMENT;
-	}
+UA_StatusCode
+UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
+                       size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions) {
+    UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
+    /* Client is already connected to a different server */
+    if(connected && strncmp((const char*)client->endpointUrl.data, serverUrl,
+                            client->endpointUrl.length) != 0) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
-	UA_StatusCode retval;
-	if (!connected) {
-		retval = UA_Client_connectInternal(client, serverUrl, UA_FALSE,
-				UA_FALSE);
-		if (retval != UA_STATUSCODE_GOOD)
-			return retval;
-	}
-	retval = UA_Client_getEndpointsInternal(client, endpointDescriptionsSize,
-			endpointDescriptions);
+    UA_StatusCode retval;
+    if(!connected) {
+        retval = UA_Client_connectInternal(client, serverUrl, UA_FALSE, UA_FALSE);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+    retval = UA_Client_getEndpointsInternal(client, endpointDescriptionsSize, endpointDescriptions);
 
-	if (!connected)
-		UA_Client_disconnect(client);
-	return retval;
+    if(!connected)
+        UA_Client_disconnect(client);
+    return retval;
 }
 
-UA_StatusCode UA_Client_findServers(UA_Client *client, const char *serverUrl,
-		size_t serverUrisSize, UA_String *serverUris, size_t localeIdsSize,
-		UA_String *localeIds, size_t *registeredServersSize,
-		UA_ApplicationDescription **registeredServers) {
-	UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
-	/* Client is already connected to a different server */
-	if (connected
-			&& strncmp((const char*) client->endpointUrl.data, serverUrl,
-					client->endpointUrl.length) != 0) {
-		return UA_STATUSCODE_BADINVALIDARGUMENT;
-	}
+UA_StatusCode
+UA_Client_findServers(UA_Client *client, const char *serverUrl,
+                      size_t serverUrisSize, UA_String *serverUris,
+                      size_t localeIdsSize, UA_String *localeIds,
+                      size_t *registeredServersSize,
+                      UA_ApplicationDescription **registeredServers) {
+    UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
+    /* Client is already connected to a different server */
+    if(connected && strncmp((const char*)client->endpointUrl.data, serverUrl,
+                            client->endpointUrl.length) != 0) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
-	if (!connected) {
-		UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl,
-				UA_TRUE, UA_FALSE);
-		if (retval != UA_STATUSCODE_GOOD)
-			return retval;
-	}
+    if(!connected) {
+        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, UA_TRUE, UA_FALSE);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
-	/* Prepare the request */
-	UA_FindServersRequest request;
-	UA_FindServersRequest_init(&request);
-	request.serverUrisSize = serverUrisSize;
-	request.serverUris = serverUris;
-	request.localeIdsSize = localeIdsSize;
-	request.localeIds = localeIds;
+    /* Prepare the request */
+    UA_FindServersRequest request;
+    UA_FindServersRequest_init(&request);
+    request.serverUrisSize = serverUrisSize;
+    request.serverUris = serverUris;
+    request.localeIdsSize = localeIdsSize;
+    request.localeIds = localeIds;
 
-	/* Send the request */
-	UA_FindServersResponse response;
-	UA_FindServersResponse_init(&response);
-	__UA_Client_Service(client, &request,
-			&UA_TYPES[UA_TYPES_FINDSERVERSREQUEST], &response,
-			&UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
+    /* Send the request */
+    UA_FindServersResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
 
-	/* Process the response */
-	UA_StatusCode retval = response.responseHeader.serviceResult;
-	if (retval == UA_STATUSCODE_GOOD) {
-		*registeredServersSize = response.serversSize;
-		*registeredServers = response.servers;
-		response.serversSize = 0;
-		response.servers = NULL;
-	} else {
-		*registeredServersSize = 0;
-		*registeredServers = NULL;
-	}
+    /* Process the response */
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        *registeredServersSize = response.serversSize;
+        *registeredServers = response.servers;
+        response.serversSize = 0;
+        response.servers = NULL;
+    } else {
+        *registeredServersSize = 0;
+        *registeredServers = NULL;
+    }
 
-	/* Clean up */
-	UA_FindServersResponse_deleteMembers(&response);
-	if (!connected)
-		UA_Client_disconnect(client);
-	return retval;
+    /* Clean up */
+    UA_FindServersResponse_deleteMembers(&response);
+    if(!connected)
+        UA_Client_disconnect(client);
+    return retval;
 }
 
-UA_StatusCode UA_Client_findServersOnNetwork(UA_Client *client,
-		const char *serverUrl, UA_UInt32 startingRecordId,
-		UA_UInt32 maxRecordsToReturn, size_t serverCapabilityFilterSize,
-		UA_String *serverCapabilityFilter, size_t *serverOnNetworkSize,
-		UA_ServerOnNetwork **serverOnNetwork) {
-	UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
-	/* Client is already connected to a different server */
-	if (connected
-			&& strncmp((const char*) client->endpointUrl.data, serverUrl,
-					client->endpointUrl.length) != 0) {
-		return UA_STATUSCODE_BADINVALIDARGUMENT;
-	}
+UA_StatusCode
+UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
+                               UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
+                               size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
+                               size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork) {
+    UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
+    /* Client is already connected to a different server */
+    if(connected && strncmp((const char*)client->endpointUrl.data, serverUrl,
+                            client->endpointUrl.length) != 0) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
-	if (!connected) {
-		UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl,
-				UA_TRUE, UA_FALSE);
-		if (retval != UA_STATUSCODE_GOOD)
-			return retval;
-	}
+    if(!connected) {
+        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, UA_TRUE, UA_FALSE);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
-	/* Prepare the request */
-	UA_FindServersOnNetworkRequest request;
-	UA_FindServersOnNetworkRequest_init(&request);
-	request.startingRecordId = startingRecordId;
-	request.maxRecordsToReturn = maxRecordsToReturn;
-	request.serverCapabilityFilterSize = serverCapabilityFilterSize;
-	request.serverCapabilityFilter = serverCapabilityFilter;
+    /* Prepare the request */
+    UA_FindServersOnNetworkRequest request;
+    UA_FindServersOnNetworkRequest_init(&request);
+    request.startingRecordId = startingRecordId;
+    request.maxRecordsToReturn = maxRecordsToReturn;
+    request.serverCapabilityFilterSize = serverCapabilityFilterSize;
+    request.serverCapabilityFilter = serverCapabilityFilter;
 
-	/* Send the request */
-	UA_FindServersOnNetworkResponse response;
-	UA_FindServersOnNetworkResponse_init(&response);
-	__UA_Client_Service(client, &request,
-			&UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST], &response,
-			&UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
+    /* Send the request */
+    UA_FindServersOnNetworkResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
 
-	/* Process the response */
-	UA_StatusCode retval = response.responseHeader.serviceResult;
-	if (retval == UA_STATUSCODE_GOOD) {
-		*serverOnNetworkSize = response.serversSize;
-		*serverOnNetwork = response.servers;
-		response.serversSize = 0;
-		response.servers = NULL;
-	} else {
-		*serverOnNetworkSize = 0;
-		*serverOnNetwork = NULL;
-	}
+    /* Process the response */
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        *serverOnNetworkSize = response.serversSize;
+        *serverOnNetwork = response.servers;
+        response.serversSize = 0;
+        response.servers = NULL;
+    } else {
+        *serverOnNetworkSize = 0;
+        *serverOnNetwork = NULL;
+    }
 
-	/* Clean up */
-	UA_FindServersOnNetworkResponse_deleteMembers(&response);
-	if (!connected)
-		UA_Client_disconnect(client);
-	return retval;
+    /* Clean up */
+    UA_FindServersOnNetworkResponse_deleteMembers(&response);
+    if(!connected)
+        UA_Client_disconnect(client);
+    return retval;
 }

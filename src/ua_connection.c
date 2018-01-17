@@ -192,7 +192,7 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
                                     UA_Connection_processChunk processCallback,
                                     UA_UInt32 timeout) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate = now + (timeout * UA_MSEC_TO_DATETIME);
+    UA_DateTime maxDate = now + (timeout * UA_DATETIME_MSEC);
 
     struct completeChunkTrampolineData data;
     data.called = false;
@@ -223,8 +223,8 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         /* round always to upper value to avoid timeout to be set to 0
-         * if (maxDate - now) < (UA_MSEC_TO_DATETIME/2) */
-        timeout = (UA_UInt32)(((maxDate - now) + (UA_MSEC_TO_DATETIME - 1)) / UA_MSEC_TO_DATETIME);
+         * if (maxDate - now) < (UA_DATETIME_MSEC/2) */
+        timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
     }
     return retval;
 }

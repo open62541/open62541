@@ -521,7 +521,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
     // registration is timed out if lastSeen is older than 60 minutes (default
     // value, can be modified by user).
     if(server->config.discoveryCleanupTimeout)
-        timedOut -= server->config.discoveryCleanupTimeout*UA_SEC_TO_DATETIME;
+        timedOut -= server->config.discoveryCleanupTimeout*UA_DATETIME_SEC;
 
     registeredServer_list_entry* current, *temp;
     LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {

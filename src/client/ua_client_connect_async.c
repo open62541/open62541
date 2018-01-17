@@ -156,7 +156,7 @@ static UA_StatusCode processDecodedOPNResponse(void *application,
 	 * standard */
 	client->nextChannelRenewal = UA_DateTime_nowMonotonic()
 			+ (UA_DateTime) (response.securityToken.revisedLifetime
-					* (UA_Double) UA_MSEC_TO_DATETIME * 0.75);
+					* (UA_Double) UA_DATETIME_MSEC * 0.75);
 
 	/* Replace the token and nonce */
 	UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
