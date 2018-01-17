@@ -183,6 +183,10 @@ add_executable(check_client_subscriptions client/check_client_subscriptions.c $<
 target_link_libraries(check_client_subscriptions ${LIBS})
 add_test_valgrind(client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
 
+add_executable(check_client_subscriptions_deprecated client/check_client_subscriptions_deprecated.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_subscriptions_deprecated ${LIBS})
+add_test_valgrind(client_subscriptions_deprecated ${TESTS_BINARY_DIR}/check_client_subscriptions_deprecated)
+
 add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})
 add_test_valgrind(client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)

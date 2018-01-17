@@ -214,6 +214,14 @@ START_TEST(Client_reconnect) {
 }
 END_TEST
 
+START_TEST(Client_delete_without_connect) {
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    UA_Client *client = UA_Client_new(clientConfig);
+    ck_assert_msg(client != NULL);
+    UA_Client_delete(client);
+}
+END_TEST
+
 // TODO ACTIVATE THE TESTS WHEN SESSION RECOVERY IS GOOD
 #ifdef UA_SESSION_RECOVERY
 
@@ -249,14 +257,6 @@ START_TEST(Client_activateSessionClose) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     ck_assert_uint_eq(server->sessionManager.currentSessionCount, 0);
-}
-END_TEST
-
-START_TEST(Client_delete_without_connect) {
-    UA_ClientConfig clientConfig = UA_ClientConfig_default;
-    UA_Client *client = UA_Client_new(clientConfig);
-    ck_assert_msg(client != NULL);
-    UA_Client_delete(client);
 }
 END_TEST
 
@@ -314,6 +314,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
+    tcase_add_test(tc_client, Client_delete_without_connect);
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);

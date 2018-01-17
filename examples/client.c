@@ -94,7 +94,8 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_UInt32 subId = 0;
-    UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                  NULL, NULL, NULL, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     /* Add a MonitoredItem */
@@ -150,7 +151,7 @@ int main(int argc, char *argv[]) {
     /* Take another look at the.answer */
     UA_Client_runAsync(client, 100);
     /* Delete the subscription */
-    if(!UA_Client_Subscriptions_remove(client, subId))
+    if(!UA_Client_Subscription_delete(client, subId))
         printf("Subscription removed\n");
 #endif
 

@@ -84,10 +84,6 @@ typedef struct UA_ClientConfig {
 
     void *clientContext;
 
-    /* PublishResponse Timeout for background async process in ms */
-    /* 0 = time out disabled                                      */
-    UA_UInt32 backgroundPublishResponseTimeout;
-
     /* number of PublishResponse standing in the sever */
     /* 0 = background task disabled                    */
     UA_UInt16 outStandingPublishRequests;
@@ -373,74 +369,6 @@ UA_Client_Service_queryNext(UA_Client *client,
     return response;
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-/**
- * MonitoredItem Service Set
- * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
-static UA_INLINE UA_CreateMonitoredItemsResponse
-UA_Client_Service_createMonitoredItems(UA_Client *client,
-                                 const UA_CreateMonitoredItemsRequest request) {
-    UA_CreateMonitoredItemsResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_DeleteMonitoredItemsResponse
-UA_Client_Service_deleteMonitoredItems(UA_Client *client,
-                                 const UA_DeleteMonitoredItemsRequest request) {
-    UA_DeleteMonitoredItemsResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE]);
-    return response;
-}
-
-/**
- * Subscription Service Set
- * ^^^^^^^^^^^^^^^^^^^^^^^^ */
-static UA_INLINE UA_CreateSubscriptionResponse
-UA_Client_Service_createSubscription(UA_Client *client,
-                                   const UA_CreateSubscriptionRequest request) {
-    UA_CreateSubscriptionResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_ModifySubscriptionResponse
-UA_Client_Service_modifySubscription(UA_Client *client,
-                                   const UA_ModifySubscriptionRequest request) {
-    UA_ModifySubscriptionResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_DeleteSubscriptionsResponse
-UA_Client_Service_deleteSubscriptions(UA_Client *client,
-                                  const UA_DeleteSubscriptionsRequest request) {
-    UA_DeleteSubscriptionsResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_PublishResponse
-UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
-    UA_PublishResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-    return response;
-}
-
-#endif
-
 /**
  * .. _client-async-services:
  *
@@ -524,7 +452,8 @@ UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request
 /**
  * .. toctree::
  *
- *    client_highlevel */
+ *    client_highlevel
+ *    client_subscriptions */
 
 #ifdef __cplusplus
 } // extern "C"

@@ -23,17 +23,17 @@
  /* Set client state */
  /********************/
 void
-setClientState(UA_Client *client, UA_ClientState state)
-{
+setClientState(UA_Client *client, UA_ClientState state) {
     if(client->state != state) {
         client->state = state;
         if(client->config.stateCallback)
             client->config.stateCallback(client, client->state);
     }
 }
- /***********************/
- /* Open the Connection */
- /***********************/
+
+/***********************/
+/* Open the Connection */
+/***********************/
 
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
@@ -450,7 +450,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     UA_NodeId_deleteMembers(&client->authenticationToken);
 #endif /* UA_SESSION_RECOVERY */
 
-
     /* Get Endpoints */
     if(endpointsHandshake) {
         retval = getEndpoints(client);
@@ -558,6 +557,12 @@ UA_Client_disconnect(UA_Client *client) {
     if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+        /* We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
+
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
 }
@@ -572,6 +577,12 @@ UA_Client_close(UA_Client *client) {
     /* Close the TCP connection */
     if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+        /* We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
 
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
