@@ -76,17 +76,16 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
-    UA_NodeClass referenceTypeNodeClass = referenceType->nodeClass;
-    UA_Boolean referenceTypeIsAbstract = referenceType->isAbstract;
-    UA_Nodestore_release(server, (const UA_Node*)referenceType);
-
     /* Check if the referencetype is a reference type node */
-    if(referenceTypeNodeClass != UA_NODECLASS_REFERENCETYPE) {
+    if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Reference type to the parent invalid");
+		UA_Nodestore_release(server, (const UA_Node*)referenceType);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
+	UA_Boolean referenceTypeIsAbstract = referenceType->isAbstract;
+	UA_Nodestore_release(server, (const UA_Node*)referenceType);
     /* Check that the reference type is not abstract */
     if(referenceTypeIsAbstract == true) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
