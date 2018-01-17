@@ -14,7 +14,7 @@ import re
 import xml.etree.ElementTree as etree
 import itertools
 import argparse
-from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
+from nodeset_compiler.opaque_type_mapping import opaque_type_mapping, get_base_type_for_opaque
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
@@ -416,7 +416,6 @@ outname = args.outfile.split("/")[-1]
 inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
 
 
-
 ################
 # Create Types #
 ################
@@ -455,7 +454,7 @@ def printe(string):
 def printc(string):
     print(string, end='\n', file=fc)
 
-def iter_types(v):
+def iter_types(v, opaqueType):
     l = None
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
@@ -465,8 +464,13 @@ def iter_types(v):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
+    if opaqueType:
+        # only opaque type
+        l = list(filter(lambda t: t.name in opaque_type_mapping, l))
+    else:
+        # remove opaque type
+        l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
     return l
-
 ################
 # Print Header #
 ################
@@ -485,7 +489,8 @@ extern "C" {
 #include "ua_types.h"
 ''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
 
-filtered_types = iter_types(types)
+filtered_types = iter_types(types, False)
+filtered_opaque_types = iter_types(types, True)
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
@@ -506,6 +511,18 @@ for t in filtered_types:
         printh(t.typedef_h() + "\n")
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
     i += 1
+
+# Generate alias for opaque types
+for t in filtered_opaque_types:
+    printh("\n/**\n * " +  t.name)
+    printh(" * " + "^" * len(t.name))
+    if t.description == "":
+        printh(" */")
+    else:
+        printh(" * " + t.description + " */")
+    if type(t) != BuiltinType:
+        printh(t.typedef_h() + "\n")
+    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
 
 printh('''
 #ifdef __cplusplus

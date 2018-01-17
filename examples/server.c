@@ -191,6 +191,8 @@ main(int argc, char **argv) {
     myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer");
     myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    myVar.valueRank = -1;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
@@ -209,6 +211,8 @@ main(int argc, char **argv) {
     v_attr.description = UA_LOCALIZEDTEXT("en-US", "current time");
     v_attr.displayName = UA_LOCALIZEDTEXT("en-US", "current time");
     v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    v_attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
+    v_attr.valueRank = -1;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
