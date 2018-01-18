@@ -9,6 +9,7 @@
 import os
 import re
 import io
+import sys
 
 from git import *
 from shutil import move
@@ -18,12 +19,18 @@ try:
 except ImportError:
     from io import StringIO
 
+if sys.version_info[0] >= 3:
+    # strings are already parsed to unicode
+    def unicode(s):
+        return s
 
-# TODO add more authors! Only use lower case name
+
+# only use lower case name
 authorFullName = {
-    'pro': 'Stefan Profanter, fortiss GmbH',
-    'jpfr': 'Julius Pfrommer'
+    'staldert': 'Thomas Stalder'
 }
+
+skipNames = ['=', 'open62541']
 
 def compactYears(yearList):
 
@@ -31,7 +38,8 @@ def compactYears(yearList):
     last = None
     result = []
 
-    for y in yearList:
+    for yStr in yearList:
+        y = int(yStr)
         if last is None:
             current = y
             last = y
@@ -57,6 +65,7 @@ def compactYears(yearList):
 
     return ", ".join(result)
 
+fileAuthorStats = dict()
 
 def insertCopyrightAuthors(file, authorsList):
     copyrightEntries = list()
@@ -78,7 +87,7 @@ def insertCopyrightAuthors(file, authorsList):
                     tempFile.write(unicode(" *    {}\n").format(e))
                 tempFile.write(unicode(" */\n"))
                 copyrightAdded = True
-
+    tempFile.close()
     os.unlink(file)
     move(tmpName, file)
 
@@ -86,27 +95,26 @@ def updateCopyright(repo, file):
     print("Checking file {}".format(file))
 
     # Build the info on how many lines every author commited every year
-    authorYearMap = dict()
-    for commit, lines in repo.blame('HEAD', file):
-        authorName = unicode(commit.author.name)
+    relativeFilePath = file[len(repo.working_dir)+1:].replace("\\","/")
 
-        if not authorName in authorYearMap:
-            authorYearMap[authorName] = {}
+    if not relativeFilePath in fileAuthorStats:
+        print("File not found in list: {}".format(relativeFilePath))
+        return
 
-        commitYear = commit.committed_datetime.year
-
-        if not commitYear in authorYearMap[authorName]:
-            authorYearMap[authorName][commitYear] = len(lines)
-        else:
-            authorYearMap[authorName][commitYear] += len(lines)
+    stats = fileAuthorStats[relativeFilePath]
 
     # Now create a sorted list and filter out small contributions
     authorList = list()
 
-    for author in authorYearMap:
+    for authorStr in stats:
+        if authorStr in skipNames:
+            continue
+
+        author = unicode(authorStr)
+
         authorYears = list()
-        for year in authorYearMap[author]:
-            if  authorYearMap[author][year] < 10:
+        for year in stats[author]:
+            if stats[author][year] < 10:
                 # ignore contributions for this year if less than 10 lines changed
                 continue
             authorYears.append(year)
@@ -115,7 +123,7 @@ def updateCopyright(repo, file):
         authorYears.sort()
 
         if author.lower() in authorFullName:
-            authorName = authorFullName[author.name.lower()]
+            authorName = authorFullName[author.lower()]
         else:
             authorName = author
 
@@ -127,13 +135,73 @@ def updateCopyright(repo, file):
 
     # Sort the authors list first by year, and then by name
 
-    def authorCompare(item1, item2):
-        if item1['years'][0] == item2['years'][0]:
-            return 0 if item1['author'] == item2['author'] else -1 if item1['author'] < item2['author'] else 1
-        return item1['years'][0] - item2['years'][0]
-
-    authorListSorted = sorted(authorList, cmp=lambda x,y: authorCompare(x,y))
+    authorListSorted = sorted(authorList, key=lambda a: (a['years'], a['author']))
     insertCopyrightAuthors(file, authorListSorted)
+
+
+# This is required since some commits use different author names for the same person
+assumeSameAuthor = {
+    'Mark': 'Mark Giraud',
+    'Infinity95': 'Mark Giraud',
+    'janitza-thbe': 'Thomas Bender',
+    'Stasik0': 'Sten Grüner',
+    'Sten': 'Sten Grüner',
+    'Frank Meerkoetter': 'Frank Meerkötter',
+    'ichrispa': 'Chris Iatrou',
+    'Chris Paul Iatrou': 'Chris Iatrou',
+    'Torben-D': 'TorbenD',
+    'FlorianPalm': 'Florian Palm',
+}
+
+def buildFileStats(repo):
+
+    fileRenameMap = dict()
+    renamePattern = re.compile(r"(.*){(.*) => (.*)}(.*)")
+
+    cnt = 0
+    for commit in repo.iter_commits():
+        cnt += 1
+
+    curr = 0
+    for commit in repo.iter_commits():
+        curr += 1
+        print("Checking commit {}/{}  ->   {}".format(curr, cnt, commit.hexsha))
+
+        for objpath, stats in commit.stats.files.items():
+
+            match = renamePattern.match(objpath)
+
+            if match:
+                # the file was renamed, store the rename to follow up later
+                oldFile = (match.group(1) + match.group(2) + match.group(4)).replace("//", "/")
+                newFile = (match.group(1) + match.group(3) + match.group(4)).replace("//", "/")
+
+                while newFile in fileRenameMap:
+                    newFile = fileRenameMap[newFile]
+
+                if oldFile != newFile:
+                    fileRenameMap[oldFile] = newFile
+            else:
+                newFile = fileRenameMap[objpath] if objpath in fileRenameMap else objpath
+
+            if stats['insertions'] > 0:
+                if not newFile in fileAuthorStats:
+                    fileAuthorStats[newFile] = dict()
+
+                authorName = commit.author.name
+                if authorName in assumeSameAuthor:
+                    authorName = assumeSameAuthor[authorName]
+
+                if not authorName in fileAuthorStats[newFile]:
+                    fileAuthorStats[newFile][authorName] = dict()
+
+                if not commit.committed_datetime.year in fileAuthorStats[newFile][authorName]:
+                    fileAuthorStats[newFile][authorName][commit.committed_datetime.year] = 0
+
+                fileAuthorStats[newFile][authorName][commit.committed_datetime.year] += stats['insertions']
+
+
+
 
 def walkFiles(repo, folder, pattern):
     patternCompiled = re.compile(pattern)
@@ -147,6 +215,8 @@ if __name__ == '__main__':
     baseDir = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir))
     repo = Repo(baseDir)
     assert not repo.bare
+
+    buildFileStats(repo)
 
     dirs = ['src', 'plugins', 'include']
 
