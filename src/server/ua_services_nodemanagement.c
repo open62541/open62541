@@ -220,8 +220,10 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
 
     const UA_VariableTypeNode *vt = (const UA_VariableTypeNode*)
         UA_Nodestore_get(server, typeDefinition);
-    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE)
+    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE) {
+        UA_Nodestore_release(server, (const UA_Node*)vt);
         return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
         
     /* If no value is set, see if the vt provides one and copy it. This needs to
      * be done before copying the datatype from the vt, as setting the datatype
