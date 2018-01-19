@@ -28,8 +28,8 @@ UA_Session adminSession = {
     UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
     {NULL}, /* .continuationPoints */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    0, /* .lastSubscriptionID */
-    0, /* .lastSeenSubscriptionID */
+    0, /* .lastSubscriptionId */
+    0, /* .lastSeenSubscriptionId */
     {NULL}, /* .serverSubscriptions */
     {NULL, NULL}, /* .responseQueue */
     0, /* numSubscriptions */
@@ -101,8 +101,8 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
 
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_UInt32 subscriptionID) {
-    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);
+                              UA_UInt32 subscriptionId) {
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -125,17 +125,17 @@ UA_Session_getNumSubscriptions( UA_Session *session ) {
 }
 
 UA_Subscription *
-UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
+UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
     LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionID)
+        if(sub->subscriptionId == subscriptionId)
             break;
     }
     return sub;
 }
 
-UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {
-    return ++(session->lastSubscriptionID);
+UA_UInt32 UA_Session_getUniqueSubscriptionId(UA_Session *session) {
+    return ++(session->lastSubscriptionId);
 }
 
 UA_UInt32
