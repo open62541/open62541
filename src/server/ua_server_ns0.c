@@ -480,7 +480,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
-    UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
+    UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!subscription)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
