@@ -25,7 +25,6 @@
 
 #include "open62541.h"
 #include <signal.h>
-
 #ifdef _WIN32
 # include <windows.h>
 # define UA_sleep_ms(X) Sleep(X)
@@ -33,6 +32,8 @@
 # include <unistd.h>
 # define UA_sleep_ms(X) usleep(X * 1000)
 #endif
+
+#define ASYNC
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
@@ -51,6 +52,13 @@ handler_currentTimeChanged(UA_UInt32 monId, UA_DataValue *value, void *context) 
         UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
                         dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
     }
+}
+
+static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
+		void *status) {
+	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
+		*(UA_Boolean *) connected = true;
+	UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Async connect returned with status code %s\n",UA_StatusCode_name(*(UA_StatusCode *) status));
 }
 
 static void
@@ -102,13 +110,17 @@ int main(void) {
     /* Set stateCallback */
     config.stateCallback = stateCallback;
     UA_Client *client = UA_Client_new(config);
-
-    /* Endless loop SendPublishRequest */
+    UA_Boolean connected = false;
+#ifdef ASYNC
+    UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
+#endif
     while (running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
         /* Alternatively you can also use UA_Client_getState to get the current state */
-        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+#ifndef ASYNC
+    	UA_StatusCode retval=UA_Client_connect(client, "opc.tcp://localhost:4840");
+#endif
         if (retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_USERLAND, "Not connected. Retrying to connect in 1 second");
             /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
@@ -116,9 +128,12 @@ int main(void) {
             UA_sleep_ms(1000);
             continue;
         }
-
         UA_Client_Subscriptions_manuallySendPublishRequest(client);
-        UA_sleep_ms(1000);
+        /*remove this line if sync connect is used*/
+#ifdef ASYNC
+        UA_Client_run_iterate(client,&retval);
+#endif
+        UA_sleep_ms(500);
     };
 
     /* Clean up */

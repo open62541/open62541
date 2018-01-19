@@ -238,6 +238,9 @@ UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *applicat
 	UA_ByteString packet = UA_BYTESTRING_NULL;
 	retval = connection->recv(connection, &packet, 1);
 
+	if(retval != UA_STATUSCODE_GOOD)
+		return retval;
+
 	/* Try to process one complete chunk */
 	retval = UA_Connection_processChunks(connection, &data,
 										 completeChunkTrampoline, &packet);

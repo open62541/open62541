@@ -1,19 +1,39 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
 #include <stdio.h>
 #include "open62541.h"
-#include <unistd.h>
+
+#ifdef _WIN32
+# include <windows.h>
+# define UA_sleep_ms(X) Sleep(X)
+#else
+# include <unistd.h>
+# define UA_sleep_ms(X) usleep(X * 1000)
+#endif
+
 
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
-//static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
-//		void *status) {
-//	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
-//		*(UA_Boolean *) connected = true;
-//	printf("Async connect returned with status code %s\n",
-//			UA_StatusCode_name(*(UA_StatusCode *) status));
-//}
+static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
+		void *status) {
+	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
+		*(UA_Boolean *) connected = true;
+	printf("Async connect returned with status code %s\n",
+			UA_StatusCode_name(*(UA_StatusCode *) status));
+}
 
 /*raw service callbacks*/
 static void valueWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
@@ -138,9 +158,9 @@ int main(int argc, char *argv[]) {
 	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-//	/*connected gets updated when client is connected*/
-//	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-//			&connected);
+	/*connected gets updated when client is connected*/
+	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
+			&connected);
 
 	UA_StatusCode retval;
 	/*Demo: raw services*/
@@ -148,10 +168,9 @@ int main(int argc, char *argv[]) {
 	/*what happens if client tries to send request before connected?*/
 	UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed, &userdata,
 			&reqId);
-	connected = 1;
+	//TODO: find out the reason for the delay of connection
 	do {
 		if (connected) {
-			UA_Client_connect(client, "opc.tcp://localhost:4840");
 			/*if not connected requests are not sent*/
 			UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed,
 					&userdata, &reqId);
@@ -164,9 +183,9 @@ int main(int argc, char *argv[]) {
 		}
 		/*requests are processed*/
 
-		UA_Client_run_iterate(client, true, &retval);
-		if (retval != UA_STATUSCODE_GOOD)
-			break;
+		UA_Client_run_iterate(client, &retval);
+		UA_sleep_ms(100);
+
 	} while (reqId < 10);
 
 	/*Demo: high-level functions*/
@@ -204,12 +223,11 @@ int main(int argc, char *argv[]) {
 		UA_Cient_translateBrowsePathsToNodeIds_async(client, paths, ids,
 		pathSize, translateCalled, NULL, &reqId);
 
+		/*how often UA_Client_run_iterate is called depends on the number of request sent*/
+		UA_Client_run_iterate(client, &retval);
+		UA_Client_run_iterate(client, &retval);
 	}
-
-	/*process high-level requests*/
-	for (int i = 0; i < 20; i++)
-		UA_Client_run_iterate(client, true, &retval);
-
+	UA_Client_run_iterate(client, &retval);
 	UA_Variant_delete(myVariant);
 	/*async disconnect kills unprocessed requests*/
 	UA_Client_disconnect_async(client, &reqId);

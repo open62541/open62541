@@ -158,31 +158,31 @@ void UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
 
 #ifndef UA_ENABLE_MULTITHREADING
 
-typedef struct UA_DelayedCallback {
-	SLIST_ENTRY(UA_DelayedCallback)
+typedef struct UA_DelayedClientCallback {
+	SLIST_ENTRY(UA_DelayedClientCallback)
 	next;
 	UA_ClientCallback callback;
 	void *data;
-} UA_DelayedCallback;
+} UA_DelayedClientCallback;
 
 UA_StatusCode UA_Client_delayedCallback(UA_Client *client,
 		UA_ClientCallback callback, void *data) {
-	UA_DelayedCallback *dc = (UA_DelayedCallback*) UA_malloc(
-			sizeof(UA_DelayedCallback));
+	UA_DelayedClientCallback *dc = (UA_DelayedClientCallback*) UA_malloc(
+			sizeof(UA_DelayedClientCallback));
 	if (!dc)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 
 	dc->callback = callback;
 	dc->data = data;
-	SLIST_INSERT_HEAD(&client->delayedCallbacks, dc, next);
+	SLIST_INSERT_HEAD(&client->delayedClientCallbacks, dc, next);
 	return UA_STATUSCODE_GOOD;
 }
 
-static void processDelayedCallbacks(UA_Client *client) {
-	UA_DelayedCallback *dc, *dc_tmp;
-	SLIST_FOREACH_SAFE(dc, &client->delayedCallbacks, next, dc_tmp)
+static void processDelayedClientCallbacks(UA_Client *client) {
+	UA_DelayedClientCallback *dc, *dc_tmp;
+	SLIST_FOREACH_SAFE(dc, &client->delayedClientCallbacks, next, dc_tmp)
 	{
-		SLIST_REMOVE(&client->delayedCallbacks, dc, UA_DelayedCallback, next);
+		SLIST_REMOVE(&client->delayedClientCallbacks, dc, UA_DelayedClientCallback, next);
 		dc->callback(client, dc->data);
 		UA_free(dc);
 	}
@@ -271,7 +271,10 @@ processDelayedCallback(A_Client *client, WorkerCallback *dc) {
  * Stop: Stop workers, finish all callbacks, stop the network layer,
  *       clean up */
 
-UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_StatusCode *retval) {
+UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_StatusCode *retval) {
+
+	if (client->config.stateCallback)
+	            client->config.stateCallback(client, client->state);
 
 	/* Process repeated work */
 	UA_DateTime now = UA_DateTime_nowMonotonic();
@@ -281,9 +284,6 @@ UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_S
 	if (nextRepeated > latest)
 		nextRepeated = latest;
 
-	UA_UInt16 timeout = 0;
-	if (waitInternal)
-		timeout = (UA_UInt16) ((nextRepeated - now) / UA_DATETIME_MSEC);
 	UA_ClientState cs = UA_Client_getState(client);
 	*retval = UA_Client_connect_iterate(client);
 
@@ -300,7 +300,7 @@ UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_S
 #ifndef UA_ENABLE_MULTITHREADING
 	/* Process delayed callbacks when all callbacks and
 	 * network events are done */
-	processDelayedCallbacks(client);
+	processDelayedClientCallbacks(client);
 #endif
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
@@ -320,7 +320,7 @@ UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_S
 #endif
 
 	now = UA_DateTime_nowMonotonic();
-	timeout = 0;
+	UA_UInt16 timeout = 0;
 	if (nextRepeated > now)
 		timeout = (UA_UInt16) ((nextRepeated - now) / UA_DATETIME_MSEC);
 	return timeout;

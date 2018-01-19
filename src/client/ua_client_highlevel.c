@@ -8,44 +8,45 @@
 #include "ua_client_highlevel_async.h"
 #include "ua_util.h"
 
-UA_StatusCode UA_Client_NamespaceGetIndex(UA_Client *client,
-		UA_String *namespaceUri, UA_UInt16 *namespaceIndex) {
-	UA_ReadRequest request;
-	UA_ReadRequest_init(&request);
-	UA_ReadValueId id;
-	UA_ReadValueId_init(&id);
-	id.attributeId = UA_ATTRIBUTEID_VALUE;
-	id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
-	request.nodesToRead = &id;
-	request.nodesToReadSize = 1;
+UA_StatusCode
+UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
+                            UA_UInt16 *namespaceIndex) {
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    UA_ReadValueId id;
+    UA_ReadValueId_init(&id);
+    id.attributeId = UA_ATTRIBUTEID_VALUE;
+    id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+    request.nodesToRead = &id;
+    request.nodesToReadSize = 1;
 
-	UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
 
-	UA_StatusCode retval = UA_STATUSCODE_GOOD;
-	if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-		retval = response.responseHeader.serviceResult;
-	else if (response.resultsSize != 1 || !response.results[0].hasValue)
-		retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
-	else if (response.results[0].value.type != &UA_TYPES[UA_TYPES_STRING])
-		retval = UA_STATUSCODE_BADTYPEMISMATCH;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        retval = response.responseHeader.serviceResult;
+    else if(response.resultsSize != 1 || !response.results[0].hasValue)
+        retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+    else if(response.results[0].value.type != &UA_TYPES[UA_TYPES_STRING])
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;
 
-	if (retval != UA_STATUSCODE_GOOD) {
-		UA_ReadResponse_deleteMembers(&response);
-		return retval;
-	}
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ReadResponse_deleteMembers(&response);
+        return retval;
+    }
 
-	retval = UA_STATUSCODE_BADNOTFOUND;
-	UA_String *ns = (UA_String *) response.results[0].value.data;
-	for (size_t i = 0; i < response.results[0].value.arrayLength; ++i) {
-		if (UA_String_equal(namespaceUri, &ns[i])) {
-			*namespaceIndex = (UA_UInt16) i;
-			retval = UA_STATUSCODE_GOOD;
-			break;
-		}
-	}
+    retval = UA_STATUSCODE_BADNOTFOUND;
+    UA_String *ns = (UA_String *)response.results[0].value.data;
+    for(size_t i = 0; i < response.results[0].value.arrayLength; ++i) {
+        if(UA_String_equal(namespaceUri, &ns[i])) {
+            *namespaceIndex = (UA_UInt16)i;
+            retval = UA_STATUSCODE_GOOD;
+            break;
+        }
+    }
 
-	UA_ReadResponse_deleteMembers(&response);
-	return retval;
+    UA_ReadResponse_deleteMembers(&response);
+    return retval;
 }
 
 UA_StatusCode UA_Client_forEachChildNodeCall(UA_Client *client,

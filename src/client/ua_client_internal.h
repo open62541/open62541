@@ -129,7 +129,7 @@ struct UA_Client {
     LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
 
     /* Delayed callbacks */
-    SLIST_HEAD(DelayedCallbacksList, UA_DelayedCallback) delayedCallbacks;
+    SLIST_HEAD(DelayedCallbacksList, UA_DelayedClientCallback) delayedClientCallbacks;
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 monitoredItemHandles;

@@ -725,7 +725,7 @@ UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data) {
 		return UA_STATUSCODE_GOOD;
 	}
 	if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
-			* UA_DATETIME_MSEC > tcpConnection->timeout) {
+			> tcpConnection->timeout* UA_DATETIME_MSEC ) {
 		freeaddrinfo(tcpConnection->server);
 		// connection timeout
 		ClientNetworkLayerTCP_close(connection);
@@ -795,8 +795,8 @@ UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data) {
 		if (resultsize == 1) {
 			/* Windows does not have any getsockopt equivalent and it is not needed there */
 #ifdef _WIN32
-			connection->sockfd = clientsocket;
-			return = true;
+			connection->sockfd = clientsockfd;
+			return UA_STATUSCODE_GOOD;
 #else
 			OPTVAL_TYPE so_error;
 			socklen_t len = sizeof so_error;
