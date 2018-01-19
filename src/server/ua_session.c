@@ -3,13 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_session.h"
-#include "ua_types_generated_handling.h"
-#include "ua_util.h"
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "server/ua_subscription.h"
 #endif
 
 UA_Session adminSession = {
+    {{NULL, NULL}, /* .pointers */
+     {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
+     NULL,}, /* .channel */
     {{0, NULL},{0, NULL},
      {{0, NULL},{0, NULL}},
      UA_APPLICATIONTYPE_CLIENT,
@@ -18,14 +19,12 @@ UA_Session adminSession = {
     {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"}, /* .sessionName */
     false, /* .activated */
     NULL, /* .sessionHandle */
-    {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
     {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .sessionId */
     UA_UINT32_MAX, /* .maxRequestMessageSize */
     UA_UINT32_MAX, /* .maxResponseMessageSize */
     (UA_Double)UA_INT64_MAX, /* .timeout */
     UA_INT64_MAX, /* .validTill */
     {0, NULL},
-    NULL, /* .channel */
     UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
     {NULL}, /* .continuationPoints */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -39,32 +38,17 @@ UA_Session adminSession = {
 };
 
 void UA_Session_init(UA_Session *session) {
-    UA_ApplicationDescription_init(&session->clientDescription);
-    session->activated = false;
-    UA_NodeId_init(&session->authenticationToken);
-    UA_NodeId_init(&session->sessionId);
-    UA_String_init(&session->sessionName);
-    UA_ByteString_init(&session->serverNonce);
-    session->maxRequestMessageSize  = 0;
-    session->maxResponseMessageSize = 0;
-    session->timeout = 0;
-    UA_DateTime_init(&session->validTill);
-    session->channel = NULL;
+    memset(session, 0, sizeof(UA_Session));
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
-    LIST_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    LIST_INIT(&session->serverSubscriptions);
-    session->lastSubscriptionID = 0;
-    session->lastSeenSubscriptionID = 0;
     SIMPLEQ_INIT(&session->responseQueue);
-    session->numSubscriptions = 0;
-    session->numPublishReq = 0;
 #endif
 }
 
 void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
+    UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
-    UA_NodeId_deleteMembers(&session->authenticationToken);
+    UA_NodeId_deleteMembers(&session->header.authenticationToken);
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
     UA_ByteString_deleteMembers(&session->serverNonce);
@@ -75,8 +59,6 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
         UA_BrowseDescription_deleteMembers(&cp->browseDescription);
         UA_free(cp);
     }
-    if(session->channel)
-        UA_SecureChannel_detachSession(session->channel, session);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *currents, *temps;
     LIST_FOREACH_SAFE(currents, &session->serverSubscriptions, listEntry, temps) {
@@ -91,6 +73,18 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
         UA_free(entry);
     }
 #endif
+}
+
+void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
+    LIST_INSERT_HEAD(&channel->sessions, &session->header, pointers);
+    session->header.channel = channel;
+}
+
+void UA_Session_detachFromSecureChannel(UA_Session *session) {
+    if(!session->header.channel)
+        return;
+    session->header.channel = NULL;
+    LIST_REMOVE(&session->header, pointers);
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {

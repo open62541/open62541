@@ -160,18 +160,23 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 
 UA_Server *
 UA_Server_new(const UA_ServerConfig *config) {
+    /* A config is required */
+    if(!config)
+        return NULL;
+
+    /* At least one endpoint has to be configured */
+    if(config->endpointsSize == 0) {
+        UA_LOG_FATAL(config->logger, UA_LOGCATEGORY_SERVER,
+                     "There has to be at least one endpoint.");
+        return NULL;
+    }
+
+    /* Allocate the server */
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
 
-    if(config->endpointsSize == 0) {
-        UA_LOG_FATAL(config->logger,
-                     UA_LOGCATEGORY_SERVER,
-                     "There has to be at least one endpoint.");
-        UA_free(server);
-        return NULL;
-    }
-
+    /* Set the config */
     server->config = *config;
 
     /* Init start time to zero, the actual start time will be sampled in
@@ -244,10 +249,10 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     /* Initialize namespace 0*/
     UA_StatusCode retVal = UA_Server_initNS0(server);
-    if (retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(config->logger,
-                     UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 failed with %s. See previous outputs for any error messages.",
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logger, UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 failed with %s. "
+                     "See previous outputs for any error messages.",
                      UA_StatusCode_name(retVal));
         UA_Server_delete(server);
         return NULL;

@@ -15,7 +15,6 @@ extern "C" {
 #include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
-#include "ua_util.h"
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
@@ -26,12 +25,18 @@ extern UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
 extern UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
 #endif
 
-struct UA_Session;
-typedef struct UA_Session UA_Session;
+/* The Session implementation differs between client and server. Still, it is
+ * expected that the Session structure begins with the SessionHeader. This is
+ * the interface that will be used by the SecureChannel. The lifecycle of
+ * Sessions is independent of the underlying SecureChannel. But every Session
+ * can be attached to only one SecureChannel. */
+struct UA_SessionHeader;
+typedef struct UA_SessionHeader UA_SessionHeader;
 
-struct SessionEntry {
-    LIST_ENTRY(SessionEntry) pointers;
-    UA_Session *session; // Just a pointer. The session is held in the session manager or the client
+struct UA_SessionHeader {
+    LIST_ENTRY(UA_SessionHeader) pointers;
+    UA_NodeId authenticationToken;
+    UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 };
 
 /* For chunked requests */
@@ -69,7 +74,7 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    LIST_HEAD(session_pointerlist, SessionEntry) sessions;
+    LIST_HEAD(session_pointerlist, UA_SessionHeader) sessions;
     LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
 };
 
@@ -80,35 +85,43 @@ UA_SecureChannel_init(UA_SecureChannel *channel,
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 /* Generates new keys and sets them in the channel context */
-UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel);
+UA_StatusCode
+UA_SecureChannel_generateNewKeys(UA_SecureChannel* channel);
 
-/* Wrapper function for generating nonces for the supplied channel.
+/* Wrapper function for generating nonces for the supplied channel. Uses the
+ * random generator of the channels security policy to allocate and generate a
+ * nonce with the specified length.
  *
- * Uses the random generator of the channels security policy to allocate
- * and generate a nonce with the specified length.
- *
- * \param channel the channel to use.
- * \param nonceLength the length of the nonce to be generated.
- * \param nonce will contain the nonce after being successfully called.
- */
-UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecureChannel *const channel,
-                                             const size_t nonceLength,
-                                             UA_ByteString *const nonce);
+ * @param channel the channel to use.
+ * @param nonceLength the length of the nonce to be generated.
+ * @param nonce will contain the nonce after being successfully called. */
+UA_StatusCode
+UA_SecureChannel_generateNonce(const UA_SecureChannel *channel,
+                               size_t nonceLength, UA_ByteString *nonce);
 
-void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session);
-void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session);
-UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *token);
-UA_StatusCode UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
+UA_SessionHeader *
+UA_SecureChannel_getSession(UA_SecureChannel *channel,
+                            const UA_NodeId *authenticationToken);
+
+UA_StatusCode
+UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 
 /**
  * Sending Messages
  * ---------------- */
 
 UA_StatusCode
+UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
+                                          const void *content, const UA_DataType *contentType);
+
+UA_StatusCode
 UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                       UA_MessageType messageType, void *payload,
                                       const UA_DataType *payloadType);
 
+/* The MessageContext is forwarded into the encoding layer so that we can send
+ * chunks before continuing to encode. This lets us reuse a fixed chunk-sized
+ * messages buffer. */
 typedef struct {
     UA_SecureChannel *channel;
     UA_UInt32 requestId;
@@ -146,10 +159,6 @@ UA_MessageContext_finish(UA_MessageContext *mc);
  * on a MessageContext that has already been cleaned up before. */
 void
 UA_MessageContext_abort(UA_MessageContext *mc);
-
-UA_StatusCode
-UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                          const void *content, const UA_DataType *contentType);
 
 /**
  * Process Received Chunks

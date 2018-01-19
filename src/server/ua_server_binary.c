@@ -447,7 +447,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     #endif
 
     /* Find the matching session */
-    session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
+    session = (UA_Session*)UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
     if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken))
         session = UA_SessionManager_getSessionByToken(&server->sessionManager,
                                                       &requestHeader->authenticationToken);
@@ -481,7 +481,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
         UA_Session_init(&anonymousSession);
         anonymousSession.sessionId = UA_NODEID_GUID(0, UA_GUID_NULL);
-        anonymousSession.channel = channel;
+        anonymousSession.header.channel = channel;
         session = &anonymousSession;
     }
 
@@ -491,14 +491,14 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                "Calling service %i on a non-activated session",
                                requestType->binaryEncodingId);
         UA_SessionManager_removeSession(&server->sessionManager,
-                                        &session->authenticationToken);
+                                        &session->header.authenticationToken);
         UA_deleteMembers(request, requestType);
         return sendServiceFault(channel, msg, requestPos, responseType,
                                 requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
 
     /* The session is bound to another channel */
-    if(session != &anonymousSession && session->channel != channel) {
+    if(session != &anonymousSession && session->header.channel != channel) {
         UA_LOG_WARNING_CHANNEL(server->config.logger, channel,
                                "Client tries to use a Session that is not "
                                "bound to this SecureChannel");
@@ -535,7 +535,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Assert's required for clang-analyzer */
     UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
-    UA_assert(mc.buf_end == &mc.messageBuffer.data[mc.messageBuffer.length]);
+    UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
     retval = UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)

@@ -917,6 +917,12 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
         v = &editableValue;
     }
 
+    /* Check that the type is an exact match and not only "compatible" */
+    if(!node->value.data.value.value.type || !v->type ||
+       !UA_NodeId_equal(&node->value.data.value.value.type->typeId,
+                        &v->type->typeId))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
     /* Write the value */
     UA_StatusCode retval = UA_Variant_setRangeCopy(&node->value.data.value.value,
                                                    v->data, v->arrayLength, *rangeptr);
@@ -959,10 +965,10 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     if(value->hasValue && value->value.type) {
         adjustValue(server, &adjustedValue.value, &node->dataType);
 
-        /* The value may be an extension object, especially the nodeset compiler uses
-         * extension objects to write variable values.
-         * If value is an extension object we check if the current node value is also an extension object.
-         */
+        /* The value may be an extension object, especially the nodeset compiler
+         * uses extension objects to write variable values. If value is an
+         * extension object we check if the current node value is also an
+         * extension object. */
         UA_Boolean compatible;
         if (value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
             value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {

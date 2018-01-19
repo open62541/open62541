@@ -7,7 +7,7 @@
 
 static UA_StatusCode
 verify_none(const UA_SecurityPolicy *securityPolicy,
-            const void *channelContext,
+            void *channelContext,
             const UA_ByteString *message,
             const UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
@@ -15,7 +15,7 @@ verify_none(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 sign_none(const UA_SecurityPolicy *securityPolicy,
-          const void *channelContext,
+          void *channelContext,
           const UA_ByteString *message,
           UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
@@ -29,14 +29,14 @@ length_none(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 encrypt_none(const UA_SecurityPolicy *securityPolicy,
-             const void *channelContext,
+             void *channelContext,
              UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 decrypt_none(const UA_SecurityPolicy *securityPolicy,
-             const void *channelContext,
+             void *channelContext,
              UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }

@@ -64,7 +64,8 @@ option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open6254
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
-set(UA_VXWORKS_WRS_KERNEL OFF CACHE BOOL "Enable if you want to compile for VxWorks as kernel Module")
+# Encryption Options
+option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
@@ -98,6 +99,11 @@ if (MSVC AND UA_ENABLE_FULL_NS0)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+# Semaphores/file system may not be available on embedded devices. It can be
+# disabled with the following option
+option(UA_ENABLE_DISCOVERY_SEMAPHORE "Enable Discovery Semaphore support" ON)
+mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
+
 option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
@@ -107,6 +113,9 @@ mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
 option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
        "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
+
+set(UA_VXWORKS_WRS_KERNEL OFF CACHE BOOL "Enable if you want to compile for VxWorks as kernel Module")
+mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
 
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
@@ -186,9 +195,13 @@ if(UA_ENABLE_MULTITHREADING)
   list(APPEND open62541_LIBRARIES urcu-cds urcu-bp urcu-common)
 endif(UA_ENABLE_MULTITHREADING)
 
+#####################
+# Compiler Settings #
+#####################
+
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
-    add_definitions(-std=c99 -pipe 
+    add_definitions(-std=c99 -pipe
                     -Wall -Wextra -Werror -Wpedantic
                     -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
                     -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
@@ -358,30 +371,40 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_async.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_worker.c
+
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_socket_error.h)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_socket_error.h
+)
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
+)
+
+if(UA_ENABLE_ENCRYPTION)
+    set(default_plugin_headers ${default_plugin_headers}
+            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h)
+    set(default_plugin_sources ${default_plugin_sources}
+            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+endif()
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
@@ -418,7 +441,7 @@ if (UA_ENABLE_FULL_NS0)
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
     if(NOT EXISTS "${UA_FILE_NS0}")
-        MESSAGE(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
     endif()
 else()
     set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
@@ -652,12 +675,6 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     add_subdirectory(tests/fuzz)
 endif()
 
-
-if(UA_BUILD_FUZZING_CORPUS)
-    add_subdirectory(tools/corpus_generator)
-endif()
-
-
 ############################
 # Linting run (clang-tidy) #
 ############################
@@ -668,7 +685,7 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   -checks=cert-*,performance-*,readability-*,-readability-braces-around-statements
                   -warnings-as-errors=cert-*,performance-*,readability-*,-readability-braces-around-statements
                   --
-                  -std=c99 
+                  -std=c99
                   -I${PROJECT_SOURCE_DIR}/include
                   -I${PROJECT_SOURCE_DIR}/plugins
                   -I${PROJECT_SOURCE_DIR}/deps
@@ -766,3 +783,7 @@ set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
 set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
 
+set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
+set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
+set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
+set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")

@@ -13,6 +13,7 @@ extern "C" {
 #include "ua_plugin_log.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_access_control.h"
+#include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_nodestore.h"
 
@@ -66,6 +67,9 @@ struct UA_ServerConfig {
 
     /* Access Control */
     UA_AccessControl accessControl;
+
+    /* Certificate Verification */
+    UA_CertificateVerification certificateVerification;
 
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
