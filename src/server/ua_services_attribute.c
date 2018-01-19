@@ -918,7 +918,7 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     }
 
     /* Check that the type is an exact match and not only "compatible" */
-    if(!node->value.data.value.value.type ||
+    if(!node->value.data.value.value.type || !v->type ||
        !UA_NodeId_equal(&node->value.data.value.value.type->typeId,
                         &v->type->typeId))
         return UA_STATUSCODE_BADTYPEMISMATCH;
