@@ -124,6 +124,10 @@ if ($env:CC_SHORTNAME -eq "vs2015") {
     	exit $LASTEXITCODE
     }
 	& cmake --build . --target test-verbose --config debug
+	if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+		Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+		exit $LASTEXITCODE
+	}
 }
 
 
