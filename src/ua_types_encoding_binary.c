@@ -21,17 +21,18 @@
  * is "looped through" every method call. The ``_``-macro accesses either the
  * thread-local or the "looped through" context . */
 
-typedef struct {
-    /* Pointer to custom datatypes in the server or client. Set inside
-     * UA_decodeBinary */
-    size_t customTypesArraySize;
-    const UA_DataType *customTypesArray;
+#define UA_ENCODING_MAX_RECURSION 20
 
+typedef struct {
     /* Pointers to the current position and the last position in the buffer */
     u8 *pos;
     const u8 *end;
 
-    /* Thread-local buffers used for exchanging the buffer for chunking */
+    u16 depth; /* How often did we en-/decoding recurse? */
+
+    size_t customTypesArraySize;
+    const UA_DataType *customTypesArray;
+
     UA_exchangeEncodeBuffer exchangeBufferCallback;
     void *exchangeBufferCallbackHandle;
 } Ctx;
@@ -1326,6 +1327,11 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = 
 
 static status
 encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
     uintptr_t ptr = (uintptr_t)src;
     status ret = UA_STATUSCODE_GOOD;
     u8 membersSize = type->membersSize;
@@ -1346,7 +1352,8 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
                 ptr -= member->padding + memSize; /* encode the same member in the next iteration */
                 if(ret == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED || ctx->pos + memSize > ctx->end) {
                     /* the send buffer is too small to encode the member, even after exchangeBuffer */
-                    return UA_STATUSCODE_BADRESPONSETOOLARGE;
+                    ret = UA_STATUSCODE_BADRESPONSETOOLARGE;
+                    break;
                 }
                 --i;
             }
@@ -1358,7 +1365,9 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
             ptr += sizeof(void*);
         }
     }
+
     UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+    ctx->depth--;
     return ret;
 }
 
@@ -1370,6 +1379,7 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
     Ctx ctx;
     ctx.pos = *bufPos;
     ctx.end = *bufEnd;
+    ctx.depth = 0;
     ctx.exchangeBufferCallback = exchangeCallback;
     ctx.exchangeBufferCallbackHandle = exchangeHandle;
 
@@ -1414,6 +1424,11 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = 
 
 static status
 decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
     uintptr_t ptr = (uintptr_t)dst;
     status ret = UA_STATUSCODE_GOOD;
     u8 membersSize = type->membersSize;
@@ -1435,6 +1450,8 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
             ptr += sizeof(void*);
         }
     }
+
+    ctx->depth--;
     return ret;
 }
 
@@ -1444,10 +1461,11 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
                 const UA_DataType *customTypes) {
     /* Set up the context */
     Ctx ctx;
-    ctx.customTypesArraySize = customTypesSize;
-    ctx.customTypesArray = customTypes;
     ctx.pos = &src->data[*offset];
     ctx.end = &src->data[src->length];
+    ctx.depth = 0;
+    ctx.customTypesArraySize = customTypesSize;
+    ctx.customTypesArray = customTypes;
 
     /* Decode */
     memset(dst, 0, type->memSize); /* Initialize the value */
