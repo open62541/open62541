@@ -254,7 +254,10 @@ extern "C" {
  * The definition ``UA_BINARY_OVERLAYABLE_FLOAT`` is true when the floating
  * point number representation of the target architecture is IEEE 754. Note that
  * this cannot be reliable detected with macros for the clang compiler
- * (beginning of 2017). Just override if necessary. */
+ * (beginning of 2017). ``UA_BINARY_OVERLAYABLE_FLOAT`` can be manually set if
+ * the target is known to be little endian with floats in the IEEE 754
+ * format. */
+
 #if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
