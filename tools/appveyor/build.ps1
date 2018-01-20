@@ -27,8 +27,7 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 }
 cd ..
 Move-Item -Path "build\doc_latex\open62541.pdf" -Destination pack\
-Remove-Item -Path build -Recurse
-
+Remove-Item -Path build -Recurse -Force
 
 Write-Host -ForegroundColor Green "`n###################################################################"
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME #####`n"
@@ -41,8 +40,7 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 	exit $LASTEXITCODE
 }
 cd ..
-Remove-Item -Path build -Recurse
-
+Remove-Item -Path build -Recurse -Force
 
 Write-Host -ForegroundColor Green "`n###################################################################"
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
@@ -55,8 +53,7 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 	exit $LASTEXITCODE
 }
 cd ..
-Remove-Item -Path build -Recurse
-
+Remove-Item -Path build -Recurse -Force
 
 Write-Host -ForegroundColor Green "`n###################################################################"
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with amalgamation #####`n"
@@ -80,9 +77,8 @@ if ($env:CC_SHORTNAME -eq "mingw") {
 	Move-Item -Path "build\$env:OUT_DIR_LIB\open62541.lib" -Destination pack_tmp\
 }
 & 7z a -tzip open62541-$env:CC_SHORTNAME-static.zip "$env:APPVEYOR_BUILD_FOLDER\pack\*" "$env:APPVEYOR_BUILD_FOLDER\pack_tmp\*"
-Remove-Item -Path pack_tmp -Recurse
-Remove-Item -Path build -Recurse
-
+Remove-Item -Path pack_tmp -Recurse -Force
+Remove-Item -Path build -Recurse -Force
 
 Write-Host -ForegroundColor Green "`n###################################################################"
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with amalgamation and .dll #####`n"
@@ -108,16 +104,16 @@ if ($env:CC_SHORTNAME -eq "mingw") {
 	Move-Item -Path "build\$env:OUT_DIR_LIB\open62541.pdb" -Destination pack_tmp\
 }
 & 7z a -tzip open62541-$env:CC_SHORTNAME-dynamic.zip "$env:APPVEYOR_BUILD_FOLDER\pack\*" "$env:APPVEYOR_BUILD_FOLDER\pack_tmp\*"
-Remove-Item -Path pack_tmp -Recurse
-Remove-Item -Path build -Recurse
+Remove-Item -Path pack_tmp -Recurse -Force
+Remove-Item -Path build -Recurse -Force
 
+# Only execute unit tests on vs2015 to save compilation time
 if ($env:CC_SHORTNAME -eq "vs2015") {
-	# Only execute unit tests on vs2015 to save compilation time
-	New-Item -ItemType directory -Path "build"
-	cd build
 	Write-Host -ForegroundColor Green "`n###################################################################"
 	Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
-	& cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON  -DCMAKE_LIBRARY_PATH=c:\check\lib -DCMAKE_INCLUDE_PATH=c:\check\include -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME" ..
+	New-Item -ItemType directory -Path "build"
+	cd build
+	& cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON -DCMAKE_LIBRARY_PATH=c:\check\lib -DCMAKE_INCLUDE_PATH=c:\check\include -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME" ..
 	Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     	Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -130,6 +126,5 @@ if ($env:CC_SHORTNAME -eq "vs2015") {
 	}
 }
 
-
 # do not cache log
-Remove-Item -Path c:\miktex\texmfs\data\miktex\log -Recurse
+Remove-Item -Path c:\miktex\texmfs\data\miktex\log -Recurse -Force
