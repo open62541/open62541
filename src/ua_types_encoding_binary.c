@@ -1094,15 +1094,18 @@ DECODE_BINARY(Variant) {
     const bool isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
 
     /* Get the datatype of the content. The type must be a builtin data type.
-     * All not-builtin types are wrapped in an ExtensionObject.
-     * The content can not be a variant again, otherwise we may run into a stack overflow problem.
-     * See: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=4233 */
+     * All not-builtin types are wrapped in an ExtensionObject. */
     size_t typeIndex = (size_t)((encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
-    if(typeIndex > UA_TYPES_DIAGNOSTICINFO || typeIndex == UA_TYPES_VARIANT)
+    if(typeIndex > UA_TYPES_DIAGNOSTICINFO)
         return UA_STATUSCODE_BADDECODINGERROR;
-    dst->type = &UA_TYPES[typeIndex];
+
+    /* A variant cannot contain a variant. But it can contain an array of
+     * variants */
+    if(typeIndex == UA_TYPES_VARIANT && !isArray)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Decode the content */
+    dst->type = &UA_TYPES[typeIndex];
     if(isArray) {
         ret = Array_decodeBinary(&dst->data, &dst->arrayLength, dst->type, ctx);
     } else if(typeIndex != UA_TYPES_EXTENSIONOBJECT) {
