@@ -299,7 +299,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addObjectNode(server, "Views", UA_NS0ID_VIEWSFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
-    if (ret != UA_STATUSCODE_GOOD)
+    if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -534,14 +534,14 @@ UA_Server_initNS0(UA_Server *server) {
     server->bootstrapNS0 = true;
     UA_StatusCode retVal = UA_Server_createNS0_base(server);
     server->bootstrapNS0 = false;
-    if (retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
     /* Load nodes and references generated from the XML ns0 definition */
     server->bootstrapNS0 = true;
     retVal = ua_namespace0(server);
     server->bootstrapNS0 = false;
-    if (retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
     /* NamespaceArray */
@@ -582,7 +582,7 @@ UA_Server_initNS0(UA_Server *server) {
 
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
                                     profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
-    for (int i=0; i<profileArraySize; i++) {
+    for(int i=0; i<profileArraySize; i++) {
         UA_String_deleteMembers(&profileArray[i]);
     }
 

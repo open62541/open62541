@@ -219,7 +219,7 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         /* round always to upper value to avoid timeout to be set to 0
-         * if (maxDate - now) < (UA_DATETIME_MSEC/2) */
+         * if(maxDate - now) < (UA_DATETIME_MSEC/2) */
         timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
     }
     return retval;

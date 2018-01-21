@@ -442,7 +442,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     // set the authenticationToken from the create session request to help fuzzing cover more lines
-    if (!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
+    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
     #endif
 

@@ -314,7 +314,7 @@ pack754(long double f, unsigned bits, unsigned expbits) {
     unsigned significandbits = bits - expbits - 1;
     long double fnorm;
     long long sign;
-    if (f < 0) { sign = 1; fnorm = -f; }
+    if(f < 0) { sign = 1; fnorm = -f; }
     else { sign = 0; fnorm = f; }
     int shift = 0;
     while(fnorm >= 2.0) { fnorm /= 2.0; ++shift; }
@@ -662,7 +662,7 @@ DECODE_BINARY(NodeId) {
                           UA_EXPANDEDNODEID_NAMESPACEURI_FLAG);
 
     /* Decode the namespace and identifier */
-    switch (encodingByte) {
+    switch(encodingByte) {
     case UA_NODEIDTYPE_NUMERIC_TWOBYTE:
         dst->identifierType = UA_NODEIDTYPE_NUMERIC;
         ret = DECODE_DIRECT(&dstByte, Byte);
@@ -839,7 +839,7 @@ ENCODE_BINARY(ExtensionObject) {
         ret = ENCODE_WITHEXCHANGE(&encoding, Byte);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
-        switch (src->encoding) {
+        switch(src->encoding) {
         case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
             break;
         case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
@@ -1522,7 +1522,7 @@ CALCSIZE_BINARY(Guid) {
 
 CALCSIZE_BINARY(NodeId) {
     size_t s = 1; /* encoding byte */
-    switch (src->identifierType) {
+    switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         if(src->identifier.numeric > UA_UINT16_MAX || src->namespaceIndex > UA_BYTE_MAX) {
             s += 6;
@@ -1578,7 +1578,7 @@ CALCSIZE_BINARY(ExtensionObject) {
         s += calcSizeBinaryJumpTable[encode_index](src->content.decoded.data, type);
     } else {
         s += NodeId_calcSizeBinary(&src->content.encoded.typeId, NULL);
-        switch (src->encoding) {
+        switch(src->encoding) {
         case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
             break;
         case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:

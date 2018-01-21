@@ -22,7 +22,7 @@ handler_events(const UA_UInt32 monId, const size_t nEventFields,
     UA_assert(*(UA_UInt32*)context == monId);
 
     for(size_t i = 0; i < nEventFields; ++i) {
-        if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
+        if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
             UA_UInt16 severity = *(UA_UInt16 *)eventFields[i].data;
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Severity: %u", severity);
         } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {

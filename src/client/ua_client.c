@@ -22,7 +22,7 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
-    if (client->config.stateCallback)
+    if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
 }
 
@@ -278,7 +278,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         /* round always to upper value to avoid timeout to be set to 0
-         * if (maxDate - now) < (UA_DATETIME_MSEC/2) */
+         * if(maxDate - now) < (UA_DATETIME_MSEC/2) */
         UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
         retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd, client_processChunk, timeout);
@@ -316,7 +316,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
         (client->config.timeout * UA_DATETIME_MSEC);
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
-    if (retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT){
+    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         /* In synchronous service, if we have don't have a reply we need to close the connection */
         UA_Client_close(client);
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
