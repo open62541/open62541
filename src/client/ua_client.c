@@ -4,7 +4,6 @@
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
-#include "ua_client_highlevel.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
@@ -370,23 +369,6 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
     LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
     if(requestId)
         *requestId = ac->requestId;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-UA_Client_backgroundConnectivityCheck(UA_Client *client) {
-    if(client->config.connectivityCheckInterval) {
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-        UA_DateTime nextDate = client->lastConnectivityCheck + (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
-        if(now > nextDate) {
-            UA_Variant value;
-            UA_Variant_init(&value);
-            UA_StatusCode retval = UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &value);
-            UA_Variant_deleteMembers(&value);
-            client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
-            return retval;
-        }
-    }
     return UA_STATUSCODE_GOOD;
 }
 

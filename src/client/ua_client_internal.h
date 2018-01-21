@@ -134,4 +134,7 @@ UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
                        UA_DateTime maxDate, UA_UInt32 *synchronousRequestId);
 
+UA_StatusCode
+UA_Client_backgroundConnectivityCheck(UA_Client *client);
+
 #endif /* UA_CLIENT_INTERNAL_H_ */

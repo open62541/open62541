@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_client.h"
+#include "ua_client_internal.h"
 #include "ua_client_highlevel.h"
 #include "ua_util.h"
 
@@ -447,3 +448,21 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     UA_ReadResponse_deleteMembers(&response);
     return retval;
 }
+
+UA_StatusCode
+UA_Client_backgroundConnectivityCheck(UA_Client *client) {
+    if(client->config.connectivityCheckInterval) {
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        UA_DateTime nextDate = client->lastConnectivityCheck + (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
+        if(now > nextDate) {
+            UA_Variant value;
+            UA_Variant_init(&value);
+            UA_StatusCode retval = UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &value);
+            UA_Variant_deleteMembers(&value);
+            client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
