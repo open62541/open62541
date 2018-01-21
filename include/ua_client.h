@@ -74,6 +74,10 @@ typedef struct UA_ClientConfig {
     /* number of PublishResponse standing in the sever */
     /* 0 = background task disabled                    */
     UA_UInt16 outStandingPublishRequests;
+
+    /* connectivity check interval in ms */
+    /* 0 = background task disabled      */
+    UA_UInt32 connectivityCheckInterval;
 } UA_ClientConfig;
 
 

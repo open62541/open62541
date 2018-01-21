@@ -460,7 +460,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
     0, /* .customDataTypesSize */
     NULL, /* .customDataTypes */
     NULL, /* .stateCallback */
-    10 /* .outStandingPublishRequests */
+    10, /* .outStandingPublishRequests */
+    0 /* .connectivityCheckInterval */
 };
 
 /****************************************/

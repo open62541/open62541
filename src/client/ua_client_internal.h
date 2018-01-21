@@ -117,6 +117,7 @@ struct UA_Client {
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
     UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
+    UA_DateTime lastConnectivityCheck;
 };
 
 UA_StatusCode

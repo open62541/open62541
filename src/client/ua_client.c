@@ -4,6 +4,7 @@
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
+#include "ua_client_highlevel.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
@@ -372,6 +373,23 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+UA_Client_backgroundConnectivityCheck(UA_Client *client) {
+    if(client->config.connectivityCheckInterval) {
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        UA_DateTime nextDate = client->lastConnectivityCheck + (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
+        if(now > nextDate) {
+            UA_Variant value;
+            UA_Variant_init(&value);
+            UA_StatusCode retval = UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE), &value);
+            UA_Variant_deleteMembers(&value);
+            client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* TODO: Call repeated jobs that are scheduled */
@@ -380,8 +398,12 @@ UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     if (retvalPublish != UA_STATUSCODE_GOOD)
         return retvalPublish;
 #endif
+    UA_StatusCode retval = UA_Client_backgroundConnectivityCheck(client);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
-    UA_StatusCode retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
+    retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         retval = UA_STATUSCODE_GOOD;
     return retval;
