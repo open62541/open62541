@@ -460,7 +460,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * resources for the new publish request. If the limit has been reached the
      * oldest publish request shall be responded */
     if((server->config.maxPublishReqPerSession != 0 ) &&
-       (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)){
+       (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)) {
         if(!UA_Subscription_reachedPublishReqLimit(server,session)) {
             subscriptionSendError(session->header.channel, requestId,
                                   request->requestHeader.requestHandle,
@@ -522,7 +522,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_Boolean found = true; 
     int loopCount = 1;
 
-    if (session->lastSeenSubscriptionId > 0){
+    if(session->lastSeenSubscriptionId > 0) {
         /* If we found anything one the first loop or if there are LATE 
          * in the list before lastSeenSubscriptionId and not LATE after 
          * lastSeenSubscriptionId we need a second loop.
@@ -532,13 +532,13 @@ Service_Publish(UA_Server *server, UA_Session *session,
         found = false;
     }
 
-    for(int i=0; i<loopCount; i++){
+    for(int i=0; i<loopCount; i++) {
        LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
-            if (!found){
-                if (session->lastSeenSubscriptionId == immediate->subscriptionId){
+            if(!found) {
+                if(session->lastSeenSubscriptionId == immediate->subscriptionId) {
                     found = true; 
                 }     
-            }else{
+            } else {
                 if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
                     session->lastSeenSubscriptionId = immediate->subscriptionId;
                     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
@@ -634,7 +634,7 @@ void Service_Republish(UA_Server *server, UA_Session *session,
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
-    if (!sub) {
+    if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }

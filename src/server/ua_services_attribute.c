@@ -970,8 +970,8 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
          * extension object we check if the current node value is also an
          * extension object. */
         UA_Boolean compatible;
-        if (value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-            value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {
+        if(value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+           value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {
             const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
             compatible = compatibleValue(server, &nodeDataType, node->valueRank,
                                     node->arrayDimensionsSize, node->arrayDimensions,

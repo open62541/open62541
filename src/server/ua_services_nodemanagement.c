@@ -342,7 +342,7 @@ addReference(UA_Server *server, UA_Session *session,
  * Could be used to e.g. delete all the references, except 'HASMODELINGRULE'
  */
 static void deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize, UA_NodeId* referencesSkip) {
-    if (referencesSkipSize == 0) {
+    if(referencesSkipSize == 0) {
         UA_Node_deleteReferences(node);
         return;
     }
@@ -351,13 +351,13 @@ static void deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize, UA_
      * It's faster */
     size_t newSize = 0;
     for(size_t i = 0; i < node->referencesSize; ++i) {
-        for (size_t j = 0; j < referencesSkipSize; j++) {
-            if (UA_NodeId_equal(&node->references[i].referenceTypeId, &referencesSkip[j])) {
+        for(size_t j = 0; j < referencesSkipSize; j++) {
+            if(UA_NodeId_equal(&node->references[i].referenceTypeId, &referencesSkip[j])) {
                 newSize++;
             }
         }
     }
-    if (newSize == 0){
+    if(newSize == 0) {
         UA_Node_deleteReferences(node);
         return;
     }
@@ -367,8 +367,8 @@ static void deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize, UA_
     size_t curr = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; ++i) {
-        for (size_t j = 0; j < referencesSkipSize; j++) {
-            if (!UA_NodeId_equal(&node->references[i].referenceTypeId, &referencesSkip[j]))
+        for(size_t j = 0; j < referencesSkipSize; j++) {
+            if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &referencesSkip[j]))
                 continue;
 
             // copy the reference
@@ -386,8 +386,8 @@ static void deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize, UA_
             drefs->targetIdsSize = srefs->targetIdsSize;
             break;
         }
-        if (retval != UA_STATUSCODE_GOOD) {
-            for (size_t k=0; k<i; k++) {
+        if(retval != UA_STATUSCODE_GOOD) {
+            for(size_t k=0; k<i; k++) {
                 UA_NodeReferenceKind *refs = &newReferences[i];
                 for(size_t j = 0; j < refs->targetIdsSize; ++j)
                     UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j]);
@@ -398,7 +398,7 @@ static void deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize, UA_
     }
 
     UA_Node_deleteReferences(node);
-    if (retval == UA_STATUSCODE_GOOD) {
+    if(retval == UA_STATUSCODE_GOOD) {
         node->references = newReferences;
         node->referencesSize = newSize;
     } else {
@@ -725,11 +725,11 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
        node->nodeClass == UA_NODECLASS_OBJECTTYPE ||
        node->nodeClass == UA_NODECLASS_REFERENCETYPE ||
        node->nodeClass == UA_NODECLASS_DATATYPE) {
-        if (UA_NodeId_equal(referenceTypeId, &UA_NODEID_NULL))
+        if(UA_NodeId_equal(referenceTypeId, &UA_NODEID_NULL))
             referenceTypeId = &hasSubtype;
         const UA_Node *parentNode = UA_Nodestore_get(server, parentNodeId);
-        if (parentNode) {
-            if (parentNode->nodeClass == node->nodeClass)
+        if(parentNode) {
+            if(parentNode->nodeClass == node->nodeClass)
                 typeDefinitionId = parentNodeId;
             UA_Nodestore_release(server, parentNode);
         }
@@ -776,7 +776,7 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
         }
 
         UA_Boolean  typeOk = UA_FALSE;
-        switch (node->nodeClass) {
+        switch(node->nodeClass) {
             case UA_NODECLASS_DATATYPE:
                 typeOk = type->nodeClass == UA_NODECLASS_DATATYPE;
                 break;
@@ -804,7 +804,7 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
             default:
                 typeOk = UA_FALSE;
         }
-        if (!typeOk) {
+        if(!typeOk) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Type does not match node class");
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -874,7 +874,7 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
        node->nodeClass == UA_NODECLASS_OBJECT) {
         UA_assert(type != NULL); /* see above */
         /* Add (mandatory) child nodes from the type definition */
-        if (!server->bootstrapNS0) {
+        if(!server->bootstrapNS0) {
             retval = addChildren(server, session, node, type);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -897,7 +897,7 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
 
     /* Add reference to the parent */
     if(!UA_NodeId_isNull(parentNodeId)) {
-        if (UA_NodeId_isNull(referenceTypeId)) {
+        if(UA_NodeId_isNull(referenceTypeId)) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Reference to parent cannot be null");
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -1134,7 +1134,7 @@ removeChildren(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
         // check for self-reference to avoid endless loop
-        if (UA_NodeId_equal(&node->nodeId, &rd->nodeId.nodeId))
+        if(UA_NodeId_equal(&node->nodeId, &rd->nodeId.nodeId))
             continue;
         item.nodeId = rd->nodeId.nodeId;
         UA_StatusCode retval;

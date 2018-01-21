@@ -128,18 +128,18 @@ isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_Nod
             struct ref_history *tmp = visitedRefs;
             struct ref_history *last = visitedRefs;
             UA_Boolean skip = UA_FALSE;
-            while (!skip && tmp) {
-                if (UA_NodeId_equal(tmp->id, &refs->targetIds[j].nodeId))
+            while(!skip && tmp) {
+                if(UA_NodeId_equal(tmp->id, &refs->targetIds[j].nodeId))
                     skip = UA_TRUE;
                 last = tmp;
                 tmp = tmp->parent;
             }
 
-            if (skip)
+            if(skip)
                 continue;
 
             last->parent = (struct ref_history*)UA_malloc(sizeof(struct ref_history));
-            if (!last->parent) {
+            if(!last->parent) {
                 return false;
             }
             last = last->parent;

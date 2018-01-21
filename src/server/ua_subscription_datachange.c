@@ -67,7 +67,7 @@ ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon, MonitoredItem_queuedValue
     UA_free(queueItem);
     --mon->currentQueueSize;
 
-    if(mon->maxQueueSize > 1){
+    if(mon->maxQueueSize > 1) {
         newQueueItem->value.hasStatus = true;
         newQueueItem->value.status = UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW;
     }

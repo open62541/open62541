@@ -149,7 +149,7 @@ UA_Session_getPublishReq(UA_Session *session) {
 }
 
 void
-UA_Session_removePublishReq( UA_Session *session, UA_PublishResponseEntry* entry){
+UA_Session_removePublishReq( UA_Session *session, UA_PublishResponseEntry* entry) {
     UA_PublishResponseEntry* firstEntry;
     firstEntry = SIMPLEQ_FIRST(&session->responseQueue);
 
@@ -160,7 +160,7 @@ UA_Session_removePublishReq( UA_Session *session, UA_PublishResponseEntry* entry
     }
 }
 
-void UA_Session_addPublishReq( UA_Session *session, UA_PublishResponseEntry* entry){
+void UA_Session_addPublishReq( UA_Session *session, UA_PublishResponseEntry* entry) {
     SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
     session->numPublishReq++;
 }

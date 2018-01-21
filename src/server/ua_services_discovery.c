@@ -28,11 +28,11 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
     retval |= UA_String_copy(&registeredServer->productUri, &target->productUri);
 
     // if the client requests a specific locale, select the corresponding server name
-    if (request->localeIdsSize) {
+    if(request->localeIdsSize) {
         UA_Boolean appNameFound = UA_FALSE;
-        for (size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
-            for (size_t j =0; j<registeredServer->serverNamesSize; j++) {
-                if (UA_String_equal(&request->localeIds[i], &registeredServer->serverNames[j].locale)) {
+        for(size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
+            for(size_t j =0; j<registeredServer->serverNamesSize; j++) {
+                if(UA_String_equal(&request->localeIds[i], &registeredServer->serverNames[j].locale)) {
                     retval |= UA_LocalizedText_copy(&registeredServer->serverNames[j],
                                                     &target->applicationName);
                     appNameFound = UA_TRUE;
@@ -46,7 +46,7 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
         if(!appNameFound && registeredServer->serverNamesSize)
             retval |= UA_LocalizedText_copy(&registeredServer->serverNames[0],
                                             &target->applicationName);
-    } else if (registeredServer->serverNamesSize) {
+    } else if(registeredServer->serverNamesSize) {
         // just take the first name
         retval |= UA_LocalizedText_copy(&registeredServer->serverNames[0], &target->applicationName);
     }
@@ -80,7 +80,7 @@ setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_
     }
     // UaExpert does not list DiscoveryServer, thus set it to Server
     // See http://forum.unified-automation.com/topic1987.html
-    if (target->applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+    if(target->applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
         target->applicationType = UA_APPLICATIONTYPE_SERVER;
 
     /* add the discoveryUrls from the networklayers */
@@ -94,7 +94,7 @@ setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_
     target->discoveryUrlsSize += server->config.networkLayersSize;
 
     // TODO: Add nl only if discoveryUrl not already present
-    for (size_t i = 0; i < server->config.networkLayersSize; i++) {
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
         UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
     }
@@ -117,7 +117,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY
     // check if client only requested a specific set of servers
-    if (request->serverUrisSize) {
+    if(request->serverUrisSize) {
         size_t fsfpSize = sizeof(UA_RegisteredServer*) * server->registeredServersSize;
         foundServerFilteredPointer = (UA_RegisteredServer **)UA_malloc(fsfpSize);
         if(!foundServerFilteredPointer) {
@@ -135,13 +135,13 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                     if(UA_String_equal(&current->registeredServer.serverUri, &request->serverUris[i])) {
                         // check if entry already in list:
                         UA_Boolean existing = false;
-                        for (size_t j=0; j<foundServersSize; j++) {
-                            if (UA_String_equal(&foundServerFilteredPointer[j]->serverUri, &request->serverUris[i])) {
+                        for(size_t j=0; j<foundServersSize; j++) {
+                            if(UA_String_equal(&foundServerFilteredPointer[j]->serverUri, &request->serverUris[i])) {
                                 existing = true;
                                 break;
                             }
                         }
-                        if (!existing)
+                        if(!existing)
                             foundServerFilteredPointer[foundServersSize++] = &current->registeredServer;
                         break;
                     }
@@ -188,7 +188,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                 setApplicationDescriptionFromServer(&foundServers[0], server);
             if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                 UA_free(foundServers);
-                if (foundServerFilteredPointer)
+                if(foundServerFilteredPointer)
                     UA_free(foundServerFilteredPointer);
                 return;
             }
@@ -196,20 +196,20 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY
         size_t currentIndex = 0;
-        if (addSelf)
+        if(addSelf)
             currentIndex++;
 
         // add all the registered servers to the list
 
-        if (foundServerFilteredPointer) {
+        if(foundServerFilteredPointer) {
             // use filtered list because client only requested specific uris
             // -1 because foundServersSize also includes this self server
             size_t iterCount = addSelf ? foundServersSize - 1 : foundServersSize;
-            for (size_t i = 0; i < iterCount; i++) {
+            for(size_t i = 0; i < iterCount; i++) {
                 response->responseHeader.serviceResult =
                         setApplicationDescriptionFromRegisteredServer(request, &foundServers[currentIndex++],
                                                                       foundServerFilteredPointer[i]);
-                if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+                if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     UA_free(foundServerFilteredPointer);
                     return;
@@ -223,7 +223,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                 response->responseHeader.serviceResult =
                         setApplicationDescriptionFromRegisteredServer(request, &foundServers[currentIndex++],
                                                                       &current->registeredServer);
-                if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+                if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     return;
                 }
@@ -232,7 +232,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 #endif
     }
 
-    if (foundServerFilteredPointer)
+    if(foundServerFilteredPointer)
         UA_free(foundServerFilteredPointer);
 
     response->servers = foundServers;
@@ -347,7 +347,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     registeredServer_list_entry* current;
     registeredServer_list_entry *registeredServer_entry = NULL;
     LIST_FOREACH(current, &server->registeredServers, pointers) {
-        if (UA_String_equal(&current->registeredServer.serverUri, &requestServer->serverUri)) {
+        if(UA_String_equal(&current->registeredServer.serverUri, &requestServer->serverUri)) {
             registeredServer_entry = current;
             break;
         }
@@ -397,7 +397,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         char* filePath = (char*)
             UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
-        if (!filePath) {
+        if(!filePath) {
             UA_LOG_ERROR_SESSION(server->config.logger, session,
                                    "Cannot allocate memory for semaphore path. Out of memory.");
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -460,7 +460,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if (!registeredServer_entry) {
+    if(!registeredServer_entry) {
         // server not yet registered, register it by adding it to the list
         UA_LOG_DEBUG_SESSION(server->config.logger, session, "Registering new server: %.*s",
                              (int)requestServer->serverUri.length, requestServer->serverUri.data);
@@ -532,7 +532,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
             // todo: malloc may fail: return a statuscode
             char* filePath = (char *)UA_malloc(fpSize);
-            if (filePath) {
+            if(filePath) {
                 memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
                        current->registeredServer.semaphoreFilePath.length );
                 filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
@@ -676,7 +676,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     {
         periodicServerRegisterCallback_entry *rs, *rs_tmp;
         LIST_FOREACH_SAFE(rs, &server->periodicServerRegisterCallbacks, pointers, rs_tmp) {
-            if (strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
+            if(strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                             "There is already a register callback for '%s' in place. Removing the older one.", discoveryServerUrl);
                 UA_Server_removeRepeatedCallback(server, rs->callback->id);
