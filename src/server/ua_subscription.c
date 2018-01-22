@@ -243,6 +243,16 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                          "Subscription %u | Publish Callback",
                          sub->subscriptionId);
 
+    /* Count the available notifications */
+    UA_Boolean moreNotifications = false;
+    size_t notifications;
+    UA_MonitoredItem *mon = countQueuedSelectFirstMonToIterate(sub, &notifications, &moreNotifications);
+
+    if(notifications == 0) {
+        if (sub->currentKeepAliveCount <= sub->maxKeepAliveCount)
+            ++sub->currentKeepAliveCount;
+    }
+
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
 
@@ -265,18 +275,12 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Check if the securechannel is valid */
-    UA_SecureChannel *channel = sub->session->channel;
+    UA_SecureChannel *channel = sub->session->header.channel;
     if(!channel)
         return;
 
-    /* Count the available notifications */
-    UA_Boolean moreNotifications = false;
-    size_t notifications;
-    UA_MonitoredItem *mon = countQueuedSelectFirstMonToIterate(sub, &notifications, &moreNotifications);
-
     /* Return if nothing to do */
     if(notifications == 0) {
-        ++sub->currentKeepAliveCount;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
