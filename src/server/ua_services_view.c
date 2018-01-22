@@ -292,8 +292,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
 }
 
 void Service_Browse(UA_Server *server, UA_Session *session,
-                    const UA_BrowseRequest *request,
-                    UA_BrowseResponse *response) {
+                    const UA_BrowseRequest *request, UA_BrowseResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing BrowseRequest");
 
@@ -329,8 +328,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
 }
 
 UA_BrowseResult
-UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs,
-                 const UA_BrowseDescription *descr) {
+UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
     Service_Browse_single(server, &adminSession, NULL,
@@ -338,12 +336,9 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs,
     return result;
 }
 
-/* Thread-local variables to pass additional arguments into the operation */
-static UA_THREAD_LOCAL UA_Boolean op_releaseContinuationPoint;
-
 static void
-Operation_BrowseNext(UA_Server *server, UA_Session *session,
-           const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
+Operation_BrowseNext(UA_Server *server, UA_Session *session, UA_Boolean *releaseContinuationPoints,
+                     const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
     ContinuationPointEntry *cp;
     LIST_FOREACH(cp, &session->continuationPoints, pointers) {
@@ -356,7 +351,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     }
 
     /* Do the work */
-    if(!op_releaseContinuationPoint)
+    if(!*releaseContinuationPoints)
         Service_Browse_single(server, session, cp, NULL, 0, result);
     else
         removeCp(cp, session);
@@ -368,14 +363,12 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
                    UA_BrowseNextResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing BrowseNextRequest");
-
-    op_releaseContinuationPoint = request->releaseContinuationPoints;
-
+    UA_Boolean releaseContinuationPoints = request->releaseContinuationPoints; /* request is const */
     response->responseHeader.serviceResult = 
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_BrowseNext,
-                  &request->continuationPointsSize, &UA_TYPES[UA_TYPES_BYTESTRING],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_BrowseNext,
+                                           &releaseContinuationPoints,
+                                           &request->continuationPointsSize, &UA_TYPES[UA_TYPES_BYTESTRING],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
@@ -383,8 +376,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
-    op_releaseContinuationPoint = releaseContinuationPoint;
-    Operation_BrowseNext(server, &adminSession,
+    Operation_BrowseNext(server, &adminSession, &releaseContinuationPoint,
                          continuationPoint, &result);
     return result;
 }
@@ -601,7 +593,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
 
 static void
 Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
-                                       const UA_BrowsePath *path,
+                                       void *context, const UA_BrowsePath *path,
                                        UA_BrowsePathResult *result) {
     if(path->relativePath.elementsSize <= 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
@@ -686,7 +678,7 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath) {
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
-    Operation_TranslateBrowsePathToNodeIds(server, &adminSession, browsePath, &result);
+    Operation_TranslateBrowsePathToNodeIds(server, &adminSession, NULL, browsePath, &result);
     return result;
 }
 
@@ -704,10 +696,9 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult = 
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
-                  &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
+                                           NULL, &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
 }
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,

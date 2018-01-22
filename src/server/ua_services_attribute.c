@@ -1245,7 +1245,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 }
 
 static void
-Operation_Write(UA_Server *server, UA_Session *session,
+Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 UA_WriteValue *wv, UA_StatusCode *result) {
     *result = UA_Server_editNode(server, session, &wv->nodeId,
                         (UA_EditNodeCallback)copyAttributeIntoNode, wv);
@@ -1265,10 +1265,9 @@ Service_Write(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult = 
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_Write,
-                  &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Write, NULL,
+                                           &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 UA_StatusCode

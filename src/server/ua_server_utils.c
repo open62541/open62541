@@ -85,7 +85,7 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
 /* Information Model Operations */
 /********************************/
 
-/**
+/*
  * Keeps track of already visited nodes to detect circular references
  */
 struct ref_history {
@@ -383,6 +383,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
+                                   void *context,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
@@ -402,7 +403,7 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
     /* No padding after size_t */
     uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
     for(size_t i = 0; i < ops; i++) {
-        operationCallback(server, session, (void*)reqOp, (void*)respOp);
+        operationCallback(server, session, context, (void*)reqOp, (void*)respOp);
         reqOp += requestOperationsType->memSize;
         respOp += responseOperationsType->memSize;
     }
