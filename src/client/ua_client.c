@@ -80,6 +80,13 @@ UA_Client_getState(UA_Client *client) {
     return client->state;
 }
 
+void *
+UA_Client_getContext(UA_Client *client) {
+    if(!client)
+        return NULL;
+    return client->config.clientContext;
+}
+
 /****************/
 /* Raw Services */
 /****************/
