@@ -277,7 +277,8 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    Service_Browse_single(server, session, NULL, &bd, 0, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -516,7 +517,8 @@ copyChildNodes(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    Service_Browse_single(server, session, NULL, &bd, 0, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1113,7 +1115,8 @@ removeChildren(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    Service_Browse_single(server, session, NULL, &bd, 0, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -1485,7 +1488,8 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    Service_Browse_single(server, &adminSession, NULL, &bd, 0, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, &adminSession, &maxrefs, &bd, &br);
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
