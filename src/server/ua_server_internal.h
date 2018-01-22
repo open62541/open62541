@@ -272,17 +272,9 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
-/*******************/
-/* Single-Services */
-/*******************/
-
-/* Some services take an array of "independent" requests. The single-services
- * are stored here to keep ua_services.h clean for documentation purposes. */
-
-void Service_Browse_single(UA_Server *server, UA_Session *session,
-                           struct ContinuationPointEntry *cp,
-                           const UA_BrowseDescription *descr,
-                           UA_UInt32 maxrefs, UA_BrowseResult *result);
+void
+Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
+                 const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue
 UA_Server_readWithSession(UA_Server *server, UA_Session *session,

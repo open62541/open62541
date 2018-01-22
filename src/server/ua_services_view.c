@@ -57,9 +57,9 @@ relevantReference(UA_Server *server, UA_Boolean includeSubtypes,
 /* Returns whether the node / continuationpoint is done */
 static UA_Boolean
 browseReferences(UA_Server *server, const UA_Node *node,
-                 const UA_BrowseDescription *descr,
-                 UA_BrowseResult *result, ContinuationPointEntry *cp) {
+                 ContinuationPointEntry *cp, UA_BrowseResult *result) {
     UA_assert(cp != NULL);
+    const UA_BrowseDescription *descr = &cp->browseDescription;
 
     /* If the node has no references, just return */
     if(node->referencesSize == 0) {
@@ -186,39 +186,20 @@ browseReferences(UA_Server *server, const UA_Node *node,
 }
 
 /* Results for a single browsedescription. This is the inner loop for both
- * Browse and BrowseNext
- *
- * @param session Session to save continuationpoints
- * @param ns The nodstore where the to-be-browsed node can be found
- * @param cp If cp is not null, we continue from here If cp is null, we can add
- *           a new continuation point if possible and necessary.
- * @param descr If no cp is set, we take the browsedescription from there
- * @param maxrefs The maximum number of references the client has requested. If 0,
- *                all matching references are returned at once.
- * @param result The entry in the request */
-void
-Service_Browse_single(UA_Server *server, UA_Session *session,
-                      ContinuationPointEntry *cp,
-                      const UA_BrowseDescription *descr,
-                      UA_UInt32 maxrefs, UA_BrowseResult *result) {
-    ContinuationPointEntry *internal_cp = cp;
-    if(!internal_cp) {
-        /* If there is no continuation point, stack-allocate one. It gets copied
-         * on the heap when this is required at a later point. */
-        internal_cp = (ContinuationPointEntry*)UA_alloca(sizeof(ContinuationPointEntry));
-        memset(internal_cp, 0, sizeof(ContinuationPointEntry));
-        internal_cp->maxReferences = maxrefs;
-    } else {
-        /* Set the browsedescription if a cp is given */
-        descr = &cp->browseDescription;
-    }
+ * Browse and BrowseNext. The ContinuationPoint contains all the data used.
+ * Including the BrowseDescription. Returns whether there are remaining
+ * references. */
+static UA_Boolean
+browseWithContinuation(UA_Server *server, UA_Session *session,
+                       ContinuationPointEntry *cp, UA_BrowseResult *result) {
+    const UA_BrowseDescription *descr = &cp->browseDescription;
 
     /* Is the browsedirection valid? */
     if(descr->browseDirection != UA_BROWSEDIRECTION_BOTH &&
        descr->browseDirection != UA_BROWSEDIRECTION_FORWARD &&
        descr->browseDirection != UA_BROWSEDIRECTION_INVERSE) {
         result->statusCode = UA_STATUSCODE_BADBROWSEDIRECTIONINVALID;
-        return;
+        return true;
     }
 
     /* Is the reference type valid? */
@@ -226,7 +207,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         const UA_Node *reftype = UA_Nodestore_get(server, &descr->referenceTypeId);
         if(!reftype) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-            return;
+            return true;
         }
 
         UA_Boolean isRef = (reftype->nodeClass == UA_NODECLASS_REFERENCETYPE);
@@ -234,61 +215,82 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
 
         if(!isRef) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-            return;
+            return true;
         }
     }
 
     const UA_Node *node = UA_Nodestore_get(server, &descr->nodeId);
     if(!node) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return;
+        return true;
     }
 
     /* Browse the references */
-    UA_Boolean done = browseReferences(server, node, descr, result, internal_cp);
-
+    UA_Boolean done = browseReferences(server, node, cp, result);
     UA_Nodestore_release(server, node);
+    return done;
+}
 
-    /* Exit early if an error occurred */
-    if(result->statusCode != UA_STATUSCODE_GOOD)
+/* Start to browse with no previous cp */
+void
+Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
+                 const UA_BrowseDescription *descr, UA_BrowseResult *result) {
+    /* Stack-allocate a temporary cp */
+    ContinuationPointEntry *cp = (ContinuationPointEntry*)UA_alloca(sizeof(ContinuationPointEntry));
+    memset(cp, 0, sizeof(ContinuationPointEntry));
+    cp->maxReferences = *maxrefs;
+    cp->browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
+
+    UA_Boolean done = browseWithContinuation(server, session, cp, result);
+
+    /* Exit early if done or an error occurred */
+    if(done || result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
-    /* A continuation point exists already */
-    if(cp) {
-        if(done) {
-            removeCp(cp, session); /* All done, remove a finished continuationPoint */
-        } else {
-            /* Return the cp identifier */
-            UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
-        }
-        return;
+    /* Persist the new continuation point */
+    ContinuationPointEntry *cp2 = NULL;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(session->availableContinuationPoints <= 0 ||
+       !(cp2 = (ContinuationPointEntry *)UA_malloc(sizeof(ContinuationPointEntry)))) {
+        retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+        goto cleanup;
     }
+    memset(cp2, 0, sizeof(ContinuationPointEntry));
+    cp2->referenceKindIndex = cp->referenceKindIndex;
+    cp2->targetIndex = cp->targetIndex;
+    cp2->maxReferences = cp->maxReferences;
+    retval = UA_BrowseDescription_copy(descr, &cp2->browseDescription);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
-    /* Create a new continuation point */
-    if(!done) {
-        if(session->availableContinuationPoints <= 0 ||
-           !(cp = (ContinuationPointEntry *)UA_malloc(sizeof(ContinuationPointEntry)))) {
-            result->statusCode = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
-            return;
-        }
-        UA_BrowseDescription_copy(descr, &cp->browseDescription);
-        cp->referenceKindIndex = internal_cp->referenceKindIndex;
-        cp->targetIndex = internal_cp->targetIndex;
-        cp->maxReferences = internal_cp->maxReferences;
-
-        /* Create a random bytestring via a Guid */
-        UA_Guid *ident = UA_Guid_new();
-        *ident = UA_Guid_random();
-        cp->identifier.data = (UA_Byte*)ident;
-        cp->identifier.length = sizeof(UA_Guid);
-
-        /* Return the cp identifier */
-        UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
-
-        /* Attach the cp to the session */
-        LIST_INSERT_HEAD(&session->continuationPoints, cp, pointers);
-        --session->availableContinuationPoints;
+    /* Create a random bytestring via a Guid */
+    UA_Guid *ident = UA_Guid_new();
+    if(!ident) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
     }
+    *ident = UA_Guid_random();
+    cp2->identifier.data = (UA_Byte*)ident;
+    cp2->identifier.length = sizeof(UA_Guid);
+
+    /* Return the cp identifier */
+    retval = UA_ByteString_copy(&cp2->identifier, &result->continuationPoint);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Attach the cp to the session */
+    LIST_INSERT_HEAD(&session->continuationPoints, cp2, pointers);
+    --session->availableContinuationPoints;
+    return;
+
+ cleanup:
+    if(cp2) {
+        UA_ByteString_deleteMembers(&cp2->identifier);
+        UA_BrowseDescription_deleteMembers(&cp2->browseDescription);
+        UA_free(cp2);
+    }
+    UA_BrowseResult_deleteMembers(result);
+    result->statusCode = retval;
 }
 
 void Service_Browse(UA_Server *server, UA_Session *session,
@@ -296,43 +298,24 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing BrowseRequest");
 
+    /* No views supported at the moment */
     if(!UA_NodeId_isNull(&request->view.viewId)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
         return;
     }
 
-    if(request->nodesToBrowseSize <= 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
-    }
-
-    if(server->config.maxNodesPerBrowse != 0 &&
-       request->nodesToBrowseSize > server->config.maxNodesPerBrowse) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
-    }
-
-    size_t size = request->nodesToBrowseSize;
-    response->results =
-        (UA_BrowseResult*)UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
-    if(!response->results) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-    response->resultsSize = size;
-
-    for(size_t i = 0; i < size; ++i)
-        Service_Browse_single(server, session, NULL, &request->nodesToBrowse[i],
-                              request->requestedMaxReferencesPerNode,
-                              &response->results[i]);
+    UA_UInt32 requestedMaxReferencesPerNode = request->requestedMaxReferencesPerNode;
+    UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Browse,
+                                       &requestedMaxReferencesPerNode,
+                                       &request->nodesToBrowseSize, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
+                                       &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
 UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
-    Service_Browse_single(server, &adminSession, NULL,
-                          descr, maxrefs, &result);
+    Operation_Browse(server, &adminSession, &maxrefs, descr, &result);
     return result;
 }
 
@@ -350,11 +333,26 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session, UA_Boolean *release
         return;
     }
 
-    /* Do the work */
-    if(!*releaseContinuationPoints)
-        Service_Browse_single(server, session, cp, NULL, 0, result);
-    else
+    /* Remove the cp */
+    if(*releaseContinuationPoints) {
         removeCp(cp, session);
+        return;
+    }
+
+    /* Continue browsing */
+    UA_Boolean done = browseWithContinuation(server, session, cp, result);
+
+    if(done) {
+        /* Remove the cp if there are no references left */
+        removeCp(cp, session);
+    } else {
+        /* Return the cp identifier */
+        UA_StatusCode retval = UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_BrowseResult_deleteMembers(result);
+            result->statusCode = retval;
+        }
+    }
 }
 
 void
