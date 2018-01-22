@@ -7,12 +7,14 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
+#include "client/ua_client_internal.h"
 #include "ua_client_highlevel.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
 
 #include "check.h"
 #include "testing_clock.h"
+#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 
@@ -49,9 +51,11 @@ static void teardown(void) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 UA_Boolean notificationReceived;
+UA_UInt32 countNotificationReceived = 0;
 
 static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
     notificationReceived = true;
+    countNotificationReceived++;
 }
 
 START_TEST(Client_subscription) {
@@ -80,9 +84,130 @@ START_TEST(Client_subscription) {
     retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    retval = UA_Client_Subscriptions_remove(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_addMonitoredItems) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 subId;
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemCreateRequest items[3];
+    UA_MonitoredItemHandlingFunction hfs[3];
+    void *hfContexts[3];
+    UA_StatusCode itemResults[3];
+    UA_UInt32 newMonitoredItemIds[3];
+
+    /* monitor the server state */
+    UA_MonitoredItemCreateRequest_init(&items[0]);
+    items[0].itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2259);
+    items[0].itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
+    items[0].monitoringMode = UA_MONITORINGMODE_REPORTING;
+    items[0].requestedParameters.samplingInterval = 250;
+    items[0].requestedParameters.discardOldest = true;
+    items[0].requestedParameters.queueSize = 1;
+    hfs[0] = (UA_MonitoredItemHandlingFunction)(uintptr_t)monitoredItemHandler;
+    hfContexts[0] = NULL;
+
+    /* monitor current time */
+    UA_MonitoredItemCreateRequest_init(&items[1]);
+    items[1].itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    items[1].itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
+    items[1].monitoringMode = UA_MONITORINGMODE_REPORTING;
+    items[1].requestedParameters.samplingInterval = 250;
+    items[1].requestedParameters.discardOldest = true;
+    items[1].requestedParameters.queueSize = 1;
+    hfs[1] = (UA_MonitoredItemHandlingFunction)(uintptr_t)monitoredItemHandler;
+    hfContexts[1] = NULL;
+
+    /* monitor invalid node */
+    UA_MonitoredItemCreateRequest_init(&items[2]);
+    items[2].itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 99999999);
+    items[2].itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
+    items[2].monitoringMode = UA_MONITORINGMODE_REPORTING;
+    items[2].requestedParameters.samplingInterval = 250;
+    items[2].requestedParameters.discardOldest = true;
+    items[2].requestedParameters.queueSize = 1;
+    hfs[2] = (UA_MonitoredItemHandlingFunction)(uintptr_t)monitoredItemHandler;
+    hfContexts[2] = NULL;
+
+    retval = UA_Client_Subscriptions_addMonitoredItems(client, subId, items, 3,
+                                                      hfs, hfContexts, itemResults,
+                                                      newMonitoredItemIds);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(itemResults[0], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(itemResults[1], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(itemResults[2], UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 2);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
+    notificationReceived = false;
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 3);
+
+    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, newMonitoredItemIds[0]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, newMonitoredItemIds[1]);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Client_Subscriptions_remove(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_connectionClose) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 subId;
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* monitor the server state */
+    UA_UInt32 monId;
+    retval = UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
+                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler,
+                                                      NULL, &monId, 250);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    /* Simulate BADCONNECTIONCLOSE */
+    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSERVERNOTCONNECTED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -146,6 +271,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client, Client_subscription);
+    tcase_add_test(tc_client, Client_subscription_connectionClose);
+    tcase_add_test(tc_client, Client_subscription_addMonitoredItems);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");

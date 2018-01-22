@@ -14,10 +14,14 @@
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    UA_ByteString sentData = UA_BYTESTRING_NULL;
-    UA_Connection c = createDummyConnection(&sentData);
+    UA_Connection c = createDummyConnection(65535, NULL);
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
+    if (server == NULL) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not create server instance using UA_Server_new");
+        return 1;
+    }
 
     // we need to copy the message because it will be freed in the processing function
     UA_ByteString msg = UA_ByteString();

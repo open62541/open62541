@@ -171,7 +171,6 @@ FindServersOnNetworkResponse
 DataChangeTrigger
 DeadbandType
 DataChangeFilter
-MonitoringFilter
 EventFilter
 FilterOperand
 SimpleAttributeOperand
@@ -194,3 +193,5 @@ EndpointUrlListDataType
 ModelChangeStructureDataType
 SemanticChangeStructureDataType
 TimeZoneDataType
+AggregateConfiguration
+AggregateFilter

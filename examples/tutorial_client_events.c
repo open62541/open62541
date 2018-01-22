@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
+#include <stdio.h>
 #include "open62541.h"
 
 static UA_Boolean running = true;
@@ -11,9 +12,15 @@ static void stopHandler(int sig) {
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+
 static void
-handler_events(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context) {
+handler_events(const UA_UInt32 monId, const size_t nEventFields,
+               const UA_Variant *eventFields, void *context) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
+
+    /* The context should point to the monId on the stack */
+    UA_assert(*(UA_UInt32*)context == monId);
+
     for(size_t i = 0; i < nEventFields; ++i) {
         if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
             UA_UInt16 severity = *(UA_UInt16 *)eventFields[i].data;
@@ -45,7 +52,8 @@ setupSelectClauses(void) {
 
     selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     selectClauses[0].browsePathSize = 1;
-    selectClauses[0].browsePath = (UA_QualifiedName*)UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    selectClauses[0].browsePath = (UA_QualifiedName*)
+        UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
     if(!selectClauses[0].browsePath) {
         UA_SimpleAttributeOperand_delete(selectClauses);
         return NULL;
@@ -55,7 +63,8 @@ setupSelectClauses(void) {
 
     selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     selectClauses[1].browsePathSize = 1;
-    selectClauses[1].browsePath = (UA_QualifiedName*)UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    selectClauses[1].browsePath = (UA_QualifiedName*)
+        UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
     if(!selectClauses[1].browsePath) {
         UA_SimpleAttributeOperand_deleteMembers(selectClauses);
         UA_SimpleAttributeOperand_delete(selectClauses);
@@ -73,9 +82,15 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
+    if(argc < 2) {
+        printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
+        return 1;
+    }
+
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://uademo.prosysopc.com:53530/OPCUA/SimulationServer");
+    /* opc.tcp://uademo.prosysopc.com:53530/OPCUA/SimulationServer */
+    UA_StatusCode retval = UA_Client_connect(client, argv[1]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;
@@ -97,35 +112,30 @@ int main(int argc, char *argv[]) {
     UA_UInt32 monId = 0;
 
     UA_SimpleAttributeOperand *selectClauses = setupSelectClauses();
-    if(!selectClauses){
-        UA_Client_Subscriptions_remove(client, subId);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return (int)UA_STATUSCODE_BADOUTOFMEMORY;
-    }
 
-    UA_Client_Subscriptions_addMonitoredEvent(client, subId, monitorThis, UA_ATTRIBUTEID_EVENTNOTIFIER,
-                                              selectClauses, nSelectClauses,
-                                              NULL, 0,
-                                              &handler_events, NULL, &monId);
-    if (!monId) {
-        UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-        UA_Client_Subscriptions_remove(client, subId);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return (int)retval;
+    retval = UA_Client_Subscriptions_addMonitoredEvent(client, subId, monitorThis,
+                                                       UA_ATTRIBUTEID_EVENTNOTIFIER,
+                                                       selectClauses, nSelectClauses,
+                                                       NULL, 0, &handler_events, &monId, &monId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Could not add the MonitoredItem with %s", UA_StatusCode_name(retval));
+        goto cleanup;
+    } else {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Monitoring 'Root->Objects->Server', id %u", subId);
     }
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Monitoring 'Root->Objects->Server', id %u", subId);
 
     while (running)
         UA_Client_Subscriptions_manuallySendPublishRequest(client);
 
     /* Delete the subscription */
-    if(!UA_Client_Subscriptions_remove(client, subId))
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Subscription removed");
+ cleanup:
+    UA_Client_Subscriptions_remove(client, subId);
+    UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
 #endif
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
+    return (int) retval;
 }

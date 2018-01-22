@@ -115,6 +115,10 @@ def generateVariableNodeCode(node, nodeset, max_string_length):
     code.append("attr.minimumSamplingInterval = %f;" % node.minimumSamplingInterval)
     code.append("attr.userAccessLevel = %d;" % node.userAccessLevel)
     code.append("attr.accessLevel = %d;" % node.accessLevel)
+    # in order to be compatible with mostly OPC UA client
+    # force valueRank = -1 for scalar VariableNode
+    if node.valueRank == -2:
+        node.valueRank = -1
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.valueRank > 0:
         code.append("attr.arrayDimensionsSize = %d;" % node.valueRank)
@@ -127,11 +131,13 @@ def generateVariableNodeCode(node, nodeset, max_string_length):
         if isinstance(node.dataType, NodeId) and node.dataType.ns == 0 and node.dataType.i == 0:
             #BaseDataType
             dataTypeNode = nodeset.nodes[NodeId("i=24")]
+            dataTypeNodeOpaque = nodeset.nodes[NodeId("i=24")]
         else:
+            dataTypeNodeOpaque = nodeset.getDataTypeNode(node.dataType)
             dataTypeNode = nodeset.getBaseDataType(nodeset.getDataTypeNode(node.dataType))
 
         if dataTypeNode is not None:
-            code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNode.id))
+            code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNodeOpaque.id))
 
             if dataTypeNode.isEncodable():
                 if node.value is not None:
@@ -246,7 +252,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
     code.append(
         "if(UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, 65000) != UA_STATUSCODE_GOOD) {}")
 
-    # Encode each value as a bytestring seperately.
+    # Encode each value as a bytestring separately.
     code.append("UA_Byte *pos" + instanceName + " = " + instanceName + "->content.encoded.body.data;")
     code.append("const UA_Byte *end" + instanceName + " = &" + instanceName + "->content.encoded.body.data[65000];")
     encFieldIdx = 0
@@ -453,7 +459,7 @@ def generateSubtypeOfDefinitionCode(node):
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
-def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length):
+def generateNodeCode(node, suppressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length):
     code = []
     code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
 

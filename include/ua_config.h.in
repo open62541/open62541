@@ -27,6 +27,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_MULTITHREADING
+#cmakedefine UA_ENABLE_ENCRYPTION
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
@@ -211,21 +212,15 @@ extern "C" {
  * ^^^^^^^^^^^^^^^^^^
  * The definition ``UA_BINARY_OVERLAYABLE_INTEGER`` is true when the integer
  * representation of the target architecture is little-endian. */
-#if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
-                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
+#if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_INTEGER 1
-#elif defined(__ANDROID__) /* Andoid */
+#elif (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+      (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
+# define UA_BINARY_OVERLAYABLE_INTEGER 1
+#elif defined(__linux__) /* Linux (including Android) */
 # include <endian.h>
 # if __BYTE_ORDER == __LITTLE_ENDIAN
 #  define UA_BINARY_OVERLAYABLE_INTEGER 1
-# endif
-#elif defined(__linux__) /* Linux */
-# include <endian.h>
-# if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER 1
-# endif
-# if __FLOAT_BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(__OpenBSD__) /* OpenBSD */
 # include <sys/endian.h>
@@ -259,7 +254,10 @@ extern "C" {
  * The definition ``UA_BINARY_OVERLAYABLE_FLOAT`` is true when the floating
  * point number representation of the target architecture is IEEE 754. Note that
  * this cannot be reliable detected with macros for the clang compiler
- * (beginning of 2017). Just override if necessary. */
+ * (beginning of 2017). ``UA_BINARY_OVERLAYABLE_FLOAT`` can be manually set if
+ * the target is known to be little endian with floats in the IEEE 754
+ * format. */
+
 #if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
@@ -268,6 +266,11 @@ extern "C" {
 #elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
     (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
+#elif defined(__linux__) /* Linux (including Android) */
+# include <endian.h>
+# if __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_FLOAT 1
+# endif
 #elif defined(_WRS_KERNEL)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #endif

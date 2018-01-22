@@ -2,7 +2,6 @@ $ErrorActionPreference = "Stop"
 
 & git submodule --quiet update --init --recursive
 
-
 Write-Host -ForegroundColor Green "`n### Installing CMake and python ###`n"
 & cinst --no-progress cmake python2
 
@@ -23,7 +22,6 @@ if (-not (Test-Path "c:\miktex\texmfs\install\miktex\bin\pdflatex.exe")) {
 
 Write-Host -ForegroundColor Green "`n### Installing graphviz ###`n"
 & cinst --no-progress graphviz.portable
-
 
 if ($env:CC_SHORTNAME -eq "vs2015") {
 	Write-Host -ForegroundColor Green "`n### Installing libcheck ###`n"

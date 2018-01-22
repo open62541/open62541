@@ -20,12 +20,15 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
     UA_SignatureData *signatureData = &response->serverSignature;
 
+    const UA_NodeId *authenticationToken = &session->header.authenticationToken;
+
     /* Generate Nonce
      * FIXME: remove magic number??? */
     UA_StatusCode retval = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+    UA_ByteString_deleteMembers(&session->serverNonce);
     retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
         return retval;
     }
 
@@ -34,7 +37,7 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
         return retval;
     }
 
@@ -44,7 +47,7 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
                                         request->clientNonce.length);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_SignatureData_deleteMembers(signatureData);
-        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
         return retval;
     }
 
@@ -60,7 +63,7 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     UA_ByteString_deleteMembers(&dataToSign);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_SignatureData_deleteMembers(signatureData);
-        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
     }
     return retval;
 }
@@ -149,7 +152,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Prepare the response */
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
-    response->authenticationToken = newSession->authenticationToken;
+    response->authenticationToken = newSession->header.authenticationToken;
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
@@ -164,7 +167,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager,
+                                        &newSession->header.authenticationToken);
         return;
     }
 
@@ -187,6 +191,7 @@ checkSignature(const UA_Server *server,
         UA_ByteString dataToVerify;
         UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify,
                                                          localCertificate->length + session->serverNonce.length);
+
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
             UA_LOG_DEBUG_SESSION(server->config.logger, session,
@@ -210,6 +215,7 @@ checkSignature(const UA_Server *server,
         }
 
         retval  = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+        UA_ByteString_deleteMembers(&session->serverNonce);
         retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
@@ -250,14 +256,14 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
 
     /* Detach the old SecureChannel */
-    if(session->channel && session->channel != channel) {
+    if(session->header.channel && session->header.channel != channel) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: Detach from old channel");
-        UA_SecureChannel_detachSession(session->channel, session);
+        UA_Session_detachFromSecureChannel(session);
     }
 
     /* Attach to the SecureChannel and activate */
-    UA_SecureChannel_attachSession(channel, session);
+    UA_Session_attachToSecureChannel(session, channel);
     session->activated = true;
     UA_Session_updateLifetime(session);
     UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -275,5 +281,5 @@ Service_CloseSession(UA_Server *server, UA_Session *session,
                                               session->sessionHandle);
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,
-                                        &session->authenticationToken);
+                                        &session->header.authenticationToken);
 }

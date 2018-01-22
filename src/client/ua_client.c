@@ -22,6 +22,8 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
+    if (client->config.stateCallback)
+        client->config.stateCallback(client, client->state);
 }
 
 UA_Client *
@@ -57,14 +59,7 @@ UA_Client_deleteMembers(UA_Client* client) {
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Client_NotificationsAckNumber *n, *tmp;
-    LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
-        LIST_REMOVE(n, listEntry);
-        UA_free(n);
-    }
-    UA_Client_Subscription *sub, *tmps;
-    LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps)
-        UA_Client_Subscriptions_forceDelete(client, sub); /* force local removal */
+    UA_Client_Subscriptions_clean(client);
 #endif
 }
 
@@ -184,7 +179,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
      * TODO: Solve this for client and server together */
     if(rd->client->state >= UA_CLIENTSTATE_SECURECHANNEL &&
        (channel->securityToken.createdAt +
-        (channel->securityToken.revisedLifetime * UA_MSEC_TO_DATETIME))
+        (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC))
        < UA_DateTime_nowMonotonic())
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
 
@@ -283,17 +278,15 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         /* round always to upper value to avoid timeout to be set to 0
-         * if (maxDate - now) < (UA_MSEC_TO_DATETIME/2) */
-        UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_MSEC_TO_DATETIME - 1)) / UA_MSEC_TO_DATETIME);
+         * if (maxDate - now) < (UA_DATETIME_MSEC/2) */
+        UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-        retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd,
-                                                     client_processChunk, timeout);
+        retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd, client_processChunk, timeout);
 
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
                 client->state = UA_CLIENTSTATE_DISCONNECTED;
-            else
-                UA_Client_disconnect(client);
+            UA_Client_close(client);
             break;
         }
     } while(!rd.received);
@@ -315,17 +308,17 @@ __UA_Client_Service(UA_Client *client, const void *request,
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
             respHeader->serviceResult = retval;
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         return;
     }
 
     /* Retrieve the response */
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
-        (client->config.timeout * UA_MSEC_TO_DATETIME);
+        (client->config.timeout * UA_DATETIME_MSEC);
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
     if (retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT){
         /* In synchronous service, if we have don't have a reply we need to close the connection */
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
     if(retval != UA_STATUSCODE_GOOD)
@@ -363,8 +356,7 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* TODO: Call repeated jobs that are scheduled */
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
-        (timeout * UA_MSEC_TO_DATETIME);
+    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
     UA_StatusCode retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         retval = UA_STATUSCODE_GOOD;

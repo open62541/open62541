@@ -92,7 +92,7 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
  *
  * @param server The server object.
  * @param callbackId The id of the callback that shall be removed.
- * @return Upon sucess, UA_STATUSCODE_GOOD is returned.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned.
  *         An error code otherwise. */
 UA_StatusCode UA_EXPORT
 UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
@@ -639,6 +639,18 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 typedef struct {
     /* Copies the data from the source into the provided value.
      *
+     * !! ZERO-COPY OPERATIONS POSSIBLE !!
+     * It is not required to return a copy of the actual content data. You can
+     * return a pointer to memory owned by the user. Memory can be reused
+     * between read callbacks of a DataSource, as the result is already encoded
+     * on the network buffer between each read operation.
+     *
+     * To use zero-copy reads, set the value of the `value->value` Variant
+     * without copying, e.g. with `UA_Variant_setScalar`. Then, also set
+     * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
+     * memory being cleaned up. Don't forget to also set `value->hasValue` to
+     * true to indicate the presence of a value.
+     *
      * @param handle An optional pointer to user-defined data for the
      *        specific data source
      * @param nodeid Id of the read node
@@ -659,8 +671,8 @@ typedef struct {
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
                           const UA_NumericRange *range, UA_DataValue *value);
 
-    /* Write into a data source. The write member of UA_DataSource can be empty
-     * if the operation is unsupported.
+    /* Write into a data source. This method pointer can be NULL if the
+     * operation is unsupported.
      *
      * @param handle An optional pointer to user-defined data for the
      *        specific data source
@@ -764,7 +776,7 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
  * reference it later. When passing numeric NodeIds with a numeric identifier 0,
  * the stack evaluates this as "select a random unassigned numeric NodeId in
  * that namespace". To find out which NodeId was actually assigned to the new
- * node, you may pass a pointer `outNewNodeId`, which will (after a successfull
+ * node, you may pass a pointer `outNewNodeId`, which will (after a successful
  * node insertion) contain the nodeId of the new node. You may also pass a
  * ``NULL`` pointer if this result is not needed.
  *
@@ -1003,7 +1015,7 @@ UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
  *
  * UA_Job API
  * ^^^^^^^^^^
- * UA_Job was replaced since it unneccessarily exposed server internals to the
+ * UA_Job was replaced since it unnecessarily exposed server internals to the
  * end-user. Please use plain UA_ServerCallbacks instead. The following UA_Job
  * definition contains just the fraction of the original struct that was useful
  * to end-users. */

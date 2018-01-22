@@ -15,9 +15,9 @@ extern "C" {
 #include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
-#include "ua_util.h"
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
+#define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 extern UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
@@ -25,12 +25,18 @@ extern UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
 extern UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
 #endif
 
-struct UA_Session;
-typedef struct UA_Session UA_Session;
+/* The Session implementation differs between client and server. Still, it is
+ * expected that the Session structure begins with the SessionHeader. This is
+ * the interface that will be used by the SecureChannel. The lifecycle of
+ * Sessions is independent of the underlying SecureChannel. But every Session
+ * can be attached to only one SecureChannel. */
+struct UA_SessionHeader;
+typedef struct UA_SessionHeader UA_SessionHeader;
 
-struct SessionEntry {
-    LIST_ENTRY(SessionEntry) pointers;
-    UA_Session *session; // Just a pointer. The session is held in the session manager or the client
+struct UA_SessionHeader {
+    LIST_ENTRY(UA_SessionHeader) pointers;
+    UA_NodeId authenticationToken;
+    UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 };
 
 /* For chunked requests */
@@ -59,7 +65,7 @@ struct UA_SecureChannel {
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
-    UA_Byte remoteCertificateThumbprint[20]; /* The thumprint of the remote certificate */
+    UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
 
     /* Symmetric encryption info */
     UA_ByteString remoteNonce;
@@ -68,7 +74,7 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    LIST_HEAD(session_pointerlist, SessionEntry) sessions;
+    LIST_HEAD(session_pointerlist, UA_SessionHeader) sessions;
     LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
 };
 
@@ -79,35 +85,84 @@ UA_SecureChannel_init(UA_SecureChannel *channel,
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 /* Generates new keys and sets them in the channel context */
-UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel);
+UA_StatusCode
+UA_SecureChannel_generateNewKeys(UA_SecureChannel* channel);
 
-/* Wrapper function for generating nonces for the supplied channel.
+/* Wrapper function for generating nonces for the supplied channel. Uses the
+ * random generator of the channels security policy to allocate and generate a
+ * nonce with the specified length.
  *
- * Uses the random generator of the channels security policy to allocate
- * and generate a nonce with the specified length.
- *
- * \param channel the channel to use.
- * \param nonceLength the length of the nonce to be generated.
- * \param nonce will contain the nonce after being successfully called.
- */
-UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecureChannel *const channel,
-                                             const size_t nonceLength,
-                                             UA_ByteString *const nonce);
+ * @param channel the channel to use.
+ * @param nonceLength the length of the nonce to be generated.
+ * @param nonce will contain the nonce after being successfully called. */
+UA_StatusCode
+UA_SecureChannel_generateNonce(const UA_SecureChannel *channel,
+                               size_t nonceLength, UA_ByteString *nonce);
 
-void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session);
-void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session);
-UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *token);
-
-UA_StatusCode UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
+UA_SessionHeader *
+UA_SecureChannel_getSession(UA_SecureChannel *channel,
+                            const UA_NodeId *authenticationToken);
 
 UA_StatusCode
-UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                      UA_MessageType messageType, const void *content,
-                                      const UA_DataType *contentType);
+UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
+
+/**
+ * Sending Messages
+ * ---------------- */
 
 UA_StatusCode
 UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                           const void *content, const UA_DataType *contentType);
+
+UA_StatusCode
+UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
+                                      UA_MessageType messageType, void *payload,
+                                      const UA_DataType *payloadType);
+
+/* The MessageContext is forwarded into the encoding layer so that we can send
+ * chunks before continuing to encode. This lets us reuse a fixed chunk-sized
+ * messages buffer. */
+typedef struct {
+    UA_SecureChannel *channel;
+    UA_UInt32 requestId;
+    UA_UInt32 messageType;
+
+    UA_UInt16 chunksSoFar;
+    size_t messageSizeSoFar;
+
+    UA_ByteString messageBuffer;
+    UA_Byte *buf_pos;
+    const UA_Byte *buf_end;
+
+    UA_Boolean final;
+} UA_MessageContext;
+
+/* Start the context of a new symmetric message. */
+UA_StatusCode
+UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
+                        UA_UInt32 requestId, UA_MessageType messageType);
+
+/* Encode the content and send out full chunks. If the return code is good, then
+ * the ChunkInfo contains encoded content that has not been sent. If the return
+ * code is bad, then the ChunkInfo has been cleaned up internally. */
+UA_StatusCode
+UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
+                         const UA_DataType *contentType);
+
+/* Sends a symmetric message already encoded in the context. The context is
+ * cleaned up, also in case of errors. */
+UA_StatusCode
+UA_MessageContext_finish(UA_MessageContext *mc);
+
+/* To be used when a failure occures when a MessageContext is open. Note that
+ * the _encode and _finish methods will clean up internally. _abort can be run
+ * on a MessageContext that has already been cleaned up before. */
+void
+UA_MessageContext_abort(UA_MessageContext *mc);
+
+/**
+ * Process Received Chunks
+ * ----------------------- */
 
 typedef UA_StatusCode
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
@@ -118,10 +173,10 @@ typedef UA_StatusCode
  * callback function is called with the complete message body if the message is
  * complete.
  *
- * Symmetric calback is ERR, MSG, CLO only
+ * Symmetric callback is ERR, MSG, CLO only
  * Asymmetric callback is OPN only
  *
- * @param channel the channel the chunks were recieved on.
+ * @param channel the channel the chunks were received on.
  * @param chunks the memory region where the chunks are stored.
  * @param callback the callback function that gets called with the complete
  *                 message body, once a final chunk is processed.

@@ -32,6 +32,9 @@ removeSessionCallback(UA_Server *server, void *entry) {
 
 static UA_StatusCode
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
+    /* Detach the Session from the SecureChannel */
+    UA_Session_detachFromSecureChannel(&sentry->session);
+
     /* Deactivate the session */
     sentry->session.activated = false;
 
@@ -45,7 +48,8 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
         return retval; /* Try again next time */
     }
 
-    /* Detach the session and make the capacity available */
+    /* Detach the session from the session manager and make the capacity
+     * available */
     LIST_REMOVE(sentry, pointers);
     UA_atomic_add(&sm->currentSessionCount, (UA_UInt32)-1);
     return UA_STATUSCODE_GOOD;
@@ -72,7 +76,7 @@ UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *toke
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         /* Token does not match */
-        if(!UA_NodeId_equal(&current->session.authenticationToken, token))
+        if(!UA_NodeId_equal(&current->session.header.authenticationToken, token))
             continue;
 
         /* Session has timed out */
@@ -133,7 +137,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
     UA_atomic_add(&sm->currentSessionCount, 1);
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
-    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
+    newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
     if(request->requestedSessionTimeout <= sm->server->config.maxSessionTimeout &&
        request->requestedSessionTimeout > 0)
@@ -151,7 +155,7 @@ UA_StatusCode
 UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token) {
     session_list_entry *current;
     LIST_FOREACH(current, &sm->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.authenticationToken, token))
+        if(UA_NodeId_equal(&current->session.header.authenticationToken, token))
             break;
     }
     if(!current)

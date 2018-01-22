@@ -76,17 +76,16 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
-    UA_NodeClass referenceTypeNodeClass = referenceType->nodeClass;
-    UA_Boolean referenceTypeIsAbstract = referenceType->isAbstract;
-    UA_Nodestore_release(server, (const UA_Node*)referenceType);
-
     /* Check if the referencetype is a reference type node */
-    if(referenceTypeNodeClass != UA_NODECLASS_REFERENCETYPE) {
+    if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Reference type to the parent invalid");
+        UA_Nodestore_release(server, (const UA_Node*)referenceType);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
+    UA_Boolean referenceTypeIsAbstract = referenceType->isAbstract;
+    UA_Nodestore_release(server, (const UA_Node*)referenceType);
     /* Check that the reference type is not abstract */
     if(referenceTypeIsAbstract == true) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -221,8 +220,10 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
 
     const UA_VariableTypeNode *vt = (const UA_VariableTypeNode*)
         UA_Nodestore_get(server, typeDefinition);
-    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE)
+    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE) {
+        UA_Nodestore_release(server, (const UA_Node*)vt);
         return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
         
     /* If no value is set, see if the vt provides one and copy it. This needs to
      * be done before copying the datatype from the vt, as setting the datatype
@@ -1132,6 +1133,9 @@ removeChildren(UA_Server *server, UA_Session *session,
     /* Remove every child */
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
+        // check for self-reference to avoid endless loop
+        if (UA_NodeId_equal(&node->nodeId, &rd->nodeId.nodeId))
+            continue;
         item.nodeId = rd->nodeId.nodeId;
         UA_StatusCode retval;
         deleteNodeOperation(server, session, &item, &retval);

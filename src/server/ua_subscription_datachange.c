@@ -48,7 +48,7 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 static void
-ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
+ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon, MonitoredItem_queuedValue *newQueueItem) {
     /* Enough space, nothing to do here */
     if(mon->currentQueueSize < mon->maxQueueSize)
         return;
@@ -66,6 +66,11 @@ ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
     UA_DataValue_deleteMembers(&queueItem->value);
     UA_free(queueItem);
     --mon->currentQueueSize;
+
+    if(mon->maxQueueSize > 1){
+        newQueueItem->value.hasStatus = true;
+        newQueueItem->value.status = UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW;
+    }
 }
 
 /* Errors are returned as no change detected */
@@ -150,7 +155,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
         UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                "Subscription %u | MonitoredItem %i | "
                                "Item for the publishing queue could not be allocated",
-                               sub->subscriptionID, monitoredItem->itemId);
+                               sub->subscriptionId, monitoredItem->itemId);
         return false;
     }
 
@@ -161,7 +166,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | MonitoredItem %i | "
                                    "ByteString to compare values could not be created",
-                                   sub->subscriptionID, monitoredItem->itemId);
+                                   sub->subscriptionId, monitoredItem->itemId);
             UA_free(newQueueItem);
             return false;
         }
@@ -176,7 +181,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | MonitoredItem %i | "
                                    "Item for the publishing queue could not be prepared",
-                                   sub->subscriptionID, monitoredItem->itemId);
+                                   sub->subscriptionId, monitoredItem->itemId);
             UA_free(newQueueItem);
             return false;
         }
@@ -189,14 +194,14 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
 
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | MonitoredItem %u | Sampled a new value",
-                         sub->subscriptionID, monitoredItem->itemId);
+                         sub->subscriptionId, monitoredItem->itemId);
 
     /* Replace the encoding for comparison */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = *valueEncoding;
 
     /* Add the sample to the queue for publication */
-    ensureSpaceInMonitoredItemQueue(monitoredItem);
+    ensureSpaceInMonitoredItemQueue(monitoredItem, newQueueItem);
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
     ++monitoredItem->currentQueueSize;
     return true;;
@@ -210,7 +215,7 @@ UA_MoniteredItem_SampleCallback(UA_Server *server,
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                              "Subscription %u | MonitoredItem %i | "
                              "Not a data change notification",
-                             sub->subscriptionID, monitoredItem->itemId);
+                             sub->subscriptionId, monitoredItem->itemId);
         return;
     }
 
@@ -218,7 +223,7 @@ UA_MoniteredItem_SampleCallback(UA_Server *server,
     UA_ReadValueId rvid;
     UA_ReadValueId_init(&rvid);
     rvid.nodeId = monitoredItem->monitoredNodeId;
-    rvid.attributeId = monitoredItem->attributeID;
+    rvid.attributeId = monitoredItem->attributeId;
     rvid.indexRange = monitoredItem->indexRange;
     UA_DataValue value =
         UA_Server_readWithSession(server, sub->session,

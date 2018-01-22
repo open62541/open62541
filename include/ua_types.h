@@ -170,27 +170,29 @@ UA_STRING(char *chars) {
  * ^^^^^^^^
  * An instance in time. A DateTime value is encoded as a 64-bit signed integer
  * which represents the number of 100 nanosecond intervals since January 1, 1601
- * (UTC). */
+ * (UTC).
+ *
+ * The methods providing an interface to the system clock are provided by a
+ * "plugin" that is statically linked with the library. */
+
 typedef int64_t UA_DateTime;
 
-/* Multiply to convert units for time difference computations */
-#define UA_USEC_TO_DATETIME 10LL
-#define UA_MSEC_TO_DATETIME (UA_USEC_TO_DATETIME * 1000LL)
-#define UA_SEC_TO_DATETIME (UA_MSEC_TO_DATETIME * 1000LL)
-#define UA_DATETIME_TO_USEC (1/10.0)
-#define UA_DATETIME_TO_MSEC (UA_DATETIME_TO_USEC / 1000.0)
-#define UA_DATETIME_TO_SEC (UA_DATETIME_TO_MSEC / 1000.0)
+/* Multiples to convert durations to DateTime */
+#define UA_DATETIME_USEC 10LL
+#define UA_DATETIME_MSEC (UA_DATETIME_USEC * 1000LL)
+#define UA_DATETIME_SEC (UA_DATETIME_MSEC * 1000LL)
 
-/* Datetime of 1 Jan 1970 00:00 UTC */
-#define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_SEC_TO_DATETIME)
-
-/* The current time */
+/* The current time in UTC time */
 UA_DateTime UA_EXPORT UA_DateTime_now(void);
 
-/* CPU clock invariant to system time changes. Use only for time diffs, not
- * current time */
+/* Offset between local time and UTC time */
+UA_Int64 UA_EXPORT UA_DateTime_localTimeUtcOffset(void);
+
+/* CPU clock invariant to system time changes. Use only to measure durations,
+ * not absolute time. */
 UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);
 
+/* Represents a Datetime as a structure */
 typedef struct UA_DateTimeStruct {
     UA_UInt16 nanoSec;
     UA_UInt16 microSec;
@@ -205,7 +207,23 @@ typedef struct UA_DateTimeStruct {
 
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
 
-UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime t);
+/* The C99 standard (7.23.1) says: "The range and precision of times
+ * representable in clock_t and time_t are implementation-defined." On most
+ * systems, time_t is a 4 or 8 byte integer counting seconds since the UTC Unix
+ * epoch. The following methods are used for conversion. */
+
+/* Datetime of 1 Jan 1970 00:00 */
+#define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_DATETIME_SEC)
+
+static UA_INLINE UA_Int64
+UA_DateTime_toUnixTime(UA_DateTime date) {
+    return (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC;
+}
+
+static UA_INLINE UA_DateTime
+UA_DateTime_fromUnixTime(UA_Int64 unixDate) {
+    return (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
+}
 
 /**
  * Guid
@@ -641,7 +659,7 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
  *
  * ExtensionObjects may contain scalars of any data type. Even those that are
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
- * are described. If the received data type is unkown, the encoded string and
+ * are described. If the received data type is unknown, the encoded string and
  * target NodeId is stored instead of the decoded value. */
 typedef enum {
     UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
@@ -744,7 +762,7 @@ typedef struct {
                                      types */
     UA_Byte   padding;            /* How much padding is there before this
                                      member element? For arrays this is the
-                                     padding before the size_t lenght member.
+                                     padding before the size_t length member.
                                      (No padding between size_t and the
                                      following ptr.) */
     UA_Boolean namespaceZero : 1; /* The type of the member is defined in
@@ -919,6 +937,22 @@ UA_DEPRECATED static UA_INLINE const char *
 UA_StatusCode_explanation(UA_StatusCode code) {
     return statusCodeExplanation_default.name;
 }
+
+UA_DEPRECATED UA_String
+UA_DateTime_toString(UA_DateTime t);
+
+/* The old DateTime conversion macros */
+UA_DEPRECATED static UA_INLINE double
+deprecatedDateTimeMultiple(double multiple) {
+    return multiple;
+}
+
+#define UA_USEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_USEC)
+#define UA_MSEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_MSEC)
+#define UA_SEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_SEC)
+#define UA_DATETIME_TO_USEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_USEC))
+#define UA_DATETIME_TO_MSEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_MSEC))
+#define UA_DATETIME_TO_SEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_SEC))
 
 #ifdef __cplusplus
 } // extern "C"

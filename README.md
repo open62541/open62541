@@ -33,20 +33,36 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
 - Code-Generation
   - Support for generating data types from standard XML definitions
   - Support for generating server-side information models (nodesets) from standard XML definitions
-- Code quality checks
-  - Every commit checked with continuous integration and unit tests (code coverage > 80%)
-  - Memory leak detection using Valgrind (Linux) and DrMemory (Windows)
-  - Static code analysis with cpp-check and clang static code analysis
-  - Fuzz testing with [oss-fuzz](https://github.com/google/oss-fuzz)
   
 Features currently being implemented:
 - Target 0.3 release (to be released in the coming weeks):
-  - Encryption (#1282)
+  - Secure communication with encrypted messages (Done)
   - Access control for individual nodes (Done)
 - Target 0.4 release:
   - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
   - Event-loop (background tasks) and asynchronous service requests in the client, WIP #1117 #1410
-  - Publish/Subscribe based on UDP (Specification Part 14), WIP by @jpfr
+  - Publish/Subscribe based on UDP (Specification Part 14), WIP @ Fraunhofer IOSB
+
+### Dependencies
+
+None.
+
+On a more serious note, on most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://open62541.org/doc/current/building.html) for details.
+
+- Core Library: The core library has no dependencies besides the C99 standard headers.
+- Default Plugins: The default plugins use the POSIX interfaces for networking and accessing the system clock. Ports to different (embedded) architectures are achieved by customizing the plugins.
+- Building and Code Generation: The build environment is generated via CMake. Some code is auto-generated from XML definitions that are part of the OPC UA standard. The code generation scripts run with both Python 2 and 3.
+
+### Code Quality
+
+We emphasize code quality. The following quality metrics are continuously checked and are ensured to hold before an official release is made:
+
+- Zero errors indicated by the Compliance Testing Tool (CTT) of the OPC Foundation for the supported features
+- Zero compiler warnings from GCC/Clang/MSVC with very strict compilation flags
+- Zero issues indicated by unit tests (more than 80% coverage)
+- Zero issues indicated by clang-analyzer, clang-tidy, cpp-check and the Coverity static code analysis tools
+- Zero unresolved issues from fuzzing the library in Google's oss-fuzz infrastructure
+- Zero issues indicated by Valgrind (Linux), DrMemory (Windows) and Clang AddressSanitizer / MemorySanitizer for the CTT tests, unit tests and fuzzing
 
 ### Using open62541
 
@@ -71,7 +87,7 @@ Besides the general open62541 community, a group of core maintainers jointly ste
 As an open source project, we encourage new contributors to help improve open62541. There are ways to begin contributing without deep knowledge of the OPC UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
-- Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
+- Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
 
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.

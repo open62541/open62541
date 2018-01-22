@@ -19,21 +19,22 @@ extern "C" {
 
 /* Thread-Local Storage
  * --------------------
- * Thread-local variables are always enabled. Also when the library is built
- * with ``UA_ENABLE_MULTITHREADING`` disabled. Otherwise, if multiple clients
- * run in separate threads, race conditions may occur via global variables in
- * the encoding layer. */
+ * If thread-local storage is not supported but still detected with the
+ * following macros, it can be manually disabled by defining
+ * ``UA_NO_THREAD_LOCAL``. This can result in some minor slowdowns. */
+
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 # define UA_THREAD_LOCAL _Thread_local /* C11 */
 #elif defined(__cplusplus) && __cplusplus > 199711L
 # define UA_THREAD_LOCAL thread_local /* C++11 */
-#elif defined(__GNUC__) && !defined(_WRS_KERNEL) //defining __thread gave error of missing __tls_lookup in VxWorks
+#elif defined(__GNUC__)
 # define UA_THREAD_LOCAL __thread /* GNU extension */
 #elif defined(_MSC_VER)
 # define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 #else
-# warning The compiler does not support thread-local variables
+# define UA_NO_THREAD_LOCAL
 # define UA_THREAD_LOCAL
+# warning The compiler does not support thread-local variables
 #endif
 
 /* Integer Shortnames

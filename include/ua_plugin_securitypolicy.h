@@ -29,7 +29,7 @@ typedef struct {
      * @param message the message to which the signature is supposed to belong.
      * @param signature the signature of the message, that should be verified. */
     UA_StatusCode (*verify)(const UA_SecurityPolicy *securityPolicy,
-                            const void *channelContext, const UA_ByteString *message,
+                            void *channelContext, const UA_ByteString *message,
                             const UA_ByteString *signature) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Signs the given message using this policys signing algorithm and the
@@ -44,7 +44,7 @@ typedef struct {
      *                  necessary size can be acquired with the signatureSize
      *                  attribute of this module. */
     UA_StatusCode (*sign)(const UA_SecurityPolicy *securityPolicy,
-                          const void *channelContext, const UA_ByteString *message,
+                          void *channelContext, const UA_ByteString *message,
                           UA_ByteString *signature) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Gets the signature size that depends on the local (private) key.
@@ -76,7 +76,7 @@ typedef struct {
      * @param data the data that is encrypted. The encrypted data will overwrite
      *             the data that was supplied. */
     UA_StatusCode(*encrypt)(const UA_SecurityPolicy *securityPolicy,
-                            const void *channelContext,
+                            void *channelContext,
                             UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Decrypts the given ciphertext in place using an asymmetric algorithm and
@@ -87,7 +87,7 @@ typedef struct {
      *                       the keys needed to decrypt the message.
      * @param data the data to decrypt. The decryption is done in place. */
     UA_StatusCode(*decrypt)(const UA_SecurityPolicy *securityPolicy,
-                            const void *channelContext,
+                            void *channelContext,
                             UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Returns the length of the key used locally to encrypt messages in bits
@@ -110,12 +110,12 @@ typedef struct {
 } UA_SecurityPolicyCryptoModule;
 
 typedef struct {
-    /* Generates a thumprint for the specified certificate.
+    /* Generates a thumbprint for the specified certificate.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param certificate the certificate to make a thumbprint of.
      * @param thumbprint an output buffer for the resulting thumbprint. Always
-     *                   has the length specified in the thumprintLenght in the
+     *                   has the length specified in the thumbprintLength in the
      *                   asymmetricModule. */
     UA_StatusCode (*makeCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
                                                const UA_ByteString *certificate,
@@ -129,7 +129,7 @@ typedef struct {
      * @param certificateThumbprint the certificate thumbprint to compare to the
      *                              one stored in the context.
      * @return if the thumbprints match UA_STATUSCODE_GOOD is returned. If they
-     *         don't match or an error occured an error code is returned. */
+     *         don't match or an error occurred an error code is returned. */
     UA_StatusCode (*compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
                                                   const UA_ByteString *certificateThumbprint)
         UA_FUNC_ATTR_WARN_UNUSED_RESULT;
@@ -172,7 +172,7 @@ typedef struct {
 typedef struct {
     /* This method creates a new context data object.
      *
-     * The caller needs to call delete on the recieved object to free allocated
+     * The caller needs to call delete on the received object to free allocated
      * memory. Memory is only allocated if the function succeeds so there is no
      * need to manually free the memory pointed to by *channelContext or to
      * call delete in case of failure.
@@ -249,7 +249,7 @@ typedef struct {
      *                       certificate to compare to.
      * @param certificate the certificate to compare to the one stored in the context.
      * @return if the certificates match UA_STATUSCODE_GOOD is returned. If they
-     *         don't match or an errror occured an error code is returned. */
+     *         don't match or an errror occurred an error code is returned. */
     UA_StatusCode (*compareCertificate)(const void *channelContext,
                                         const UA_ByteString *certificate)
         UA_FUNC_ATTR_WARN_UNUSED_RESULT;
