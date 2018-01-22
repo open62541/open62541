@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-
-# coding: UTF-8
+# -*- coding: utf-8 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -25,12 +24,18 @@ if sys.version_info[0] >= 3:
         return s
 
 
+# Replace the name by another value, i.e. add affiliation or replace user name by full name
 # only use lower case name
 authorFullName = {
-    'staldert': 'Thomas Stalder'
+    'staldert': 'Thomas Stalder',
+    'mark giraud': 'Mark Giraud, Fraunhofer IOSB',
+    'julius pfrommer': 'Julius Pfrommer, Fraunhofer IOSB',
+    'stefan profanter': 'Stefan Profanter, fortiss GmbH',
 }
 
-skipNames = ['=', 'open62541']
+# Skip commits with the following authors, since they are not valid names
+# and come from an invalid git config
+skipNames = ['=', 'open62541', 'opcua']
 
 def compactYears(yearList):
 
@@ -70,7 +75,7 @@ fileAuthorStats = dict()
 def insertCopyrightAuthors(file, authorsList):
     copyrightEntries = list()
     for author in authorsList:
-        copyrightEntries.append(unicode("Copyright {} (C) {}").format(compactYears(author['years']), author['author']))
+        copyrightEntries.append(unicode("Copyright {} (c) {}").format(compactYears(author['years']), author['author']))
 
     copyrightAdded = False
     commentPattern = re.compile(r"(.*)\*/$")
@@ -113,8 +118,8 @@ def updateCopyright(repo, file):
         author = unicode(authorStr)
 
         authorYears = list()
-        for year in stats[author]:
-            if stats[author][year] < 10:
+        for year in stats[author]['years']:
+            if stats[author]['years'][year] < 10:
                 # ignore contributions for this year if less than 10 lines changed
                 continue
             authorYears.append(year)
@@ -130,12 +135,13 @@ def updateCopyright(repo, file):
 
         authorList.append({
             'author': authorName,
-            'years': authorYears
+            'years': authorYears,
+            'first_commit': stats[author]['first_commit']
         })
 
     # Sort the authors list first by year, and then by name
 
-    authorListSorted = sorted(authorList, key=lambda a: (a['years'], a['author']))
+    authorListSorted = sorted(authorList, key=lambda a: a['first_commit'])
     insertCopyrightAuthors(file, authorListSorted)
 
 
@@ -151,6 +157,7 @@ assumeSameAuthor = {
     'Chris Paul Iatrou': 'Chris Iatrou',
     'Torben-D': 'TorbenD',
     'FlorianPalm': 'Florian Palm',
+    'ChristianFimmers': 'Christian Fimmers'
 }
 
 def buildFileStats(repo):
@@ -193,12 +200,17 @@ def buildFileStats(repo):
                     authorName = assumeSameAuthor[authorName]
 
                 if not authorName in fileAuthorStats[newFile]:
-                    fileAuthorStats[newFile][authorName] = dict()
+                    fileAuthorStats[newFile][authorName] = {
+                        'years': dict(),
+                        'first_commit': commit.committed_datetime
+                    }
+                elif commit.committed_datetime < fileAuthorStats[newFile][authorName]['first_commit']:
+                    fileAuthorStats[newFile][authorName]['first_commit'] = commit.committed_datetime
 
-                if not commit.committed_datetime.year in fileAuthorStats[newFile][authorName]:
-                    fileAuthorStats[newFile][authorName][commit.committed_datetime.year] = 0
+                if not commit.committed_datetime.year in fileAuthorStats[newFile][authorName]['years']:
+                    fileAuthorStats[newFile][authorName]['years'][commit.committed_datetime.year] = 0
 
-                fileAuthorStats[newFile][authorName][commit.committed_datetime.year] += stats['insertions']
+                fileAuthorStats[newFile][authorName]['years'][commit.committed_datetime.year] += stats['insertions']
 
 
 
