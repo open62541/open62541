@@ -111,11 +111,9 @@ def updateCopyright(repo, file):
     # Now create a sorted list and filter out small contributions
     authorList = list()
 
-    for authorStr in stats:
-        if authorStr in skipNames:
+    for author in stats:
+        if author in skipNames:
             continue
-
-        author = unicode(authorStr)
 
         authorYears = list()
         for year in stats[author]['years']:
@@ -147,17 +145,17 @@ def updateCopyright(repo, file):
 
 # This is required since some commits use different author names for the same person
 assumeSameAuthor = {
-    'Mark': 'Mark Giraud',
-    'Infinity95': 'Mark Giraud',
-    'janitza-thbe': 'Thomas Bender',
-    'Stasik0': 'Sten Grüner',
-    'Sten': 'Sten Grüner',
-    'Frank Meerkoetter': 'Frank Meerkötter',
-    'ichrispa': 'Chris Iatrou',
-    'Chris Paul Iatrou': 'Chris Iatrou',
-    'Torben-D': 'TorbenD',
-    'FlorianPalm': 'Florian Palm',
-    'ChristianFimmers': 'Christian Fimmers'
+    'Mark': u'Mark Giraud',
+    'Infinity95': u'Mark Giraud',
+    'janitza-thbe': u'Thomas Bender',
+    'Stasik0': u'Sten Grüner',
+    'Sten': u'Sten Grüner',
+    'Frank Meerkoetter': u'Frank Meerkötter',
+    'ichrispa': u'Chris Iatrou',
+    'Chris Paul Iatrou': u'Chris Iatrou',
+    'Torben-D': u'TorbenD',
+    'FlorianPalm': u'Florian Palm',
+    'ChristianFimmers': u'Christian Fimmers'
 }
 
 def buildFileStats(repo):
@@ -195,7 +193,7 @@ def buildFileStats(repo):
                 if not newFile in fileAuthorStats:
                     fileAuthorStats[newFile] = dict()
 
-                authorName = commit.author.name
+                authorName = unicode(commit.author.name)
                 if authorName in assumeSameAuthor:
                     authorName = assumeSameAuthor[authorName]
 
