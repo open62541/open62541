@@ -50,6 +50,9 @@ matrix:
     - os: linux
       compiler: clang
       env: FUZZER=true
+    - os: linux
+      compiler: gcc
+      env: LINT=true
     # - os: osx
     #   compiler: clang
     #   # disable homebrew auto update which takes a lot of time
