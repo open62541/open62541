@@ -1,10 +1,18 @@
+# Load CMake Packages
+find_package(Check REQUIRED)
+set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+include_directories(${CHECK_INCLUDE_DIRS})
+find_package(Threads REQUIRED)
+if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
+    find_package(Valgrind REQUIRED)
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/src/server)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
-include_directories(${CHECK_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
 #############################
@@ -18,18 +26,6 @@ else()
 	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
-# Load CMake Packages
-find_package(Check REQUIRED)
-find_package(Threads REQUIRED)
-if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
-    find_package(Valgrind REQUIRED)
-endif()
-
-set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
-if(NOT MSVC)
-    LIST(APPEND LIBS subunit)
-endif()
-include_directories(${CHECK_INCLUDE_DIRS})
 
 # Use different plugins for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c

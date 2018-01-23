@@ -21,7 +21,7 @@ if [ -z ${DOCKER+x} ]; then
 	if [ "$CC" = "tcc" ]; then
 		mkdir tcc_install && cd tcc_install
 		wget https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2
-		tar xvf tcc-0.9.27.tar.bz2
+		tar xf tcc-0.9.27.tar.bz2
 		cd tcc-0.9.27
 		./configure
 		make
@@ -30,8 +30,13 @@ if [ -z ${DOCKER+x} ]; then
 		rm -rf tcc_install
 	fi
 
-	sudo add-apt-repository -y ppa:lttng/ppa
-	sudo apt-get update -qq
+	wget https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.6.1.tar.gz
+	tar xf mbedtls-2.6.1.tar.gz
+	cd mbedtls-mbedtls-2.6.1
+	cmake -DENABLE_TESTING=Off .
+	make -j
+	sudo make install
+
 	echo -en 'travis_fold:end:script.before_install.external\\r'
 
 	echo "=== Installing python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
