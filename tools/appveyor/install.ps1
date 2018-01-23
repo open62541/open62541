@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host -ForegroundColor Green "`n### Installing CMake and python ###`n"
 & cinst --no-progress cmake python2
+& C:\Python27\Scripts\pip.exe install six
 
 Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
 & pip install --user sphinx sphinx_rtd_theme
@@ -21,7 +22,25 @@ if (-not (Test-Path "c:\miktex\texmfs\install\miktex\bin\pdflatex.exe")) {
 }
 
 Write-Host -ForegroundColor Green "`n### Installing graphviz ###`n"
-& cinst --no-progress graphviz.portable
+& cinst --no-progress graphviz
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+	Write-Host -ForegroundColor Red "`n`n*** Installing graphviz failed. Exiting ... ***"
+	exit $LASTEXITCODE
+}
+
+Write-Host -ForegroundColor Green "`n### Installing mbedtls ###`n"
+
+if ($env:CC_SHORTNAME -eq "mingw") {
+	& C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-mbedtls
+} elseif ($env:CC_SHORTNAME -eq "vs2015") {
+	# we need the static version, since open62541 is built with /MT
+	# vcpkg currently only supports VS2015 and newer builds
+	& vcpkg install mbedtls:x86-windows-static
+}
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+	Write-Host -ForegroundColor Red "`n`n*** Installing mbedtls failed. Exiting ... ***"
+	exit $LASTEXITCODE
+}
 
 if ($env:CC_SHORTNAME -eq "vs2015") {
 	Write-Host -ForegroundColor Green "`n### Installing libcheck ###`n"

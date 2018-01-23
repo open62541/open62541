@@ -13,11 +13,11 @@ fi
 
 # Cpplint checking
 if ! [ -z ${LINT+x} ]; then
-	mkdir -p build
-	cd build
-	cmake ..
-	make cpplint
-	if [ $? -ne 0 ] ; then exit 1 ; fi
+    mkdir -p build
+    cd build
+    cmake ..
+    make cpplint
+    if [ $? -ne 0 ] ; then exit 1 ; fi
     exit 0
 fi
 
@@ -38,8 +38,8 @@ if [ $ANALYZE = "true" ]; then
     if [ "$CC" = "clang" ]; then
         mkdir -p build
         cd build
-        scan-build-3.9 cmake -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
-        scan-build-3.9 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
@@ -47,19 +47,13 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build-3.9 cmake -DUA_ENABLE_AMALGAMATION=ON ..
-        scan-build-3.9 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
         cd .. && rm build -rf
 
-        mkdir -p build
-        cd build
-        cmake -DUA_BUILD_EXAMPLES=ON ..
-        make -j
-        make lint
-        cd .. && rm build -rf
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \

@@ -71,6 +71,13 @@ if(UA_ENABLE_COVERAGE)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
+    # Force enable options not passed in the build script, to also fuzzy-test this code
+    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_ENCRYPTION ON CACHE STRING "" FORCE)
+endif()
+
 if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
     MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
     SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
@@ -688,9 +695,6 @@ if(UA_BUILD_UNIT_TESTS)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
-    # Force enable discovery, to also fuzzy-test this code
-    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
-    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     add_subdirectory(tests/fuzz)
 endif()
 

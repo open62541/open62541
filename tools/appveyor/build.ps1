@@ -2,6 +2,25 @@ $ErrorActionPreference = "Stop"
 
 cd $env:APPVEYOR_BUILD_FOLDER
 
+$vcpkg_toolchain = ""
+$vcpkg_triplet = ""
+
+if ($env:CC_SHORTNAME -eq "vs2008" -or $env:CC_SHORTNAME -eq "vs2013") {
+	# on VS2008 mbedtls can not be built since it includes stdint.h which is not available there
+	$build_encryption = "OFF"
+	Write-Host -ForegroundColor Green "`n## Building without encryption on VS2008 or VS2013 #####`n"
+} else {
+	$build_encryption = "ON"
+}
+
+if ($env:CC_SHORTNAME -eq "mingw") {
+
+} else {
+    $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
+    $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
+}
+
+
 $make_cmd = "& $env:MAKE"
 
 # Collect files for .zip packing
@@ -14,7 +33,8 @@ Write-Host -ForegroundColor Green "`n###########################################
 Write-Host -ForegroundColor Green "`n##### Building Documentation on $env:CC_NAME #####`n"
 New-Item -ItemType directory -Path build
 cd build
-& cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:CC_NAME" ..
+& cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release `
+    -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:CC_NAME" ..
 & cmake --build . --target doc_latex
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 	Write-Host -ForegroundColor Red "`n`n*** Make doc_latex. Exiting ... ***"
@@ -33,7 +53,8 @@ Write-Host -ForegroundColor Green "`n###########################################
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME #####`n"
 New-Item -ItemType directory -Path "build"
 cd build
-& cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME" ..
+& cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
+    -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:CC_NAME" ..
 Invoke-Expression $make_cmd
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 	Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -59,7 +80,8 @@ Write-Host -ForegroundColor Green "`n###########################################
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with amalgamation #####`n"
 New-Item -ItemType directory -Path "build"
 cd build
-& cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=OFF -G"$env:CC_NAME" ..
+& cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON `
+ -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=OFF -G"$env:CC_NAME" ..
 Invoke-Expression $make_cmd
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 	Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -84,7 +106,8 @@ Write-Host -ForegroundColor Green "`n###########################################
 Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with amalgamation and .dll #####`n"
 New-Item -ItemType directory -Path "build"
 cd build
-& cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=ON -G"$env:CC_NAME" ..
+& cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON `
+    -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=ON -G"$env:CC_NAME" ..
 Invoke-Expression $make_cmd
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 	Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -113,7 +136,9 @@ if ($env:CC_SHORTNAME -eq "vs2015") {
 	Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
 	New-Item -ItemType directory -Path "build"
 	cd build
-	& cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON -DCMAKE_LIBRARY_PATH=c:\check\lib -DCMAKE_INCLUDE_PATH=c:\check\include -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME" ..
+	& cmake $vcpkg_toolchain $vcpkg_triplet -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON `
+	    -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DUA_BUILD_UNIT_TESTS=ON `
+	    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON -DCHECK_PREFIX=c:\check -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME" ..
 	Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     	Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
