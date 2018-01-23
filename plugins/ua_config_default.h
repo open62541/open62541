@@ -1,5 +1,10 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #ifndef UA_CONFIG_DEFAULT_H_
 #define UA_CONFIG_DEFAULT_H_

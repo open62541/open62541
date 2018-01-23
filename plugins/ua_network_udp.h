@@ -1,5 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2016 (c) Julius Pfrommer, Fraunhofer IOSB
+ */
 
 #ifndef UA_NETWORK_UDP_H_
 #define UA_NETWORK_UDP_H_
