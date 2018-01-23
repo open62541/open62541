@@ -580,7 +580,7 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
     client->currentlyOutStandingPublishRequests--;
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS){
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS) {
         if(client->config.outStandingPublishRequests > 1) {
             client->config.outStandingPublishRequests--;
             UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -594,7 +594,7 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         goto cleanup;
     }
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION){
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION) {
        if(LIST_FIRST(&client->subscriptions)) {
             UA_Client_close(client);
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -603,7 +603,7 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         goto cleanup;
     }
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID){
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
         UA_Client_close(client);
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Received BadSessionIdInvalid");
@@ -705,7 +705,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         UA_PublishRequest_deleteMembers(&request);
     }
     
-    if (client->state < UA_CLIENTSTATE_SESSION)
+    if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     return retval;
@@ -735,7 +735,7 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
 
     while(client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests) {
         UA_PublishRequest *request = UA_PublishRequest_new();
-        if (!request)
+        if(!request)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         UA_StatusCode retval = UA_Client_preparePublishRequest(client, request);

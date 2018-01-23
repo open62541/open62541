@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
         return (int)retval;
     }
     printf("%i endpoints found\n", (int)endpointArraySize);
-    for(size_t i=0;i<endpointArraySize;i++){
+    for(size_t i=0;i<endpointArraySize;i++) {
         printf("URL of endpoint %i is %.*s\n", (int)i,
                (int)endpointArray[i].endpointUrl.length,
                endpointArray[i].endpointUrl.data);
@@ -63,8 +63,8 @@ int main(int argc, char *argv[]) {
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
     printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
-    for (size_t i = 0; i < bResp.resultsSize; ++i) {
-        for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
+    for(size_t i = 0; i < bResp.resultsSize; ++i) {
+        for(size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
             UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
             if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
                 printf("%-9d %-16d %-16.*s %-16.*s\n", ref->nodeId.nodeId.namespaceIndex,

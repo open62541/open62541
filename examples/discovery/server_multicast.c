@@ -64,19 +64,19 @@ static void
 serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce,
                         UA_Boolean isTxtReceived, void *data) {
 
-    if (discovery_url != NULL || !isServerAnnounce) {
+    if(discovery_url != NULL || !isServerAnnounce) {
         UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SERVER,
                      "serverOnNetworkCallback called, but discovery URL "
                      "already initialized or is not announcing. Ignoring.");
         return; // we already have everything we need or we only want server announces
     }
 
-    if (self_discovery_url != NULL && UA_String_equal(&serverOnNetwork->discoveryUrl, self_discovery_url)) {
+    if(self_discovery_url != NULL && UA_String_equal(&serverOnNetwork->discoveryUrl, self_discovery_url)) {
         // skip self
         return;
     }
 
-    if (!isTxtReceived)
+    if(!isTxtReceived)
         return; // we wait until the corresponding TXT record is announced.
                 // Problem: how to handle if a Server does not announce the
                 // optional TXT?
@@ -87,7 +87,7 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Another server announced itself on %.*s",
                 (int)serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
 
-    if (discovery_url != NULL)
+    if(discovery_url != NULL)
         UA_free(discovery_url);
     discovery_url = (char*)UA_malloc(serverOnNetwork->discoveryUrl.length + 1);
     memcpy(discovery_url, serverOnNetwork->discoveryUrl.data, serverOnNetwork->discoveryUrl.length);
@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
 
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     UA_StatusCode retval = UA_Server_run_startup(server);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
                      UA_StatusCode_name(retval));
@@ -147,7 +147,7 @@ int main(int argc, char **argv) {
                 "Server started. Waiting for announce of LDS Server.");
     while (running && discovery_url == NULL)
         UA_Server_run_iterate(server, true);
-    if (!running) {
+    if(!running) {
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
         UA_free(discovery_url);
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
     // periodic server register after 10 Minutes, delay first register for 500ms
     retval = UA_Server_addPeriodicServerRegisterCallback(server, discovery_url,
                                                          10 * 60 * 1000, 500, NULL);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
                      UA_StatusCode_name(retval));

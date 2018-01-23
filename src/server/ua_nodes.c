@@ -254,7 +254,7 @@ UA_Node_copy_alloc(const UA_Node *src) {
     dst->nodeClass = src->nodeClass;
 
     UA_StatusCode retval = UA_Node_copy(src, dst);
-    if (retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_free(dst);
         return NULL;
     }
@@ -296,24 +296,24 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     /* if we have an extension object which is still encoded (e.g. from the nodeset compiler)
      * we need to decode it and set the decoded value instead of the encoded object */
     UA_Boolean valueSet = false;
-    if (attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
+    if(attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
         const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
-        if (obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+        if(obj && obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
 
             /* TODO: Once we generate type description in the nodeset compiler,
              * UA_findDatatypeByBinary can be made internal to the decoding
              * layer. */
             const UA_DataType *type = UA_findDataTypeByBinary(&obj->content.encoded.typeId);
 
-            if (type) {
+            if(type) {
                 void *dst = UA_Array_new(attr->value.arrayLength, type);
                 uint8_t *tmpPos = (uint8_t *)dst;
 
-                for (size_t i=0; i<attr->value.arrayLength; i++) {
+                for(size_t i=0; i<attr->value.arrayLength; i++) {
                     size_t offset =0;
                     const UA_ExtensionObject *curr = &((const UA_ExtensionObject *)attr->value.data)[i];
                     UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, 0, NULL);
-                    if (ret != UA_STATUSCODE_GOOD) {
+                    if(ret != UA_STATUSCODE_GOOD) {
                         return ret;
                     }
                     tmpPos += type->memSize;
@@ -325,7 +325,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
         }
     }
 
-    if (!valueSet)
+    if(!valueSet)
         retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
 
     node->value.data.value.hasValue = true;

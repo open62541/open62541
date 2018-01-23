@@ -74,6 +74,8 @@ typedef struct UA_ClientConfig {
     /* number of PublishResponse standing in the sever */
     /* 0 = background task disabled                    */
     UA_UInt16 outStandingPublishRequests;
+
+    void *clientContext;
 } UA_ClientConfig;
 
 
@@ -84,6 +86,10 @@ UA_Client_new(UA_ClientConfig config);
 /* Get the client connection status */
 UA_ClientState UA_EXPORT
 UA_Client_getState(UA_Client *client);
+
+/* Get the client context */
+void UA_EXPORT *
+UA_Client_getContext(UA_Client *client);
 
 /* Reset a client */
 void UA_EXPORT

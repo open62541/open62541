@@ -28,8 +28,8 @@ int main(void) {
     const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
 
-    if (retval == UA_STATUSCODE_GOOD &&
-        UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
+    if(retval == UA_STATUSCODE_GOOD &&
+       UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *) value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "date is: %u-%u-%u %u:%u:%u.%03u\n",

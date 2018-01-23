@@ -918,7 +918,7 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     }
 
     /* Check that the type is an exact match and not only "compatible" */
-    if(!node->value.data.value.value.type ||
+    if(!node->value.data.value.value.type || !v->type ||
        !UA_NodeId_equal(&node->value.data.value.value.type->typeId,
                         &v->type->typeId))
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -970,8 +970,8 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
          * extension object we check if the current node value is also an
          * extension object. */
         UA_Boolean compatible;
-        if (value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-            value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {
+        if(value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+           value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {
             const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
             compatible = compatibleValue(server, &nodeDataType, node->valueRank,
                                     node->arrayDimensionsSize, node->arrayDimensions,
@@ -1245,7 +1245,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 }
 
 static void
-Operation_Write(UA_Server *server, UA_Session *session,
+Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 UA_WriteValue *wv, UA_StatusCode *result) {
     *result = UA_Server_editNode(server, session, &wv->nodeId,
                         (UA_EditNodeCallback)copyAttributeIntoNode, wv);
@@ -1265,10 +1265,9 @@ Service_Write(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult = 
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_Write,
-                  &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Write, NULL,
+                                           &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 UA_StatusCode

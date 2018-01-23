@@ -14,9 +14,9 @@
 
 static void
 setClientState(UA_Client *client, UA_ClientState state) {
-    if(client->state != state){
+    if(client->state != state) {
         client->state = state;
-        if (client->config.stateCallback)
+        if(client->config.stateCallback)
             client->config.stateCallback(client, client->state);
     }
 }
@@ -106,7 +106,7 @@ HelAckHandshake(UA_Client *client) {
     /* Loop until we have a complete chunk */
     retval = UA_Connection_receiveChunksBlocking(conn, client, processACKResponse,
                                                  client->config.timeout);
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Receiving ACK message failed");
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
@@ -426,13 +426,13 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         if(retval == UA_STATUSCODE_BADSESSIONIDINVALID) {
             /* Could not recover an old session. Remove authenticationToken */
             UA_NodeId_deleteMembers(&client->authenticationToken);
-        }else{
+        } else {
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
             setClientState(client, UA_CLIENTSTATE_SESSION_RENEWED);
             return retval;
         }
-    }else{
+    } else {
         UA_NodeId_deleteMembers(&client->authenticationToken);
     }
 #else
@@ -529,7 +529,7 @@ sendCloseSecureChannel(UA_Client *client) {
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
     /* Is a session established? */
-    if(client->state >= UA_CLIENTSTATE_SESSION){
+    if(client->state >= UA_CLIENTSTATE_SESSION) {
         client->state = UA_CLIENTSTATE_SECURECHANNEL;
         sendCloseSession(client);
     }
@@ -537,7 +537,7 @@ UA_Client_disconnect(UA_Client *client) {
     client->requestHandle = 0;
 
     /* Is a secure channel established? */
-    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL){
+    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL) {
         client->state = UA_CLIENTSTATE_CONNECTED;
         sendCloseSecureChannel(client);
     }
@@ -554,7 +554,7 @@ UA_StatusCode
 UA_Client_close(UA_Client *client) {
     client->requestHandle = 0;
 
-    if (client->state >= UA_CLIENTSTATE_SECURECHANNEL)
+    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
         UA_SecureChannel_deleteMembersCleanup(&client->channel);
 
     /* Close the TCP connection */

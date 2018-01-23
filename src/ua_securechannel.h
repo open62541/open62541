@@ -19,6 +19,7 @@ extern "C" {
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
+/* Thread-local variables to force failure modes during testing */
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 extern UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
 extern UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;

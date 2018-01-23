@@ -38,7 +38,7 @@ typedef struct UA_MonitoredItem {
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
     UA_NodeId monitoredNodeId;
-    UA_UInt32 attributeID;
+    UA_UInt32 attributeId;
     UA_UInt32 clientHandle;
     UA_Double samplingInterval; // [ms]
     UA_UInt32 currentQueueSize;
@@ -91,7 +91,7 @@ struct UA_Subscription {
     UA_UInt32 lifeTimeCount;
     UA_UInt32 maxKeepAliveCount;
     UA_Double publishingInterval; /* in ms */
-    UA_UInt32 subscriptionID;
+    UA_UInt32 subscriptionId;
     UA_UInt32 notificationsPerPublish;
     UA_Boolean publishingEnabled;
     UA_UInt32 priority;
@@ -119,14 +119,14 @@ struct UA_Subscription {
     UA_UInt32 retransmissionQueueSize;
 };
 
-UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID);
+UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
-                                    UA_UInt32 monitoredItemID);
+                                    UA_UInt32 monitoredItemId);
 
 void
 UA_Subscription_addMonitoredItem(UA_Subscription *sub,
@@ -135,7 +135,7 @@ UA_UInt32
 UA_Subscription_getNumMonitoredItems(UA_Subscription *sub);
 
 UA_MonitoredItem *
-UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID);
+UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
 

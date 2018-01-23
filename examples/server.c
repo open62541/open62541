@@ -40,6 +40,8 @@ loadFile(const char *const path) {
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
         if(read != fileContents.length)
             UA_ByteString_deleteMembers(&fileContents);
+    } else {
+        fileContents.length = 0;
     }
     fclose(fp);
 
@@ -210,7 +212,7 @@ main(int argc, char **argv) {
     UA_VariableAttributes v_attr = UA_VariableAttributes_default;
     v_attr.description = UA_LOCALIZEDTEXT("en-US", "current time");
     v_attr.displayName = UA_LOCALIZEDTEXT("en-US", "current time");
-    v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    v_attr.accessLevel = UA_ACCESSLEVELMASK_READ;
     v_attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
     v_attr.valueRank = -1;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
