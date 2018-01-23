@@ -78,7 +78,6 @@ addons:
       - mingw-w64
       - python-six
       - python3-six
-      - tcc
       - texlive-fonts-recommended
       - texlive-latex-extra
       - texlive-latex-recommended
