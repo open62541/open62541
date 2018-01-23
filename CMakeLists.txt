@@ -717,6 +717,11 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)
 
+add_custom_target(cpplint cpplint
+                  ${lib_sources}
+                  DEPENDS ${lib_sources}
+                  COMMENT "Run cpplint code style checker on the library")
+
 ##########################
 # Installation           #
 ##########################
