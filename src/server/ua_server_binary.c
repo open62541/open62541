@@ -380,7 +380,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestTypeId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+    if(requestTypeId.namespaceIndex != 0 ||
+       requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
         UA_NodeId_deleteMembers(&requestTypeId); /* leads to badserviceunsupported */
 
     /* Store the start-position of the request */
