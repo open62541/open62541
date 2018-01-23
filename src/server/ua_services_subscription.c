@@ -390,6 +390,11 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* check monitoringMode is valid or not */
+    if(op_monitoringMode > UA_MONITORINGMODE_REPORTING) {
+        return;
+    }
+
     if(mon->monitoringMode == op_monitoringMode)
         return;
 
@@ -400,16 +405,14 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         /*  Setting the mode to DISABLED causes all queued Notifications to be delete */
         MonitoredItem_queuedValue *val, *val_tmp;
         TAILQ_FOREACH_SAFE(val, &mon->queue, listEntry, val_tmp) {
-			TAILQ_REMOVE(&mon->queue, val, listEntry);
-			UA_DataValue_deleteMembers(&val->value);
-			UA_free(val);
-		}
-		mon->currentQueueSize = 0;
+            TAILQ_REMOVE(&mon->queue, val, listEntry);
+            UA_DataValue_deleteMembers(&val->value);
+            UA_free(val);
+        }
+        mon->currentQueueSize = 0;
 
-		/* initialize lastSampledValue */
-		mon->lastSampledValue.data = NULL;
-		mon->lastSampledValue.length = 0;
-
+        /* initialize lastSampledValue */
+        UA_ByteString_deleteMembers(&mon->lastSampledValue);
         MonitoredItem_unregisterSampleCallback(server, mon);
     }
 }
