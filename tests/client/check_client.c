@@ -152,7 +152,6 @@ START_TEST(Client_renewSecureChannel) {
 
 START_TEST(Client_reconnect) {
     UA_ClientConfig clientConfig = UA_ClientConfig_default;
-    clientConfig.timeout = 100;
     UA_Client *client = UA_Client_new(clientConfig);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
