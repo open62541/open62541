@@ -390,7 +390,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
 
     mon->monitoringMode = smc->monitoringMode;
-    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
         MonitoredItem_registerSampleCallback(server, mon);
     } else if (mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
         /*  Setting the mode to DISABLED causes all queued Notifications to be delete */
