@@ -32,6 +32,9 @@ removeSessionCallback(UA_Server *server, void *entry) {
 
 static UA_StatusCode
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
+    /* Detach the Session from the SecureChannel */
+    UA_Session_detachFromSecureChannel(&sentry->session);
+
     /* Deactivate the session */
     sentry->session.activated = false;
 
@@ -45,7 +48,8 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
         return retval; /* Try again next time */
     }
 
-    /* Detach the session and make the capacity available */
+    /* Detach the session from the session manager and make the capacity
+     * available */
     LIST_REMOVE(sentry, pointers);
     UA_atomic_add(&sm->currentSessionCount, (UA_UInt32)-1);
     return UA_STATUSCODE_GOOD;

@@ -78,14 +78,14 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
     struct serverOnNetwork_hash_entry *hash_entry = server->serverOnNetworkHash[hashIdx];
 
-    while (hash_entry) {
+    while(hash_entry) {
         size_t maxLen;
-        if (serverNameLen > hash_entry->entry->serverOnNetwork.serverName.length)
+        if(serverNameLen > hash_entry->entry->serverOnNetwork.serverName.length)
             maxLen = hash_entry->entry->serverOnNetwork.serverName.length;
         else
             maxLen = serverNameLen;
 
-        if (strncmp((char *) hash_entry->entry->serverOnNetwork.serverName.data, serverName, maxLen) == 0)
+        if(strncmp((char *) hash_entry->entry->serverOnNetwork.serverName.data, serverName, maxLen) == 0)
             return hash_entry->entry;
         hash_entry = hash_entry->next;
     }
@@ -108,7 +108,7 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     listEntry->serverOnNetwork.serverName.data = (UA_Byte*)UA_malloc(serverNameLen);
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
     server->serverOnNetworkRecordIdCounter = UA_atomic_add(&server->serverOnNetworkRecordIdCounter, 1);
-    if (server->serverOnNetworkRecordIdCounter == 0)
+    if(server->serverOnNetworkRecordIdCounter == 0)
         server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 
     // add to hash
@@ -190,7 +190,7 @@ setTxt(const struct resource *r,
     char *caps = (char *) xht_get(x, "caps");
 
     if(path && strlen(path) > 1) {
-        if (!entry->srvSet) {
+        if(!entry->srvSet) {
             /* txt arrived before SRV, thus cache path entry */
             // todo: malloc in strdup may fail: return a statuscode
             entry->pathTmp = UA_STRDUP(path);
@@ -220,7 +220,7 @@ setTxt(const struct resource *r,
             // todo: malloc may fail: return a statuscode
             entry->serverOnNetwork.serverCapabilities[i].data = (UA_Byte*)UA_malloc(len);
             memcpy(entry->serverOnNetwork.serverCapabilities[i].data, caps, len);
-            if (nextStr)
+            if(nextStr)
                 caps = nextStr + 1;
             else
                 break;
@@ -324,11 +324,11 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
                                     600, conflict, server);
     xht_t *h = xht_new(11);
     char *allocPath = NULL;
-    if (!path || strlen(path) == 0) {
+    if(!path || strlen(path) == 0) {
         xht_set(h, "path", "/");
     } else {
         // path does not contain slash, so add it here
-        if (path[0] == '/')
+        if(path[0] == '/')
             // todo: malloc in strdup may fail: return a statuscode
             allocPath = UA_STRDUP(path);
         else {
@@ -343,7 +343,7 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
 
     // calculate max string length:
     size_t capsLen = 0;
-    for (size_t i = 0; i < *capabilitiesSize; i++) {
+    for(size_t i = 0; i < *capabilitiesSize; i++) {
         // add comma or last \0
         capsLen += capabilites[i].length + 1;
     }
@@ -354,7 +354,7 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
         // todo: malloc may fail: return a statuscode
         caps = (char*)UA_malloc(sizeof(char) * capsLen);
         size_t idx = 0;
-        for (size_t i = 0; i < *capabilitiesSize; i++) {
+        for(size_t i = 0; i < *capabilitiesSize; i++) {
             memcpy(caps + idx, (const char *) capabilites[i].data, capabilites[i].length);
             idx += capabilites[i].length + 1;
             caps[idx - 1] = ',';
@@ -421,7 +421,7 @@ getInterfaces(UA_Server *server) {
     for(size_t attempts = 0; attempts != 3; ++attempts) {
         // todo: malloc may fail: return a statuscode
         adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
-        if (!adapter_addresses) {
+        if(!adapter_addresses) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "GetAdaptersAddresses out of memory");
             adapter_addresses = NULL;
@@ -457,7 +457,7 @@ getInterfaces(UA_Server *server) {
 void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                              const char *localDomain) {
     IP_ADAPTER_ADDRESSES* adapter_addresses = getInterfaces(server);
-    if (!adapter_addresses)
+    if(!adapter_addresses)
         return;
 
     /* Iterate through all of the adapters */
@@ -476,7 +476,7 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                 mdns_set_address_record_if(server, fullServiceDomain, localDomain,
                                            (char *)&ipv4->sin_addr, 4);
             }
-            /*else if (AF_INET6 == family) {
+            /*else if(AF_INET6 == family) {
             // IPv6
             SOCKADDR_IN6* ipv6 = (SOCKADDR_IN6*)(address->Address.lpSockaddr);
 
@@ -491,7 +491,7 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
 
             if(0 == ipv6_str.find("fe")) {
             char c = ipv6_str[2];
-            if (c == '8' || c == '9' || c == 'a' || c == 'b')
+            if(c == '8' || c == '9' || c == 'a' || c == 'b')
             is_link_local = true;
             } else if (0 == ipv6_str.find("2001:0:")) {
             is_special_use = true;

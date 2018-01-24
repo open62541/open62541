@@ -35,7 +35,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
 
     retval = UA_STATUSCODE_BADNOTFOUND;
     UA_String *ns = (UA_String *)response.results[0].value.data;
-    for(size_t i = 0; i < response.results[0].value.arrayLength; ++i){
+    for(size_t i = 0; i < response.results[0].value.arrayLength; ++i) {
         if(UA_String_equal(namespaceUri, &ns[i])) {
             *namespaceIndex = (UA_UInt16)i;
             retval = UA_STATUSCODE_GOOD;
