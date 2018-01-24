@@ -168,6 +168,8 @@ START_TEST(Server_publishCallback) {
     UA_Subscription *sub;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 0);
+        /* Keepalive is set to max initially */
+        ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount);
     }
 
     /* Sleep until the publishing interval times out */
@@ -176,14 +178,16 @@ START_TEST(Server_publishCallback) {
 
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 1);
+        ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
     }
 
     /* Sleep until the publishing interval times out */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
 
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 2);
+        ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
     }
     
     /* Remove the subscriptions */
