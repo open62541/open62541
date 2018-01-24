@@ -25,6 +25,8 @@ typedef struct UA_Server UA_Server;
  * Server
  * ======
  *
+ * .. include:: server_config.rst
+ *
  * .. _server-lifecycle:
  *
  * Server Lifecycle

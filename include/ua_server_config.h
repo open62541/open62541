@@ -18,9 +18,26 @@ extern "C" {
 #include "ua_plugin_nodestore.h"
 
 /**
+ * .. _server-configuration:
+ *
  * Server Configuration
- * ====================
- * The configuration structure is passed to the server during initialization. */
+ * --------------------
+
+ * The configuration structure is passed to the server during initialization.
+ * The server expects that the configuration is not modified during runtime.
+ * Currently, only one server can use a configuration at a time. During
+ * shutdown, the server will clean up the parts of the configuration that are
+ * modified at runtime through the provided API.
+ *
+ * Examples for configurations are provided in the ``/plugins`` folder.
+ * The usual usage is as follows:
+ *
+ * 1. Create a server configuration with default settings as a starting point
+ * 2. Modifiy the configuration, e.g. by adding a server certificate
+ * 3. Instantiate a server with it
+ * 4. After shutdown of the server, clean up the configuration (free memory)
+ *
+ * The :ref:`tutorials` provide a good starting point for this. */
 
 typedef struct {
     UA_UInt32 min;
@@ -40,6 +57,8 @@ struct UA_ServerConfig {
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
+
+    /* MDNS Discovery */
 #ifdef UA_ENABLE_DISCOVERY
     UA_String mdnsServerName;
     size_t serverCapabilitiesSize;
@@ -49,6 +68,10 @@ struct UA_ServerConfig {
     /* Custom DataTypes */
     size_t customDataTypesSize;
     UA_DataType *customDataTypes;
+    /**
+     * .. note:: See the section on :ref:`generic-types`. Examples for working
+     *    with custom data types are provided in
+     *    ``/examples/custom_datatype/``. */
 
     /* Nodestore */
     UA_Nodestore nodestore;
@@ -62,11 +85,17 @@ struct UA_ServerConfig {
     size_t endpointsSize;
     UA_Endpoint *endpoints;
 
-    /* Global Node Lifecycle */
+    /* Node Lifecycle callbacks */
     UA_GlobalNodeLifecycle nodeLifecycle;
+    /**
+     * .. note:: See the section for :ref:`node lifecycle
+     *    handling<node-lifecycle>`. */
 
     /* Access Control */
     UA_AccessControl accessControl;
+    /**
+     * .. note:: See the section for :ref:`access-control
+     *    handling<access-control>`. */
 
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;
