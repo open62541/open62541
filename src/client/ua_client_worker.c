@@ -22,25 +22,27 @@
 
 #ifdef UA_ENABLE_MULTITHREADING
 
-struct UA_Worker {
-	UA_Client *client;
-	pthread_t thr;
-	UA_UInt32 counter;
-	volatile UA_Boolean running;
+struct UA_Worker
+{
+    UA_Client *client;
+    pthread_t thr;
+    UA_UInt32 counter;
+    volatile UA_Boolean running;
 
-	/* separate cache lines */
-	char padding[64 - sizeof(void*) - sizeof(pthread_t) -
-	sizeof(UA_UInt32) - sizeof(UA_Boolean)];
+    /* separate cache lines */
+    char padding[64 - sizeof(void*) - sizeof(pthread_t) -
+    sizeof(UA_UInt32) - sizeof(UA_Boolean)];
 };
 
-typedef struct {
-	struct cds_wfcq_node node;
-	UA_ClientCallback callback;
-	void *data;
+typedef struct
+{
+    struct cds_wfcq_node node;
+    UA_ClientCallback callback;
+    void *data;
 
-	UA_Boolean delayed; /* Is it a delayed callback? */
-	UA_Boolean countersSampled; /* Have the worker counters been sampled? */
-	UA_UInt32 workerCounters[]; /* Counter value for each worker */
+    UA_Boolean delayed; /* Is it a delayed callback? */
+    UA_Boolean countersSampled; /* Have the worker counters been sampled? */
+    UA_UInt32 workerCounters[]; /* Counter value for each worker */
 }WorkerCallback;
 
 /* Forward Declaration */
@@ -48,59 +50,65 @@ static void
 processDelayedCallback(UA_Client *client, WorkerCallback *dc);
 
 static void *
-workerLoop(UA_Worker *worker) {
-	UA_Client *client = worker->client;
-	UA_UInt32 *counter = &worker->counter;
-	volatile UA_Boolean *running = &worker->running;
+workerLoop(UA_Worker *worker)
+{
+    UA_Client *client = worker->client;
+    UA_UInt32 *counter = &worker->counter;
+    volatile UA_Boolean *running = &worker->running;
 
-	/* Initialize the (thread local) random seed with the ram address
-	 * of the worker. Not for security-critical entropy! */
-	UA_random_seed((uintptr_t)worker);
-	rcu_register_thread();
+    /* Initialize the (thread local) random seed with the ram address
+     * of the worker. Not for security-critical entropy! */
+    UA_random_seed((uintptr_t)worker);
+    rcu_register_thread();
 
-	while(*running) {
-		UA_atomic_add(counter, 1);
-		WorkerCallback *dc = (WorkerCallback*)
-		cds_wfcq_dequeue_blocking(&client->dispatchQueue_head,
-				&client->dispatchQueue_tail);
-		if(!dc) {
-			/* Nothing to do. Sleep until a callback is dispatched */
-			pthread_mutex_lock(&client->dispatchQueue_mutex);
-			pthread_cond_wait(&client->dispatchQueue_condition,
-					&client->dispatchQueue_mutex);
-			pthread_mutex_unlock(&client->dispatchQueue_mutex);
-			continue;
-		}
+    while(*running)
+    {
+        UA_atomic_add(counter, 1);
+        WorkerCallback *dc = (WorkerCallback*)
+        cds_wfcq_dequeue_blocking(&client->dispatchQueue_head,
+                &client->dispatchQueue_tail);
+        if(!dc)
+        {
+            /* Nothing to do. Sleep until a callback is dispatched */
+            pthread_mutex_lock(&client->dispatchQueue_mutex);
+            pthread_cond_wait(&client->dispatchQueue_condition,
+                    &client->dispatchQueue_mutex);
+            pthread_mutex_unlock(&client->dispatchQueue_mutex);
+            continue;
+        }
 
-		if(dc->delayed) {
-			processDelayedCallback(client, dc);
-			continue;
-		}
+        if(dc->delayed)
+        {
+            processDelayedCallback(client, dc);
+            continue;
+        }
 
-		UA_RCU_LOCK();
-		dc->callback(client, dc->data);
-		UA_free(dc);
-		UA_RCU_UNLOCK();
-	}
+        UA_RCU_LOCK();
+        dc->callback(client, dc->data);
+        UA_free(dc);
+        UA_RCU_UNLOCK();
+    }
 
-	UA_ASSERT_RCU_UNLOCKED();
-	rcu_barrier();
-	rcu_unregister_thread();
-	UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SERVER,
-			"Worker shut down");
-	return NULL;
+    UA_ASSERT_RCU_UNLOCKED();
+    rcu_barrier();
+    rcu_unregister_thread();
+    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SERVER,
+            "Worker shut down");
+    return NULL;
 }
 
 static void
-emptyDispatchQueue(UA_Client *client) {
-	while(!cds_wfcq_empty(&client->dispatchQueue_head,
-					&client->dispatchQueue_tail)) {
-		WorkerCallback *dc = (WorkerCallback*)
-		cds_wfcq_dequeue_blocking(&client->dispatchQueue_head,
-				&client->dispatchQueue_tail);
-		dc->callback(client, dc->data);
-		UA_free(dc);
-	}
+emptyDispatchQueue(UA_Client *client)
+{
+    while(!cds_wfcq_empty(&client->dispatchQueue_head,
+                    &client->dispatchQueue_tail))
+    {
+        WorkerCallback *dc = (WorkerCallback*)
+        cds_wfcq_dequeue_blocking(&client->dispatchQueue_head,
+                &client->dispatchQueue_tail);
+        dc->callback(client, dc->data);
+        UA_free(dc);
+    }
 }
 
 #endif
@@ -112,29 +120,31 @@ emptyDispatchQueue(UA_Client *client) {
  * In the multi-threaded case, callbacks are dispatched to workers. Otherwise,
  * they are executed immediately. */
 
-void UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
-		void *data) {
+void
+UA_Client_workerCallback (UA_Client *client, UA_ClientCallback callback,
+                          void *data) {
 #ifndef UA_ENABLE_MULTITHREADING
-	/* Execute immediately */
-	callback(client, data);
+    /* Execute immediately */
+    callback (client, data);
 #else
-	/* Execute immediately if memory could not be allocated */
-	WorkerCallback *dc = UA_malloc(sizeof(WorkerCallback));
-	if(!dc) {
-		callback(client, data);
-		return;
-	}
+    /* Execute immediately if memory could not be allocated */
+    WorkerCallback *dc = UA_malloc(sizeof(WorkerCallback));
+    if(!dc)
+    {
+        callback(client, data);
+        return;
+    }
 
-	/* Enqueue for the worker threads */
-	dc->callback = callback;
-	dc->data = data;
-	dc->delayed = false;
-	cds_wfcq_node_init(&dc->node);
-	cds_wfcq_enqueue(&client->dispatchQueue_head,
-			&client->dispatchQueue_tail, &dc->node);
+    /* Enqueue for the worker threads */
+    dc->callback = callback;
+    dc->data = data;
+    dc->delayed = false;
+    cds_wfcq_node_init(&dc->node);
+    cds_wfcq_enqueue(&client->dispatchQueue_head,
+            &client->dispatchQueue_tail, &dc->node);
 
-	/* Wake up sleeping workers */
-	pthread_cond_broadcast(&client->dispatchQueue_condition);
+    /* Wake up sleeping workers */
+    pthread_cond_broadcast(&client->dispatchQueue_condition);
 #endif
 }
 
@@ -159,104 +169,113 @@ void UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
 #ifndef UA_ENABLE_MULTITHREADING
 
 typedef struct UA_DelayedClientCallback {
-	SLIST_ENTRY(UA_DelayedClientCallback)
-	next;
-	UA_ClientCallback callback;
-	void *data;
+    SLIST_ENTRY(UA_DelayedClientCallback)
+    next;
+    UA_ClientCallback callback;
+    void *data;
 } UA_DelayedClientCallback;
 
-UA_StatusCode UA_Client_delayedCallback(UA_Client *client,
-		UA_ClientCallback callback, void *data) {
-	UA_DelayedClientCallback *dc = (UA_DelayedClientCallback*) UA_malloc(
-			sizeof(UA_DelayedClientCallback));
-	if (!dc)
-		return UA_STATUSCODE_BADOUTOFMEMORY;
+UA_StatusCode
+UA_Client_delayedCallback (UA_Client *client, UA_ClientCallback callback,
+                           void *data) {
+    UA_DelayedClientCallback *dc = (UA_DelayedClientCallback*) UA_malloc(
+            sizeof(UA_DelayedClientCallback));
+    if (!dc)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-	dc->callback = callback;
-	dc->data = data;
-	SLIST_INSERT_HEAD(&client->delayedClientCallbacks, dc, next);
-	return UA_STATUSCODE_GOOD;
+    dc->callback = callback;
+    dc->data = data;
+    SLIST_INSERT_HEAD(&client->delayedClientCallbacks, dc, next);
+    return UA_STATUSCODE_GOOD;
 }
 
-static void processDelayedClientCallbacks(UA_Client *client) {
-	UA_DelayedClientCallback *dc, *dc_tmp;
-	SLIST_FOREACH_SAFE(dc, &client->delayedClientCallbacks, next, dc_tmp)
-	{
-		SLIST_REMOVE(&client->delayedClientCallbacks, dc, UA_DelayedClientCallback, next);
-		dc->callback(client, dc->data);
-		UA_free(dc);
-	}
+static void
+processDelayedClientCallbacks (UA_Client *client) {
+    UA_DelayedClientCallback *dc, *dc_tmp;
+    SLIST_FOREACH_SAFE(dc, &client->delayedClientCallbacks, next, dc_tmp)
+    {
+        SLIST_REMOVE(&client->delayedClientCallbacks, dc,
+                     UA_DelayedClientCallback, next);
+        dc->callback (client, dc->data);
+        UA_free(dc);
+    }
 }
 
 #else /* UA_ENABLE_MULTITHREADING */
 
 UA_StatusCode
 UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
-		void *data) {
-	size_t dcsize = sizeof(WorkerCallback) +
-	(sizeof(UA_UInt32) * client->config.nThreads);
-	WorkerCallback *dc = UA_malloc(dcsize);
-	if(!dc)
-	return UA_STATUSCODE_BADOUTOFMEMORY;
+        void *data)
+{
+    size_t dcsize = sizeof(WorkerCallback) +
+    (sizeof(UA_UInt32) * client->config.nThreads);
+    WorkerCallback *dc = UA_malloc(dcsize);
+    if(!dc)
+    return UA_STATUSCODE_BADOUTOFMEMORY;
 
-	/* Enqueue for the worker threads */
-	dc->callback = callback;
-	dc->data = data;
-	dc->delayed = true;
-	dc->countersSampled = false;
-	cds_wfcq_node_init(&dc->node);
-	cds_wfcq_enqueue(&client->dispatchQueue_head,
-			&client->dispatchQueue_tail, &dc->node);
+    /* Enqueue for the worker threads */
+    dc->callback = callback;
+    dc->data = data;
+    dc->delayed = true;
+    dc->countersSampled = false;
+    cds_wfcq_node_init(&dc->node);
+    cds_wfcq_enqueue(&client->dispatchQueue_head,
+            &client->dispatchQueue_tail, &dc->node);
 
-	/* Wake up sleeping workers */
-	pthread_cond_broadcast(&client->dispatchQueue_condition);
-	return UA_STATUSCODE_GOOD;
+    /* Wake up sleeping workers */
+    pthread_cond_broadcast(&client->dispatchQueue_condition);
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Called from the worker loop */
 static void
-processDelayedCallback(A_Client *client, WorkerCallback *dc) {
-	/* Set the worker counters */
-	if(!dc->countersSampled) {
-		for(size_t i = 0; i < client->config.nThreads; ++i)
-		dc->workerCounters[i] = client->workers[i].counter;
-		dc->countersSampled = true;
+processDelayedCallback(A_Client *client, WorkerCallback *dc)
+{
+    /* Set the worker counters */
+    if(!dc->countersSampled)
+    {
+        for(size_t i = 0; i < client->config.nThreads; ++i)
+        dc->workerCounters[i] = client->workers[i].counter;
+        dc->countersSampled = true;
 
-		/* Re-add to the dispatch queue */
-		cds_wfcq_node_init(&dc->node);
-		cds_wfcq_enqueue(&client->dispatchQueue_head,
-				&client->dispatchQueue_tail, &dc->node);
+        /* Re-add to the dispatch queue */
+        cds_wfcq_node_init(&dc->node);
+        cds_wfcq_enqueue(&client->dispatchQueue_head,
+                &client->dispatchQueue_tail, &dc->node);
 
-		/* Wake up sleeping workers */
-		pthread_cond_broadcast(&client->dispatchQueue_condition);
-		return;
-	}
+        /* Wake up sleeping workers */
+        pthread_cond_broadcast(&client->dispatchQueue_condition);
+        return;
+    }
 
-	/* Have all other jobs finished? */
-	UA_Boolean ready = true;
-	for(size_t i = 0; i < client->config.nThreads; ++i) {
-		if(dc->workerCounters[i] == client->workers[i].counter) {
-			ready = false;
-			break;
-		}
-	}
+    /* Have all other jobs finished? */
+    UA_Boolean ready = true;
+    for(size_t i = 0; i < client->config.nThreads; ++i)
+    {
+        if(dc->workerCounters[i] == client->workers[i].counter)
+        {
+            ready = false;
+            break;
+        }
+    }
 
-	/* Re-add to the dispatch queue.
-	 * TODO: What is the impact of this loop?
-	 * Can we add a small delay here? */
-	if(!ready) {
-		cds_wfcq_node_init(&dc->node);
-		cds_wfcq_enqueue(&client->dispatchQueue_head,
-				&client->dispatchQueue_tail, &dc->node);
+    /* Re-add to the dispatch queue.
+     * TODO: What is the impact of this loop?
+     * Can we add a small delay here? */
+    if(!ready)
+    {
+        cds_wfcq_node_init(&dc->node);
+        cds_wfcq_enqueue(&client->dispatchQueue_head,
+                &client->dispatchQueue_tail, &dc->node);
 
-		/* Wake up sleeping workers */
-		pthread_cond_broadcast(&client->dispatchQueue_condition);
-		return;
-	}
+        /* Wake up sleeping workers */
+        pthread_cond_broadcast(&client->dispatchQueue_condition);
+        return;
+    }
 
-	/* Execute the callback */
-	dc->callback(client, dc->data);
-	UA_free(dc);
+    /* Execute the callback */
+    dc->callback(client, dc->data);
+    UA_free(dc);
 }
 
 #endif
@@ -271,58 +290,65 @@ processDelayedCallback(A_Client *client, WorkerCallback *dc) {
  * Stop: Stop workers, finish all callbacks, stop the network layer,
  *       clean up */
 
-UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_StatusCode *retval) {
+UA_UInt16
+UA_Client_run_iterate (UA_Client *client, UA_StatusCode *retval) {
 
-	if (client->config.stateCallback)
-	            client->config.stateCallback(client, client->state);
+    if (client->config.stateCallback)
+        client->config.stateCallback (client, client->state);
 
-	/* Process repeated work */
-	UA_DateTime now = UA_DateTime_nowMonotonic();
-	UA_DateTime nextRepeated = UA_Timer_process(&client->timer, now,
-			(UA_TimerDispatchCallback) UA_Client_workerCallback, client);
-	UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
-	if (nextRepeated > latest)
-		nextRepeated = latest;
+    /* Process repeated work */
+    UA_DateTime now = UA_DateTime_nowMonotonic ();
+    UA_DateTime nextRepeated = UA_Timer_process (
+            &client->timer, now,
+            (UA_TimerDispatchCallback) UA_Client_workerCallback, client);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
+    if (nextRepeated > latest)
+        nextRepeated = latest;
 
-	UA_ClientState cs = UA_Client_getState(client);
-	*retval = UA_Client_connect_iterate(client);
+    UA_ClientState cs = UA_Client_getState (client);
+    *retval = UA_Client_connect_iterate (client);
 
-	/*connection failed, drop the rest*/
-	if(*retval != UA_STATUSCODE_GOOD)
-		return 0;
+    /*connection failed, drop the rest*/
+    if (*retval != UA_STATUSCODE_GOOD)
+        return 0;
 
-	if (cs == UA_CLIENTSTATE_SECURECHANNEL || cs == UA_CLIENTSTATE_SESSION) {
-		/* check for new data */
-		receiveServiceResponse_async(client, NULL, NULL);
-	} else
-		receivePacket_async(client);
+    if (cs == UA_CLIENTSTATE_SECURECHANNEL || cs == UA_CLIENTSTATE_SESSION) {
+        /* check for new data */
+        receiveServiceResponse_async (client, NULL, NULL);
+    }
+    else
+        receivePacket_async (client);
 
 #ifndef UA_ENABLE_MULTITHREADING
-	/* Process delayed callbacks when all callbacks and
-	 * network events are done */
-	processDelayedClientCallbacks(client);
+    /* Process delayed callbacks when all callbacks and
+     * network events are done */
+    processDelayedClientCallbacks (client);
 #endif
 
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
-	if(client->config.applicationDescription.applicationType ==
-			UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-		// TODO multicastNextRepeat does not consider new input data (requests)
-		// on the socket. It will be handled on the next call. if needed, we
-		// need to use select with timeout on the multicast socket
-		// client->mdnsSocket (see example in mdnsd library) on higher level.
-		UA_DateTime multicastNextRepeat = 0;
-		UA_Boolean hasNext =
-		iterateMulticastDiscoveryServer(client, &multicastNextRepeat,
-				UA_TRUE);
-		if(hasNext && multicastNextRepeat < nextRepeated)
-		nextRepeated = multicastNextRepeat;
-	}
-#endif
+//TODO defining applicationDescription and iterateMulticastDiscoveryServer
+//commented out to pass build test
+    /*
+     #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
+     if(client->config.applicationDescription.applicationType ==
+     UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+     // TODO multicastNextRepeat does not consider new input data (requests)
+     // on the socket. It will be handled on the next call. if needed, we
+     // need to use select with timeout on the multicast socket
+     // client->mdnsSocket (see example in mdnsd library) on higher level.
+     UA_DateTime multicastNextRepeat = 0;
+     UA_Boolean hasNext =
+     iterateMulticastDiscoveryServer(client, &multicastNextRepeat,
+     UA_TRUE);
+     if(hasNext && multicastNextRepeat < nextRepeated)
+     nextRepeated = multicastNextRepeat;
+     }
+     #endif
+     */
 
-	now = UA_DateTime_nowMonotonic();
-	UA_UInt16 timeout = 0;
-	if (nextRepeated > now)
-		timeout = (UA_UInt16) ((nextRepeated - now) / UA_DATETIME_MSEC);
-	return timeout;
+    now = UA_DateTime_nowMonotonic ();
+    UA_UInt16 timeout = 0;
+    if (nextRepeated > now)
+        timeout = (UA_UInt16) ((nextRepeated - now) / UA_DATETIME_MSEC);
+    return timeout;
 }
 
