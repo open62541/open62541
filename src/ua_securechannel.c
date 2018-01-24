@@ -625,7 +625,7 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     UA_MessageContext mc;
     UA_StatusCode retval;
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, payloadType->binaryEncodingId);
-    retval = UA_MessageContext_begin(&mc, channel, requestId, UA_MESSAGETYPE_MSG);
+    retval = UA_MessageContext_begin(&mc, channel, requestId, messageType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
