@@ -759,16 +759,20 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
            (messageType == UA_MESSAGETYPE_OPN &&
-            channel->securityMode != UA_MESSAGESECURITYMODE_NONE)) {
-            // we need to add one to the padding size since the paddingSize byte itself need to be removed as well.
-            // TODO: write unit test for correct padding calculation
-            paddingSize = (size_t) chunk->data[chunkSizeAfterDecryption - sigsize - 1] + 1;
+            channel->securityMode > UA_MESSAGESECURITYMODE_NONE)) {
+            paddingSize = (size_t) chunk->data[chunkSizeAfterDecryption - sigsize - 1];
 
             size_t keyLength = cryptoModule->getRemoteEncryptionKeyLength(securityPolicy, channel->channelContext);
             if(keyLength > 2048) {
                 paddingSize <<= 8; /* Extra padding size */
                 paddingSize += chunk->data[chunkSizeAfterDecryption - sigsize - 2];
+                // see comment below but for extraPaddingSize
+                paddingSize += 1;
             }
+
+            // we need to add one to the padding size since the paddingSize byte itself need to be removed as well.
+            // TODO: write unit test for correct padding calculation
+            paddingSize += 1;
         }
         if(offset + paddingSize + sigsize >= chunkSizeAfterDecryption)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
