@@ -56,14 +56,14 @@ MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
         /* maxQueuesize is at least 1 */
         UA_assert(mon->currentQueueSize >= 2);
 
-        /* Get the item to remove */
+        /* Get the item to remove. New items are added to the end */
         if(mon->discardOldest) {
-            /* Remove the last */
-            queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-        } else {
-            /* Keep the first, remove the second */
+            /* Remove the oldest */
             queueItem = TAILQ_FIRST(&mon->queue);
-            queueItem = TAILQ_NEXT(queueItem, listEntry);
+        } else {
+            /* Keep the newest, remove the second-newest */
+            queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+            queueItem = TAILQ_PREV(queueItem, QueuedValueQueue, listEntry);
         }
         UA_assert(queueItem);
 
@@ -76,17 +76,24 @@ MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
     }
 #endif
 
-    /* The infobits is only set if the queue size is larger than one */
-    if(!valueDiscarded || mon->maxQueueSize == 1)
+    if(!valueDiscarded)
         return;
 
-    /* Add the infobits either to the newest or the new last entry */
+    /* Get the element that carries the infobits */
     if(mon->discardOldest)
-        queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    else
         queueItem = TAILQ_FIRST(&mon->queue);
+    else
+        queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
     UA_assert(queueItem);
 
+    /* If the queue size is reduced to one, remove the infobits */
+    if(mon->maxQueueSize == 1) {
+        queueItem->value.status &= ~(UA_StatusCode)(UA_STATUSCODE_INFOTYPE_DATAVALUE |
+                                                    UA_STATUSCODE_INFOBITS_OVERFLOW);
+        return;
+    }
+
+    /* Add the infobits either to the newest or the new last entry */
     queueItem->value.hasStatus = true;
     queueItem->value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 }

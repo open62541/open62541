@@ -349,7 +349,7 @@ START_TEST(Server_overflow) {
     UA_MoniteredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+    queueItem = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(queueItem->value.hasStatus, true);
     ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
@@ -385,7 +385,7 @@ START_TEST(Server_overflow) {
 
     ck_assert_uint_eq(mon->currentQueueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+    queueItem = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(queueItem->value.hasStatus, true);
     ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
