@@ -83,7 +83,7 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
             UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
                                                      &handler_currentTimeChanged, NULL, &monId, 250);
             if(monId)
-                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", subId);
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monId);
         }
         break; 
         case UA_CLIENTSTATE_SESSION_RENEWED:
