@@ -297,6 +297,12 @@ copyCommonVariableAttributes(UA_VariableNode *node,
      * we need to decode it and set the decoded value instead of the encoded object */
     UA_Boolean valueSet = false;
     if(attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
+
+        if (attr->value.data == UA_EMPTY_ARRAY_SENTINEL) {
+            /* do nothing since we got an empty array of extension objects */
+            return UA_STATUSCODE_GOOD;
+        }
+
         const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
         if(obj && obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
 

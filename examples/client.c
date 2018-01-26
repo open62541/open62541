@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
     UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
                                              &handler_TheAnswerChanged, NULL, &monId, 250);
     if(monId)
-        printf("Monitoring 'the.answer', id %u\n", subId);
+        printf("Monitoring 'the.answer', id %u\n", monId);
     /* The first publish request should return the initial value of the variable */
     UA_Client_runAsync(client, 1000);
 #endif

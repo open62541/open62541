@@ -40,6 +40,11 @@ matrix:
         - ANALYZE=false
         - PYTHON=python3
     - os: linux
+      compiler: tcc
+      env:
+        - ANALYZE=false
+        - PYTHON=python2
+    - os: linux
       compiler: clang
       env: ANALYZE=true
     - os: linux

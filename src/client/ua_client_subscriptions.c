@@ -289,7 +289,7 @@ addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
         newMonitoredItemIds[i] = newMon->monitoredItemId;
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Created a monitored item with client handle %u",
-                     client->monitoredItemHandles);
+                     newMon->monitoredItemHandles);
     }
 
  cleanup:

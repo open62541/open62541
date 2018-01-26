@@ -330,6 +330,9 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     setMonitoredItemSettings(server, mon, mon->monitoringMode, &request->requestedParameters);
     result->revisedSamplingInterval = mon->samplingInterval;
     result->revisedQueueSize = mon->maxQueueSize;
+
+    /* Remove some notifications if the queue is now too small */
+    MonitoredItem_ensureQueueSpace(mon);
 }
 
 void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
