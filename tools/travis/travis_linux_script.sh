@@ -18,6 +18,17 @@ if ! [ -z ${LINT+x} ]; then
 	cmake ..
 	make cpplint
 	if [ $? -ne 0 ] ; then exit 1 ; fi
+        cd ..
+        cpplint include/*.h
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+        cpplint plugins/*.c
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+        cpplint plugins/*.h
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+        cpplint examples/*.c
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+        cpplint examples/*.h
+	if [ $? -ne 0 ] ; then exit 1 ; fi
     exit 0
 fi
 

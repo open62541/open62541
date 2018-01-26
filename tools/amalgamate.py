@@ -76,7 +76,7 @@ if is_c:
 else:
     file.write(u'''#ifndef %s
 #define %s
-''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
+''' % (outname.upper() + u"_H_", outname.upper() + u"_H_"))
 
 for fname in args.inputs:
     with io.open(fname, encoding='utf8', errors='replace') as infile:
