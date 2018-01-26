@@ -137,7 +137,7 @@ allowDeleteNode_default(const UA_NodeId *sessionId, void *sessionContext,
                         const UA_DeleteNodesItem *item) {
     return true;
 }
-      
+
 UA_Boolean
 allowDeleteReference_default(const UA_NodeId *sessionId, void *sessionContext,
                              const UA_DeleteReferencesItem *item) {

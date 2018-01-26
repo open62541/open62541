@@ -60,7 +60,7 @@ UA_ServerConfig_new_default(void) {
 UA_EXPORT void
 UA_ServerConfig_set_customHostname(UA_ServerConfig *config,
                                    const UA_String customHostname);
-  
+
 /* Frees allocated memory in the server config */
 UA_EXPORT void
 UA_ServerConfig_delete(UA_ServerConfig *config);

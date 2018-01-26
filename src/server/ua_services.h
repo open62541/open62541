@@ -359,7 +359,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
  * links to be deleted, but has no effect on the MonitoredItems referenced by
  * the triggered items. */
 void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                                  const UA_CreateMonitoredItemsRequest *request, 
+                                  const UA_CreateMonitoredItemsRequest *request,
                                   UA_CreateMonitoredItemsResponse *response);
 
 /**

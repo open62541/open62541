@@ -597,7 +597,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
        nextrange.dimensions = &range.dimensions[dims];
        nextrange.dimensionsSize = range.dimensionsSize - dims;
     }
-        
+
     /* Compute the strides */
     size_t count, block, stride, first;
     UA_StatusCode retval = computeStrides(src, thisrange, &count,

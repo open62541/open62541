@@ -362,7 +362,7 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing BrowseNextRequest");
     UA_Boolean releaseContinuationPoints = request->releaseContinuationPoints; /* request is const */
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_BrowseNext,
                                            &releaseContinuationPoints,
                                            &request->continuationPointsSize, &UA_TYPES[UA_TYPES_BYTESTRING],
@@ -597,7 +597,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
-        
+
     /* RelativePath elements must not have an empty targetName */
     for(size_t i = 0; i < path->relativePath.elementsSize; ++i) {
         if(UA_QualifiedName_isNull(&path->relativePath.elements[i].targetName)) {
@@ -693,7 +693,7 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
                                            NULL, &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);

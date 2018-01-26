@@ -40,7 +40,7 @@ typedef struct {
     UA_Boolean delayed;         /* Is it a delayed callback? */
     UA_Boolean countersSampled; /* Have the worker counters been sampled? */
     UA_UInt32 workerCounters[]; /* Counter value for each worker */
-} WorkerCallback; 
+} WorkerCallback;
 
 /* Forward Declaration */
 static void
@@ -74,7 +74,7 @@ workerLoop(UA_Worker *worker) {
             processDelayedCallback(server, dc);
             continue;
         }
-        
+
         dc->callback(server, dc->data);
         UA_free(dc);
     }
@@ -247,7 +247,7 @@ processDelayedCallback(UA_Server *server, WorkerCallback *dc) {
         pthread_cond_broadcast(&server->dispatchQueue_condition);
         return;
     }
-        
+
     /* Execute the callback */
     dc->callback(server, dc->data);
     UA_free(dc);
@@ -395,7 +395,6 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Execute the remaining callbacks in the dispatch queue.
      * This also executes the delayed callbacks. */
     emptyDispatchQueue(server);
-    
 #endif
 
     /* Stop multicast discovery */

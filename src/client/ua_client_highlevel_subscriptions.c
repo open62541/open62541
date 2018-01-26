@@ -207,7 +207,7 @@ addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
 
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
-                                          UA_MonitoredItemCreateRequest *items, size_t itemsSize, 
+                                          UA_MonitoredItemCreateRequest *items, size_t itemsSize,
                                           UA_MonitoredItemHandlingFunction *hfs,
                                           void **hfContexts, UA_StatusCode *itemResults,
                                           UA_UInt32 *newMonitoredItemIds) {
@@ -239,7 +239,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
 
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredEvents(UA_Client *client, const UA_UInt32 subscriptionId,
-                                           UA_MonitoredItemCreateRequest *items, size_t itemsSize, 
+                                           UA_MonitoredItemCreateRequest *items, size_t itemsSize,
                                            UA_MonitoredEventHandlingFunction *hfs,
                                            void **hfContexts, UA_StatusCode *itemResults,
                                            UA_UInt32 *newMonitoredItemIds) {
@@ -503,7 +503,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
 
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
         UA_Client_processPublishResponse(client, &request, &response);
-        
+
         now = UA_DateTime_nowMonotonic();
         if(now > maxDate) {
             moreNotifications = UA_FALSE;
@@ -511,11 +511,11 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         } else {
             moreNotifications = response.moreNotifications;
         }
-        
+
         UA_PublishResponse_deleteMembers(&response);
         UA_PublishRequest_deleteMembers(&request);
     }
-    
+
     if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 

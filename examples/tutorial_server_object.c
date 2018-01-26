@@ -270,13 +270,13 @@ pumpTypeConstructor(UA_Server *server,
     rpe.isInverse = false;
     rpe.includeSubtypes = false;
     rpe.targetName = UA_QUALIFIEDNAME(1, "Status");
-    
+
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
     bp.startingNode = *nodeId;
     bp.relativePath.elementsSize = 1;
     bp.relativePath.elements = &rpe;
-    
+
     UA_BrowsePathResult bpr =
         UA_Server_translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD ||

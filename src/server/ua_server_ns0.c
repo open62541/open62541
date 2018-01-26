@@ -613,7 +613,7 @@ UA_Server_initNS0(UA_Server *server) {
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {readStatus, NULL}; 
+    UA_DataSource serverStatus = {readStatus, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 
