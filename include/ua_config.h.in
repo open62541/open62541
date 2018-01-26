@@ -110,10 +110,23 @@ extern "C" {
 # include <malloc.h>
 #endif
 
-#define UA_free(ptr) free(ptr)
-#define UA_malloc(size) malloc(size)
-#define UA_calloc(num, size) calloc(num, size)
-#define UA_realloc(ptr, size) realloc(ptr, size)
+#if !defined(UA_FREERTOS)
+
+# define UA_free(ptr) free(ptr)
+# define UA_malloc(size) malloc(size)
+# define UA_calloc(num, size) calloc(num, size)
+# define UA_realloc(ptr, size) realloc(ptr, size)
+
+#else
+
+# include <FreeRTOS.h>
+
+# define UA_free(ptr) vPortFree(ptr)
+# define UA_malloc(size) pvPortMalloc(size)
+# define UA_calloc(num, size) pvPortCalloc(num, size)
+# define UA_realloc(ptr, size) pvPortRealloc(ptr, size)
+
+#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 # define UA_alloca(size) __builtin_alloca (size)
