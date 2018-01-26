@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ev
 
+xcode-select --install
+
 brew install check
 brew install valgrind
 brew install graphviz

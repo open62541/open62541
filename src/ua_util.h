@@ -37,6 +37,11 @@ extern "C" {
     #if (TARGET_IPHONE_SIMULATOR == 1 && TARGET_CPU_X86 == 1) || \
         (TARGET_OS_IPHONE == 1 && TARGET_CPU_ARM == 1)
         #define UA_THREAD_LOCAL
+    #else
+        #include <AvailabliltyMacros.h>
+        #if (MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_7)
+            #define UA_THREAD_LOCAL
+        #endif
     #endif
 #endif
 
