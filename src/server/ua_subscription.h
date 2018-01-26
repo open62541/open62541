@@ -63,6 +63,10 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
 UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
+/* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
+ * data if required. */
+void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon);
+
 /****************/
 /* Subscription */
 /****************/

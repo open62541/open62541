@@ -162,13 +162,16 @@ else
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.shared_libs\\r'echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'
-    mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
-    make -j
-    if [ $? -ne 0 ] ; then exit 1 ; fi
-    cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.multithread\\r'
+
+	if [ "$CC" != "tcc" ]; then
+		echo -en 'travis_fold:end:script.build.shared_libs\\r'echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'
+		mkdir -p build && cd build
+		cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
+		make -j
+		if [ $? -ne 0 ] ; then exit 1 ; fi
+		cd .. && rm build -rf
+		echo -en 'travis_fold:end:script.build.multithread\\r'
+	fi
 
     echo -e "\r\n== Compile without discovery version ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind\\r'
     mkdir -p build && cd build
@@ -184,14 +187,15 @@ else
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
 
-
-    echo -e "\r\n== Compile multithreaded version with discovery =="
-    mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_EXAMPLES=ON ..
-    make -j
-    if [ $? -ne 0 ] ; then exit 1 ; fi
-    cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.multithread\\r'
+	if [ "$CC" != "tcc" ]; then
+		echo -e "\r\n== Compile multithreaded version with discovery =="
+		mkdir -p build && cd build
+		cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_EXAMPLES=ON ..
+		make -j
+		if [ $? -ne 0 ] ; then exit 1 ; fi
+		cd .. && rm build -rf
+		echo -en 'travis_fold:end:script.build.multithread\\r'
+	fi
 
     echo -e "\r\n== Unit tests (full NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_full\\r'
     mkdir -p build && cd build
@@ -204,22 +208,23 @@ else
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.unit_test_ns0\\r'
 
-    echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
-    mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-    -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
-    make -j && make test ARGS="-V"
-    if [ $? -ne 0 ] ; then exit 1 ; fi
-    echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
+	if [ "$CC" != "tcc" ]; then
+        echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
+        mkdir -p build && cd build
+        cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+              -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+              -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+        make -j && make test ARGS="-V"
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
 
-    # only run coveralls on main repo, otherwise it fails uploading the files
-    echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
-    if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
-        echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
-        coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
-        echo -en 'travis_fold:end:script.build.coveralls\\r'
-    fi
-    cd .. && rm build -rf
-
+        # only run coveralls on main repo, otherwise it fails uploading the files
+        echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
+        if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+            echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
+            coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
+            echo -en 'travis_fold:end:script.build.coveralls\\r'
+        fi
+        cd .. && rm build -rf
+	fi
 fi

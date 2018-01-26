@@ -191,7 +191,7 @@ addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
         newMonitoredItemIds[i] = newMon->monitoredItemId;
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Created a monitored item with client handle %u",
-                     client->monitoredItemHandles);
+                     newMon->clientHandle);
     }
 
  cleanup:
@@ -320,7 +320,7 @@ UA_Client_Subscriptions_removeMonitoredItems(UA_Client *client, UA_UInt32 subscr
         }
         UA_Client_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-            if(mon->monitoredItemId == monitoredItemId[i]){
+            if(mon->monitoredItemId == monitoredItemId[i]) {
                 LIST_REMOVE(mon, listEntry);
                 UA_NodeId_deleteMembers(&mon->monitoredNodeId);
                 UA_free(mon);
@@ -424,7 +424,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         if(msg->notificationData[k].content.decoded.type == &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST]) {
             UA_EventNotificationList *eventNotificationList =
                 (UA_EventNotificationList *)msg->notificationData[k].content.decoded.data;
-            for (size_t j = 0; j < eventNotificationList->eventsSize; ++j) {
+            for(size_t j = 0; j < eventNotificationList->eventsSize; ++j) {
                 UA_EventFieldList *eventFieldList = &eventNotificationList->events[j];
 
                 /* Find the MonitoredItem */
@@ -505,10 +505,10 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         UA_Client_processPublishResponse(client, &request, &response);
         
         now = UA_DateTime_nowMonotonic();
-        if (now > maxDate){
+        if(now > maxDate) {
             moreNotifications = UA_FALSE;
             retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-        }else{
+        } else {
             moreNotifications = response.moreNotifications;
         }
         
@@ -523,7 +523,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
 }
 
 void
-UA_Client_Subscriptions_clean(UA_Client *client){
+UA_Client_Subscriptions_clean(UA_Client *client) {
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
         LIST_REMOVE(n, listEntry);

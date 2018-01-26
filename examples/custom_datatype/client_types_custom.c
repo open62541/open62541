@@ -16,7 +16,7 @@ int main(void) {
 
     UA_Client *client = UA_Client_new(config);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;
     }
@@ -29,7 +29,7 @@ int main(void) {
 
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
             
-    if (retval == UA_STATUSCODE_GOOD) {
+    if(retval == UA_STATUSCODE_GOOD) {
         Point *p = (Point *)value.data;
         printf("Point = %f, %f, %f \n", p->x, p->y, p->z);
     }

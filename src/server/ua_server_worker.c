@@ -328,7 +328,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     UA_UInt16 timeout = 0;
 
     /* round always to upper value to avoid timeout to be set to 0
-    * if (nextRepeated - now) < (UA_DATETIME_MSEC/2) */
+    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
     if(waitInternal)
         timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 

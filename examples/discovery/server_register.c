@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
                                                     10 * 60 * 1000, 500, NULL);
     // UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server,
     // "opc.tcp://localhost:4840", 10*60*1000, 500, NULL);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
                      UA_StatusCode_name(retval));
@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
     }
 
     retval = UA_Server_run(server, &running);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
                      UA_StatusCode_name(retval));

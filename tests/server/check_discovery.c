@@ -372,22 +372,23 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
 
 // Test if discovery server lists himself as registered server if it is filtered by his uri
 START_TEST(Client_filter_discovery) {
-    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    UA_String expectedUris[1];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
     FindAndCheck(expectedUris, 1, NULL, NULL, "urn:open62541.test.local_discovery_server", NULL);
 }
 END_TEST
 
 // Test if server filters locale
 START_TEST(Client_filter_locale) {
-    const UA_String expectedUris[] = {
-        UA_STRING("urn:open62541.test.local_discovery_server"),
-        UA_STRING("urn:open62541.test.server_register")
-    };
-    const UA_String expectedNames[] = {
-        UA_STRING("LDS Server"),
-        UA_STRING("Anmeldungsserver")
-    };
-    const UA_String expectedLocales[] = {UA_STRING("en"), UA_STRING("de")};
+    UA_String expectedUris[2];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server"),
+    expectedUris[1] = UA_STRING("urn:open62541.test.server_register");
+    UA_String expectedNames[2];
+    expectedNames[0]= UA_STRING("LDS Server");
+    expectedNames[1]= UA_STRING("Anmeldungsserver");
+    UA_String expectedLocales[2];
+    expectedLocales[0] = UA_STRING("en");
+    expectedLocales[1] = UA_STRING("de");
     // even if we request en-US, the server will return de-DE because it only has that name.
     FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 
@@ -425,17 +426,15 @@ END_TEST
 
 // Test if filtering with uris works
 START_TEST(Client_find_filter) {
-    const UA_String expectedUris[] = {
-        UA_STRING("urn:open62541.test.server_register")
-    };
+    UA_String expectedUris[1];
+    expectedUris[0] = UA_STRING("urn:open62541.test.server_register");
     FindAndCheck(expectedUris, 1, NULL, NULL, "urn:open62541.test.server_register", NULL);
 }
 END_TEST
 
 START_TEST(Client_get_endpoints) {
-    const UA_String  expectedEndpoints[] ={
-        UA_STRING("opc.tcp://localhost:4840")
-    };
+    UA_String  expectedEndpoints[1];
+    expectedEndpoints[0] = UA_STRING("opc.tcp://localhost:4840");
 
     // general check if expected endpoints are returned
     GetEndpointsAndCheck("opc.tcp://localhost:4840", NULL,expectedEndpoints, 1);
@@ -455,17 +454,17 @@ END_TEST
 
 // Test if discovery server lists himself as registered server, before any other registration.
 START_TEST(Client_find_discovery) {
-    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    UA_String expectedUris[1];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
     FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
 }
 END_TEST
 
 // Test if registered server is returned from LDS
 START_TEST(Client_find_registered) {
-    const UA_String expectedUris[2] = {
-        UA_STRING("urn:open62541.test.local_discovery_server"),
-        UA_STRING("urn:open62541.test.server_register")
-    };
+    UA_String expectedUris[2];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
+    expectedUris[1] = UA_STRING("urn:open62541.test.server_register");
     FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
 }
 END_TEST

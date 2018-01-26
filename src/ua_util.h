@@ -19,9 +19,9 @@ extern "C" {
 
 /* Thread-Local Storage
  * --------------------
- * If thread-local storage is not supported but still detected with the
- * following macros, it can be manually disabled by defining
- * ``UA_NO_THREAD_LOCAL``. This can result in some minor slowdowns. */
+ * Thread-local storage is not required by the main library functionality. It is
+ * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
+ * feature is not available. */
 
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 # define UA_THREAD_LOCAL _Thread_local /* C11 */
@@ -32,9 +32,7 @@ extern "C" {
 #elif defined(_MSC_VER)
 # define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 #else
-# define UA_NO_THREAD_LOCAL
 # define UA_THREAD_LOCAL
-# warning The compiler does not support thread-local variables
 #endif
 
 /* Integer Shortnames
