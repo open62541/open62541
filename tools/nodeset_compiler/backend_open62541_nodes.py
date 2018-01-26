@@ -250,7 +250,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
         instanceName + "->content.encoded.typeId = UA_NODEID_NUMERIC(" + str(binaryEncodingId.ns) + ", " +
         str(binaryEncodingId.i) + ");")
     code.append(
-        "if(UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, 65000) != UA_STATUSCODE_GOOD) {}")
+        "UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, 65000);")
 
     # Encode each value as a bytestring separately.
     code.append("UA_Byte *pos" + instanceName + " = " + instanceName + "->content.encoded.body.data;")
@@ -280,7 +280,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
     code.append("size_t " + instanceName + "_encOffset = (uintptr_t)(" +
                 "pos" + instanceName + "-" + instanceName + "->content.encoded.body.data);")
     code.append(instanceName + "->content.encoded.body.length = " + instanceName + "_encOffset;")
-    code.append("UA_Byte *" + instanceName + "_newBody = (UA_Byte *) UA_malloc(" + instanceName + "_encOffset );")
+    code.append("UA_Byte *" + instanceName + "_newBody = (UA_Byte *) UA_malloc(" + instanceName + "_encOffset);")
     code.append("memcpy(" + instanceName + "_newBody, " + instanceName + "->content.encoded.body.data, " +
                 instanceName + "_encOffset);")
     code.append("UA_Byte *" + instanceName + "_oldBody = " + instanceName + "->content.encoded.body.data;")
@@ -306,7 +306,7 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
         code.append(typeStr + " *" + valueName + " = (" + typeStr + "*) UA_alloca(" + typeArr + ".memSize * " + str(parentNode.valueRank) + ");")
         for i in range(0, parentNode.valueRank):
             code.append("UA_init(&" + valueName + "[" + str(i) + "], &" + typeArr + ");")
-            code.append("UA_Variant_setArray( &attr.value, " + valueName + ", (UA_Int32) " +
+            code.append("UA_Variant_setArray(&attr.value, " + valueName + ", (UA_Int32) " +
                         str(parentNode.valueRank) + ", &" + typeArr + ");")
     else:
         code.append("void *" + valueName + " = UA_alloca(" + typeArr + ".memSize);")
@@ -376,7 +376,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                     instanceName = generateNodeValueInstanceName(v, parentNode, 0, idx)
                     code.append(
                         valueName + "[" + str(idx) + "] = " + generateNodeValueCode(v, instanceName, max_string_length=max_string_length) + ";")
-            code.append("UA_Variant_setArray( &attr.value, &" + valueName +
+            code.append("UA_Variant_setArray(&attr.value, &" + valueName +
                         ", (UA_Int32) " + str(len(node.value)) + ", " +
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
     else:
@@ -398,7 +398,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                 code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " +
                             generateNodeValueCode(node.value[0], instanceName, max_string_length=max_string_length) + ";")
                 code.append(
-                    "UA_Variant_setScalar( &attr.value, " + valueName + ", " +
+                    "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                     getTypesArrayForValue(nodeset, node.value[0]) + ");")
 
                 # FIXME: There is no membership definition for extensionObjects generated in this function.
@@ -408,7 +408,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                     0].__class__.__name__ + "_new();")
                 code.append("*" + valueName + " = " + generateNodeValueCode(node.value[0], instanceName, asIndirect=True, max_string_length=max_string_length) + ";")
                 code.append(
-                        "UA_Variant_setScalar( &attr.value, " + valueName + ", " +
+                        "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
                 codeCleanup.append("UA_{0}_delete({1});".format(
                     node.value[0].__class__.__name__, valueName))

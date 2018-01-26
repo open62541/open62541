@@ -52,11 +52,11 @@ def generateQualifiedNameCode(value, alloc=False, max_string_length=0):
 
 def generateNodeIdCode(value):
     if not value:
-        return "UA_NODEID_NUMERIC(0,0)"
+        return "UA_NODEID_NUMERIC(0, 0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns[%s],%s)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[%s], %s)" % (value.ns, value.i)
     elif value.s != None:
-        return "UA_NODEID_STRING(ns[%s],%s)" % (value.ns, value.s.replace('"', r'\"'))
+        return "UA_NODEID_STRING(ns[%s], %s)" % (value.ns, value.s.replace('"', r'\"'))
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateExpandedNodeIdCode(value):
