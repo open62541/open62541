@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
@@ -87,7 +90,7 @@ asym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
     /* Set the RSA settings */
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0); 
+    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     /* Verify */
     int mbedErr = mbedtls_pk_verify(&cc->remoteCertificate.pk,
@@ -302,7 +305,7 @@ sym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    Basic128Rsa15_PolicyContext *pc = 
+    Basic128Rsa15_PolicyContext *pc =
         (Basic128Rsa15_PolicyContext*)securityPolicy->policyContext;
 
     unsigned char mac[UA_SHA1_LENGTH];

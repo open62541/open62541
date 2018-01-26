@@ -1,6 +1,11 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Henrik Norrman
+ */
 
 #ifndef UA_SERVER_CONFIG_H_
 #define UA_SERVER_CONFIG_H_
@@ -80,7 +85,7 @@ struct UA_ServerConfig {
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
-    
+
     /* Available endpoints */
     size_t endpointsSize;
     UA_Endpoint *endpoints;

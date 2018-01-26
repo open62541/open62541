@@ -1,6 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016-2017 (c) Florian Palm
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mattias Bornhager
+ *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2017-2018 (c) Thomas Stalder
+ */
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -135,7 +146,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           UA_SetPublishingModeResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing SetPublishingModeRequest");
     UA_Boolean publishingEnabled = request->publishingEnabled; /* request is const */
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_SetPublishingMode,
                                            &publishingEnabled,
                                            &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
@@ -310,7 +321,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     /* Reset the subscription lifetime */
     cmc.sub->currentLifetimeCount = 0;
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CreateMonitoredItem, &cmc,
                                            &request->itemsToCreateSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
@@ -361,7 +372,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 
     sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_ModifyMonitoredItem, sub,
                                            &request->itemsToModifySize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
@@ -417,7 +428,7 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     smc.sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
 
     smc.monitoringMode = request->monitoringMode;
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_SetMonitoringMode, &smc,
                                            &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
@@ -512,7 +523,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
-    UA_Boolean found = true; 
+    UA_Boolean found = true;
     int loopCount = 1;
 
     if(session->lastSeenSubscriptionId > 0) {
@@ -529,8 +540,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
        LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
             if(!found) {
                 if(session->lastSeenSubscriptionId == immediate->subscriptionId) {
-                    found = true; 
-                }     
+                    found = true;
+                }
             } else {
                 if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
                     session->lastSeenSubscriptionId = immediate->subscriptionId;
@@ -538,9 +549,9 @@ Service_Publish(UA_Server *server, UA_Session *session,
                                          "Response on a late subscription", immediate->subscriptionId);
                     UA_Subscription_publishCallback(server, immediate);
                     return;
-                }     
-            }     
-        }     
+                }
+            }
+        }
         /* after the first loop, we can publish the first subscription with UA_SUBSCRIPTIONSTATE_LATE */
         found = true;
     }
@@ -569,7 +580,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing DeleteSubscriptionsRequest");
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_DeleteSubscription, NULL,
                                            &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
@@ -610,7 +621,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     /* Reset the subscription lifetime */
     sub->currentLifetimeCount = 0;
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
                                            &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);

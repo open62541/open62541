@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ */
 
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
@@ -9,7 +12,7 @@
 extern "C" {
 #endif
 
-#include "queue.h"
+#include "../deps/queue.h"
 #include "ua_securechannel.h"
 
 #define UA_MAXCONTINUATIONPOINTS 5

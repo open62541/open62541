@@ -99,7 +99,7 @@ class Type(object):
             "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
             "    " + self.builtin + ", /* .builtin */\n" + \
             "    " + self.pointerfree + ", /* .pointerFree */\n" + \
-            "    " + self.overlayable + ", /* .overlayable */ \n" + \
+            "    " + self.overlayable + ", /* .overlayable */\n" + \
             "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
             "    %s_members" % self.name + " /* .members */\n}"
 

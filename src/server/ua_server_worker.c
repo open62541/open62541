@@ -1,6 +1,18 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015 (c) Nick Goossens
+ *    Copyright 2015 (c) Jörg Schüler-Maroldt
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016-2017 (c) Florian Palm
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2016 (c) Lorenz Haas
+ *    Copyright 2017 (c) Jonas Green
+ */
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
@@ -40,7 +52,7 @@ typedef struct {
     UA_Boolean delayed;         /* Is it a delayed callback? */
     UA_Boolean countersSampled; /* Have the worker counters been sampled? */
     UA_UInt32 workerCounters[]; /* Counter value for each worker */
-} WorkerCallback; 
+} WorkerCallback;
 
 /* Forward Declaration */
 static void
@@ -74,7 +86,7 @@ workerLoop(UA_Worker *worker) {
             processDelayedCallback(server, dc);
             continue;
         }
-        
+
         dc->callback(server, dc->data);
         UA_free(dc);
     }
@@ -247,7 +259,7 @@ processDelayedCallback(UA_Server *server, WorkerCallback *dc) {
         pthread_cond_broadcast(&server->dispatchQueue_condition);
         return;
     }
-        
+
     /* Execute the callback */
     dc->callback(server, dc->data);
     UA_free(dc);
@@ -395,7 +407,6 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Execute the remaining callbacks in the dispatch queue.
      * This also executes the delayed callbacks. */
     emptyDispatchQueue(server);
-    
 #endif
 
     /* Stop multicast discovery */

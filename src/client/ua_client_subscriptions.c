@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2015-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2016 (c) Sten Grüner
+ *    Copyright 2017-2018 (c) Thomas Stalder
+ *    Copyright 2016-2017 (c) Florian Palm
+ *    Copyright 2017 (c) Frank Meerkötter
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
@@ -305,7 +314,7 @@ addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
 
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
-                                          UA_MonitoredItemCreateRequest *items, size_t itemsSize, 
+                                          UA_MonitoredItemCreateRequest *items, size_t itemsSize,
                                           UA_MonitoredItemHandlingFunction *hfs,
                                           void **hfContexts, UA_StatusCode *itemResults,
                                           UA_UInt32 *newMonitoredItemIds) {
@@ -337,7 +346,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
 
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredEvents(UA_Client *client, const UA_UInt32 subscriptionId,
-                                           UA_MonitoredItemCreateRequest *items, size_t itemsSize, 
+                                           UA_MonitoredItemCreateRequest *items, size_t itemsSize,
                                            UA_MonitoredEventHandlingFunction *hfs,
                                            void **hfContexts, UA_StatusCode *itemResults,
                                            UA_UInt32 *newMonitoredItemIds) {
@@ -692,7 +701,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
 
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
         processPublishResponse(client, &request, &response);
-        
+
         now = UA_DateTime_nowMonotonic();
         if(now > maxDate) {
             moreNotifications = UA_FALSE;
@@ -700,11 +709,11 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         } else {
             moreNotifications = response.moreNotifications;
         }
-        
+
         UA_PublishResponse_deleteMembers(&response);
         UA_PublishRequest_deleteMembers(&request);
     }
-    
+
     if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
