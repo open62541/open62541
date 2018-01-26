@@ -332,21 +332,21 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(queueItem->value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
-    UA_MoniteredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
     ck_assert_uint_eq(queueItem->value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
-    UA_MoniteredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
     ck_assert_uint_eq(queueItem->value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
-    UA_MoniteredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_FIRST(&mon->queue);
@@ -440,7 +440,7 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    UA_MoniteredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     queueItem = TAILQ_FIRST(&mon->queue);
