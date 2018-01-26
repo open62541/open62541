@@ -58,13 +58,13 @@ static const UA_StatusCodeName statusCodeDescriptions[%i] = {
 ''' % (count, count))
 
 for row in rows:
-    printc(u"    {UA_STATUSCODE_%s, \"%s\",}," % (row[0].upper(), row[0]))
+    printc(u"    {UA_STATUSCODE_%s, \"%s\"}," % (row[0].upper(), row[0]))
 printc(u'''    {0xffffffff, "Unknown StatusCode"}
 };
 
 const char * UA_StatusCode_name(UA_StatusCode code) {
-    for(size_t i = 0; i < statusCodeDescriptionsSize; ++i) {
-        if(statusCodeDescriptions[i].code == code)
+    for (size_t i = 0; i < statusCodeDescriptionsSize; ++i) {
+        if (statusCodeDescriptions[i].code == code)
             return statusCodeDescriptions[i].name;
     }
     return statusCodeDescriptions[statusCodeDescriptionsSize-1].name;
