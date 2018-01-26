@@ -15,94 +15,6 @@
 
 #define UA_VALUENCODING_MAXSTACK 512
 
-UA_MonitoredItem *
-UA_MonitoredItem_new(void) {
-    /* Allocate the memory */
-    UA_MonitoredItem *newItem =
-        (UA_MonitoredItem*)UA_calloc(1, sizeof(UA_MonitoredItem));
-    if(!newItem)
-        return NULL;
-
-    /* Remaining members are covered by calloc zeroing out the memory */
-    newItem->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY; /* currently hardcoded */
-    newItem->timestampsToReturn = UA_TIMESTAMPSTORETURN_SOURCE;
-    TAILQ_INIT(&newItem->queue);
-    return newItem;
-}
-
-void
-MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
-    /* Remove the sampling callback */
-    MonitoredItem_unregisterSampleCallback(server, monitoredItem);
-
-    /* Clear the queued samples */
-    MonitoredItem_queuedValue *val, *val_tmp;
-    TAILQ_FOREACH_SAFE(val, &monitoredItem->queue, listEntry, val_tmp) {
-        TAILQ_REMOVE(&monitoredItem->queue, val, listEntry);
-        UA_DataValue_deleteMembers(&val->value);
-        UA_free(val);
-    }
-    monitoredItem->currentQueueSize = 0;
-
-    /* Remove the monitored item */
-    LIST_REMOVE(monitoredItem, listEntry);
-    UA_String_deleteMembers(&monitoredItem->indexRange);
-    UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
-    UA_NodeId_deleteMembers(&monitoredItem->monitoredNodeId);
-    UA_free(monitoredItem); // TODO: Use a delayed free
-}
-
-void
-MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
-    UA_Boolean valueDiscarded = false;
-    MonitoredItem_queuedValue *queueItem;
-#ifndef __clang_analyzer__
-    while(mon->currentQueueSize > mon->maxQueueSize) {
-        /* maxQueuesize is at least 1 */
-        UA_assert(mon->currentQueueSize >= 2);
-
-        /* Get the item to remove. New items are added to the end */
-        if(mon->discardOldest) {
-            /* Remove the oldest */
-            queueItem = TAILQ_FIRST(&mon->queue);
-        } else {
-            /* Keep the newest, remove the second-newest */
-            queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-            queueItem = TAILQ_PREV(queueItem, QueuedValueQueue, listEntry);
-        }
-        UA_assert(queueItem);
-
-        /* Remove the item */
-        TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
-        UA_DataValue_deleteMembers(&queueItem->value);
-        UA_free(queueItem);
-        --mon->currentQueueSize;
-        valueDiscarded = true;
-    }
-#endif
-
-    if(!valueDiscarded)
-        return;
-
-    /* Get the element that carries the infobits */
-    if(mon->discardOldest)
-        queueItem = TAILQ_FIRST(&mon->queue);
-    else
-        queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    UA_assert(queueItem);
-
-    /* If the queue size is reduced to one, remove the infobits */
-    if(mon->maxQueueSize == 1) {
-        queueItem->value.status &= ~(UA_StatusCode)(UA_STATUSCODE_INFOTYPE_DATAVALUE |
-                                                    UA_STATUSCODE_INFOBITS_OVERFLOW);
-        return;
-    }
-
-    /* Add the infobits either to the newest or the new last entry */
-    queueItem->value.hasStatus = true;
-    queueItem->value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
-}
-
 /* Errors are returned as no change detected */
 static UA_Boolean
 detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value,
@@ -169,6 +81,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
                         UA_MonitoredItem *monitoredItem,
                         UA_DataValue *value,
                         UA_ByteString *valueEncoding) {
+    UA_assert(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY);
     /* Store the pointer to the stack-allocated bytestring to see if a heap-allocation
      * was necessary */
     UA_Byte *stackValueEncoding = valueEncoding->data;
@@ -206,7 +119,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     /* Prepare the newQueueItem */
     if(value->hasValue && value->value.storageType == UA_VARIANT_DATA_NODELETE) {
         /* Make a deep copy of the value */
-        UA_StatusCode retval = UA_DataValue_copy(value, &newQueueItem->value);
+        UA_StatusCode retval = UA_DataValue_copy(value, &newQueueItem->data.value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | MonitoredItem %i | "
@@ -216,7 +129,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
             return false;
         }
     } else {
-        newQueueItem->value = *value; /* Just copy the value and do not release it */
+        newQueueItem->data.value = *value; /* Just copy the value and do not release it */
     }
     newQueueItem->clientHandle = monitoredItem->clientHandle;
 
