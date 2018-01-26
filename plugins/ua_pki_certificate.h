@@ -1,5 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #ifndef UA_PKI_CERTIFICATE_H_
 #define UA_PKI_CERTIFICATE_H_
