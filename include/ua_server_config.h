@@ -80,7 +80,7 @@ struct UA_ServerConfig {
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
-    
+
     /* Available endpoints */
     size_t endpointsSize;
     UA_Endpoint *endpoints;

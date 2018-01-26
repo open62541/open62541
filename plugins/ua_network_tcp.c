@@ -461,7 +461,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
                                         layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
-    }else{    
+    }else{
         char hostname[256];
         if(gethostname(hostname, 255) == 0) {
             char discoveryUrl[256];

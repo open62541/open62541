@@ -547,7 +547,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         /* Was processed before...*/
         retval = UA_MessageContext_encode(&mc, response, responseType);
         break;
-    case UA_SERVICETYPE_INSITU: 
+    case UA_SERVICETYPE_INSITU:
         retval = ((UA_InSituService)service)
             (server, session, &mc, request, (UA_ResponseHeader*)response);
         break;

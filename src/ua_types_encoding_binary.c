@@ -905,7 +905,7 @@ ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *ty
 
     /* Jump over the length field (TODO: check if the decoded length matches) */
     ctx->pos += 4;
-        
+
     /* Decode */
     dst->encoding = UA_EXTENSIONOBJECT_DECODED;
     dst->content.decoded.type = type;

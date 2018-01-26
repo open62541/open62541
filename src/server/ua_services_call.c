@@ -238,7 +238,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CallMethod, NULL,
                                            &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);

@@ -1264,7 +1264,7 @@ Service_Write(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Write, NULL,
                                            &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);

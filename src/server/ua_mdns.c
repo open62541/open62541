@@ -401,7 +401,7 @@ mdns_set_address_record_if(UA_Server *server, const char *fullServiceDomain,
     // [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
     mdns_record_t *r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
     mdnsd_set_raw(server->mdnsDaemon, r, addr, addr_len);
-    
+
     // [hostname]. A [ip].
     r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
     mdnsd_set_raw(server->mdnsDaemon, r, addr, addr_len);
@@ -442,7 +442,7 @@ getInterfaces(UA_Server *server) {
             adapter_addresses = NULL;
             continue;
         }
-        
+
         /* Unexpected error */
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "GetAdaptersAddresses returned an unexpected error. "

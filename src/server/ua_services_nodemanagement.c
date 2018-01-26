@@ -223,7 +223,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_Nodestore_release(server, (const UA_Node*)vt);
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
-        
+
     /* If no value is set, see if the vt provides one and copy it. This needs to
      * be done before copying the datatype from the vt, as setting the datatype
      * triggers a typecheck. */
@@ -965,7 +965,7 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_addNode, NULL,
                                            &request->nodesToAddSize, &UA_TYPES[UA_TYPES_ADDNODESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_ADDNODESRESULT]);

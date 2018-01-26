@@ -70,7 +70,7 @@ addCurrentTimeVariable(UA_Server *server) {
 static void
 beforeReadTime(UA_Server *server,
                const UA_NodeId *sessionId, void *sessionContext,
-               const UA_NodeId *nodeid, void *nodeContext, 
+               const UA_NodeId *nodeid, void *nodeContext,
                const UA_NumericRange *range, const UA_DataValue *data) {
     UA_DateTime now = UA_DateTime_now();
     UA_Variant value;

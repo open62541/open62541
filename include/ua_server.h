@@ -125,7 +125,7 @@ UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
 UA_DataValue UA_EXPORT
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps);
-    
+
 /* Don't use this function. There are typed versions for every supported
  * attribute. */
 UA_StatusCode UA_EXPORT
@@ -945,7 +945,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName,
                         const UA_MethodAttributes attr, UA_MethodCallback method,
-                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments,
                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         void *nodeContext, UA_NodeId *outNewNodeId);
 

@@ -246,7 +246,7 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                            (int)serverName->length, serverName->data);
         return;
     }
-    
+
     UA_String *capabilities = NULL;
     size_t capabilitiesSize = 0;
     if(mdnsConfig) {
