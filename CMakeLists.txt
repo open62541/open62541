@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
+include(macros)
 
 #############################
 # Compiled binaries folders #
@@ -39,6 +40,8 @@ if(NOT OPEN62541_VER_COMMIT OR OPEN62541_VER_COMMIT STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
+add_subdirectory(plugins)
+
 #################
 # Build Options #
 #################
@@ -59,6 +62,12 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+
+# Platform
+set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
+GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
+list(SORT architectures)
+set_property(CACHE UA_ARCHITECTURE PROPERTY STRINGS None ${architectures})
 
 # Encryption Options
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)

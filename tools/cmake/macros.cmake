@@ -1,0 +1,5 @@
+FUNCTION(ua_add_architecture)
+    FOREACH(ARG ${ARGV})
+        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURES ${ARG})
+    ENDFOREACH(ARG)
+ENDFUNCTION(ua_add_architecture)
