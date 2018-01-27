@@ -125,7 +125,7 @@ struct UA_Subscription {
     /* When the last publish response could not hold all available
      * notifications, in the next iteration, start at the monitoreditem with
      * this id. If zero, start at the first monitoreditem. */
-    UA_UInt32 lastSendMonitoredItemId;
+    UA_UInt32 nextMonitoredItemIdToBrowse;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
