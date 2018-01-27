@@ -719,7 +719,14 @@ add_dependencies(lint open62541)
 
 add_custom_target(cpplint cpplint
                   ${lib_sources}
+                  ${internal_headers}
+                  ${default_plugin_headers}
+                  ${default_plugin_sources}
                   DEPENDS ${lib_sources}
+                          ${internal_headers}
+                          ${default_plugin_headers}
+                          ${default_plugin_sources}
+
                   COMMENT "Run cpplint code style checker on the library")
 
 ##########################
