@@ -213,7 +213,7 @@ UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 sub
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
-                                         UA_NodeId nodeId, UA_UInt32 attributeID,
+                                         UA_NodeId nodeId, UA_UInt32 attributeId,
                                          UA_MonitoredItemHandlingFunction hf,
                                          void *hfContext,
                                          UA_UInt32 *newMonitoredItemId,
@@ -235,7 +235,7 @@ UA_Client_Subscriptions_addMonitoredEvents(UA_Client *client, const UA_UInt32 su
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscriptionId,
-                                          const UA_NodeId nodeId, UA_UInt32 attributeID,
+                                          const UA_NodeId nodeId, UA_UInt32 attributeId,
                                           const UA_SimpleAttributeOperand *selectClauses,
                                           size_t selectClausesSize,
                                           const UA_ContentFilterElement *whereClauses,

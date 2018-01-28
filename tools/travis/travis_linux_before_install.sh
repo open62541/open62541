@@ -18,6 +18,18 @@ if [ -z ${DOCKER+x} ]; then
 		sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-3.9 clang-tidy-3.9 libfuzzer-3.9-dev
 	fi
 
+	if [ "$CC" = "tcc" ]; then
+		mkdir tcc_install && cd tcc_install
+		wget https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2
+		tar xvf tcc-0.9.27.tar.bz2
+		cd tcc-0.9.27
+		./configure
+		make
+		sudo make install
+		cd ../..
+		rm -rf tcc_install
+	fi
+
 	sudo add-apt-repository -y ppa:lttng/ppa
 	sudo apt-get update -qq
 	sudo apt-get install -y liburcu4 liburcu-dev

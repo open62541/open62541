@@ -1,6 +1,19 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015 (c) LEvertz
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016 (c) Julian Grothoff
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2016 (c) Lorenz Haas
+ *    Copyright 2017 (c) frax2222
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include "ua_types.h"
 #include "ua_server_internal.h"
@@ -70,7 +83,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = parentCopy->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
-        for (size_t j = 0; j<ref->targetIdsSize; j++)
+        for(size_t j = 0; j<ref->targetIdsSize; j++)
             retval |= callback(ref->targetIds[j].nodeId, ref->isInverse,
                                ref->referenceTypeId, handle);
     }

@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2015 (c) LEvertz
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
@@ -12,27 +21,26 @@ extern "C" {
 #endif
 
 /* BSD Queue Macros */
-#include "queue.h"
+#include "../deps/queue.h"
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
 
 /* Thread-Local Storage
  * --------------------
- * Thread-local variables are always enabled. Also when the library is built
- * with ``UA_ENABLE_MULTITHREADING`` disabled. Otherwise, if multiple clients
- * run in separate threads, race conditions may occur via global variables in
- * the encoding layer. */
+ * Thread-local storage is not required by the main library functionality. It is
+ * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
+ * feature is not available. */
+
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 # define UA_THREAD_LOCAL _Thread_local /* C11 */
 #elif defined(__cplusplus) && __cplusplus > 199711L
 # define UA_THREAD_LOCAL thread_local /* C++11 */
-#elif defined(__GNUC__) && !defined(_WRS_KERNEL) //defining __thread gave error of missing __tls_lookup in VxWorks
+#elif defined(__GNUC__)
 # define UA_THREAD_LOCAL __thread /* GNU extension */
 #elif defined(_MSC_VER)
 # define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 #else
-# warning The compiler does not support thread-local variables
 # define UA_THREAD_LOCAL
 #endif
 

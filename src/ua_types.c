@@ -1,6 +1,18 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014, 2016-2017 (c) Florian Palm
+ *    Copyright 2014-2016 (c) Sten Grüner
+ *    Copyright 2014 (c) Leon Urbas
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015 (c) Markus Graube
+ *    Copyright 2015 (c) Reza Ebrahimi
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2016 (c) Lorenz Haas
+ */
 
 #include "ua_util.h"
 #include "ua_types.h"
@@ -565,7 +577,7 @@ copySubString(const UA_String *src, UA_String *dst,
 UA_StatusCode
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range) {
-    if (!src->type)
+    if(!src->type)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     bool isScalar = UA_Variant_isScalar(src);
     bool stringLike = isStringLike(src->type);
@@ -597,7 +609,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
        nextrange.dimensions = &range.dimensions[dims];
        nextrange.dimensionsSize = range.dimensionsSize - dims;
     }
-        
+
     /* Compute the strides */
     size_t count, block, stride, first;
     UA_StatusCode retval = computeStrides(src, thisrange, &count,

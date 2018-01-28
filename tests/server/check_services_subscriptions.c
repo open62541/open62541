@@ -173,8 +173,10 @@ START_TEST(Server_publishCallback) {
     UA_Server_run_iterate(server, false);
     UA_realSleep(100);
 
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry)
-        ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
+        if ((sub->subscriptionId == subscriptionId1) || (sub->subscriptionId == subscriptionId2))
+            ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
+    }
 
     /* Remove the subscriptions */
     UA_DeleteSubscriptionsRequest del_request;
@@ -225,6 +227,7 @@ START_TEST(Server_createMonitoredItems) {
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
 
     monitoredItemId = response.results[0].monitoredItemId;
+    ck_assert_uint_gt(monitoredItemId, 0);
 
     UA_MonitoredItemCreateRequest_deleteMembers(&item);
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
@@ -260,6 +263,206 @@ START_TEST(Server_modifyMonitoredItems) {
 
     UA_MonitoredItemModifyRequest_deleteMembers(&item);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&response);
+}
+END_TEST
+
+START_TEST(Server_overflow) {
+    /* Create a subscription */
+    UA_CreateSubscriptionRequest createSubscriptionRequest;
+    UA_CreateSubscriptionResponse createSubscriptionResponse;
+
+    UA_CreateSubscriptionRequest_init(&createSubscriptionRequest);
+    createSubscriptionRequest.publishingEnabled = true;
+    UA_CreateSubscriptionResponse_init(&createSubscriptionResponse);
+    Service_CreateSubscription(server, &adminSession, &createSubscriptionRequest, &createSubscriptionResponse);
+    ck_assert_uint_eq(createSubscriptionResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 localSubscriptionId = createSubscriptionResponse.subscriptionId;
+    UA_Double publishingInterval = createSubscriptionResponse.revisedPublishingInterval;
+    ck_assert(publishingInterval > 0.0f);
+    UA_CreateSubscriptionResponse_deleteMembers(&createSubscriptionResponse);
+
+    /* Create a monitoredItem */
+    UA_CreateMonitoredItemsRequest createMonitoredItemsRequest;
+    UA_CreateMonitoredItemsRequest_init(&createMonitoredItemsRequest);
+    createMonitoredItemsRequest.subscriptionId = localSubscriptionId;
+    createMonitoredItemsRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    rvi.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    rvi.indexRange = UA_STRING_NULL;
+    item.itemToMonitor = rvi;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_MonitoringParameters params;
+    UA_MonitoringParameters_init(&params);
+    item.requestedParameters = params;
+    item.requestedParameters.queueSize = 3;
+    item.requestedParameters.discardOldest = true;
+    createMonitoredItemsRequest.itemsToCreateSize = 1;
+    createMonitoredItemsRequest.itemsToCreate = &item;
+
+    UA_CreateMonitoredItemsResponse createMonitoredItemsResponse;
+    UA_CreateMonitoredItemsResponse_init(&createMonitoredItemsResponse);
+
+    Service_CreateMonitoredItems(server, &adminSession, &createMonitoredItemsRequest, &createMonitoredItemsResponse);
+    ck_assert_uint_eq(createMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createMonitoredItemsResponse.resultsSize, 1);
+    ck_assert_uint_eq(createMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 localMonitoredItemId = createMonitoredItemsResponse.results[0].monitoredItemId;
+    ck_assert_uint_gt(localMonitoredItemId, 0);
+
+    UA_MonitoredItemCreateRequest_deleteMembers(&item);
+    UA_CreateMonitoredItemsResponse_deleteMembers(&createMonitoredItemsResponse);
+
+    UA_MonitoredItem *mon = NULL;
+    UA_Subscription *sub;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
+        if(sub->subscriptionId == localSubscriptionId)
+            mon = UA_Subscription_getMonitoredItem(sub, localMonitoredItemId);
+    }
+    ck_assert_ptr_ne(mon, NULL);
+    UA_assert(mon);
+    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    MonitoredItem_queuedValue *queueItem;
+    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+
+    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_MoniteredItem_SampleCallback(server, mon);
+    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+
+    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_MoniteredItem_SampleCallback(server, mon);
+    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+
+    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_MoniteredItem_SampleCallback(server, mon);
+    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->maxQueueSize, 3); 
+    queueItem = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(queueItem->value.hasStatus, true);
+    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+
+    /* Remove status for next test */
+    queueItem->value.hasStatus = false;
+    queueItem->value.status = 0;
+
+    /* Modify the MonitoredItem */
+    UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
+    UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
+    modifyMonitoredItemsRequest.subscriptionId = localSubscriptionId;
+    modifyMonitoredItemsRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    UA_MonitoredItemModifyRequest itemToModify;
+    UA_MonitoredItemModifyRequest_init(&itemToModify);
+    itemToModify.monitoredItemId = localMonitoredItemId;
+    UA_MonitoringParameters_init(&params);
+    itemToModify.requestedParameters = params;
+    itemToModify.requestedParameters.queueSize = 2;
+    itemToModify.requestedParameters.discardOldest = true;
+    modifyMonitoredItemsRequest.itemsToModifySize = 1;
+    modifyMonitoredItemsRequest.itemsToModify = &itemToModify;
+
+    UA_ModifyMonitoredItemsResponse modifyMonitoredItemsResponse;
+    UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
+
+    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest, &modifyMonitoredItemsResponse);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
+    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
+
+    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->maxQueueSize, 2); 
+    queueItem = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(queueItem->value.hasStatus, true);
+    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+
+    /* Modify the MonitoredItem */
+    UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
+    modifyMonitoredItemsRequest.subscriptionId = localSubscriptionId;
+    modifyMonitoredItemsRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    UA_MonitoredItemModifyRequest_init(&itemToModify);
+    itemToModify.monitoredItemId = localMonitoredItemId;
+    UA_MonitoringParameters_init(&params);
+    itemToModify.requestedParameters = params;
+    itemToModify.requestedParameters.queueSize = 1;
+    modifyMonitoredItemsRequest.itemsToModifySize = 1;
+    modifyMonitoredItemsRequest.itemsToModify = &itemToModify;
+
+    UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
+
+    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest, &modifyMonitoredItemsResponse);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
+    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
+
+    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->maxQueueSize, 1); 
+    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+
+    /* Modify the MonitoredItem */
+    UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
+    modifyMonitoredItemsRequest.subscriptionId = localSubscriptionId;
+    modifyMonitoredItemsRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    UA_MonitoredItemModifyRequest_init(&itemToModify);
+    itemToModify.monitoredItemId = localMonitoredItemId;
+    UA_MonitoringParameters_init(&params);
+    itemToModify.requestedParameters = params;
+    itemToModify.requestedParameters.discardOldest = false;
+    itemToModify.requestedParameters.queueSize = 1;
+    modifyMonitoredItemsRequest.itemsToModifySize = 1;
+    modifyMonitoredItemsRequest.itemsToModify = &itemToModify;
+
+    UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
+
+    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest,
+                                 &modifyMonitoredItemsResponse);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
+    ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+
+    UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
+    UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
+
+    UA_MoniteredItem_SampleCallback(server, mon);
+    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->maxQueueSize, 1); 
+    queueItem = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(queueItem->value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
+
+    /* Remove the subscriptions */
+    UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
+    UA_DeleteSubscriptionsRequest_init(&deleteSubscriptionsRequest);
+    UA_UInt32 removeId = localSubscriptionId;
+    deleteSubscriptionsRequest.subscriptionIdsSize = 1;
+    deleteSubscriptionsRequest.subscriptionIds = &removeId;
+
+    UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
+    UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
+
+    Service_DeleteSubscriptions(server, &adminSession, &deleteSubscriptionsRequest, &deleteSubscriptionsResponse);
+    ck_assert_uint_eq(deleteSubscriptionsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteSubscriptionsResponse.resultsSize, 1);
+    ck_assert_uint_eq(deleteSubscriptionsResponse.results[0], UA_STATUSCODE_GOOD);
+
+    UA_DeleteSubscriptionsResponse_deleteMembers(&deleteSubscriptionsResponse);
+
 }
 END_TEST
 
@@ -315,6 +518,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_setPublishingMode);
     tcase_add_test(tc_server, Server_createMonitoredItems);
     tcase_add_test(tc_server, Server_modifyMonitoredItems);
+    tcase_add_test(tc_server, Server_overflow);
     tcase_add_test(tc_server, Server_setMonitoringMode);
     tcase_add_test(tc_server, Server_deleteMonitoredItems);
     tcase_add_test(tc_server, Server_republish);

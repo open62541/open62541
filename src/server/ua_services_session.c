@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2014-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include "ua_services.h"
 #include "ua_server_internal.h"
@@ -260,8 +269,19 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: Detach from old channel");
         UA_Session_detachFromSecureChannel(session);
+        session->activated = false;
     }
 
+    if (session->activated) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "ActivateSession: SecureChannel %i wants "
+                                    "to activate, but the session is already activated",
+                            channel->securityToken.channelId);
+        response->responseHeader.serviceResult =
+                UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+
+    }
     /* Attach to the SecureChannel and activate */
     UA_Session_attachToSecureChannel(session, channel);
     session->activated = true;

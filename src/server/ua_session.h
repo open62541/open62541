@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ */
 
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
@@ -9,7 +12,7 @@
 extern "C" {
 #endif
 
-#include "queue.h"
+#include "../deps/queue.h"
 #include "ua_securechannel.h"
 
 #define UA_MAXCONTINUATIONPOINTS 5
@@ -51,8 +54,8 @@ typedef struct {
     UA_UInt16 availableContinuationPoints;
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_UInt32 lastSubscriptionID;
-    UA_UInt32 lastSeenSubscriptionID;
+    UA_UInt32 lastSubscriptionId;
+    UA_UInt32 lastSeenSubscriptionId;
     LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;
     SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
     UA_UInt32        numSubscriptions;
@@ -61,7 +64,7 @@ typedef struct {
 } UA_Session;
 
 /* Local access to the services (for startup and maintenance) uses this Session
- * with all possible access rights (Session ID: 1) */
+ * with all possible access rights (Session Id: 1) */
 extern UA_Session adminSession;
 
 /**
@@ -87,14 +90,14 @@ UA_UInt32
 UA_Session_getNumSubscriptions(UA_Session *session );
 
 UA_Subscription *
-UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID);
+UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId);
 
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_UInt32 subscriptionID);
+                              UA_UInt32 subscriptionId);
 
 UA_UInt32
-UA_Session_getUniqueSubscriptionID(UA_Session *session);
+UA_Session_getUniqueSubscriptionId(UA_Session *session);
 
 UA_UInt32
 UA_Session_getNumPublishReq(UA_Session *session);

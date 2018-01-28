@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Julian Grothoff
+ */
 
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
@@ -218,12 +227,14 @@ const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
+                                    void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
+                                   void *context,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
@@ -270,17 +281,9 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
-/*******************/
-/* Single-Services */
-/*******************/
-
-/* Some services take an array of "independent" requests. The single-services
- * are stored here to keep ua_services.h clean for documentation purposes. */
-
-void Service_Browse_single(UA_Server *server, UA_Session *session,
-                           struct ContinuationPointEntry *cp,
-                           const UA_BrowseDescription *descr,
-                           UA_UInt32 maxrefs, UA_BrowseResult *result);
+void
+Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
+                 const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue
 UA_Server_readWithSession(UA_Server *server, UA_Session *session,
@@ -334,9 +337,8 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 
 /* Creates a new node in the nodestore. */
 UA_StatusCode
-Operation_addNode_begin(UA_Server *server, UA_Session *session,
-                        const UA_AddNodesItem *item, void *nodeContext,
-                        UA_NodeId *outNewNodeId);
+Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
+                        const UA_AddNodesItem *item, UA_NodeId *outNewNodeId);
 
 /* Children, references, type-checking, constructors. */
 UA_StatusCode

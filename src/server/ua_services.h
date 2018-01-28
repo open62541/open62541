@@ -1,6 +1,16 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Florian Palm
+ *    Copyright 2015 (c) Sten Grüner
+ *    Copyright 2014 (c) LEvertz
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015 (c) Christian Fimmers
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
@@ -359,7 +369,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
  * links to be deleted, but has no effect on the MonitoredItems referenced by
  * the triggered items. */
 void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                                  const UA_CreateMonitoredItemsRequest *request, 
+                                  const UA_CreateMonitoredItemsRequest *request,
                                   UA_CreateMonitoredItemsResponse *response);
 
 /**

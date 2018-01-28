@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015, 2017 (c) Florian Palm
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Julian Grothoff
+ */
 
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -254,7 +263,7 @@ UA_Node_copy_alloc(const UA_Node *src) {
     dst->nodeClass = src->nodeClass;
 
     UA_StatusCode retval = UA_Node_copy(src, dst);
-    if (retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_free(dst);
         return NULL;
     }
@@ -296,24 +305,30 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     /* if we have an extension object which is still encoded (e.g. from the nodeset compiler)
      * we need to decode it and set the decoded value instead of the encoded object */
     UA_Boolean valueSet = false;
-    if (attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
+    if(attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
+
+        if (attr->value.data == UA_EMPTY_ARRAY_SENTINEL) {
+            /* do nothing since we got an empty array of extension objects */
+            return UA_STATUSCODE_GOOD;
+        }
+
         const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
-        if (obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+        if(obj && obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
 
             /* TODO: Once we generate type description in the nodeset compiler,
              * UA_findDatatypeByBinary can be made internal to the decoding
              * layer. */
             const UA_DataType *type = UA_findDataTypeByBinary(&obj->content.encoded.typeId);
 
-            if (type) {
+            if(type) {
                 void *dst = UA_Array_new(attr->value.arrayLength, type);
                 uint8_t *tmpPos = (uint8_t *)dst;
 
-                for (size_t i=0; i<attr->value.arrayLength; i++) {
+                for(size_t i=0; i<attr->value.arrayLength; i++) {
                     size_t offset =0;
                     const UA_ExtensionObject *curr = &((const UA_ExtensionObject *)attr->value.data)[i];
                     UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, 0, NULL);
-                    if (ret != UA_STATUSCODE_GOOD) {
+                    if(ret != UA_STATUSCODE_GOOD) {
                         return ret;
                     }
                     tmpPos += type->memSize;
@@ -325,7 +340,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
         }
     }
 
-    if (!valueSet)
+    if(!valueSet)
         retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
 
     node->value.data.value.hasValue = true;

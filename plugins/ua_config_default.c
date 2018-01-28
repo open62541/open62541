@@ -1,5 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Thomas Stalder
+ */
 
 #include "ua_plugin_securitypolicy.h"
 #include "ua_config_default.h"
@@ -461,7 +468,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
     NULL, /* .customDataTypes */
     NULL, /* .stateCallback */
     10, /* .outStandingPublishRequests */
-    0 /* .connectivityCheckInterval */
+    0, /* .connectivityCheckInterval */
+    NULL  /* .clientContext */
 };
 
 /****************************************/

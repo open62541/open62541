@@ -1,6 +1,11 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Thomas Stalder
+ */
 
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
@@ -61,7 +66,7 @@ multicastWorkerLoop(UA_Server *server) {
         unsigned short retVal =
             mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
                        FD_ISSET(server->mdnsSocket, &fds), true, &next_sleep);
-        if (retVal == 1) {
+        if(retVal == 1) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                           "Multicast error: Can not read from socket. %s", errno_str));
@@ -246,7 +251,7 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                            (int)serverName->length, serverName->data);
         return;
     }
-    
+
     UA_String *capabilities = NULL;
     size_t capabilitiesSize = 0;
     if(mdnsConfig) {
@@ -307,10 +312,10 @@ discovery_createMulticastSocket(void) {
     in.sin_addr.s_addr = 0;
 
 #ifdef _WIN32
-    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+    if((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
         return INVALID_SOCKET;
 #else
-    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+    if((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
         return -1;
 #endif
 
@@ -318,7 +323,7 @@ discovery_createMulticastSocket(void) {
     setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
 #endif
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
-    if (bind(s, (struct sockaddr *)&in, sizeof(in))) {
+    if(bind(s, (struct sockaddr *)&in, sizeof(in))) {
         CLOSESOCKET(s);
 #ifdef _WIN32
         return INVALID_SOCKET;
@@ -366,9 +371,9 @@ void destroyMulticastDiscoveryServer(UA_Server* server) {
     mdnsd_shutdown(server->mdnsDaemon);
     mdnsd_free(server->mdnsDaemon);
 #ifdef _WIN32
-    if (server->mdnsSocket != INVALID_SOCKET) {
+    if(server->mdnsSocket != INVALID_SOCKET) {
 #else
-    if (server->mdnsSocket >= 0) {
+    if(server->mdnsSocket >= 0) {
 #endif
         CLOSESOCKET(server->mdnsSocket);
 #ifdef _WIN32
@@ -429,9 +434,9 @@ UA_Discovery_recordExists(UA_Server* server, const char* fullServiceDomain,
                           unsigned short port, const UA_DiscoveryProtocol protocol) {
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
     mdns_record_t *r  = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
-    while (r) {
+    while(r) {
         const mdns_answer_t *data = mdnsd_record_data(r);
-        if (data->type == QTYPE_SRV && (port == 0 || data->srv.port == port))
+        if(data->type == QTYPE_SRV && (port == 0 || data->srv.port == port))
             return UA_TRUE;
         r = mdnsd_record_next(r);
     }

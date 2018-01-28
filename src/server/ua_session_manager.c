@@ -1,6 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2015 (c) Sten Grüner
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_session_manager.h"
 #include "ua_server_internal.h"
@@ -32,6 +39,9 @@ removeSessionCallback(UA_Server *server, void *entry) {
 
 static UA_StatusCode
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
+    /* Detach the Session from the SecureChannel */
+    UA_Session_detachFromSecureChannel(&sentry->session);
+
     /* Deactivate the session */
     sentry->session.activated = false;
 
@@ -45,7 +55,8 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
         return retval; /* Try again next time */
     }
 
-    /* Detach the session and make the capacity available */
+    /* Detach the session from the session manager and make the capacity
+     * available */
     LIST_REMOVE(sentry, pointers);
     UA_atomic_add(&sm->currentSessionCount, (UA_UInt32)-1);
     return UA_STATUSCODE_GOOD;

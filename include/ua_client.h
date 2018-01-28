@@ -1,6 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015-2017 (c) Florian Palm
+ *    Copyright 2015 (c) Holger Jeromin
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018 (c) Thomas Stalder
+ */
 
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
@@ -78,6 +89,8 @@ typedef struct UA_ClientConfig {
     /* connectivity check interval in ms */
     /* 0 = background task disabled      */
     UA_UInt32 connectivityCheckInterval;
+
+    void *clientContext;
 } UA_ClientConfig;
 
 
@@ -88,6 +101,10 @@ UA_Client_new(UA_ClientConfig config);
 /* Get the client connection status */
 UA_ClientState UA_EXPORT
 UA_Client_getState(UA_Client *client);
+
+/* Get the client context */
+void UA_EXPORT *
+UA_Client_getContext(UA_Client *client);
 
 /* Reset a client */
 void UA_EXPORT

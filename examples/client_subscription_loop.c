@@ -45,7 +45,7 @@ static void stopHandler(int sign) {
 static void
 handler_currentTimeChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "currentTime has changed!");
-    if (UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
+    if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *) value->value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
         UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
@@ -54,18 +54,18 @@ handler_currentTimeChanged(UA_UInt32 monId, UA_DataValue *value, void *context) 
 }
 
 static void
-stateCallback (UA_Client *client, UA_ClientState clientState){
+stateCallback (UA_Client *client, UA_ClientState clientState) {
 
-    switch (clientState){
+    switch(clientState) {
         case UA_CLIENTSTATE_DISCONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
-        break; 
+        break;
         case UA_CLIENTSTATE_CONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A TCP connection to the server is open");
-        break; 
+        break;
         case UA_CLIENTSTATE_SECURECHANNEL:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A SecureChannel to the server is open");
-        break; 
+        break;
         case UA_CLIENTSTATE_SESSION:{
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A session with the server is open");
             /* A new session was created. We need to create the subscription. */
@@ -82,14 +82,14 @@ stateCallback (UA_Client *client, UA_ClientState clientState){
             UA_NodeId monitorThis = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
             UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
                                                      &handler_currentTimeChanged, NULL, &monId, 250);
-            if (monId)
-                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", subId);
+            if(monId)
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monId);
         }
-        break; 
+        break;
         case UA_CLIENTSTATE_SESSION_RENEWED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A session with the server is open (renewed)");
             /* The session was renewed. We don't need to recreate the subscription. */
-        break; 
+        break;
     }
     return;
 }
@@ -104,12 +104,12 @@ int main(void) {
     UA_Client *client = UA_Client_new(config);
 
     /* Endless loop runAsync */
-    while (running) {
+    while(running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
         /* Alternatively you can also use UA_Client_getState to get the current state */
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-        if (retval != UA_STATUSCODE_GOOD) {
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_USERLAND, "Not connected. Retrying to connect in 1 second");
             /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
             /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */

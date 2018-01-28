@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <ua_client_highlevel.h>
+#include <ua_client_subscriptions.h>
 
 #include "ua_config_default.h"
 

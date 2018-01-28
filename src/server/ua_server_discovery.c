@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_server_internal.h"
 #include "ua_client.h"
@@ -67,7 +71,7 @@ register_server_with_discovery_server(UA_Server *server,
     size_t nl_discurls = server->config.networkLayersSize;
     size_t total_discurls = config_discurls + nl_discurls;
     request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * total_discurls);
-    if (!request.server.discoveryUrls) {
+    if(!request.server.discoveryUrls) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         return UA_STATUSCODE_BADOUTOFMEMORY;
