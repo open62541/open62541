@@ -1117,6 +1117,11 @@ DECODE_BINARY(Variant) {
     if(typeIndex == UA_TYPES_VARIANT && !isArray)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
     /* Decode the content */
     dst->type = &UA_TYPES[typeIndex];
     if(isArray) {
@@ -1134,6 +1139,8 @@ DECODE_BINARY(Variant) {
     if(isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0)
         ret |= Array_decodeBinary((void**)&dst->arrayDimensions, &dst->arrayDimensionsSize,
                                   &UA_TYPES[UA_TYPES_INT32], ctx);
+
+    ctx->depth--;
     return ret;
 }
 
@@ -1185,6 +1192,12 @@ DECODE_BINARY(DataValue) {
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
+
     /* Decode the content */
     if(encodingMask & 0x01) {
         dst->hasValue = true;
@@ -1214,6 +1227,9 @@ DECODE_BINARY(DataValue) {
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
     }
+
+    ctx->depth--;
+
     return ret;
 }
 
