@@ -79,6 +79,7 @@ typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientS
  * -------------------- */
 
 typedef struct UA_ClientConfig {
+    UA_UInt16 nThreads; /* only if multithreading is enabled */
     UA_UInt32 timeout;               /* Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */

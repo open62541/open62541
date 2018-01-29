@@ -445,8 +445,8 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
 /***************************/
 
 const UA_ClientConfig UA_ClientConfig_default = {
-    //5000, /* .timeout, 5 seconds */
-	1000000, //test
+    1, /*default thread number*/
+    5000, /* .timeout, 5 seconds */
     10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
     UA_Log_Stdout, /* .logger */
     /* .localConnectionConfig */

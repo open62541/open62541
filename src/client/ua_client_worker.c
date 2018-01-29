@@ -5,7 +5,6 @@
 #include "ua_util.h"
 #include "ua_client.h"
 #include "ua_client_internal.h"
-
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
 /**
@@ -22,7 +21,7 @@
 
 #ifdef UA_ENABLE_MULTITHREADING
 
-struct UA_Worker
+struct UA_ClientWorker
 {
     UA_Client *client;
     pthread_t thr;
@@ -50,7 +49,7 @@ static void
 processDelayedCallback(UA_Client *client, WorkerCallback *dc);
 
 static void *
-workerLoop(UA_Worker *worker)
+workerLoop(UA_ClientWorker *worker)
 {
     UA_Client *client = worker->client;
     UA_UInt32 *counter = &worker->counter;
@@ -97,19 +96,7 @@ workerLoop(UA_Worker *worker)
     return NULL;
 }
 
-static void
-emptyDispatchQueue(UA_Client *client)
-{
-    while(!cds_wfcq_empty(&client->dispatchQueue_head,
-                    &client->dispatchQueue_tail))
-    {
-        WorkerCallback *dc = (WorkerCallback*)
-        cds_wfcq_dequeue_blocking(&client->dispatchQueue_head,
-                &client->dispatchQueue_tail);
-        dc->callback(client, dc->data);
-        UA_free(dc);
-    }
-}
+//TODO: implement shutdown of workers
 
 #endif
 
@@ -128,7 +115,7 @@ UA_Client_workerCallback (UA_Client *client, UA_ClientCallback callback,
     callback (client, data);
 #else
     /* Execute immediately if memory could not be allocated */
-    WorkerCallback *dc = UA_malloc(sizeof(WorkerCallback));
+    WorkerCallback *dc = (WorkerCallback*) UA_malloc(sizeof(WorkerCallback));
     if(!dc)
     {
         callback(client, data);
@@ -209,7 +196,7 @@ UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
 {
     size_t dcsize = sizeof(WorkerCallback) +
     (sizeof(UA_UInt32) * client->config.nThreads);
-    WorkerCallback *dc = UA_malloc(dcsize);
+    WorkerCallback *dc = (WorkerCallback*)UA_malloc(dcsize);
     if(!dc)
     return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -229,7 +216,7 @@ UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
 
 /* Called from the worker loop */
 static void
-processDelayedCallback(A_Client *client, WorkerCallback *dc)
+processDelayedCallback(UA_Client *client, WorkerCallback *dc)
 {
     /* Set the worker counters */
     if(!dc->countersSampled)
@@ -281,7 +268,7 @@ processDelayedCallback(A_Client *client, WorkerCallback *dc)
 #endif
 
 /**
- * Main Server Loop
+ * Main Client Loop
  * ----------------
  * Start: Spin up the workers and the network layer
  * Iterate: Process repeated callbacks and events in the network layer.

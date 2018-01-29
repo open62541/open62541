@@ -9,6 +9,18 @@
 #include "queue.h"
 #include "ua_timer.h"
 #include "ua_client_highlevel.h"
+
+#ifdef UA_ENABLE_MULTITHREADING
+
+/* TODO: Don't depend on liburcu */
+#include <urcu.h>
+#include <urcu/lfstack.h>
+
+struct UA_ClientWorker;
+typedef struct UA_ClientWorker UA_ClientWorker;
+
+#endif /* UA_ENABLE_MULTITHREADING */
+
 /**************************/
 /* Subscriptions Handling */
 /**************************/
@@ -141,6 +153,17 @@ struct UA_Client {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 monitoredItemHandles;LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
 #endif
+
+    /* Worker threads */
+#ifdef UA_ENABLE_MULTITHREADING
+    /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
+    struct cds_wfcq_head dispatchQueue_head;
+    UA_ClientWorker *workers; /* there are nThread workers in a running server */
+    pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
+    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
+    struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
+#endif
+
 };
 
 UA_StatusCode
