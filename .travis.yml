@@ -53,13 +53,13 @@ matrix:
     #- os: linux
     #  compiler: gcc
     #  env: LINT=true
-    # - os: osx
-    #   compiler: clang
-    #   # disable homebrew auto update which takes a lot of time
-    #   env: HOMEBREW_NO_AUTO_UPDATE=1
-    #   cache:
-    #     directories:
-    #       - $HOME/Library/Caches/Homebrew
+    - os: osx
+      compiler: clang
+      # disable homebrew auto update which takes a lot of time
+      env: HOMEBREW_NO_AUTO_UPDATE=1
+      cache:
+        directories:
+          - $HOME/Library/Caches/Homebrew
 
 addons:
   apt:
