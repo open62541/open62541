@@ -1,0 +1,7 @@
+---
+Language:        Cpp
+BasedOnStyle:    llvm
+ColumnLimit:     120
+ForEachMacros:   [ foreach, LIST_FOREACH, LIST_FOREACH_SAFE ]
+DisableFormat:   false
+
