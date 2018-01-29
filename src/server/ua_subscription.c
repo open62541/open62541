@@ -269,20 +269,10 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_Boolean moreNotifications = false;
     size_t notifications = countQueuedNotifications(sub, &moreNotifications);
 
-    /* Return if nothing to do */
     if(notifications == 0) {
-        ++sub->currentKeepAliveCount;
-        if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
-            return;
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | Sending a KeepAlive",
-                             sub->subscriptionId);
+        if (sub->currentKeepAliveCount <= sub->maxKeepAliveCount)
+            ++sub->currentKeepAliveCount;
     }
-
-    /* Check if the securechannel is valid */
-    UA_SecureChannel *channel = sub->session->header.channel;
-    if(!channel)
-        return;
 
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
@@ -293,19 +283,31 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                              "Subscription %u | Cannot send a publish "
                              "response since the publish queue is empty",
                              sub->subscriptionId);
-        if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-        } else {
-            ++sub->currentLifetimeCount;
-            if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                                     "Subscription %u | End of lifetime "
-                                     "for subscription", sub->subscriptionId);
-                UA_Session_deleteSubscription(server, sub->session,
-                                              sub->subscriptionId);
-            }
+        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+        ++sub->currentLifetimeCount;
+        if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                                 "Subscription %u | End of lifetime "
+                                 "for subscription", sub->subscriptionId);
+            UA_Session_deleteSubscription(server, sub->session,
+                                          sub->subscriptionId);
+            // TODO: send a StatusChangeNotification with Bad_Timeout
         }
         return;
+    }
+
+    /* Check if the securechannel is valid */
+    UA_SecureChannel *channel = sub->session->header.channel;
+    if(!channel)
+        return;
+
+    /* Return if nothing to do */
+    if(notifications == 0) {
+        if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
+            return;
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | Sending a KeepAlive",
+                             sub->subscriptionId);
     }
 
     UA_PublishResponse *response = &pre->response;
@@ -399,8 +401,12 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         sub->lastSendMonitoredItemId = 0;
     } else {
         /* Repeat sending responses right away if there are more notifications
-         * to send */
-        UA_Subscription_publishCallback(server, sub);
+         * to send / only if we have a publishResponse available */
+        pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
+        if (pre)
+            UA_Subscription_publishCallback(server, sub);
+        else
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
     }
 }
 
