@@ -1006,6 +1006,8 @@ enum UA_VARIANT_ENCODINGMASKTYPE {
     UA_VARIANT_ENCODINGMASKTYPE_ARRAY       = (0x01 << 7)  /* bit 7 */
 };
 
+
+
 ENCODE_BINARY(Variant) {
     /* Quit early for the empty variant */
     u8 encoding = 0;
@@ -1014,8 +1016,12 @@ ENCODE_BINARY(Variant) {
 
     /* Set the content type in the encoding mask */
     const bool isBuiltin = src->type->builtin;
+    const bool isAlias = src->type->membersSize == 1
+                         && UA_TYPES[src->type->members[0].memberTypeIndex].builtin;
     if(isBuiltin)
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeIndex + 1);
+    else if(isAlias)
+        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->members[0].memberTypeIndex + 1);
     else
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1);
 
@@ -1034,7 +1040,7 @@ ENCODE_BINARY(Variant) {
         return ret;
 
     /* Encode the content */
-    if(!isBuiltin)
+    if(!isBuiltin && !isAlias)
         ret = Variant_encodeBinaryWrapExtensionObject(src, isArray, ctx);
     else if(!isArray)
         ret = encodeBinaryInternal(src->data, src->type, ctx);
