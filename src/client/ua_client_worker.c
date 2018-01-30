@@ -48,53 +48,7 @@ typedef struct
 static void
 processDelayedCallback(UA_Client *client, WorkerCallback *dc);
 
-static void *
-workerLoop(UA_ClientWorker *worker)
-{
-    UA_Client *client = worker->client;
-    UA_UInt32 *counter = &worker->counter;
-    volatile UA_Boolean *running = &worker->running;
-
-    /* Initialize the (thread local) random seed with the ram address
-     * of the worker. Not for security-critical entropy! */
-    UA_random_seed((uintptr_t)worker);
-    rcu_register_thread();
-
-    while(*running)
-    {
-        UA_atomic_add(counter, 1);
-        WorkerCallback *dc = (WorkerCallback*)
-        cds_wfcq_dequeue_blocking(&client->dispatchQueue_head,
-                &client->dispatchQueue_tail);
-        if(!dc)
-        {
-            /* Nothing to do. Sleep until a callback is dispatched */
-            pthread_mutex_lock(&client->dispatchQueue_mutex);
-            pthread_cond_wait(&client->dispatchQueue_condition,
-                    &client->dispatchQueue_mutex);
-            pthread_mutex_unlock(&client->dispatchQueue_mutex);
-            continue;
-        }
-
-        if(dc->delayed)
-        {
-            processDelayedCallback(client, dc);
-            continue;
-        }
-
-        UA_RCU_LOCK();
-        dc->callback(client, dc->data);
-        UA_free(dc);
-        UA_RCU_UNLOCK();
-    }
-
-    UA_ASSERT_RCU_UNLOCKED();
-    rcu_barrier();
-    rcu_unregister_thread();
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SERVER,
-            "Worker shut down");
-    return NULL;
-}
+//TODO: put back workerloop
 
 //TODO: implement shutdown of workers
 
@@ -312,8 +266,8 @@ UA_Client_run_iterate (UA_Client *client, UA_StatusCode *retval) {
     processDelayedClientCallbacks (client);
 #endif
 
-//TODO defining applicationDescription and iterateMulticastDiscoveryServer
 //commented out to pass build test
+//TODO defining applicationDescription and iterateMulticastDiscoveryServer
     /*
      #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
      if(client->config.applicationDescription.applicationType ==

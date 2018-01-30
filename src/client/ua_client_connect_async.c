@@ -524,8 +524,8 @@ UA_Client_connectInternalAsync (UA_Client *client, const char *endpointUrl,
     retval = UA_Client_addRepeatedCallback (
             client, client->config.pollConnectionFunc, &client->connection, 100,
             &client->connection.connectCallbackID);
-
-    //UA_free(ac);
+    //otherwise potential memory leak
+    UA_free(ac);
     return retval;
 
     cleanup: UA_Client_disconnect (client);

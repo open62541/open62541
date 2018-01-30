@@ -479,6 +479,7 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_UInt16 UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_StatusCode *retval);
 
+//possibly redundant
 UA_StatusCode UA_EXPORT
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 

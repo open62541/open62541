@@ -6,9 +6,9 @@
 #define UA_CLIENT_INTERNAL_H_
 
 #include "ua_securechannel.h"
-#include "queue.h"
-#include "ua_timer.h"
 #include "ua_client_highlevel.h"
+#include "../../deps/queue.h"
+#include "ua_timer.h"
 
 #ifdef UA_ENABLE_MULTITHREADING
 
