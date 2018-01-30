@@ -92,7 +92,7 @@ static UA_StatusCode
 multicastListenStop(UA_Server* server) {
     mdnsd_shutdown(server->mdnsDaemon);
     // wake up select
-    write(server->mdnsSocket, "\0", 1);
+    if(write(server->mdnsSocket, "\0", 1)){};
     if(pthread_join(server->mdnsThread, NULL)) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not stop thread.");

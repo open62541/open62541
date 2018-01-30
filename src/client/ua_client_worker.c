@@ -214,23 +214,6 @@ UA_Client_run_iterate (UA_Client *client, UA_StatusCode *retval) {
 
 //TODO defining applicationDescription and iterateMulticastDiscoveryServer
 
-     #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
-     if(client->config.applicationDescription.applicationType ==
-     UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-     // TODO multicastNextRepeat does not consider new input data (requests)
-     // on the socket. It will be handled on the next call. if needed, we
-     // need to use select with timeout on the multicast socket
-     // client->mdnsSocket (see example in mdnsd library) on higher level.
-     UA_DateTime multicastNextRepeat = 0;
-     UA_Boolean hasNext =
-     iterateMulticastDiscoveryServer(client, &multicastNextRepeat,
-     UA_TRUE);
-     if(hasNext && multicastNextRepeat < nextRepeated)
-     nextRepeated = multicastNextRepeat;
-     }
-     #endif
-
-
     now = UA_DateTime_nowMonotonic ();
     UA_UInt16 timeout = 0;
     if (nextRepeated > now)

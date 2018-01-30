@@ -621,14 +621,12 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
 			pathSize, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
 	browsePath.relativePath.elementsSize = pathSize;
 
-	UA_Boolean isNull;
 	for (size_t i = 0; i < pathSize; i++) {
-		UA_RelativePathElement *elem = &browsePath.relativePath.elements[i];
-		isNull = UA_NodeId_isNull(&elem->referenceTypeId);
-		if(!isNull){
-                    elem->referenceTypeId = UA_NODEID_NUMERIC(0, ids[i]);
-                    elem->targetName = UA_QUALIFIEDNAME_ALLOC(0, paths[i]);
-		}
+	    UA_RelativePathElement *elem = &browsePath.relativePath.elements[i];
+	    if(elem){
+                elem->referenceTypeId = UA_NODEID_NUMERIC(0, ids[i]);
+                elem->targetName = UA_QUALIFIEDNAME_ALLOC(0, paths[i]);
+	    }
 	}
 
 	UA_TranslateBrowsePathsToNodeIdsRequest request;
@@ -642,27 +640,3 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
 			reqId);
 
 }
-
-/*the async version of getEndpoints put in this file since it needs to call getReponseCallback*/
-UA_StatusCode __UA_Client_getEndpoints_async(UA_Client *client,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId) {
-	UA_GetEndpointsRequest request;
-	UA_GetEndpointsRequest_init(&request);
-	request.requestHeader.timestamp = UA_DateTime_now();
-	request.requestHeader.timeoutHint = 10000;
-	// assume the endpointurl outlives the service call
-	//test
-	UA_String_copy(&client->endpointUrl, &request.endpointUrl);
-	//request.endpointUrl = client->endpointUrl;
-
-	//TODO as argument
-	request.endpointUrl = UA_STRING_ALLOC("opc.tcp://localhost:4840");
-
-	//TODO: makes sense?
-	return __UA_Client_AsyncService(client, &request,
-			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST], callback,
-			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], userdata, reqId);
-
-}
-

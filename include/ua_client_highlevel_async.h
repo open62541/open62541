@@ -625,16 +625,5 @@ static UA_INLINE UA_StatusCode UA_Cient_translateBrowsePathsToNodeIds_async(
 			pathSize, (UA_ClientAsyncServiceCallback) callback, userdata, reqId);
 }
 
-/*getEndpoints not working yet*/
-UA_StatusCode UA_EXPORT
-__UA_Client_getEndpoints_async(UA_Client *client,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId);
-
-static UA_INLINE UA_StatusCode UA_Client_getEndpoints_async(UA_Client *client,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId) {
-	return __UA_Client_getEndpoints_async(client, callback, userdata, reqId);
-}
 
 #endif /* UA_CLIENT_HIGHLEVEL_ASYNC_H_ */
