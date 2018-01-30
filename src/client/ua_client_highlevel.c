@@ -621,10 +621,14 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
 			pathSize, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
 	browsePath.relativePath.elementsSize = pathSize;
 
+	UA_Boolean isNull;
 	for (size_t i = 0; i < pathSize; i++) {
 		UA_RelativePathElement *elem = &browsePath.relativePath.elements[i];
-		elem->referenceTypeId = UA_NODEID_NUMERIC(0, ids[i]);
-		elem->targetName = UA_QUALIFIEDNAME_ALLOC(0, paths[i]);
+		isNull = UA_NodeId_isNull(&elem->referenceTypeId);
+		if(!isNull){
+                    elem->referenceTypeId = UA_NODEID_NUMERIC(0, ids[i]);
+                    elem->targetName = UA_QUALIFIEDNAME_ALLOC(0, paths[i]);
+		}
 	}
 
 	UA_TranslateBrowsePathsToNodeIdsRequest request;
@@ -654,8 +658,6 @@ UA_StatusCode __UA_Client_getEndpoints_async(UA_Client *client,
 
 	//TODO as argument
 	request.endpointUrl = UA_STRING_ALLOC("opc.tcp://localhost:4840");
-	UA_GetEndpointsResponse response;
-	UA_GetEndpointsResponse_init(&response);
 
 	//TODO: makes sense?
 	return __UA_Client_AsyncService(client, &request,

@@ -44,11 +44,7 @@ typedef struct
     UA_UInt32 workerCounters[]; /* Counter value for each worker */
 }WorkerCallback;
 
-/* Forward Declaration */
-static void
-processDelayedCallback(UA_Client *client, WorkerCallback *dc);
-
-//TODO: put back workerloop
+//TODO: put back workerloop & processDelayedCallback
 
 //TODO: implement shutdown of workers
 
@@ -168,57 +164,6 @@ UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Called from the worker loop */
-static void
-processDelayedCallback(UA_Client *client, WorkerCallback *dc)
-{
-    /* Set the worker counters */
-    if(!dc->countersSampled)
-    {
-        for(size_t i = 0; i < client->config.nThreads; ++i)
-        dc->workerCounters[i] = client->workers[i].counter;
-        dc->countersSampled = true;
-
-        /* Re-add to the dispatch queue */
-        cds_wfcq_node_init(&dc->node);
-        cds_wfcq_enqueue(&client->dispatchQueue_head,
-                &client->dispatchQueue_tail, &dc->node);
-
-        /* Wake up sleeping workers */
-        pthread_cond_broadcast(&client->dispatchQueue_condition);
-        return;
-    }
-
-    /* Have all other jobs finished? */
-    UA_Boolean ready = true;
-    for(size_t i = 0; i < client->config.nThreads; ++i)
-    {
-        if(dc->workerCounters[i] == client->workers[i].counter)
-        {
-            ready = false;
-            break;
-        }
-    }
-
-    /* Re-add to the dispatch queue.
-     * TODO: What is the impact of this loop?
-     * Can we add a small delay here? */
-    if(!ready)
-    {
-        cds_wfcq_node_init(&dc->node);
-        cds_wfcq_enqueue(&client->dispatchQueue_head,
-                &client->dispatchQueue_tail, &dc->node);
-
-        /* Wake up sleeping workers */
-        pthread_cond_broadcast(&client->dispatchQueue_condition);
-        return;
-    }
-
-    /* Execute the callback */
-    dc->callback(client, dc->data);
-    UA_free(dc);
-}
-
 #endif
 
 /**
@@ -266,9 +211,9 @@ UA_Client_run_iterate (UA_Client *client, UA_StatusCode *retval) {
     processDelayedClientCallbacks (client);
 #endif
 
-//commented out to pass build test
+
 //TODO defining applicationDescription and iterateMulticastDiscoveryServer
-    /*
+
      #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
      if(client->config.applicationDescription.applicationType ==
      UA_APPLICATIONTYPE_DISCOVERYSERVER) {
@@ -284,7 +229,7 @@ UA_Client_run_iterate (UA_Client *client, UA_StatusCode *retval) {
      nextRepeated = multicastNextRepeat;
      }
      #endif
-     */
+
 
     now = UA_DateTime_nowMonotonic ();
     UA_UInt16 timeout = 0;
