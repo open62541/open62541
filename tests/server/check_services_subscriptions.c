@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* TODO add event based testing */
+
 #include "ua_server.h"
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
@@ -329,33 +331,33 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     MonitoredItem_queuedValue *queueItem;
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, true);
+    ck_assert_uint_eq(queueItem->data.value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Remove status for next test */
-    queueItem->value.hasStatus = false;
-    queueItem->value.status = 0;
+    queueItem->data.value.hasStatus = false;
+    queueItem->data.value.status = 0;
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
@@ -386,8 +388,8 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->currentQueueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
     queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, true);
+    ck_assert_uint_eq(queueItem->data.value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -414,7 +416,7 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->currentQueueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -444,7 +446,7 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->currentQueueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
 
     /* Remove the subscriptions */
     UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
