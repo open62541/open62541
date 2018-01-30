@@ -1014,8 +1014,11 @@ ENCODE_BINARY(Variant) {
 
     /* Set the content type in the encoding mask */
     const bool isBuiltin = src->type->builtin;
+    const bool isOverlayable = src->type->overlayable;
     if(isBuiltin)
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeIndex + 1);
+    else if(isOverlayable)
+        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_INT32 + 1);
     else
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1);
 
@@ -1034,7 +1037,7 @@ ENCODE_BINARY(Variant) {
         return ret;
 
     /* Encode the content */
-    if(!isBuiltin)
+    if(!isBuiltin && !isOverlayable)
         ret = Variant_encodeBinaryWrapExtensionObject(src, isArray, ctx);
     else if(!isArray)
         ret = encodeBinaryInternal(src->data, src->type, ctx);
