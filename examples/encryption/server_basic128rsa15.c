@@ -4,7 +4,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <errno.h>
-#include <open62541.h>
 #include "open62541.h"
 
 static UA_ByteString loadFile(const char *const path) {

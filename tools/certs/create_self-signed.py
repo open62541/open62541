@@ -20,8 +20,9 @@ if len(sys.argv) == 3:
     keysize = int(sys.argv[2])
 
 certsdir = os.path.dirname(os.path.abspath(__file__))
+print(certsdir)
 os.environ['HOSTNAME'] = socket.gethostname()
-os.environ['OPENSSL_CONF'] = os.path.join(certsdir, "localhost.cnf")
+openssl_conf = os.path.join(certsdir, "localhost.cnf")
 
 os.chdir(os.path.abspath(sys.argv[1]))
 os.system("""openssl genrsa -out ca.key {}""".format(keysize))
@@ -47,8 +48,8 @@ os.system("""openssl x509 -req \
     -CAkey ca.key \
     -CAcreateserial \
     -out localhost.crt \
-    -extfile $OPENSSL_CONF \
-    -extensions v3_ca""")
+    -extfile {} \
+    -extensions v3_ca""".format(openssl_conf))
 os.system("openssl x509 -in localhost.crt -outform der -out server_cert.der")
 os.system("openssl rsa -inform PEM -in localhost.key -outform DER -out server_key.der")
 
