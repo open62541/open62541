@@ -424,7 +424,8 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                     continue;
                 }
 
-                mon->handler.dataChangeHandler(mon->monitoredItemId, &mitemNot->value, mon->handlerContext);
+                mon->handler.dataChangeHandler(client, mon->monitoredItemId,
+                                               &mitemNot->value, mon->handlerContext);
             }
             continue;
         }

@@ -53,7 +53,7 @@ static void teardown(void) {
 UA_Boolean notificationReceived;
 UA_UInt32 countNotificationReceived = 0;
 
-static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
+static void monitoredItemHandler(UA_Client *client, UA_UInt32 monId, UA_DataValue *value, void *context) {
     notificationReceived = true;
     countNotificationReceived++;
 }
