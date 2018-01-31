@@ -166,7 +166,8 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
         UA_deleteMembers(response, ac->responseType);
     } else {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not decodee the response with Id %u", requestId);
+                    "Could not decode the response with Id %u", requestId);
+        UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADCOMMUNICATIONERROR);
     }
 
     /* Remove the callback */
@@ -360,7 +361,7 @@ void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCod
     AsyncServiceCall *ac, *ac_tmp;
     LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
         LIST_REMOVE(ac, pointers);
-        UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADSHUTDOWN);
+        UA_Client_AsyncService_cancel(client, ac, statusCode);
         UA_free(ac);
     }
 }
