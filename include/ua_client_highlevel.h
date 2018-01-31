@@ -597,8 +597,8 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 /* Addition of monitored DataChanges */
 /* TODO for v0.4: Rename method to _DataChange. */
-typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId, UA_DataValue *value,
-                                                 void *context);
+typedef void (*UA_MonitoredItemHandlingFunction)(UA_Client *client, UA_UInt32 monId,
+                                                 UA_DataValue *value, void *context);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
