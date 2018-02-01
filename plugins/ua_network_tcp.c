@@ -762,7 +762,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
 
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
-    connection.state = UA_CONNECTION_OPENING;
+    connection.state = UA_CONNECTION_CLOSED;
     connection.localConf = conf;
     connection.remoteConf = conf;
     connection.send = connection_write;
@@ -833,8 +833,6 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
      * want to try to connect. So use a loop and retry until timeout is
      * reached. */
     do {
-        connection.state = UA_CONNECTION_OPENING;
-
         /* Get a socket */
         clientsockfd = socket(server->ai_family,
                               server->ai_socktype,
@@ -849,6 +847,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
             freeaddrinfo(server);
             return connection;
         }
+
+        connection.state = UA_CONNECTION_OPENING;
 
         /* Connect to the server */
         connection.sockfd = (UA_Int32) clientsockfd; /* cast for win32 */
