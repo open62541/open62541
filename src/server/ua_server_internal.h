@@ -28,12 +28,16 @@ extern "C" {
 
 #ifdef UA_ENABLE_MULTITHREADING
 
-/* TODO: Don't depend on liburcu */
-#include <urcu.h>
-#include <urcu/lfstack.h>
+#include <pthread.h>
 
 struct UA_Worker;
 typedef struct UA_Worker UA_Worker;
+
+struct UA_WorkerCallback;
+typedef struct UA_WorkerCallback UA_WorkerCallback;
+
+SIMPLEQ_HEAD(UA_DispatchQueue, UA_WorkerCallback);
+typedef struct UA_DispatchQueue UA_DispatchQueue;
 
 #endif /* UA_ENABLE_MULTITHREADING */
 
@@ -126,12 +130,11 @@ struct UA_Server {
 
     /* Worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
-    /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
-    struct cds_wfcq_head dispatchQueue_head;
     UA_Worker *workers; /* there are nThread workers in a running server */
+    UA_DispatchQueue dispatchQueue; /* Dispatch queue for the worker threads */
+    pthread_mutex_t dispatchQueue_accessMutex; /* mutex for access to queue */
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
-    struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
+    pthread_mutex_t dispatchQueue_conditionMutex; /* mutex for access to condition variable */
 #endif
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
@@ -350,8 +353,8 @@ UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                                UA_MethodCallback method,
-                               size_t inputArgumentsSize, const UA_Argument* inputArguments,
-                               size_t outputArgumentsSize, const UA_Argument* outputArguments);
+                               const size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                               const size_t outputArgumentsSize, const UA_Argument *outputArguments);
 
 /**********************/
 /* Create Namespace 0 */
