@@ -39,7 +39,7 @@ UA_UINT32RANGE(UA_UInt32 min, UA_UInt32 max) {
 }
 
 static UA_INLINE UA_DurationRange
-UA_DURATIONRANGE(UA_Double min, UA_Double max) {
+UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     UA_DurationRange range = {min, max};
     return range;
 }
