@@ -80,4 +80,4 @@ Makefile
 /build
 /.idea
 /cmake-build*
-/Default
+/tools/certs/certs/*

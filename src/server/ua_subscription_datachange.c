@@ -226,9 +226,10 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     monitoredItem->lastSampledValue = *valueEncoding;
 
     /* Add the sample to the queue for publication */
-    MonitoredItem_ensureQueueSpace(monitoredItem);
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
     ++monitoredItem->currentQueueSize;
+    /* Remove entries from the queue if required */
+    MonitoredItem_ensureQueueSpace(monitoredItem);
     return true;;
 }
 

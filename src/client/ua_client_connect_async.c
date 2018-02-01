@@ -499,7 +499,7 @@ UA_Client_connectInternalAsync (UA_Client *client, const char *endpointUrl,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection = client->config.initConnectionFunc (
             client->config.localConnectionConfig, endpointUrl,
-            client->config.timeout);
+            client->config.timeout, client->config.logger);
     if (client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;

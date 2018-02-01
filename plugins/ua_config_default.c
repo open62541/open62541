@@ -271,7 +271,7 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     conf->networkLayers[0] =
-        UA_ServerNetworkLayerTCP(UA_ConnectionConfig_default, portNumber);
+        UA_ServerNetworkLayerTCP(UA_ConnectionConfig_default, portNumber, conf->logger);
     conf->networkLayersSize = 1;
 
     return UA_STATUSCODE_GOOD;
