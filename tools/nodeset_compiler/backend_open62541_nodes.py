@@ -459,7 +459,7 @@ def generateSubtypeOfDefinitionCode(node):
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
-def generateNodeCode(node, suppressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length):
+def generateNodeCode_begin(node, nodeset, max_string_length):
     code = []
     code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
 
@@ -491,22 +491,10 @@ def generateNodeCode(node, suppressGenerationOfAttribute, generate_ns0, parentre
     code.append("attr.writeMask = %d;" % node.writeMask)
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
 
-
     typeDef = getNodeTypeDefinition(node)
-    isDataTypeEncodingType = typeDef is not None and typeDef.ns == 0 and typeDef.i == 76
 
-    # Object nodes of type DataTypeEncoding do not have any parent
-    if not generate_ns0 and not isDataTypeEncodingType:
-        (parentNode, parentRef) = extractNodeParent(node, parentrefs)
-        if parentNode is None or parentRef is None:
-            return None
-    else:
-        (parentNode, parentRef) = (NodeId(), NodeId())
-
-    code.append("retVal |= UA_Server_add%s(server," % node.__class__.__name__)
+    code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".format(node.__class__.__name__.upper().replace("NODE" ,"")))
     code.append(generateNodeIdCode(node.id) + ",")
-    code.append(generateNodeIdCode(parentNode) + ",")
-    code.append(generateNodeIdCode(parentRef) + ",")
     code.append(generateQualifiedNameCode(node.browseName, max_string_length=max_string_length) + ",")
     if isinstance(node, VariableTypeNode):
         # we need the HasSubtype reference
@@ -519,11 +507,45 @@ def generateNodeCode(node, suppressGenerationOfAttribute, generate_ns0, parentre
             if ref.referenceType.i == 40:
                 if (ref.isForward and ref.source == node.id) or (not ref.isForward and ref.target == node.id):
                     node.printRefs.remove(ref)
-    code.append("attr,")
-    if isinstance(node, MethodNode):
-        code.append("NULL, 0, NULL, 0, NULL, NULL, NULL);")
     else:
-        code.append("NULL, NULL);")
+        code.append("UA_NODEID_NULL,")
+    code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".format(node.__class__.__name__.upper().replace("NODE" ,"")))
     code.extend(codeCleanup)
     
     return "\n".join(code)
+
+def generateNodeCode_finish(node, generate_ns0, parentrefs):
+    code = []
+
+    typeDef = getNodeTypeDefinition(node)
+    isDataTypeEncodingType = typeDef is not None and typeDef.ns == 0 and typeDef.i == 76
+    # Object nodes of type DataTypeEncoding do not have any parent
+    if not generate_ns0 and not isDataTypeEncodingType:
+        (parentNode, parentRef) = extractNodeParent(node, parentrefs)
+        if parentNode is None or parentRef is None:
+            return None
+    else:
+        (parentNode, parentRef) = (NodeId(), NodeId())
+
+
+    if isinstance(node, MethodNode):
+        code.append("UA_Server_addMethodNode_finish(server, ")
+    else:
+        code.append("UA_Server_addNode_finish(server, ")
+    code.append(generateNodeIdCode(node.id) + ",")
+    code.append(generateNodeIdCode(parentNode) + ",")
+    code.append(generateNodeIdCode(parentRef) + ",")
+
+    if isinstance(node, MethodNode):
+        code.append("NULL, 0, NULL, 0, NULL);")
+    else:
+
+        if isinstance(node, VariableTypeNode):
+            # we need the HasSubtype reference
+            code.append(generateSubtypeOfDefinitionCode(node) + ");")
+        else:
+            typeDefCode = "UA_NODEID_NULL" if typeDef is None else generateNodeIdCode(typeDef)
+            code.append(typeDefCode + ");")
+
+    return "\n".join(code)
+

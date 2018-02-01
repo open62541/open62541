@@ -74,14 +74,6 @@ parser.add_argument('-i', '--ignore',
                     default=[],
                     help='Loads a list of NodeIDs stored in ignoreFile (one NodeID per line). Any of the nodeIds encountered in this file will be kept in the nodestore but not printed in the generated code')
 
-parser.add_argument('-s', '--suppress',
-                    metavar="<attribute>",
-                    action='append',
-                    dest="suppressedAttributes",
-                    choices=['description', 'browseName', 'displayName', 'writeMask', 'userWriteMask', 'nodeid'],
-                    default=[],
-                    help="Suppresses the generation of some node attributes. Currently supported options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask' and 'nodeid'.")
-
 parser.add_argument('-t', '--types-array',
                     metavar="<typesArray>",
                     action='append',
@@ -189,5 +181,5 @@ ns.allocateVariables()
 
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")
-generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0, args.internal_headers, args.typesArray, args.max_string_length)
+generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.max_string_length)
 logger.info("NodeSet generation code successfully printed")
