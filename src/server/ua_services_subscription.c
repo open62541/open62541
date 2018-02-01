@@ -282,7 +282,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
-        UA_MoniteredItem_SampleCallback(server, newMon);
+        UA_MonitoredItem_SampleCallback(server, newMon);
 
     /* Prepare the response */
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);

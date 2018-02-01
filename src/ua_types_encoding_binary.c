@@ -1006,6 +1006,8 @@ enum UA_VARIANT_ENCODINGMASKTYPE {
     UA_VARIANT_ENCODINGMASKTYPE_ARRAY       = (0x01 << 7)  /* bit 7 */
 };
 
+
+
 ENCODE_BINARY(Variant) {
     /* Quit early for the empty variant */
     u8 encoding = 0;
@@ -1014,8 +1016,12 @@ ENCODE_BINARY(Variant) {
 
     /* Set the content type in the encoding mask */
     const bool isBuiltin = src->type->builtin;
+    const bool isAlias = src->type->membersSize == 1
+                         && UA_TYPES[src->type->members[0].memberTypeIndex].builtin;
     if(isBuiltin)
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeIndex + 1);
+    else if(isAlias)
+        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->members[0].memberTypeIndex + 1);
     else
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1);
 
@@ -1034,7 +1040,7 @@ ENCODE_BINARY(Variant) {
         return ret;
 
     /* Encode the content */
-    if(!isBuiltin)
+    if(!isBuiltin && !isAlias)
         ret = Variant_encodeBinaryWrapExtensionObject(src, isArray, ctx);
     else if(!isArray)
         ret = encodeBinaryInternal(src->data, src->type, ctx);
@@ -1117,6 +1123,11 @@ DECODE_BINARY(Variant) {
     if(typeIndex == UA_TYPES_VARIANT && !isArray)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
     /* Decode the content */
     dst->type = &UA_TYPES[typeIndex];
     if(isArray) {
@@ -1134,6 +1145,8 @@ DECODE_BINARY(Variant) {
     if(isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0)
         ret |= Array_decodeBinary((void**)&dst->arrayDimensions, &dst->arrayDimensionsSize,
                                   &UA_TYPES[UA_TYPES_INT32], ctx);
+
+    ctx->depth--;
     return ret;
 }
 
@@ -1185,6 +1198,12 @@ DECODE_BINARY(DataValue) {
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
+    /* Check the recursion limit */
+    if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
+
     /* Decode the content */
     if(encodingMask & 0x01) {
         dst->hasValue = true;
@@ -1214,6 +1233,9 @@ DECODE_BINARY(DataValue) {
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
     }
+
+    ctx->depth--;
+
     return ret;
 }
 
