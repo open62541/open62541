@@ -619,24 +619,23 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
 	browsePath.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
 	browsePath.relativePath.elements = (UA_RelativePathElement*) UA_Array_new(
 			pathSize, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
+	if(!browsePath.relativePath.elements)
+	    return UA_STATUSCODE_BADOUTOFMEMORY;
 	browsePath.relativePath.elementsSize = pathSize;
-
-	for (size_t i = 0; i < pathSize; i++) {
-	    UA_RelativePathElement *elem = &browsePath.relativePath.elements[i];
-	    if(elem){
-                elem->referenceTypeId = UA_NODEID_NUMERIC(0, ids[i]);
-                elem->targetName = UA_QUALIFIEDNAME_ALLOC(0, paths[i]);
-	    }
-	}
 
 	UA_TranslateBrowsePathsToNodeIdsRequest request;
 	UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
 	request.browsePaths = &browsePath;
 	request.browsePathsSize = 1;
 
-	return __UA_Client_AsyncService(client, &request,
+	UA_StatusCode retval= __UA_Client_AsyncService(client, &request,
 			&UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST], callback,
 			&UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE], userdata,
 			reqId);
-
+        if(retval != UA_STATUSCODE_GOOD) {
+	        UA_Array_delete(browsePath.relativePath.elements, browsePath.relativePath.elementsSize,
+	                        &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
+	        return retval;
+	}
+        return retval;
 }

@@ -58,14 +58,14 @@ typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
 typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client, void *data);
 
 UA_StatusCode
-UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
+UA_Client_addRepeatedCallback(UA_Client *Client, UA_ClientCallback callback,
 		void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_Client_changeRepeatedCallbackInterval(UA_Client *Client,
 		UA_UInt64 callbackId, UA_UInt32 interval);
 
-UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *client,
+UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *Client,
 		UA_UInt64 callbackId);
 
 /**

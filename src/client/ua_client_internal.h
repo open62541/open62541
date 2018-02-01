@@ -174,7 +174,7 @@ UA_Client_connectInternal (UA_Client *client, const char *endpointUrl,
 UA_StatusCode
 UA_Client_connectInternalAsync (UA_Client *client, const char *endpointUrl,
                                 UA_ClientAsyncServiceCallback callback,
-                                void *userdata, UA_Boolean endpointsHandshake,
+                                void *connected, UA_Boolean endpointsHandshake,
                                 UA_Boolean createNewSession);
 
 UA_StatusCode
