@@ -1258,7 +1258,11 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     /* Add the first direction */
     *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
                                  (UA_EditNodeCallback)addOneWayReference, item);
-    if(*retval != UA_STATUSCODE_GOOD)
+    UA_Boolean firstExisted = UA_FALSE;
+    if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
+        *retval = UA_STATUSCODE_GOOD;
+        firstExisted = UA_TRUE;
+    } else if(*retval != UA_STATUSCODE_GOOD)
         return;
 
     /* Add the second direction */
@@ -1273,7 +1277,11 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                                  (UA_EditNodeCallback)addOneWayReference, &secondItem);
 
     /* remove reference if the second direction failed */
-    if(*retval != UA_STATUSCODE_GOOD) {
+    UA_Boolean secondExisted = UA_FALSE;
+    if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
+        *retval = UA_STATUSCODE_GOOD;
+        secondExisted = UA_TRUE;
+    } else if(*retval != UA_STATUSCODE_GOOD && !firstExisted) {
         UA_DeleteReferencesItem deleteItem;
         deleteItem.sourceNodeId = item->sourceNodeId;
         deleteItem.referenceTypeId = item->referenceTypeId;
@@ -1284,6 +1292,11 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         UA_Server_editNode(server, session, &item->sourceNodeId,
                            (UA_EditNodeCallback)deleteOneWayReference, &deleteItem);
     }
+
+    /* Calculate common duplicate reference not allowed result and set bad result
+     * if BOTH directions already existed */
+    if(firstExisted && secondExisted)
+        *retval = UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
 }
 
 void Service_AddReferences(UA_Server *server, UA_Session *session,
