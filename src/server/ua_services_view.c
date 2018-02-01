@@ -1,6 +1,20 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) LEvertz
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015 (c) Ecosmos
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2016 (c) Lorenz Haas
+ *    Copyright 2017 (c) pschoppe
+ *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2017 (c) Henrik Norrman
+ */
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -362,7 +376,7 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing BrowseNextRequest");
     UA_Boolean releaseContinuationPoints = request->releaseContinuationPoints; /* request is const */
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_BrowseNext,
                                            &releaseContinuationPoints,
                                            &request->continuationPointsSize, &UA_TYPES[UA_TYPES_BYTESTRING],
@@ -597,7 +611,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
-        
+
     /* RelativePath elements must not have an empty targetName */
     for(size_t i = 0; i < path->relativePath.elementsSize; ++i) {
         if(UA_QualifiedName_isNull(&path->relativePath.elements[i].targetName)) {
@@ -693,7 +707,7 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
                                            NULL, &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);

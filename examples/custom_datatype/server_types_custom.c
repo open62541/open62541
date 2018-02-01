@@ -26,15 +26,12 @@ add3PointDataType(UA_Server *server) {
     p.z = 0.0;
     UA_Variant_setScalar(&dattr.value, &p, &PointType);
 
-
     UA_Server_addVariableTypeNode(server, PointType.typeId,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "3D.Point"),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  dattr,
-                                  NULL, NULL
-    );
+                                  dattr, NULL, NULL);
 
 }
 
@@ -55,11 +52,7 @@ add3DPointVariable(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                               UA_QUALIFIEDNAME(1, "3D.Point"),
-                              PointType.typeId,
-                              vattr,
-                              NULL,
-                              NULL
-    );
+                              PointType.typeId, vattr, NULL, NULL);
 }
 
 int main(void) {

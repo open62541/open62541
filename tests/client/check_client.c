@@ -152,7 +152,6 @@ START_TEST(Client_renewSecureChannel) {
 
 START_TEST(Client_reconnect) {
     UA_ClientConfig clientConfig = UA_ClientConfig_default;
-    clientConfig.timeout = 100;
     UA_Client *client = UA_Client_new(clientConfig);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -217,6 +216,14 @@ START_TEST(Client_activateSessionClose) {
 }
 END_TEST
 
+START_TEST(Client_delete_without_connect) {
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    UA_Client *client = UA_Client_new(clientConfig);
+    ck_assert_msg(client != NULL);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_activateSessionTimeout) {
     // restart server
     teardown();
@@ -271,6 +278,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_read);
+    tcase_add_test(tc_client, Client_delete_without_connect);
     suite_add_tcase(s,tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);

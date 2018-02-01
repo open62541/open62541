@@ -1,6 +1,11 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Thomas Stalder
+ */
 
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
@@ -47,30 +52,55 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_free(monitoredItem); // TODO: Use a delayed free
 }
 
-static void
-ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon, MonitoredItem_queuedValue *newQueueItem) {
-    /* Enough space, nothing to do here */
-    if(mon->currentQueueSize < mon->maxQueueSize)
+void
+MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
+    UA_Boolean valueDiscarded = false;
+    MonitoredItem_queuedValue *queueItem;
+#ifndef __clang_analyzer__
+    while(mon->currentQueueSize > mon->maxQueueSize) {
+        /* maxQueuesize is at least 1 */
+        UA_assert(mon->currentQueueSize >= 2);
+
+        /* Get the item to remove. New items are added to the end */
+        if(mon->discardOldest) {
+            /* Remove the oldest */
+            queueItem = TAILQ_FIRST(&mon->queue);
+        } else {
+            /* Keep the newest, remove the second-newest */
+            queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+            queueItem = TAILQ_PREV(queueItem, QueuedValueQueue, listEntry);
+        }
+        UA_assert(queueItem);
+
+        /* Remove the item */
+        TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
+        UA_DataValue_deleteMembers(&queueItem->value);
+        UA_free(queueItem);
+        --mon->currentQueueSize;
+        valueDiscarded = true;
+    }
+#endif
+
+    if(!valueDiscarded)
         return;
 
-    /* Get the item to remove */
-    MonitoredItem_queuedValue *queueItem;
+    /* Get the element that carries the infobits */
     if(mon->discardOldest)
         queueItem = TAILQ_FIRST(&mon->queue);
     else
         queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
     UA_assert(queueItem);
 
-    /* Remove the item */
-    TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
-    UA_DataValue_deleteMembers(&queueItem->value);
-    UA_free(queueItem);
-    --mon->currentQueueSize;
-
-    if(mon->maxQueueSize > 1) {
-        newQueueItem->value.hasStatus = true;
-        newQueueItem->value.status = UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW;
+    /* If the queue size is reduced to one, remove the infobits */
+    if(mon->maxQueueSize == 1) {
+        queueItem->value.status &= ~(UA_StatusCode)(UA_STATUSCODE_INFOTYPE_DATAVALUE |
+                                                    UA_STATUSCODE_INFOBITS_OVERFLOW);
+        return;
     }
+
+    /* Add the infobits either to the newest or the new last entry */
+    queueItem->value.hasStatus = true;
+    queueItem->value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 }
 
 /* Errors are returned as no change detected */
@@ -201,14 +231,16 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     monitoredItem->lastSampledValue = *valueEncoding;
 
     /* Add the sample to the queue for publication */
-    ensureSpaceInMonitoredItemQueue(monitoredItem, newQueueItem);
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
     ++monitoredItem->currentQueueSize;
-    return true;;
+
+    /* Remove entries from the queue if required */
+    MonitoredItem_ensureQueueSpace(monitoredItem);
+    return true;
 }
 
 void
-UA_MoniteredItem_SampleCallback(UA_Server *server,
+UA_MonitoredItem_SampleCallback(UA_Server *server,
                                 UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
@@ -252,7 +284,7 @@ UA_MoniteredItem_SampleCallback(UA_Server *server,
 UA_StatusCode
 MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     UA_StatusCode retval =
-        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MoniteredItem_SampleCallback,
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_SampleCallback,
                                       mon, (UA_UInt32)mon->samplingInterval, &mon->sampleCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
         mon->sampleCallbackIsRegistered = true;

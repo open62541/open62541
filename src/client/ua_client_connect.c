@@ -1,6 +1,12 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2018 (c) Thomas Stalder
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
@@ -197,7 +203,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
                                     UA_DateTime_nowMonotonic() +
                                     ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC),
                                     &requestId);
-                                    
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_close(client);
         return retval;
@@ -385,7 +391,8 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
         client->config.connectionFunc(client->config.localConnectionConfig,
-                                      endpointUrl, client->config.timeout);
+                                      endpointUrl, client->config.timeout,
+                                      client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
