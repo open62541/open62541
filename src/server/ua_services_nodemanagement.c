@@ -644,6 +644,12 @@ addParentRef(UA_Server *server, UA_Session *session,
 UA_StatusCode
 Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
                         const UA_AddNodesItem *item, UA_NodeId *outNewNodeId) {
+    /* Do not check access for server */
+    if(session != &adminSession && server->config.accessControl.allowAddNode &&
+       !server->config.accessControl.allowAddNode(&session->sessionId, session->sessionHandle, item)) {
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
     /* Check the namespaceindex */
     if(item->requestedNewNodeId.nodeId.namespaceIndex >= server->namespacesSize) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -944,13 +950,6 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
 static void
 Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
                   const UA_AddNodesItem *item, UA_AddNodesResult *result) {
-    /* Do not check access for server */
-    if(session != &adminSession && server->config.accessControl.allowAddNode &&
-       !server->config.accessControl.allowAddNode(&session->sessionId, session->sessionHandle, item)) {
-        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
-        return;
-    }
-
     result->statusCode = Operation_addNode_begin(server, session, nodeContext,
                                                  item, &result->addedNodeId);
     if(result->statusCode != UA_STATUSCODE_GOOD)
