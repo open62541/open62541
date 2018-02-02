@@ -306,7 +306,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
 
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
-                client->state = UA_CLIENTSTATE_DISCONNECTED;
+                setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
             UA_Client_close(client);
             break;
         }

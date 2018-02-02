@@ -3,11 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #include "ua_session.h"
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-#include "server/ua_subscription.h"
+#include "ua_subscription.h"
+#include "ua_server_internal.h"
 #endif
 
 UA_Session adminSession = {
@@ -102,6 +104,14 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
     LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
 }
 
+/* Delayed callback to free the subscription memory */
+static void
+removeSubscriptionCallback(UA_Server *server, void *data) {
+    UA_Subscription *sub = (UA_Subscription*)data;
+    UA_Subscription_deleteMembers(sub, server);
+    UA_free(sub);
+}
+
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
                               UA_UInt32 subscriptionId) {
@@ -109,9 +119,18 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
+    /* Add a delayed callback to remove the subscription when the currently
+     * scheduled jobs have completed */
+    UA_StatusCode retval = UA_Server_delayedCallback(server, removeSubscriptionCallback, sub);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(server->config.logger, session,
+                       "Could not remove subscription with error code %s",
+                       UA_StatusCode_name(retval));
+        return retval; /* Try again next time */
+    }
+
     LIST_REMOVE(sub, listEntry);
-    UA_Subscription_deleteMembers(sub, server);
-    UA_free(sub);
+
     if(session->numSubscriptions > 0) {
         session->numSubscriptions--;
     }

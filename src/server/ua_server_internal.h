@@ -279,7 +279,7 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
 
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType);
+                   const UA_NodeId *constraintDataType, UA_Boolean isValue);
 
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
@@ -348,13 +348,6 @@ UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session,
                          const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
                          const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
-
-UA_StatusCode
-UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
-                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                               UA_MethodCallback method,
-                               size_t inputArgumentsSize, const UA_Argument *inputArguments,
-                               size_t outputArgumentsSize, const UA_Argument *outputArguments);
 
 /**********************/
 /* Create Namespace 0 */
