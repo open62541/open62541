@@ -958,6 +958,23 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         void *nodeContext, UA_NodeId *outNewNodeId);
 
 
+UA_StatusCode UA_EXPORT
+UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                          const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName,
+                          const UA_MethodAttributes attr, UA_MethodCallback method,
+                          size_t inputArgumentsSize,
+                          const UA_Argument *inputArguments,
+                          const UA_NodeId inputArgumentsRequestedNewNodeId,
+                          UA_NodeId *inputArgumentsOutNewNodeId,
+                          size_t outputArgumentsSize,
+                          const UA_Argument *outputArguments,
+                          const UA_NodeId outputArgumentsRequestedNewNodeId,
+                          UA_NodeId *outputArgumentsOutNewNodeId,
+                          void *nodeContext, UA_NodeId *outNewNodeId);
+
+
 /**
  * The method pair UA_Server_addNode_begin and _finish splits the AddNodes
  * service in two parts. This is useful if the node shall be modified before
