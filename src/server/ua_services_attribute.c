@@ -536,13 +536,17 @@ static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERA
 
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType) {
+                   const UA_NodeId *constraintDataType, UA_Boolean isValue) {
     /* Do not allow empty datatypes */
     if(UA_NodeId_isNull(dataType))
        return false;
 
     /* No constraint (TODO: use variant instead) */
     if(UA_NodeId_isNull(constraintDataType))
+        return true;
+
+    /* Same datatypes */
+    if (UA_NodeId_equal(dataType, constraintDataType))
         return true;
 
     /* Variant allows any subtype */
@@ -553,21 +557,24 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
     if(isNodeInTree(&server->config.nodestore, dataType, constraintDataType, &subtypeId, 1))
         return true;
 
-    /* If value is a built-in type: The target data type may be a sub type of
-     * the built-in type. (e.g. UtcTime is sub-type of DateTime and has a
-     * DateTime value). A type is builtin if its NodeId is in Namespace 0 and
-     * has a numeric identifier <= 25 (DiagnosticInfo) */
-    if(dataType->namespaceIndex == 0 &&
-       dataType->identifierType == UA_NODEIDTYPE_NUMERIC &&
-       dataType->identifier.numeric <= 25 &&
-       isNodeInTree(&server->config.nodestore, constraintDataType,
-                    dataType, &subtypeId, 1))
-        return true;
-
     /* Enum allows Int32 (only) */
     if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
        isNodeInTree(&server->config.nodestore, constraintDataType, &enumNodeId, &subtypeId, 1))
         return true;
+
+    /* More checks for the data type of real values (variants) */
+    if(isValue) {
+        /* If value is a built-in type: The target data type may be a sub type of
+         * the built-in type. (e.g. UtcTime is sub-type of DateTime and has a
+         * DateTime value). A type is builtin if its NodeId is in Namespace 0 and
+         * has a numeric identifier <= 25 (DiagnosticInfo) */
+        if(dataType->namespaceIndex == 0 &&
+           dataType->identifierType == UA_NODEIDTYPE_NUMERIC &&
+           dataType->identifier.numeric <= 25 &&
+           isNodeInTree(&server->config.nodestore, constraintDataType,
+                        dataType, &subtypeId, 1))
+            return true;
+    }
 
     return false;
 }
@@ -696,7 +703,7 @@ compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
 
     /* Has the value a subtype of the required type? BaseDataType (Variant) can
      * be anything... */
-    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId))
+    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId, true))
         return false;
 
     /* Array dimensions are checked later when writing the range */
@@ -872,7 +879,7 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Does the new type match the constraints of the variabletype? */
-    if(!compatibleDataType(server, dataType, &type->dataType))
+    if(!compatibleDataType(server, dataType, &type->dataType, false))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the current value would match the new type */
