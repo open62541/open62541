@@ -573,7 +573,13 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
 }
 
 /* Test whether a valurank and the given arraydimensions are compatible. zero
- * array dimensions indicate a scalar */
+ * array dimensions indicate a scalar
+ *
+ * TODO Big thing: Implement "specifiedAttributes" for nodes
+ * to allow the differentiation between unset values which implicitly get errorneously the
+ * default value by now and lead to very many positive falses in check system so that
+ * the check system is weakened here and at other places to prevent these positive
+ * falses (see e.g. below but applies to nearly ALL attributes). */
 UA_Boolean
 compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize) {
     switch(valueRank) {
@@ -588,15 +594,21 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
             return false;
         break;
     case 0: /* the value is an array with one or more dimensions */
-        if(arrayDimensionsSize < 1)
-            return false;
+        /* Cannot check here since could be 0 (which could mean implicitly unset here!) in case of:
+         * - VariableType
+         * - Variable that is component of an ObjectType (structural check required!)
+         */
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
         if(valueRank < 0)
             return false;
-        /* Must hold if the array has a defined length. Null arrays (length -1)
-         * need to be caught before. */
-        if(arrayDimensionsSize != (size_t)valueRank)
+        /* Less restrictive check:
+         * 1. Array Dimensions may be 0 (which could mean implicitly unset here!) in case of:
+         *    - VariableType
+         *    - Variable that is component of an ObjectType (TODO: structural check required!)
+         * 2. Must match the Value Rank in all other cases
+         * */
+        if(arrayDimensionsSize > 0 && arrayDimensionsSize != (size_t)valueRank)
             return false;
     }
     return true;
@@ -632,8 +644,17 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
 static UA_Boolean
 compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     /* empty arrays (-1) always match */
+    /*
+     * TODO Bigger thing: Distinction required because there is not data allowed for these cases:
+     * 1. values of variable types may be empty
+     * 2. values of variables may be empty if they belong (in parent hierarchy) to a:
+     *    a) variable type
+     *    b) variable that belongs any object type (in complete hierarchy!)
+     * So we need the following workaround with weakening this condition to allow
+     * empty data generally!)
+     */
     if(!value->data)
-        return false;
+        return true;
 
     size_t arrayDims = value->arrayDimensionsSize;
     if(!UA_Variant_isScalar(value))
