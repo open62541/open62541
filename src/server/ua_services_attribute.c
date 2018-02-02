@@ -592,7 +592,7 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
             return false;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
-        if(valueRank < 0)
+        if(valueRank < (UA_Int32) 0)
             return false;
         /* Must hold if the array has a defined length. Null arrays (length -1)
          * need to be caught before. */
@@ -617,7 +617,7 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
             return false;
         break;
     case 0: /* the value is an array with one or more dimensions */
-        if(valueRank < 0)
+        if(valueRank < (UA_Int32) 0)
             return false;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
