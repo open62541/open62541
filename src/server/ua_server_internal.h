@@ -353,8 +353,8 @@ UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                                UA_MethodCallback method,
-                               const size_t inputArgumentsSize, const UA_Argument *inputArguments,
-                               const size_t outputArgumentsSize, const UA_Argument *outputArguments);
+                               size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                               size_t outputArgumentsSize, const UA_Argument *outputArguments);
 
 /**********************/
 /* Create Namespace 0 */
