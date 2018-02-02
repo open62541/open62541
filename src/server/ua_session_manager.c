@@ -58,7 +58,7 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     /* Detach the session from the session manager and make the capacity
      * available */
     LIST_REMOVE(sentry, pointers);
-    UA_atomic_add(&sm->currentSessionCount, (UA_UInt32)-1);
+    UA_atomic_subUInt32(&sm->currentSessionCount, 1);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -141,7 +141,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_atomic_add(&sm->currentSessionCount, 1);
+    UA_atomic_addUInt32(&sm->currentSessionCount, 1);
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());

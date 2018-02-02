@@ -70,7 +70,7 @@ workerLoop(UA_Worker *worker) {
     UA_random_seed((uintptr_t)worker);
 
     while(*running) {
-        UA_atomic_add(counter, 1);
+        UA_atomic_addUInt32(counter, 1);
         pthread_mutex_lock(&server->dispatchQueue_accessMutex);
         WorkerCallback *dc = SIMPLEQ_FIRST(&server->dispatchQueue);
         if(dc) {

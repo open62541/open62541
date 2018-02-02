@@ -461,7 +461,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         UA_free(registeredServer_entry);
         server->registeredServersSize--;
 #else
-        server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
+        UA_atomic_subSize(&server->registeredServersSize, 1);
         UA_Server_delayedCallback(server, freeEntry, registeredServer_entry);
 #endif
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
@@ -485,7 +485,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #ifndef UA_ENABLE_MULTITHREADING
         server->registeredServersSize++;
 #else
-        server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, 1);
+        UA_atomic_addSize(&server->registeredServersSize, 1);
 #endif
 
         if(server->registerServerCallback)
@@ -583,7 +583,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             UA_free(current);
             server->registeredServersSize--;
 #else
-            server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
+            UA_atomic_subSize(&server->registeredServersSize, 1);
             UA_Server_delayedCallback(server, freeEntry, current);
 #endif
         }
