@@ -40,7 +40,6 @@ if(NOT OPEN62541_VER_COMMIT OR OPEN62541_VER_COMMIT STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
-add_subdirectory(plugins)
 
 #################
 # Build Options #
@@ -52,6 +51,36 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
 
+# Platform. This is at the beginning in case the architecture changes some UA options
+set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
+
+if(${UA_ARCHITECTURE} STREQUAL "None")
+  if(UNIX)
+    set(UA_ARCHITECTURE "posix" CACHE STRING "" FORCE)
+  elseif(WIN32)  
+    set(UA_ARCHITECTURE "win32" CACHE STRING ""  FORCE)
+  endif(UNIX)
+endif(${UA_ARCHITECTURE} STREQUAL "None")
+
+message(STATUS "The selected architecture is ${UA_ARCHITECTURE}")
+
+add_subdirectory(plugins)
+
+GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
+list(SORT architectures)
+set_property(CACHE UA_ARCHITECTURE PROPERTY STRINGS None ${architectures})
+
+GET_PROPERTY(ua_directories_to_include GLOBAL PROPERTY UA_INCLUDE_DIRECTORIES)
+include_directories(${ua_directories_to_include})
+
+GET_PROPERTY(ua_architecture_headers GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS)
+
+GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
+
+if(${UA_ARCHITECTURE} STREQUAL "None")
+  message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
+endif(${UA_ARCHITECTURE} STREQUAL "None")
+
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
@@ -62,15 +91,6 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
-
-# Platform
-set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
-GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
-list(SORT architectures)
-set_property(CACHE UA_ARCHITECTURE PROPERTY STRINGS None ${architectures})
-
-GET_PROPERTY(directoriesToInclude GLOBAL PROPERTY UA_INCLUDE_DIRECTORIES)
-include_directories(${directoriesToInclude})
 
 # Encryption Options
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
@@ -140,12 +160,6 @@ mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
 option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
        "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
-
-set(UA_VXWORKS_WRS_KERNEL OFF CACHE BOOL "Enable if you want to compile for VxWorks as kernel Module")
-mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
-
-set(UA_FREERTOS OFF CACHE BOOL "Enable if you want to compile for freeRTOS")
-mark_as_advanced(UA_FREERTOS)
 
 set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
 mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
@@ -265,22 +279,6 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     if(UA_ENABLE_AMALGAMATION)
         add_definitions(-Wno-unused-function)
     endif()
-
-    if(UA_VXWORKS_WRS_KERNEL)
-        # Disable flags for VXWORKS
-        remove_definitions(-Werror -Wpedantic -Wno-static-in-inline -fPIC)
-        add_definitions(-D_WRS_KERNEL)
-    endif()
-
-    if(UA_FREERTOS)
-       SET(UA_FREERTOS_INCLUDES "" CACHE STRING "Folders to include from the freeRTOS OS")
-       include_directories(${UA_FREERTOS_INCLUDES})
-        # Disable flags for freeRTOS
-        remove_definitions(-fPIC -Wconversion )
-        add_definitions(-DUA_FREERTOS -DLWIP_TIMEVAL_PRIVATE=0 -DLWIP_COMPAT_MUTEX=0 -DLWIP_POSIX_SOCKETS_IO_NAMES=0 -mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs
-                        -ffunction-sections -fdata-sections  -fno-exceptions -fstack-usage -Wno-unused-variable -Wno-format -Wno-format-security -Wno-format-nonliteral)
-        list(APPEND open62541_LIBRARIES c m stdc++ supc++)
-    endif(UA_FREERTOS)
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
@@ -615,17 +613,17 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                           ${exported_headers} ${default_plugin_headers}
+                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers} ${default_plugin_headers})
+                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                           ${internal_headers} ${lib_sources} ${default_plugin_sources}
+                           ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                           ${lib_sources} ${default_plugin_sources})
+                           ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources})
 
 add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
 add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
@@ -679,6 +677,7 @@ assign_source_group(${lib_sources})
 assign_source_group(${internal_headers})
 assign_source_group(${exported_headers})
 assign_source_group(${default_plugin_sources})
+assign_source_group(${ua_architecture_sources})
 
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
@@ -709,7 +708,7 @@ else()
                      open62541-generator-statuscode)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-    add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
+    add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
     add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
@@ -720,7 +719,7 @@ else()
 
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
-        set_source_files_properties(${default_plugin_sources} PROPERTIES LANGUAGE CXX)
+        set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
 endif()
 
@@ -892,3 +891,16 @@ set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
+
+##################################
+#     Architectures changes      #
+##################################
+
+GET_PROPERTY(ua_architecture_add_definitions GLOBAL PROPERTY UA_ARCHITECTURE_ADD_DEFINITIONS)
+add_definitions(${ua_architecture_add_definitions})
+
+GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS)
+remove_definitions(${ua_architecture_remove_definitions})
+
+GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
+list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})

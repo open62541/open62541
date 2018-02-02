@@ -9,7 +9,7 @@
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
 /* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
+#if !defined(_XOPEN_SOURCE)
 # define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE
@@ -21,75 +21,37 @@
 # define _BSD_SOURCE
 #endif
 
-#if !defined(UA_FREERTOS)
-# include <errno.h>
-#else
-# define AI_PASSIVE 0x01
-# define TRUE 1
-# define FALSE 0
-# define ioctl ioctlsocket
+#include <errno.h>
+
+#define CLOSESOCKET(S) close(S)
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <sys/ioctl.h>
+# include <sys/select.h>
+# define UA_sleep_ms(X) usleep(X * 1000)
+
+#define SOCKET int
+#define WIN32_INT
+#define OPTVAL_TYPE int
+#define ERR_CONNECTION_PROGRESS EINPROGRESS
+
+
+#include <fcntl.h>
+#include <unistd.h> // read, write, close
+
+#ifdef __QNX__
+# include <sys/socket.h>
 #endif
-
-# if defined(UA_FREERTOS)
-#  define UA_FREERTOS_HOSTNAME "10.200.4.114"
-static inline int gethostname_freertos(char* name, size_t len){
-  if(strlen(UA_FREERTOS_HOSTNAME) > (len))
-    return -1;
-  strcpy(name, UA_FREERTOS_HOSTNAME);
-  return 0;
-}
-#define gethostname gethostname_freertos
-#  include <lwip/tcpip.h>
-#  include <lwip/netdb.h>
-#  define CLOSESOCKET(S) lwip_close(S)
-#  define sockaddr_storage sockaddr
-#  ifdef BYTE_ORDER
-#   undef BYTE_ORDER
-#  endif
-#  define UA_sleep_ms(X) vTaskDelay(pdMS_TO_TICKS(X))
-# else /* Not freeRTOS */
-#  define CLOSESOCKET(S) close(S)
-#  include <arpa/inet.h>
-#  include <netinet/in.h>
-#  include <netdb.h>
-#  include <sys/ioctl.h>
-#  if defined(_WRS_KERNEL)
-#   include <hostLib.h>
-#   include <selectLib.h>
-#   define UA_sleep_ms(X)                            \
-    {                                                \
-    struct timespec timeToSleep;                     \
-      timeToSleep.tv_sec = X / 1000;                 \
-      timeToSleep.tv_nsec = 1000000 * (X % 1000);    \
-      nanosleep(&timeToSleep, NULL);                 \
-    }
-#  else /* defined(_WRS_KERNEL) */
-#   include <sys/select.h>
-#   define UA_sleep_ms(X) usleep(X * 1000)
-#  endif /* defined(_WRS_KERNEL) */
-# endif /* Not freeRTOS */
-
-# define SOCKET int
-# define WIN32_INT
-# define OPTVAL_TYPE int
-# define ERR_CONNECTION_PROGRESS EINPROGRESS
-
-
-# include <fcntl.h>
-# include <unistd.h> // read, write, close
-
-# ifdef __QNX__
-#  include <sys/socket.h>
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+# include <sys/param.h>
+# if defined(BSD)
+#  include<sys/socket.h>
 # endif
-# if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
-#  include <sys/param.h>
-#  if defined(BSD)
-#   include<sys/socket.h>
-#  endif
-# endif
-# if !defined(__CYGWIN__) && !defined(UA_FREERTOS)
-#  include <netinet/tcp.h>
-# endif
+#endif
+#if !defined(__CYGWIN__)
+# include <netinet/tcp.h>
+#endif
 
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using

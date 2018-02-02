@@ -170,8 +170,13 @@ UA_atomic_subSize(volatile size_t *addr, size_t decrease) {
  * up to that point. */
 size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 
+#ifndef MIN
 #define MIN(A,B) (A > B ? B : A)
+#endif
+
+#ifndef MAX
 #define MAX(A,B) (A > B ? A : B)
+#endif
 
 #ifdef UA_DEBUG_DUMP_PKGS
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);

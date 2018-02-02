@@ -9,7 +9,7 @@
  */
 
 
-#include <ua_architecture.h>
+#include "ua_architecture.h"
 
 #include "ua_network_tcp.h"
 #include "ua_log_stdout.h"
