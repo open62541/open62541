@@ -69,6 +69,9 @@ GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
 list(SORT architectures)
 set_property(CACHE UA_ARCHITECTURE PROPERTY STRINGS None ${architectures})
 
+GET_PROPERTY(directoriesToInclude GLOBAL PROPERTY UA_INCLUDE_DIRECTORIES)
+include_directories(${directoriesToInclude})
+
 # Encryption Options
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 
