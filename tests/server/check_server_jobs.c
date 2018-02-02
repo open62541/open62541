@@ -69,12 +69,34 @@ START_TEST(Server_repeatedCallbackRemoveItself) {
 }
 END_TEST
 
+static void
+removeAnotherCallback(UA_Server *serverPtr, void *data) {
+    UA_UInt64 *tmpId = (UA_UInt64*) data;
+    UA_Server_removeRepeatedCallback(serverPtr, *tmpId);
+    UA_free(data);
+}
+
+START_TEST(Server_repeatedCallbackRemoveAnother) {
+    UA_UInt64 *cbId1 = UA_UInt64_new();
+    UA_UInt64 *cbId2 = UA_UInt64_new();
+    UA_Server_addRepeatedCallback(server, removeAnotherCallback, cbId2, 10, cbId1);
+    UA_Server_addRepeatedCallback(server, removeAnotherCallback, cbId1, 10, cbId2);
+
+    UA_fakeSleep(15);
+    UA_Server_run_iterate(server, false);
+
+    UA_Server_removeRepeatedCallback(server, *cbId2);
+    UA_UInt64_delete(cbId2);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Callbacks");
     TCase *tc_server = tcase_create("Server Repeated Callbacks");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_addRemoveRepeatedCallback);
     tcase_add_test(tc_server, Server_repeatedCallbackRemoveItself);
+    tcase_add_test(tc_server, Server_repeatedCallbackRemoveAnother);
     suite_add_tcase(s, tc_server);
     return s;
 }
