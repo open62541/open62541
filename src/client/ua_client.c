@@ -7,7 +7,7 @@
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015 (c) hfaham
  *    Copyright 2015-2017 (c) Florian Palm
- *    Copyright 2017 (c) Thomas Stalder
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2015 (c) Holger Jeromin
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) TorbenD

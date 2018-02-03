@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
- *    Copyright 2017-2018 (c) Thomas Stalder
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */

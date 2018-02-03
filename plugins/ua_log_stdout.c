@@ -2,7 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
- *    Copyright 2017 (c) Thomas Stalder
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #include <stdio.h>
