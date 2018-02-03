@@ -4,7 +4,7 @@
  *
  *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2018 (c) Thomas Stalder
+ *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #include "ua_subscription.h"

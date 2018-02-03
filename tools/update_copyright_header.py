@@ -27,7 +27,7 @@ if sys.version_info[0] >= 3:
 # Replace the name by another value, i.e. add affiliation or replace user name by full name
 # only use lower case name
 authorFullName = {
-    'staldert': 'Thomas Stalder',
+    'staldert': 'Thomas Stalder, Blue Time Concept SA',
     'mark giraud': 'Mark Giraud, Fraunhofer IOSB',
     'julius pfrommer': 'Julius Pfrommer, Fraunhofer IOSB',
     'stefan profanter': 'Stefan Profanter, fortiss GmbH',

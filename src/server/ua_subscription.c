@@ -5,7 +5,7 @@
  *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
- *    Copyright 2017-2018 (c) Thomas Stalder
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2015 (c) Joakim L. Gilje
  *    Copyright 2016-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev

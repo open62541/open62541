@@ -5,7 +5,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2017 (c) Thomas Stalder
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #include "ua_plugin_securitypolicy.h"
