@@ -35,6 +35,7 @@ struct UA_TimerCallbackEntry {
 
     UA_TimerCallback callback;
     void *data;
+    UA_Boolean removed;
 };
 
 void
@@ -111,6 +112,7 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_TimerCallback callback,
     tc->callback = callback;
     tc->data = data;
     tc->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)tc->interval;
+    tc->removed = UA_FALSE;
 
     /* Set the output identifier */
     if(callbackId)
@@ -165,6 +167,7 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
     tc->id = callbackId;
     tc->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)tc->interval;
     tc->callback = (UA_TimerCallback)CHANGE_SENTINEL;
+    tc->removed = UA_FALSE;
 
     /* Enqueue the changes in the MPSC queue */
     enqueueChange(t, tc);
@@ -211,9 +214,16 @@ UA_Timer_removeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId) {
     /* Set the repeated callback with the sentinel nextTime */
     tc->id = callbackId;
     tc->callback = (UA_TimerCallback)REMOVE_SENTINEL;
+    tc->removed = UA_FALSE;
 
     /* Enqueue the changes in the MPSC queue */
     enqueueChange(t, tc);
+
+    SLIST_FOREACH(tc, &t->repeatedCallbacks, next) {
+        if(callbackId == tc->id) {
+            tc->removed = UA_TRUE;
+        }
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -232,7 +242,6 @@ removeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId) {
         prev = tc;
     }
 }
-
 /* Process the changes that were added to the MPSC queue (by other threads) */
 static void
 processChanges(UA_Timer *t) {
@@ -294,7 +303,8 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         SLIST_REMOVE_HEAD(&executedNowList, next);
 
         /* Dispatch/process callback */
-        dispatchCallback(application, tc->callback, tc->data);
+        if (!tc->removed)
+            dispatchCallback(application, tc->callback, tc->data);
 
         /* Set the time for the next execution. Prevent an infinite loop by
          * forcing the next processing into the next iteration. */
