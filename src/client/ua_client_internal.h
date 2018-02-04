@@ -118,6 +118,9 @@ struct UA_Client {
 #endif
 };
 
+void
+setClientState(UA_Client *client, UA_ClientState state);
+
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
