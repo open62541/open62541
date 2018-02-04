@@ -79,6 +79,127 @@ UA_Client_Subscription_delete(UA_Client *client, UA_UInt32 subscriptionId);
  * --------------
  */
 
+typedef void (*UA_DeleteMonitoredItemCallback)
+    (UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext,
+     UA_UInt32 monitoredItemId, void *monitoredItemContext);
+
+/* DiagnosticInfo may be NULL (and usually is) */
+typedef void (*UA_DataChangeNotificationCallback)
+    (UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext,
+     UA_UInt32 monitoredItemId, void *monitoredItemContext,
+     UA_DateTime publishTime, const UA_DataValue *value,
+     const UA_DiagnosticInfo *diagnosticInfo);
+
+typedef void (*UA_EventNotificationCallback)
+    (UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext,
+     UA_UInt32 monitoredItemId, void *monitoredItemContext,
+     UA_DateTime publishTime, size_t eventFieldsSize,
+     const UA_Variant *eventFields);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_createDataChange(UA_Client *client,
+                                         UA_UInt32 subscriptionId,
+                                         const UA_NodeId nodeId,
+                                         UA_AttributeId attributeId,
+                                         const UA_MonitoringParameters *parameters,
+                                         UA_MonitoringMode monitoringMode,
+                                         void *monitoredItemContext,
+                                         UA_DataChangeNotificationCallback notificationCallback,
+                                         UA_DeleteMonitoredItemCallback deleteCallback,
+                                         UA_UInt32 *newMonitoredItemId);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_createEvent(UA_Client *client,
+                                    UA_UInt32 subscriptionId,
+                                    const UA_NodeId nodeId,
+                                    const UA_MonitoringParameters *parameters,
+                                    UA_MonitoringMode monitoringMode,
+                                    void *monitoredItemContext,
+                                    UA_EventNotificationCallback notificationCallback,
+                                    UA_DeleteMonitoredItemCallback deleteCallback,
+                                    UA_UInt32 *newMonitoredItemId);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_setParameters(UA_Client *client, UA_UInt32 subscriptionId,
+                                      UA_UInt32 monitoredItemId,
+                                      const UA_MonitoringParameters *parameters);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_getParameters(UA_Client *client, UA_UInt32 subscriptionId,
+                                      UA_UInt32 monitoredItemId,
+                                      UA_MonitoringParameters *parameters);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_setMonitoringMode(UA_Client *client, UA_UInt32 subscriptionId,
+                                          UA_UInt32 monitoredItemId,
+                                          UA_MonitoringMode monitoringMode);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_getMonitoringMode(UA_Client *client, UA_UInt32 subscriptionId,
+                                          UA_UInt32 monitoredItemId,
+                                          UA_MonitoringMode *monitoringMode);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_setTriggering(UA_Client *client,
+                                      UA_UInt32 subscriptionId,
+                                      UA_UInt32 monitoredItemId,
+                                      size_t linksToAddSize,
+                                      const UA_UInt32 *linksToAdd,
+                                      size_t linksToRemoveSize,
+                                      const UA_UInt32 *linksToRemove);
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_getTriggering(UA_Client *client, UA_UInt32 subscriptionId,
+                                      UA_UInt32 monitoredItemId, size_t *linksSize,
+                                      UA_UInt32 **links);
+
+
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItem_delete(UA_Client *client, UA_UInt32 subscriptionId,
+                               UA_UInt32 monitoredItemId);
+
+/**
+ * Deprecated API
+ * --------------
+ * The following API is kept for backwards compatibility. It will be removed in
+ * future releases. */
+
+typedef struct {
+    UA_Double requestedPublishingInterval;
+    UA_UInt32 requestedLifetimeCount;
+    UA_UInt32 requestedMaxKeepAliveCount;
+    UA_UInt32 maxNotificationsPerPublish;
+    UA_Boolean publishingEnabled;
+    UA_Byte priority;
+} UA_SubscriptionSettings;
+
+extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
+
+static UA_INLINE UA_StatusCode
+UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
+                            UA_UInt32 *newSubscriptionId) {
+    UA_SubscriptionParameters parameters;
+    parameters.publishingInterval = settings.requestedPublishingInterval;
+    parameters.lifetimeCount = settings.requestedLifetimeCount;
+    parameters.maxKeepAliveCount = settings.requestedLifetimeCount;
+    parameters.maxNotificationsPerPublish = settings.maxNotificationsPerPublish;
+    parameters.publishingEnabled = settings.publishingEnabled;
+    parameters.priority = settings.priority;
+    return UA_Client_Subscription_create(client, &parameters,
+                                         NULL, NULL, NULL, newSubscriptionId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
+    return UA_Client_Subscription_delete(client, subscriptionId);
+}
+
+/* Send a publish request and wait until a response to the request is processed.
+ * Note that other publish responses may be processed in the background until
+ * then. */
+UA_DEPRECATED UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
+
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId, UA_DataValue *value,
                                                  void *context);
 
@@ -129,49 +250,6 @@ UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_removeMonitoredItems(UA_Client *client, UA_UInt32 subscriptionId,
                                              UA_UInt32 *monitoredItemId, size_t itemsSize,
                                              UA_StatusCode *itemResults);
-
-
-/**
- * Deprecated API
- * --------------
- * The following API is kept for backwards compatibility. It will be removed in
- * future releases. */
-
-typedef struct {
-    UA_Double requestedPublishingInterval;
-    UA_UInt32 requestedLifetimeCount;
-    UA_UInt32 requestedMaxKeepAliveCount;
-    UA_UInt32 maxNotificationsPerPublish;
-    UA_Boolean publishingEnabled;
-    UA_Byte priority;
-} UA_SubscriptionSettings;
-
-extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
-                            UA_UInt32 *newSubscriptionId) {
-    UA_SubscriptionParameters parameters;
-    parameters.publishingInterval = settings.requestedPublishingInterval;
-    parameters.lifetimeCount = settings.requestedLifetimeCount;
-    parameters.maxKeepAliveCount = settings.requestedLifetimeCount;
-    parameters.maxNotificationsPerPublish = settings.maxNotificationsPerPublish;
-    parameters.publishingEnabled = settings.publishingEnabled;
-    parameters.priority = settings.priority;
-    return UA_Client_Subscription_create(client, &parameters,
-                                         NULL, NULL, NULL, newSubscriptionId);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
-    return UA_Client_Subscription_delete(client, subscriptionId);
-}
-
-/* Send a publish request and wait until a response to the request is processed.
- * Note that other publish responses may be processed in the background until
- * then. */
-UA_DEPRECATED UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 #endif
 
