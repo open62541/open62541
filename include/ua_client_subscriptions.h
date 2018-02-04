@@ -175,7 +175,7 @@ typedef struct {
 
 extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
 
-static UA_INLINE UA_StatusCode
+UA_DEPRECATED static UA_INLINE UA_StatusCode
 UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
                             UA_UInt32 *newSubscriptionId) {
     UA_SubscriptionParameters parameters;
@@ -189,7 +189,7 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
                                          NULL, NULL, NULL, newSubscriptionId);
 }
 
-static UA_INLINE UA_StatusCode
+UA_DEPRECATED static UA_INLINE UA_StatusCode
 UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
     return UA_Client_Subscription_delete(client, subscriptionId);
 }
@@ -203,14 +203,14 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId, UA_DataValue *value,
                                                  void *context);
 
-UA_StatusCode UA_EXPORT
+UA_DEPRECATED UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
                                           UA_MonitoredItemCreateRequest *items, size_t itemsSize,
                                           UA_MonitoredItemHandlingFunction *hfs,
                                           void **hfContexts, UA_StatusCode *itemResults,
                                           UA_UInt32 *newMonitoredItemIds);
 
-UA_StatusCode UA_EXPORT
+UA_DEPRECATED UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeId,
                                          UA_MonitoredItemHandlingFunction hf,
@@ -225,14 +225,14 @@ typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
                                                   const UA_Variant *eventFields,
                                                   void *context);
 
-UA_StatusCode UA_EXPORT
+UA_DEPRECATED UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredEvents(UA_Client *client, const UA_UInt32 subscriptionId,
                                            UA_MonitoredItemCreateRequest *items, size_t itemsSize,
                                            UA_MonitoredEventHandlingFunction *hfs,
                                            void **hfContexts, UA_StatusCode *itemResults,
                                            UA_UInt32 *newMonitoredItemIds);
 
-UA_StatusCode UA_EXPORT
+UA_DEPRECATED UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscriptionId,
                                           const UA_NodeId nodeId, UA_UInt32 attributeId,
                                           const UA_SimpleAttributeOperand *selectClauses,
@@ -242,11 +242,11 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscript
                                           const UA_MonitoredEventHandlingFunction hf,
                                           void *hfContext, UA_UInt32 *newMonitoredItemId);
 
-UA_StatusCode UA_EXPORT
+UA_DEPRECATED UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                             UA_UInt32 monitoredItemId);
 
-UA_StatusCode UA_EXPORT
+UA_DEPRECATED UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_removeMonitoredItems(UA_Client *client, UA_UInt32 subscriptionId,
                                              UA_UInt32 *monitoredItemId, size_t itemsSize,
                                              UA_StatusCode *itemResults);
