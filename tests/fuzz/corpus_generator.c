@@ -373,8 +373,7 @@ static UA_StatusCode
 subscriptionRequests(UA_Client *client) {
     UA_UInt32 subId;
     // createSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId));
-
+    ASSERT_GOOD(UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,NULL, NULL, NULL, &subId));
 
     // modifySubscription
     UA_ModifySubscriptionRequest modifySubscriptionRequest;
@@ -464,7 +463,7 @@ subscriptionRequests(UA_Client *client) {
 
 
     // deleteSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_remove(client, subId));
+    ASSERT_GOOD(UA_Client_Subscription_delete(client, subId));
 
     return UA_STATUSCODE_GOOD;
 }

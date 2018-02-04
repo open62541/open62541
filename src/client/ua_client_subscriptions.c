@@ -5,7 +5,7 @@
  *    Copyright 2015-2018 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) Sten Grüner
- *    Copyright 2017-2018 (c) Thomas Stalder
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2016-2017 (c) Florian Palm
  *    Copyright 2017 (c) Frank Meerkötter
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -343,7 +343,6 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     return retval | retval_item;
 }
 
-
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredEvents(UA_Client *client, const UA_UInt32 subscriptionId,
                                            UA_MonitoredItemCreateRequest *items, size_t itemsSize,
@@ -598,7 +597,7 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         } else {
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Too many publishrequest when outStandingPublishRequests = 1");
-            UA_Client_close(client); /* TODO: Close the subscription but not the session */
+            UA_Client_Subscription_delete(client, response->subscriptionId);
         }
         goto cleanup;
     }

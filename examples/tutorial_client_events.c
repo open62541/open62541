@@ -99,8 +99,9 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_UInt32 subId = 0;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
-    if(!subId) {
+    retval = UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                                   NULL, NULL, NULL, &subId);
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         return (int)retval;
@@ -131,7 +132,7 @@ int main(int argc, char *argv[]) {
 
     /* Delete the subscription */
  cleanup:
-    UA_Client_Subscriptions_remove(client, subId);
+    UA_Client_Subscription_delete(client, subId);
     UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
 #endif
 
