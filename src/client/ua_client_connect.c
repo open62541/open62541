@@ -18,22 +18,18 @@
 
 #define UA_MINMESSAGESIZE 8192
 
-
- /********************/
- /* Set client state */
- /********************/
 static void
-setClientState(UA_Client *client, UA_ClientState state)
-{
+setClientState(UA_Client *client, UA_ClientState state) {
     if(client->state != state) {
         client->state = state;
         if(client->config.stateCallback)
             client->config.stateCallback(client, client->state);
     }
 }
- /***********************/
- /* Open the Connection */
- /***********************/
+
+/***********************/
+/* Open the Connection */
+/***********************/
 
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
@@ -419,6 +415,18 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 
+
+    /* Delete async service. TODO: Move this from connect to the disconnect/cleanup phase */
+    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    client->currentlyOutStandingPublishRequests = 0;
+#endif
+
+// TODO: actually, reactivate an existing session is working, but currently republish is not implemented
+// This option is disabled until we have a good implementation of the subscription recovery.
+
+#ifdef UA_SESSION_RECOVERY
     /* Try to activate an existing Session for this SecureChannel */
     if((!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) && (createNewSession)) {
         retval = activateSession(client);
@@ -434,6 +442,9 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     } else {
         UA_NodeId_deleteMembers(&client->authenticationToken);
     }
+#else
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+#endif /* UA_SESSION_RECOVERY */
 
     /* Get Endpoints */
     if(endpointsHandshake) {
@@ -542,6 +553,12 @@ UA_Client_disconnect(UA_Client *client) {
     if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+        /* We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
+
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
 }
@@ -556,6 +573,12 @@ UA_Client_close(UA_Client *client) {
     /* Close the TCP connection */
     if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+        /* We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
 
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;

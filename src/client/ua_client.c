@@ -24,9 +24,9 @@
 #include "ua_util.h"
 #include "ua_securitypolicy_none.h"
 
- /********************/
- /* Client Lifecycle */
- /********************/
+/********************/
+/* Client Lifecycle */
+/********************/
 
 static void
 UA_Client_init(UA_Client* client, UA_ClientConfig config) {
@@ -65,11 +65,7 @@ UA_Client_deleteMembers(UA_Client* client) {
         UA_String_deleteMembers(&client->password);
 
     /* Delete the async service calls */
-    AsyncServiceCall *ac, *ac_tmp;
-    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
-        LIST_REMOVE(ac, pointers);
-        UA_free(ac);
-    }
+    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -166,11 +162,12 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
 
     /* Call the callback */
     if(retval == UA_STATUSCODE_GOOD) {
-        ac->callback(client, ac->userdata, requestId, response);
+        ac->callback(client, ac->userdata, requestId, response, ac->responseType);
         UA_deleteMembers(response, ac->responseType);
     } else {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not decodee the response with Id %u", requestId);
+                    "Could not decode the response with Id %u", requestId);
+        UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADCOMMUNICATIONERROR);
     }
 
     /* Remove the callback */
@@ -346,6 +343,29 @@ __UA_Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
 }
 
+void
+UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
+                              UA_StatusCode statusCode) {
+    /* Create an empty response with the statuscode */
+    void *resp = UA_alloca(ac->responseType->memSize);
+    UA_init(resp, ac->responseType);
+    ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
+
+    ac->callback(client, ac->userdata, ac->requestId, resp, ac->responseType);
+
+    /* Clean up the response. Users might move data into it. For whatever reasons. */
+    UA_deleteMembers(resp, ac->responseType);
+}
+
+void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
+    AsyncServiceCall *ac, *ac_tmp;
+    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
+        LIST_REMOVE(ac, pointers);
+        UA_Client_AsyncService_cancel(client, ac, statusCode);
+        UA_free(ac);
+    }
+}
+
 UA_StatusCode
 __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
@@ -377,6 +397,11 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* TODO: Call repeated jobs that are scheduled */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
+    if (retvalPublish != UA_STATUSCODE_GOOD)
+        return retvalPublish;
+#endif
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
     UA_StatusCode retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)

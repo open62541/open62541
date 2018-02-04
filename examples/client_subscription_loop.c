@@ -54,8 +54,12 @@ handler_currentTimeChanged(UA_UInt32 monId, UA_DataValue *value, void *context) 
 }
 
 static void
-stateCallback (UA_Client *client, UA_ClientState clientState) {
+deleteSubscriptionCallback(UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Subscription Id %u was deleted", subscriptionId);
+}
 
+static void
+stateCallback (UA_Client *client, UA_ClientState clientState) {
     switch(clientState) {
         case UA_CLIENTSTATE_DISCONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
@@ -71,8 +75,9 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
             /* A new session was created. We need to create the subscription. */
             /* Create a subscription */
             UA_UInt32 subId = 0;
-            UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
-            if(subId)
+            UA_StatusCode retval = UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                                   NULL, NULL, deleteSubscriptionCallback, &subId);
+            if(retval == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
             else
                 return;
@@ -100,9 +105,10 @@ int main(void) {
     UA_ClientConfig config = UA_ClientConfig_default;
     /* Set stateCallback */
     config.stateCallback = stateCallback;
+
     UA_Client *client = UA_Client_new(config);
 
-    /* Endless loop SendPublishRequest */
+    /* Endless loop runAsync */
     while(running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
@@ -116,8 +122,7 @@ int main(void) {
             continue;
         }
 
-        UA_Client_Subscriptions_manuallySendPublishRequest(client);
-        UA_sleep_ms(1000);
+        UA_Client_runAsync(client, 1000);
     };
 
     /* Clean up */

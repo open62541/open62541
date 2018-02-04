@@ -10,6 +10,10 @@
  * corpus to the repository.
  */
 
+#ifdef _MSC_VER
+#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_manuallySendPublishRequest': was declared deprecated
+#endif
+
 #ifndef UA_DEBUG_DUMP_PKGS_FILE
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
@@ -24,6 +28,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <ua_client_highlevel.h>
+#include <ua_client_subscriptions.h>
 
 #include "ua_config_default.h"
 
@@ -368,8 +373,7 @@ static UA_StatusCode
 subscriptionRequests(UA_Client *client) {
     UA_UInt32 subId;
     // createSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId));
-
+    ASSERT_GOOD(UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,NULL, NULL, NULL, &subId));
 
     // modifySubscription
     UA_ModifySubscriptionRequest modifySubscriptionRequest;
@@ -459,7 +463,7 @@ subscriptionRequests(UA_Client *client) {
 
 
     // deleteSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_remove(client, subId));
+    ASSERT_GOOD(UA_Client_Subscription_delete(client, subId));
 
     return UA_STATUSCODE_GOOD;
 }
