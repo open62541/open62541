@@ -59,7 +59,7 @@ removeSecureChannel(UA_SecureChannelManager *cm, channel_list_entry *entry) {
 
     /* Detach the channel and make the capacity available */
     LIST_REMOVE(entry, pointers);
-    UA_atomic_add(&cm->currentChannelCount, (UA_UInt32)-1);
+    UA_atomic_subUInt32(&cm->currentChannelCount, 1);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -134,7 +134,7 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
     entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
 
     LIST_INSERT_HEAD(&cm->channels, entry, pointers);
-    UA_atomic_add(&cm->currentChannelCount, 1);
+    UA_atomic_addUInt32(&cm->currentChannelCount, 1);
     UA_Connection_attachSecureChannel(connection, &entry->channel);
     return UA_STATUSCODE_GOOD;
 }

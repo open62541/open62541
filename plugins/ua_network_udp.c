@@ -9,10 +9,6 @@
 #include <stdio.h>
 #include <string.h> // memset
 
-#ifdef UA_ENABLE_MULTITHREADING
-# include <urcu/uatomic.h>
-#endif
-
 /* with a space so amalgamation does not remove the includes */
 # include <errno.h> // errno, EINTR
 # include <fcntl.h> // fcntl
