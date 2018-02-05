@@ -948,17 +948,6 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
 
 UA_StatusCode UA_EXPORT
-UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
-                        const UA_NodeId parentNodeId,
-                        const UA_NodeId referenceTypeId,
-                        const UA_QualifiedName browseName,
-                        const UA_MethodAttributes attr, UA_MethodCallback method,
-                        size_t inputArgumentsSize, const UA_Argument* inputArguments,
-                        size_t outputArgumentsSize, const UA_Argument* outputArguments,
-                        void *nodeContext, UA_NodeId *outNewNodeId);
-
-
-UA_StatusCode UA_EXPORT
 UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId,
                           const UA_NodeId referenceTypeId,
@@ -973,6 +962,21 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId outputArgumentsRequestedNewNodeId,
                           UA_NodeId *outputArgumentsOutNewNodeId,
                           void *nodeContext, UA_NodeId *outNewNodeId);
+
+static UA_INLINE UA_StatusCode
+UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
+                        UA_MethodCallback method,
+                        const size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                        const size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                        void *nodeContext, UA_NodeId *outNewNodeId) {
+    return UA_Server_addMethodNodeEx(server, requestedNewNodeId,  parentNodeId,
+                                     referenceTypeId, browseName, attr, method,
+                                     inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                     outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
+                                     nodeContext, outNewNodeId);
+}
 
 
 /**

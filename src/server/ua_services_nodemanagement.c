@@ -1634,21 +1634,6 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
     return retval;
 }
 
-UA_StatusCode
-UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
-                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
-                        UA_MethodCallback method,
-                        const size_t inputArgumentsSize, const UA_Argument *inputArguments,
-                        const size_t outputArgumentsSize, const UA_Argument *outputArguments,
-                        void *nodeContext, UA_NodeId *outNewNodeId) {
-    return UA_Server_addMethodNodeEx(server, requestedNewNodeId,  parentNodeId,
-                                     referenceTypeId, browseName, attr, method,
-                                     inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
-                                     outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
-                                     nodeContext, outNewNodeId);
-}
-
 static UA_StatusCode
 editMethodCallback(UA_Server *server, UA_Session* session,
                    UA_Node* node, void* handle) {
