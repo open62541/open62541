@@ -113,6 +113,39 @@ START_TEST(Client_endpoints) {
 }
 END_TEST
 
+START_TEST(Client_endpoints_empty) {
+        /* Issue a getEndpoints call with empty endpointUrl.
+         * Using UA_Client_getEndpoints automatically passes the client->endpointUrl as requested endpointUrl.
+         * The spec says:
+         * The Server should return a suitable default URL if it does not recognize the HostName in the URL.
+         *
+         * See https://github.com/open62541/open62541/issues/775
+         */
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_GetEndpointsRequest request;
+    UA_GetEndpointsRequest_init(&request);
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+
+    UA_GetEndpointsResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    ck_assert_msg(response.endpointsSize > 0);
+
+    UA_GetEndpointsResponse_deleteMembers(&response);
+    UA_GetEndpointsRequest_deleteMembers(&request);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_read) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -277,6 +310,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_endpoints);
+    tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
     tcase_add_test(tc_client, Client_delete_without_connect);
     suite_add_tcase(s,tc_client);
