@@ -269,15 +269,35 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_Boolean moreNotifications = false;
     size_t notifications = countQueuedNotifications(sub, &moreNotifications);
 
+    /* Return if nothing to do */
     if(notifications == 0) {
-        if (sub->currentKeepAliveCount <= sub->maxKeepAliveCount)
-            ++sub->currentKeepAliveCount;
+        ++sub->currentKeepAliveCount;
+        if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
+            return;
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | Sending a KeepAlive",
+                             sub->subscriptionId);
+    }
+
+    /* Check if the securechannel is valid */
+    UA_SecureChannel *channel = sub->session->header.channel;
+    if(!channel) {
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | Cannot send a publish response since "
+                             "no channel is attached to the session", sub->subscriptionId);
+        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+        ++sub->currentLifetimeCount;
+        if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                                 "Subscription %u | End of lifetime "
+                                 "for subscription", sub->subscriptionId);
+            UA_Session_deleteSubscription(server, sub->session, sub->subscriptionId);
+        }
+        return;
     }
 
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
-
-    /* Cannot publish without a response */
     if(!pre) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                              "Subscription %u | Cannot send a publish "
@@ -289,25 +309,10 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                                  "Subscription %u | End of lifetime "
                                  "for subscription", sub->subscriptionId);
-            UA_Session_deleteSubscription(server, sub->session,
-                                          sub->subscriptionId);
+            UA_Session_deleteSubscription(server, sub->session, sub->subscriptionId);
             // TODO: send a StatusChangeNotification with Bad_Timeout
         }
         return;
-    }
-
-    /* Check if the securechannel is valid */
-    UA_SecureChannel *channel = sub->session->header.channel;
-    if(!channel)
-        return;
-
-    /* Return if nothing to do */
-    if(notifications == 0) {
-        if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
-            return;
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | Sending a KeepAlive",
-                             sub->subscriptionId);
     }
 
     UA_PublishResponse *response = &pre->response;
@@ -321,17 +326,18 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not allocate memory "
                                    "for retransmission", sub->subscriptionId);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
 
         /* Prepare the response */
-        UA_StatusCode retval =
-            prepareNotificationMessage(sub, message, notifications);
+        UA_StatusCode retval = prepareNotificationMessage(sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the "
                                    "notification message", sub->subscriptionId);
             UA_free(retransmission);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
     }
@@ -401,12 +407,8 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         sub->lastSendMonitoredItemId = 0;
     } else {
         /* Repeat sending responses right away if there are more notifications
-         * to send / only if we have a publishResponse available */
-        pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
-        if (pre)
-            UA_Subscription_publishCallback(server, sub);
-        else
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+         * to send */
+        UA_Subscription_publishCallback(server, sub);
     }
 }
 
