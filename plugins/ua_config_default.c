@@ -75,7 +75,7 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
                                  const UA_ByteString localCertificate) {
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
-    UA_SecurityPolicy_None(&endpoint->securityPolicy, localCertificate, conf->logger);
+    UA_SecurityPolicy_None(&endpoint->securityPolicy, NULL, localCertificate, conf->logger);
     endpoint->endpointDescription.securityMode = UA_MESSAGESECURITYMODE_NONE;
     endpoint->endpointDescription.securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
@@ -127,7 +127,7 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
     UA_StatusCode retval =
-        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, localCertificate,
+        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, &conf->certificateVerification, localCertificate,
                                         localPrivateKey, conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);

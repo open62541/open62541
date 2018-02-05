@@ -17,6 +17,7 @@ extern "C" {
 
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
+                                UA_CertificateVerification *certificateVerification,
                                 const UA_ByteString localCertificate,
                                 const UA_ByteString localPrivateKey,
                                 UA_Logger logger);

@@ -32,7 +32,7 @@ static void
 UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     /* TODO: Select policy according to the endpoint */
-    UA_SecurityPolicy_None(&client->securityPolicy, UA_BYTESTRING_NULL, config.logger);
+    UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL, config.logger);
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
