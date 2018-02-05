@@ -14,7 +14,8 @@ static void stopHandler(int sig) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 static void
-handler_events(const UA_UInt32 monId, const size_t nEventFields,
+handler_events(UA_Client *client,
+               const UA_UInt32 monId, const size_t nEventFields,
                const UA_Variant *eventFields, void *context) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
 
