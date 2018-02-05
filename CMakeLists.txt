@@ -331,7 +331,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
@@ -392,7 +393,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
 
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c

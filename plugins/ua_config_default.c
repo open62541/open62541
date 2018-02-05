@@ -24,7 +24,7 @@
 
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
-#include "ua_client_highlevel.h"
+#include "ua_client_subscriptions.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -455,18 +455,21 @@ const UA_ClientConfig UA_ClientConfig_default = {
     5000, /* .timeout, 5 seconds */
     10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
     UA_Log_Stdout, /* .logger */
-    /* .localConnectionConfig */
-    {0, /* .protocolVersion */
-     65535, /* .sendBufferSize, 64k per chunk */
-     65535, /* .recvBufferSize, 64k per chunk */
-     0, /* .maxMessageSize, 0 -> unlimited */
-     0}, /* .maxChunkCount, 0 -> unlimited */
+    { /* .localConnectionConfig */
+        0, /* .protocolVersion */
+        65535, /* .sendBufferSize, 64k per chunk */
+        65535, /* .recvBufferSize, 64k per chunk */
+        0, /* .maxMessageSize, 0 -> unlimited */
+        0 /* .maxChunkCount, 0 -> unlimited */
+    },
     UA_ClientConnectionTCP, /* .connectionFunc */
 
     0, /* .customDataTypesSize */
-    NULL, /*.customDataTypes */
-    NULL, /*.stateCallback */
-    NULL  /*.clientContext */
+    NULL, /* .customDataTypes */
+    NULL, /* .stateCallback */
+    10, /* .outStandingPublishRequests */
+    0, /* .connectivityCheckInterval */
+    NULL  /* .clientContext */
 };
 
 /****************************************/
@@ -474,6 +477,15 @@ const UA_ClientConfig UA_ClientConfig_default = {
 /****************************************/
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+
+const UA_SubscriptionParameters UA_SubscriptionParameters_default = {
+    500.0, /* .publishingInterval */
+    10000, /* .lifetimeCount */
+    1, /* .maxKeepAliveCount */
+    0, /* .maxNotificationsPerPublish */
+    0, /* .priority */
+    true, /* .publishingEnabled */
+};
 
 const UA_SubscriptionSettings UA_SubscriptionSettings_default = {
     500.0, /* .requestedPublishingInterval */

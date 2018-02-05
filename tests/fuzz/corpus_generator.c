@@ -10,6 +10,10 @@
  * corpus to the repository.
  */
 
+#ifdef _MSC_VER
+#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_manuallySendPublishRequest': was declared deprecated
+#endif
+
 #ifndef UA_DEBUG_DUMP_PKGS_FILE
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
@@ -24,6 +28,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <ua_client_highlevel.h>
+#include <ua_client_subscriptions.h>
 
 #include "ua_config_default.h"
 

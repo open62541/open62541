@@ -6,7 +6,9 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 
-
+if(NOT MSVC)
+    add_definitions(-Wno-deprecated-declarations)
+endif()
 
 if (UA_BUILD_FUZZING_CORPUS)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -48,7 +50,6 @@ else()
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY $ENV{OUT})
 endif()
 list(APPEND LIBS "${open62541_LIBRARIES}")
-
 
 # Use different plugins for testing
 set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
