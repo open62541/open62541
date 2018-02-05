@@ -16,8 +16,8 @@ extern "C" {
 #include "ua_plugin_log.h"
 
 UA_StatusCode UA_EXPORT
-UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
-                       UA_Logger logger);
+UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *certificateVerification,
+                       const UA_ByteString localCertificate, UA_Logger logger);
 
 #ifdef __cplusplus
 }

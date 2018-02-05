@@ -46,6 +46,7 @@ certificateVerification_verify(void *verificationContext,
 
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
+    mbedtls_x509_crt_init(&remoteCertificate);
     int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
                                          certificate->length);
     if(mbedErr) {
