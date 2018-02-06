@@ -1324,15 +1324,14 @@ DECODE_BINARY(DiagnosticInfo) {
             UA_calloc(1, sizeof(UA_DiagnosticInfo));
         if(!dst->innerDiagnosticInfo)
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        dst->hasInnerDiagnosticInfo = true;
 
         /* Check the recursion limit */
         if(ctx->depth > UA_ENCODING_MAX_RECURSION)
             return UA_STATUSCODE_BADENCODINGERROR;
+
         ctx->depth++;
-
-        dst->hasInnerDiagnosticInfo = true;
         ret |= DECODE_DIRECT(dst->innerDiagnosticInfo, DiagnosticInfo);
-
         ctx->depth--;
     }
     return ret;
