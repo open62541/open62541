@@ -526,12 +526,13 @@ START_TEST(Server_lifeTimeCount) {
     UA_CreateSubscriptionRequest_init(&request);
     request.publishingEnabled = true;
     request.requestedLifetimeCount = 4;
-    request.requestedMaxKeepAliveCount = 1;
+    request.requestedMaxKeepAliveCount = 2;
     UA_CreateSubscriptionResponse_init(&response);
     Service_CreateSubscription(server, &adminSession, &request, &response);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 1);
-    ck_assert_uint_eq(response.revisedLifetimeCount, 4);
+    ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 2);
+    /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount */
+    ck_assert_uint_eq(response.revisedLifetimeCount, 6);
     UA_Double publishingInterval = response.revisedPublishingInterval;
     ck_assert(publishingInterval > 0.0f);
     UA_CreateSubscriptionResponse_deleteMembers(&response);
@@ -585,6 +586,28 @@ START_TEST(Server_lifeTimeCount) {
     count = 0;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
         ck_assert_uint_eq(sub->currentLifetimeCount, 4);
+        count++;
+    }
+    ck_assert_uint_eq(count, 1);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 5);
+        count++;
+    }
+    ck_assert_uint_eq(count, 1);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 6);
         count++;
     }
     ck_assert_uint_eq(count, 1);
