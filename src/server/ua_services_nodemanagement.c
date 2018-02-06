@@ -1590,16 +1590,17 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
 
 UA_StatusCode
 UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
-                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                          const UA_QualifiedName browseName, const UA_MethodAttributes attr,
-                          UA_MethodCallback method,
-                          const size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                          const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName,
+                          const UA_MethodAttributes attr, UA_MethodCallback method,
+                          size_t inputArgumentsSize, const UA_Argument *inputArguments,
                           const UA_NodeId inputArgumentsRequestedNewNodeId,
                           UA_NodeId *inputArgumentsOutNewNodeId,
-                          const size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                          size_t outputArgumentsSize, const UA_Argument *outputArguments,
                           const UA_NodeId outputArgumentsRequestedNewNodeId,
                           UA_NodeId *outputArgumentsOutNewNodeId,
-                        void *nodeContext, UA_NodeId *outNewNodeId) {
+                          void *nodeContext, UA_NodeId *outNewNodeId) {
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.nodeClass = UA_NODECLASS_METHOD;
