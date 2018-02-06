@@ -1479,12 +1479,16 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
 static const UA_NodeId hasproperty = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASPROPERTY}};
 static const UA_NodeId propertytype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_PROPERTYTYPE}};
 
-UA_StatusCode
-UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
-                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                               UA_MethodCallback method,
-                               size_t inputArgumentsSize, const UA_Argument* inputArguments,
-                               size_t outputArgumentsSize, const UA_Argument* outputArguments) {
+static UA_StatusCode
+UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
+                                 const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                 UA_MethodCallback method,
+                                 const size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                                 const UA_NodeId inputArgumentsRequestedNewNodeId,
+                                 UA_NodeId *inputArgumentsOutNewNodeId,
+                                 const size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                                 const UA_NodeId outputArgumentsRequestedNewNodeId,
+                                 UA_NodeId *outputArgumentsOutNewNodeId) {
     /* Browse to see which argument nodes exist */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -1510,7 +1514,6 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
     /* Filter out the argument nodes */
     UA_NodeId inputArgsId = UA_NODEID_NULL;
     UA_NodeId outputArgsId = UA_NODEID_NULL;
-    const UA_NodeId newArgsId = UA_NODEID_NUMERIC(nodeId.namespaceIndex, 0);
     const UA_QualifiedName inputArgsName = UA_QUALIFIEDNAME(0, "InputArguments");
     const UA_QualifiedName outputArgsName = UA_QUALIFIEDNAME(0, "OutputArguments");
     for(size_t i = 0; i < br.referencesSize; i++) {
@@ -1525,34 +1528,30 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
 
     /* Add the Input Arguments VariableNode */
     if(inputArgumentsSize > 0 && UA_NodeId_isNull(&inputArgsId)) {
-        UA_VariableAttributes inputargs = UA_VariableAttributes_default;
-        inputargs.displayName = UA_LOCALIZEDTEXT("", "InputArguments");
-        /* UAExpert creates a monitoreditem on inputarguments ... */
-        inputargs.minimumSamplingInterval = 100000.0f;
-        inputargs.valueRank = 1;
-        inputargs.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-        /* dirty-cast, but is treated as const ... */
-        UA_Variant_setArray(&inputargs.value, (void*)(uintptr_t)inputArguments,
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        char *name = "InputArguments";
+        attr.displayName = UA_LOCALIZEDTEXT("", name);
+        attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
+        attr.valueRank = 1;
+        UA_Variant_setArray(&attr.value, (void*)(uintptr_t) inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        retval = UA_Server_addVariableNode(server, newArgsId, nodeId, hasproperty,
-                                           inputArgsName, propertytype, inputargs,
-                                           NULL, &inputArgsId);
+        retval |= UA_Server_addVariableNode(server, inputArgumentsRequestedNewNodeId, nodeId,
+                                            hasproperty, UA_QUALIFIEDNAME(0, name),
+                                            propertytype, attr, NULL, &inputArgsId);
     }
 
     /* Add the Output Arguments VariableNode */
     if(outputArgumentsSize > 0 && UA_NodeId_isNull(&outputArgsId)) {
-        UA_VariableAttributes outputargs = UA_VariableAttributes_default;
-        outputargs.displayName = UA_LOCALIZEDTEXT("", "OutputArguments");
-        /* UAExpert creates a monitoreditem on outputarguments ... */
-        outputargs.minimumSamplingInterval = 100000.0f;
-        outputargs.valueRank = 1;
-        outputargs.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-        /* dirty-cast, but is treated as const ... */
-        UA_Variant_setArray(&outputargs.value, (void*)(uintptr_t)outputArguments,
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        char *name = "OutputArguments";
+        attr.displayName = UA_LOCALIZEDTEXT("", name);
+        attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
+        attr.valueRank = 1;
+        UA_Variant_setArray(&attr.value, (void*)(uintptr_t) outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        retval |= UA_Server_addVariableNode(server, newArgsId, nodeId, hasproperty,
-                                            outputArgsName, propertytype, outputargs,
-                                            NULL, &outputArgsId);
+        retval |= UA_Server_addVariableNode(server, outputArgumentsRequestedNewNodeId, nodeId,
+                                            hasproperty, UA_QUALIFIEDNAME(0, name),
+                                            propertytype, attr, NULL, &outputArgsId);
     }
 
     retval |= UA_Server_setMethodNode_callback(server, nodeId, method);
@@ -1565,19 +1564,43 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
         UA_Server_deleteNode(server, nodeId, true);
         UA_Server_deleteNode(server, inputArgsId, true);
         UA_Server_deleteNode(server, outputArgsId, true);
+    } else {
+        if(inputArgumentsOutNewNodeId != NULL) {
+            UA_NodeId_copy(&inputArgsId, inputArgumentsOutNewNodeId);
+    }
+        if(outputArgumentsOutNewNodeId != NULL) {
+            UA_NodeId_copy(&outputArgsId, outputArgumentsOutNewNodeId);
+        }
     }
     UA_BrowseResult_deleteMembers(&br);
     return retval;
 }
 
 UA_StatusCode
-UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
-                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
-                        UA_MethodCallback method,
-                        size_t inputArgumentsSize, const UA_Argument* inputArguments,
-                        size_t outputArgumentsSize, const UA_Argument* outputArguments,
-                        void *nodeContext, UA_NodeId *outNewNodeId) {
+UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                               UA_MethodCallback method,
+                               size_t inputArgumentsSize, const UA_Argument* inputArguments,
+                               size_t outputArgumentsSize, const UA_Argument* outputArguments) {
+    return UA_Server_addMethodNodeEx_finish(server, nodeId, parentNodeId,
+                                            referenceTypeId, method,
+                                            inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                            outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL);
+}
+
+UA_StatusCode
+UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                          const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName,
+                          const UA_MethodAttributes attr, UA_MethodCallback method,
+                          size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                          const UA_NodeId inputArgumentsRequestedNewNodeId,
+                          UA_NodeId *inputArgumentsOutNewNodeId,
+                          size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                          const UA_NodeId outputArgumentsRequestedNewNodeId,
+                          UA_NodeId *outputArgumentsOutNewNodeId,
+                          void *nodeContext, UA_NodeId *outNewNodeId) {
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.nodeClass = UA_NODECLASS_METHOD;
@@ -1598,10 +1621,14 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_Server_addMethodNode_finish(server, *outNewNodeId,
-                                            parentNodeId, referenceTypeId, method,
-                                            inputArgumentsSize, inputArguments,
-                                            outputArgumentsSize, outputArguments);
+    retval = UA_Server_addMethodNodeEx_finish(server, *outNewNodeId,
+                                              parentNodeId, referenceTypeId, method,
+                                              inputArgumentsSize, inputArguments,
+                                              inputArgumentsRequestedNewNodeId,
+                                              inputArgumentsOutNewNodeId,
+                                              outputArgumentsSize, outputArguments,
+                                              outputArgumentsRequestedNewNodeId,
+                                              outputArgumentsOutNewNodeId);
 
     if(outNewNodeId == &newId)
         UA_NodeId_deleteMembers(&newId);
