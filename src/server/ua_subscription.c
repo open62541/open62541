@@ -264,12 +264,31 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Publish Callback",
                          sub->subscriptionId);
+    /* Dequeue a response */
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
+    if(pre) {
+        sub->currentLifetimeCount = 0; /* Reset the lifetimecounter */
+    } else {
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | The publish queue is empty",
+                             sub->subscriptionId);
+        ++sub->currentLifetimeCount;
+
+        if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                                 "Subscription %u | End of lifetime "
+                                 "for subscription", sub->subscriptionId);
+            UA_Session_deleteSubscription(server, sub->session, sub->subscriptionId);
+            /* TODO: send a StatusChangeNotification with Bad_Timeout */
+            return;
+        }
+    }
 
     /* Count the available notifications */
     UA_Boolean moreNotifications = false;
     size_t notifications = countQueuedNotifications(sub, &moreNotifications);
 
-    /* Return if nothing to do */
+    /* Return if no notifications and no keepalive */
     if(notifications == 0) {
         ++sub->currentKeepAliveCount;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
@@ -279,35 +298,17 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                              sub->subscriptionId);
     }
 
-    /* Check if the securechannel is valid */
+    /* Can we send a response? */
     UA_SecureChannel *channel = sub->session->header.channel;
-    if(!channel)
-        return;
-
-    /* Dequeue a response */
-    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
-
-    /* Cannot publish without a response */
-    if(!pre) {
+    if(!channel || !pre) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | Cannot send a publish "
-                             "response since the publish queue is empty",
-                             sub->subscriptionId);
-        if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-        } else {
-            ++sub->currentLifetimeCount;
-            if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                                     "Subscription %u | End of lifetime "
-                                     "for subscription", sub->subscriptionId);
-                UA_Session_deleteSubscription(server, sub->session,
-                                              sub->subscriptionId);
-            }
-        }
+                             "Subscription %u | Want to send a publish response;"
+                             "but not possible", sub->subscriptionId);
+        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         return;
     }
 
+    /* Prepare the response */
     UA_PublishResponse *response = &pre->response;
     UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
@@ -319,17 +320,18 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not allocate memory "
                                    "for retransmission", sub->subscriptionId);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
 
         /* Prepare the response */
-        UA_StatusCode retval =
-            prepareNotificationMessage(sub, message, notifications);
+        UA_StatusCode retval = prepareNotificationMessage(sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the "
                                    "notification message", sub->subscriptionId);
             UA_free(retransmission);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
     }
@@ -386,7 +388,6 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Reset subscription state to normal. */
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
     sub->currentKeepAliveCount = 0;
-    sub->currentLifetimeCount = 0;
 
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize,
