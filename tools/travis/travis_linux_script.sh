@@ -11,6 +11,16 @@ if ! [ -z ${DOCKER+x} ]; then
     exit 0
 fi
 
+# Cpplint checking
+if ! [ -z ${LINT+x} ]; then
+	mkdir -p build
+	cd build
+	cmake ..
+	make cpplint
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+    exit 0
+fi
+
 # Fuzzer build test
 if ! [ -z ${FUZZER+x} ]; then
     # Test the corpus generator and use new corpus for fuzz test

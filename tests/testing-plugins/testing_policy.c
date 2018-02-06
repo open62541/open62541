@@ -4,8 +4,9 @@
 
 #ifndef __clang_analyzer__
 
-#include <ua_types.h>
-#include <ua_plugin_securitypolicy.h>
+#include "ua_types.h"
+#include "ua_plugin_securitypolicy.h"
+#include "ua_log_stdout.h"
 #include "ua_types_generated_handling.h"
 #include "testing_policy.h"
 #include "check.h"
@@ -339,7 +340,8 @@ TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
     funcsCalled = fCalled;
     policy->policyContext = (void *) funcsCalled;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Testing");
-    policy->logger = NULL;
+    policy->logger = UA_Log_Stdout;
+    policy->certificateVerification = NULL;
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
 
     policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_testing;

@@ -108,7 +108,10 @@ class Type(object):
             return "#define %s_members NULL" % (self.name)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
         before = None
+        i = 0
+        size = len(self.members)
         for index, member in enumerate(self.members):
+            i += 1
             m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member.name
             m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
             m += "    "
@@ -126,7 +129,9 @@ class Type(object):
                     m += " - sizeof(UA_%s)," % before.memberType.name
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
-            m += ("    true" if member.isArray else "    false") + " /* .isArray */\n},"
+            m += ("    true" if member.isArray else "    false") + " /* .isArray */\n}"
+            if i != size:
+                m += ","
             members += m
             before = member
         return members + "};"
@@ -501,7 +506,9 @@ printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.u
 
 i = 0
 for t in filtered_types:
-    printh("\n/**\n * " +  t.name)
+    if i != 0:
+        printh("\n")
+    printh("/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
         printh(" */")
@@ -512,9 +519,12 @@ for t in filtered_types:
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
     i += 1
 
+i = 0
 # Generate alias for opaque types
 for t in filtered_opaque_types:
-    printh("\n/**\n * " +  t.name)
+    if i != 0:
+        printh("\n")
+    printh("/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
         printh(" */")
@@ -523,6 +533,7 @@ for t in filtered_opaque_types:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
+    i += 1
 
 printh('''
 #ifdef __cplusplus
@@ -585,7 +596,7 @@ for t in filtered_types:
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in filtered_types:
-    printc("")
+#    printc("")
     printc("/* " + t.name + " */")
     printc(t.datatype_c() + ",")
 printc("};\n")

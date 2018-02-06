@@ -43,7 +43,7 @@ static void stopHandler(int sign) {
 }
 
 static void
-handler_currentTimeChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
+handler_currentTimeChanged(UA_Client *client, UA_UInt32 monId, UA_DataValue *value, void *context) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "currentTime has changed!");
     if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *) value->value.data;

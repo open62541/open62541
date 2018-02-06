@@ -156,7 +156,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return retval;
 
     /* Check the datatype against the vt */
-    if(!compatibleDataType(server, &node->dataType, &vt->dataType))
+    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Get the array dimensions */

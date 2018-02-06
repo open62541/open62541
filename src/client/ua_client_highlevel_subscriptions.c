@@ -424,7 +424,8 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                     continue;
                 }
 
-                mon->handler.dataChangeHandler(mon->monitoredItemId, &mitemNot->value, mon->handlerContext);
+                mon->handler.dataChangeHandler(client, mon->monitoredItemId,
+                                               &mitemNot->value, mon->handlerContext);
             }
             continue;
         }
@@ -457,7 +458,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                     continue;
                 }
 
-                mon->handler.eventHandler(mon->monitoredItemId, eventFieldList->eventFieldsSize,
+                mon->handler.eventHandler(client, mon->monitoredItemId, eventFieldList->eventFieldsSize,
                                           eventFieldList->eventFields, mon->handlerContext);
             }
         }

@@ -17,6 +17,7 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_plugin_log.h"
+#include "ua_plugin_pki.h"
 
 extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
 
@@ -295,6 +296,7 @@ struct UA_SecurityPolicy {
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
     UA_SecurityPolicySymmetricModule symmetricModule;
     UA_SecurityPolicyChannelModule channelModule;
+    UA_CertificateVerification *certificateVerification;
 
     UA_Logger logger;
 

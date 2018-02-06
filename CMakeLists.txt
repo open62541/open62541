@@ -188,7 +188,10 @@ if(NOT WIN32)
     list(APPEND open62541_LIBRARIES c)
     list(APPEND open62541_LIBRARIES stdc++)
   else()
-    list(APPEND open62541_LIBRARIES pthread m)
+    list(APPEND open62541_LIBRARIES m)
+    if(UA_ENABLE_MULTITHREADING OR UA_BUILD_UNIT_TESTS)
+      list(APPEND open62541_LIBRARIES pthread)
+    endif()
     if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
       list(APPEND open62541_LIBRARIES rt)
     endif()
@@ -199,9 +202,6 @@ else()
         list(APPEND open62541_LIBRARIES iphlpapi)
     endif()
 endif()
-if(UA_ENABLE_MULTITHREADING)
-  list(APPEND open62541_LIBRARIES urcu-cds urcu-bp urcu-common)
-endif(UA_ENABLE_MULTITHREADING)
 
 #####################
 # Compiler Settings #
@@ -716,6 +716,18 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   DEPENDS ${lib_sources}
                   COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)
+
+add_custom_target(cpplint cpplint
+                  ${lib_sources}
+                  ${internal_headers}
+                  ${default_plugin_headers}
+                  ${default_plugin_sources}
+                  DEPENDS ${lib_sources}
+                          ${internal_headers}
+                          ${default_plugin_headers}
+                          ${default_plugin_sources}
+
+                  COMMENT "Run cpplint code style checker on the library")
 
 ##########################
 # Installation           #

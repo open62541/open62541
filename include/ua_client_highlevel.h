@@ -597,8 +597,8 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 /* Addition of monitored DataChanges */
 /* TODO for v0.4: Rename method to _DataChange. */
-typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId, UA_DataValue *value,
-                                                 void *context);
+typedef void (*UA_MonitoredItemHandlingFunction)(UA_Client *client, UA_UInt32 monId,
+                                                 UA_DataValue *value, void *context);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
@@ -617,7 +617,8 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
 
 /* Monitored Events have different payloads from DataChanges. So they use a
  * different callback method signature. */
-typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
+typedef void (*UA_MonitoredEventHandlingFunction)(UA_Client *client,
+                                                  const UA_UInt32 monId,
                                                   const size_t nEventFields,
                                                   const UA_Variant *eventFields,
                                                   void *context);
