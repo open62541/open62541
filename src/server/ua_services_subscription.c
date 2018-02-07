@@ -278,7 +278,15 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
 
-    UA_Subscription_addMonitoredItem(cmc->sub, newMon);
+    UA_Node *target;
+    retval = UA_Nodestore_getCopy(server, &request->itemToMonitor.nodeId, &target);
+    if (retval != UA_STATUSCODE_GOOD) {
+        result->statusCode = retval;
+        return;
+    }
+
+    UA_Subscription_addMonitoredItem(cmc->sub, newMon, target);
+    UA_Nodestore_replace(server, target);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
@@ -290,18 +298,11 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->itemId;
 
-    const UA_Node *target = UA_Nodestore_get(server, &request->itemToMonitor.nodeId);
-    if(!target) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
-        return;
-    }
-    // Triggering monitored callback on DataSource nodes
-    if (target->nodeClass == UA_NODECLASS_VARIABLE)
-    {
+    /* Triggering monitored callback on DataSource nodes, if first time monitored */
+    if (target->nodeClass == UA_NODECLASS_VARIABLE && LIST_NEXT(newMon, listEntry_node) == NULL) {
         const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
 
-        if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE)
-        {
+        if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE) {
             const UA_DataSource *dataSource = &varTarget->value.dataSource;
 
             dataSource->monitored(server, &session->sessionId,
@@ -309,7 +310,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                                   target->context, false);
         }
     }
-    UA_Nodestore_release(server, target);
 }
 
 void

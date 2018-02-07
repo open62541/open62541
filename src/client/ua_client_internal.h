@@ -39,7 +39,7 @@ typedef struct UA_Client_MonitoredItem {
     UA_UInt32 queueSize;
     UA_Boolean discardOldest;
 
-    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
+    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MonitoredItem */
     union {
         UA_MonitoredItemHandlingFunction dataChangeHandler;
         UA_MonitoredEventHandlingFunction eventHandler;

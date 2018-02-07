@@ -16,6 +16,7 @@
 
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
+#include "ua_plugin_nodestore.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
@@ -37,14 +38,25 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
 }
 
 void
+deleteMonitoredItemsFromNode(UA_Subscription *subscription, const UA_Node *node) {
+    UA_MonitoredItem *mon, *tmp_mon;
+    LIST_FOREACH_SAFE(mon, &node->monitoredItems, listEntry_node, tmp_mon) {
+        if (mon->subscription == subscription)
+            LIST_REMOVE(mon, listEntry_node);
+
+    }
+}
+
+void
 UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
     Subscription_unregisterPublishCallback(server, subscription);
 
     /* Delete monitored Items */
+    UA_Nodestore_iterate(server, subscription, deleteMonitoredItemsFromNode);
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &subscription->monitoredItems,
-                      listEntry, tmp_mon) {
-        LIST_REMOVE(mon, listEntry);
+                      listEntry_store, tmp_mon) {
+        LIST_REMOVE(mon, listEntry_store);
         MonitoredItem_delete(server, mon);
     }
 
@@ -63,7 +75,7 @@ UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub,
                                  UA_UInt32 monitoredItemId) {
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry_store) {
         if(mon->itemId == monitoredItemId)
             break;
     }
@@ -74,46 +86,56 @@ UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemId) {
     /* Find the MonitoredItem */
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+    UA_MonitoredItem *mon, *mon_node;
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry_store) {
         if(mon->itemId == monitoredItemId)
             break;
     }
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
-    const UA_Node *target = UA_Nodestore_get(server, &mon->monitoredNodeId);
+    /* Find the Node and remove MonitoredItem from it */
+    UA_Node *target;
+    UA_StatusCode retval = UA_Nodestore_getCopy(server, &mon->monitoredNodeId, &target);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    // Triggering monitored callback on DataSource nodes
-    if (target->nodeClass == UA_NODECLASS_VARIABLE)
-    {
+    LIST_FOREACH(mon_node, &target->monitoredItems, listEntry_node) {
+        if (mon_node->itemId == monitoredItemId) {
+            LIST_REMOVE(mon_node, listEntry_node);
+            break;
+        }
+    }
+    UA_Nodestore_replace(server, target);
+
+    /* Triggering monitored callback on DataSource nodes, if not monitored anymore */
+    if (LIST_EMPTY(&target->monitoredItems) && target->nodeClass == UA_NODECLASS_VARIABLE) {
         const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
 
-        if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE)
-        {
+        if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE) {
             const UA_DataSource *dataSource = &varTarget->value.dataSource;
 
-            if (dataSource->monitored != NULL)
+            if (dataSource->monitored != NULL) {
                 dataSource->monitored(server, &sub->session->sessionId,
-                                  sub->session->sessionHandle, &target->nodeId,
-                                  target->context, true);
+                                      sub->session->sessionHandle, &target->nodeId,
+                                      target->context, true);
+            }
             // FIXME: use returned status code to generate (user) feedback etc...?
         }
     }
-    UA_Nodestore_release(server, (const UA_Node*)target);
-
 
     /* Remove the MonitoredItem */
-    LIST_REMOVE(mon, listEntry);
+    LIST_REMOVE(mon, listEntry_store);
     MonitoredItem_delete(server, mon);
     sub->numMonitoredItems--;
     return UA_STATUSCODE_GOOD;
 }
 
 void
-UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon) {
+UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon, UA_Node *node) {
     sub->numMonitoredItems++;
-    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry_store);
+    LIST_INSERT_HEAD(&node->monitoredItems, newMon, listEntry_node);
 }
 
 UA_UInt32
@@ -129,7 +151,7 @@ countQueuedNotifications(UA_Subscription *sub,
 
     size_t notifications = 0;
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry_store) {
         MonitoredItem_queuedValue *qv;
         TAILQ_FOREACH(qv, &mon->queue, listEntry) {
             if(notifications >= sub->notificationsPerPublish) {
@@ -188,7 +210,7 @@ selectFirstMonToIterate(UA_Subscription *sub) {
         while(mon) {
             if(mon->itemId == sub->lastSendMonitoredItemId)
                 break;
-            mon = LIST_NEXT(mon, listEntry);
+            mon = LIST_NEXT(mon, listEntry_store);
         }
         if(!mon)
             mon = LIST_FIRST(&sub->monitoredItems);
@@ -216,7 +238,7 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
             --mon->currentQueueSize;
             ++(*pos);
         }
-        mon = LIST_NEXT(mon, listEntry);
+        mon = LIST_NEXT(mon, listEntry_store);
     }
 }
 

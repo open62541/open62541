@@ -45,7 +45,7 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     monitoredItem->currentQueueSize = 0;
 
     /* Remove the monitored item */
-    LIST_REMOVE(monitoredItem, listEntry);
+    LIST_REMOVE(monitoredItem, listEntry_store);
     UA_String_deleteMembers(&monitoredItem->indexRange);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     UA_NodeId_deleteMembers(&monitoredItem->monitoredNodeId);

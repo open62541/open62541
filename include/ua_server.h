@@ -661,7 +661,9 @@ typedef struct {
      * memory being cleaned up. Don't forget to also set `value->hasValue` to
      * true to indicate the presence of a value.
      *
-     * @param handle An optional pointer to user-defined data for the
+     * @param server Allows the access to the server object
+     * @param sessionId The session id, represented as an node id
+     * @param sessionContext An optional pointer to user-defined data for the
      *        specific data source
      * @param nodeid Id of the read node
      * @param includeSourceTimeStamp If true, then the datasource is expected to
@@ -684,7 +686,9 @@ typedef struct {
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
      *
-     * @param handle An optional pointer to user-defined data for the
+     * @param server Allows the access to the server object
+     * @param sessionId The session id, represented as an node id
+     * @param sessionContext An optional pointer to user-defined data for the
      *        specific data source
      * @param nodeid Id of the node being written to
      * @param data The data to be written into the data source
@@ -696,9 +700,11 @@ typedef struct {
                            void *nodeContext, const UA_NumericRange *range,
                            const UA_DataValue *value);
 
-    /* Triggered, if the the node gets monitored by a subscription.
+    /* Triggered, if the the node gets (un)monitored by a subscription.
      *
-     * @param handle An optional pointer to user-defined data for the specific data source
+     * @param server Allows the access to the server object
+     * @param sessionId The session id, represented as an node id
+     * @param sessionContext An optional pointer to user-defined data for the specific data source
      * @param nodeid Id of the node in question
      * @param removed Determines, if the monitoring on the node was removed or created.
      * @return Returns a status code for logging. It could be used to determine,

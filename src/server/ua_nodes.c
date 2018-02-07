@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  */
 
+#include "ua_subscription.h"
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
 
@@ -189,6 +190,11 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
             UA_Node_deleteMembers(dst);
             return retval;
         }
+    }
+
+    UA_MonitoredItem *mon, *tmp_mon;
+    LIST_FOREACH_SAFE(mon, &src->monitoredItems, listEntry_node, tmp_mon) {
+        LIST_INSERT_HEAD(&dst->monitoredItems, mon, listEntry_node);
     }
 
     /* Copy unique content of the nodeclass */

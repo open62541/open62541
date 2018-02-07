@@ -22,6 +22,10 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
+#include "../deps/queue.h"
+
+struct UA_MonitoredItem;
+typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 /**
  * .. _information-modelling:
@@ -70,7 +74,7 @@ typedef struct {
     UA_ExpandedNodeId *targetIds;
 } UA_NodeReferenceKind;
 
-#define UA_NODE_BASEATTRIBUTES                  \
+#define UA_NODE_BASEATTRIBUTES(name)            \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
     UA_QualifiedName browseName;                \
@@ -81,10 +85,12 @@ typedef struct {
     UA_NodeReferenceKind *references;           \
                                                 \
     /* Members specific to open62541 */         \
-    void *context;
+    void *context;                              \
+    LIST_HEAD(UA_ListOfLocalUAMonitoredItems_ ## name, UA_MonitoredItem) monitoredItems;
+    // FIXME: Should this list only be included, if UA_ENABLE_SUBSCRIPTIONS is active?
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(Node)
 } UA_Node;
 
 /**
@@ -178,7 +184,7 @@ typedef enum {
     } value;
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(VariableNode)
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
@@ -199,7 +205,7 @@ typedef struct {
  * instantiated from ``BaseDataVariable``. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(VariableTypeNode)
     UA_NODE_VARIABLEATTRIBUTES
     UA_Boolean isAbstract;
 
@@ -226,7 +232,7 @@ typedef struct {
  * providing context* is part of a Call request message. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(MethodNode)
     UA_Boolean executable;
 
     /* Members specific to open62541 */
@@ -243,7 +249,7 @@ typedef struct {
  * objects. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(ObjectNode)
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 
@@ -258,7 +264,7 @@ typedef struct {
  * destructor callbacks. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(ObjectTypeNode)
     UA_Boolean isAbstract;
 
     /* Members specific to open62541 */
@@ -369,7 +375,7 @@ typedef struct {
  * based on a common understanding of just two custom reference types. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(ReferenceTypeNode)
     UA_Boolean isAbstract;
     UA_Boolean symmetric;
     UA_LocalizedText inverseName;
@@ -391,7 +397,7 @@ typedef struct {
  * ``UInt32``). */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(DataTypeNode)
     UA_Boolean isAbstract;
 } UA_DataTypeNode;
 
@@ -406,7 +412,7 @@ typedef struct {
  * open62541. */
 
 typedef struct {
-    UA_NODE_BASEATTRIBUTES
+    UA_NODE_BASEATTRIBUTES(ViewNode)
     UA_Byte eventNotifier;
     UA_Boolean containsNoLoops;
 } UA_ViewNode;

@@ -17,6 +17,7 @@
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
+#include "ua_plugin_nodestore.h"
 #include "ua_session.h"
 
 /*****************/
@@ -38,7 +39,8 @@ typedef struct MonitoredItem_queuedValue {
 typedef TAILQ_HEAD(QueuedValueQueue, MonitoredItem_queuedValue) QueuedValueQueue;
 
 typedef struct UA_MonitoredItem {
-    LIST_ENTRY(UA_MonitoredItem) listEntry;
+    LIST_ENTRY(UA_MonitoredItem) listEntry_store;
+    LIST_ENTRY(UA_MonitoredItem) listEntry_node;
 
     /* Settings */
     UA_Subscription *subscription;
@@ -143,7 +145,8 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 
 void
 UA_Subscription_addMonitoredItem(UA_Subscription *sub,
-                                 UA_MonitoredItem *newMon);
+                                 UA_MonitoredItem *newMon,
+                                 UA_Node *target);
 UA_UInt32
 UA_Subscription_getNumMonitoredItems(UA_Subscription *sub);
 

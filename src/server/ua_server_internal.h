@@ -149,10 +149,10 @@ struct UA_Server {
 #define UA_Nodestore_get(SERVER, NODEID)                                \
     (SERVER)->config.nodestore.getNode((SERVER)->config.nodestore.context, NODEID)
 
-#define UA_Nodestore_release(SERVER, NODEID)                            \
-    (SERVER)->config.nodestore.releaseNode((SERVER)->config.nodestore.context, NODEID)
+#define UA_Nodestore_release(SERVER, NODE)                            \
+    (SERVER)->config.nodestore.releaseNode((SERVER)->config.nodestore.context, NODE)
 
-#define UA_Nodestore_new(SERVER, NODECLASS)                               \
+#define UA_Nodestore_new(SERVER, NODECLASS)                             \
     (SERVER)->config.nodestore.newNode((SERVER)->config.nodestore.context, NODECLASS)
 
 #define UA_Nodestore_getCopy(SERVER, NODEID, OUTNODE)                   \
@@ -161,11 +161,17 @@ struct UA_Server {
 #define UA_Nodestore_insert(SERVER, NODE, OUTNODEID)                    \
     (SERVER)->config.nodestore.insertNode((SERVER)->config.nodestore.context, NODE, OUTNODEID)
 
+#define UA_Nodestore_replace(SERVER, NODE)                              \
+    (SERVER)->config.nodestore.replaceNode((SERVER)->config.nodestore.context, NODE)
+
 #define UA_Nodestore_delete(SERVER, NODE)                               \
     (SERVER)->config.nodestore.deleteNode((SERVER)->config.nodestore.context, NODE)
 
 #define UA_Nodestore_remove(SERVER, NODEID)                             \
     (SERVER)->config.nodestore.removeNode((SERVER)->config.nodestore.context, NODEID)
+
+#define UA_Nodestore_iterate(SERVER, HANDLE, CALLBACK)                  \
+    (SERVER)->config.nodestore.iterate((SERVER)->config.nodestore.context, HANDLE, CALLBACK)
 
 /* Calls the callback with the node retrieved from the nodestore on top of the
  * stack. Either a copy or the original node for in-situ editing. Depends on

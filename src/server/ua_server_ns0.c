@@ -493,7 +493,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
 
     UA_UInt32 sizeOfOutput = 0;
     UA_MonitoredItem* monitoredItem;
-    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
+    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry_store) {
         ++sizeOfOutput;
     }
     if(sizeOfOutput==0)
@@ -502,7 +502,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_UInt32* clientHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32* serverHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32 i = 0;
-    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
+    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry_store) {
         clientHandles[i] = monitoredItem->clientHandle;
         serverHandles[i] = monitoredItem->itemId;
         ++i;
