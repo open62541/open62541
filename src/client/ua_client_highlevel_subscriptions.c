@@ -155,6 +155,7 @@ addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
     request.subscriptionId = subscriptionId;
     request.itemsToCreate = items;
     request.itemsToCreateSize = itemsSize;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
 
     /* Send the request */
     response = UA_Client_Service_createMonitoredItems(client, request);
