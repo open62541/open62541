@@ -22,19 +22,14 @@
 #endif
 
 #include <errno.h>
-
-#define CLOSESOCKET(S) close(S)
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
-# include <sys/select.h>
-# define UA_sleep_ms(X) usleep(X * 1000)
+#include <sys/select.h>
+#define UA_sleep_ms(X) usleep(X * 1000)
 
-#define SOCKET int
-#define WIN32_INT
 #define OPTVAL_TYPE int
-#define ERR_CONNECTION_PROGRESS EINPROGRESS
 
 
 #include <fcntl.h>
@@ -56,7 +51,7 @@
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using
  * musl libc (e.g. Docker Alpine) */
-#if defined(_WIN32) || defined(__OpenBSD__) || \
+#if  defined(__OpenBSD__) || \
     (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
      (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16) || \
     !defined(__GNU_LIBRARY__))
@@ -67,9 +62,57 @@
 # define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 #endif
 
-# define errno__ errno
-# define INTERRUPTED EINTR
-# define WOULDBLOCK EWOULDBLOCK
-# define AGAIN EAGAIN
+#define UA_IPV6 1
+#define UA_SOCKET int
+#define UA_INVALID_SOCKET -1
+#define UA_ERRNO errno
+#define UA_INTERRUPTED EINTR
+#define UA_AGAIN EAGAIN
+#define UA_EAGAIN EAGAIN
+#define UA_WOULDBLOCK EWOULDBLOCK
+#define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
+
+#include "ua_types.h"
+
+#define ua_send send
+#define ua_recv recv
+#define ua_close close
+#define ua_select select
+#define ua_shutdown shutdown
+#define ua_socket socket
+#define ua_bind bind
+#define ua_listen listen
+#define ua_accept accept
+#define ua_connect connect
+#define ua_translate_error gai_strerror
+#define ua_getaddrinfo getaddrinfo
+#define ua_getsockopt getsockopt
+#define ua_setsockopt setsockopt
+#define ua_freeaddrinfo freeaddrinfo
+
+static UA_INLINE uint32_t socket_set_blocking(UA_SOCKET sockfd){
+  int opts = fcntl(sockfd, F_GETFL);
+  if(opts < 0 || fcntl(sockfd, F_SETFL, opts & (~O_NONBLOCK)) < 0)
+      return UA_STATUSCODE_BADINTERNALERROR;
+  return UA_STATUSCODE_GOOD;
+}
+
+static UA_INLINE uint32_t socket_set_nonblocking(UA_SOCKET sockfd){
+  int opts = fcntl(sockfd, F_GETFL);
+  if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
+    return UA_STATUSCODE_BADINTERNALERROR;
+  return UA_STATUSCODE_GOOD;
+}
+
+#include <stdio.h>
+#define ua_snprintf snprintf
+
+static UA_INLINE void ua_initialize_architecture_network(void){
+  return;
+}
+
+static UA_INLINE void ua_deinitialize_architecture_network(void){
+  return;
+}
 
 #endif /* PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_ */

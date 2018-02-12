@@ -12,7 +12,6 @@
 
 #include <errno.h>
 
-#define CLOSESOCKET(S) close(S)
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -28,10 +27,7 @@
    nanosleep(&timeToSleep, NULL);                 \
  }
 
-#define SOCKET int
-#define WIN32_INT
 #define OPTVAL_TYPE int
-#define ERR_CONNECTION_PROGRESS EINPROGRESS
 
 #include <fcntl.h>
 #include <unistd.h> // read, write, close
@@ -40,9 +36,57 @@
 #define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
 
-#define errno__ errno
-#define INTERRUPTED EINTR
-#define WOULDBLOCK EWOULDBLOCK
-#define AGAIN EAGAIN
+#define UA_IPV6 1
+#define UA_SOCKET int
+#define UA_INVALID_SOCKET -1
+#define UA_ERRNO errno
+#define UA_INTERRUPTED EINTR
+#define UA_AGAIN EAGAIN
+#define UA_EAGAIN EAGAIN
+#define UA_WOULDBLOCK EWOULDBLOCK
+#define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
+
+#include "ua_types.h"
+
+#define ua_send send
+#define ua_recv recv
+#define ua_close close
+#define ua_select select
+#define ua_shutdown shutdown
+#define ua_socket socket
+#define ua_bind bind
+#define ua_listen listen
+#define ua_accept accept
+#define ua_connect connect
+#define ua_translate_error gai_strerror
+#define ua_getaddrinfo getaddrinfo
+#define ua_getsockopt getsockopt
+#define ua_setsockopt setsockopt
+#define ua_freeaddrinfo freeaddrinfo
+
+static UA_INLINE uint32_t socket_set_blocking(UA_SOCKET sockfd){
+  int on = FALSE;
+  if(ioctl(sockfd, FIONBIO, &on) < 0)
+    return UA_STATUSCODE_BADINTERNALERROR;
+  return UA_STATUSCODE_GOOD;
+}
+
+static UA_INLINE uint32_t socket_set_nonblocking(UA_SOCKET sockfd){
+  int on = TRUE;
+  if(ioctl(sockfd, FIONBIO, &on) < 0)
+    return UA_STATUSCODE_BADINTERNALERROR;
+  return UA_STATUSCODE_GOOD;
+}
+
+#include <stdio.h>
+#define ua_snprintf snprintf
+
+static UA_INLINE void ua_initialize_architecture_network(void){
+  return;
+}
+
+static UA_INLINE void ua_deinitialize_architecture_network(void){
+  return;
+}
 
 #endif /* PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_ */

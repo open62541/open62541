@@ -27,37 +27,75 @@
 # define _WIN32_WINNT 0x0501
 #endif
 
-# include <errno.h>
-# include <winsock2.h>
-# include <ws2tcpip.h>
-# define CLOSESOCKET(S) closesocket((SOCKET)S)
-# define ssize_t int
-# define WIN32_INT (int)
-# define OPTVAL_TYPE char
-# define ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
-# define UA_sleep_ms(X) Sleep(X)
+#include <errno.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define ssize_t int
+#define OPTVAL_TYPE char
+#define UA_sleep_ms(X) Sleep(X)
 
-/* unsigned int for windows and workaround to a glibc bug */
-/* Additionally if GNU_LIBRARY is not defined, it may be using
- * musl libc (e.g. Docker Alpine) */
-#if defined(_WIN32) || defined(__OpenBSD__) || \
-    (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
-     (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16) || \
-    !defined(__GNU_LIBRARY__))
-# define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
-#else
-# define UA_fd_set(fd, fds) FD_SET(fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
-#endif
+#define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
+#define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
 
 #ifdef UNDER_CE
-# define errno WSAGetLastError()
+# define errno
 #endif
 
-# define errno__ WSAGetLastError()
-# define INTERRUPTED WSAEINTR
-# define WOULDBLOCK WSAEWOULDBLOCK
-# define AGAIN WSAEWOULDBLOCK
+#define UA_IPV6 1
+#define UA_SOCKET int
+#define UA_INVALID_SOCKET -1
+#define UA_ERRNO WSAGetLastError()
+#define UA_INTERRUPTED WSAEINTR
+#define UA_AGAIN WSAEWOULDBLOCK
+#define UA_EAGAIN EAGAIN
+#define UA_WOULDBLOCK WSAEWOULDBLOCK
+#define UA_ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
+
+#include "ua_types.h"
+
+#define ua_send send
+#define ua_recv recv
+#define ua_close closesocket
+#define ua_select select
+#define ua_shutdown shutdown
+#define ua_socket socket
+#define ua_bind bind
+#define ua_listen listen
+#define ua_accept accept
+#define ua_connect connect
+#define ua_translate_error gai_strerror
+#define ua_getaddrinfo getaddrinfo
+#define ua_getsockopt getsockopt
+#define ua_setsockopt setsockopt
+#define ua_freeaddrinfo freeaddrinfo
+
+
+static UA_INLINE UA_StatusCode socket_set_blocking(UA_SOCKET sockfd){
+  u_long iMode = 0;
+  if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
+    return UA_STATUSCODE_BADINTERNALERROR;
+  return UA_STATUSCODE_GOOD;;
+}
+
+static UA_INLINE UA_StatusCode socket_set_nonblocking(UA_SOCKET sockfd){
+  u_long iMode = 1;
+  if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
+    return UA_STATUSCODE_BADINTERNALERROR;
+  return UA_STATUSCODE_GOOD;;
+}
+
+
+#include <stdio.h>
+#define ua_snprintf(source, size, string, ...) _snprintf_s(source, size, _TRUNCATE, string, __VA_ARGS__)
+
+static UA_INLINE void ua_initialize_architecture_network(void){
+  WSADATA wsaData;
+  WORD wVersionRequested = MAKEWORD(2, 2);
+  WSAStartup(wVersionRequested, &wsaData);
+}
+
+static UA_INLINE void ua_deinitialize_architecture_network(void){
+  WSACleanup();
+}
 
 #endif /* PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_ */

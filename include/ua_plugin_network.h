@@ -13,6 +13,8 @@
 extern "C" {
 #endif
 
+#include "ua_architecture.h"
+
 #include "ua_server.h"
 #include "ua_plugin_log.h"
 
@@ -65,7 +67,7 @@ struct UA_Connection {
     UA_ConnectionConfig remoteConf;
     UA_SecureChannel *channel;       /* The securechannel that is attached to
                                       * this connection */
-    UA_Int32 sockfd;                 /* Most connectivity solutions run on
+    UA_SOCKET sockfd;                 /* Most connectivity solutions run on
                                       * sockets. Having the socket id here
                                       * simplifies the design. */
     UA_DateTime openingDate;         /* The date the connection was created */

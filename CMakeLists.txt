@@ -354,11 +354,12 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${MBEDTLS_INCLUDE_DIRS})
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
-                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_constants.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_types.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_constants.h
+                     ${PROJECT_SOURCE_DIR}/plugins/arch/${UA_ARCHITECTURE}/ua_architecture.h
+                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
@@ -452,7 +453,6 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
 )
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
@@ -623,7 +623,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                            ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                           ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources})
+                           ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources} )
 
 add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
 add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
