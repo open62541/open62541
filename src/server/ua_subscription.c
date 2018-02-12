@@ -17,6 +17,8 @@
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
 UA_Subscription *
 UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
     /* Allocate the memory */
