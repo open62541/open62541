@@ -84,6 +84,7 @@ Building on OS X
 
 .. code-block:: bash
 
+   xcode-select --install
    brew install cmake
    pip install six # python 2/3 compatibility workarounds
    pip install sphinx # for documentation generation

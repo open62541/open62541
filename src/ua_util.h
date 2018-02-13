@@ -32,16 +32,31 @@ extern "C" {
  * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
  * feature is not available. */
 
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-# define UA_THREAD_LOCAL _Thread_local /* C11 */
-#elif defined(__cplusplus) && __cplusplus > 199711L
-# define UA_THREAD_LOCAL thread_local /* C++11 */
-#elif defined(__GNUC__)
-# define UA_THREAD_LOCAL __thread /* GNU extension */
-#elif defined(_MSC_VER)
-# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
-#else
-# define UA_THREAD_LOCAL
+#if defined(__APPLE__) && defined(__MACH__)
+    #include <TargetConditionals.h>
+    #if (TARGET_IPHONE_SIMULATOR == 1 && TARGET_CPU_X86 == 1) || \
+        (TARGET_OS_IPHONE == 1 && TARGET_CPU_ARM == 1)
+        #define UA_THREAD_LOCAL
+    #else
+        #include <AvailabliltyMacros.h>
+        #if (MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_7)
+            #define UA_THREAD_LOCAL
+        #endif
+    #endif
+#endif
+
+#ifndef UA_THREAD_LOCAL
+    #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+    # define UA_THREAD_LOCAL _Thread_local /* C11 */
+    #elif defined(__cplusplus) && __cplusplus > 199711L
+    # define UA_THREAD_LOCAL thread_local /* C++11 */
+    #elif defined(__GNUC__)
+    # define UA_THREAD_LOCAL __thread /* GNU extension */
+    #elif defined(_MSC_VER)
+    # define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
+    #else
+    # define UA_THREAD_LOCAL
+    #endif
 #endif
 
 /* Integer Shortnames
