@@ -11,13 +11,12 @@ Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
 
 Write-Host -ForegroundColor Green "`n### Installing Miktex ###`n"
 if (-not (Test-Path "c:\miktex\texmfs\install\miktex\bin\pdflatex.exe")) {
-	& appveyor DownloadFile https://ftp.uni-erlangen.de/mirrors/CTAN/systems/win32/miktex/setup/miktex-portable.exe
+	& appveyor DownloadFile https://ftp.uni-erlangen.de/mirrors/CTAN/systems/win32/miktex/setup/windows-x86/miktex-portable.exe
 	& 7z x miktex-portable.exe -oc:\miktex -bso0 -bsp0
 
 	# Remove some big files to reduce size to be cached
 	Remove-Item -Path c:\miktex\texmfs\install\doc -Recurse
 	Remove-Item -Path c:\miktex\texmfs\install\miktex\bin\biber.exe
-	Remove-Item -Path c:\miktex\texmfs\install\miktex\bin\icudt58.dll
 	Remove-Item -Path c:\miktex\texmfs\install\miktex\bin\a5toa4.exe
 }
 
