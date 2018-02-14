@@ -53,6 +53,7 @@
 
 #include "ua_types.h"
 
+#define ua_getnameinfo getnameinfo
 #define ua_send send
 #define ua_recv recv
 #define ua_close closesocket

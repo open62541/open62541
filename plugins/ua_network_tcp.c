@@ -203,10 +203,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
-#if !defined(UA_FREERTOS)
+#if defined(ua_getnameinfo)
     /* Get the peer name for logging */
     char remote_name[100];
-    int res = getnameinfo((struct sockaddr*)remote,
+    int res = ua_getnameinfo((struct sockaddr*)remote,
                           sizeof(struct sockaddr_storage),
                           remote_name, sizeof(remote_name),
                           NULL, 0, NI_NUMERICHOST);
@@ -220,6 +220,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
                                                         "getnameinfo failed with error: %s",
                                                 (int)newsockfd, errno_str));
     }
+#else
+    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                "Connection %i | New connection over TCP",
+                (int)newsockfd);
 #endif
     /* Allocate and initialize the connection */
     ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
