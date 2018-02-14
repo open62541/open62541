@@ -347,7 +347,7 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session,
                          const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
+                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId, UA_Boolean skipAddingParentReference);
 
 /**********************/
 /* Create Namespace 0 */

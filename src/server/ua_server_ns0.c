@@ -42,7 +42,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     UA_NodeId referenceType = UA_NODEID_NUMERIC(0, referenceTypeId);
     UA_NodeId typeDefinition = UA_NODEID_NUMERIC(0, typeDefinitionId);
     return Operation_addNode_finish(server, &adminSession, &node, &parentNode,
-                                    &referenceType, &typeDefinition);
+                                    &referenceType, &typeDefinition, UA_FALSE);
 }
 
 static UA_StatusCode

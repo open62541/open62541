@@ -506,7 +506,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
          * definition and so on of the base type of this child, if they are not yet
          * in the destination */
         retval = Operation_addNode_finish(server, session, &newNodeId, destinationNodeId,
-                                          &rd->referenceTypeId, typeId);
+                                          &rd->referenceTypeId, typeId, UA_FALSE);
         UA_NodeId_deleteMembers(&newNodeId);
         UA_Nodestore_release(server, type);
     }
@@ -731,7 +731,7 @@ static const UA_NodeId hasSubtype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBT
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                          const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                         const UA_NodeId *typeDefinitionId) {
+                         const UA_NodeId *typeDefinitionId, UA_Boolean skipAddingParentReference) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_Node *type = NULL;
 
@@ -846,7 +846,7 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
                    !isNodeInTree(&server->config.nodestore, parentNodeId, &objectTypes, refs, 2)) {
                     UA_LOG_INFO_SESSION(server->config.logger, session,
                                         "AddNodes: Type of variable node must "
-                                        "be VariableType and not cannot be abstract");
+                                        "be VariableType and cannot be abstract");
                     retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
                     goto cleanup;
                 }
@@ -914,7 +914,7 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
     }
 
     /* Add reference to the parent */
-    if(!UA_NodeId_isNull(parentNodeId)) {
+    if(!skipAddingParentReference && !UA_NodeId_isNull(parentNodeId)) {
         if(UA_NodeId_isNull(referenceTypeId)) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Reference to parent cannot be null");
@@ -959,7 +959,7 @@ Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
     result->statusCode =
         Operation_addNode_finish(server, session, &result->addedNodeId,
                                  &item->parentNodeId.nodeId, &item->referenceTypeId,
-                                 &item->typeDefinition.nodeId);
+                                 &item->typeDefinition.nodeId, UA_FALSE);
 
     /* If finishing failed, the node was deleted */
     if(result->statusCode != UA_STATUSCODE_GOOD)
@@ -1039,12 +1039,22 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
 }
 
 UA_StatusCode
+UA_Server_addNode_finishSkipParent(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_NodeId parentNodeId,
+                         const UA_NodeId referenceTypeId,
+                         const UA_NodeId typeDefinitionId,
+                         UA_Boolean skipAddingParentReference) {
+    return Operation_addNode_finish(server, &adminSession, &nodeId, &parentNodeId,
+                                    &referenceTypeId, &typeDefinitionId, skipAddingParentReference);
+}
+
+UA_StatusCode
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          const UA_NodeId parentNodeId,
                          const UA_NodeId referenceTypeId,
                          const UA_NodeId typeDefinitionId) {
     return Operation_addNode_finish(server, &adminSession, &nodeId, &parentNodeId,
-                                    &referenceTypeId, &typeDefinitionId);
+                                    &referenceTypeId, &typeDefinitionId, UA_FALSE);
 }
 
 /****************/
@@ -1457,7 +1467,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     retval = UA_Server_setVariableNode_dataSource(server, *outNewNodeId, dataSource);
     if(retval == UA_STATUSCODE_GOOD)
         retval = Operation_addNode_finish(server, &adminSession, outNewNodeId,
-                                          &parentNodeId, &referenceTypeId, &typeDefinition);
+                                          &parentNodeId, &referenceTypeId, &typeDefinition, UA_FALSE);
     if(retval != UA_STATUSCODE_GOOD || deleteNodeId)
         UA_NodeId_deleteMembers(outNewNodeId);
     return retval;
@@ -1493,8 +1503,9 @@ static const UA_NodeId hasproperty = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASPRO
 static const UA_NodeId propertytype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_PROPERTYTYPE}};
 
 static UA_StatusCode
-UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
+UA_Server_addMethodNodeEx_finishSkipParent(UA_Server *server, const UA_NodeId nodeId,
                                  const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                 UA_Boolean skipAddingParentReference,
                                  UA_MethodCallback method,
                                  const size_t inputArgumentsSize, const UA_Argument *inputArguments,
                                  const UA_NodeId inputArgumentsRequestedNewNodeId,
@@ -1571,7 +1582,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
 
     /* Call finish to add the parent reference */
     retval |= Operation_addNode_finish(server, &adminSession, &nodeId, &parentNodeId,
-                                       &referenceTypeId, &UA_NODEID_NULL);
+                                       &referenceTypeId, &UA_NODEID_NULL, skipAddingParentReference);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Server_deleteNode(server, nodeId, true);
@@ -1580,7 +1591,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
     } else {
         if(inputArgumentsOutNewNodeId != NULL) {
             UA_NodeId_copy(&inputArgsId, inputArgumentsOutNewNodeId);
-    }
+        }
         if(outputArgumentsOutNewNodeId != NULL) {
             UA_NodeId_copy(&outputArgsId, outputArgumentsOutNewNodeId);
         }
@@ -1595,8 +1606,21 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                UA_MethodCallback method,
                                size_t inputArgumentsSize, const UA_Argument* inputArguments,
                                size_t outputArgumentsSize, const UA_Argument* outputArguments) {
-    return UA_Server_addMethodNodeEx_finish(server, nodeId, parentNodeId,
-                                            referenceTypeId, method,
+    return UA_Server_addMethodNodeEx_finishSkipParent(server, nodeId, parentNodeId,
+                                            referenceTypeId, UA_FALSE, method,
+                                            inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                            outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL);
+}
+
+UA_StatusCode
+UA_Server_addMethodNode_finishSkipParent(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                               UA_MethodCallback method,
+                               size_t inputArgumentsSize, const UA_Argument* inputArguments,
+                               size_t outputArgumentsSize, const UA_Argument* outputArguments,
+                               UA_Boolean skipAddingParentReference) {
+    return UA_Server_addMethodNodeEx_finishSkipParent(server, nodeId, parentNodeId,
+                                            referenceTypeId, skipAddingParentReference, method,
                                             inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
                                             outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL);
 }
@@ -1634,8 +1658,8 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_Server_addMethodNodeEx_finish(server, *outNewNodeId,
-                                              parentNodeId, referenceTypeId, method,
+    retval = UA_Server_addMethodNodeEx_finishSkipParent(server, *outNewNodeId,
+                                              parentNodeId, referenceTypeId, UA_FALSE, method,
                                               inputArgumentsSize, inputArguments,
                                               inputArgumentsRequestedNewNodeId,
                                               inputArgumentsOutNewNodeId,

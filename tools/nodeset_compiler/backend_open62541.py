@@ -236,6 +236,8 @@ extern UA_StatusCode %s(UA_Server *server);
                 writec(code)
 
         # Print inverse references leading to this node
+        # This also includes the parent reference. We already need it here otherwise some type checks will fail.
+        # Therefore within the _finish we need to set the parent ref to NULL
         for ref in node.printRefs:
             writec(generateReferenceCode(ref))
             
