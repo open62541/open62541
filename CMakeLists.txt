@@ -317,7 +317,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${MBEDTLS_INCLUDE_DIRS})
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
-                     ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h

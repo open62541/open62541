@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2015 (c) Chris Iatrou
@@ -16,7 +16,6 @@
 
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
-#include "ua_plugin_nodestore.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
@@ -38,21 +37,10 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
 }
 
 void
-deleteMonitoredItemsFromNode(UA_Subscription *subscription, const UA_Node *node) {
-    UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &node->monitoredItems, listEntry_node, tmp_mon) {
-        if (mon->subscription == subscription)
-            LIST_REMOVE(mon, listEntry_node);
-
-    }
-}
-
-void
 UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
     Subscription_unregisterPublishCallback(server, subscription);
 
     /* Delete monitored Items */
-    UA_Nodestore_iterate(server, subscription, deleteMonitoredItemsFromNode);
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &subscription->monitoredItems,
                       listEntry_store, tmp_mon) {
@@ -86,7 +74,7 @@ UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemId) {
     /* Find the MonitoredItem */
-    UA_MonitoredItem *mon, *mon_node;
+    UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry_store) {
         if(mon->itemId == monitoredItemId)
             break;
@@ -94,35 +82,28 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
-    /* Find the Node and remove MonitoredItem from it */
+    /* Find the Node, to increase its monitored counter */
     UA_Node *target;
     UA_StatusCode retval = UA_Nodestore_getCopy(server, &mon->monitoredNodeId, &target);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    LIST_FOREACH(mon_node, &target->monitoredItems, listEntry_node) {
-        if (mon_node->itemId == monitoredItemId) {
-            LIST_REMOVE(mon_node, listEntry_node);
-            break;
-        }
-    }
-    UA_Nodestore_replace(server, target);
-
     /* Triggering monitored callback on DataSource nodes, if not monitored anymore */
-    if (LIST_EMPTY(&target->monitoredItems) && target->nodeClass == UA_NODECLASS_VARIABLE) {
+    if (target->nodeClass == UA_NODECLASS_VARIABLE && --target->monCounter == 0) {
         const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
 
         if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE) {
             const UA_DataSource *dataSource = &varTarget->value.dataSource;
 
             if (dataSource->monitored != NULL) {
+                // FIXME: Should the returned StatusCode be used as return value?
                 dataSource->monitored(server, &sub->session->sessionId,
                                       sub->session->sessionHandle, &target->nodeId,
                                       target->context, true);
             }
-            // FIXME: use returned status code to generate (user) feedback etc...?
         }
     }
+    UA_Nodestore_replace(server, target);
 
     /* Remove the MonitoredItem */
     LIST_REMOVE(mon, listEntry_store);
@@ -132,10 +113,9 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 }
 
 void
-UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon, UA_Node *node) {
+UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon) {
     sub->numMonitoredItems++;
     LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry_store);
-    LIST_INSERT_HEAD(&node->monitoredItems, newMon, listEntry_node);
 }
 
 UA_UInt32

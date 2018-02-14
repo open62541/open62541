@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2016-2017 (c) Florian Palm
@@ -278,16 +278,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
 
-    UA_Node *target;
-    retval = UA_Nodestore_getCopy(server, &request->itemToMonitor.nodeId, &target);
-    if (retval != UA_STATUSCODE_GOOD) {
-        result->statusCode = retval;
-        return;
-    }
-
-    UA_Subscription_addMonitoredItem(cmc->sub, newMon, target);
-    UA_Nodestore_replace(server, target);
-
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
         UA_MonitoredItem_SampleCallback(server, newMon);
@@ -298,18 +288,28 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->itemId;
 
+    UA_Node *target;
+    retval = UA_Nodestore_getCopy(server, &request->itemToMonitor.nodeId, &target);
+    if (retval != UA_STATUSCODE_GOOD) {
+        result->statusCode = retval;
+        return;
+    }
+
     /* Triggering monitored callback on DataSource nodes, if first time monitored */
-    if (target->nodeClass == UA_NODECLASS_VARIABLE && LIST_NEXT(newMon, listEntry_node) == NULL) {
+    if (target->nodeClass == UA_NODECLASS_VARIABLE && ++target->monCounter == 1) {
         const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
 
         if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE) {
             const UA_DataSource *dataSource = &varTarget->value.dataSource;
 
+            // FIXME: Should the returned StatusCode be used as result->statusCode?
             dataSource->monitored(server, &session->sessionId,
                                   session->sessionHandle, &target->nodeId,
                                   target->context, false);
         }
     }
+    UA_Nodestore_replace(server, target);
+    UA_Subscription_addMonitoredItem(cmc->sub, newMon);
 }
 
 void
@@ -548,8 +548,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
     int loopCount = 1;
 
     if(session->lastSeenSubscriptionId > 0) {
-        /* If we found anything one the first loop or if there are LATE 
-         * in the list before lastSeenSubscriptionId and not LATE after 
+        /* If we found anything one the first loop or if there are LATE
+         * in the list before lastSeenSubscriptionId and not LATE after
          * lastSeenSubscriptionId we need a second loop.
          */
         loopCount = 2;

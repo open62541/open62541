@@ -709,7 +709,7 @@ typedef struct {
      * @param removed Determines, if the monitoring on the node was removed or created.
      * @return Returns a status code for logging. It could be used to determine,
      *         if the subscription was successfull and might be returned to the user. */
-    UA_StatusCode(*monitored)(UA_Server *server, const UA_NodeId *sessionId,
+    UA_StatusCode (*monitored)(UA_Server *server, const UA_NodeId *sessionId,
                               void *sessionContext, const UA_NodeId *nodeId,
                               void *nodeContext, const UA_Boolean removed);
 
