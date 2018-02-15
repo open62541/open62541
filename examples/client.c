@@ -6,7 +6,8 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
-handler_TheAnswerChanged(UA_Client *client, UA_UInt32 monId, UA_DataValue *value, void *context) {
+handler_TheAnswerChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
+                         UA_UInt32 monId, void *monContext, UA_DataValue *value) {
     printf("The Answer has changed!\n");
 }
 #endif
@@ -93,18 +94,25 @@ int main(int argc, char *argv[]) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
-    UA_UInt32 subId = 0;
-    UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
-                                  NULL, NULL, NULL, &subId);
-    if(subId)
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
+
+    UA_UInt32 subId = response.subscriptionId;
+    if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
         printf("Create subscription succeeded, id %u\n", subId);
-    /* Add a MonitoredItem */
-    UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
-    UA_UInt32 monId = 0;
-    UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
-                                             &handler_TheAnswerChanged, NULL, &monId, 250);
-    if(monId)
-        printf("Monitoring 'the.answer', id %u\n", monId);
+
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_STRING(1, "the.answer"));
+
+    UA_MonitoredItemCreateResult monResponse =
+    UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                              UA_TIMESTAMPSTORETURN_BOTH,
+                                              monRequest, NULL, handler_TheAnswerChanged, NULL);
+    if(monResponse.statusCode == UA_STATUSCODE_GOOD)
+        printf("Monitoring 'the.answer', id %u\n", monResponse.monitoredItemId);
+
+
     /* The first publish request should return the initial value of the variable */
     UA_Client_runAsync(client, 1000);
 #endif
@@ -151,7 +159,7 @@ int main(int argc, char *argv[]) {
     /* Take another look at the.answer */
     UA_Client_runAsync(client, 100);
     /* Delete the subscription */
-    if(!UA_Client_Subscription_delete(client, subId))
+    if(UA_Client_Subscriptions_deleteSingle(client, subId) == UA_STATUSCODE_GOOD)
         printf("Subscription removed\n");
 #endif
 
