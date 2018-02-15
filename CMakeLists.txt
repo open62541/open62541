@@ -96,6 +96,9 @@ mark_as_advanced(UA_ENABLE_TYPENAMES)
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
+option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
+mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
+
 option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
 if (MSVC AND UA_ENABLE_FULL_NS0)
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)

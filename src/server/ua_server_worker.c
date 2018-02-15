@@ -16,6 +16,9 @@
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+#include <valgrind/memcheck.h>
+#endif
 
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
@@ -429,7 +432,11 @@ UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    while(*running)
+    while(*running) {
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+        VALGRIND_DO_LEAK_CHECK;
+#endif
         UA_Server_run_iterate(server, true);
+    }
     return UA_Server_run_shutdown(server);
 }
