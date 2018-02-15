@@ -131,14 +131,7 @@ encodeWithExchangeBuffer(const void *ptr, encodeBinarySignature encodeFunc, Ctx 
 
 #if !UA_BINARY_OVERLAYABLE_INTEGER
 
-#if defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic warning "-W#warnings"
-#endif
-#warning Integer endianness could not be detected to be little endian. Use slow generic encoding.
-#if defined(__clang__)
-# pragma GCC diagnostic pop
-#endif
+#pragma message Integer endianness could not be detected to be little endian. Use slow generic encoding.
 
 /* These en/decoding functions are only used when the architecture isn't little-endian. */
 static void
@@ -310,14 +303,7 @@ DECODE_BINARY(UInt64) {
 
 #include <math.h>
 
-#if defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic warning "-W#warnings"
-#endif
-# warning No native IEEE 754 format detected. Use slow generic encoding.
-#if defined(__clang__)
-# pragma GCC diagnostic pop
-#endif
+#pragma message "No native IEEE 754 format detected. Use slow generic encoding."
 
 /* Handling of IEEE754 floating point values was taken from Beej's Guide to
  * Network Programming (http://beej.us/guide/bgnet/) and enhanced to cover the
