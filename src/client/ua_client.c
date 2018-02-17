@@ -142,9 +142,12 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     return UA_STATUSCODE_GOOD;
 }
 
+static const UA_NodeId
+serviceFaultId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVICEFAULT_ENCODING_DEFAULTBINARY}};
+
 /* Look for the async callback in the linked list, execute and delete it */
 static UA_StatusCode
-processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *responseTypeId,
+processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *responseTypeId,
                      const UA_ByteString *responseMessage, size_t *offset) {
     /* Find the callback */
     AsyncServiceCall *ac;
@@ -155,20 +158,44 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
     if(!ac)
         return UA_STATUSCODE_BADREQUESTHEADERINVALID;
 
-    /* Decode the response */
+    /* Allocate the response */
     void *response = UA_alloca(ac->responseType->memSize);
-    UA_StatusCode retval = UA_decodeBinary(responseMessage, offset, response,
-                                           ac->responseType, 0, NULL);
+
+    /* Verify the type of the response */
+    const UA_DataType *responseType = ac->responseType;
+    const UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, ac->responseType->binaryEncodingId);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!UA_NodeId_equal(responseTypeId, &expectedNodeId)) {
+        UA_init(response, ac->responseType);
+        if(UA_NodeId_equal(responseTypeId, &serviceFaultId)) {
+            /* Decode as a ServiceFault, i.e. only the response header */
+            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Received a ServiceFault response");
+            responseType = &UA_TYPES[UA_TYPES_SERVICEFAULT];
+        } else {
+            /* Close the connection */
+            UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Reply contains the wrong service response");
+            retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
+            goto process;
+        }
+    }
+
+    /* Decode the response */
+    retval = UA_decodeBinary(responseMessage, offset, response,
+                             responseType, 0, NULL);
+
+ process:
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Could not decode the response with id %u due to %s",
+                    requestId, UA_StatusCode_name(retval));
+        ((UA_ResponseHeader*)response)->serviceResult = retval;
+    }
 
     /* Call the callback */
-    if(retval == UA_STATUSCODE_GOOD) {
-        ac->callback(client, ac->userdata, requestId, response, ac->responseType);
-        UA_deleteMembers(response, ac->responseType);
-    } else {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not decode the response with Id %u", requestId);
-        UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADCOMMUNICATIONERROR);
-    }
+    ac->callback(client, ac->userdata, requestId, response, ac->responseType);
+    UA_deleteMembers(response, ac->responseType);
 
     /* Remove the callback */
     LIST_REMOVE(ac, pointers);
@@ -201,11 +228,6 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
        < UA_DateTime_nowMonotonic())
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
 
-    /* Forward declaration for the goto */
-    UA_NodeId expectedNodeId;
-    const UA_NodeId serviceFaultNodeId =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
-
     /* Decode the data type identifier of the response */
     size_t offset = 0;
     UA_NodeId responseId;
@@ -223,32 +245,37 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     /* Got the synchronous response */
     rd->received = true;
 
+    /* Forward declaration for the goto */
+    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
+
     /* Check that the response type matches */
-    expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
-    if(UA_NodeId_equal(&responseId, &expectedNodeId)) {
-        /* Decode the response */
-        retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
-                                 rd->client->config.customDataTypesSize,
-                                 rd->client->config.customDataTypes);
-    } else {
-        UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Reply contains the wrong service response");
-        if(UA_NodeId_equal(&responseId, &serviceFaultNodeId)) {
-            /* Decode only the message header with the servicefault */
+    if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
+        if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
+            UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Received a ServiceFault response");
+            UA_init(rd->response, rd->responseType);
             retval = UA_decodeBinary(message, &offset, rd->response,
                                      &UA_TYPES[UA_TYPES_SERVICEFAULT], 0, NULL);
         } else {
             /* Close the connection */
+            UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Reply contains the wrong service response");
             retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
         }
+        goto finish;
     }
 
+    UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Decode a message of type %u", responseId.identifier.numeric);
+
+    /* Decode the response */
+    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
+                             rd->client->config.customDataTypesSize,
+                             rd->client->config.customDataTypes);
 
 finish:
-    if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Received a response of type %i", responseId.identifier.numeric);
-    } else {
+    UA_NodeId_deleteMembers(&responseId);
+    if(retval != UA_STATUSCODE_GOOD) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             retval = UA_STATUSCODE_BADRESPONSETOOLARGE;
         UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -260,8 +287,6 @@ finish:
             respHeader->serviceResult = retval;
         }
     }
-    UA_NodeId_deleteMembers(&responseId);
-
     return retval;
 }
 
