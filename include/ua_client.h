@@ -64,6 +64,14 @@ typedef struct UA_Client UA_Client;
 typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
 
 /**
+ * Subscription Inactivity callback
+ * ------------------------- */
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+typedef void (*UA_SubscriptionInactivityCallback)(UA_Client *client, UA_UInt32 subscriptionId, void *subContext);
+#endif
+
+/**
  * Client Configuration
  * -------------------- */
 
@@ -81,6 +89,9 @@ typedef struct UA_ClientConfig {
 
     /* Callback function */
     UA_ClientStateCallback stateCallback;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_SubscriptionInactivityCallback subscriptionInactivityCallback;
+#endif
 
     void *clientContext;
 
