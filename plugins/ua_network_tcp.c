@@ -182,8 +182,10 @@ connection_releaserecvbuffer(UA_Connection *connection,
 
 static UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
-    if (connection->state == UA_CONNECTION_CLOSED)
+    if (connection->state == UA_CONNECTION_CLOSED) {
+        UA_ByteString_deleteMembers(buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
     /* Prevent OS signals when sending to a closed socket */
     int flags = 0;
 #ifdef MSG_NOSIGNAL
