@@ -644,9 +644,7 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
                                       UA_MessageType messageType, void *payload,
                                       const UA_DataType *payloadType) {
     UA_MessageContext mc;
-    UA_StatusCode retval;
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, payloadType->binaryEncodingId);
-    retval = UA_MessageContext_begin(&mc, channel, requestId, messageType);
+    UA_StatusCode retval = UA_MessageContext_begin(&mc, channel, requestId, messageType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -654,11 +652,12 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
     UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
-    retval |= UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, payloadType->binaryEncodingId);
+    retval = UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval |= UA_MessageContext_encode(&mc, payload, payloadType);
+    retval = UA_MessageContext_encode(&mc, payload, payloadType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
