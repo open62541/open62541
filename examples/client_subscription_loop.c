@@ -60,6 +60,11 @@ deleteSubscriptionCallback(UA_Client *client, UA_UInt32 subscriptionId, void *su
 }
 
 static void
+subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subContext) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Inactivity for subscription %u", subId);
+}
+
+static void
 stateCallback (UA_Client *client, UA_ClientState clientState) {
     switch(clientState) {
         case UA_CLIENTSTATE_DISCONNECTED:
@@ -110,6 +115,7 @@ int main(void) {
     UA_ClientConfig config = UA_ClientConfig_default;
     /* Set stateCallback */
     config.stateCallback = stateCallback;
+    config.subscriptionInactivityCallback = subscriptionInactivityCallback;
 
     UA_Client *client = UA_Client_new(config);
 

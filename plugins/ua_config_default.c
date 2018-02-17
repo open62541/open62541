@@ -468,6 +468,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
     NULL, /*.customDataTypes */
 
     NULL, /*.stateCallback */
+    NULL, /*.subscriptionInactivityCallback */
+
     NULL,  /*.clientContext */
 
     10 /* .outStandingPublishRequests */

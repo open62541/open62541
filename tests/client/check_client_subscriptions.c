@@ -395,10 +395,19 @@ stateCallback (UA_Client *client, UA_ClientState clientState){
     }
 }
 
+static UA_Boolean inactivityCallbackCalled = false;
+
+static void
+subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subContext) {
+    inactivityCallbackCalled = true;
+}
+
 START_TEST(Client_subscription_async_sub) {
     UA_ClientConfig clientConfig = UA_ClientConfig_default;
     /* Set stateCallback */
     clientConfig.stateCallback = stateCallback;
+    clientConfig.subscriptionInactivityCallback = subscriptionInactivityCallback;
+    inactivityCallbackCalled = false;
 
     /* Activate background publish request */
     clientConfig.outStandingPublishRequests = 10;
@@ -452,10 +461,11 @@ START_TEST(Client_subscription_async_sub) {
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
     /* Simulate network cable unplugged (no response from server) */
+    ck_assert_uint_eq(inactivityCallbackCalled, false);
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
     UA_Client_runAsync(client, (UA_UInt16)clientConfig.timeout);
-    ck_assert_uint_eq(notificationReceived, false);
-    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_DISCONNECTED);
+    ck_assert_uint_eq(inactivityCallbackCalled, true);
+    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
     UA_Client_delete(client);
 }

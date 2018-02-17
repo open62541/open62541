@@ -713,9 +713,15 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
         UA_DateTime maxSilence = (UA_DateTime)
             ((sub->publishingInterval * sub->maxKeepAliveCount) +
              client->config.timeout) * UA_DATETIME_MSEC;
-        if(maxSilence + sub->lastActivity < UA_DateTime_nowMonotonic())
+        if(maxSilence + sub->lastActivity < UA_DateTime_nowMonotonic()) {
+            /* Reset activity */
+            sub->lastActivity = UA_DateTime_nowMonotonic();
+
+            if (client->config.subscriptionInactivityCallback)
+                client->config.subscriptionInactivityCallback(client, sub->subscriptionId, sub->context);
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Inactivity for Subscription %d.", sub->subscriptionId);
+        }
     }
 }
 
