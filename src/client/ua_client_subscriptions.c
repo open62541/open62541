@@ -704,25 +704,18 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
     if(client->state < UA_CLIENTSTATE_SESSION)
         return;
 
-    /* The session must have at least one subscription */
-    if(!LIST_FIRST(&client->subscriptions))
+    /* Is the lack of responses the client's fault? */
+    if(client->currentlyOutStandingPublishRequests == 0)
         return;
 
-    /* Check subscriptions inactivity */
-    if (client->config.outStandingPublishRequests) {
-        UA_Client_Subscription *sub;
-        LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-            UA_DateTime maxSilence = (UA_DateTime)
-                ((sub->publishingInterval * sub->maxKeepAliveCount) +
-                 client->config.timeout) * UA_DATETIME_MSEC;
-            if(maxSilence + sub->lastActivity < UA_DateTime_nowMonotonic()) {
-                UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                             "Inactivity for Subscription %d. Closing the connection.",
-                             sub->subscriptionId);
-                UA_Client_close(client);
-                return;
-            }
-        }
+    UA_Client_Subscription *sub;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
+        UA_DateTime maxSilence = (UA_DateTime)
+            ((sub->publishingInterval * sub->maxKeepAliveCount) +
+             client->config.timeout) * UA_DATETIME_MSEC;
+        if(maxSilence + sub->lastActivity < UA_DateTime_nowMonotonic())
+            UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Inactivity for Subscription %d.", sub->subscriptionId);
     }
 }
 
