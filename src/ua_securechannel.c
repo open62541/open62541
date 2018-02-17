@@ -643,6 +643,11 @@ UA_StatusCode
 UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                       UA_MessageType messageType, void *payload,
                                       const UA_DataType *payloadType) {
+    if(channel->connection) {
+        if (channel->connection->state == UA_CONNECTION_CLOSED)
+            return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
     UA_MessageContext mc;
     UA_StatusCode retval = UA_MessageContext_begin(&mc, channel, requestId, messageType);
     if(retval != UA_STATUSCODE_GOOD)
