@@ -33,7 +33,7 @@ static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
     config = UA_ServerConfig_new_default();
-    config->maxPublishReqPerSession = 8;
+    config->maxPublishReqPerSession = 5;
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -59,14 +59,6 @@ dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
                   UA_UInt32 monId, void *monContext, UA_DataValue *value) {
     notificationReceived = true;
     countNotificationReceived++;
-}
-
-static void
-dataChangeHandlerSubSleep(UA_Client *client, UA_UInt32 subId, void *subContext,
-                          UA_UInt32 monId, void *monContext, UA_DataValue *value) {
-    notificationReceived = true;
-    countNotificationReceived++;
-    UA_fakeSleep((UA_UInt32)(publishingInterval + 2));
 }
 
 START_TEST(Client_subscription) {
@@ -387,7 +379,7 @@ stateCallback (UA_Client *client, UA_ClientState clientState){
         UA_MonitoredItemCreateResult monResponse =
             UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
                                                       UA_TIMESTAMPSTORETURN_BOTH,
-                                                      monRequest, NULL, dataChangeHandlerSubSleep, NULL);
+                                                      monRequest, NULL, dataChangeHandler, NULL);
         ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
         UA_UInt32 monId = monResponse.monitoredItemId;
 
