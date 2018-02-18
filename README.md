@@ -38,16 +38,15 @@ Features currently being implemented:
 - Target 0.3 release (to be released in the coming weeks):
   - Secure communication with encrypted messages (Done)
   - Access control for individual nodes (Done)
+  - Asynchronous service requests in the client (Done)
 - Target 0.4 release:
   - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
-  - Event-loop (background tasks) and asynchronous service requests in the client, WIP #1117 #1410
+  - Event-loop (background tasks) in the client
   - Publish/Subscribe based on UDP (Specification Part 14), WIP @ Fraunhofer IOSB
 
 ### Dependencies
 
-None.
-
-On a more serious note, on most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://open62541.org/doc/current/building.html) for details.
+On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://open62541.org/doc/current/building.html) for details.
 
 - Core Library: The core library has no dependencies besides the C99 standard headers.
 - Default Plugins: The default plugins use the POSIX interfaces for networking and accessing the system clock. Ports to different (embedded) architectures are achieved by customizing the plugins.
@@ -64,16 +63,19 @@ We emphasize code quality. The following quality metrics are continuously checke
 - Zero unresolved issues from fuzzing the library in Google's oss-fuzz infrastructure
 - Zero issues indicated by Valgrind (Linux), DrMemory (Windows) and Clang AddressSanitizer / MemorySanitizer for the CTT tests, unit tests and fuzzing
 
-### Using open62541
+### Documentation and Support
 
 A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
 Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
 To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/open62541/open62541/build/artifacts).
 
-For discussion and help, you can use
+For individual discussion and support, use the following channels
+
 - the [mailing list](https://groups.google.com/d/forum/open62541)
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/open62541/open62541/issues)
+
+or contact a member of the core development group (see below).
 
 ### Development
 
@@ -84,7 +86,7 @@ Besides the general open62541 community, a group of core maintainers jointly ste
 - Julius Pfrommer (Fraunhofer IOSB, Karlsruhe)
 - Stefan Profanter (fortiss, Munich)
 
-As an open source project, we encourage new contributors to help improve open62541. There are ways to begin contributing without deep knowledge of the OPC UA standard:
+As an open source project, we encourage new contributors to help improve open62541. The following are good starting points for new contributors:
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
