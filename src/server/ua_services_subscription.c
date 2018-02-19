@@ -259,7 +259,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     }
 
     /* Create the monitoreditem */
-    UA_MonitoredItem *newMon = UA_MonitoredItem_new();
+    UA_MonitoredItem *newMon = UA_MonitoredItem_new(UA_MONITOREDITEMTYPE_CHANGENOTIFY);
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;

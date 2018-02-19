@@ -189,7 +189,11 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
                 return;
             UA_MonitoredItemNotification *min = &mins[*pos];
             min->clientHandle = qv->clientHandle;
-            min->value = qv->value;
+            if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+                min->value = qv->data.value;
+            } else {
+                /* TODO implementation for events */
+            }
             TAILQ_REMOVE(&mon->queue, qv, listEntry);
             UA_free(qv);
             --mon->currentQueueSize;
