@@ -7,12 +7,14 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
+#include <mbedtls/rsa.h>
+#include <ua_plugin_securitypolicy.h>
 
 #include "ua_securitypolicy_basic256sha256.h"
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
 
-#define UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN 66 // FIXME: this value is questionable
+#define UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN 42 // FIXME: this value is questionable
 #define UA_SHA1_Length 20
 #define UA_SHA256_LENGTH 32
 #define UA_SECURITYPOLICY_BASIC256SHA256_SYM_KEY_LENGTH 32
@@ -168,7 +170,7 @@ asym_encrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     size_t inOffset = 0;
     size_t offset = 0;
     size_t outLength = 0;
-    const unsigned char* label;
+    const unsigned char* label = NULL;
     Basic256Sha256_PolicyContext *pc = cc->policyContext;
     while(lenDataToEncrypt >= plainTextBlockSize) {
         int mbedErr = mbedtls_rsa_rsaes_oaep_encrypt(remoteRsaContext, mbedtls_ctr_drbg_random,
@@ -182,6 +184,7 @@ asym_encrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
             return retval;
         }
 
+        outLength += remoteRsaContext->len;
         inOffset += plainTextBlockSize;
         offset += outLength;
         lenDataToEncrypt -= plainTextBlockSize;
@@ -218,7 +221,7 @@ asym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     size_t inOffset = 0;
     size_t offset = 0;
     size_t outLength = 0;
-    const unsigned char* label;
+    const unsigned char* label = NULL;
     Basic256Sha256_PolicyContext *pc = cc->policyContext;
 
     while(lenDataToDecrypt >= rsaContext->len) {
@@ -264,7 +267,7 @@ asym_makeThumbprint_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     if(UA_ByteString_equal(certificate, &UA_BYTESTRING_NULL))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(thumbprint->length != UA_SHA256_LENGTH)
+    if(thumbprint->length != UA_SHA1_Length)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* The certificate thumbprint is always a 20 bit sha1 hash, see Part 4 of the Specification. */
@@ -305,7 +308,6 @@ sym_verify_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL || cc == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Compute MAC */
     if(signature->length != UA_SHA256_LENGTH) {
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Signature size does not have the desired size defined by the security policy");
@@ -315,6 +317,7 @@ sym_verify_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     Basic256Sha256_PolicyContext *pc =
         (Basic256Sha256_PolicyContext*)securityPolicy->policyContext;
 
+    /* Compute MAC */
     unsigned char mac[UA_SHA256_LENGTH];
     md_hmac_Basic256Sha256(&pc->sha256MdContext, &cc->remoteSymSigningKey, message, mac);
 
@@ -332,7 +335,7 @@ sym_sign_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    md_hmac(&cc->policyContext->sha256MdContext, &cc->localSymSigningKey,
+    md_hmac_Basic256Sha256(&cc->policyContext->sha256MdContext, &cc->localSymSigningKey,
             message, signature->data);
     return UA_STATUSCODE_GOOD;
 }
@@ -346,7 +349,7 @@ sym_getSignatureSize_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
 static size_t
 sym_getEncryptionKeyLength_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
                                             const void *channelContext) {
-    return UA_SECURITYPOLICY_BASIC256SHA256_SYM_KEY_LENGTH;
+    return securityPolicy->symmetricModule.encryptionBlockSize;
 }
 
 static UA_StatusCode
@@ -456,7 +459,7 @@ sym_generateKey_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
         ANext_and_seed.data
     };
 
-    md_hmac(&pc->sha256MdContext, secret, seed, A.data);
+    md_hmac_Basic256Sha256(&pc->sha256MdContext, secret, seed, A.data);
 
     UA_StatusCode retval = 0;
     for(size_t offset = 0; offset < out->length; offset += hashLen) {
@@ -478,8 +481,8 @@ sym_generateKey_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
             bufferAllocated = UA_TRUE;
         }
 
-        md_hmac(&pc->sha256MdContext, secret, &A_and_seed, outSegment.data);
-        md_hmac(&pc->sha256MdContext, secret, &A, ANext.data);
+        md_hmac_Basic256Sha256(&pc->sha256MdContext, secret, &A_and_seed, outSegment.data);
+        md_hmac_Basic256Sha256(&pc->sha256MdContext, secret, &A, ANext.data);
 
         if(retval != UA_STATUSCODE_GOOD) {
             if(bufferAllocated)
@@ -775,7 +778,7 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
         goto error;
 
     /* Set the local certificate thumbprint */
-    retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA256_LENGTH);
+    retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_Length);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
     retval = asym_makeThumbprint_sp_basic256sha256(pc->securityPolicy,
@@ -847,7 +850,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString 
 
     /* SymmetricModule */
     symmetricModule->encryptionBlockSize = 16; // FIXME: unclear
-    symmetricModule->signingKeyLength = 16; // FIXME: unclear
+    symmetricModule->signingKeyLength = 32; // FIXME: unclear
     symmetricModule->generateKey = sym_generateKey_sp_basic256sha256;
     symmetricModule->generateNonce = sym_generateNonce_sp_basic256sha256;
 

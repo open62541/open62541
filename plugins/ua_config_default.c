@@ -20,6 +20,7 @@
 
 #ifdef UA_ENABLE_ENCRYPTION
 #include "ua_securitypolicy_basic128rsa15.h"
+#include "ua_securitypolicy_basic256sha256.h"
 #endif
 
 #include "ua_types.h"

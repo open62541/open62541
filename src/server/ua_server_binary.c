@@ -14,6 +14,8 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
+#include <ua_plugin_securitypolicy.h>
+#include <src_generated/ua_types_generated.h>
 #include "ua_util.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -650,7 +652,8 @@ createSecureChannel(void *application, UA_Connection *connection,
 
     /* Create a new channel */
     return UA_SecureChannelManager_create(&server->secureChannelManager, connection,
-                                          &endpoint->securityPolicy, asymHeader);
+                                          &endpoint->securityPolicy, asymHeader,
+                                         endpoint->endpointDescription.securityMode);
 }
 
 static UA_StatusCode

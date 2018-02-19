@@ -41,7 +41,8 @@ UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
 UA_StatusCode
 UA_SecureChannel_init(UA_SecureChannel *channel,
                       const UA_SecurityPolicy *securityPolicy,
-                      const UA_ByteString *remoteCertificate) {
+                      const UA_ByteString *remoteCertificate,
+                      const UA_MessageSecurityMode securityMode) {
     if(channel == NULL || securityPolicy == NULL || remoteCertificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -49,6 +50,7 @@ UA_SecureChannel_init(UA_SecureChannel *channel,
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->state = UA_SECURECHANNELSTATE_FRESH;
     channel->securityPolicy = securityPolicy;
+    channel->securityMode = securityMode;
 
     UA_StatusCode retval;
     if(channel->securityPolicy->certificateVerification != NULL) {

@@ -102,7 +102,8 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
 UA_StatusCode
 UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection *const connection,
                                const UA_SecurityPolicy *const securityPolicy,
-                               const UA_AsymmetricAlgorithmSecurityHeader *const asymHeader) {
+                               const UA_AsymmetricAlgorithmSecurityHeader *const asymHeader,
+                               const UA_MessageSecurityMode securityMode) {
     /* connection already has a channel attached. */
     if(connection->channel != NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -124,7 +125,8 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
     /* Create the channel context and parse the sender (remote) certificate used for the
      * secureChannel. */
     UA_StatusCode retval = UA_SecureChannel_init(&entry->channel, securityPolicy,
-                                                 &asymHeader->senderCertificate);
+                                                 &asymHeader->senderCertificate,
+                                                 securityMode);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(entry);
         return retval;
@@ -166,6 +168,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
         channel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
     UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
     channel->securityMode = request->securityMode;
+
     UA_SecureChannel_generateNonce(channel,
                                    channel->securityPolicy->symmetricModule.secureChannelNonceLength,
                                    &channel->localNonce);
