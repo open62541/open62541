@@ -103,6 +103,19 @@ String_deleteMembers(UA_String *s, const UA_DataType *_) {
     UA_free((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
 
+UA_Boolean
+UA_QualifiedName_equal(const UA_QualifiedName *qn1,
+                       const UA_QualifiedName *qn2) {
+    if(qn1 == NULL || qn2 == NULL)
+        return false;
+    if(qn1->namespaceIndex != qn2->namespaceIndex)
+        return false;
+    if(qn1->name.length != qn2->name.length)
+        return false;
+    return (memcmp((char const*)qn1->name.data,
+                   (char const*)qn2->name.data, qn1->name.length) == 0);
+}
+
 /* DateTime */
 UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
@@ -288,6 +301,17 @@ UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
                                    &n2->identifier.byteString);
     }
     return false;
+}
+
+UA_Boolean
+UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
+    if(n1 == NULL || n2 == NULL)
+        return false;
+    if(n1->serverIndex != n2->serverIndex)
+        return false;
+    if(!UA_String_equal(&n1->namespaceUri, &n2->namespaceUri))
+        return false;
+    return UA_NodeId_equal(&n1->nodeId, &n2->nodeId);
 }
 
 /* FNV non-cryptographic hash function. See
