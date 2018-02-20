@@ -803,16 +803,16 @@ UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
     /* Always look in built-in types first
      * (may contain data types from all namespaces) */
     for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric
-           && UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
+        if(UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric &&
+           UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
             return &UA_TYPES[i];
     }
 
     /* When other namespace look in custom types, too */
     if(typeId->namespaceIndex != 0) {
         for(size_t i = 0; i < ctx->customTypesArraySize; ++i) {
-            if(ctx->customTypesArray[i].binaryEncodingId == typeId->identifier.numeric
-               && UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
+            if(ctx->customTypesArray[i].binaryEncodingId == typeId->identifier.numeric &&
+               ctx->customTypesArray[i].typeId.namespaceIndex == typeId->namespaceIndex)
                 return &ctx->customTypesArray[i];
         }
     }
