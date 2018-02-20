@@ -257,7 +257,18 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
-/*
+/**
+* Historical Access Service Set
+* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+static UA_INLINE UA_HistoryReadResponse
+UA_Client_Service_history_read(UA_Client *client, const UA_HistoryReadRequest request) {
+    UA_HistoryReadResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_HISTORYREADREQUEST],
+        &response, &UA_TYPES[UA_TYPES_HISTORYREADRESPONSE]);
+    return response;
+}
+
+/**
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
 #ifdef UA_ENABLE_METHODCALLS
