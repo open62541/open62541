@@ -529,23 +529,25 @@ def generateNodeCode_finish(node, generate_ns0, parentrefs):
 
 
     if isinstance(node, MethodNode):
-        code.append("UA_Server_addMethodNode_finish(server, ")
+        code.append("UA_Server_addMethodNode_finishSkipParent(server, ")
     else:
-        code.append("UA_Server_addNode_finish(server, ")
+        code.append("UA_Server_addNode_finishSkipParent(server, ")
     code.append(generateNodeIdCode(node.id) + ",")
     code.append(generateNodeIdCode(parentNode) + ",")
     code.append(generateNodeIdCode(parentRef) + ",")
 
+    # last parameter is set to true to skip adding parent reference since it is already added manually before
+
     if isinstance(node, MethodNode):
-        code.append("NULL, 0, NULL, 0, NULL);")
+        code.append("NULL, 0, NULL, 0, NULL, UA_TRUE);")
     else:
 
         if isinstance(node, VariableTypeNode):
             # we need the HasSubtype reference
-            code.append(generateSubtypeOfDefinitionCode(node) + ");")
+            code.append(generateSubtypeOfDefinitionCode(node) + ", UA_TRUE);")
         else:
             typeDefCode = "UA_NODEID_NULL" if typeDef is None else generateNodeIdCode(typeDef)
-            code.append(typeDefCode + ");")
+            code.append(typeDefCode + ", UA_TRUE);")
 
     return "\n".join(code)
 

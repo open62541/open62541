@@ -990,7 +990,11 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
  * _finish method adds the references to the parent (and the TypeDefinition if
  * applicable), copies mandatory children, performs type-checking of variables
  * and calls the node constructor(s) at the end. The _finish method may remove
- * the node if it encounters an error. */
+ * the node if it encounters an error.
+ * The _finishSkipParent is a variant of the _finish method which additionally
+ * allows to indicate if adding the parent reference should be skipped if it is
+ * already added before manually.
+ * */
 
 /* The ``attr`` argument must have a type according to the NodeClass.
  * ``VariableAttributes`` for variables, ``ObjectAttributes`` for objects, and
@@ -1011,12 +1015,28 @@ UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          const UA_NodeId typeDefinitionId);
 
 UA_StatusCode UA_EXPORT
+UA_Server_addNode_finishSkipParent(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_NodeId parentNodeId,
+                         const UA_NodeId referenceTypeId,
+                         const UA_NodeId typeDefinitionId,
+                         UA_Boolean skipAddingParentReference);
+
+UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          const UA_NodeId parentNodeId,
                          const UA_NodeId referenceTypeId,
                          UA_MethodCallback method,
                          size_t inputArgumentsSize, const UA_Argument* inputArguments,
                          size_t outputArgumentsSize, const UA_Argument* outputArguments);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addMethodNode_finishSkipParent(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_NodeId parentNodeId,
+                         const UA_NodeId referenceTypeId,
+                         UA_MethodCallback method,
+                         size_t inputArgumentsSize, const UA_Argument* inputArguments,
+                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
+                         UA_Boolean skipAddingParentReference);
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT
