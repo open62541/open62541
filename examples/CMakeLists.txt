@@ -56,6 +56,8 @@ add_example(server server.c)
 
 add_example(client client.c)
 
+add_example(client_historical client_historical.c)
+
 add_example(client_connect_loop client_connect_loop.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
