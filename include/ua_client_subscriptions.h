@@ -177,7 +177,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
     UA_ModifyMonitoredItemsResponse response;
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
+                        &response, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
     return response;
 }
 
