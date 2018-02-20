@@ -462,8 +462,8 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 UA_HistoryReadResponse
 __UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
                            const UA_DateTime startTime, const UA_DateTime endTime,
-                           const UA_UInt32 maxItems, const UA_Boolean returnBounds,
-                           const UA_TimestampsToReturn timestampsToReturn,
+                           const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                           const UA_Boolean readModified, const UA_TimestampsToReturn timestampsToReturn,
                            const UA_ByteString continuationPoint, const UA_Boolean releaseConti) {
 
     UA_HistoryReadValueId item;
@@ -477,8 +477,8 @@ __UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
     // TODO: ReadEventDetails / ReadProcessedDetails / ReadAtTimeDetails
     UA_ReadRawModifiedDetails details;
     UA_ReadRawModifiedDetails_init(&details);
-    details.isReadModified = false; // Return only modified values
-    details.returnBounds = returnBounds;
+    details.isReadModified = readModified; // Return only modified values
+    details.returnBounds = returnBounds;   // Return values pre / post given range
 
     // At least two of the following parameters must be set
     details.numValuesPerNode = maxItems; // 0 = return all / max server is capable of
@@ -505,8 +505,9 @@ UA_StatusCode
 UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
                          const UA_HistoricalIteratorCallback callback,
                          const UA_DateTime startTime, const UA_DateTime endTime,
-                         const UA_UInt32 maxItems, const UA_Boolean returnBounds,
-                         const UA_TimestampsToReturn timestampsToReturn, void *handle) {
+                         const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                         const UA_Boolean readModified, const UA_TimestampsToReturn timestampsToReturn,
+                         void *handle) {
 
     UA_Boolean isInverse = !startTime || (startTime > endTime);
     UA_ByteString continuationPoint = UA_BYTESTRING_NULL;
@@ -518,8 +519,8 @@ UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
         /* We release the continuation point, if no more data is requested by the user */
         UA_Boolean cleanup = !fetchMore && continuationAvail;
         UA_HistoryReadResponse response =
-            __UA_Client_readHistorical(client, nodeId, startTime, endTime, maxItems,
-                                       returnBounds, timestampsToReturn, continuationPoint, cleanup);
+            __UA_Client_readHistorical(client, nodeId, startTime, endTime, returnBounds, maxItems,
+                                       readModified, timestampsToReturn, continuationPoint, cleanup);
 
         if (cleanup) {
             retval = response.responseHeader.serviceResult;

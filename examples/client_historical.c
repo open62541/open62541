@@ -128,11 +128,11 @@ int main(int argc, char *argv[]) {
     /* Read historical values */
     printf("\nStart historical read (4, \"Demo.History.ByteWithHistory\"):\n");
     retval = UA_Client_readHistorical(client, UA_NODEID_STRING(4, "Demo.History.ByteWithHistory"), readHist,
-        UA_DateTime_fromUnixTime(0), UA_DateTime_now(), 10, false, UA_TIMESTAMPSTORETURN_BOTH, (void *)UA_FALSE);
+        UA_DateTime_fromUnixTime(0), UA_DateTime_now(), false, 10, false, UA_TIMESTAMPSTORETURN_BOTH, (void *)UA_FALSE);
 
     printf("\nStart historical read (4, \"Demo.History.DoubleWithHistory\"):\n");
     retval = UA_Client_readHistorical(client, UA_NODEID_STRING(4, "Demo.History.DoubleWithHistory"), readHist,
-        UA_DateTime_fromUnixTime(0), UA_DateTime_now(), 10, false, UA_TIMESTAMPSTORETURN_BOTH, (void *)UA_TRUE);
+        UA_DateTime_fromUnixTime(0), UA_DateTime_now(), false, 10, false, UA_TIMESTAMPSTORETURN_BOTH, (void *)UA_TRUE);
 
 cleanup:
     UA_Client_disconnect(client);
