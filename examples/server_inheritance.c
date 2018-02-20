@@ -50,7 +50,7 @@ int main(void) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001),
                               UA_NODEID_NUMERIC(1, 10000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Class"), UA_NODEID_NULL,
+                              UA_QUALIFIEDNAME(1, "Class"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
@@ -59,7 +59,7 @@ int main(void) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10002),
                               UA_NODEID_NUMERIC(1, 10000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Species"), UA_NODEID_NULL,
+                              UA_QUALIFIEDNAME(1, "Species"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     otAttr = UA_ObjectTypeAttributes_default;
@@ -78,7 +78,7 @@ int main(void) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20001),
                               UA_NODEID_NUMERIC(1, 20000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Species"), UA_NODEID_NULL,
+                              UA_QUALIFIEDNAME(1, "Species"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
@@ -89,7 +89,7 @@ int main(void) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20002),
                               UA_NODEID_NUMERIC(1, 20000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NULL,
+                              UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     /* Instatiate a dog named bello:
