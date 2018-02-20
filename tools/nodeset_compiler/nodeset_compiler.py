@@ -89,6 +89,7 @@ parser.add_argument('--max-string-length',
                     help='Maximum allowed length of a string literal. If longer, it will be set to an empty string')
 
 parser.add_argument('-v', '--verbose', action='count',
+                    default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
 
 args = parser.parse_args()
