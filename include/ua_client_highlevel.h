@@ -438,6 +438,18 @@ UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
 UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
 #endif
 
+typedef UA_Boolean
+(*UA_HistoricalIteratorCallback)(const UA_NodeId nodeId, const UA_Boolean isInverse,
+                                 const UA_Boolean moreDataAvailable,
+                                 const UA_HistoryData *data, void *handle);
+
+UA_StatusCode UA_EXPORT
+UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
+                         const UA_HistoricalIteratorCallback callback,
+                         const UA_DateTime startTime, const UA_DateTime endTime,
+                         const UA_UInt32 maxItems, const UA_Boolean returnBounds,
+                         const UA_TimestampsToReturn timestampsToReturn, void *handle);
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
 __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,

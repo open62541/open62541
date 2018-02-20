@@ -197,3 +197,10 @@ AggregateConfiguration
 AggregateFilter
 SetTriggeringRequest
 SetTriggeringResponse
+HistoryReadValueId
+HistoryReadResult
+HistoryReadDetails
+ReadRawModifiedDetails
+HistoryData
+HistoryReadRequest
+HistoryReadResponse
