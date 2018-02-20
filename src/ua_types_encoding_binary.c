@@ -800,20 +800,23 @@ UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
     if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
         return NULL;
 
-    /* Custom or standard data type? */
-    const UA_DataType *types = UA_TYPES;
-    size_t typesSize = UA_TYPES_COUNT;
-    if(typeId->namespaceIndex != 0) {
-        types = ctx->customTypesArray;
-        typesSize = ctx->customTypesArraySize;
+    /* Always look in built-in types first
+     * (may contain data types from all namespaces) */
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric
+           && UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
+            return &UA_TYPES[i];
     }
 
-    /* Iterate over the array */
-    for(size_t i = 0; i < typesSize; ++i) {
-        if(types[i].binaryEncodingId == typeId->identifier.numeric &&
-           types[i].typeId.namespaceIndex == typeId->namespaceIndex)
-            return &types[i];
+    /* When other namespace look in custom types, too */
+    if(typeId->namespaceIndex != 0) {
+        for(size_t i = 0; i < ctx->customTypesArraySize; ++i) {
+            if(ctx->customTypesArray[i].binaryEncodingId == typeId->identifier.numeric
+               && UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
+                return &ctx->customTypesArray[i];
+        }
     }
+
     return NULL;
 }
 
