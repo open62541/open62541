@@ -139,6 +139,9 @@ class Node(object):
                 self.inverseReferences.add(Reference(source, reftype, target, forward))
 
     def replaceAliases(self, aliases):
+        if hasattr(self, 'dataType'):
+            if str(self.dataType) in aliases:
+                self.dataType = NodeId(aliases[self.dataType])
         if str(self.id) in aliases:
             self.id = NodeId(aliases[self.id])
         new_refs = set()
