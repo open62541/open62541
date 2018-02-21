@@ -7,19 +7,10 @@
 
 #include "ua_securechannel.h"
 #include "ua_client_highlevel.h"
+#include "ua_client_subscriptions.h"
 #include "../../deps/queue.h"
 #include "ua_timer.h"
 
-#ifdef UA_ENABLE_MULTITHREADING
-
-/* TODO: Don't depend on liburcu */
-#include <urcu.h>
-#include <urcu/lfstack.h>
-
-struct UA_ClientWorker;
-typedef struct UA_ClientWorker UA_ClientWorker;
-
-#endif /* UA_ENABLE_MULTITHREADING */
 
 /**************************/
 /* Subscriptions Handling */
@@ -28,65 +19,76 @@ typedef struct UA_ClientWorker UA_ClientWorker;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 typedef struct UA_Client_NotificationsAckNumber {
-    LIST_ENTRY(UA_Client_NotificationsAckNumber)
-    listEntry;
+    LIST_ENTRY(UA_Client_NotificationsAckNumber) listEntry;
     UA_SubscriptionAcknowledgement subAck;
 } UA_Client_NotificationsAckNumber;
 
 typedef struct UA_Client_MonitoredItem {
-    LIST_ENTRY(UA_Client_MonitoredItem)
-    listEntry;
+    LIST_ENTRY(UA_Client_MonitoredItem) listEntry;
     UA_UInt32 monitoredItemId;
-    UA_UInt32 monitoringMode;
-    UA_NodeId monitoredNodeId;
-    UA_UInt32 attributeID;
     UA_UInt32 clientHandle;
-    UA_Double samplingInterval;
-    UA_UInt32 queueSize;
-    UA_Boolean discardOldest;
-
-    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
+    void *context;
+    UA_Client_DeleteMonitoredItemCallback deleteCallback;
     union {
-        UA_MonitoredItemHandlingFunction dataChangeHandler;
-        UA_MonitoredEventHandlingFunction eventHandler;
+        UA_Client_DataChangeNotificationCallback dataChangeCallback;
+        UA_Client_EventNotificationCallback eventCallback;
     } handler;
-    void *handlerContext;
+    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
 } UA_Client_MonitoredItem;
 
 typedef struct UA_Client_Subscription {
-    LIST_ENTRY(UA_Client_Subscription)
-    listEntry;
-    UA_UInt32 lifeTime;
-    UA_UInt32 keepAliveCount;
+    LIST_ENTRY(UA_Client_Subscription) listEntry;
+    UA_UInt32 subscriptionId;
+    void *context;
     UA_Double publishingInterval;
-    UA_UInt32 subscriptionID;
-    UA_UInt32 notificationsPerPublish;
-    UA_UInt32 priority;
+    UA_UInt32 maxKeepAliveCount;
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback;
+    UA_Client_DeleteSubscriptionCallback deleteCallback;
+    UA_UInt32 sequenceNumber;
+    UA_DateTime lastActivity;
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem) monitoredItems;
 } UA_Client_Subscription;
 
 void
-UA_Client_Subscriptions_forceDelete (UA_Client *client,
-                                     UA_Client_Subscription *sub);
+UA_Client_Subscriptions_clean(UA_Client *client);
 
 void
-UA_Client_Subscriptions_clean (UA_Client *client);
+UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
+                               UA_Client_MonitoredItem *mon);
 
-#endif
+void
+UA_Client_Subscriptions_processPublishResponse(UA_Client *client,
+                                               UA_PublishRequest *request,
+                                               UA_PublishResponse *response);
+
+UA_StatusCode
+UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request);
+
+UA_StatusCode
+UA_Client_Subscriptions_backgroundPublish(UA_Client *client);
+
+void
+UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 /**********/
 /* Client */
 /**********/
 
 typedef struct AsyncServiceCall {
-    LIST_ENTRY(AsyncServiceCall)
-    pointers;
+    LIST_ENTRY(AsyncServiceCall) pointers;
     UA_UInt32 requestId;
     UA_ClientAsyncServiceCallback callback;
     const UA_DataType *responseType;
     void *userdata;
     void *responsedata;
 } AsyncServiceCall;
+
+void UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
+                                   UA_StatusCode statusCode);
+
+void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef struct CustomCallback {
     LIST_ENTRY(CustomCallback)
@@ -122,7 +124,7 @@ struct UA_Client {
     UA_String endpointUrl;
 
     /* SecureChannel */
-    UA_SecurityPolicy securityPolicy;
+    UA_SecurityPolicy securityPolicy; /* TODO: Move supported policies to the config */
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
@@ -151,20 +153,15 @@ struct UA_Client {
     SLIST_HEAD(DelayedClientCallbacksList, UA_DelayedClientCallback) delayedClientCallbacks;
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_UInt32 monitoredItemHandles;LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
+    UA_UInt32 monitoredItemHandles;
+    LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
+    LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
+    UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
-
-    /* Worker threads */
-#ifdef UA_ENABLE_MULTITHREADING
-    /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
-    struct cds_wfcq_head dispatchQueue_head;
-    UA_ClientWorker *workers; /* there are nThread workers in a running server */
-    pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
-    struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
-#endif
-
 };
+
+void
+setClientState(UA_Client *client, UA_ClientState state);
 
 UA_StatusCode
 UA_Client_connectInternal (UA_Client *client, const char *endpointUrl,

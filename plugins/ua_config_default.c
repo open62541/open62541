@@ -17,6 +17,7 @@
 
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
+#include "ua_client_subscriptions.h"
 #include "ua_client_highlevel.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
@@ -32,7 +33,7 @@ UA_UINT32RANGE(UA_UInt32 min, UA_UInt32 max) {
 }
 
 static UA_INLINE UA_DurationRange
-UA_DURATIONRANGE(UA_Double min, UA_Double max) {
+UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     UA_DurationRange range = {min, max};
     return range;
 }
@@ -68,7 +69,7 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
                                  const UA_ByteString localCertificate) {
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
-    UA_SecurityPolicy_None(&endpoint->securityPolicy, localCertificate, conf->logger);
+    UA_SecurityPolicy_None(&endpoint->securityPolicy, NULL, localCertificate, conf->logger);
     endpoint->endpointDescription.securityMode = UA_MESSAGESECURITYMODE_NONE;
     endpoint->endpointDescription.securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
@@ -120,7 +121,7 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
     UA_StatusCode retval =
-        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, localCertificate,
+        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, &conf->certificateVerification, localCertificate,
                                         localPrivateKey, conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);
@@ -445,7 +446,6 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
 /***************************/
 
 const UA_ClientConfig UA_ClientConfig_default = {
-    1, /*default thread number*/
     5000, /* .timeout, 5 seconds */
     10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
     UA_Log_Stdout, /* .logger */
@@ -460,22 +460,10 @@ const UA_ClientConfig UA_ClientConfig_default = {
         UA_ClientConnectionTCPPoll, /*poll function (async connection) */
     0, /* .customDataTypesSize */
     NULL, /*.customDataTypes */
+
     NULL /*.stateCallback */
+    NULL, /*.subscriptionInactivityCallback */
+    NULL,  /*.clientContext */
+
+    10 /* .outStandingPublishRequests */
 };
-
-/****************************************/
-/* Default Client Subscription Settings */
-/****************************************/
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-const UA_SubscriptionSettings UA_SubscriptionSettings_default = {
-    500.0, /* .requestedPublishingInterval */
-    10000, /* .requestedLifetimeCount */
-    1, /* .requestedMaxKeepAliveCount */
-    0, /* .maxNotificationsPerPublish */
-    true, /* .publishingEnabled */
-    0 /* .priority */
-};
-
-#endif

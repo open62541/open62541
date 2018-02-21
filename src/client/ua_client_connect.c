@@ -16,7 +16,7 @@
  /********************/
  /* Set client state */
  /********************/
-static void
+void
 setClientState(UA_Client *client, UA_ClientState state)
 {
     if (client->state != state){
