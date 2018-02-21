@@ -5,6 +5,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#ifdef UA_ARCHITECTURE_WIN32
+
 #ifndef PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_
 
@@ -34,6 +36,21 @@
 # define POP_SLIST_ENTRY
 #endif
 
+/* Thread-Local Storage
+ * --------------------
+ * Thread-local storage is not required by the main library functionality. It is
+ * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
+ * feature is not available. */
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+# define UA_THREAD_LOCAL _Thread_local /* C11 */
+#elif defined(__cplusplus) && __cplusplus > 199711L
+# define UA_THREAD_LOCAL thread_local /* C++11 */
+#elif defined(_MSC_VER)
+# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
+#else
+# define UA_THREAD_LOCAL
+#endif
 
 #include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
@@ -74,6 +91,9 @@
 #ifdef UNDER_CE
 # define errno
 #endif
+
+// Windows does not support ansi colors
+// #define UA_ENABLE_LOG_COLORS
 
 #define UA_IPV6 1
 #define UA_SOCKET int
@@ -123,3 +143,5 @@
 #include "../ua_architecture_functions.h"
 
 #endif /* PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_ */
+
+#endif /* UA_ARCHITECTURE_WIN32 */

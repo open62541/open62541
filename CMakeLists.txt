@@ -51,18 +51,33 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
 
+
+option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
+set(UA_AMALGAMATION_ARCHITECUTRES "" CACHE STRING "List of architectures to include in amalgamation")
+mark_as_advanced(UA_AMALGAMATION_ARCHITECUTRES)
+
 # Platform. This is at the beginning in case the architecture changes some UA options
 set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
 
-if(${UA_ARCHITECTURE} STREQUAL "None")
-  if(UNIX)
-    set(UA_ARCHITECTURE "posix" CACHE STRING "" FORCE)
-  elseif(WIN32)  
-    set(UA_ARCHITECTURE "win32" CACHE STRING ""  FORCE)
-  endif(UNIX)
-endif(${UA_ARCHITECTURE} STREQUAL "None")
+if(UA_ENABLE_AMALGAMATION)
+    if("${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
+        # select some default architectures which should be included
+        set(UA_AMALGAMATION_ARCHITECUTRES "win32;posix")
+    endif()
+    message(STATUS "Architectures included in amalgamation: ${UA_AMALGAMATION_ARCHITECUTRES}")
+endif()
 
-message(STATUS "The selected architecture is ${UA_ARCHITECTURE}")
+if("${UA_ARCHITECTURE}" STREQUAL "None")
+    if(UNIX)
+        set(UA_ARCHITECTURE "posix" CACHE STRING "" FORCE)
+    elseif(WIN32)
+        set(UA_ARCHITECTURE "win32" CACHE STRING ""  FORCE)
+    endif(UNIX)
+endif()
+
+message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
+string(TOUPPER ${UA_ARCHITECTURE} UA_ARCHITECTURE_UPPER)
+add_definitions(-DUA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
 
 add_subdirectory(arch)
 
@@ -99,7 +114,6 @@ option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
-option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
@@ -364,8 +378,17 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
 
-set(exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+if(NOT "${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
+    set(exported_headers)
+    foreach(arch ${UA_AMALGAMATION_ARCHITECUTRES})
+        list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${arch}/ua_architecture.h)
+    endforeach()
+else()
+    set(exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h)
+endif()
+
+set(exported_headers ${exported_headers}
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h 
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h

@@ -4,6 +4,8 @@
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
+#ifdef UA_ARCHITECTURE_WIN32
+
 #include "ua_types.h"
 
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
@@ -29,3 +31,5 @@ void UA_initialize_architecture_network(void){
 void UA_deinitialize_architecture_network(void){
   WSACleanup();
 }
+
+#endif /* UA_ARCHITECTURE_WIN32 */

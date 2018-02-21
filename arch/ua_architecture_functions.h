@@ -38,6 +38,35 @@ void* UA_realloc(void *ptr, size_t new_size);//re-allocate memory in the heap wi
 void UA_free(void* ptr); //de-allocate memory previously allocated with UA_malloc, UA_calloc or UA_realloc
 #endif
 
+/**
+ * Memory Management
+ * -----------------
+ * The default is to use the malloc implementation from ``stdlib.h``. Override
+ * if required. Changing the settings has no effect on a pre-compiled
+ * library. */
+#ifndef UA_alloca
+# if defined(__GNUC__) || defined(__clang__)
+#  define UA_alloca(size) __builtin_alloca (size)
+# elif defined(_WIN32)
+#  define UA_alloca(SIZE) _alloca(SIZE)
+# else
+#  include <alloca.h>
+#  define UA_alloca(SIZE) alloca(SIZE)
+# endif
+#endif
+
+#ifndef UA_STACKARRAY
+/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
+ * Otherwise revert to alloca. Note that alloca is not supported on some
+ * plattforms. */
+# if defined(__GNUC__) || defined(__clang__)
+#  define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
+# else
+#  define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)UA_alloca(sizeof(TYPE) * SIZE)
+# endif
+#endif
+
 /*
  * Sleep function
  */

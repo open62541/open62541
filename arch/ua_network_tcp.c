@@ -333,6 +333,8 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
             du.length = (size_t)UA_snprintf(discoveryUrl, 255, "opc.tcp://%s:%d/",
                                          hostname, layer->port);
             du.data = (UA_Byte*)discoveryUrl;
+        } else {
+            UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
         }
     }
     UA_String_copy(&du, &nl->discoveryUrl);

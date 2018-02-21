@@ -1,8 +1,10 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- *    Copyright 2018 (c) Jose Cabral, fortiss IOSB
+ *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
+
+#ifdef UA_ARCHITECTURE_FREERTOS
 
 #include "ua_types.h"
 
@@ -29,8 +31,7 @@ int gethostname_freertos(char* name, size_t len){
 
 int UA_getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res){
   if(NULL == node){
-    const char* hostname = UA_FREERTOS_HOSTNAME;
-    return lwip_getaddrinfo(hostname, service, hints, res);
+    return lwip_getaddrinfo(UA_FREERTOS_HOSTNAME, service, hints, res);
   }else{
     return lwip_getaddrinfo(node, service, hints, res);
   }
@@ -43,3 +44,5 @@ void UA_initialize_architecture_network(void){
 void UA_deinitialize_architecture_network(void){
   return;
 }
+
+#endif /* UA_ARCHITECTURE_FREERTOS */

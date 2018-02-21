@@ -2,24 +2,30 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
+ *    Copyright 2018 (c) Stefan Profanter, fortiss GmbH
  */
 
-#ifdef UA_ARCHITECTURE_POSIX
+#ifdef UA_ARCHITECTURE_ARDUINO
 
 #include "ua_types.h"
 
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
-  int opts = fcntl(sockfd, F_GETFL);
-  if(opts < 0 || fcntl(sockfd, F_SETFL, opts & (~O_NONBLOCK)) < 0)
-      return UA_STATUSCODE_BADINTERNALERROR;
+  int on = 0;
+  if(lwip_ioctl(sockfd, FIONBIO, &on) < 0)
+    return UA_STATUSCODE_BADINTERNALERROR;
   return UA_STATUSCODE_GOOD;
 }
 
 unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd){
-  int opts = fcntl(sockfd, F_GETFL);
-  if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
+  int on = 1;
+  if(lwip_ioctl(sockfd, FIONBIO, &on) < 0)
     return UA_STATUSCODE_BADINTERNALERROR;
   return UA_STATUSCODE_GOOD;
+}
+
+int gethostname_freertos(char* name, size_t len){
+    // use UA_ServerConfig_set_customHostname to set your hostname as the IP
+  return -1;
 }
 
 void UA_initialize_architecture_network(void){
@@ -30,4 +36,4 @@ void UA_deinitialize_architecture_network(void){
   return;
 }
 
-#endif /* UA_ARCHITECTURE_POSIX */
+#endif /* UA_ARCHITECTURE_ARDUINO */

@@ -3,20 +3,12 @@
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-#ifdef UA_ARCHITECTURE_FREERTOS
+#ifdef UA_ARCHITECTURE_ARDUINO
 
-#ifndef PLUGINS_ARCH_FREERTOS_UA_ARCHITECTURE_H_
-#define PLUGINS_ARCH_FREERTOS_UA_ARCHITECTURE_H_
-
-
-//------------------------------------------------------------------
-// NOT WORKING YET!!!!!!!!!!!!!!!!!!!!!
-//------------------------------------------------------------------
-
-#define AI_PASSIVE 0x01
+#ifndef PLUGINS_ARCH_ARDUINO_UA_ARCHITECTURE_H_
+#define PLUGINS_ARCH_ARDUINO_UA_ARCHITECTURE_H_
 
 #define UA_THREAD_LOCAL
 
@@ -59,7 +51,7 @@
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
-// No log colors on FreeRTOS
+// No log colors on Arduino
 // #define UA_ENABLE_LOG_COLORS
 
 #define UA_send lwip_send
@@ -76,11 +68,12 @@
 #define UA_setsockopt lwip_setsockopt
 #define UA_freeaddrinfo lwip_freeaddrinfo
 #define UA_gethostname gethostname_freertos
+#define UA_getaddrinfo lwip_getaddrinfo
 
-#define UA_free vPortFree
-#define UA_malloc pvPortMalloc
-#define UA_calloc pvPortCalloc
-#define UA_realloc pvPortRealloc
+#define UA_free free
+#define UA_malloc malloc
+#define UA_calloc calloc
+#define UA_realloc realloc
 
 #include <stdio.h>
 #define UA_snprintf snprintf
@@ -96,6 +89,6 @@ int gethostname_freertos(char* name, size_t len);
 
 #include "../ua_architecture_functions.h"
 
-#endif /* PLUGINS_ARCH_FREERTOS_UA_ARCHITECTURE_H_ */
+#endif /* PLUGINS_ARCH_ARDUINO_UA_ARCHITECTURE_H_ */
 
-#endif /* UA_ARCHITECTURE_FREERTOS */
+#endif /* UA_ARCHITECTURE_ARDUINO */

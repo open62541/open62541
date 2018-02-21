@@ -233,14 +233,8 @@ setSrv(UA_Server *server, const struct resource *r,
 
     // todo: malloc may fail: return a statuscode
     char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
-    #ifndef _MSC_VER
-    snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d/", (int) srvNameLen,
+    UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d/", (int) srvNameLen,
              r->known.srv.name, r->known.srv.port);
-    #else
-    _snprintf_s(newUrl, 10 + srvNameLen + 8, _TRUNCATE, "opc.tcp://%.*s:%d/", (int) srvNameLen,
-             r->known.srv.name, r->known.srv.port);
-    #endif
-
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %s", newUrl);
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);

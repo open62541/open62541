@@ -283,23 +283,31 @@ createDefaultConfig(void) {
 }
 
 static UA_StatusCode
-addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber) {
+addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
     /* Add a network layer */
     conf->networkLayers = (UA_ServerNetworkLayer *)
         UA_malloc(sizeof(UA_ServerNetworkLayer));
     if(!conf->networkLayers)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_ConnectionConfig config = UA_ConnectionConfig_default;
+    if (sendBufferSize > 0)
+        config.sendBufferSize = sendBufferSize;
+    if (recvBufferSize > 0)
+        config.recvBufferSize = recvBufferSize;
+
     conf->networkLayers[0] =
-        UA_ServerNetworkLayerTCP(UA_ConnectionConfig_default, portNumber, conf->logger);
+        UA_ServerNetworkLayerTCP(config, portNumber, conf->logger);
     conf->networkLayersSize = 1;
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_ServerConfig *
-UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
-                            const UA_ByteString *certificate) {
+UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber,
+                                 const UA_ByteString *certificate,
+                                 UA_UInt32 sendBufferSize,
+                                 UA_UInt32 recvBufferSize) {
     UA_ServerConfig *conf = createDefaultConfig();
 
     UA_StatusCode retval = UA_Nodestore_default_new(&conf->nodestore);
@@ -308,7 +316,7 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber) != UA_STATUSCODE_GOOD) {
+    if(addDefaultNetworkLayers(conf, portNumber, sendBufferSize, recvBufferSize) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -361,7 +369,7 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber) != UA_STATUSCODE_GOOD) {
+    if(addDefaultNetworkLayers(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }

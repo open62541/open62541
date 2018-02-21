@@ -6,6 +6,8 @@
  *    Copyright 2017 (c) Thomas Stalder
  */
 
+#ifdef UA_ARCHITECTURE_WIN32
+
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
 #endif
@@ -58,3 +60,5 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     UA_Double ticks2dt = UA_DATETIME_SEC / (UA_Double)freq.QuadPart;
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
 }
+
+#endif /* UA_ARCHITECTURE_WIN32 */

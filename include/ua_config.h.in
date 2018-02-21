@@ -105,27 +105,6 @@ extern "C" {
 #endif
 
 /**
- * Memory Management
- * -----------------
- * The default is to use the malloc implementation from ``stdlib.h``. Override
- * if required. Changing the settings has no effect on a pre-compiled
- * library. */
-
-/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
- * Otherwise revert to alloca. Note that alloca is not supported on some
- * plattforms. */
-#if defined(__GNUC__) || defined(__clang__)
-# define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
-#elif defined(_WIN32)
-# define UA_STACKARRAY(TYPE, NAME, SIZE) \
-    TYPE *NAME = (TYPE*)_alloca(sizeof(TYPE) * SIZE)
-#else
-# include <alloca.h>
-# define UA_STACKARRAY(TYPE, NAME, SIZE) \
-    TYPE *NAME = (TYPE*)alloca(sizeof(TYPE) * SIZE)
-#endif
-
-/**
  * Function Export
  * ---------------
  * On Win32: Define ``UA_DYNAMIC_LINKING`` and ``UA_DYNAMIC_LINKING_EXPORT`` in

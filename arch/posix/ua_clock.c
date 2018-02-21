@@ -6,6 +6,8 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
+#ifdef UA_ARCHITECTURE_POSIX
+
 #include "ua_types.h"
 #include <time.h>
 #include <sys/time.h>
@@ -52,3 +54,5 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 #endif
 }
+
+#endif /* UA_ARCHITECTURE_POSIX */

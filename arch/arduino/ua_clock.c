@@ -1,18 +1,33 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder
  */
 
-#ifdef UA_ARCHITECTURE_FREERTOS
+#ifdef UA_ARCHITECTURE_ARDUINO
 
-#include "ua_types.h"
+/* Enable POSIX features */
+#if !defined(_XOPEN_SOURCE)
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
 #include <time.h>
 #include <sys/time.h>
 
-#include <task.h>
+#include "ua_types.h"
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 UA_DateTime UA_DateTime_now(void) {
     struct timeval tv;
@@ -42,4 +57,4 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 }
 
-#endif /* UA_ARCHITECTURE_FREERTOS */
+#endif /* UA_ARCHITECTURE_ARDUINO */

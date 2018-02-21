@@ -5,6 +5,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#ifdef UA_ARCHITECTURE_POSIX
+
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
@@ -47,6 +49,23 @@
 # include <netinet/tcp.h>
 #endif
 
+
+/* Thread-Local Storage
+ * --------------------
+ * Thread-local storage is not required by the main library functionality. It is
+ * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
+ * feature is not available. */
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+# define UA_THREAD_LOCAL _Thread_local /* C11 */
+#elif defined(__cplusplus) && __cplusplus > 199711L
+# define UA_THREAD_LOCAL thread_local /* C++11 */
+#elif defined(__GNUC__)
+# define UA_THREAD_LOCAL __thread /* GNU extension */
+#else
+# define UA_THREAD_LOCAL
+#endif
+
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using
  * musl libc (e.g. Docker Alpine) */
@@ -72,6 +91,8 @@
 #define UA_EAGAIN EAGAIN
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
+
+#define UA_ENABLE_LOG_COLORS
 
 #define UA_getnameinfo getnameinfo
 #define UA_send send
@@ -111,3 +132,5 @@
 #include "../ua_architecture_functions.h"
 
 #endif /* PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_ */
+
+#endif /* UA_ARCHITECTURE_POSIX */
