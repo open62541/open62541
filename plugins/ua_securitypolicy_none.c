@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
- *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
@@ -132,21 +132,27 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
 
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;
-    policy->symmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
-    policy->symmetricModule.cryptoModule.verify = verify_none;
-    policy->symmetricModule.cryptoModule.sign = sign_none;
-    policy->symmetricModule.cryptoModule.getLocalSignatureSize = length_none;
-    policy->symmetricModule.cryptoModule.getRemoteSignatureSize = length_none;
-    policy->symmetricModule.cryptoModule.getLocalSigningKeyLength = length_none;
-    policy->symmetricModule.cryptoModule.getRemoteSigningKeyLength = length_none;
-    policy->symmetricModule.cryptoModule.encrypt = encrypt_none;
-    policy->symmetricModule.cryptoModule.decrypt = decrypt_none;
-    policy->symmetricModule.cryptoModule.getLocalEncryptionKeyLength = length_none;
-    policy->symmetricModule.cryptoModule.getRemoteEncryptionKeyLength = length_none;
-    policy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize = length_none;
-    policy->symmetricModule.cryptoModule.getRemoteEncryptionBlockSize = length_none;
-    policy->symmetricModule.cryptoModule.getLocalPlainTextBlockSize = length_none;
-    policy->symmetricModule.cryptoModule.getRemotePlainTextBlockSize = length_none;
+
+    UA_SecurityPolicySignatureAlgorithm *sym_signatureAlgorithm =
+        &policy->symmetricModule.cryptoModule.signatureAlgorithm;
+    sym_signatureAlgorithm->uri = UA_STRING_NULL;
+    sym_signatureAlgorithm->verify = verify_none;
+    sym_signatureAlgorithm->sign = sign_none;
+    sym_signatureAlgorithm->getLocalSignatureSize = length_none;
+    sym_signatureAlgorithm->getRemoteSignatureSize = length_none;
+    sym_signatureAlgorithm->getLocalKeyLength = length_none;
+    sym_signatureAlgorithm->getRemoteKeyLength = length_none;
+
+    UA_SecurityPolicyEncryptionAlgorithm *sym_encryptionAlgorithm =
+        &policy->symmetricModule.cryptoModule.encryptionAlgorithm;
+    sym_encryptionAlgorithm->encrypt = encrypt_none;
+    sym_encryptionAlgorithm->decrypt = decrypt_none;
+    sym_encryptionAlgorithm->getLocalKeyLength = length_none;
+    sym_encryptionAlgorithm->getRemoteKeyLength = length_none;
+    sym_encryptionAlgorithm->getLocalBlockSize = length_none;
+    sym_encryptionAlgorithm->getRemoteBlockSize = length_none;
+    sym_encryptionAlgorithm->getLocalPlainTextBlockSize = length_none;
+    sym_encryptionAlgorithm->getRemotePlainTextBlockSize = length_none;
     policy->symmetricModule.secureChannelNonceLength = 0;
 
     policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_none;
@@ -154,6 +160,9 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
 
     // This only works for none since symmetric and asymmetric crypto modules do the same i.e. nothing
     policy->asymmetricModule.cryptoModule = policy->symmetricModule.cryptoModule;
+
+    // Use the same signing algorithm as for asymmetric signing
+    policy->certificateSigningAlgorithm = policy->asymmetricModule.cryptoModule.signatureAlgorithm;
 
     policy->channelModule.newContext = newContext_none;
     policy->channelModule.deleteContext = deleteContext_none;

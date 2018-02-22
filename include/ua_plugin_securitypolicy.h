@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
@@ -25,7 +25,7 @@ struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 
 typedef struct {
-    UA_String signatureAlgorithmUri;
+    UA_String uri;
 
     /* Verifies the signature of the message using the provided keys in the context.
      *
@@ -78,8 +78,8 @@ typedef struct {
      * @param channelContext the context to retrieve data from.
      * @return the length of the signing key in bytes. Returns 0 if no length can be found.
      */
-    size_t (*getLocalSigningKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                       const void *channelContext);
+    size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                const void *channelContext);
 
     /* Gets the local signing key length.
      *
@@ -87,10 +87,12 @@ typedef struct {
      * @param channelContext the context to retrieve data from.
      * @return the length of the signing key in bytes. Returns 0 if no length can be found.
      */
-    size_t (*getRemoteSigningKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                        const void *channelContext);
+    size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                 const void *channelContext);
+} UA_SecurityPolicySignatureAlgorithm;
 
-    UA_String encryptionAlgorithmUri;
+typedef struct {
+    UA_String uri;
 
     /* Encrypt the given data in place using an asymmetric algorithm and keys.
      *
@@ -120,7 +122,7 @@ typedef struct {
      * @param channelContext the context to retrieve data from.
      * @return the length of the local key. Returns 0 if no
      *         key length is known. */
-    size_t (*getLocalEncryptionKeyLength)(const UA_SecurityPolicy *securityPolicy,
+    size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
                                           const void *channelContext);
 
     /* Returns the length of the key used remotely to encrypt messages in bits
@@ -129,7 +131,7 @@ typedef struct {
      * @param channelContext the context to retrieve data from.
      * @return the length of the remote key. Returns 0 if no
      *         key length is known. */
-    size_t (*getRemoteEncryptionKeyLength)(const UA_SecurityPolicy *securityPolicy,
+    size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
                                            const void *channelContext);
 
     /* Returns the size of encrypted blocks used by the local encryption algorithm.
@@ -138,7 +140,7 @@ typedef struct {
      * @param channelContext the context to retrieve data from.
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
-    size_t (*getLocalEncryptionBlockSize)(const UA_SecurityPolicy *securityPolicy,
+    size_t (*getLocalBlockSize)(const UA_SecurityPolicy *securityPolicy,
                                           const void *channelContext);
 
     /* Returns the size of encrypted blocks used by the remote encryption algorithm.
@@ -147,7 +149,7 @@ typedef struct {
      * @param channelContext the context to retrieve data from.
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
-    size_t (*getRemoteEncryptionBlockSize)(const UA_SecurityPolicy *securityPolicy,
+    size_t (*getRemoteBlockSize)(const UA_SecurityPolicy *securityPolicy,
                                            const void *channelContext);
 
     /* Returns the size of plaintext blocks used by the local encryption algorithm.
@@ -167,6 +169,19 @@ typedef struct {
      */
     size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
                                           const void *channelContext);
+} UA_SecurityPolicyEncryptionAlgorithm;
+
+typedef struct {
+    /*
+     * The algorithm used to sign and verify certificates.
+     */
+    UA_SecurityPolicySignatureAlgorithm signatureAlgorithm;
+
+    /*
+     * The algorithm used to encrypt and decrypt messages.
+     */
+    UA_SecurityPolicyEncryptionAlgorithm encryptionAlgorithm;
+
 } UA_SecurityPolicyCryptoModule;
 
 typedef struct {
@@ -353,6 +368,7 @@ struct UA_SecurityPolicy {
     /* Function pointers grouped into modules */
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
     UA_SecurityPolicySymmetricModule symmetricModule;
+    UA_SecurityPolicySignatureAlgorithm certificateSigningAlgorithm;
     UA_SecurityPolicyChannelModule channelModule;
     UA_CertificateVerification *certificateVerification;
 

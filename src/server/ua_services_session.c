@@ -8,7 +8,7 @@
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
 #include "ua_services.h"
@@ -41,7 +41,7 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
         return retval;
     }
 
-    size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.
+    size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
         getLocalSignatureSize(securityPolicy, channel->channelContext);
 
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
@@ -64,9 +64,8 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
 
-    retval |= UA_String_copy(&securityPolicy->asymmetricModule.cryptoModule.
-                             signatureAlgorithmUri, &signatureData->algorithm);
-    retval |= securityPolicy->asymmetricModule.cryptoModule.
+    retval |= UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri, &signatureData->algorithm);
+    retval |= securityPolicy->certificateSigningAlgorithm.
         sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
 
     UA_ByteString_deleteMembers(&dataToSign);
@@ -77,9 +76,10 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
-void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                           const UA_CreateSessionRequest *request,
-                           UA_CreateSessionResponse *response) {
+void
+Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                      const UA_CreateSessionRequest *request,
+                      UA_CreateSessionResponse *response) {
     if(channel == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -116,7 +116,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     ////////////////////// TODO: Compare application URI with certificate uri (decode certificate)
 
     /* Allocate the response */
-    response->serverEndpoints = (UA_EndpointDescription*)
+    response->serverEndpoints = (UA_EndpointDescription *)
         UA_Array_new(server->config.endpointsSize,
                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->serverEndpoints) {
@@ -166,9 +166,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
     if(server->config.endpointsSize > 0)
-         response->responseHeader.serviceResult |=
-         UA_ByteString_copy(&channel->securityPolicy->localCertificate,
-                            &response->serverCertificate);
+        response->responseHeader.serviceResult |=
+            UA_ByteString_copy(&channel->securityPolicy->localCertificate,
+                               &response->serverCertificate);
 
     /* Create a signed nonce */
     response->responseHeader.serviceResult =
@@ -182,8 +182,10 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-           "Session " UA_PRINTF_GUID_FORMAT " created",
-           UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
+                         "Session "
+                             UA_PRINTF_GUID_FORMAT
+                             " created",
+                         UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
 
 static void
@@ -212,7 +214,7 @@ checkSignature(const UA_Server *server,
         memcpy(dataToVerify.data + localCertificate->length,
                session->serverNonce.data, session->serverNonce.length);
 
-        retval = securityPolicy->asymmetricModule.cryptoModule.
+        retval = securityPolicy->certificateSigningAlgorithm.
             verify(securityPolicy, channel->channelContext, &dataToVerify,
                    &request->clientSignature.signature);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -223,7 +225,7 @@ checkSignature(const UA_Server *server,
             return;
         }
 
-        retval  = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+        retval = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
         UA_ByteString_deleteMembers(&session->serverNonce);
         retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -245,7 +247,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(session->validTill < UA_DateTime_nowMonotonic()) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the session has timed out",
+                                "to activate, but the session has timed out",
                             channel->securityToken.channelId);
         response->responseHeader.serviceResult =
             UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -272,13 +274,13 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         session->activated = false;
     }
 
-    if (session->activated) {
+    if(session->activated) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: SecureChannel %i wants "
-                                    "to activate, but the session is already activated",
+                                "to activate, but the session is already activated",
                             channel->securityToken.channelId);
         response->responseHeader.serviceResult =
-                UA_STATUSCODE_BADSESSIONIDINVALID;
+            UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
 
     }
