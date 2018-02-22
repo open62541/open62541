@@ -890,7 +890,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
 #ifdef SO_NOSIGPIPE
 	int val = 1;
-	int sso_result = setsockopt(connection.sockfd, SOL_SOCKET,
+	int sso_result = setsockopt(connection->sockfd, SOL_SOCKET,
 			SO_NOSIGPIPE, (void*)&val, sizeof(val));
 	if(sso_result < 0)
 	UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,

@@ -19,37 +19,6 @@
  * Le, Nhat Minh, et al. "Correct and efficient work-stealing for weak memory
  * models." ACM SIGPLAN Notices. Vol. 48. No. 8. ACM, 2013. */
 
-#ifdef UA_ENABLE_MULTITHREADING
-
-struct UA_ClientWorker
-{
-    UA_Client *client;
-    pthread_t thr;
-    UA_UInt32 counter;
-    volatile UA_Boolean running;
-
-    /* separate cache lines */
-    char padding[64 - sizeof(void*) - sizeof(pthread_t) -
-    sizeof(UA_UInt32) - sizeof(UA_Boolean)];
-};
-
-typedef struct
-{
-    struct cds_wfcq_node node;
-    UA_ClientCallback callback;
-    void *data;
-
-    UA_Boolean delayed; /* Is it a delayed callback? */
-    UA_Boolean countersSampled; /* Have the worker counters been sampled? */
-    UA_UInt32 workerCounters[]; /* Counter value for each worker */
-}WorkerCallback;
-
-//TODO: put back workerloop & processDelayedCallback
-
-//TODO: implement shutdown of workers
-
-#endif
-
 /**
  * Repeated Callbacks
  * ------------------
@@ -60,29 +29,8 @@ typedef struct
 void
 UA_Client_workerCallback (UA_Client *client, UA_ClientCallback callback,
                           void *data) {
-#ifndef UA_ENABLE_MULTITHREADING
     /* Execute immediately */
     callback (client, data);
-#else
-    /* Execute immediately if memory could not be allocated */
-    WorkerCallback *dc = (WorkerCallback*) UA_malloc(sizeof(WorkerCallback));
-    if(!dc)
-    {
-        callback(client, data);
-        return;
-    }
-
-    /* Enqueue for the worker threads */
-    dc->callback = callback;
-    dc->data = data;
-    dc->delayed = false;
-    cds_wfcq_node_init(&dc->node);
-    cds_wfcq_enqueue(&client->dispatchQueue_head,
-            &client->dispatchQueue_tail, &dc->node);
-
-    /* Wake up sleeping workers */
-    pthread_cond_broadcast(&client->dispatchQueue_condition);
-#endif
 }
 
 /**
@@ -102,8 +50,6 @@ UA_Client_workerCallback (UA_Client *client, UA_ClientCallback callback,
  *
  * 3. Check regularly if the callback is ready by adding it back to the dispatch
  *    queue. */
-
-#ifndef UA_ENABLE_MULTITHREADING
 
 typedef struct UA_DelayedClientCallback {
     SLIST_ENTRY(UA_DelayedClientCallback)
@@ -137,34 +83,6 @@ processDelayedClientCallbacks (UA_Client *client) {
         UA_free(dc);
     }
 }
-
-#else /* UA_ENABLE_MULTITHREADING */
-
-UA_StatusCode
-UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
-        void *data)
-{
-    size_t dcsize = sizeof(WorkerCallback) +
-    (sizeof(UA_UInt32) * client->config.nThreads);
-    WorkerCallback *dc = (WorkerCallback*)UA_malloc(dcsize);
-    if(!dc)
-    return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Enqueue for the worker threads */
-    dc->callback = callback;
-    dc->data = data;
-    dc->delayed = true;
-    dc->countersSampled = false;
-    cds_wfcq_node_init(&dc->node);
-    cds_wfcq_enqueue(&client->dispatchQueue_head,
-            &client->dispatchQueue_tail, &dc->node);
-
-    /* Wake up sleeping workers */
-    pthread_cond_broadcast(&client->dispatchQueue_condition);
-    return UA_STATUSCODE_GOOD;
-}
-
-#endif
 
 /**
  * Main Client Loop
