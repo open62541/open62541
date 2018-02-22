@@ -180,7 +180,9 @@ asym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
     ck_assert(channelContext != NULL);
     ck_assert(data != NULL);
 
-    size_t blockSize = securityPolicy->channelModule.getRemoteAsymPlainTextBlockSize(securityPolicy);
+    size_t blockSize =
+        securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.getRemotePlainTextBlockSize(securityPolicy,
+                                                                                                      channelContext);
     ck_assert_msg(data->length % blockSize == 0,
                   "Expected the length of the data to be encrypted to be a multiple of the plaintext block size (%i). "
                       "Remainder was %i",
@@ -355,14 +357,15 @@ setRemoteSymIv_testing(void *channelContext,
 }
 
 static size_t
-getRemoteAsymPlainTextBlockSize_testing(const void *channelContext) {
+asym_getRemotePlainTextBlockSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                         const void *channelContext) {
     return keySizes->asym_rmt_ptext_blocksize;
 }
 
 static size_t
-getRemoteAsymEncryptionBufferLengthOverhead_testing(const void *channelContext,
-                                                    size_t maxEncryptionLength) {
-    return 0;
+asym_getRemoteBlockSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                         const void *channelContext) {
+    return keySizes->asym_rmt_blocksize;
 }
 
 static UA_StatusCode
@@ -377,7 +380,7 @@ policy_deletemembers_testing(UA_SecurityPolicy *policy) {
 }
 
 UA_StatusCode
-TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
+TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
               funcs_called *fCalled, const key_sizes *kSizes) {
     keySizes = kSizes;
     funcsCalled = fCalled;
@@ -404,6 +407,8 @@ TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
     asym_encryptionAlgorithm->decrypt = decrypt_testing;
     asym_encryptionAlgorithm->getLocalKeyLength = asym_getLocalEncryptionKeyLength_testing;
     asym_encryptionAlgorithm->getRemoteKeyLength = asym_getRemoteEncryptionKeyLength_testing;
+    asym_encryptionAlgorithm->getRemotePlainTextBlockSize = asym_getRemotePlainTextBlockSize_testing;
+    asym_encryptionAlgorithm->getRemoteBlockSize = asym_getRemoteBlockSize_testing;
 
     policy->symmetricModule.generateKey = generateKey_testing;
     policy->symmetricModule.generateNonce = generateNonce_testing;
@@ -436,9 +441,6 @@ TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
     policy->channelModule.setRemoteSymSigningKey = setRemoteSymSigningKey_testing;
     policy->channelModule.setRemoteSymIv = setRemoteSymIv_testing;
     policy->channelModule.compareCertificate = compareCertificate_testing;
-    policy->channelModule.getRemoteAsymPlainTextBlockSize = getRemoteAsymPlainTextBlockSize_testing;
-    policy->channelModule.getRemoteAsymEncryptionBufferLengthOverhead =
-        getRemoteAsymEncryptionBufferLengthOverhead_testing;
     policy->deleteMembers = policy_deletemembers_testing;
 
     return UA_STATUSCODE_GOOD;

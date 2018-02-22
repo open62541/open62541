@@ -98,17 +98,6 @@ setContextValue_none(void *channelContext,
     return UA_STATUSCODE_GOOD;
 }
 
-static size_t
-getRemoteAsymPlainTextBlockSize_none(const void *channelContext) {
-    return 0;
-}
-
-static size_t
-getRemoteAsymEncryptionBufferLengthOverhead_none(const void *channelContext,
-                                                 size_t maxEncryptionLength) {
-    return 0;
-}
-
 static UA_StatusCode
 compareCertificate_none(const void *channelContext,
                         const UA_ByteString *certificate) {
@@ -173,9 +162,6 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
     policy->channelModule.setRemoteSymSigningKey = setContextValue_none;
     policy->channelModule.setRemoteSymIv = setContextValue_none;
     policy->channelModule.compareCertificate = compareCertificate_none;
-    policy->channelModule.getRemoteAsymPlainTextBlockSize = getRemoteAsymPlainTextBlockSize_none;
-    policy->channelModule.getRemoteAsymEncryptionBufferLengthOverhead =
-        getRemoteAsymEncryptionBufferLengthOverhead_none;
     policy->deleteMembers = policy_deletemembers_none;
 
     return UA_STATUSCODE_GOOD;

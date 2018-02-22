@@ -123,7 +123,7 @@ typedef struct {
      * @return the length of the local key. Returns 0 if no
      *         key length is known. */
     size_t (*getLocalKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                          const void *channelContext);
+                                const void *channelContext);
 
     /* Returns the length of the key used remotely to encrypt messages in bits
      *
@@ -132,7 +132,7 @@ typedef struct {
      * @return the length of the remote key. Returns 0 if no
      *         key length is known. */
     size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *securityPolicy,
-                                           const void *channelContext);
+                                 const void *channelContext);
 
     /* Returns the size of encrypted blocks used by the local encryption algorithm.
      *
@@ -141,7 +141,7 @@ typedef struct {
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
     size_t (*getLocalBlockSize)(const UA_SecurityPolicy *securityPolicy,
-                                          const void *channelContext);
+                                const void *channelContext);
 
     /* Returns the size of encrypted blocks used by the remote encryption algorithm.
      *
@@ -150,7 +150,7 @@ typedef struct {
      * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
      */
     size_t (*getRemoteBlockSize)(const UA_SecurityPolicy *securityPolicy,
-                                           const void *channelContext);
+                                 const void *channelContext);
 
     /* Returns the size of plaintext blocks used by the local encryption algorithm.
      *
@@ -331,26 +331,6 @@ typedef struct {
     UA_StatusCode (*compareCertificate)(const void *channelContext,
                                         const UA_ByteString *certificate)
         UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-    /* Gets the plaintext block size that depends on the remote public key.
-     *
-     * @param channelContext the context to retrieve data from.
-     * @return the size of the plain text block size when encrypting with the
-     *         remote public key. Returns 0 as long as no remote certificate was
-     *         set previousely. */
-    size_t (*getRemoteAsymPlainTextBlockSize)(const void *channelContext);
-
-    /* Gets the number of bytes that are needed by the encryption function in
-     * addition to the length of the plaintext message. This is needed, since
-     * most RSA encryption methods have their own padding mechanism included.
-     * This makes the encrypted message larger than the plainText, so we need to
-     * have enough room in the buffer for the overhead.
-     *
-     * @param channelContext the retrieve data from.
-     * @param maxEncryptionLength the maximum number of bytes that the data to
-     *                            encrypt can be. */
-    size_t (*getRemoteAsymEncryptionBufferLengthOverhead)(const void *channelContext,
-                                                          size_t maxEncryptionLength);
 } UA_SecurityPolicyChannelModule;
 
 struct UA_SecurityPolicy {
@@ -381,6 +361,21 @@ typedef struct {
     UA_SecurityPolicy securityPolicy;
     UA_EndpointDescription endpointDescription;
 } UA_Endpoint;
+
+/* Gets the number of bytes that are needed by the encryption function in
+ * addition to the length of the plaintext message. This is needed, since
+ * most RSA encryption methods have their own padding mechanism included.
+ * This makes the encrypted message larger than the plainText, so we need to
+ * have enough room in the buffer for the overhead.
+ *
+ * @param securityPolicy the algorithms to use.
+ * @param channelContext the retrieve data from.
+ * @param maxEncryptionLength the maximum number of bytes that the data to
+ *                            encrypt can be. */
+size_t
+UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityPolicy *securityPolicy,
+                                                              const void *channelContext,
+                                                              size_t maxEncryptionLength);
 
 #ifdef __cplusplus
 }

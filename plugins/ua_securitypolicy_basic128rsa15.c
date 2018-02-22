@@ -155,8 +155,8 @@ asym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL || cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const size_t plainTextBlockSize = securityPolicy->channelModule.
-        getRemoteAsymPlainTextBlockSize(cc);
+    const size_t plainTextBlockSize = securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
+        getRemotePlainTextBlockSize(securityPolicy, cc);
 
     if(data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -165,8 +165,8 @@ asym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     mbedtls_rsa_set_padding(remoteRsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     UA_ByteString encrypted;
-    const size_t bufferOverhead = securityPolicy->channelModule.
-        getRemoteAsymEncryptionBufferLengthOverhead(cc, data->length);
+    const size_t bufferOverhead =
+        UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy, cc, data->length);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&encrypted, data->length + bufferOverhead);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -251,6 +251,20 @@ static size_t
 asym_getRemoteEncryptionKeyLength(const UA_SecurityPolicy *securityPolicy,
                                   const Basic128Rsa15_ChannelContext *cc) {
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
+}
+
+static size_t
+asym_getRemoteBlockSize_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
+                                         const Basic128Rsa15_ChannelContext *cc) {
+    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
+    return rsaContext->len;
+}
+
+static size_t
+asym_getRemotePlainTextBlockSize(const UA_SecurityPolicy *securityPolicy,
+                                 const Basic128Rsa15_ChannelContext *cc) {
+    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
+    return rsaContext->len - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 }
 
 static UA_StatusCode
@@ -701,20 +715,6 @@ channelContext_compareCertificate_sp_basic128rsa15(const Basic128Rsa15_ChannelCo
     return UA_STATUSCODE_GOOD;
 }
 
-static size_t
-channelContext_getRemoteAsymPlainTextBlockSize_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc) {
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
-}
-
-static size_t
-channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc,
-                                                                            size_t maxEncryptionLength) {
-    const size_t maxNumberOfBlocks = maxEncryptionLength /
-                                     channelContext_getRemoteAsymPlainTextBlockSize_sp_basic128rsa15(cc);
-    return maxNumberOfBlocks * UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
-}
-
 static void
 deleteMembers_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
@@ -870,9 +870,11 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
     asym_encryptionAlgorithm->getRemoteKeyLength =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength;
     asym_encryptionAlgorithm->getLocalBlockSize = NULL; // TODO: Write function
-    asym_encryptionAlgorithm->getRemoteBlockSize = NULL; // TODO: Write function
+    asym_encryptionAlgorithm->getRemoteBlockSize = (size_t (*)(const UA_SecurityPolicy *,
+                                                               const void *))asym_getRemoteBlockSize_sp_basic128rsa15;
     asym_encryptionAlgorithm->getLocalPlainTextBlockSize = NULL; // TODO: Write function
-    asym_encryptionAlgorithm->getRemotePlainTextBlockSize = NULL; // TODO: Write function
+    asym_encryptionAlgorithm->getRemotePlainTextBlockSize =
+        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemotePlainTextBlockSize;
 
     asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_basic128rsa15;
     asymmetricModule->compareCertificateThumbprint =
@@ -944,10 +946,6 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
 
     channelModule->compareCertificate = (UA_StatusCode (*)(const void *, const UA_ByteString *))
         channelContext_compareCertificate_sp_basic128rsa15;
-    channelModule->getRemoteAsymPlainTextBlockSize = (size_t (*)(const void *))
-        channelContext_getRemoteAsymPlainTextBlockSize_sp_basic128rsa15;
-    channelModule->getRemoteAsymEncryptionBufferLengthOverhead = (size_t (*)(const void *, size_t))
-        channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_basic128rsa15;
 
     policy->deleteMembers = deleteMembers_sp_basic128rsa15;
 

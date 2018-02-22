@@ -240,8 +240,8 @@ UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
 static UA_UInt16
 calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy, const void *channelContext,
                      size_t bytesToWrite, UA_Byte *paddingSize, UA_Byte *extraPaddingSize) {
-    size_t plainTextBlockSize = securityPolicy->channelModule.
-        getRemoteAsymPlainTextBlockSize(channelContext);
+    size_t plainTextBlockSize = securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
+        getRemotePlainTextBlockSize(securityPolicy, channelContext);
     size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(securityPolicy, channelContext);
     size_t paddingBytes = 1;
@@ -285,9 +285,9 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start, const UA_Byt
         *buf_end -= 2; /* padding byte and extraPadding byte */
 
         /* Add some overhead length due to RSA implementations adding a signature themselves */
-        *buf_end -= securityPolicy->channelModule.
-            getRemoteAsymEncryptionBufferLengthOverhead(channel->channelContext,
-                                                        potentialEncryptionMaxSize);
+        *buf_end -= UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy,
+                                                                                  channel->channelContext,
+                                                                                  potentialEncryptionMaxSize);
     }
 }
 
@@ -369,8 +369,9 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = (UA_UInt32)
-        (total_length + securityPolicy->channelModule.
-            getRemoteAsymEncryptionBufferLengthOverhead(channel->channelContext, dataToEncryptLength));
+        (total_length + UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy,
+                                                                                      channel->channelContext,
+                                                                                      dataToEncryptLength));
     respHeader.secureChannelId = channel->securityToken.channelId;
     retval = UA_encodeBinary(&respHeader, &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
                              &header_pos, &buf_end, NULL, NULL);
@@ -843,7 +844,7 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
         const UA_ByteString chunkDataToVerify = {chunkSizeAfterDecryption - sigsize, chunk->data};
         const UA_ByteString signature = {sigsize, chunk->data + chunkSizeAfterDecryption - sigsize};
         retval = cryptoModule->signatureAlgorithm.verify(securityPolicy, channel->channelContext,
-                                      &chunkDataToVerify, &signature);
+                                                         &chunkDataToVerify, &signature);
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
         retval |= decrypt_verifySignatureFailure;
 #endif
