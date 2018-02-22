@@ -148,9 +148,11 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
     policy->symmetricModule.cryptoModule.getRemoteEncryptionBlockSize = length_none;
     policy->symmetricModule.cryptoModule.getLocalPlainTextBlockSize = length_none;
     policy->symmetricModule.cryptoModule.getRemotePlainTextBlockSize = length_none;
+    policy->symmetricModule.secureChannelNonceLength = 0;
 
     policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_none;
     policy->asymmetricModule.compareCertificateThumbprint = compareThumbprint_none;
+
     // This only works for none since symmetric and asymmetric crypto modules do the same i.e. nothing
     policy->asymmetricModule.cryptoModule = policy->symmetricModule.cryptoModule;
 

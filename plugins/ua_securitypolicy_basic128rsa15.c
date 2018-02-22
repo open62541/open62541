@@ -907,6 +907,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
         (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getPlainTextBlockSize_sp_basic128rsa15;
     symmetricModule->cryptoModule.getRemotePlainTextBlockSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getPlainTextBlockSize_sp_basic128rsa15;
+    symmetricModule->secureChannelNonceLength = 16;
 
     /* ChannelModule */
     channelModule->newContext = channelContext_newContext_sp_basic128rsa15;
