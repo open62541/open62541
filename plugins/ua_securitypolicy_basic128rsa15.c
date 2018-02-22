@@ -13,9 +13,9 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
-#include <ua_plugin_pki.h>
-#include <ua_plugin_securitypolicy.h>
 
+#include "ua_plugin_pki.h"
+#include "ua_plugin_securitypolicy.h"
 #include "ua_securitypolicy_basic128rsa15.h"
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
@@ -376,10 +376,13 @@ sym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
        securityPolicy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize(securityPolicy, cc))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(data->length % cc->localSymEncryptingKey.length != 0) {
+    size_t plainTextBlockSize =
+        securityPolicy->symmetricModule.cryptoModule.getLocalPlainTextBlockSize(securityPolicy, cc);
+
+    if(data->length % plainTextBlockSize != 0) {
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Length of data to encrypt is not a multiple of the encryptingKey length."
-                         "Padding might not have been calculated appropriatley.");
+                     "Length of data to encrypt is not a multiple of the plain text block size."
+                         "Padding might not have been calculated appropriately.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 

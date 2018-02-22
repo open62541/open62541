@@ -5,7 +5,6 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include <ua_plugin_securitypolicy.h>
 #include "ua_types.h"
 #include "ua_securitypolicy_none.h"
 #include "ua_types_generated_handling.h"

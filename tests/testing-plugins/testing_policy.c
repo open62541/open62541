@@ -4,7 +4,6 @@
 
 #ifndef __clang_analyzer__
 
-#include <ua_plugin_securitypolicy.h>
 #include "ua_types.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_log_stdout.h"

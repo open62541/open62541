@@ -10,7 +10,7 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <ua_plugin_securitypolicy.h>
+#include "ua_plugin_securitypolicy.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
 #include "ua_server_internal.h"
