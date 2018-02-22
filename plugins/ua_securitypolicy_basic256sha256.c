@@ -15,7 +15,6 @@
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
 #include <mbedtls/rsa.h>
-#include <ua_plugin_securitypolicy.h>
 
 #include "ua_securitypolicy_basic256sha256.h"
 #include "ua_types.h"
