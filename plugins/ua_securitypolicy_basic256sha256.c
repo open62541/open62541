@@ -388,11 +388,11 @@ sym_encrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(cc->localSymIv.length !=
-       securityPolicy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize(securityPolicy, cc))
+       securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalBlockSize(securityPolicy, cc))
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t plainTextBlockSize =
-        securityPolicy->symmetricModule.cryptoModule.getLocalPlainTextBlockSize(securityPolicy, cc);
+        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalPlainTextBlockSize(securityPolicy, cc);
 
     if(data->length % plainTextBlockSize != 0) {
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -427,7 +427,7 @@ sym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t encryptionBlockSize =
-        securityPolicy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize(securityPolicy, cc);
+        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalBlockSize(securityPolicy, cc);
 
     if(cc->remoteSymIv.length != encryptionBlockSize)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -856,27 +856,31 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString 
     policy->localCertificate.length--;
 
     /* AsymmetricModule */
-    asymmetricModule->cryptoModule.signatureAlgorithmUri = UA_STRING("TODO: ALG URI"); // TODO:
+    UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =
+        &asymmetricModule->cryptoModule.signatureAlgorithm;
+    asym_signatureAlgorithm->uri = UA_STRING("TODO: ALG URI"); // TODO:
 
-    asymmetricModule->cryptoModule.verify =
+    asym_signatureAlgorithm->verify =
         (UA_StatusCode (*)(const UA_SecurityPolicy *, void *,
                            const UA_ByteString *, const UA_ByteString *))asym_verify_sp_basic256sha256;
-    asymmetricModule->cryptoModule.sign =
+    asym_signatureAlgorithm->sign =
         (UA_StatusCode (*)(const UA_SecurityPolicy *, void *,
                            const UA_ByteString *, UA_ByteString *))asym_sign_sp_basic256sha256;
-    asymmetricModule->cryptoModule.getLocalSignatureSize =
+    asym_signatureAlgorithm->getLocalSignatureSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getLocalSignatureSize_sp_basic256sha256;
-    asymmetricModule->cryptoModule.getRemoteSignatureSize =
+    asym_signatureAlgorithm->getRemoteSignatureSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteSignatureSize_sp_basic256sha256;
 
-    asymmetricModule->cryptoModule.encryptionAlgorithmUri = UA_STRING("TODO: ALG URI"); // TODO:
-    asymmetricModule->cryptoModule.encrypt =
+    UA_SecurityPolicyEncryptionAlgorithm *asym_encryptionAlgorithm =
+        &asymmetricModule->cryptoModule.encryptionAlgorithm;
+    asym_encryptionAlgorithm->uri = UA_STRING("TODO: ALG URI"); // TODO:
+    asym_encryptionAlgorithm->encrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))asym_encrypt_sp_basic256sha256;
-    asymmetricModule->cryptoModule.decrypt =
+    asym_encryptionAlgorithm->decrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))
             asym_decrypt_sp_basic256sha256;
-    asymmetricModule->cryptoModule.getLocalEncryptionKeyLength = NULL; // TODO: Write function
-    asymmetricModule->cryptoModule.getRemoteEncryptionKeyLength =
+    asym_encryptionAlgorithm->getLocalKeyLength = NULL; // TODO: Write function
+    asym_encryptionAlgorithm->getRemoteKeyLength =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength_basic256sha256;
 
     asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_basic256sha256;
@@ -887,40 +891,46 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString 
     symmetricModule->generateKey = sym_generateKey_sp_basic256sha256;
     symmetricModule->generateNonce = sym_generateNonce_sp_basic256sha256;
 
-    symmetricModule->cryptoModule.signatureAlgorithmUri =
+    UA_SecurityPolicySignatureAlgorithm *sym_signatureAlgorithm =
+        &symmetricModule->cryptoModule.signatureAlgorithm;
+    sym_signatureAlgorithm->uri =
         UA_STRING("TODO: ALG URI");
-    symmetricModule->cryptoModule.verify =
+    sym_signatureAlgorithm->verify =
         (UA_StatusCode (*)(const UA_SecurityPolicy *, void *, const UA_ByteString *,
                            const UA_ByteString *))sym_verify_sp_basic256sha256;
-    symmetricModule->cryptoModule.sign =
+    sym_signatureAlgorithm->sign =
         (UA_StatusCode (*)(const UA_SecurityPolicy *, void *,
                            const UA_ByteString *, UA_ByteString *))sym_sign_sp_basic256sha256;
-    symmetricModule->cryptoModule.getLocalSignatureSize = sym_getSignatureSize_sp_basic256sha256;
-    symmetricModule->cryptoModule.getRemoteSignatureSize = sym_getSignatureSize_sp_basic256sha256;
-    symmetricModule->cryptoModule.getLocalSigningKeyLength =
+    sym_signatureAlgorithm->getLocalSignatureSize = sym_getSignatureSize_sp_basic256sha256;
+    sym_signatureAlgorithm->getRemoteSignatureSize = sym_getSignatureSize_sp_basic256sha256;
+    sym_signatureAlgorithm->getLocalKeyLength =
         (size_t (*)(const UA_SecurityPolicy *,
                     const void *))sym_getSigningKeyLength_sp_basic256sha256;
-    symmetricModule->cryptoModule.getRemoteSigningKeyLength =
+    sym_signatureAlgorithm->getRemoteKeyLength =
         (size_t (*)(const UA_SecurityPolicy *,
                     const void *))sym_getSigningKeyLength_sp_basic256sha256;
 
-    symmetricModule->cryptoModule.encryptionAlgorithmUri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes256-cbc");
-    symmetricModule->cryptoModule.encrypt =
+    UA_SecurityPolicyEncryptionAlgorithm *sym_encryptionAlgorithm =
+        &symmetricModule->cryptoModule.encryptionAlgorithm;
+    sym_encryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes256-cbc");
+    sym_encryptionAlgorithm->encrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))sym_encrypt_sp_basic256sha256;
-    symmetricModule->cryptoModule.decrypt =
+    sym_encryptionAlgorithm->decrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))
             sym_decrypt_sp_basic256sha256;
-    symmetricModule->cryptoModule.getLocalEncryptionKeyLength = sym_getEncryptionKeyLength_sp_basic256sha256;
-    symmetricModule->cryptoModule.getRemoteEncryptionKeyLength = sym_getEncryptionKeyLength_sp_basic256sha256;
-    symmetricModule->cryptoModule.getLocalEncryptionBlockSize =
+    sym_encryptionAlgorithm->getLocalKeyLength = sym_getEncryptionKeyLength_sp_basic256sha256;
+    sym_encryptionAlgorithm->getRemoteKeyLength = sym_getEncryptionKeyLength_sp_basic256sha256;
+    sym_encryptionAlgorithm->getLocalBlockSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getEncryptionBlockSize_sp_basic256sha256;
-    symmetricModule->cryptoModule.getRemoteEncryptionBlockSize =
+    sym_encryptionAlgorithm->getRemoteBlockSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getEncryptionBlockSize_sp_basic256sha256;
-    symmetricModule->cryptoModule.getLocalPlainTextBlockSize =
+    sym_encryptionAlgorithm->getLocalPlainTextBlockSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getPlainTextBlockSize_sp_basic256sha256;
-    symmetricModule->cryptoModule.getRemotePlainTextBlockSize =
+    sym_encryptionAlgorithm->getRemotePlainTextBlockSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getPlainTextBlockSize_sp_basic256sha256;
     symmetricModule->secureChannelNonceLength = 32;
+
+    policy->certificateSigningAlgorithm = asymmetricModule->cryptoModule.signatureAlgorithm;
 
     /* ChannelModule */
     channelModule->newContext = channelContext_newContext_sp_basic256sha256;

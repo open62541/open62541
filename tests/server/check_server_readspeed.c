@@ -30,7 +30,7 @@ static void setup(void) {
     server = UA_Server_new(config);
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
+    UA_SecureChannel_init(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL, UA_MESSAGESECURITYMODE_NONE);
 
     testingConnection = createDummyConnection(65535, NULL);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
