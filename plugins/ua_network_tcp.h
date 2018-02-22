@@ -1,5 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2016 (c) Julius Pfrommer, Fraunhofer IOSB
+ */
 
 #ifndef UA_NETWORK_TCP_H_
 #define UA_NETWORK_TCP_H_
@@ -19,9 +22,9 @@ UA_Connection UA_EXPORT
 UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl, const UA_UInt32 timeout,
                        UA_Logger logger);
 
-UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data);
+UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data);
 UA_Connection UA_EXPORT UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
-		const char *endpointUrl, const UA_UInt32 timeout, UA_Logger logger);
+                const char *endpointUrl, const UA_UInt32 timeout, UA_Logger logger);
 #ifdef __cplusplus
 } // extern "C"
 #endif

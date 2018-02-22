@@ -1,6 +1,14 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2014-2015, 2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
@@ -24,6 +32,8 @@ typedef struct UA_Server UA_Server;
  *
  * Server
  * ======
+ *
+ * .. include:: server_config.rst
  *
  * .. _server-lifecycle:
  *
@@ -123,7 +133,7 @@ UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
 UA_DataValue UA_EXPORT
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps);
-    
+
 /* Don't use this function. There are typed versions for every supported
  * attribute. */
 UA_StatusCode UA_EXPORT
@@ -938,14 +948,33 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
 
 UA_StatusCode UA_EXPORT
+UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                          const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName,
+                          const UA_MethodAttributes attr, UA_MethodCallback method,
+                          size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                          const UA_NodeId inputArgumentsRequestedNewNodeId,
+                          UA_NodeId *inputArgumentsOutNewNodeId,
+                          size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                          const UA_NodeId outputArgumentsRequestedNewNodeId,
+                          UA_NodeId *outputArgumentsOutNewNodeId,
+                          void *nodeContext, UA_NodeId *outNewNodeId);
+
+static UA_INLINE UA_StatusCode
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
-                        const UA_NodeId parentNodeId,
-                        const UA_NodeId referenceTypeId,
-                        const UA_QualifiedName browseName,
-                        const UA_MethodAttributes attr, UA_MethodCallback method,
-                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
-                        size_t outputArgumentsSize, const UA_Argument* outputArguments,
-                        void *nodeContext, UA_NodeId *outNewNodeId);
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
+                        UA_MethodCallback method,
+                        size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                        size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                        void *nodeContext, UA_NodeId *outNewNodeId) {
+    return UA_Server_addMethodNodeEx(server, requestedNewNodeId,  parentNodeId,
+                                     referenceTypeId, browseName, attr, method,
+                                     inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                     outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
+                                     nodeContext, outNewNodeId);
+}
 
 
 /**
@@ -980,6 +1009,14 @@ UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          const UA_NodeId parentNodeId,
                          const UA_NodeId referenceTypeId,
                          const UA_NodeId typeDefinitionId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_NodeId parentNodeId,
+                         const UA_NodeId referenceTypeId,
+                         UA_MethodCallback method,
+                         size_t inputArgumentsSize, const UA_Argument* inputArguments,
+                         size_t outputArgumentsSize, const UA_Argument* outputArguments);
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT

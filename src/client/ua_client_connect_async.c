@@ -534,8 +534,8 @@ UA_Client_connectInternalAsync (UA_Client *client, const char *endpointUrl,
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client) {
-    if (client->connection.state == UA_CONNECTION_ESTABLISHED
-            && client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
+    if (client->connection.state == UA_CONNECTION_ESTABLISHED &&
+        client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
         return sendHELMessage (client);
     }
 
@@ -548,6 +548,7 @@ UA_Client_connect_iterate (UA_Client *client) {
 
     return client->connectStatus;
 }
+
 UA_StatusCode
 UA_Client_connect_async (UA_Client *client, const char *endpointUrl,
                          UA_ClientAsyncServiceCallback callback,

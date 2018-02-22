@@ -187,6 +187,7 @@ UA_Client_run_iterate (UA_Client *client, UA_StatusCode *retval) {
     UA_DateTime nextRepeated = UA_Timer_process (
             &client->timer, now,
             (UA_TimerDispatchCallback) UA_Client_workerCallback, client);
+
     UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
     if (nextRepeated > latest)
         nextRepeated = latest;

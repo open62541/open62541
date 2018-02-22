@@ -1,6 +1,9 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
@@ -10,6 +13,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
+#include <ua_plugin_pki.h>
 
 #include "ua_securitypolicy_basic128rsa15.h"
 #include "ua_types.h"
@@ -87,7 +91,7 @@ asym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
     /* Set the RSA settings */
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0); 
+    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     /* Verify */
     int mbedErr = mbedtls_pk_verify(&cc->remoteCertificate.pk,
@@ -268,7 +272,7 @@ asymmetricModule_compareCertificateThumbprint_sp_basic128rsa15(const UA_Security
     if(securityPolicy == NULL || certificateThumbprint == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext*)securityPolicy->policyContext;
+    Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
     if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint))
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
@@ -302,8 +306,8 @@ sym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    Basic128Rsa15_PolicyContext *pc = 
-        (Basic128Rsa15_PolicyContext*)securityPolicy->policyContext;
+    Basic128Rsa15_PolicyContext *pc =
+        (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
 
     unsigned char mac[UA_SHA1_LENGTH];
     md_hmac(&pc->sha1MdContext, &cc->remoteSymSigningKey, message, mac);
@@ -352,7 +356,7 @@ sym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(data->length % cc->localSymEncryptingKey.length != 0) {
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Length of data to encrypt is not a multiple of the encryptingKey length."
-                     "Padding might not have been calculated appropriatley.");
+                         "Padding might not have been calculated appropriatley.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -390,7 +394,7 @@ sym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    unsigned int keylength = (unsigned int) (cc->remoteSymEncryptingKey.length * 8);
+    unsigned int keylength = (unsigned int)(cc->remoteSymEncryptingKey.length * 8);
     mbedtls_aes_context aesContext;
     int mbedErr = mbedtls_aes_setkey_dec(&aesContext, cc->remoteSymEncryptingKey.data, keylength);
     UA_MBEDTLS_ERRORHANDLING_RETURN(UA_STATUSCODE_BADINTERNALERROR);
@@ -422,7 +426,7 @@ sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     Basic128Rsa15_PolicyContext *pc =
-        (Basic128Rsa15_PolicyContext*)securityPolicy->policyContext;
+        (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
 
     size_t hashLen = 0;
     const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
@@ -500,7 +504,7 @@ sym_generateNonce_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     Basic128Rsa15_PolicyContext *data =
-        (Basic128Rsa15_PolicyContext *) securityPolicy->policyContext;
+        (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
 
     int mbedErr = mbedtls_ctr_drbg_random(&data->drbgContext, out->data, out->length);
     UA_MBEDTLS_ERRORHANDLING_RETURN(UA_STATUSCODE_BADUNEXPECTEDERROR);
@@ -523,7 +527,7 @@ parseRemoteCertificate_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
 
     /* Parse the certificate */
     int mbedErr = mbedtls_x509_crt_parse(&cc->remoteCertificate, remoteCertificate->data,
-                                          remoteCertificate->length);
+                                         remoteCertificate->length);
     UA_MBEDTLS_ERRORHANDLING_RETURN(UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     /* Check the key length */
@@ -562,10 +566,10 @@ channelContext_newContext_sp_basic128rsa15(const UA_SecurityPolicy *securityPoli
     if(*pp_contextData == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    Basic128Rsa15_ChannelContext *cc = (Basic128Rsa15_ChannelContext*)*pp_contextData;
+    Basic128Rsa15_ChannelContext *cc = (Basic128Rsa15_ChannelContext *)*pp_contextData;
 
     /* Initialize the channel context */
-    cc->policyContext = (Basic128Rsa15_PolicyContext*)securityPolicy->policyContext;
+    cc->policyContext = (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
 
     UA_ByteString_init(&cc->localSymSigningKey);
     UA_ByteString_init(&cc->localSymEncryptingKey);
@@ -678,7 +682,7 @@ static size_t
 channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_basic128rsa15(const Basic128Rsa15_ChannelContext *cc,
                                                                             size_t maxEncryptionLength) {
     const size_t maxNumberOfBlocks = maxEncryptionLength /
-        channelContext_getRemoteAsymPlainTextBlockSize_sp_basic128rsa15(cc);
+                                     channelContext_getRemoteAsymPlainTextBlockSize_sp_basic128rsa15(cc);
     return maxNumberOfBlocks * UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 }
 
@@ -693,7 +697,7 @@ deleteMembers_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
 
     /* delete all allocated members in the context */
-    Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext*)
+    Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)
         securityPolicy->policyContext;
 
     mbedtls_ctr_drbg_free(&pc->drbgContext);
@@ -718,7 +722,7 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
 
     Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)
         UA_malloc(sizeof(Basic128Rsa15_PolicyContext));
-    securityPolicy->policyContext = (void*)pc;
+    securityPolicy->policyContext = (void *)pc;
     if(!pc) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto error;
@@ -785,8 +789,9 @@ error:
 }
 
 UA_StatusCode
-UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
-                                const UA_ByteString localPrivateKey, UA_Logger logger) {
+UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerification *certificateVerification,
+                                const UA_ByteString localCertificate, const UA_ByteString localPrivateKey,
+                                UA_Logger logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
 
@@ -798,12 +803,13 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
 
     /* Copy the certificate and add a NULL to the end */
     UA_StatusCode retval =
-        UA_ByteString_allocBuffer(&policy->localCertificate, localCertificate.length+1);
+        UA_ByteString_allocBuffer(&policy->localCertificate, localCertificate.length + 1);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     memcpy(policy->localCertificate.data, localCertificate.data, localCertificate.length);
     policy->localCertificate.data[localCertificate.length] = '\0';
     policy->localCertificate.length--;
+    policy->certificateVerification = certificateVerification;
 
     /* AsymmetricModule */
     asymmetricModule->cryptoModule.signatureAlgorithmUri =
@@ -824,7 +830,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))asym_encrypt_sp_basic128rsa15;
     asymmetricModule->cryptoModule.decrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))
-        asym_decrypt_sp_basic128rsa15;
+            asym_decrypt_sp_basic128rsa15;
     asymmetricModule->cryptoModule.getLocalEncryptionKeyLength = NULL; // TODO: Write function
     asymmetricModule->cryptoModule.getRemoteEncryptionKeyLength =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength;
@@ -855,7 +861,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))sym_encrypt_sp_basic128rsa15;
     symmetricModule->cryptoModule.decrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))
-        sym_decrypt_sp_basic128rsa15;
+            sym_decrypt_sp_basic128rsa15;
     symmetricModule->cryptoModule.getLocalEncryptionKeyLength = sym_getEncryptionKeyLength_sp_basic128rsa15;
     symmetricModule->cryptoModule.getRemoteEncryptionKeyLength = sym_getEncryptionKeyLength_sp_basic128rsa15;
 

@@ -11,15 +11,25 @@ if ! [ -z ${DOCKER+x} ]; then
     exit 0
 fi
 
+# Cpplint checking
+if ! [ -z ${LINT+x} ]; then
+    mkdir -p build
+    cd build
+    cmake ..
+    make cpplint
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    exit 0
+fi
+
 # Fuzzer build test
 if ! [ -z ${FUZZER+x} ]; then
     # Test the corpus generator and use new corpus for fuzz test
     ./tests/fuzz/generate_corpus.sh
-	if [ $? -ne 0 ] ; then exit 1 ; fi
+    if [ $? -ne 0 ] ; then exit 1 ; fi
 
-	cd build_fuzz
-	make && make run_fuzzer
-	if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd build_fuzz
+    make && make run_fuzzer
+    if [ $? -ne 0 ] ; then exit 1 ; fi
     exit 0
 fi
 
@@ -28,8 +38,8 @@ if [ $ANALYZE = "true" ]; then
     if [ "$CC" = "clang" ]; then
         mkdir -p build
         cd build
-        scan-build-3.9 cmake -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
-        scan-build-3.9 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
@@ -37,19 +47,13 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build-3.9 cmake -DUA_ENABLE_AMALGAMATION=ON ..
-        scan-build-3.9 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
         cd .. && rm build -rf
 
-        mkdir -p build
-        cd build
-        cmake -DUA_BUILD_EXAMPLES=ON ..
-        make -j
-        make lint
-        cd .. && rm build -rf
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \
@@ -162,64 +166,82 @@ else
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.shared_libs\\r'echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'
+    echo -en 'travis_fold:end:script.build.shared_libs\\r'
+
+    if [ "$CC" != "tcc" ]; then
+        echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'
+        mkdir -p build && cd build
+        cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
+        make -j
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        cd .. && rm build -rf
+        echo -en 'travis_fold:end:script.build.multithread\\r'
+    fi
+
+    echo -e "\r\n== Compile with encryption ==" && echo -en 'travis_fold:start:script.build.encryption\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_ENCRYPTION=ON -DUA_BUILD_EXAMPLES=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.multithread\\r'
+    echo -en 'travis_fold:end:script.build.encryption\\r'
 
-    echo -e "\r\n== Compile without discovery version ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind\\r'
+    echo -e "\r\n== Compile without discovery version ==" && echo -en 'travis_fold:start:script.build.discovery\\r'
     mkdir -p build && cd build
     cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_DISCOVERY=OFF -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.discovery\\r'
 
-    echo -e "\r\n== Compile discovery without multicast version =="
+    echo -e "\r\n== Compile discovery without multicast version ==" && echo -en 'travis_fold:start:script.build.multicast\\r'
     mkdir -p build && cd build
     cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.multicast\\r'
 
-
-    echo -e "\r\n== Compile multithreaded version with discovery =="
-    mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_EXAMPLES=ON ..
-    make -j
-    if [ $? -ne 0 ] ; then exit 1 ; fi
-    cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.multithread\\r'
+    if [ "$CC" != "tcc" ]; then
+        echo -e "\r\n== Compile multithreaded version with discovery ==" && echo -en 'travis_fold:start:script.build.multithread_discovery\\r'
+        mkdir -p build && cd build
+        cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_EXAMPLES=ON ..
+        make -j
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        cd .. && rm build -rf
+        echo -en 'travis_fold:end:script.build.multithread_discovery\\r'
+    fi
 
     echo -e "\r\n== Unit tests (full NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_full\\r'
     mkdir -p build && cd build
     # Valgrind cannot handle the full NS0 because the generated file is too big. Thus run NS0 full without valgrind
     cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_FULL_NS0=ON \
-    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-    -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=OFF -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF ..
+    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
+    -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=OFF \
+    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF ..
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.unit_test_ns0\\r'
+    echo -en 'travis_fold:end:script.build.unit_test_ns0_full\\r'
 
-    echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
-    mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-    -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
-    make -j && make test ARGS="-V"
-    if [ $? -ne 0 ] ; then exit 1 ; fi
-    echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
+    if [ "$CC" != "tcc" ]; then
+        echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
+        mkdir -p build && cd build
+        cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON  -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
+        -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON \
+        -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+        make -j && make test ARGS="-V"
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
 
-    # only run coveralls on main repo, otherwise it fails uploading the files
-    echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
-    if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
-        echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
-        coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
-        echo -en 'travis_fold:end:script.build.coveralls\\r'
+        # only run coveralls on main repo, otherwise it fails uploading the files
+        echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
+        if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+            echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
+            coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
+            echo -en 'travis_fold:end:script.build.coveralls\\r'
+        fi
+        cd .. && rm build -rf
     fi
-    cd .. && rm build -rf
-
 fi

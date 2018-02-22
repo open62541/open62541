@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Florian Palm
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mattias Bornhager
+ */
 
 #ifndef UA_SUBSCRIPTION_H_
 #define UA_SUBSCRIPTION_H_
@@ -20,10 +29,19 @@ typedef enum {
     UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
 } UA_MonitoredItemType;
 
+
+/* not used yet, placeholder for event implementation */
+typedef struct UA_Event {
+   UA_Int32 eventId;
+} UA_Event;
+
 typedef struct MonitoredItem_queuedValue {
     TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
     UA_UInt32 clientHandle;
-    UA_DataValue value;
+    union {
+        UA_Event event;
+        UA_DataValue value;
+    } data;
 } MonitoredItem_queuedValue;
 
 typedef TAILQ_HEAD(QueuedValueQueue, MonitoredItem_queuedValue) QueuedValueQueue;
@@ -38,7 +56,7 @@ typedef struct UA_MonitoredItem {
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
     UA_NodeId monitoredNodeId;
-    UA_UInt32 attributeID;
+    UA_UInt32 attributeId;
     UA_UInt32 clientHandle;
     UA_Double samplingInterval; // [ms]
     UA_UInt32 currentQueueSize;
@@ -57,9 +75,9 @@ typedef struct UA_MonitoredItem {
     QueuedValueQueue queue;
 } UA_MonitoredItem;
 
-UA_MonitoredItem * UA_MonitoredItem_new(void);
+UA_MonitoredItem * UA_MonitoredItem_new(UA_MonitoredItemType);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
-void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+void UA_MonitoredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
@@ -95,7 +113,7 @@ struct UA_Subscription {
     UA_UInt32 lifeTimeCount;
     UA_UInt32 maxKeepAliveCount;
     UA_Double publishingInterval; /* in ms */
-    UA_UInt32 subscriptionID;
+    UA_UInt32 subscriptionId;
     UA_UInt32 notificationsPerPublish;
     UA_Boolean publishingEnabled;
     UA_UInt32 priority;
@@ -123,14 +141,14 @@ struct UA_Subscription {
     UA_UInt32 retransmissionQueueSize;
 };
 
-UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID);
+UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
-                                    UA_UInt32 monitoredItemID);
+                                    UA_UInt32 monitoredItemId);
 
 void
 UA_Subscription_addMonitoredItem(UA_Subscription *sub,
@@ -139,7 +157,7 @@ UA_UInt32
 UA_Subscription_getNumMonitoredItems(UA_Subscription *sub);
 
 UA_MonitoredItem *
-UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID);
+UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
 

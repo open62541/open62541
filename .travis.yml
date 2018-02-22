@@ -40,18 +40,26 @@ matrix:
         - ANALYZE=false
         - PYTHON=python3
     - os: linux
+      compiler: tcc
+      env:
+        - ANALYZE=false
+        - PYTHON=python2
+    - os: linux
       compiler: clang
       env: ANALYZE=true
     - os: linux
       compiler: clang
       env: FUZZER=true
-    # - os: osx
-    #   compiler: clang
-    #   # disable homebrew auto update which takes a lot of time
-    #   env: HOMEBREW_NO_AUTO_UPDATE=1
-    #   cache:
-    #     directories:
-    #       - $HOME/Library/Caches/Homebrew
+    #- os: linux
+    #  compiler: gcc
+    #  env: LINT=true
+    - os: osx
+      compiler: clang
+      # disable homebrew auto update which takes a lot of time
+      env: HOMEBREW_NO_AUTO_UPDATE=1
+      cache:
+        directories:
+          - $HOME/Library/Caches/Homebrew
 
 addons:
   apt:

@@ -182,8 +182,11 @@ connection_releaserecvbuffer(UA_Connection *connection,
 
 static UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
-    if (connection->state == UA_CONNECTION_CLOSED)
+    if(connection->state == UA_CONNECTION_CLOSED) {
+        UA_ByteString_deleteMembers(buf);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
     /* Prevent OS signals when sending to a closed socket */
     int flags = 0;
 #ifdef MSG_NOSIGNAL
@@ -216,7 +219,7 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
 static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
-    if (connection->state == UA_CONNECTION_CLOSED)
+    if(connection->state == UA_CONNECTION_CLOSED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     /* Listen on the socket for the given timeout until a message arrives */
     if(timeout > 0) {
@@ -233,8 +236,13 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         if(resultsize == 0)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
-        /* Error occurred */
-        if (resultsize == -1) {
+        if(resultsize == -1) {
+            /* The call to select was interrupted manually. Act as if it timed
+             * out */
+            if(errno == EINTR)
+                return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+            /* The error cannot be recovered. Close the connection. */
             connection->close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
@@ -759,7 +767,7 @@ ClientNetworkLayerTCP_close(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
 }
 
-UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data) {
+UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 	UA_Connection *connection = (UA_Connection*) data;
 	TCPClientConnection *tcpConnection =
 			(TCPClientConnection*) connection->handle;

@@ -1,29 +1,35 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_network_udp.h"
 #include <stdio.h>
 #include <string.h> // memset
 
-#ifdef UA_ENABLE_MULTITHREADING
-# include <urcu/uatomic.h>
-#endif
-
 /* with a space so amalgamation does not remove the includes */
 # include <errno.h> // errno, EINTR
 # include <fcntl.h> // fcntl
 # include <strings.h> //bzero
+
+#if defined(UA_FREERTOS)
+ # include <lwip/udp.h>
+ # include <lwip/tcpip.h>
+#else
 # ifndef _WRS_KERNEL
 #  include <sys/select.h>
 # else
-# include <selectLib.h>
+#  include <selectLib.h>
 # endif
-# include <netinet/in.h>
-# include <netinet/tcp.h>
-# include <sys/socketvar.h>
-# include <sys/ioctl.h>
-# include <unistd.h> // read, write, close
-# include <arpa/inet.h>
+#  include <netinet/in.h>
+#  include <netinet/tcp.h>
+#  include <sys/socketvar.h>
+#  include <sys/ioctl.h>
+#  include <unistd.h> // read, write, close
+#  include <arpa/inet.h>
+#endif
 #ifdef __QNX__
 #include <sys/socket.h>
 #endif

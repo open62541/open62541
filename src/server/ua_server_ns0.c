@@ -1,6 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Thomas Bender
+ *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2017 (c) Henrik Norrman
+ */
 
 #include "ua_server_internal.h"
 #include "ua_namespace0.h"
@@ -23,7 +30,7 @@ addNode_begin(UA_Server *server, UA_NodeClass nodeClass,
     item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     item.nodeAttributes.content.decoded.data = attributes;
     item.nodeAttributes.content.decoded.type = attributesType;
-    return Operation_addNode_begin(server, &adminSession, &item, NULL, NULL);
+    return Operation_addNode_begin(server, &adminSession, NULL, &item, NULL);
 }
 
 static UA_StatusCode
@@ -35,7 +42,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     UA_NodeId referenceType = UA_NODEID_NUMERIC(0, referenceTypeId);
     UA_NodeId typeDefinition = UA_NODEID_NUMERIC(0, typeDefinitionId);
     return Operation_addNode_finish(server, &adminSession, &node, &parentNode,
-                             &referenceType, &typeDefinition);
+                                    &referenceType, &typeDefinition);
 }
 
 static UA_StatusCode
@@ -299,7 +306,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addObjectNode(server, "Views", UA_NS0ID_VIEWSFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
-    if (ret != UA_STATUSCODE_GOOD)
+    if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -480,7 +487,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
-    UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
+    UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!subscription)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -534,14 +541,14 @@ UA_Server_initNS0(UA_Server *server) {
     server->bootstrapNS0 = true;
     UA_StatusCode retVal = UA_Server_createNS0_base(server);
     server->bootstrapNS0 = false;
-    if (retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
     /* Load nodes and references generated from the XML ns0 definition */
     server->bootstrapNS0 = true;
     retVal = ua_namespace0(server);
     server->bootstrapNS0 = false;
-    if (retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
     /* NamespaceArray */
@@ -582,7 +589,7 @@ UA_Server_initNS0(UA_Server *server) {
 
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
                                     profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
-    for (int i=0; i<profileArraySize; i++) {
+    for(int i=0; i<profileArraySize; i++) {
         UA_String_deleteMembers(&profileArray[i]);
     }
 
@@ -613,7 +620,7 @@ UA_Server_initNS0(UA_Server *server) {
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {readStatus, NULL}; 
+    UA_DataSource serverStatus = {readStatus, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 

@@ -28,6 +28,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_ENCRYPTION
+#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
@@ -110,10 +111,23 @@ extern "C" {
 # include <malloc.h>
 #endif
 
-#define UA_free(ptr) free(ptr)
-#define UA_malloc(size) malloc(size)
-#define UA_calloc(num, size) calloc(num, size)
-#define UA_realloc(ptr, size) realloc(ptr, size)
+#if !defined(UA_FREERTOS)
+
+# define UA_free(ptr) free(ptr)
+# define UA_malloc(size) malloc(size)
+# define UA_calloc(num, size) calloc(num, size)
+# define UA_realloc(ptr, size) realloc(ptr, size)
+
+#else
+
+# include <FreeRTOS.h>
+
+# define UA_free(ptr) vPortFree(ptr)
+# define UA_malloc(size) pvPortMalloc(size)
+# define UA_calloc(num, size) pvPortCalloc(num, size)
+# define UA_realloc(ptr, size) pvPortRealloc(ptr, size)
+
+#endif
 
 #if defined(__GNUC__) || defined(__clang__)
 # define UA_alloca(size) __builtin_alloca (size)
@@ -254,7 +268,10 @@ extern "C" {
  * The definition ``UA_BINARY_OVERLAYABLE_FLOAT`` is true when the floating
  * point number representation of the target architecture is IEEE 754. Note that
  * this cannot be reliable detected with macros for the clang compiler
- * (beginning of 2017). Just override if necessary. */
+ * (beginning of 2017). ``UA_BINARY_OVERLAYABLE_FLOAT`` can be manually set if
+ * the target is known to be little endian with floats in the IEEE 754
+ * format. */
+
 #if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
@@ -265,7 +282,11 @@ extern "C" {
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__linux__) /* Linux (including Android) */
 # include <endian.h>
-# if __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
+# if defined(__ANDROID__)
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+#   define UA_BINARY_OVERLAYABLE_INTEGER 1
+#  endif
+# elif __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
 #  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(_WRS_KERNEL)

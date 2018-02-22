@@ -1,6 +1,11 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_PLUGIN_SECURITYPOLICY_H_
 #define UA_PLUGIN_SECURITYPOLICY_H_
@@ -12,6 +17,7 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_plugin_log.h"
+#include "ua_plugin_pki.h"
 
 extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
 
@@ -290,6 +296,7 @@ struct UA_SecurityPolicy {
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
     UA_SecurityPolicySymmetricModule symmetricModule;
     UA_SecurityPolicyChannelModule channelModule;
+    UA_CertificateVerification *certificateVerification;
 
     UA_Logger logger;
 

@@ -4,7 +4,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <errno.h>
-#include <open62541.h>
 #include "open62541.h"
 
 static UA_ByteString loadFile(const char *const path) {
@@ -26,6 +25,8 @@ static UA_ByteString loadFile(const char *const path) {
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
         if(read != fileContents.length)
             UA_ByteString_deleteMembers(&fileContents);
+    } else {
+        fileContents.length = 0;
     }
     fclose(fp);
 

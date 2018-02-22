@@ -1,5 +1,10 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ */
 
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
@@ -39,6 +44,10 @@
 #endif
 
 #include "ua_types.h"
+
+#if defined(UA_FREERTOS)
+#include <task.h>
+#endif
 
 UA_DateTime UA_DateTime_now(void) {
 #if defined(_WIN32)
@@ -96,9 +105,19 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     mach_port_deallocate(mach_task_self(), cclock);
     return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100);
 #elif !defined(CLOCK_MONOTONIC_RAW)
+# if defined(UA_FREERTOS)
+    portTickType TaskTime = xTaskGetTickCount();
+    UA_DateTimeStruct UATime;
+    UATime.milliSec = (UA_UInt16) TaskTime;
+    struct timespec ts;
+    ts.tv_sec = UATime.milliSec/1000;
+    ts.tv_nsec = (UATime.milliSec % 1000)* 1000000;
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+# else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+# endif
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);

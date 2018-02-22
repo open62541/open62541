@@ -1,6 +1,12 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Florian Palm
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
@@ -9,7 +15,7 @@
 extern "C" {
 #endif
 
-#include "queue.h"
+#include "../deps/queue.h"
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
@@ -19,6 +25,7 @@ extern "C" {
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
+/* Thread-local variables to force failure modes during testing */
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 extern UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
 extern UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
@@ -30,14 +37,11 @@ extern UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
  * the interface that will be used by the SecureChannel. The lifecycle of
  * Sessions is independent of the underlying SecureChannel. But every Session
  * can be attached to only one SecureChannel. */
-struct UA_SessionHeader;
-typedef struct UA_SessionHeader UA_SessionHeader;
-
-struct UA_SessionHeader {
+typedef struct UA_SessionHeader {
     LIST_ENTRY(UA_SessionHeader) pointers;
     UA_NodeId authenticationToken;
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
-};
+} UA_SessionHeader;
 
 /* For chunked requests */
 struct ChunkEntry {

@@ -1,6 +1,18 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2016 (c) Sten Grüner
+ *    Copyright 2014-2015, 2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016 (c) Joakim L. Gilje
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2016 (c) TorbenD
+ *    Copyright 2017 (c) frax2222
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
@@ -380,7 +392,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestTypeId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+    if(requestTypeId.namespaceIndex != 0 ||
+       requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
         UA_NodeId_deleteMembers(&requestTypeId); /* leads to badserviceunsupported */
 
     /* Store the start-position of the request */
@@ -442,7 +455,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     // set the authenticationToken from the create session request to help fuzzing cover more lines
-    if (!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
+    UA_NodeId_deleteMembers(&requestHeader->authenticationToken);
+    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
     #endif
 
@@ -546,7 +560,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         /* Was processed before...*/
         retval = UA_MessageContext_encode(&mc, response, responseType);
         break;
-    case UA_SERVICETYPE_INSITU: 
+    case UA_SERVICETYPE_INSITU:
         retval = ((UA_InSituService)service)
             (server, session, &mc, request, (UA_ResponseHeader*)response);
         break;

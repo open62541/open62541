@@ -1,6 +1,18 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2015 (c) Joakim L. Gilje
+ *    Copyright 2016-2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) frax2222
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mattias Bornhager
+ */
 
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
@@ -8,7 +20,7 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 UA_Subscription *
-UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID) {
+UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
     /* Allocate the memory */
     UA_Subscription *newItem =
         (UA_Subscription*)UA_calloc(1, sizeof(UA_Subscription));
@@ -17,7 +29,7 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID) {
 
     /* Remaining members are covered by calloc zeroing out the memory */
     newItem->session = session;
-    newItem->subscriptionID = subscriptionID;
+    newItem->subscriptionId = subscriptionId;
     newItem->numMonitoredItems = 0;
     newItem->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     TAILQ_INIT(&newItem->retransmissionQueue);
@@ -49,10 +61,10 @@ UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) 
 
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub,
-                                 UA_UInt32 monitoredItemID) {
+                                 UA_UInt32 monitoredItemId) {
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->itemId == monitoredItemID)
+        if(mon->itemId == monitoredItemId)
             break;
     }
     return mon;
@@ -60,11 +72,11 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub,
 
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
-                                    UA_UInt32 monitoredItemID) {
+                                    UA_UInt32 monitoredItemId) {
     /* Find the MonitoredItem */
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->itemId == monitoredItemID)
+        if(mon->itemId == monitoredItemId)
             break;
     }
     if(!mon)
@@ -177,7 +189,11 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
                 return;
             UA_MonitoredItemNotification *min = &mins[*pos];
             min->clientHandle = qv->clientHandle;
-            min->value = qv->value;
+            if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+                min->value = qv->data.value;
+            } else {
+                /* TODO implementation for events */
+            }
             TAILQ_REMOVE(&mon->queue, qv, listEntry);
             UA_free(qv);
             --mon->currentQueueSize;
@@ -251,51 +267,52 @@ void
 UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Publish Callback",
-                         sub->subscriptionID);
+                         sub->subscriptionId);
+    /* Dequeue a response */
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
+    if(pre) {
+        sub->currentLifetimeCount = 0; /* Reset the lifetimecounter */
+    } else {
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | The publish queue is empty",
+                             sub->subscriptionId);
+        ++sub->currentLifetimeCount;
+
+        if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                                 "Subscription %u | End of lifetime "
+                                 "for subscription", sub->subscriptionId);
+            UA_Session_deleteSubscription(server, sub->session, sub->subscriptionId);
+            /* TODO: send a StatusChangeNotification with Bad_Timeout */
+            return;
+        }
+    }
 
     /* Count the available notifications */
     UA_Boolean moreNotifications = false;
     size_t notifications = countQueuedNotifications(sub, &moreNotifications);
 
-    /* Return if nothing to do */
+    /* Return if no notifications and no keepalive */
     if(notifications == 0) {
         ++sub->currentKeepAliveCount;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                              "Subscription %u | Sending a KeepAlive",
-                             sub->subscriptionID);
+                             sub->subscriptionId);
     }
 
-    /* Check if the securechannel is valid */
+    /* Can we send a response? */
     UA_SecureChannel *channel = sub->session->header.channel;
-    if(!channel)
-        return;
-
-    /* Dequeue a response */
-    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
-
-    /* Cannot publish without a response */
-    if(!pre) {
+    if(!channel || !pre) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | Cannot send a publish "
-                             "response since the publish queue is empty",
-                             sub->subscriptionID);
-        if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-        } else {
-            ++sub->currentLifetimeCount;
-            if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                                     "Subscription %u | End of lifetime "
-                                     "for subscription", sub->subscriptionID);
-                UA_Session_deleteSubscription(server, sub->session,
-                                              sub->subscriptionID);
-            }
-        }
+                             "Subscription %u | Want to send a publish response;"
+                             "but not possible", sub->subscriptionId);
+        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         return;
     }
 
+    /* Prepare the response */
     UA_PublishResponse *response = &pre->response;
     UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
@@ -306,18 +323,19 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         if(!retransmission) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not allocate memory "
-                                   "for retransmission", sub->subscriptionID);
+                                   "for retransmission", sub->subscriptionId);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
 
         /* Prepare the response */
-        UA_StatusCode retval =
-            prepareNotificationMessage(sub, message, notifications);
+        UA_StatusCode retval = prepareNotificationMessage(sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the "
-                                   "notification message", sub->subscriptionID);
+                                   "notification message", sub->subscriptionId);
             UA_free(retransmission);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
     }
@@ -329,7 +347,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Set up the response */
     response->responseHeader.timestamp = UA_DateTime_now();
-    response->subscriptionId = sub->subscriptionID;
+    response->subscriptionId = sub->subscriptionId;
     response->moreNotifications = moreNotifications;
     message->publishTime = response->responseHeader.timestamp;
 
@@ -365,7 +383,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Send the response */
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Sending out a publish response "
-                         "with %u notifications", sub->subscriptionID,
+                         "with %u notifications", sub->subscriptionId,
                          (UA_UInt32)notifications);
     UA_SecureChannel_sendSymmetricMessage(sub->session->header.channel, pre->requestId,
                                           UA_MESSAGETYPE_MSG, response,
@@ -374,7 +392,6 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Reset subscription state to normal. */
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
     sub->currentKeepAliveCount = 0;
-    sub->currentLifetimeCount = 0;
 
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize,
@@ -443,7 +460,7 @@ UA_StatusCode
 Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Register subscription "
-                         "publishing callback", sub->subscriptionID);
+                         "publishing callback", sub->subscriptionId);
 
     if(sub->publishCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
@@ -464,7 +481,7 @@ UA_StatusCode
 Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Unregister subscription "
-                         "publishing callback", sub->subscriptionID);
+                         "publishing callback", sub->subscriptionId);
 
     if(!sub->publishCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;

@@ -1,5 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include "ua_pki_certificate.h"
 
@@ -43,6 +46,7 @@ certificateVerification_verify(void *verificationContext,
 
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
+    mbedtls_x509_crt_init(&remoteCertificate);
     int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
                                          certificate->length);
     if(mbedErr) {
@@ -114,7 +118,10 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
 
     cv->context = (void*)ci;
-    cv->verifyCertificate = certificateVerification_verify;
+    if(certificateTrustListSize > 0)
+        cv->verifyCertificate = certificateVerification_verify;
+    else
+        cv->verifyCertificate = verifyAllowAll;
     cv->deleteMembers = certificateVerification_deleteMembers;
 
     int err = 0;

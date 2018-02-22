@@ -1,6 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014 (c) Leon Urbas
+ *    Copyright 2014, 2016-2017 (c) Florian Palm
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015 (c) Nick Goossens
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Thomas Stalder
+ */
 
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
@@ -366,6 +377,9 @@ typedef struct {
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 
+UA_Boolean UA_EXPORT UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
+                                             const UA_ExpandedNodeId *n2);
+
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
@@ -432,6 +446,10 @@ UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
     qn.name = UA_STRING_ALLOC(chars); return qn;
 }
+
+UA_Boolean UA_EXPORT
+UA_QualifiedName_equal(const UA_QualifiedName *qn1,
+                       const UA_QualifiedName *qn2);
 
 /**
  * LocalizedText

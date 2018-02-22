@@ -36,7 +36,7 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
-    if (client->config.stateCallback)
+    if(client->config.stateCallback)
         client->config.stateCallback (client, client->state);
     //catch error during async connection
     client->connectStatus = UA_STATUSCODE_GOOD;
@@ -203,7 +203,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Call the callback */
-    ac->callback(client, ac->userdata, requestId, response, ac->responseType);
+    ac->callback(client, ac->userdata, requestId, response);
     UA_deleteMembers(response, ac->responseType);
 
     /* Remove the callback */
@@ -370,10 +370,10 @@ __UA_Client_Service(UA_Client *client, const void *request,
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         /* In synchronous service, if we have don't have a reply we need to close the connection */
-        UA_Client_close (client);
+        UA_Client_close(client);
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
 }
 
@@ -407,7 +407,7 @@ receivePacket_async (UA_Client *client) {
                 &client->connection, client,
                 client->openSecureChannelResponseCallback);
     }
-    if (retval != UA_STATUSCODE_GOOD) {
+    if (retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             client->state = UA_CLIENTSTATE_DISCONNECTED;
         else
@@ -424,7 +424,7 @@ UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
     UA_init(resp, ac->responseType);
     ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
 
-    ac->callback(client, ac->userdata, ac->requestId, resp, ac->responseType);
+    ac->callback(client, ac->userdata, ac->requestId, resp);
 
     /* Clean up the response. Users might move data into it. For whatever reasons. */
     UA_deleteMembers(resp, ac->responseType);
@@ -462,7 +462,7 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 
     /* Store the entry for async processing */
     LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
-    if (requestId)
+    if(requestId)
         *requestId = ac->requestId;
     return UA_STATUSCODE_GOOD;
 }
@@ -510,13 +510,6 @@ UA_Client_addRepeatedCallback (UA_Client *Client, UA_ClientCallback callback,
                                          interval, callbackId);
 }
 
-UA_StatusCode
-UA_Client_changeRepeatedCallbackInterval (UA_Client *Client,
-                                          UA_UInt64 callbackId,
-                                          UA_UInt32 interval) {
-    return UA_Timer_changeRepeatedCallbackInterval (&Client->timer, callbackId,
-                                                    interval);
-}
 
 UA_StatusCode
 UA_Client_removeRepeatedCallback (UA_Client *Client, UA_UInt64 callbackId) {

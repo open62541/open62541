@@ -1,10 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
+ */
 
 #include "ua_session.h"
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-#include "server/ua_subscription.h"
+#include "ua_subscription.h"
+#include "ua_server_internal.h"
 #endif
 
 UA_Session adminSession = {
@@ -28,8 +33,8 @@ UA_Session adminSession = {
     UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
     {NULL}, /* .continuationPoints */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    0, /* .lastSubscriptionID */
-    0, /* .lastSeenSubscriptionID */
+    0, /* .lastSubscriptionId */
+    0, /* .lastSeenSubscriptionId */
     {NULL}, /* .serverSubscriptions */
     {NULL, NULL}, /* .responseQueue */
     0, /* numSubscriptions */
@@ -99,16 +104,33 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
     LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
 }
 
+/* Delayed callback to free the subscription memory */
+static void
+removeSubscriptionCallback(UA_Server *server, void *data) {
+    UA_Subscription *sub = (UA_Subscription*)data;
+    UA_Subscription_deleteMembers(sub, server);
+    UA_free(sub);
+}
+
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_UInt32 subscriptionID) {
-    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);
+                              UA_UInt32 subscriptionId) {
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
+    /* Add a delayed callback to remove the subscription when the currently
+     * scheduled jobs have completed */
+    UA_StatusCode retval = UA_Server_delayedCallback(server, removeSubscriptionCallback, sub);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(server->config.logger, session,
+                       "Could not remove subscription with error code %s",
+                       UA_StatusCode_name(retval));
+        return retval; /* Try again next time */
+    }
+
     LIST_REMOVE(sub, listEntry);
-    UA_Subscription_deleteMembers(sub, server);
-    UA_free(sub);
+
     if(session->numSubscriptions > 0) {
         session->numSubscriptions--;
     }
@@ -125,17 +147,17 @@ UA_Session_getNumSubscriptions( UA_Session *session ) {
 }
 
 UA_Subscription *
-UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
+UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
     LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionID)
+        if(sub->subscriptionId == subscriptionId)
             break;
     }
     return sub;
 }
 
-UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {
-    return ++(session->lastSubscriptionID);
+UA_UInt32 UA_Session_getUniqueSubscriptionId(UA_Session *session) {
+    return ++(session->lastSubscriptionId);
 }
 
 UA_UInt32
@@ -149,7 +171,7 @@ UA_Session_getPublishReq(UA_Session *session) {
 }
 
 void
-UA_Session_removePublishReq( UA_Session *session, UA_PublishResponseEntry* entry){
+UA_Session_removePublishReq( UA_Session *session, UA_PublishResponseEntry* entry) {
     UA_PublishResponseEntry* firstEntry;
     firstEntry = SIMPLEQ_FIRST(&session->responseQueue);
 
@@ -160,7 +182,7 @@ UA_Session_removePublishReq( UA_Session *session, UA_PublishResponseEntry* entry
     }
 }
 
-void UA_Session_addPublishReq( UA_Session *session, UA_PublishResponseEntry* entry){
+void UA_Session_addPublishReq( UA_Session *session, UA_PublishResponseEntry* entry) {
     SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
     session->numPublishReq++;
 }

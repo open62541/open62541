@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2015 (c) LEvertz
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
@@ -12,27 +21,26 @@ extern "C" {
 #endif
 
 /* BSD Queue Macros */
-#include "queue.h"
+#include "../deps/queue.h"
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
 
 /* Thread-Local Storage
  * --------------------
- * Thread-local variables are always enabled. Also when the library is built
- * with ``UA_ENABLE_MULTITHREADING`` disabled. Otherwise, if multiple clients
- * run in separate threads, race conditions may occur via global variables in
- * the encoding layer. */
+ * Thread-local storage is not required by the main library functionality. It is
+ * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
+ * feature is not available. */
+
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 # define UA_THREAD_LOCAL _Thread_local /* C11 */
 #elif defined(__cplusplus) && __cplusplus > 199711L
 # define UA_THREAD_LOCAL thread_local /* C++11 */
-#elif defined(__GNUC__) && !defined(_WRS_KERNEL) //defining __thread gave error of missing __tls_lookup in VxWorks
+#elif defined(__GNUC__)
 # define UA_THREAD_LOCAL __thread /* GNU extension */
 #elif defined(_MSC_VER)
 # define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 #else
-# warning The compiler does not support thread-local variables
 # define UA_THREAD_LOCAL
 #endif
 
@@ -99,7 +107,7 @@ UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
 }
 
 static UA_INLINE uint32_t
-UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
+UA_atomic_addUInt32(volatile uint32_t *addr, uint32_t increase) {
 #ifndef UA_ENABLE_MULTITHREADING
     *addr += increase;
     return *addr;
@@ -108,6 +116,48 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
     return _InterlockedExchangeAdd(addr, increase) + increase;
 # else /* GCC/Clang */
     return __sync_add_and_fetch(addr, increase);
+# endif
+#endif
+}
+
+static UA_INLINE size_t
+UA_atomic_addSize(volatile size_t *addr, size_t increase) {
+#ifndef UA_ENABLE_MULTITHREADING
+    *addr += increase;
+    return *addr;
+#else
+# ifdef _MSC_VER /* Visual Studio */
+    return _InterlockedExchangeAdd(addr, increase) + increase;
+# else /* GCC/Clang */
+    return __sync_add_and_fetch(addr, increase);
+# endif
+#endif
+}
+
+static UA_INLINE uint32_t
+UA_atomic_subUInt32(volatile uint32_t *addr, uint32_t decrease) {
+#ifndef UA_ENABLE_MULTITHREADING
+    *addr -= decrease;
+    return *addr;
+#else
+# ifdef _MSC_VER /* Visual Studio */
+    return _InterlockedExchangeSub(addr, decrease) - decrease;
+# else /* GCC/Clang */
+    return __sync_sub_and_fetch(addr, decrease);
+# endif
+#endif
+}
+
+static UA_INLINE size_t
+UA_atomic_subSize(volatile size_t *addr, size_t decrease) {
+#ifndef UA_ENABLE_MULTITHREADING
+    *addr -= decrease;
+    return *addr;
+#else
+# ifdef _MSC_VER /* Visual Studio */
+    return _InterlockedExchangeSub(addr, decrease) - decrease;
+# else /* GCC/Clang */
+    return __sync_sub_and_fetch(addr, decrease);
 # endif
 #endif
 }

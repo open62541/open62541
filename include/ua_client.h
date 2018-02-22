@@ -146,6 +146,11 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
+UA_StatusCode UA_EXPORT
+UA_Client_connect_async (UA_Client *client, const char *endpointUrl,
+                         UA_ClientAsyncServiceCallback callback,
+                         void *connected);
+
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
@@ -440,45 +445,6 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_UInt16 UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_StatusCode *retval);
 
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_read(UA_Client *client, const UA_ReadRequest *request,
-                            UA_ClientAsyncServiceCallback callback,
-                            void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_READREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_READRESPONSE],
-                                    userdata, requestId);
-}
-
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_write(UA_Client *client, const UA_WriteRequest *request,
-                             UA_ClientAsyncServiceCallback callback,
-                             void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_WRITEREQUEST], callback, 
-                                    &UA_TYPES[UA_TYPES_WRITERESPONSE],
-                                    userdata, requestId);
-}
-
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_call(UA_Client *client, const UA_CallRequest *request,
-                            UA_ClientAsyncServiceCallback callback,
-                            void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_CALLRESPONSE],
-                                    userdata, requestId);
-}
-
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request,
-                              UA_ClientAsyncServiceCallback callback,
-                              void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_BROWSEREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE],
-                                    userdata, requestId);
-}
 
 /**
  * .. toctree::
