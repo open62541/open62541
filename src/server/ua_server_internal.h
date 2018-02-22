@@ -341,13 +341,14 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 /* Creates a new node in the nodestore. */
 UA_StatusCode
 Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
-                        const UA_AddNodesItem *item, UA_NodeId *outNewNodeId);
+                        const UA_AddNodesItem *item, const UA_NodeId *parentNodeId,
+                        const UA_NodeId *referenceTypeId,
+                        UA_NodeId *outNewNodeId);
 
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session,
-                         const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
+                         const UA_NodeId *nodeId);
 
 /**********************/
 /* Create Namespace 0 */
