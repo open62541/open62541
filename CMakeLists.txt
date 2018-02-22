@@ -106,6 +106,9 @@ if (MSVC AND UA_ENABLE_FULL_NS0)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+option(UA_FILE_NS0 "Custom NodeSet file containing NS0")
+mark_as_advanced(UA_FILE_NS0)
+
 # Semaphores/file system may not be available on embedded devices. It can be
 # disabled with the following option
 option(UA_ENABLE_DISCOVERY_SEMAPHORE "Enable Discovery Semaphore support" ON)
@@ -467,19 +470,24 @@ endif()
 #########################
 
 if (UA_ENABLE_FULL_NS0)
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    endif()
     set(UA_FILE_DATATYPES "")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
-    if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
-    endif()
 else()
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    endif()
     set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 endif()
+if(NOT EXISTS "${UA_FILE_NS0}")
+    message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+endif()
+
 
 if (UA_FILE_DATATYPES STREQUAL "")
     set(SELECTED_TYPES_TMP "")
