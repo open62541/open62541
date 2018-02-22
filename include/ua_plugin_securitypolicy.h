@@ -72,6 +72,24 @@ typedef struct {
     size_t (*getRemoteSignatureSize)(const UA_SecurityPolicy *securityPolicy,
                                      const void *channelContext);
 
+    /* Gets the local signing key length.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the length of the signing key in bytes. Returns 0 if no length can be found.
+     */
+    size_t (*getLocalSigningKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                       const void *channelContext);
+
+    /* Gets the local signing key length.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the length of the signing key in bytes. Returns 0 if no length can be found.
+     */
+    size_t (*getRemoteSigningKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                        const void *channelContext);
+
     UA_String encryptionAlgorithmUri;
 
     /* Encrypt the given data in place using an asymmetric algorithm and keys.
@@ -113,6 +131,42 @@ typedef struct {
      *         key length is known. */
     size_t (*getRemoteEncryptionKeyLength)(const UA_SecurityPolicy *securityPolicy,
                                            const void *channelContext);
+
+    /* Returns the size of encrypted blocks used by the local encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getLocalEncryptionBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                          const void *channelContext);
+
+    /* Returns the size of encrypted blocks used by the remote encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getRemoteEncryptionBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                           const void *channelContext);
+
+    /* Returns the size of plaintext blocks used by the local encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getLocalPlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                         const void *channelContext);
+
+    /* Returns the size of plaintext blocks used by the remote encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                          const void *channelContext);
 } UA_SecurityPolicyCryptoModule;
 
 typedef struct {
@@ -171,8 +225,6 @@ typedef struct {
         UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     UA_SecurityPolicyCryptoModule cryptoModule;
-    size_t encryptionBlockSize;
-    size_t signingKeyLength;
 } UA_SecurityPolicySymmetricModule;
 
 typedef struct {
@@ -195,7 +247,7 @@ typedef struct {
     UA_StatusCode (*newContext)(const UA_SecurityPolicy *securityPolicy,
                                 const UA_ByteString *remoteCertificate,
                                 void **channelContext)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Deletes the the security context. */
     void (*deleteContext)(void *channelContext);

@@ -14,6 +14,7 @@
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
 #include <ua_plugin_pki.h>
+#include <ua_plugin_securitypolicy.h>
 
 #include "ua_securitypolicy_basic128rsa15.h"
 #include "ua_types.h"
@@ -28,6 +29,9 @@
 #define UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN 11
 #define UA_SHA1_LENGTH 20
 #define UA_SECURITYPOLICY_BASIC128RSA15_SYM_KEY_LENGTH 16
+#define UA_BASIC128RSA15_SYM_SIGNING_KEY_LENGTH 16
+#define UA_SECURITYPOLICY_BASIC128RSA15_SYM_ENCRYPTION_BLOCK_SIZE 16
+#define UA_SECURITYPOLICY_BASIC128RSA15_SYM_PLAIN_TEXT_BLOCK_SIZE 16
 #define UA_SECURITYPOLICY_BASIC128RSA15_MINASYMKEYLENGTH 128
 #define UA_SECURITYPOLICY_BASIC128RSA15_MAXASYMKEYLENGTH 256
 
@@ -338,9 +342,27 @@ sym_getSignatureSize_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
+sym_getSigningKeyLength_sp_basic128rsa15(const UA_SecurityPolicy *const securityPolicy,
+                                         const void *const channelContext) {
+    return UA_BASIC128RSA15_SYM_SIGNING_KEY_LENGTH;
+}
+
+static size_t
 sym_getEncryptionKeyLength_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
                                             const void *channelContext) {
     return UA_SECURITYPOLICY_BASIC128RSA15_SYM_KEY_LENGTH;
+}
+
+static size_t
+sym_getEncryptionBlockSize_sp_basic128rsa15(const UA_SecurityPolicy *const securityPolicy,
+                                            const void *const channelContext) {
+    return UA_SECURITYPOLICY_BASIC128RSA15_SYM_ENCRYPTION_BLOCK_SIZE;
+}
+
+static size_t
+sym_getPlainTextBlockSize_sp_basic128rsa15(const UA_SecurityPolicy *const securityPolicy,
+                                           const void *const channelContext) {
+    return UA_SECURITYPOLICY_BASIC128RSA15_SYM_PLAIN_TEXT_BLOCK_SIZE;
 }
 
 static UA_StatusCode
@@ -350,7 +372,8 @@ sym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL || cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(cc->localSymIv.length != securityPolicy->symmetricModule.encryptionBlockSize)
+    if(cc->localSymIv.length !=
+       securityPolicy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize(securityPolicy, cc))
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(data->length % cc->localSymEncryptingKey.length != 0) {
@@ -385,10 +408,13 @@ sym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL || cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(cc->remoteSymIv.length != securityPolicy->symmetricModule.encryptionBlockSize)
+    size_t encryptionBlockSize =
+        securityPolicy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize(securityPolicy, cc);
+
+    if(cc->remoteSymIv.length != encryptionBlockSize)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(data->length % securityPolicy->symmetricModule.encryptionBlockSize != 0) {
+    if(data->length % encryptionBlockSize != 0) {
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Length of data to decrypt is not a multiple of the encryptingBlock size.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -824,6 +850,8 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getLocalSignatureSize_sp_basic128rsa15;
     asymmetricModule->cryptoModule.getRemoteSignatureSize =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteSignatureSize_sp_basic128rsa15;
+    asymmetricModule->cryptoModule.getLocalSigningKeyLength = NULL; // TODO: Write function
+    asymmetricModule->cryptoModule.getRemoteSigningKeyLength = NULL; // TODO: Write function
 
     asymmetricModule->cryptoModule.encryptionAlgorithmUri = UA_STRING("TODO: ALG URI");
     asymmetricModule->cryptoModule.encrypt =
@@ -834,14 +862,16 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
     asymmetricModule->cryptoModule.getLocalEncryptionKeyLength = NULL; // TODO: Write function
     asymmetricModule->cryptoModule.getRemoteEncryptionKeyLength =
         (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength;
+    asymmetricModule->cryptoModule.getLocalEncryptionBlockSize = NULL; // TODO: Write function
+    asymmetricModule->cryptoModule.getRemoteEncryptionBlockSize = NULL; // TODO: Write function
+    asymmetricModule->cryptoModule.getLocalPlainTextBlockSize = NULL; // TODO: Write function
+    asymmetricModule->cryptoModule.getRemotePlainTextBlockSize = NULL; // TODO: Write function
 
     asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_basic128rsa15;
     asymmetricModule->compareCertificateThumbprint =
         asymmetricModule_compareCertificateThumbprint_sp_basic128rsa15;
 
     /* SymmetricModule */
-    symmetricModule->encryptionBlockSize = 16;
-    symmetricModule->signingKeyLength = 16;
     symmetricModule->generateKey = sym_generateKey_sp_basic128rsa15;
     symmetricModule->generateNonce = sym_generateNonce_sp_basic128rsa15;
 
@@ -855,15 +885,28 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
                            const UA_ByteString *, UA_ByteString *))sym_sign_sp_basic128rsa15;
     symmetricModule->cryptoModule.getLocalSignatureSize = sym_getSignatureSize_sp_basic128rsa15;
     symmetricModule->cryptoModule.getRemoteSignatureSize = sym_getSignatureSize_sp_basic128rsa15;
+    symmetricModule->cryptoModule.getLocalSigningKeyLength =
+        (size_t (*)(const UA_SecurityPolicy *,
+                    const void *))sym_getSigningKeyLength_sp_basic128rsa15;
+    symmetricModule->cryptoModule.getRemoteSigningKeyLength =
+        (size_t (*)(const UA_SecurityPolicy *,
+                    const void *))sym_getSigningKeyLength_sp_basic128rsa15;
 
-    symmetricModule->cryptoModule.encryptionAlgorithmUri = UA_STRING("TODO: ALG URI");
+    symmetricModule->cryptoModule.encryptionAlgorithmUri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc");
     symmetricModule->cryptoModule.encrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))sym_encrypt_sp_basic128rsa15;
     symmetricModule->cryptoModule.decrypt =
-        (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))
-            sym_decrypt_sp_basic128rsa15;
+        (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))sym_decrypt_sp_basic128rsa15;
     symmetricModule->cryptoModule.getLocalEncryptionKeyLength = sym_getEncryptionKeyLength_sp_basic128rsa15;
     symmetricModule->cryptoModule.getRemoteEncryptionKeyLength = sym_getEncryptionKeyLength_sp_basic128rsa15;
+    symmetricModule->cryptoModule.getLocalEncryptionBlockSize =
+        (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getEncryptionBlockSize_sp_basic128rsa15;
+    symmetricModule->cryptoModule.getRemoteEncryptionBlockSize =
+        (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getEncryptionBlockSize_sp_basic128rsa15;
+    symmetricModule->cryptoModule.getLocalPlainTextBlockSize =
+        (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getPlainTextBlockSize_sp_basic128rsa15;
+    symmetricModule->cryptoModule.getRemotePlainTextBlockSize =
+        (size_t (*)(const UA_SecurityPolicy *, const void *))sym_getPlainTextBlockSize_sp_basic128rsa15;
 
     /* ChannelModule */
     channelModule->newContext = channelContext_newContext_sp_basic128rsa15;

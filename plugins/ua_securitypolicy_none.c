@@ -5,6 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include <ua_plugin_securitypolicy.h>
 #include "ua_types.h"
 #include "ua_securitypolicy_none.h"
 #include "ua_types_generated_handling.h"
@@ -130,18 +131,6 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
 
     policy->certificateVerification = certificateVerification;
 
-    policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_none;
-    policy->asymmetricModule.compareCertificateThumbprint = compareThumbprint_none;
-    policy->asymmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
-    policy->asymmetricModule.cryptoModule.verify = verify_none;
-    policy->asymmetricModule.cryptoModule.sign = sign_none;
-    policy->asymmetricModule.cryptoModule.getLocalSignatureSize = length_none;
-    policy->asymmetricModule.cryptoModule.getRemoteSignatureSize = length_none;
-    policy->asymmetricModule.cryptoModule.encrypt = encrypt_none;
-    policy->asymmetricModule.cryptoModule.decrypt = decrypt_none;
-    policy->asymmetricModule.cryptoModule.getLocalEncryptionKeyLength = length_none;
-    policy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength = length_none;
-
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;
     policy->symmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
@@ -149,12 +138,21 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
     policy->symmetricModule.cryptoModule.sign = sign_none;
     policy->symmetricModule.cryptoModule.getLocalSignatureSize = length_none;
     policy->symmetricModule.cryptoModule.getRemoteSignatureSize = length_none;
+    policy->symmetricModule.cryptoModule.getLocalSigningKeyLength = length_none;
+    policy->symmetricModule.cryptoModule.getRemoteSigningKeyLength = length_none;
     policy->symmetricModule.cryptoModule.encrypt = encrypt_none;
     policy->symmetricModule.cryptoModule.decrypt = decrypt_none;
     policy->symmetricModule.cryptoModule.getLocalEncryptionKeyLength = length_none;
     policy->symmetricModule.cryptoModule.getRemoteEncryptionKeyLength = length_none;
-    policy->symmetricModule.encryptionBlockSize = 0;
-    policy->symmetricModule.signingKeyLength = 0;
+    policy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize = length_none;
+    policy->symmetricModule.cryptoModule.getRemoteEncryptionBlockSize = length_none;
+    policy->symmetricModule.cryptoModule.getLocalPlainTextBlockSize = length_none;
+    policy->symmetricModule.cryptoModule.getRemotePlainTextBlockSize = length_none;
+
+    policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_none;
+    policy->asymmetricModule.compareCertificateThumbprint = compareThumbprint_none;
+    // This only works for none since symmetric and asymmetric crypto modules do the same i.e. nothing
+    policy->asymmetricModule.cryptoModule = policy->symmetricModule.cryptoModule;
 
     policy->channelModule.newContext = newContext_none;
     policy->channelModule.deleteContext = deleteContext_none;
