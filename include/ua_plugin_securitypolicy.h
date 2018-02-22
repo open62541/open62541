@@ -224,6 +224,11 @@ typedef struct {
                                    UA_ByteString *out)
         UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+    /*
+     * The length of the nonce used in the SecureChannel as specified in the standard.
+     */
+    size_t secureChannelNonceLength;
+
     UA_SecurityPolicyCryptoModule cryptoModule;
 } UA_SecurityPolicySymmetricModule;
 

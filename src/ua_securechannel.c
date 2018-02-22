@@ -11,7 +11,6 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <ua_plugin_securitypolicy.h>
 #include "ua_util.h"
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"

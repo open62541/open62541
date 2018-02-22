@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
+#include "ua_plugin_securitypolicy.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
 #include "ua_server_internal.h"
@@ -29,7 +30,7 @@ UA_SecureChannelManager_init(UA_SecureChannelManager* cm, UA_Server* server) {
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager* cm) {
+void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     channel_list_entry *entry, *temp;
     LIST_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         LIST_REMOVE(entry, pointers);
@@ -81,8 +82,9 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime
 }
 
 /* remove the first channel that has no session attached */
-static UA_Boolean purgeFirstChannelWithoutSession(UA_SecureChannelManager* cm) {
-    channel_list_entry* entry;
+static UA_Boolean
+purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
+    channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(LIST_EMPTY(&(entry->channel.sessions))) {
             UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, &entry->channel,
@@ -163,10 +165,8 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_SecureChannel *chan
         channel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
     UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
     channel->securityMode = request->securityMode;
-    const size_t keyLength = channel->securityPolicy->symmetricModule.cryptoModule.
-        getLocalEncryptionKeyLength(channel->securityPolicy, channel->channelContext);
     UA_SecureChannel_generateNonce(channel,
-                                   keyLength,
+                                   channel->securityPolicy->symmetricModule.secureChannelNonceLength,
                                    &channel->localNonce);
 
     UA_SecureChannel_generateNewKeys(channel);
@@ -210,10 +210,9 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *cha
     UA_ByteString_deleteMembers(&channel->remoteNonce);
     UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
 
-    const size_t keyLength = channel->securityPolicy->symmetricModule.cryptoModule.
-        getLocalEncryptionKeyLength(channel->securityPolicy, channel->channelContext);
     UA_ByteString_deleteMembers(&channel->localNonce);
-    UA_SecureChannel_generateNonce(channel, keyLength, &channel->localNonce);
+    UA_SecureChannel_generateNonce(channel, channel->securityPolicy->symmetricModule.secureChannelNonceLength,
+                                   &channel->localNonce);
 
     /* Set the response */
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
@@ -225,7 +224,7 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *cha
     return UA_STATUSCODE_GOOD;
 }
 
-UA_SecureChannel*
+UA_SecureChannel *
 UA_SecureChannelManager_get(UA_SecureChannelManager* cm, UA_UInt32 channelId) {
     channel_list_entry* entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
@@ -236,8 +235,8 @@ UA_SecureChannelManager_get(UA_SecureChannelManager* cm, UA_UInt32 channelId) {
 }
 
 UA_StatusCode
-UA_SecureChannelManager_close(UA_SecureChannelManager* cm, UA_UInt32 channelId) {
-    channel_list_entry* entry;
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+    channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
             break;
