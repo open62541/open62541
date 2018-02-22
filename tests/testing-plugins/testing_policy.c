@@ -388,31 +388,43 @@ TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
 
     policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_testing;
     policy->asymmetricModule.compareCertificateThumbprint = compareThumbprint_testing;
-    policy->asymmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
-    policy->asymmetricModule.cryptoModule.verify = verify_testing;
-    policy->asymmetricModule.cryptoModule.sign = asym_sign_testing;
-    policy->asymmetricModule.cryptoModule.getLocalSignatureSize = asym_getLocalSignatureSize_testing;
-    policy->asymmetricModule.cryptoModule.getRemoteSignatureSize = asym_getRemoteSignatureSize_testing;
-    policy->asymmetricModule.cryptoModule.encrypt = asym_encrypt_testing;
-    policy->asymmetricModule.cryptoModule.decrypt = decrypt_testing;
-    policy->asymmetricModule.cryptoModule.getLocalEncryptionKeyLength = asym_getLocalEncryptionKeyLength_testing;
-    policy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength = asym_getRemoteEncryptionKeyLength_testing;
+
+    UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =
+        &policy->asymmetricModule.cryptoModule.signatureAlgorithm;
+    asym_signatureAlgorithm->uri = UA_STRING_NULL;
+    asym_signatureAlgorithm->verify = verify_testing;
+    asym_signatureAlgorithm->sign = asym_sign_testing;
+    asym_signatureAlgorithm->getLocalSignatureSize = asym_getLocalSignatureSize_testing;
+    asym_signatureAlgorithm->getRemoteSignatureSize = asym_getRemoteSignatureSize_testing;
+
+    UA_SecurityPolicyEncryptionAlgorithm *asym_encryptionAlgorithm =
+        &policy->asymmetricModule.cryptoModule.encryptionAlgorithm;
+    asym_encryptionAlgorithm->encrypt = asym_encrypt_testing;
+    asym_encryptionAlgorithm->decrypt = decrypt_testing;
+    asym_encryptionAlgorithm->getLocalKeyLength = asym_getLocalEncryptionKeyLength_testing;
+    asym_encryptionAlgorithm->getRemoteKeyLength = asym_getRemoteEncryptionKeyLength_testing;
 
     policy->symmetricModule.generateKey = generateKey_testing;
     policy->symmetricModule.generateNonce = generateNonce_testing;
-    policy->symmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
-    policy->symmetricModule.cryptoModule.verify = verify_testing;
-    policy->symmetricModule.cryptoModule.sign = sym_sign_testing;
-    policy->symmetricModule.cryptoModule.getLocalSignatureSize = sym_getLocalSignatureSize_testing;
-    policy->symmetricModule.cryptoModule.getRemoteSignatureSize = sym_getRemoteSignatureSize_testing;
-    policy->symmetricModule.cryptoModule.getLocalSigningKeyLength = sym_getLocalSigningKeyLength_testing;
-    policy->symmetricModule.cryptoModule.getRemoteSigningKeyLength = sym_getRemoteSigningKeyLength_testing;
-    policy->symmetricModule.cryptoModule.encrypt = sym_encrypt_testing;
-    policy->symmetricModule.cryptoModule.decrypt = decrypt_testing;
-    policy->symmetricModule.cryptoModule.getLocalEncryptionKeyLength = sym_getLocalEncryptionKeyLength_testing;
-    policy->symmetricModule.cryptoModule.getRemoteEncryptionKeyLength = sym_getRemoteEncryptionKeyLength_testing;
-    policy->symmetricModule.cryptoModule.getLocalEncryptionBlockSize = sym_getLocalEncryptionBlockSize_testing;
-    policy->symmetricModule.cryptoModule.getRemoteEncryptionBlockSize = sym_getRemoteEncryptionBlockSize_testing;
+
+    UA_SecurityPolicySignatureAlgorithm *sym_signatureAlgorithm =
+        &policy->symmetricModule.cryptoModule.signatureAlgorithm;
+    sym_signatureAlgorithm->uri = UA_STRING_NULL;
+    sym_signatureAlgorithm->verify = verify_testing;
+    sym_signatureAlgorithm->sign = sym_sign_testing;
+    sym_signatureAlgorithm->getLocalSignatureSize = sym_getLocalSignatureSize_testing;
+    sym_signatureAlgorithm->getRemoteSignatureSize = sym_getRemoteSignatureSize_testing;
+    sym_signatureAlgorithm->getLocalKeyLength = sym_getLocalSigningKeyLength_testing;
+    sym_signatureAlgorithm->getRemoteKeyLength = sym_getRemoteSigningKeyLength_testing;
+
+    UA_SecurityPolicyEncryptionAlgorithm *sym_encryptionAlgorithm =
+        &policy->symmetricModule.cryptoModule.encryptionAlgorithm;
+    sym_encryptionAlgorithm->encrypt = sym_encrypt_testing;
+    sym_encryptionAlgorithm->decrypt = decrypt_testing;
+    sym_encryptionAlgorithm->getLocalKeyLength = sym_getLocalEncryptionKeyLength_testing;
+    sym_encryptionAlgorithm->getRemoteKeyLength = sym_getRemoteEncryptionKeyLength_testing;
+    sym_encryptionAlgorithm->getLocalBlockSize = sym_getLocalEncryptionBlockSize_testing;
+    sym_encryptionAlgorithm->getRemoteBlockSize = sym_getRemoteEncryptionBlockSize_testing;
 
     policy->channelModule.newContext = newContext_testing;
     policy->channelModule.deleteContext = deleteContext_testing;
