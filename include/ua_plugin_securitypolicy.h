@@ -72,6 +72,24 @@ typedef struct {
     size_t (*getRemoteSignatureSize)(const UA_SecurityPolicy *securityPolicy,
                                      const void *channelContext);
 
+    /* Gets the local signing key length.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the length of the signing key in bytes. Returns 0 if no length can be found.
+     */
+    size_t (*getLocalSigningKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                       const void *channelContext);
+
+    /* Gets the local signing key length.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the length of the signing key in bytes. Returns 0 if no length can be found.
+     */
+    size_t (*getRemoteSigningKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                        const void *channelContext);
+
     UA_String encryptionAlgorithmUri;
 
     /* Encrypt the given data in place using an asymmetric algorithm and keys.
@@ -81,9 +99,9 @@ typedef struct {
      *                       the keys to encrypt data.
      * @param data the data that is encrypted. The encrypted data will overwrite
      *             the data that was supplied. */
-    UA_StatusCode(*encrypt)(const UA_SecurityPolicy *securityPolicy,
-                            void *channelContext,
-                            UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_StatusCode (*encrypt)(const UA_SecurityPolicy *securityPolicy,
+                             void *channelContext,
+                             UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Decrypts the given ciphertext in place using an asymmetric algorithm and
      * key.
@@ -92,9 +110,9 @@ typedef struct {
      * @param channelContext the channelContext which contains information about
      *                       the keys needed to decrypt the message.
      * @param data the data to decrypt. The decryption is done in place. */
-    UA_StatusCode(*decrypt)(const UA_SecurityPolicy *securityPolicy,
-                            void *channelContext,
-                            UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_StatusCode (*decrypt)(const UA_SecurityPolicy *securityPolicy,
+                             void *channelContext,
+                             UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Returns the length of the key used locally to encrypt messages in bits
      *
@@ -113,6 +131,42 @@ typedef struct {
      *         key length is known. */
     size_t (*getRemoteEncryptionKeyLength)(const UA_SecurityPolicy *securityPolicy,
                                            const void *channelContext);
+
+    /* Returns the size of encrypted blocks used by the local encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getLocalEncryptionBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                          const void *channelContext);
+
+    /* Returns the size of encrypted blocks used by the remote encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of encrypted blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getRemoteEncryptionBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                           const void *channelContext);
+
+    /* Returns the size of plaintext blocks used by the local encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getLocalPlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                         const void *channelContext);
+
+    /* Returns the size of plaintext blocks used by the remote encryption algorithm.
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the size of plaintext blocks in bytes. Returns 0 if no key length is known.
+     */
+    size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
+                                          const void *channelContext);
 } UA_SecurityPolicyCryptoModule;
 
 typedef struct {
@@ -126,7 +180,7 @@ typedef struct {
     UA_StatusCode (*makeCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
                                                const UA_ByteString *certificate,
                                                UA_ByteString *thumbprint)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Compares the supplied certificate with the certificate in the endpoit context.
      *
@@ -138,7 +192,7 @@ typedef struct {
      *         don't match or an error occurred an error code is returned. */
     UA_StatusCode (*compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
                                                   const UA_ByteString *certificateThumbprint)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     UA_SecurityPolicyCryptoModule cryptoModule;
 } UA_SecurityPolicyAsymmetricModule;
@@ -157,7 +211,8 @@ typedef struct {
     UA_StatusCode (*generateKey)(const UA_SecurityPolicy *securityPolicy,
                                  const UA_ByteString *secret,
                                  const UA_ByteString *seed, UA_ByteString *out)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
     /* Random generator for generating nonces.
      *
      * @param securityPolicy the securityPolicy this function is invoked on.
@@ -168,11 +223,9 @@ typedef struct {
      *            data. */
     UA_StatusCode (*generateNonce)(const UA_SecurityPolicy *securityPolicy,
                                    UA_ByteString *out)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     UA_SecurityPolicyCryptoModule cryptoModule;
-    size_t encryptionBlockSize;
-    size_t signingKeyLength;
 } UA_SecurityPolicySymmetricModule;
 
 typedef struct {
@@ -195,7 +248,7 @@ typedef struct {
     UA_StatusCode (*newContext)(const UA_SecurityPolicy *securityPolicy,
                                 const UA_ByteString *remoteCertificate,
                                 void **channelContext)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Deletes the the security context. */
     void (*deleteContext)(void *channelContext);
@@ -206,7 +259,7 @@ typedef struct {
      * @param key the local encrypting key to store in the context. */
     UA_StatusCode (*setLocalSymEncryptingKey)(void *channelContext,
                                               const UA_ByteString *key)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Sets the local signing key in the supplied context.
      *
@@ -214,7 +267,7 @@ typedef struct {
      * @param key the local signing key to store in the context. */
     UA_StatusCode (*setLocalSymSigningKey)(void *channelContext,
                                            const UA_ByteString *key)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Sets the local initialization vector in the supplied context.
      *
@@ -222,7 +275,7 @@ typedef struct {
      * @param iv the local initialization vector to store in the context. */
     UA_StatusCode (*setLocalSymIv)(void *channelContext,
                                    const UA_ByteString *iv)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Sets the remote encrypting key in the supplied context.
      *
@@ -230,7 +283,7 @@ typedef struct {
      * @param key the remote encrypting key to store in the context. */
     UA_StatusCode (*setRemoteSymEncryptingKey)(void *channelContext,
                                                const UA_ByteString *key)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Sets the remote signing key in the supplied context.
      *
@@ -238,7 +291,7 @@ typedef struct {
      * @param key the remote signing key to store in the context. */
     UA_StatusCode (*setRemoteSymSigningKey)(void *channelContext,
                                             const UA_ByteString *key)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Sets the remote initialization vector in the supplied context.
      *
@@ -246,7 +299,7 @@ typedef struct {
      * @param iv the remote initialization vector to store in the context. */
     UA_StatusCode (*setRemoteSymIv)(void *channelContext,
                                     const UA_ByteString *iv)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Compares the supplied certificate with the certificate in the channel
      * context.
@@ -258,7 +311,7 @@ typedef struct {
      *         don't match or an errror occurred an error code is returned. */
     UA_StatusCode (*compareCertificate)(const void *channelContext,
                                         const UA_ByteString *certificate)
-        UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Gets the plaintext block size that depends on the remote public key.
      *
