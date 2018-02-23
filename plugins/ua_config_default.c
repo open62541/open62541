@@ -439,7 +439,7 @@ UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber) != UA_STATUSCODE_GOOD) {
+    if(addDefaultNetworkLayers(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -509,7 +509,7 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber) != UA_STATUSCODE_GOOD) {
+    if(addDefaultNetworkLayers(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }

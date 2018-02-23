@@ -15,7 +15,7 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "freertos")
         SET(UA_FREERTOS_INCLUDES "" CACHE STRING "Folders to include from the freeRTOS OS")
         ua_include_directories(${UA_FREERTOS_INCLUDES})
 
-        ua_architecture_remove_definitions(-fPIC -Wconversion )
+        ua_architecture_remove_definitions(-Wconversion )
         ua_architecture_add_definitions(-DUA_FREERTOS -mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs
                     -ffunction-sections -fdata-sections  -fno-exceptions -fstack-usage -Wno-unused-variable -Wno-format -Wno-format-security -Wno-format-nonliteral)
         ua_architecture_append_to_library(c m stdc++ supc++)

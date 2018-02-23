@@ -57,7 +57,7 @@ UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber, const UA_ByteString *cert
  *        ``NULL``. */
 static UA_INLINE UA_ServerConfig *
 UA_ServerConfig_new_minimal(UA_UInt16 portNumber, const UA_ByteString *certificate) {
-    return UA_ServerConfig_new_customBuffer(4840, NULL, 0 ,0);
+    return UA_ServerConfig_new_customBuffer(portNumber, certificate, 0 ,0);
 }
 
 #ifdef UA_ENABLE_ENCRYPTION

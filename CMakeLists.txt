@@ -255,27 +255,6 @@ if(UA_ENABLE_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
-if(NOT WIN32)
-  if(QNXNTO)
-    list(APPEND open62541_LIBRARIES socket)
-    list(APPEND open62541_LIBRARIES c)
-    list(APPEND open62541_LIBRARIES stdc++)
-  else()
-    list(APPEND open62541_LIBRARIES m)
-    if(UA_ENABLE_MULTITHREADING OR UA_BUILD_UNIT_TESTS)
-      list(APPEND open62541_LIBRARIES pthread)
-    endif()
-    if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
-      list(APPEND open62541_LIBRARIES rt)
-    endif()
-  endif()
-else()
-  list(APPEND open62541_LIBRARIES ws2_32)
-    if(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_PUBSUB)
-        list(APPEND open62541_LIBRARIES iphlpapi)
-    endif()
-endif()
-
 #####################
 # Compiler Settings #
 #####################
@@ -296,10 +275,6 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wmultichar
                     -Wundef
                     -Wc++-compat)
-
-    if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
-        add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
-    endif()
 
     if(UA_ENABLE_AMALGAMATION)
         add_definitions(-Wno-unused-function)
@@ -767,12 +742,25 @@ if (UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
+# Generate properly versioned shared library links on Linux
+SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
+
+##################################
+#     Architectures changes      #
+##################################
+
+GET_PROPERTY(ua_architecture_add_definitions GLOBAL PROPERTY UA_ARCHITECTURE_ADD_DEFINITIONS)
+add_definitions(${ua_architecture_add_definitions})
+
+GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS)
+remove_definitions(${ua_architecture_remove_definitions})
+
+GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
+list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
 
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
-# Generate properly versioned shared library links on Linux
-SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 ##########################
 # Build Selected Targets #
@@ -926,16 +914,3 @@ set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
-
-##################################
-#     Architectures changes      #
-##################################
-
-GET_PROPERTY(ua_architecture_add_definitions GLOBAL PROPERTY UA_ARCHITECTURE_ADD_DEFINITIONS)
-add_definitions(${ua_architecture_add_definitions})
-
-GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS)
-remove_definitions(${ua_architecture_remove_definitions})
-
-GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
-list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
