@@ -72,7 +72,10 @@ UA_Client_delayedCallback (UA_Client *client, UA_ClientCallback callback,
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+void
+processDelayedClientCallbacks (UA_Client *client);
+
+void
 processDelayedClientCallbacks (UA_Client *client) {
     UA_DelayedClientCallback *dc, *dc_tmp;
     SLIST_FOREACH_SAFE(dc, &client->delayedClientCallbacks, next, dc_tmp)

@@ -499,6 +499,8 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	cc->callback(client, userdata, requestId, &out);
 	LIST_REMOVE(cc, pointers);
 	UA_free(cc);
+	UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
+	UA_Variant_deleteMembers(&out);
 }
 
 /*Read Attributes*/
@@ -644,5 +646,6 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
 	                        &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
 	        return retval;
 	}
+        UA_BrowsePath_deleteMembers(&browsePath);
         return retval;
 }

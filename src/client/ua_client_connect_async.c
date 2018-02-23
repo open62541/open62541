@@ -439,7 +439,7 @@ requestGetEndpoints (UA_Client *client, UA_UInt32 *requestId) {
     request.requestHeader.timestamp = UA_DateTime_now ();
     request.requestHeader.timeoutHint = 10000;
     // assume the endpointurl outlives the service call
-    request.endpointUrl = client->endpointUrl;
+    UA_String_copy (&client->endpointUrl, &request.endpointUrl);
 
     client->connectStatus = UA_Client_sendAsyncRequest (
             client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
