@@ -767,7 +767,7 @@ ClientNetworkLayerTCP_close(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
     if (connection->handle){
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
-        free(tcpConnection->server);
+        freeaddrinfo(tcpConnection->server);
         free(tcpConnection);
     }
 }
@@ -786,7 +786,6 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     }
     if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)
                     > tcpConnection->timeout* UA_DATETIME_MSEC ) {
-            freeaddrinfo(tcpConnection->server);
             // connection timeout
             ClientNetworkLayerTCP_close(connection);
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -808,7 +807,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 #endif
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                             "Could not create client socket: %s", strerror(errno__));
-            freeaddrinfo(tcpConnection->server);
+            ClientNetworkLayerTCP_close(connection);
             return UA_STATUSCODE_BADDISCONNECT;
     }
 
@@ -817,7 +816,6 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                             "Could not set the client socket to nonblocking");
             ClientNetworkLayerTCP_close(connection);
-            freeaddrinfo(tcpConnection->server);
             return UA_STATUSCODE_BADDISCONNECT;
     }
 
@@ -829,67 +827,65 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
             ClientNetworkLayerTCP_close(connection);
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                             "Connection to  failed with error: %s", strerror(errno__));
-            freeaddrinfo(tcpConnection->server);
             return UA_STATUSCODE_BADDISCONNECT;
     }
 
     /* Use select to wait and check if connected */
     if (error == -1 && (errno__ == ERR_CONNECTION_PROGRESS)) {
-            /* connection in progress. Wait until connected using select */
+        /* connection in progress. Wait until connected using select */
 
-            UA_UInt32 timeSinceStart =
-                            (UA_UInt32) ((UA_Double) (UA_DateTime_nowMonotonic() - connStart)
-                                            * UA_DATETIME_MSEC);
+        UA_UInt32 timeSinceStart =
+                        (UA_UInt32) ((UA_Double) (UA_DateTime_nowMonotonic() - connStart)
+                                        * UA_DATETIME_MSEC);
 
-            fd_set fdset;
-            FD_ZERO(&fdset);
-            UA_fd_set(clientsockfd, &fdset);
-            UA_UInt32 timeout_usec = (tcpConnection->timeout - timeSinceStart)
-                            * 1000;
-            struct timeval tmptv = { (long int) (timeout_usec / 1000000),
-                            (long int) (timeout_usec % 1000000) };
+        fd_set fdset;
+        FD_ZERO(&fdset);
+        UA_fd_set(clientsockfd, &fdset);
+        UA_UInt32 timeout_usec = (tcpConnection->timeout - timeSinceStart)
+                        * 1000;
+        struct timeval tmptv = { (long int) (timeout_usec / 1000000),
+                        (long int) (timeout_usec % 1000000) };
 
-            int resultsize = select((UA_Int32) (clientsockfd + 1), NULL, &fdset,
-            NULL, &tmptv);
+        int resultsize = select((UA_Int32) (clientsockfd + 1), NULL, &fdset,
+        NULL, &tmptv);
 
-            if (resultsize == 1) {
-                    /* Windows does not have any getsockopt equivalent and it is not needed there */
+        if (resultsize == 1) {
+            /* Windows does not have any getsockopt equivalent and it is not needed there */
 #ifdef _WIN32
-                    connection->sockfd = clientsockfd;
-                    return UA_STATUSCODE_GOOD;
-#else
-                    OPTVAL_TYPE so_error;
-                    socklen_t len = sizeof so_error;
-
-                    int ret = getsockopt(clientsockfd, SOL_SOCKET, SO_ERROR, &so_error,
-                                    &len);
-
-                    if (ret != 0 || so_error != 0) {
-                            /* on connection refused we should still try to connect */
-                            /* connection refused happens on localhost or local ip without timeout */
-                            if (so_error != ECONNREFUSED) {
-                                    // general error
-                                    ClientNetworkLayerTCP_close(connection);
-                                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                                                    "Connection to failed with error: %s",
-                                                    strerror(ret == 0 ? so_error : errno__));
-                                    freeaddrinfo(tcpConnection->server);
-                                    return UA_STATUSCODE_BADDISCONNECT;
-                            }
-                            /* wait until we try a again. Do not make this too small, otherwise the
-                             * timeout is somehow wrong */
-
-                    } else {
-
-                            connection->sockfd = clientsockfd;
-                            connection->state = UA_CONNECTION_ESTABLISHED;
-                            return UA_STATUSCODE_GOOD;
-                    }
-#endif
-            }
-    } else {
-            connection->state = UA_CONNECTION_ESTABLISHED;
+            connection->sockfd = clientsockfd;
             return UA_STATUSCODE_GOOD;
+#else
+            OPTVAL_TYPE so_error;
+            socklen_t len = sizeof so_error;
+
+            int ret = getsockopt(clientsockfd, SOL_SOCKET, SO_ERROR, &so_error,
+                            &len);
+
+            if (ret != 0 || so_error != 0) {
+                /* on connection refused we should still try to connect */
+                /* connection refused happens on localhost or local ip without timeout */
+                if (so_error != ECONNREFUSED) {
+                        // general error
+                        ClientNetworkLayerTCP_close(connection);
+                        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                        "Connection to failed with error: %s",
+                                        strerror(ret == 0 ? so_error : errno__));
+                        return UA_STATUSCODE_BADDISCONNECT;
+                }
+                /* wait until we try a again. Do not make this too small, otherwise the
+                 * timeout is somehow wrong */
+
+        } else {
+
+                connection->sockfd = clientsockfd;
+                connection->state = UA_CONNECTION_ESTABLISHED;
+                return UA_STATUSCODE_GOOD;
+            }
+#endif
+        }
+    } else {
+        connection->state = UA_CONNECTION_ESTABLISHED;
+        return UA_STATUSCODE_GOOD;
     }
 
 #ifdef SO_NOSIGPIPE
