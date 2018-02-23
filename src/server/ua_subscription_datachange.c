@@ -296,6 +296,8 @@ UA_MonitoredItem_SampleCallback(UA_Server *server,
 
 UA_StatusCode
 MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+    if(mon->sampleCallbackIsRegistered)
+        return UA_STATUSCODE_GOOD;
     UA_StatusCode retval =
         UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_SampleCallback,
                                       mon, (UA_UInt32)mon->samplingInterval, &mon->sampleCallbackId);
