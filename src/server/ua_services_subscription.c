@@ -394,15 +394,32 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
+  
+    /* check monitoringMode is valid or not */
+    if(smc->monitoringMode > UA_MONITORINGMODE_REPORTING) {
+        return;
+    }
 
     if(mon->monitoringMode == smc->monitoringMode)
         return;
 
     mon->monitoringMode = smc->monitoringMode;
-    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
         MonitoredItem_registerSampleCallback(server, mon);
-    else
+    } else if (mon->monitoringMode == UA_MONITORINGMODE_DISABLED) {
+        /*  Setting the mode to DISABLED causes all queued Notifications to be delete */
+        MonitoredItem_queuedValue *val, *val_tmp;
+        TAILQ_FOREACH_SAFE(val, &mon->queue, listEntry, val_tmp) {
+            TAILQ_REMOVE(&mon->queue, val, listEntry);
+            UA_DataValue_deleteMembers(&val->value);
+            UA_free(val);
+        }
+        mon->currentQueueSize = 0;
+
+        /* initialize lastSampledValue */
+        UA_ByteString_deleteMembers(&mon->lastSampledValue);
         MonitoredItem_unregisterSampleCallback(server, mon);
+    }
 }
 
 void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
