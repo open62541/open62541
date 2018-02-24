@@ -6,6 +6,7 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  */
 
 #include "ua_plugin_securitypolicy.h"

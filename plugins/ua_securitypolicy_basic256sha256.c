@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  */
 
 #include <mbedtls/aes.h>
@@ -21,7 +22,7 @@
 #include "ua_types_generated_handling.h"
 
 #define UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN 42
-#define UA_SHA1_Length 20
+#define UA_SHA1_LENGTH 20
 #define UA_SHA256_LENGTH 32
 #define UA_BASIC256SHA256_SYM_SIGNING_KEY_LENGTH 32
 #define UA_SECURITYPOLICY_BASIC256SHA256_SYM_KEY_LENGTH 32
@@ -276,7 +277,7 @@ asym_makeThumbprint_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     if(UA_ByteString_equal(certificate, &UA_BYTESTRING_NULL))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(thumbprint->length != UA_SHA1_Length)
+    if(thumbprint->length != UA_SHA1_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* The certificate thumbprint is always a 20 bit sha1 hash, see Part 4 of the Specification. */
@@ -812,7 +813,7 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
         goto error;
 
     /* Set the local certificate thumbprint */
-    retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_Length);
+    retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
     retval = asym_makeThumbprint_sp_basic256sha256(pc->securityPolicy,
@@ -830,8 +831,6 @@ error:
         deleteMembers_sp_basic256sha256(securityPolicy);
     return retval;
 }
-
-// Ende
 
 UA_StatusCode
 UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
