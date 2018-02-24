@@ -556,7 +556,8 @@ UA_Client_disconnect(UA_Client *client) {
 
     /* Close the TCP connection */
     if(client->connection.state != UA_CONNECTION_CLOSED)
-        client->connection.close(&client->connection);
+        if(client->connection.close != NULL)
+            client->connection.close(&client->connection);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY

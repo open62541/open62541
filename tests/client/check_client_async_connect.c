@@ -67,22 +67,6 @@ static void teardown(void) {
 }
 
 static void
-asyncReadCallback(UA_Client *Client, void *userdata,
-                  UA_UInt32 requestId, UA_ReadResponse *response) {
-    UA_UInt16 *asyncCounter = (UA_UInt16*)userdata;
-    (*asyncCounter)++;
-    UA_fakeSleep(10);
-}
-
-static void
-asyncWriteCallback(UA_Client *Client, void *userdata,
-                  UA_UInt32 requestId, UA_WriteResponse *response) {
-    UA_UInt16 *asyncCounter = (UA_UInt16*)userdata;
-    (*asyncCounter)++;
-    UA_fakeSleep(10);
-}
-
-static void
 asyncBrowseCallback(UA_Client *Client, void *userdata,
                   UA_UInt32 requestId, UA_BrowseResponse *response) {
     UA_UInt16 *asyncCounter = (UA_UInt16*)userdata;
@@ -96,30 +80,6 @@ START_TEST(Client_connect_async){
     UA_UInt32 reqId = 0;
     UA_UInt16 asyncCounter = 0;
 
-    /*preparing requests*/
-    UA_String sValue;
-    sValue.data = (UA_Byte *) malloc (90000);
-    memset (sValue.data, 'a', 90000);
-    sValue.length = 90000;
-
-    UA_WriteRequest wReq;
-    UA_WriteRequest_init (&wReq);
-    wReq.nodesToWrite = UA_WriteValue_new ();
-    wReq.nodesToWriteSize = 1;
-    wReq.nodesToWrite[0].nodeId = UA_NODEID_NUMERIC (1, 51034);
-    wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    wReq.nodesToWrite[0].value.hasValue = true;
-    wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_STRING];
-    wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; /* do not free the integer on deletion */
-    wReq.nodesToWrite[0].value.value.data = &sValue;
-
-    UA_ReadRequest rReq;
-    UA_ReadRequest_init (&rReq);
-    rReq.nodesToRead = UA_ReadValueId_new ();
-    rReq.nodesToReadSize = 1;
-    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING (1, "the.answer");
-    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
     UA_BrowseRequest bReq;
     UA_BrowseRequest_init (&bReq);
     bReq.requestedMaxReferencesPerNode = 0;
@@ -129,22 +89,21 @@ START_TEST(Client_connect_async){
     UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
+    UA_DateTime startTime = UA_DateTime_nowMonotonic();
     /*connected gets updated when client is connected*/
     do {
         if (connected) {
             /*if not connected requests are not sent*/
             UA_Client_sendAsyncBrowseRequest (client, &bReq, asyncBrowseCallback,
                                               &asyncCounter, &reqId);
-            UA_Client_sendAsyncWriteRequest (client, &wReq, asyncWriteCallback, &asyncCounter,
-                                             &reqId);
-            UA_Client_sendAsyncReadRequest (client, &rReq, asyncReadCallback, &asyncCounter,
-                                            &reqId);
         }
         UA_fakeSleep(10);
+        if (UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC)
+            break;
         UA_Client_run_iterate(client, &retval);
     }
     while (reqId < 10);
-
+    UA_BrowseRequest_deleteMembers(&bReq);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /*reqId incremented both by async requests and handshakes in async connect function*/
     ck_assert_uint_eq(reqId, 10);
