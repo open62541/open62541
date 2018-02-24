@@ -143,7 +143,8 @@ main (int argc, char *argv[]) {
     /*what happens if client tries to send request before connected?*/
     UA_Client_sendAsyncBrowseRequest (client, &bReq, fileBrowsed, &userdata,
                                       &reqId);
-    //TODO: find out the reason for the delay of connection
+
+    UA_DateTime startTime = UA_DateTime_nowMonotonic();
     do {
         if (connected) {
             /*if not connected requests are not sent*/
@@ -154,7 +155,9 @@ main (int argc, char *argv[]) {
         UA_BrowseRequest_deleteMembers(&bReq);
         UA_Client_run_iterate (client, &retval);
         UA_sleep_ms(100);
-
+        /*break loop if server cannot be connected within 2s*/
+        if (UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC)
+            break;
     }
     while (reqId < 10);
 

@@ -767,7 +767,8 @@ ClientNetworkLayerTCP_close(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
     if (connection->handle){
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
-        freeaddrinfo(tcpConnection->server);
+        if(tcpConnection->server)
+            freeaddrinfo(tcpConnection->server);
         free(tcpConnection);
     }
 }
