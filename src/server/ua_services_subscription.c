@@ -306,7 +306,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
             if (dataSource->monitored != NULL)
                 dataSource->monitored(server, &session->sessionId,
                                       session->sessionHandle, &target->nodeId,
-                                      target->context, false);
+                                      target->context, newMon->attributeId, false);
         }
     }
     UA_Nodestore_replace(server, target);

@@ -82,7 +82,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
-    /* Find the Node, to increase its monitored counter */
+    /* Find the Node, to decrease its monitored counter */
     UA_Node *target;
     UA_StatusCode retval = UA_Nodestore_getCopy(server, &mon->monitoredNodeId, &target);
     if (retval != UA_STATUSCODE_GOOD)
@@ -99,7 +99,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
             if (dataSource->monitored != NULL)
                 dataSource->monitored(server, &sub->session->sessionId,
                                       sub->session->sessionHandle, &target->nodeId,
-                                      target->context, true);
+                                      target->context, mon->attributeId, true);
         }
     }
     UA_Nodestore_replace(server, target);

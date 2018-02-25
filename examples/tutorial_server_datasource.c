@@ -135,7 +135,7 @@ static UA_StatusCode
 monitoredHandler(UA_Server *server,
                  const UA_NodeId *sessionId, void *sessionContext,
                  const UA_NodeId *nodeId, void *nodeContext,
-                 const UA_Boolean removed)
+                 const UA_AttributeId attrId, const UA_Boolean removed)
 {
     // This handler can help managing the DataSources, e.g. activating them, etc..
 

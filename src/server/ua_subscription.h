@@ -56,7 +56,7 @@ typedef struct UA_MonitoredItem {
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
     UA_NodeId monitoredNodeId;
-    UA_UInt32 attributeId;
+    UA_AttributeId attributeId;
     UA_UInt32 clientHandle;
     UA_Double samplingInterval; // [ms]
     UA_UInt32 currentQueueSize;
