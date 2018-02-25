@@ -201,6 +201,7 @@ HistoryReadValueId
 HistoryReadResult
 HistoryReadDetails
 ReadRawModifiedDetails
+ReadEventDetails
 HistoryData
 HistoryReadRequest
 HistoryReadResponse

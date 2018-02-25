@@ -444,12 +444,18 @@ typedef UA_Boolean
                                  const UA_HistoryData *data, void *handle);
 
 UA_StatusCode UA_EXPORT
-UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
-                         const UA_HistoricalIteratorCallback callback,
-                         const UA_DateTime startTime, const UA_DateTime endTime,
-                         const UA_Boolean returnBounds, const UA_UInt32 maxItems,
-                         const UA_Boolean readModified, const UA_TimestampsToReturn timestampsToReturn,
-                         void *handle);
+UA_Client_readHistorical_raw(UA_Client *client, const UA_NodeId nodeId,
+                             const UA_HistoricalIteratorCallback callback,
+                             const UA_DateTime startTime, const UA_DateTime endTime,
+                             const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                             const UA_TimestampsToReturn timestampsToReturn, void *handle);
+
+UA_StatusCode UA_EXPORT
+UA_Client_readHistorical_modified(UA_Client *client, const UA_NodeId nodeId,
+                                  const UA_HistoricalIteratorCallback callback,
+                                  const UA_DateTime startTime, const UA_DateTime endTime,
+                                  const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                                  const UA_TimestampsToReturn timestampsToReturn, void *handle);
 
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
