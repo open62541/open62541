@@ -364,7 +364,7 @@ asym_getRemotePlainTextBlockSize_testing(const UA_SecurityPolicy *securityPolicy
 
 static size_t
 asym_getRemoteBlockSize_testing(const UA_SecurityPolicy *securityPolicy,
-                                         const void *channelContext) {
+                                const void *channelContext) {
     return keySizes->asym_rmt_blocksize;
 }
 

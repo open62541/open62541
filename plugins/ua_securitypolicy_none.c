@@ -77,7 +77,7 @@ generateNonce_none(const UA_SecurityPolicy *securityPolicy,
     if(out->data != NULL)
         UA_ByteString_deleteMembers(out);
 
-    out->data = (UA_Byte *) UA_EMPTY_ARRAY_SENTINEL;
+    out->data = (UA_Byte *)UA_EMPTY_ARRAY_SENTINEL;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -112,7 +112,7 @@ policy_deletemembers_none(UA_SecurityPolicy *policy) {
 UA_StatusCode
 UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *certificateVerification,
                        const UA_ByteString localCertificate, UA_Logger logger) {
-    policy->policyContext = (void *) (uintptr_t) logger;
+    policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);

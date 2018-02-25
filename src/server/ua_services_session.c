@@ -272,13 +272,13 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         session->activated = false;
     }
 
-    if (session->activated) {
+    if(session->activated) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: SecureChannel %i wants "
                             "to activate, but the session is already activated",
                             channel->securityToken.channelId);
         response->responseHeader.serviceResult =
-                UA_STATUSCODE_BADSESSIONIDINVALID;
+            UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
 
     }
