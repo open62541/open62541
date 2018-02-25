@@ -606,7 +606,8 @@ UA_Client_disconnect_async (UA_Client *client, UA_UInt32 *requestId) {
      * shutdown and close (in tcp.c) are already async*/
     if (client->state >= UA_CLIENTSTATE_CONNECTED)
         client->connection.close (&client->connection);
-
+    else
+        UA_Client_removeRepeatedCallback(client, client->connection.connectCallbackID);
     client->state = UA_CLIENTSTATE_DISCONNECTED;
     return UA_STATUSCODE_GOOD;
 }

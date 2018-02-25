@@ -765,16 +765,22 @@ ClientNetworkLayerTCP_close(UA_Connection *connection) {
     shutdown((SOCKET)connection->sockfd, 2);
     CLOSESOCKET(connection->sockfd);
     connection->state = UA_CONNECTION_CLOSED;
+
     if (connection->handle){
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
         if(tcpConnection->server)
             freeaddrinfo(tcpConnection->server);
+
         free(tcpConnection);
     }
 }
 
 UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     UA_Connection *connection = (UA_Connection*) data;
+
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADDISCONNECT;
+
     TCPClientConnection *tcpConnection =
                     (TCPClientConnection*) connection->handle;
 

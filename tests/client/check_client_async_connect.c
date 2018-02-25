@@ -59,7 +59,6 @@ static void setup(void) {
 
 static void teardown(void) {
     running = false;
-    //THREAD_JOIN(client_thread);
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -104,9 +103,9 @@ START_TEST(Client_connect_async){
     }
     while (reqId < 10);
     UA_BrowseRequest_deleteMembers(&bReq);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    /*reqId incremented both by async requests and handshakes in async connect function*/
-    ck_assert_uint_eq(reqId, 10);
+    /*2148335616 = server not connected*/
+    ck_assert_uint_eq(retval, 0);
+
     UA_Client_disconnect(client);
     UA_Client_delete (client);
 }
