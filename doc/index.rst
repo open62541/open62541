@@ -36,7 +36,7 @@ At its core, OPC UA defines
   response message in the protocol type system.
 
 The standard itself can be purchased from IEC or downloaded for free on the
-website of the OPC Foundation at https://opcfoundation.org/ (you only need to
+website of the OPC Foundation at https://opcfoundation.org/ (you need to
 register with a valid email).
 
 The OPC Foundation drives the continuous improvement of the standard and the
@@ -55,23 +55,20 @@ server SDK. It currently supports the Micro Embedded Device Server Profile plus
 some additional features. Server binaries can be well under 100kb in size,
 depending on the contained information model.
 
-open62541 adheres to the OPC UA specification as closely as possible and the
-released features pass the official Conformance Testing Tools (CTT). However,
-the library comes without any warranty. If you intend to use OPC UA in a
-mission-critical product, please consider talking to a commercial vendor of OPC
-UA SDKs and services.
-
 - Communication Stack
 
   - OPC UA binary protocol
   - Chunking (splitting of large messages)
   - Exchangeable network layer (plugin) for using custom networking APIs (e.g. on embedded targets)
+  - Encrypted communication
+  - Asynchronous service requests in the client
 
 - Information model
 
   - Support for all OPC UA node types (including method nodes)
   - Support for adding and removing nodes and references also at runtime.
   - Support for inheritance and instantiation of object- and variable-types (custom constructor/destructor, instantiation of child nodes)
+  - Access control for individual nodes
 
 - Subscriptions
 
@@ -83,12 +80,11 @@ UA SDKs and services.
   - Support for generating data types from standard XML definitions
   - Support for generating server-side information models (nodesets) from standard XML definitions
 
-Features still missing in the 0.2 release are:
+Features on the roadmap for the 0.3 release series but missing in the initial v0.3 release are:
 
-- Encryption
-- Access control for individual nodes
+- Encrypted communication in the client
 - Events (notifications emitted by objects, data change notifications are implemented)
-- Event-loop (background tasks) and asynchronous service requests in the client
+- Event-loop (background tasks) in the client
 
 Getting Help
 ------------
@@ -103,8 +99,8 @@ Contributing
 ------------
 
 As an open source project, we invite new contributors to help improve open62541.
-Issue reports, bugfixes and new features are very welcome. Note that there are
-ways to begin contributing without deep knowledge of the OPC UA standard:
+Issue reports, bugfixes and new features are very welcome. The following are
+good starting points for new contributors:
 
 - `Report bugs <https://github.com/open62541/open62541/issues>`_
 - Improve the `documentation <http://open62541.org/doc/current>`_

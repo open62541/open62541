@@ -6,7 +6,9 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 
-
+if(NOT MSVC)
+    add_definitions(-Wno-deprecated-declarations)
+endif()
 
 if (UA_BUILD_FUZZING_CORPUS)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -49,7 +51,6 @@ else()
 endif()
 list(APPEND LIBS "${open62541_LIBRARIES}")
 
-
 # Use different plugins for testing
 set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
@@ -60,6 +61,11 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
+
+if(UA_ENABLE_ENCRYPTION)
+    set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+endif()
 
 add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources})
 add_dependencies(open62541-fuzzplugins open62541)

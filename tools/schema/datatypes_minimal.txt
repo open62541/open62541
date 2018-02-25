@@ -195,3 +195,5 @@ SemanticChangeStructureDataType
 TimeZoneDataType
 AggregateConfiguration
 AggregateFilter
+SetTriggeringRequest
+SetTriggeringResponse

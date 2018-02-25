@@ -145,8 +145,9 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
+    pthread_mutex_destroy(&server->dispatchQueue_accessMutex);
     pthread_cond_destroy(&server->dispatchQueue_condition);
-    pthread_mutex_destroy(&server->dispatchQueue_mutex);
+    pthread_mutex_destroy(&server->dispatchQueue_conditionMutex);
 #endif
 
     /* Delete the timed work */
@@ -211,7 +212,7 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     /* Initialized the dispatch queue for worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
-    cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
+    SIMPLEQ_INIT(&server->dispatchQueue);
 #endif
 
     /* Create Namespaces 0 and 1 */

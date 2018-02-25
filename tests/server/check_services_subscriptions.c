@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* TODO add event based testing */
+
 #include "ua_server.h"
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
@@ -329,33 +331,33 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     MonitoredItem_queuedValue *queueItem;
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
     ck_assert_uint_eq(mon->currentQueueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, true);
+    ck_assert_uint_eq(queueItem->data.value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Remove status for next test */
-    queueItem->value.hasStatus = false;
-    queueItem->value.status = 0;
+    queueItem->data.value.hasStatus = false;
+    queueItem->data.value.status = 0;
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
@@ -386,8 +388,8 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->currentQueueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
     queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, true);
+    ck_assert_uint_eq(queueItem->data.value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -414,7 +416,7 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->currentQueueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -444,7 +446,7 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(mon->currentQueueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
+    ck_assert_uint_eq(queueItem->data.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
 
     /* Remove the subscriptions */
     UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
@@ -506,6 +508,124 @@ START_TEST(Server_deleteMonitoredItems) {
 }
 END_TEST
 
+START_TEST(Server_lifeTimeCount) {
+    /* Create a subscription */
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionResponse response;
+
+    UA_CreateSubscriptionRequest_init(&request);
+    request.publishingEnabled = true;
+    request.requestedLifetimeCount = 3;
+    request.requestedMaxKeepAliveCount = 1;
+    UA_CreateSubscriptionResponse_init(&response);
+    Service_CreateSubscription(server, &adminSession, &request, &response);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 1);
+    ck_assert_uint_eq(response.revisedLifetimeCount, 3);
+    UA_CreateSubscriptionResponse_deleteMembers(&response);
+
+    /* Create a second subscription */
+    UA_CreateSubscriptionRequest_init(&request);
+    request.publishingEnabled = true;
+    request.requestedLifetimeCount = 4;
+    request.requestedMaxKeepAliveCount = 2;
+    UA_CreateSubscriptionResponse_init(&response);
+    Service_CreateSubscription(server, &adminSession, &request, &response);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 2);
+    /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount */
+    ck_assert_uint_eq(response.revisedLifetimeCount, 6);
+    UA_Double publishingInterval = response.revisedPublishingInterval;
+    ck_assert(publishingInterval > 0.0f);
+    UA_CreateSubscriptionResponse_deleteMembers(&response);
+
+    UA_Server_run_iterate(server, false);
+
+    UA_UInt32 count = 0;
+    UA_Subscription *sub;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 0);
+        count++;
+    }
+    ck_assert_uint_eq(count, 2);
+
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 1);
+        count++;
+    }
+    ck_assert_uint_eq(count, 2);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 2);
+        count++;
+    }
+    ck_assert_uint_eq(count, 2);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 3);
+        count++;
+    }
+    ck_assert_uint_eq(count, 2);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 4);
+        count++;
+    }
+    ck_assert_uint_eq(count, 1);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 5);
+        count++;
+    }
+    ck_assert_uint_eq(count, 1);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        ck_assert_uint_eq(sub->currentLifetimeCount, 6);
+        count++;
+    }
+    ck_assert_uint_eq(count, 1);
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
+
+    count = 0;
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+        count++;
+    }
+    ck_assert_uint_eq(count, 0);
+}
+END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
@@ -525,6 +645,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_deleteSubscription);
     tcase_add_test(tc_server, Server_republish_invalid);
     tcase_add_test(tc_server, Server_publishCallback);
+    tcase_add_test(tc_server, Server_lifeTimeCount);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 

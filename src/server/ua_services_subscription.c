@@ -10,7 +10,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2017 (c) Henrik Norrman
- *    Copyright 2017-2018 (c) Thomas Stalder
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #include "ua_server_internal.h"
@@ -259,7 +259,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     }
 
     /* Create the monitoreditem */
-    UA_MonitoredItem *newMon = UA_MonitoredItem_new();
+    UA_MonitoredItem *newMon = UA_MonitoredItem_new(UA_MONITOREDITEMTYPE_CHANGENOTIFY);
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -273,6 +273,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     }
     newMon->subscription = cmc->sub;
     newMon->attributeId = request->itemToMonitor.attributeId;
+    UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     newMon->itemId = ++(cmc->sub->lastMonitoredItemId);
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
@@ -283,7 +284,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         UA_MonitoredItem_SampleCallback(server, newMon);
 
     /* Prepare the response */
-    UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     result->revisedSamplingInterval = newMon->samplingInterval;
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->itemId;
@@ -416,14 +416,38 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
+    if(mon->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        *result = UA_STATUSCODE_BADNOTIMPLEMENTED;
+        return;
+    }
+  
+    /* check monitoringMode is valid or not */
+    if(smc->monitoringMode > UA_MONITORINGMODE_REPORTING) {
+        *result = UA_STATUSCODE_BADMONITORINGMODEINVALID;
+        return;
+    }
+
     if(mon->monitoringMode == smc->monitoringMode)
         return;
 
     mon->monitoringMode = smc->monitoringMode;
-    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
+    if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
         MonitoredItem_registerSampleCallback(server, mon);
-    else
+    } else {
+        // TODO correctly implement SAMPLING
+        /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be delete */
+        MonitoredItem_queuedValue *val, *val_tmp;
+        TAILQ_FOREACH_SAFE(val, &mon->queue, listEntry, val_tmp) {
+            TAILQ_REMOVE(&mon->queue, val, listEntry);
+            UA_DataValue_deleteMembers(&val->data.value);
+            UA_free(val);
+        }
+        mon->currentQueueSize = 0;
+
+        /* initialize lastSampledValue */
+        UA_ByteString_deleteMembers(&mon->lastSampledValue);
         MonitoredItem_unregisterSampleCallback(server, mon);
+    }
 }
 
 void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,

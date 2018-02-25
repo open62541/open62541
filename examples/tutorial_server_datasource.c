@@ -49,7 +49,7 @@ addCurrentTimeVariable(UA_Server *server) {
     UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NULL;
+    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
     UA_Server_addVariableNode(server, currentNodeId, parentNodeId,
                               parentReferenceNodeId, currentName,
                               variableTypeNodeId, attr, NULL, NULL);
@@ -161,7 +161,7 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
     UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time-datasource");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NULL;
+    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
 
     UA_DataSource timeDataSource;
     timeDataSource.read = readCurrentTime;

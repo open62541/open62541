@@ -528,13 +528,23 @@ addReferenceKind(UA_Node *node, const UA_AddReferencesItem *item) {
 
 UA_StatusCode
 UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item) {
+    UA_NodeReferenceKind *existingRefs = NULL;
     for(size_t i = 0; i < node->referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->references[i];
-        if(refs->isInverse == item->isForward)
-            continue;
-        if(!UA_NodeId_equal(&refs->referenceTypeId, &item->referenceTypeId))
-            continue;
-        return addReferenceTarget(refs, &item->targetNodeId);
+        if(refs->isInverse != item->isForward
+                && UA_NodeId_equal(&refs->referenceTypeId, &item->referenceTypeId)) {
+            existingRefs = refs;
+            break;
+        }
+    }
+    if(existingRefs != NULL) {
+        for(size_t i = 0; i < existingRefs->targetIdsSize; i++) {
+            if(UA_ExpandedNodeId_equal(&existingRefs->targetIds[i],
+                                       &item->targetNodeId)) {
+                return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
+            }
+        }
+        return addReferenceTarget(existingRefs, &item->targetNodeId);
     }
     return addReferenceKind(node, item);
 }

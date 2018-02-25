@@ -46,6 +46,7 @@ certificateVerification_verify(void *verificationContext,
 
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
+    mbedtls_x509_crt_init(&remoteCertificate);
     int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
                                          certificate->length);
     if(mbedErr) {
@@ -117,7 +118,10 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
 
     cv->context = (void*)ci;
-    cv->verifyCertificate = certificateVerification_verify;
+    if(certificateTrustListSize > 0)
+        cv->verifyCertificate = certificateVerification_verify;
+    else
+        cv->verifyCertificate = verifyAllowAll;
     cv->deleteMembers = certificateVerification_deleteMembers;
 
     int err = 0;

@@ -28,6 +28,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_ENCRYPTION
+#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
@@ -281,7 +282,11 @@ extern "C" {
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__linux__) /* Linux (including Android) */
 # include <endian.h>
-# if __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
+# if defined(__ANDROID__)
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+#   define UA_BINARY_OVERLAYABLE_INTEGER 1
+#  endif
+# elif __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
 #  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(_WRS_KERNEL)

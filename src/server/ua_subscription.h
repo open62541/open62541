@@ -29,10 +29,19 @@ typedef enum {
     UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
 } UA_MonitoredItemType;
 
+
+/* not used yet, placeholder for event implementation */
+typedef struct UA_Event {
+   UA_Int32 eventId;
+} UA_Event;
+
 typedef struct MonitoredItem_queuedValue {
     TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
     UA_UInt32 clientHandle;
-    UA_DataValue value;
+    union {
+        UA_Event event;
+        UA_DataValue value;
+    } data;
 } MonitoredItem_queuedValue;
 
 typedef TAILQ_HEAD(QueuedValueQueue, MonitoredItem_queuedValue) QueuedValueQueue;
@@ -66,7 +75,7 @@ typedef struct UA_MonitoredItem {
     QueuedValueQueue queue;
 } UA_MonitoredItem;
 
-UA_MonitoredItem * UA_MonitoredItem_new(void);
+UA_MonitoredItem * UA_MonitoredItem_new(UA_MonitoredItemType);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void UA_MonitoredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);

@@ -28,12 +28,16 @@ extern "C" {
 
 #ifdef UA_ENABLE_MULTITHREADING
 
-/* TODO: Don't depend on liburcu */
-#include <urcu.h>
-#include <urcu/lfstack.h>
+#include <pthread.h>
 
 struct UA_Worker;
 typedef struct UA_Worker UA_Worker;
+
+struct UA_WorkerCallback;
+typedef struct UA_WorkerCallback UA_WorkerCallback;
+
+SIMPLEQ_HEAD(UA_DispatchQueue, UA_WorkerCallback);
+typedef struct UA_DispatchQueue UA_DispatchQueue;
 
 #endif /* UA_ENABLE_MULTITHREADING */
 
@@ -126,12 +130,11 @@ struct UA_Server {
 
     /* Worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
-    /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
-    struct cds_wfcq_head dispatchQueue_head;
     UA_Worker *workers; /* there are nThread workers in a running server */
+    UA_DispatchQueue dispatchQueue; /* Dispatch queue for the worker threads */
+    pthread_mutex_t dispatchQueue_accessMutex; /* mutex for access to queue */
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
-    struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
+    pthread_mutex_t dispatchQueue_conditionMutex; /* mutex for access to condition variable */
 #endif
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
@@ -344,13 +347,14 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 /* Creates a new node in the nodestore. */
 UA_StatusCode
 Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
-                        const UA_AddNodesItem *item, UA_NodeId *outNewNodeId);
+                        const UA_AddNodesItem *item, const UA_NodeId *parentNodeId,
+                        const UA_NodeId *referenceTypeId,
+                        UA_NodeId *outNewNodeId);
 
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session,
-                         const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
+                         const UA_NodeId *nodeId);
 
 /**********************/
 /* Create Namespace 0 */

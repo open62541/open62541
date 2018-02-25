@@ -71,6 +71,13 @@ if(UA_ENABLE_COVERAGE)
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
+    # Force enable options not passed in the build script, to also fuzzy-test this code
+    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_ENCRYPTION ON CACHE STRING "" FORCE)
+endif()
+
 if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
     MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
     SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
@@ -89,12 +96,18 @@ mark_as_advanced(UA_ENABLE_TYPENAMES)
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
+option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
+mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
+
 option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
 if (MSVC AND UA_ENABLE_FULL_NS0)
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)
     # See https://github.com/open62541/open62541/issues/1326
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
+
+option(UA_FILE_NS0 "Custom NodeSet file containing NS0")
+mark_as_advanced(UA_FILE_NS0)
 
 # Semaphores/file system may not be available on embedded devices. It can be
 # disabled with the following option
@@ -188,7 +201,10 @@ if(NOT WIN32)
     list(APPEND open62541_LIBRARIES c)
     list(APPEND open62541_LIBRARIES stdc++)
   else()
-    list(APPEND open62541_LIBRARIES pthread m)
+    list(APPEND open62541_LIBRARIES m)
+    if(UA_ENABLE_MULTITHREADING OR UA_BUILD_UNIT_TESTS)
+      list(APPEND open62541_LIBRARIES pthread)
+    endif()
     if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
       list(APPEND open62541_LIBRARIES rt)
     endif()
@@ -199,9 +215,6 @@ else()
         list(APPEND open62541_LIBRARIES iphlpapi)
     endif()
 endif()
-if(UA_ENABLE_MULTITHREADING)
-  list(APPEND open62541_LIBRARIES urcu-cds urcu-bp urcu-common)
-endif(UA_ENABLE_MULTITHREADING)
 
 #####################
 # Compiler Settings #
@@ -331,7 +344,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
@@ -392,7 +406,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions_deprecated.c
 
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
@@ -455,19 +470,24 @@ endif()
 #########################
 
 if (UA_ENABLE_FULL_NS0)
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    endif()
     set(UA_FILE_DATATYPES "")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
-    if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
-    endif()
 else()
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    endif()
     set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 endif()
+if(NOT EXISTS "${UA_FILE_NS0}")
+    message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+endif()
+
 
 if (UA_FILE_DATATYPES STREQUAL "")
     set(SELECTED_TYPES_TMP "")
@@ -688,9 +708,6 @@ if(UA_BUILD_UNIT_TESTS)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
-    # Force enable discovery, to also fuzzy-test this code
-    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
-    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     add_subdirectory(tests/fuzz)
 endif()
 
@@ -716,6 +733,18 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   DEPENDS ${lib_sources}
                   COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)
+
+add_custom_target(cpplint cpplint
+                  ${lib_sources}
+                  ${internal_headers}
+                  ${default_plugin_headers}
+                  ${default_plugin_sources}
+                  DEPENDS ${lib_sources}
+                          ${internal_headers}
+                          ${default_plugin_headers}
+                          ${default_plugin_sources}
+
+                  COMMENT "Run cpplint code style checker on the library")
 
 ##########################
 # Installation           #

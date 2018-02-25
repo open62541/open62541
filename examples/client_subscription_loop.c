@@ -43,7 +43,8 @@ static void stopHandler(int sign) {
 }
 
 static void
-handler_currentTimeChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
+handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
+                           UA_UInt32 monId, void *monContext, UA_DataValue *value) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "currentTime has changed!");
     if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *) value->value.data;
@@ -54,8 +55,17 @@ handler_currentTimeChanged(UA_UInt32 monId, UA_DataValue *value, void *context) 
 }
 
 static void
-stateCallback (UA_Client *client, UA_ClientState clientState) {
+deleteSubscriptionCallback(UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Subscription Id %u was deleted", subscriptionId);
+}
 
+static void
+subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subContext) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Inactivity for subscription %u", subId);
+}
+
+static void
+stateCallback (UA_Client *client, UA_ClientState clientState) {
     switch(clientState) {
         case UA_CLIENTSTATE_DISCONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
@@ -70,20 +80,25 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A session with the server is open");
             /* A new session was created. We need to create the subscription. */
             /* Create a subscription */
-            UA_UInt32 subId = 0;
-            UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
-            if(subId)
-                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
+            UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+            UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                                    NULL, NULL, deleteSubscriptionCallback);
+
+            if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", response.subscriptionId);
             else
                 return;
 
             /* Add a MonitoredItem */
-            UA_UInt32 monId = 0;
-            UA_NodeId monitorThis = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-            UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
-                                                     &handler_currentTimeChanged, NULL, &monId, 250);
-            if(monId)
-                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monId);
+            UA_MonitoredItemCreateRequest monRequest =
+                UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+
+            UA_MonitoredItemCreateResult monResponse =
+                UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                          UA_TIMESTAMPSTORETURN_BOTH,
+                                                          monRequest, NULL, handler_currentTimeChanged, NULL);
+            if(monResponse.statusCode == UA_STATUSCODE_GOOD)
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monResponse.monitoredItemId);
         }
         break;
         case UA_CLIENTSTATE_SESSION_RENEWED:
@@ -100,10 +115,12 @@ int main(void) {
     UA_ClientConfig config = UA_ClientConfig_default;
     /* Set stateCallback */
     config.stateCallback = stateCallback;
+    config.subscriptionInactivityCallback = subscriptionInactivityCallback;
+
     UA_Client *client = UA_Client_new(config);
 
-    /* Endless loop SendPublishRequest */
-    while(running) {
+    /* Endless loop runAsync */
+    while (running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
         /* Alternatively you can also use UA_Client_getState to get the current state */
@@ -116,8 +133,7 @@ int main(void) {
             continue;
         }
 
-        UA_Client_Subscriptions_manuallySendPublishRequest(client);
-        UA_sleep_ms(1000);
+        UA_Client_runAsync(client, 1000);
     };
 
     /* Clean up */

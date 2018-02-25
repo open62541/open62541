@@ -111,7 +111,7 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     // todo: malloc may fail: return a statuscode
     listEntry->serverOnNetwork.serverName.data = (UA_Byte*)UA_malloc(serverNameLen);
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
-    server->serverOnNetworkRecordIdCounter = UA_atomic_add(&server->serverOnNetworkRecordIdCounter, 1);
+    UA_atomic_addUInt32(&server->serverOnNetworkRecordIdCounter, 1);
     if(server->serverOnNetworkRecordIdCounter == 0)
         server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 
@@ -169,7 +169,7 @@ mdns_record_remove(UA_Server *server, const char *record,
     server->serverOnNetworkSize--;
     UA_free(entry);
 #else
-    server->serverOnNetworkSize = uatomic_add_return(&server->serverOnNetworkSize, -1);
+    UA_atomic_subSize(&server->serverOnNetworkSize, 1);
     UA_Server_delayedCallback(server, delayedFree, entry);
 #endif
 }

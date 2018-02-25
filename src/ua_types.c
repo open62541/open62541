@@ -41,13 +41,29 @@ const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}
  * more efficient. */
 const UA_DataType *
 UA_findDataType(const UA_NodeId *typeId) {
-    if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC ||
-       typeId->namespaceIndex != 0)
+    if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
         return NULL;
+
+    /* Always look in built-in types first
+     * (may contain data types from all namespaces) */
     for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
+        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric
+           && UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
             return &UA_TYPES[i];
     }
+
+    /* TODO When other namespace look in custom types, too, requires access to custom types array here! */
+    /*if(typeId->namespaceIndex != 0) {
+        size_t customTypesArraySize;
+        const UA_DataType *customTypesArray;
+        UA_getCustomTypes(&customTypesArraySize, &customTypesArray);
+        for(size_t i = 0; i < customTypesArraySize; ++i) {
+            if(customTypesArray[i].typeId.identifier.numeric == typeId->identifier.numeric
+               && customTypesArray[i].typeId.namespaceIndex == typeId->namespaceIndex)
+                return &customTypesArray[i];
+        }
+    }*/
+
     return NULL;
 }
 
@@ -101,6 +117,19 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
 static void
 String_deleteMembers(UA_String *s, const UA_DataType *_) {
     UA_free((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
+}
+
+UA_Boolean
+UA_QualifiedName_equal(const UA_QualifiedName *qn1,
+                       const UA_QualifiedName *qn2) {
+    if(qn1 == NULL || qn2 == NULL)
+        return false;
+    if(qn1->namespaceIndex != qn2->namespaceIndex)
+        return false;
+    if(qn1->name.length != qn2->name.length)
+        return false;
+    return (memcmp((char const*)qn1->name.data,
+                   (char const*)qn2->name.data, qn1->name.length) == 0);
 }
 
 /* DateTime */
@@ -268,15 +297,14 @@ UA_NodeId_isNull(const UA_NodeId *p) {
 
 UA_Boolean
 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
+    if(n1 == NULL || n2 == NULL)
+        return false;
     if(n1->namespaceIndex != n2->namespaceIndex ||
        n1->identifierType!=n2->identifierType)
         return false;
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        if(n1->identifier.numeric == n2->identifier.numeric)
-            return true;
-        else
-            return false;
+        return (n1->identifier.numeric == n2->identifier.numeric);
     case UA_NODEIDTYPE_STRING:
         return UA_String_equal(&n1->identifier.string,
                                &n2->identifier.string);
@@ -288,6 +316,17 @@ UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
                                    &n2->identifier.byteString);
     }
     return false;
+}
+
+UA_Boolean
+UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
+    if(n1 == NULL || n2 == NULL)
+        return false;
+    if(n1->serverIndex != n2->serverIndex)
+        return false;
+    if(!UA_String_equal(&n1->namespaceUri, &n2->namespaceUri))
+        return false;
+    return UA_NodeId_equal(&n1->nodeId, &n2->nodeId);
 }
 
 /* FNV non-cryptographic hash function. See

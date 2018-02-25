@@ -131,14 +131,7 @@ encodeWithExchangeBuffer(const void *ptr, encodeBinarySignature encodeFunc, Ctx 
 
 #if !UA_BINARY_OVERLAYABLE_INTEGER
 
-#if defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic warning "-W#warnings"
-#endif
-#warning Integer endianness could not be detected to be little endian. Use slow generic encoding.
-#if defined(__clang__)
-# pragma GCC diagnostic pop
-#endif
+#pragma message Integer endianness could not be detected to be little endian. Use slow generic encoding.
 
 /* These en/decoding functions are only used when the architecture isn't little-endian. */
 static void
@@ -310,14 +303,7 @@ DECODE_BINARY(UInt64) {
 
 #include <math.h>
 
-#if defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic warning "-W#warnings"
-#endif
-# warning No native IEEE 754 format detected. Use slow generic encoding.
-#if defined(__clang__)
-# pragma GCC diagnostic pop
-#endif
+#pragma message "No native IEEE 754 format detected. Use slow generic encoding."
 
 /* Handling of IEEE754 floating point values was taken from Beej's Guide to
  * Network Programming (http://beej.us/guide/bgnet/) and enhanced to cover the
@@ -814,20 +800,23 @@ UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
     if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
         return NULL;
 
-    /* Custom or standard data type? */
-    const UA_DataType *types = UA_TYPES;
-    size_t typesSize = UA_TYPES_COUNT;
-    if(typeId->namespaceIndex != 0) {
-        types = ctx->customTypesArray;
-        typesSize = ctx->customTypesArraySize;
+    /* Always look in built-in types first
+     * (may contain data types from all namespaces) */
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric &&
+           UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
+            return &UA_TYPES[i];
     }
 
-    /* Iterate over the array */
-    for(size_t i = 0; i < typesSize; ++i) {
-        if(types[i].binaryEncodingId == typeId->identifier.numeric &&
-           types[i].typeId.namespaceIndex == typeId->namespaceIndex)
-            return &types[i];
+    /* When other namespace look in custom types, too */
+    if(typeId->namespaceIndex != 0) {
+        for(size_t i = 0; i < ctx->customTypesArraySize; ++i) {
+            if(ctx->customTypesArray[i].binaryEncodingId == typeId->identifier.numeric &&
+               ctx->customTypesArray[i].typeId.namespaceIndex == typeId->namespaceIndex)
+                return &ctx->customTypesArray[i];
+        }
     }
+
     return NULL;
 }
 
@@ -1325,7 +1314,14 @@ DECODE_BINARY(DiagnosticInfo) {
         if(!dst->innerDiagnosticInfo)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         dst->hasInnerDiagnosticInfo = true;
+
+        /* Check the recursion limit */
+        if(ctx->depth > UA_ENCODING_MAX_RECURSION)
+            return UA_STATUSCODE_BADENCODINGERROR;
+
+        ctx->depth++;
         ret |= DECODE_DIRECT(dst->innerDiagnosticInfo, DiagnosticInfo);
+        ctx->depth--;
     }
     return ret;
 }

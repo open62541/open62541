@@ -27,7 +27,6 @@ Building with CMake on Ubuntu or Debian
    # enable additional features
    sudo apt-get install cmake-curses-gui # for the ccmake graphical interface
    sudo apt-get install libmbedtls-dev # for encryption support
-   sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
    sudo apt-get install python-sphinx graphviz # for documentation generation
    sudo apt-get install python-sphinx-rtd-theme # documentation style

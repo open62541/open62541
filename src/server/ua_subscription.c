@@ -5,7 +5,7 @@
  *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
- *    Copyright 2017-2018 (c) Thomas Stalder
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2015 (c) Joakim L. Gilje
  *    Copyright 2016-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
@@ -212,7 +212,11 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
                 return;
             UA_MonitoredItemNotification *min = &mins[*pos];
             min->clientHandle = qv->clientHandle;
-            min->value = qv->value;
+            if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+                min->value = qv->data.value;
+            } else {
+                /* TODO implementation for events */
+            }
             TAILQ_REMOVE(&mon->queue, qv, listEntry);
             UA_free(qv);
             --mon->currentQueueSize;
@@ -287,12 +291,31 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Publish Callback",
                          sub->subscriptionId);
+    /* Dequeue a response */
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
+    if(pre) {
+        sub->currentLifetimeCount = 0; /* Reset the lifetimecounter */
+    } else {
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | The publish queue is empty",
+                             sub->subscriptionId);
+        ++sub->currentLifetimeCount;
+
+        if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                                 "Subscription %u | End of lifetime "
+                                 "for subscription", sub->subscriptionId);
+            UA_Session_deleteSubscription(server, sub->session, sub->subscriptionId);
+            /* TODO: send a StatusChangeNotification with Bad_Timeout */
+            return;
+        }
+    }
 
     /* Count the available notifications */
     UA_Boolean moreNotifications = false;
     size_t notifications = countQueuedNotifications(sub, &moreNotifications);
 
-    /* Return if nothing to do */
+    /* Return if no notifications and no keepalive */
     if(notifications == 0) {
         ++sub->currentKeepAliveCount;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
@@ -302,35 +325,17 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                              sub->subscriptionId);
     }
 
-    /* Check if the securechannel is valid */
+    /* Can we send a response? */
     UA_SecureChannel *channel = sub->session->header.channel;
-    if(!channel)
-        return;
-
-    /* Dequeue a response */
-    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
-
-    /* Cannot publish without a response */
-    if(!pre) {
+    if(!channel || !pre) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Subscription %u | Cannot send a publish "
-                             "response since the publish queue is empty",
-                             sub->subscriptionId);
-        if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-        } else {
-            ++sub->currentLifetimeCount;
-            if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                                     "Subscription %u | End of lifetime "
-                                     "for subscription", sub->subscriptionId);
-                UA_Session_deleteSubscription(server, sub->session,
-                                              sub->subscriptionId);
-            }
-        }
+                             "Subscription %u | Want to send a publish response;"
+                             "but not possible", sub->subscriptionId);
+        sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         return;
     }
 
+    /* Prepare the response */
     UA_PublishResponse *response = &pre->response;
     UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
@@ -342,17 +347,18 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not allocate memory "
                                    "for retransmission", sub->subscriptionId);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
 
         /* Prepare the response */
-        UA_StatusCode retval =
-            prepareNotificationMessage(sub, message, notifications);
+        UA_StatusCode retval = prepareNotificationMessage(sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the "
                                    "notification message", sub->subscriptionId);
             UA_free(retransmission);
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             return;
         }
     }
@@ -409,7 +415,6 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Reset subscription state to normal. */
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
     sub->currentKeepAliveCount = 0;
-    sub->currentLifetimeCount = 0;
 
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize,

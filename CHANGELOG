@@ -1,6 +1,19 @@
 This changelog reports changes to the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2018-02-05 pro <profanter at fortiss.org>
+
+ * Also pass client to monitoredItem/Events callback
+
+   The UA_MonitoredItemHandlingFunction and UA_MonitoredEventHandlingFunction
+   did not include a reference to the corresponding client used for the call of
+   processPublishResponse.
+   This now also allows to get the client context within the monitored item
+   handling function.
+
+   The API changes are detected by the type-matching in the compiler. So there
+   is little risk for bugs due to unaligned implementations.
+
 2017-09-07 jpfr <julius.pfrommer at web.de>
 
  * Make Client Highlevel Interface consistent
