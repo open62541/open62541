@@ -95,12 +95,11 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
         if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE) {
             const UA_DataSource *dataSource = &varTarget->value.dataSource;
 
-            if (dataSource->monitored != NULL) {
-                // FIXME: Should the returned StatusCode be used as return value?
+            // FIXME: Should the returned StatusCode be used as return value?
+            if (dataSource->monitored != NULL)
                 dataSource->monitored(server, &sub->session->sessionId,
                                       sub->session->sessionHandle, &target->nodeId,
                                       target->context, true);
-            }
         }
     }
     UA_Nodestore_replace(server, target);

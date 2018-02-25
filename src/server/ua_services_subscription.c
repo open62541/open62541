@@ -303,9 +303,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
             const UA_DataSource *dataSource = &varTarget->value.dataSource;
 
             // FIXME: Should the returned StatusCode be used as result->statusCode?
-            dataSource->monitored(server, &session->sessionId,
-                                  session->sessionHandle, &target->nodeId,
-                                  target->context, false);
+            if (dataSource->monitored != NULL)
+                dataSource->monitored(server, &session->sessionId,
+                                      session->sessionHandle, &target->nodeId,
+                                      target->context, false);
         }
     }
     UA_Nodestore_replace(server, target);
