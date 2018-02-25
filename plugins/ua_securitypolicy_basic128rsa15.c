@@ -77,6 +77,16 @@ typedef struct {
     mbedtls_x509_crt remoteCertificate;
 } Basic128Rsa15_ChannelContext;
 
+static void
+sha1(const unsigned char *input, size_t ilen, unsigned char output[20] ) {
+    mbedtls_sha1_context sha1Context;
+    mbedtls_sha1_init(&sha1Context);
+    mbedtls_sha1_starts(&sha1Context);
+    mbedtls_sha1_update(&sha1Context, input, ilen);
+    mbedtls_sha1_finish(&sha1Context, output);
+    mbedtls_sha1_free(&sha1Context);
+}
+
 /********************/
 /* AsymmetricModule */
 /********************/
@@ -91,7 +101,7 @@ asym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
     /* Compute the sha1 hash */
     unsigned char hash[UA_SHA1_LENGTH];
-    mbedtls_sha1(message->data, message->length, hash);
+    sha1(message->data, message->length, hash);
 
     /* Set the RSA settings */
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
@@ -114,7 +124,7 @@ asym_sign_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA1_LENGTH];
-    mbedtls_sha1(message->data, message->length, hash);
+    sha1(message->data, message->length, hash);
 
     Basic128Rsa15_PolicyContext *pc = cc->policyContext;
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
@@ -280,7 +290,7 @@ asym_makeThumbprint_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(thumbprint->length != UA_SHA1_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    mbedtls_sha1(certificate->data, certificate->length, thumbprint->data);
+    sha1(certificate->data, certificate->length, thumbprint->data);
     return UA_STATUSCODE_GOOD;
 }
 
