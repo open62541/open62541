@@ -121,9 +121,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     UA_assert(newSession != NULL);
 
-    /* Set the channel in the session (don't activate and don't set the reverse
-     * pointer for now */
-    newSession->header.channel = channel;
+    /* Attach the session to the channel. But don't activate for now. */
+    UA_Session_attachToSecureChannel(newSession, channel);
 
     /* Fill the session information */
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
@@ -171,7 +170,7 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
                UA_Session *session, const UA_ActivateSessionRequest *request) {
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
        channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_GOOD;
 
     if(!channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -206,6 +205,8 @@ void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Execute ActivateSession");
+
     if(session->validTill < UA_DateTime_nowMonotonic()) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: SecureChannel %i wants "
@@ -218,10 +219,13 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Check if the signature corresponds to the ServerNonce that was last sent
      * to the client */
-    response->responseHeader.serviceResult =
-        checkSignature(server, channel, session, request);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    response->responseHeader.serviceResult = checkSignature(server, channel, session, request);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "Signature check failed with status code %s",
+                            UA_StatusCode_name(response->responseHeader.serviceResult));
         return;
+    }
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
@@ -234,16 +238,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* Detach the old SecureChannel */
     if(session->header.channel && session->header.channel != channel) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: Detach from old channel");
+        /* Detach the old SecureChannel and attach the new */
         UA_Session_detachFromSecureChannel(session);
-        session->activated = false;
+        UA_Session_attachToSecureChannel(session, channel);
     }
 
-    /* Attach to the SecureChannel and activate */
-    UA_Session_attachToSecureChannel(session, channel);
+    /* Activate the session */
     session->activated = true;
     UA_Session_updateLifetime(session);
 

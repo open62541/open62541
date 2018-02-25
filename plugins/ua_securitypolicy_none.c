@@ -66,18 +66,24 @@ generateKey_none(const UA_SecurityPolicy *securityPolicy,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Use the non-cryptographic RNG to set the nonce */
 static UA_StatusCode
-generateNonce_none(const UA_SecurityPolicy *securityPolicy,
-                   UA_ByteString *out) {
+generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) {
     if(securityPolicy == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(out->length != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(out->data != NULL)
-        UA_ByteString_deleteMembers(out);
+    /* Fill blocks of four byte */
+    size_t i = 0;
+    while(i + 3 < out->length) {
+        UA_UInt32 rand = UA_UInt32_random();
+        memcpy(&out->data[i], &rand, 4);
+        i = i+4;
+    }
 
-    out->data = (UA_Byte *)UA_EMPTY_ARRAY_SENTINEL;
+    /* Fill the remaining byte */
+    UA_UInt32 rand = UA_UInt32_random();
+    memcpy(&out->data[i], &rand, out->length % 4);
+
     return UA_STATUSCODE_GOOD;
 }
 

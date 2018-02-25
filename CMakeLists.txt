@@ -430,7 +430,6 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_plugin_securitypolicy.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
 )
 
