@@ -83,7 +83,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    ////////////////////// TODO: Compare application URI with certificate uri (decode certificate)
+    /* TODO: Compare application URI with certificate uri (decode certificate) */
 
     /* Allocate the response */
     response->serverEndpoints = (UA_EndpointDescription *)
@@ -189,6 +189,19 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
                &request->clientSignature.signature);
 }
 
+/* TODO: Check all of the following:
+ *
+ * Part 4, §5.6.3: When the ActivateSession Service is called for the first time
+ * then the Server shall reject the request if the SecureChannel is not same as
+ * the one associated with the CreateSession request. Subsequent calls to
+ * ActivateSession may be associated with different SecureChannels. If this is
+ * the case then the Server shall verify that the Certificate the Client used to
+ * create the new SecureChannel is the same as the Certificate used to create
+ * the original SecureChannel. In addition, the Server shall verify that the
+ * Client supplied a UserIdentityToken that is identical to the token currently
+ * associated with the Session. Once the Server accepts the new SecureChannel it
+ * shall reject requests sent via the old SecureChannel. */
+
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
@@ -227,16 +240,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                             "ActivateSession: Detach from old channel");
         UA_Session_detachFromSecureChannel(session);
         session->activated = false;
-    }
-
-    if(session->activated) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the session is already activated",
-                            channel->securityToken.channelId);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        return;
-
     }
 
     /* Attach to the SecureChannel and activate */
