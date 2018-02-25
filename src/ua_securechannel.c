@@ -117,16 +117,21 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
 }
 
 UA_StatusCode
-UA_SecureChannel_generateNonce(const UA_SecureChannel *channel,
-                               size_t nonceLength,
-                               UA_ByteString *nonce) {
-    UA_ByteString_deleteMembers(nonce);
-    UA_StatusCode retval = UA_ByteString_allocBuffer(nonce, nonceLength);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
+    if(!channel->securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Is the length correct? */
+    size_t nonceLength = channel->securityPolicy->symmetricModule.secureChannelNonceLength;
+    if(channel->localNonce.length != nonceLength) {
+        UA_ByteString_deleteMembers(&channel->localNonce);
+        UA_StatusCode retval = UA_ByteString_allocBuffer(&channel->localNonce, nonceLength);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
     return channel->securityPolicy->symmetricModule.
-        generateNonce(channel->securityPolicy, nonce);
+        generateNonce(channel->securityPolicy, &channel->localNonce);
 }
 
 static UA_StatusCode

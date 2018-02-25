@@ -10,7 +10,6 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include "ua_plugin_securitypolicy.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
 #include "ua_server_internal.h"
@@ -157,31 +156,36 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
     }
 
+    channel->securityMode = request->securityMode;
+    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
     channel->securityToken.channelId = cm->lastChannelId++;
     channel->securityToken.createdAt = UA_DateTime_now();
+
+    /* Set the lifetime. Lifetime 0 -> set the maximum possible */
     channel->securityToken.revisedLifetime =
         (request->requestedLifetime > cm->server->config.maxSecurityTokenLifetime) ?
         cm->server->config.maxSecurityTokenLifetime : request->requestedLifetime;
-    if(channel->securityToken.revisedLifetime == 0) // lifetime 0 -> set the maximum possible
+    if(channel->securityToken.revisedLifetime == 0)
         channel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
-    UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
-    channel->securityMode = request->securityMode;
-    UA_SecureChannel_generateNonce(channel,
-                                   channel->securityPolicy->symmetricModule.secureChannelNonceLength,
-                                   &channel->localNonce);
 
-    UA_SecureChannel_generateNewKeys(channel);
+    /* Set the nonces and generate the keys */
+    UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
+    retval |= UA_SecureChannel_generateLocalNonce(channel);
+    retval |= UA_SecureChannel_generateNewKeys(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    // Set the response
-    UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
-    UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
+    /* Set the response */
+    retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
+    retval |= UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
     response->responseHeader.timestamp = UA_DateTime_now();
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    // Now overwrite the creation date with the internal monotonic clock
-    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
-
+    /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -209,16 +213,17 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_SecureChannel *cha
 
     /* Replace the nonces */
     UA_ByteString_deleteMembers(&channel->remoteNonce);
-    UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
-
-    UA_ByteString_deleteMembers(&channel->localNonce);
-    UA_SecureChannel_generateNonce(channel, channel->securityPolicy->symmetricModule.secureChannelNonceLength,
-                                   &channel->localNonce);
+    UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
+    retval |= UA_SecureChannel_generateLocalNonce(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Set the response */
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
-    UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
-    UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
+    retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
+    retval |= UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Reset the internal creation date to the monotonic clock */
     channel->nextSecurityToken.createdAt = UA_DateTime_nowMonotonic();
