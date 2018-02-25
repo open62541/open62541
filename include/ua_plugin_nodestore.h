@@ -70,7 +70,15 @@ typedef struct {
     UA_ExpandedNodeId *targetIds;
 } UA_NodeReferenceKind;
 
-#define __UA_NODE_BASEATTRIBUTES                \
+/* Add counter only if subscriptions are enabled */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    #define UA_NODE_SUBSCRIPTIONATTRIBUTES      \
+    UA_UInt16 monCounter;
+#else
+    #define UA_NODE_SUBSCRIPTIONATTRIBUTES
+#endif
+
+#define UA_NODE_BASEATTRIBUTES                  \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
     UA_QualifiedName browseName;                \
@@ -81,15 +89,8 @@ typedef struct {
     UA_NodeReferenceKind *references;           \
                                                 \
     /* Members specific to open62541 */         \
-    void *context;
-
-/* Add counter only if subscriptions are enabled */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    #define UA_NODE_BASEATTRIBUTES __UA_NODE_BASEATTRIBUTES \
-    UA_UInt16 monCounter;
-#else
-    #define UA_NODE_BASEATTRIBUTES __UA_NODE_BASEATTRIBUTES
-#endif
+    void *context;                              \
+    UA_NODE_SUBSCRIPTIONATTRIBUTES
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
