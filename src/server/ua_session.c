@@ -70,7 +70,7 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_Subscription *currents, *temps;
     LIST_FOREACH_SAFE(currents, &session->serverSubscriptions, listEntry, temps) {
         LIST_REMOVE(currents, listEntry);
-        UA_Subscription_deleteMembers(currents, server);
+        UA_Subscription_deleteMembers(server, currents);
         UA_free(currents);
     }
     UA_PublishResponseEntry *entry;
@@ -129,7 +129,7 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
 static void
 removeSubscriptionCallback(UA_Server *server, void *data) {
     UA_Subscription *sub = (UA_Subscription*)data;
-    UA_Subscription_deleteMembers(sub, server);
+    UA_Subscription_deleteMembers(server, sub);
     UA_free(sub);
 }
 

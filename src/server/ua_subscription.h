@@ -142,7 +142,7 @@ struct UA_Subscription {
 };
 
 UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId);
-void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
+void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *subscription);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 
