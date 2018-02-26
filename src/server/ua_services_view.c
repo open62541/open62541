@@ -309,8 +309,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
 
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing BrowseRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing BrowseRequest");
 
     /* No views supported at the moment */
     if(!UA_NodeId_isNull(&request->view.viewId)) {
@@ -319,10 +318,11 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     }
 
     UA_UInt32 requestedMaxReferencesPerNode = request->requestedMaxReferencesPerNode;
-    UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Browse,
-                                       &requestedMaxReferencesPerNode,
-                                       &request->nodesToBrowseSize, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
-                                       &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Browse,
+                                           &requestedMaxReferencesPerNode,
+                                           &request->nodesToBrowseSize, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
@@ -708,7 +708,8 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
                                            NULL, &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
 }
