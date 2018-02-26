@@ -53,8 +53,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
-    TAILQ_FOREACH_SAFE(nme, &sub->retransmissionQueue,
-                       listEntry, nme_tmp) {
+    TAILQ_FOREACH_SAFE(nme, &sub->retransmissionQueue, listEntry, nme_tmp) {
         TAILQ_REMOVE(&sub->retransmissionQueue, nme, listEntry);
         UA_NotificationMessage_deleteMembers(&nme->message);
         UA_free(nme);
