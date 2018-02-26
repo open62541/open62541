@@ -182,18 +182,20 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
     const UA_ByteString *localCertificate = &securityPolicy->localCertificate;
 
     size_t dataToVerifySize = localCertificate->length + session->serverNonce.length;
-    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
-    if(dataToVerifySize > 4096)
-        return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString dataToVerify = {dataToVerifySize, (UA_Byte*)UA_alloca(dataToVerifySize)};
+    UA_ByteString dataToVerify;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
     memcpy(dataToVerify.data + localCertificate->length,
            session->serverNonce.data, session->serverNonce.length);
 
-    return securityPolicy->certificateSigningAlgorithm.
-        verify(securityPolicy, channel->channelContext, &dataToVerify,
-               &request->clientSignature.signature);
+    retval = securityPolicy->certificateSigningAlgorithm.verify(securityPolicy, channel->channelContext, &dataToVerify,
+                                                                &request->clientSignature.signature);
+    UA_ByteString_deleteMembers(&dataToVerify);
+    return retval;
 }
 
 /* TODO: Check all of the following:
