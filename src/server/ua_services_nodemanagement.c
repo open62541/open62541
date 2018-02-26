@@ -513,6 +513,13 @@ copyChildNode(UA_Server *server, UA_Session *session,
             return retval;
         }
 
+        /* Add all the children of this child to the new child node to make sure we take
+        * the values from the nearest inherited object first.
+        * The call to addNode_finish will then only add the children from the type and
+        * thus skip the direct children of rd->nodeId.nodeId
+        */
+        copyChildNodes(server, session, &rd->nodeId.nodeId, &newNodeId);
+
         /* Add the parent reference */
         /* we pass the nodeId instead of node to make sure the refcount
          * is increased and other calls can not delete the node in the meantime */
