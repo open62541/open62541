@@ -145,9 +145,14 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
+    /* Process new delayed callbacks from the cleanup */
+    UA_Server_cleanupDispatchQueue(server);
     pthread_mutex_destroy(&server->dispatchQueue_accessMutex);
     pthread_cond_destroy(&server->dispatchQueue_condition);
     pthread_mutex_destroy(&server->dispatchQueue_conditionMutex);
+#else
+    /* Process new delayed callbacks from the cleanup */
+    UA_Server_cleanupDelayedCallbacks(server);
 #endif
 
     /* Delete the timed work */

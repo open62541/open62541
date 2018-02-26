@@ -189,6 +189,17 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 
+UA_StatusCode
+UA_Server_delayedFree(UA_Server *server, void *data);
+
+#ifndef UA_ENABLE_MULTITHREADING
+/* Execute all delayed callbacks regardless of whether the worker threads have
+ * finished previous work */
+void UA_Server_cleanupDelayedCallbacks(UA_Server *server);
+#else
+void UA_Server_cleanupDispatchQueue(UA_Server *server);
+#endif
+
 /* Callback is executed in the same thread or, if possible, dispatched to one of
  * the worker threads. */
 void
