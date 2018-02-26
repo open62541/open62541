@@ -33,6 +33,7 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
     newItem->numMonitoredItems = 0;
     newItem->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     TAILQ_INIT(&newItem->retransmissionQueue);
+    newItem->lastTriggeredPublishCallback = UA_DateTime_nowMonotonic();
     return newItem;
 }
 
@@ -117,7 +118,9 @@ countQueuedNotifications(UA_Subscription *sub,
                 *moreNotifications = true;
                 break;
             }
-            ++notifications;
+            /* Only count if the item was sampled before lastTriggeredPublishCallback or events */
+            if((sub->lastTriggeredPublishCallback >= qv->sampledDateTime) || (mon->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY))
+                ++notifications;
         }
     }
     return notifications;
@@ -165,9 +168,9 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 static UA_MonitoredItem *
 selectFirstMonToIterate(UA_Subscription *sub) {
     UA_MonitoredItem *mon = LIST_FIRST(&sub->monitoredItems);
-    if(sub->lastSendMonitoredItemId > 0) {
+    if(sub->nextMonitoredItemIdToBrowse > 0) {
         while(mon) {
-            if(mon->itemId == sub->lastSendMonitoredItemId)
+            if(mon->itemId == sub->nextMonitoredItemIdToBrowse)
                 break;
             mon = LIST_NEXT(mon, listEntry);
         }
@@ -185,21 +188,24 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
                                     size_t *pos) {
     MonitoredItem_queuedValue *qv, *qv_tmp;
     while(mon) {
-        sub->lastSendMonitoredItemId = mon->itemId;
+        sub->nextMonitoredItemIdToBrowse = mon->itemId;
         TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
             if(*pos >= minsSize)
                 return;
-            UA_MonitoredItemNotification *min = &mins[*pos];
-            min->clientHandle = qv->clientHandle;
-            if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-                min->value = qv->data.value;
-            } else {
-                /* TODO implementation for events */
+            /* Only move if the item was sampled before lastTriggeredPublishCallback or events */
+            if((sub->lastTriggeredPublishCallback >= qv->sampledDateTime) || (mon->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY)) {
+                UA_MonitoredItemNotification *min = &mins[*pos];
+                min->clientHandle = qv->clientHandle;
+                if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+                    min->value = qv->data.value;
+                } else {
+                    /* TODO implementation for events */
+                }
+                TAILQ_REMOVE(&mon->queue, qv, listEntry);
+                UA_free(qv);
+                --mon->currentQueueSize;
+                ++(*pos);
             }
-            TAILQ_REMOVE(&mon->queue, qv, listEntry);
-            UA_free(qv);
-            --mon->currentQueueSize;
-            ++(*pos);
         }
         mon = LIST_NEXT(mon, listEntry);
     }
@@ -403,12 +409,18 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     if(!moreNotifications) {
         /* All notifications were sent. The next time, just start at the first
          * monitoreditem. */
-        sub->lastSendMonitoredItemId = 0;
+        sub->nextMonitoredItemIdToBrowse = 0;
     } else {
         /* Repeat sending responses right away if there are more notifications
          * to send */
         UA_Subscription_publishCallback(server, sub);
     }
+}
+
+static void
+UA_Subscription_publishTriggeredCallback(UA_Server *server, UA_Subscription *sub) {
+    sub->lastTriggeredPublishCallback = UA_DateTime_nowMonotonic();
+    UA_Subscription_publishCallback(server, sub);
 }
 
 UA_Boolean
@@ -469,7 +481,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
 
     UA_StatusCode retval =
         UA_Server_addRepeatedCallback(server,
-                  (UA_ServerCallback)UA_Subscription_publishCallback,
+                  (UA_ServerCallback)UA_Subscription_publishTriggeredCallback,
                   sub, (UA_UInt32)sub->publishingInterval,
                   &sub->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
