@@ -533,17 +533,49 @@ START_TEST(Server_lifeTimeCount) {
     Service_CreateSubscription(server, &adminSession, &request, &response);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 2);
-    /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount */
+    /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount == 3 */
     ck_assert_uint_eq(response.revisedLifetimeCount, 6);
     UA_Double publishingInterval = response.revisedPublishingInterval;
     ck_assert(publishingInterval > 0.0f);
+    subscriptionId = response.subscriptionId;
     UA_CreateSubscriptionResponse_deleteMembers(&response);
 
-    UA_Server_run_iterate(server, false);
+    /* Add a MonitoredItem to the second subscription */
+    UA_CreateMonitoredItemsRequest mrequest;
+    UA_CreateMonitoredItemsRequest_init(&mrequest);
+    mrequest.subscriptionId = subscriptionId;
+    mrequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    rvi.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    rvi.indexRange = UA_STRING_NULL;
+    item.itemToMonitor = rvi;
+    item.requestedParameters.samplingInterval = publishingInterval / 5.0;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_MonitoringParameters params;
+    UA_MonitoringParameters_init(&params);
+    item.requestedParameters = params;
+    mrequest.itemsToCreateSize = 1;
+    mrequest.itemsToCreate = &item;
 
+    UA_CreateMonitoredItemsResponse mresponse;
+    UA_CreateMonitoredItemsResponse_init(&mresponse);
+    Service_CreateMonitoredItems(server, &adminSession, &mrequest, &mresponse);
+    ck_assert_uint_eq(mresponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(mresponse.resultsSize, 1);
+    ck_assert_uint_eq(mresponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = mresponse.results[0].monitoredItemId;
+    ck_assert_uint_gt(monitoredItemId, 0);
+    UA_MonitoredItemCreateRequest_deleteMembers(&item);
+    UA_CreateMonitoredItemsResponse_deleteMembers(&mresponse);
+
+    UA_Server_run_iterate(server, false);
     UA_UInt32 count = 0;
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 0);
         count++;
     }
@@ -553,7 +585,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 1);
         count++;
     }
@@ -564,7 +596,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 2);
         count++;
     }
@@ -575,7 +607,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 3);
         count++;
     }
@@ -586,7 +618,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 4);
         count++;
     }
@@ -597,7 +629,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 5);
         count++;
     }
@@ -608,18 +640,19 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 6);
         count++;
     }
     ck_assert_uint_eq(count, 1);
 
-    /* Sleep until the publishing interval times out */
+    /* Sleep until the publishing interval times out. The next iteration removes
+     * the subscription. */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         count++;
     }
     ck_assert_uint_eq(count, 0);

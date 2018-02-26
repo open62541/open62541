@@ -37,26 +37,29 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
 }
 
 void
-UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
-    Subscription_unregisterPublishCallback(server, subscription);
+UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                         "Subscription %u | Delete the subscription",
+                         sub->subscriptionId);
+
+    Subscription_unregisterPublishCallback(server, sub);
 
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &subscription->monitoredItems,
-                      listEntry, tmp_mon) {
+    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
         LIST_REMOVE(mon, listEntry);
         MonitoredItem_delete(server, mon);
     }
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
-    TAILQ_FOREACH_SAFE(nme, &subscription->retransmissionQueue,
+    TAILQ_FOREACH_SAFE(nme, &sub->retransmissionQueue,
                        listEntry, nme_tmp) {
-        TAILQ_REMOVE(&subscription->retransmissionQueue, nme, listEntry);
+        TAILQ_REMOVE(&sub->retransmissionQueue, nme, listEntry);
         UA_NotificationMessage_deleteMembers(&nme->message);
         UA_free(nme);
     }
-    subscription->retransmissionQueueSize = 0;
+    sub->retransmissionQueueSize = 0;
 }
 
 UA_MonitoredItem *
