@@ -92,16 +92,11 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 UA_StatusCode
 UA_SecureChannel_generateNewKeys(UA_SecureChannel* channel);
 
-/* Wrapper function for generating nonces for the supplied channel. Uses the
- * random generator of the channels security policy to allocate and generate a
- * nonce with the specified length.
- *
- * @param channel the channel to use.
- * @param nonceLength the length of the nonce to be generated.
- * @param nonce will contain the nonce after being successfully called. */
+/* Wrapper function for generating a local nonce for the supplied channel. Uses
+ * the random generator of the channels security policy to allocate and generate
+ * a nonce with the specified length. */
 UA_StatusCode
-UA_SecureChannel_generateNonce(const UA_SecureChannel *channel,
-                               size_t nonceLength, UA_ByteString *nonce);
+UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel);
 
 UA_SessionHeader *
 UA_SecureChannel_getSession(UA_SecureChannel *channel,

@@ -12,6 +12,8 @@
 #include "ua_server_internal.h"
 #endif
 
+#define UA_SESSION_NONCELENTH 32
+
 UA_Session adminSession = {
     {{NULL, NULL}, /* .pointers */
      {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
@@ -90,6 +92,25 @@ void UA_Session_detachFromSecureChannel(UA_Session *session) {
         return;
     session->header.channel = NULL;
     LIST_REMOVE(&session->header, pointers);
+}
+
+UA_StatusCode
+UA_Session_generateNonce(UA_Session *session) {
+    UA_SecureChannel *channel = session->header.channel;
+    if(!channel || !channel->securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Is the length of the previous nonce correct? */
+    if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
+        UA_ByteString_deleteMembers(&session->serverNonce);
+        UA_StatusCode retval =
+            UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    return channel->securityPolicy->symmetricModule.
+        generateNonce(channel->securityPolicy, &session->serverNonce);
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {
