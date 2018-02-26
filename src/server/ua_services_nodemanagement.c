@@ -58,7 +58,7 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 
 #define UA_PARENT_REFERENCES_COUNT 2
 
-UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
+const UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
     {
         0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}
     },
@@ -523,7 +523,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
         /* Add the parent reference */
         /* we pass the nodeId instead of node to make sure the refcount
          * is increased and other calls can not delete the node in the meantime */
-        retval = addParentAndTypeRef(server, session, &node->nodeId, destinationNodeId,
+        retval = addParentAndTypeRef(server, session, &newNodeId, destinationNodeId,
                                      &rd->referenceTypeId, typeId);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Nodestore_delete(server, node);
@@ -970,6 +970,7 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
 
     /* we pass the nodeId instead of node to make sure the refcount is
      * increased and other calls can not delete the node in the meantime */
+    // TODO on multithreading `node` may already have been deleted
     retval = addParentAndTypeRef(server, session, &node->nodeId, parentNodeId, referenceTypeId, &item->typeDefinition.nodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
