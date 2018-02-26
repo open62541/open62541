@@ -32,6 +32,12 @@ UA_MonitoredItem_new(UA_MonitoredItemType monType) {
 
 void
 MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_Subscription *sub = monitoredItem->subscription;
+    UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                           "Subscription %u | MonitoredItem %i | "
+                           "Delete the MonitoredItem",
+                           sub->subscriptionId, monitoredItem->itemId);
+
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Remove the sampling callback */
         MonitoredItem_unregisterSampleCallback(server, monitoredItem);
