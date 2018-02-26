@@ -38,8 +38,10 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
     /* Sign the signature */
     size_t dataToSignSize = request->clientCertificate.length + request->clientNonce.length;
-    if(dataToSignSize > 4096) /* Prevent stack-smashing */
+    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
+    if(dataToSignSize > 4096)
         return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_ByteString dataToSign = {dataToSignSize, (UA_Byte*)UA_alloca(dataToSignSize)};
     memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
     memcpy(dataToSign.data + request->clientCertificate.length,
@@ -180,8 +182,10 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
     const UA_ByteString *localCertificate = &securityPolicy->localCertificate;
 
     size_t dataToVerifySize = localCertificate->length + session->serverNonce.length;
-    if(dataToVerifySize > 4096) /* Prevent stack-smashing */
+    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
+    if(dataToVerifySize > 4096)
         return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_ByteString dataToVerify = {dataToVerifySize, (UA_Byte*)UA_alloca(dataToVerifySize)};
     memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
     memcpy(dataToVerify.data + localCertificate->length,
