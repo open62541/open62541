@@ -78,6 +78,10 @@ MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
         }
         UA_assert(queueItem);
 
+        /* Copy the sampled date time of the removed item to the last item */
+        MonitoredItem_queuedValue *lastQueueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
+        lastQueueItem->sampledDateTime = queueItem->sampledDateTime;
+
         /* Remove the item */
         TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
@@ -246,6 +250,9 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     /* Add the sample to the queue for publication */
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
     ++monitoredItem->currentQueueSize;
+
+    /* Save the sampled date time */
+    newQueueItem->sampledDateTime = UA_DateTime_nowMonotonic();
 
     /* Remove entries from the queue if required */
     MonitoredItem_ensureQueueSpace(monitoredItem);

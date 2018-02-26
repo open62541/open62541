@@ -38,6 +38,7 @@ typedef struct UA_Event {
 typedef struct MonitoredItem_queuedValue {
     TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
     UA_UInt32 clientHandle;
+    UA_DateTime sampledDateTime;
     union {
         UA_Event event;
         UA_DataValue value;
@@ -125,16 +126,18 @@ struct UA_Subscription {
     UA_UInt32 currentLifetimeCount;
     UA_UInt32 lastMonitoredItemId;
     UA_UInt32 numMonitoredItems;
+
     /* Publish Callback */
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
+    UA_DateTime lastTriggeredPublishCallback;
 
     /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
     /* When the last publish response could not hold all available
      * notifications, in the next iteration, start at the monitoreditem with
      * this id. If zero, start at the first monitoreditem. */
-    UA_UInt32 lastSendMonitoredItemId;
+    UA_UInt32 nextMonitoredItemIdToBrowse;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
