@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
- *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
@@ -66,18 +66,24 @@ generateKey_none(const UA_SecurityPolicy *securityPolicy,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Use the non-cryptographic RNG to set the nonce */
 static UA_StatusCode
-generateNonce_none(const UA_SecurityPolicy *securityPolicy,
-                   UA_ByteString *out) {
+generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) {
     if(securityPolicy == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(out->length != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(out->data != NULL)
-        UA_ByteString_deleteMembers(out);
+    /* Fill blocks of four byte */
+    size_t i = 0;
+    while(i + 3 < out->length) {
+        UA_UInt32 rand = UA_UInt32_random();
+        memcpy(&out->data[i], &rand, 4);
+        i = i+4;
+    }
 
-    out->data = (UA_Byte *) UA_EMPTY_ARRAY_SENTINEL;
+    /* Fill the remaining byte */
+    UA_UInt32 rand = UA_UInt32_random();
+    memcpy(&out->data[i], &rand, out->length % 4);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -98,17 +104,6 @@ setContextValue_none(void *channelContext,
     return UA_STATUSCODE_GOOD;
 }
 
-static size_t
-getRemoteAsymPlainTextBlockSize_none(const void *channelContext) {
-    return 0;
-}
-
-static size_t
-getRemoteAsymEncryptionBufferLengthOverhead_none(const void *channelContext,
-                                                 size_t maxEncryptionLength) {
-    return 0;
-}
-
 static UA_StatusCode
 compareCertificate_none(const void *channelContext,
                         const UA_ByteString *certificate) {
@@ -123,38 +118,46 @@ policy_deletemembers_none(UA_SecurityPolicy *policy) {
 UA_StatusCode
 UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *certificateVerification,
                        const UA_ByteString localCertificate, UA_Logger logger) {
-    policy->policyContext = (void *) (uintptr_t) logger;
+    policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
 
     policy->certificateVerification = certificateVerification;
 
-    policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_none;
-    policy->asymmetricModule.compareCertificateThumbprint = compareThumbprint_none;
-    policy->asymmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
-    policy->asymmetricModule.cryptoModule.verify = verify_none;
-    policy->asymmetricModule.cryptoModule.sign = sign_none;
-    policy->asymmetricModule.cryptoModule.getLocalSignatureSize = length_none;
-    policy->asymmetricModule.cryptoModule.getRemoteSignatureSize = length_none;
-    policy->asymmetricModule.cryptoModule.encrypt = encrypt_none;
-    policy->asymmetricModule.cryptoModule.decrypt = decrypt_none;
-    policy->asymmetricModule.cryptoModule.getLocalEncryptionKeyLength = length_none;
-    policy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength = length_none;
-
     policy->symmetricModule.generateKey = generateKey_none;
     policy->symmetricModule.generateNonce = generateNonce_none;
-    policy->symmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
-    policy->symmetricModule.cryptoModule.verify = verify_none;
-    policy->symmetricModule.cryptoModule.sign = sign_none;
-    policy->symmetricModule.cryptoModule.getLocalSignatureSize = length_none;
-    policy->symmetricModule.cryptoModule.getRemoteSignatureSize = length_none;
-    policy->symmetricModule.cryptoModule.encrypt = encrypt_none;
-    policy->symmetricModule.cryptoModule.decrypt = decrypt_none;
-    policy->symmetricModule.cryptoModule.getLocalEncryptionKeyLength = length_none;
-    policy->symmetricModule.cryptoModule.getRemoteEncryptionKeyLength = length_none;
-    policy->symmetricModule.encryptionBlockSize = 0;
-    policy->symmetricModule.signingKeyLength = 0;
+
+    UA_SecurityPolicySignatureAlgorithm *sym_signatureAlgorithm =
+        &policy->symmetricModule.cryptoModule.signatureAlgorithm;
+    sym_signatureAlgorithm->uri = UA_STRING_NULL;
+    sym_signatureAlgorithm->verify = verify_none;
+    sym_signatureAlgorithm->sign = sign_none;
+    sym_signatureAlgorithm->getLocalSignatureSize = length_none;
+    sym_signatureAlgorithm->getRemoteSignatureSize = length_none;
+    sym_signatureAlgorithm->getLocalKeyLength = length_none;
+    sym_signatureAlgorithm->getRemoteKeyLength = length_none;
+
+    UA_SecurityPolicyEncryptionAlgorithm *sym_encryptionAlgorithm =
+        &policy->symmetricModule.cryptoModule.encryptionAlgorithm;
+    sym_encryptionAlgorithm->encrypt = encrypt_none;
+    sym_encryptionAlgorithm->decrypt = decrypt_none;
+    sym_encryptionAlgorithm->getLocalKeyLength = length_none;
+    sym_encryptionAlgorithm->getRemoteKeyLength = length_none;
+    sym_encryptionAlgorithm->getLocalBlockSize = length_none;
+    sym_encryptionAlgorithm->getRemoteBlockSize = length_none;
+    sym_encryptionAlgorithm->getLocalPlainTextBlockSize = length_none;
+    sym_encryptionAlgorithm->getRemotePlainTextBlockSize = length_none;
+    policy->symmetricModule.secureChannelNonceLength = 0;
+
+    policy->asymmetricModule.makeCertificateThumbprint = makeThumbprint_none;
+    policy->asymmetricModule.compareCertificateThumbprint = compareThumbprint_none;
+
+    // This only works for none since symmetric and asymmetric crypto modules do the same i.e. nothing
+    policy->asymmetricModule.cryptoModule = policy->symmetricModule.cryptoModule;
+
+    // Use the same signing algorithm as for asymmetric signing
+    policy->certificateSigningAlgorithm = policy->asymmetricModule.cryptoModule.signatureAlgorithm;
 
     policy->channelModule.newContext = newContext_none;
     policy->channelModule.deleteContext = deleteContext_none;
@@ -165,9 +168,6 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
     policy->channelModule.setRemoteSymSigningKey = setContextValue_none;
     policy->channelModule.setRemoteSymIv = setContextValue_none;
     policy->channelModule.compareCertificate = compareCertificate_none;
-    policy->channelModule.getRemoteAsymPlainTextBlockSize = getRemoteAsymPlainTextBlockSize_none;
-    policy->channelModule.getRemoteAsymEncryptionBufferLengthOverhead =
-        getRemoteAsymEncryptionBufferLengthOverhead_none;
     policy->deleteMembers = policy_deletemembers_none;
 
     return UA_STATUSCODE_GOOD;

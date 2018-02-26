@@ -8,7 +8,7 @@
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
 #include "ua_services.h"
@@ -16,12 +16,10 @@
 #include "ua_session_manager.h"
 #include "ua_types_generated_handling.h"
 
-/* Create a signed nonce */
 static UA_StatusCode
-nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
-                                  UA_Session *session,
-                                  const UA_CreateSessionRequest *request,
-                                  UA_CreateSessionResponse *response) {
+signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
+                          const UA_CreateSessionRequest *request,
+                          UA_CreateSessionResponse *response) {
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
        channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_GOOD;
@@ -29,63 +27,39 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
     UA_SignatureData *signatureData = &response->serverSignature;
 
-    const UA_NodeId *authenticationToken = &session->header.authenticationToken;
-
-    /* Generate Nonce
-     * FIXME: remove magic number??? */
-    UA_StatusCode retval = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
-    UA_ByteString_deleteMembers(&session->serverNonce);
-    retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
-        return retval;
-    }
-
-    size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.
+    /* Prepare the signature */
+    size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
         getLocalSignatureSize(securityPolicy, channel->channelContext);
-
+    UA_StatusCode retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
+                                          &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
-    UA_ByteString dataToSign;
-    retval |= UA_ByteString_allocBuffer(&dataToSign,
-                                        request->clientCertificate.length +
-                                        request->clientNonce.length);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_SignatureData_deleteMembers(signatureData);
-        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
-        return retval;
-    }
+    /* Sign the signature */
+    size_t dataToSignSize = request->clientCertificate.length + request->clientNonce.length;
+    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
+    if(dataToSignSize > 4096)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_ByteString dataToSign = {dataToSignSize, (UA_Byte*)UA_alloca(dataToSignSize)};
     memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
-
-    retval |= UA_String_copy(&securityPolicy->asymmetricModule.cryptoModule.
-                             signatureAlgorithmUri, &signatureData->algorithm);
-    retval |= securityPolicy->asymmetricModule.cryptoModule.
+    return securityPolicy->certificateSigningAlgorithm.
         sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
-
-    UA_ByteString_deleteMembers(&dataToSign);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_SignatureData_deleteMembers(signatureData);
-        UA_SessionManager_removeSession(&server->sessionManager, authenticationToken);
-    }
-    return retval;
 }
 
-void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                           const UA_CreateSessionRequest *request,
-                           UA_CreateSessionResponse *response) {
-    if(channel == NULL) {
+void
+Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                      const UA_CreateSessionRequest *request,
+                      UA_CreateSessionResponse *response) {
+    if(!channel) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
 
-    if(channel->connection == NULL) {
+    if(!channel->connection) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
@@ -100,9 +74,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             return;
         }
     }
+
     if(channel->securityToken.channelId == 0) {
-        response->responseHeader.serviceResult =
-            UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         return;
     }
 
@@ -113,10 +87,10 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    ////////////////////// TODO: Compare application URI with certificate uri (decode certificate)
+    /* TODO: Compare application URI with certificate uri (decode certificate) */
 
     /* Allocate the response */
-    response->serverEndpoints = (UA_EndpointDescription*)
+    response->serverEndpoints = (UA_EndpointDescription *)
         UA_Array_new(server->config.endpointsSize,
                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->serverEndpoints) {
@@ -140,17 +114,21 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                        &response->serverEndpoints[i].endpointUrl);
     }
 
-    UA_Session *newSession;
+    UA_Session *newSession = NULL;
     response->responseHeader.serviceResult =
-        UA_SessionManager_createSession(&server->sessionManager,
-                                        channel, request, &newSession);
+        UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
                              "Processing CreateSessionRequest failed");
         return;
     }
 
-    /* Fill the session with more information */
+    UA_assert(newSession != NULL);
+
+    /* Attach the session to the channel. But don't activate for now. */
+    UA_Session_attachToSecureChannel(newSession, channel);
+
+    /* Fill the session information */
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
     newSession->maxRequestMessageSize =
         channel->connection->localConf.maxMessageSize;
@@ -166,13 +144,18 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
     if(server->config.endpointsSize > 0)
-         response->responseHeader.serviceResult |=
-         UA_ByteString_copy(&channel->securityPolicy->localCertificate,
-                            &response->serverCertificate);
+        response->responseHeader.serviceResult |=
+            UA_ByteString_copy(&channel->securityPolicy->localCertificate,
+                               &response->serverCertificate);
 
-    /* Create a signed nonce */
-    response->responseHeader.serviceResult =
-        nonceAndSignCreateSessionResponse(server, channel, newSession, request, response);
+    /* Create a session nonce */
+    response->responseHeader.serviceResult = UA_Session_generateNonce(newSession);
+    response->responseHeader.serviceResult |=
+        UA_ByteString_copy(&newSession->serverNonce, &response->serverNonce);
+
+    /* Sign the signature */
+    response->responseHeader.serviceResult |=
+       signCreateSessionResponse(server, channel, request, response);
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -182,66 +165,58 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-           "Session " UA_PRINTF_GUID_FORMAT " created",
-           UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
+                         "Session " UA_PRINTF_GUID_FORMAT " created",
+                         UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
 
-static void
-checkSignature(const UA_Server *server,
-               const UA_SecureChannel *channel,
-               UA_Session *session,
-               const UA_ActivateSessionRequest *request,
-               UA_ActivateSessionResponse *response) {
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
-        const UA_ByteString *const localCertificate = &securityPolicy->localCertificate;
+static UA_StatusCode
+checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
+               UA_Session *session, const UA_ActivateSessionRequest *request) {
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_GOOD;
 
-        UA_ByteString dataToVerify;
-        UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify,
-                                                         localCertificate->length + session->serverNonce.length);
+    if(!channel->securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const UA_SecurityPolicy *securityPolicy = channel->securityPolicy;
+    const UA_ByteString *localCertificate = &securityPolicy->localCertificate;
 
-        if(retval != UA_STATUSCODE_GOOD) {
-            response->responseHeader.serviceResult = retval;
-            UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                 "Failed to allocate buffer for signature verification! %#10x", retval);
-            return;
-        }
+    size_t dataToVerifySize = localCertificate->length + session->serverNonce.length;
 
-        memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
-        memcpy(dataToVerify.data + localCertificate->length,
-               session->serverNonce.data, session->serverNonce.length);
+    UA_ByteString dataToVerify;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-        retval = securityPolicy->asymmetricModule.cryptoModule.
-            verify(securityPolicy, channel->channelContext, &dataToVerify,
-                   &request->clientSignature.signature);
-        if(retval != UA_STATUSCODE_GOOD) {
-            response->responseHeader.serviceResult = retval;
-            UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                 "Failed to verify the client signature! %#10x", retval);
-            UA_ByteString_deleteMembers(&dataToVerify);
-            return;
-        }
+    memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
+    memcpy(dataToVerify.data + localCertificate->length,
+           session->serverNonce.data, session->serverNonce.length);
 
-        retval  = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
-        UA_ByteString_deleteMembers(&session->serverNonce);
-        retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
-        if(retval != UA_STATUSCODE_GOOD) {
-            response->responseHeader.serviceResult = retval;
-            UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                 "Failed to generate a new nonce! %#10x", retval);
-            UA_ByteString_deleteMembers(&dataToVerify);
-            return;
-        }
-
-        UA_ByteString_deleteMembers(&dataToVerify);
-    }
+    retval = securityPolicy->certificateSigningAlgorithm.verify(securityPolicy, channel->channelContext, &dataToVerify,
+                                                                &request->clientSignature.signature);
+    UA_ByteString_deleteMembers(&dataToVerify);
+    return retval;
 }
+
+/* TODO: Check all of the following:
+ *
+ * Part 4, §5.6.3: When the ActivateSession Service is called for the first time
+ * then the Server shall reject the request if the SecureChannel is not same as
+ * the one associated with the CreateSession request. Subsequent calls to
+ * ActivateSession may be associated with different SecureChannels. If this is
+ * the case then the Server shall verify that the Certificate the Client used to
+ * create the new SecureChannel is the same as the Certificate used to create
+ * the original SecureChannel. In addition, the Server shall verify that the
+ * Client supplied a UserIdentityToken that is identical to the token currently
+ * associated with the Session. Once the Server accepts the new SecureChannel it
+ * shall reject requests sent via the old SecureChannel. */
 
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Execute ActivateSession");
+
     if(session->validTill < UA_DateTime_nowMonotonic()) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: SecureChannel %i wants "
@@ -252,40 +227,51 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    checkSignature(server, channel, session, request, response);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    /* Check if the signature corresponds to the ServerNonce that was last sent
+     * to the client */
+    response->responseHeader.serviceResult = checkSignature(server, channel, session, request);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "Signature check failed with status code %s",
+                            UA_StatusCode_name(response->responseHeader.serviceResult));
         return;
+    }
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
         server->config.accessControl.activateSession(&session->sessionId,
                                                      &request->userIdentityToken,
                                                      &session->sessionHandle);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "ActivateSession: Could not generate a server nonce");
         return;
+    }
 
-    /* Detach the old SecureChannel */
     if(session->header.channel && session->header.channel != channel) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: Detach from old channel");
+        /* Detach the old SecureChannel and attach the new */
         UA_Session_detachFromSecureChannel(session);
-        session->activated = false;
+        UA_Session_attachToSecureChannel(session, channel);
     }
 
-    if (session->activated) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "ActivateSession: SecureChannel %i wants "
-                                    "to activate, but the session is already activated",
-                            channel->securityToken.channelId);
-        response->responseHeader.serviceResult =
-                UA_STATUSCODE_BADSESSIONIDINVALID;
-        return;
-
-    }
-    /* Attach to the SecureChannel and activate */
-    UA_Session_attachToSecureChannel(session, channel);
+    /* Activate the session */
     session->activated = true;
     UA_Session_updateLifetime(session);
+
+    /* Generate a new session nonce for the next time ActivateSession is called */
+    response->responseHeader.serviceResult = UA_Session_generateNonce(session);
+    response->responseHeader.serviceResult |=
+        UA_ByteString_copy(&session->serverNonce, &response->serverNonce);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_Session_detachFromSecureChannel(session);
+        session->activated = false;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "ActivateSession: Could not generate a server nonce");
+        return;
+    }
+
     UA_LOG_INFO_SESSION(server->config.logger, session,
                         "ActivateSession: Session activated");
 }
