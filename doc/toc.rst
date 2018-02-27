@@ -13,5 +13,5 @@ open62541 Documentation
    server
    client
    constants
-   namespace_compiler
+   nodeset_compiler
    internal
