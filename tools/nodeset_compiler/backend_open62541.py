@@ -227,7 +227,7 @@ extern UA_StatusCode %s(UA_Server *server);
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
             writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {\n")
-            code = generateNodeCode_begin(node, nodeset, max_string_length)
+            code = generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentrefs)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
@@ -242,7 +242,7 @@ extern UA_StatusCode %s(UA_Server *server);
         writec("return retVal;\n}")
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {\n")
-        code = generateNodeCode_finish(node, generate_ns0, parentrefs)
+        code = generateNodeCode_finish(node)
         writec("return " + code + "\n}\n")
 
         functionNumber = functionNumber + 1

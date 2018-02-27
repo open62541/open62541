@@ -42,7 +42,7 @@ int main(void) {
     UA_Variant_setScalar(&vAttr.value, &ageVar, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001),
                               UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Age"), UA_NODEID_NULL, vAttr, NULL, NULL);
+                              UA_QUALIFIEDNAME(1, "Age"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
 
     otAttr = UA_ObjectTypeAttributes_default;
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mamal");
@@ -58,7 +58,7 @@ int main(void) {
     UA_Variant_setScalar(&vAttr.value, &defaultName, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10003),
                               UA_NODEID_NUMERIC(1, 10002), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NULL, vAttr, NULL, NULL);
+                              UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
 
     /* Instatiate a dog named bello:
      * (O) Objects

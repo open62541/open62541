@@ -106,6 +106,9 @@ if (MSVC AND UA_ENABLE_FULL_NS0)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+option(UA_FILE_NS0 "Custom NodeSet file containing NS0")
+mark_as_advanced(UA_FILE_NS0)
+
 # Semaphores/file system may not be available on embedded devices. It can be
 # disabled with the following option
 option(UA_ENABLE_DISCOVERY_SEMAPHORE "Enable Discovery Semaphore support" ON)
@@ -247,13 +250,13 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         remove_definitions(-Werror -Wpedantic -Wno-static-in-inline -fPIC)
         add_definitions(-D_WRS_KERNEL)
     endif()
-    
+
     if(UA_FREERTOS)
        SET(UA_FREERTOS_INCLUDES "" CACHE STRING "Folders to include from the freeRTOS OS")
        include_directories(${UA_FREERTOS_INCLUDES})
         # Disable flags for freeRTOS
         remove_definitions(-fPIC -Wconversion )
-        add_definitions(-DUA_FREERTOS -DLWIP_TIMEVAL_PRIVATE=0 -DLWIP_COMPAT_MUTEX=0 -DLWIP_POSIX_SOCKETS_IO_NAMES=0 -mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs 
+        add_definitions(-DUA_FREERTOS -DLWIP_TIMEVAL_PRIVATE=0 -DLWIP_COMPAT_MUTEX=0 -DLWIP_POSIX_SOCKETS_IO_NAMES=0 -mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs
                         -ffunction-sections -fdata-sections  -fno-exceptions -fstack-usage -Wno-unused-variable -Wno-format -Wno-format-security -Wno-format-nonliteral)
         list(APPEND open62541_LIBRARIES c m stdc++ supc++)
     endif(UA_FREERTOS)
@@ -467,19 +470,24 @@ endif()
 #########################
 
 if (UA_ENABLE_FULL_NS0)
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    endif()
     set(UA_FILE_DATATYPES "")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
-    if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
-    endif()
 else()
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    endif()
     set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 endif()
+if(NOT EXISTS "${UA_FILE_NS0}")
+    message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+endif()
+
 
 if (UA_FILE_DATATYPES STREQUAL "")
     set(SELECTED_TYPES_TMP "")

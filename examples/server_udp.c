@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
 
     UA_ServerConfig config = UA_ServerConfig_standard;
     UA_ServerNetworkLayer nl;
-    nl = UA_ServerNetworkLayerUDP(UA_ConnectionConfig_standard, 16664);
+    nl = UA_ServerNetworkLayerUDP(UA_ConnectionConfig_standard, 4840);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
