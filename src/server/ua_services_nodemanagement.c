@@ -724,7 +724,6 @@ addParentAndTypeRef(UA_Server *server, UA_Session *session, const UA_NodeId *nod
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: The parent reference is invalid");
-        UA_Server_deleteNode(server, node->nodeId, true);
         goto cleanup;
     }
 
@@ -882,7 +881,7 @@ addParentAndTypeRef(UA_Server *server, UA_Session *session, const UA_NodeId *nod
     if(type)
         UA_Nodestore_release(server, type);
     if(retval != UA_STATUSCODE_GOOD)
-        removeDeconstructedNode(server, session, node, true);
+        UA_Server_deleteNode(server, *nodeId, UA_TRUE);
     return retval;
 }
 
@@ -976,7 +975,7 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Node could add parent references with error code %s",
                             UA_StatusCode_name(retval));
-        UA_Nodestore_delete(server, node);
+        // the node is already deleted within addParentAndTypeRef
     }
 
     return retval;
