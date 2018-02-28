@@ -185,8 +185,8 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
             "Encoding of field " + subv.alias + " is " + str(subv.encodingRule) + "defined by " + str(encField))
         # Check if this is an array
         if encField[2] == 0:
-            code.append(instanceName + "_struct." + subv.alias + " = " +
-                        generateNodeValueCode(subv, instanceName, asIndirect=False, max_string_length=max_string_length) + ";")
+            code.append(generateNodeValueCode(instanceName + "_struct." + subv.alias + " = " ,
+                        subv, instanceName, asIndirect=False, max_string_length=max_string_length))
         else:
             if isinstance(subv, list):
                 # this is an array
@@ -199,8 +199,8 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
                 for subvidx in range(0, len(subv)):
                     subvv = subv[subvidx]
                     logger.debug("  " + str(subvidx) + " " + str(subvv))
-                    code.append(instanceName + "_struct." + subv.alias + "[" + str(
-                        subvidx) + "] = " + generateNodeValueCode(subvv, instanceName, max_string_length=max_string_length) + ";")
+                    code.append(generateNodeValueCode(instanceName + "_struct." + subv.alias + "[" + str(
+                        subvidx) + "] = " , subvv, instanceName, max_string_length=max_string_length))
                 code.append("}")
             else:
                 code.append(instanceName + "_struct." + subv.alias + "Size = 1;")
@@ -209,8 +209,8 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
                         instanceName, subv.alias, subv.__class__.__name__))
                 codeCleanup.append("UA_free({0}_struct.{1});".format(instanceName, subv.alias))
 
-                code.append(instanceName + "_struct." + subv.alias + "[0]  = " +
-                            generateNodeValueCode(subv, instanceName, asIndirect=True, max_string_length=max_string_length) + ";")
+                code.append(generateNodeValueCode(instanceName + "_struct." + subv.alias + "[0]  = " ,
+                            subv, instanceName, asIndirect=True, max_string_length=max_string_length))
 
     # Allocate some memory
     code.append("UA_ExtensionObject *" + instanceName + " =  UA_ExtensionObject_new();")
@@ -339,15 +339,15 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                 for idx, v in enumerate(node.value):
                     logger.debug("Printing extObj array index " + str(idx))
                     instanceName = generateNodeValueInstanceName(v, parentNode, 0, idx)
-                    code.append(
-                        valueName + "[" + str(idx) + "] = " +
-                        generateNodeValueCode(v, instanceName, max_string_length=max_string_length) + ";")
+                    code.append(generateNodeValueCode(
+                        valueName + "[" + str(idx) + "] = ",
+                        v, instanceName, max_string_length=max_string_length))
                     # code.append("UA_free(&" +valueName + "[" + str(idx) + "]);")
             else:
                 for idx, v in enumerate(node.value):
                     instanceName = generateNodeValueInstanceName(v, parentNode, 0, idx)
-                    code.append(
-                        valueName + "[" + str(idx) + "] = " + generateNodeValueCode(v, instanceName, max_string_length=max_string_length) + ";")
+                    code.append(generateNodeValueCode(
+                        valueName + "[" + str(idx) + "] = " , v, instanceName, max_string_length=max_string_length))
             code.append("UA_Variant_setArray(&attr.value, &" + valueName +
                         ", (UA_Int32) " + str(len(node.value)) + ", " +
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
@@ -368,8 +368,8 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                 codeCleanup = codeCleanup + codeCleanup1
             instanceName = generateNodeValueInstanceName(node.value[0], parentNode, 0, 0)
             if isinstance(node.value[0], ExtensionObject):
-                code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " +
-                            generateNodeValueCode(node.value[0], instanceName, max_string_length=max_string_length) + ";")
+                code.append(generateNodeValueCode("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " ,
+                            node.value[0], instanceName, max_string_length=max_string_length))
                 code.append(
                     "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                     getTypesArrayForValue(nodeset, node.value[0]) + ");")
@@ -379,7 +379,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
             else:
                 code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " =  UA_" + node.value[
                     0].__class__.__name__ + "_new();")
-                code.append("*" + valueName + " = " + generateNodeValueCode(node.value[0], instanceName, asIndirect=True, max_string_length=max_string_length) + ";")
+                code.append(generateNodeValueCode("*" + valueName + " = " , node.value[0], instanceName, asIndirect=True, max_string_length=max_string_length))
                 code.append(
                         "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
@@ -482,7 +482,7 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
     code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
                 format(node.__class__.__name__.upper().replace("NODE" ,"")))
     code.extend(codeCleanup)
-    
+
     return "\n".join(code)
 
 def generateNodeCode_finish(node):
