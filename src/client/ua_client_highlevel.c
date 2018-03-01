@@ -564,7 +564,7 @@ UA_Client_readHistorical_events(UA_Client *client, const UA_NodeId nodeId,
     details.endTime = endTime;
 
     UA_Boolean isInverse = !startTime || (endTime && (startTime > endTime));
-    UA_StatusCode retval = __UA_Client_readHistorical_service(client, nodeId, callback, &details,
+    return __UA_Client_readHistorical_service(client, nodeId, callback, &details,
                                               timestampsToReturn, isInverse, 0, handle);
 
     UA_ReadEventDetails_deleteMembers(&details);
@@ -591,11 +591,8 @@ __UA_Client_readHistorical_service_rawMod(UA_Client *client, const UA_NodeId nod
     details.endTime = endTime;
 
     UA_Boolean isInverse = !startTime || (endTime && (startTime > endTime));
-    UA_StatusCode retval = __UA_Client_readHistorical_service(client, nodeId, callback, &details,
-                                                              timestampsToReturn, isInverse, maxItems, handle);
-
-    UA_ReadRawModifiedDetails_deleteMembers(&details);
-    return retval;
+    return __UA_Client_readHistorical_service(client, nodeId, callback, &details,
+                                              timestampsToReturn, isInverse, maxItems, handle);
 }
 
 UA_StatusCode
