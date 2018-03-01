@@ -224,6 +224,10 @@ typedef UA_Boolean
                                  const UA_HistoryData *data, void *handle);
 
 /* Don't call this function, use the typed versions */
+UA_HistoryReadResponse UA_EXPORT
+__UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
+
+/* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
 __UA_Client_readHistorical_service(UA_Client *client, const UA_NodeId nodeId,
                                    const UA_HistoricalIteratorCallback callback,
