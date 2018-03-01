@@ -23,6 +23,7 @@ from struct import pack as structpack
 from time import struct_time, strftime, strptime, mktime
 import logging
 import codecs
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -208,6 +209,11 @@ class NodeSet(object):
         # Remove BOM since the dom parser cannot handle it on python 3 windows
         if fileContent.startswith( codecs.BOM_UTF8 ):
             fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
+        if (sys.version_info >= (3, 0)):
+            fileContent = fileContent.decode("utf-8")
+
+        # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
+        fileContent = re.sub(r"<([/]?)uax:(\w+)([/]?)>", "<\g<1>\g<2>\g<3>>", fileContent)
 
         nodesets = dom.parseString(fileContent).getElementsByTagName("UANodeSet")
         if len(nodesets) == 0 or len(nodesets) > 1:

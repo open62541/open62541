@@ -48,12 +48,13 @@ typedef struct key_sizes {
     size_t asym_rmt_sig_size;
     size_t asym_lcl_sig_size;
     size_t asym_rmt_ptext_blocksize;
+    size_t asym_rmt_blocksize;
     size_t asym_rmt_enc_key_size;
     size_t asym_lcl_enc_key_size;
 } key_sizes;
 
 UA_StatusCode UA_EXPORT
-TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
+TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
               funcs_called *fCalled, const key_sizes *kSizes);
 
 #ifdef __cplusplus

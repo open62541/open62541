@@ -38,7 +38,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+)
 
 if(UA_ENABLE_ENCRYPTION)
     set(test_plugin_sources ${test_plugin_sources}
