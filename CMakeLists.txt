@@ -300,7 +300,7 @@ endif()
 if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
 
-  if(NOT BUILD_SHARED_LIB)
+  if(NOT BUILD_SHARED_LIBS)
     set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
         CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
     foreach(CompilerFlag ${CompilerFlags})
