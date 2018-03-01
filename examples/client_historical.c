@@ -23,7 +23,7 @@ readHist(const UA_NodeId nodeId, const UA_Boolean isInverse,
     printf("\tHas more data:\t%d\n\n", moreDataAvailable);
 
     /* Iterate over all values */
-    for (size_t i = 0; i < data->dataValuesSize; ++i)
+    for (int i = 0; i < data->dataValuesSize; ++i)
     {
         UA_DataValue val = data->dataValues[i];
         
@@ -71,10 +71,6 @@ readHist(const UA_NodeId nodeId, const UA_Boolean isInverse,
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-
-    /* Listing endpoints */
-    UA_EndpointDescription* endpointArray = NULL;
-    size_t endpointArraySize = 0;
 
     /* Connect to the Unified Automation demo server */
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:48020");
@@ -125,14 +121,24 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    /* Read historical values */
+    /* Read historical values (Byte) */
     printf("\nStart historical read (4, \"Demo.History.ByteWithHistory\"):\n");
     retval = UA_Client_readHistorical_raw(client, UA_NODEID_STRING(4, "Demo.History.ByteWithHistory"), readHist,
         UA_DateTime_fromUnixTime(0), UA_DateTime_now(), false, 10, UA_TIMESTAMPSTORETURN_BOTH, (void *)UA_FALSE);
+    
+    if (retval != UA_STATUSCODE_GOOD) {
+        printf("Failed.\n");
+        goto cleanup;
+    }
 
+    /* Read historical values (Double) */
     printf("\nStart historical read (4, \"Demo.History.DoubleWithHistory\"):\n");
     retval = UA_Client_readHistorical_raw(client, UA_NODEID_STRING(4, "Demo.History.DoubleWithHistory"), readHist,
         UA_DateTime_fromUnixTime(0), UA_DateTime_now(), false, 10, UA_TIMESTAMPSTORETURN_BOTH, (void *)UA_TRUE);
+
+    if (retval != UA_STATUSCODE_GOOD) {
+        printf("Failed.\n");
+    }
 
 cleanup:
     UA_Client_disconnect(client);
