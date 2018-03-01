@@ -226,6 +226,8 @@ typedef UA_Boolean
 /* Don't call this function, use the typed versions */
 UA_HistoryReadResponse UA_EXPORT
 __UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
+                           void* details, const UA_TimestampsToReturn timestampsToReturn,
+                           const UA_ByteString continuationPoint, const UA_Boolean releaseConti);
 
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
