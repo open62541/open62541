@@ -566,9 +566,6 @@ UA_Client_readHistorical_events(UA_Client *client, const UA_NodeId nodeId,
     UA_Boolean isInverse = !startTime || (endTime && (startTime > endTime));
     return __UA_Client_readHistorical_service(client, nodeId, callback, &details,
                                               timestampsToReturn, isInverse, 0, handle);
-
-    UA_ReadEventDetails_deleteMembers(&details);
-    return retval;
 }
 
 UA_StatusCode

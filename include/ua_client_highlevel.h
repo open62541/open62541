@@ -213,6 +213,61 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
 }
 
 /**
+ * Historical Access
+ * ^^^^^^^^^^^^^^^^^
+ * The following functions can be used to read a single node historically.
+ * Use the regular service to read several nodes at once.
+ */
+typedef UA_Boolean
+(*UA_HistoricalIteratorCallback)(const UA_NodeId nodeId, const UA_Boolean isInverse,
+                                 const UA_Boolean moreDataAvailable,
+                                 const UA_HistoryData *data, void *handle);
+
+/* Don't call this function, use the typed versions */
+UA_StatusCode UA_EXPORT
+__UA_Client_readHistorical_service(UA_Client *client, const UA_NodeId nodeId,
+                                   const UA_HistoricalIteratorCallback callback,
+                                   void *details, const UA_TimestampsToReturn timestampsToReturn,
+                                   UA_Boolean isInverse, UA_UInt32 maxItems, void *handle);
+
+/* Don't call this function, use the typed versions */
+UA_StatusCode UA_EXPORT
+__UA_Client_readHistorical_service_rawMod(UA_Client *client, const UA_NodeId nodeId,
+                                          const UA_HistoricalIteratorCallback callback,
+                                          const UA_DateTime startTime, const UA_DateTime endTime,
+                                          const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                                          const UA_Boolean readModified, const UA_TimestampsToReturn timestampsToReturn,
+                                          void *handle);
+
+UA_StatusCode UA_EXPORT
+UA_Client_readHistorical_events(UA_Client *client, const UA_NodeId nodeId,
+                                const UA_HistoricalIteratorCallback callback,
+                                const UA_DateTime startTime, const UA_DateTime endTime,
+                                const UA_EventFilter filter, const UA_UInt32 maxItems,
+                                const UA_TimestampsToReturn timestampsToReturn, void* handle);
+
+UA_StatusCode UA_EXPORT
+UA_Client_readHistorical_raw(UA_Client *client, const UA_NodeId nodeId,
+                             const UA_HistoricalIteratorCallback callback,
+                             const UA_DateTime startTime, const UA_DateTime endTime,
+                             const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                             const UA_TimestampsToReturn timestampsToReturn, void *handle);
+
+UA_StatusCode UA_EXPORT
+UA_Client_readHistorical_modified(UA_Client *client, const UA_NodeId nodeId,
+                                  const UA_HistoricalIteratorCallback callback,
+                                  const UA_DateTime startTime, const UA_DateTime endTime,
+                                  const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                                  const UA_TimestampsToReturn timestampsToReturn, void *handle);
+
+UA_StatusCode UA_EXPORT
+UA_Client_readHistorical_atTime(UA_Client *client, const UA_NodeId nodeId,
+                                UA_DateTime *timestamps, const size_t size,
+                                const UA_Boolean interpolate, const UA_TimestampsToReturn timestampsToReturn,
+                                UA_HistoryData *outData);
+
+
+/**
  * Write Attributes
  * ^^^^^^^^^^^^^^^^
  *
@@ -437,32 +492,6 @@ UA_EXPORT extern const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_def
 UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
 UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
 #endif
-
-typedef UA_Boolean
-(*UA_HistoricalIteratorCallback)(const UA_NodeId nodeId, const UA_Boolean isInverse,
-                                 const UA_Boolean moreDataAvailable,
-                                 const UA_HistoryData *data, void *handle);
-
-UA_StatusCode UA_EXPORT
-UA_Client_readHistorical_events(UA_Client *client, const UA_NodeId nodeId,
-                                const UA_HistoricalIteratorCallback callback,
-                                const UA_DateTime startTime, const UA_DateTime endTime,
-                                const UA_EventFilter filter, const UA_UInt32 maxItems,
-                                const UA_TimestampsToReturn timestampsToReturn, void* handle);
-
-UA_StatusCode UA_EXPORT
-UA_Client_readHistorical_raw(UA_Client *client, const UA_NodeId nodeId,
-                             const UA_HistoricalIteratorCallback callback,
-                             const UA_DateTime startTime, const UA_DateTime endTime,
-                             const UA_Boolean returnBounds, const UA_UInt32 maxItems,
-                             const UA_TimestampsToReturn timestampsToReturn, void *handle);
-
-UA_StatusCode UA_EXPORT
-UA_Client_readHistorical_modified(UA_Client *client, const UA_NodeId nodeId,
-                                  const UA_HistoricalIteratorCallback callback,
-                                  const UA_DateTime startTime, const UA_DateTime endTime,
-                                  const UA_Boolean returnBounds, const UA_UInt32 maxItems,
-                                  const UA_TimestampsToReturn timestampsToReturn, void *handle);
 
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
