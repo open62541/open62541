@@ -1,6 +1,14 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/* Enable POSIX features */
+#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
  * _DEFAULT_SOURCE is an alias for that. */
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
@@ -38,6 +46,7 @@ readHist(const UA_NodeId nodeId, const UA_Boolean isInverse,
                 if (val.status == UA_STATUSCODE_BADBOUNDNOTFOUND)
                     printf("Skipping bounds (i=%u)\n\n", i);
                 else
+                    printf("Skipping (i=%u) (status=0x%08x -> %s)\n\n", i, val.status, UA_StatusCode_name(val.status));
             }
 
             continue;
