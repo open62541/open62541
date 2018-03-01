@@ -489,56 +489,12 @@ __UA_Client_readHistorical(UA_Client *client, const UA_NodeId nodeId,
     return UA_Client_Service_history_read(client, request);
 }
 
-UA_HistoryReadResponse
-__UA_Client_readHistorical_events(UA_Client *client, const UA_NodeId nodeId,
-                                  const UA_DateTime startTime, const UA_DateTime endTime,
-                                  const UA_EventFilter filter, const UA_UInt32 maxItems,
-                                  const UA_TimestampsToReturn timestampsToReturn,
-                                  const UA_ByteString continuationPoint, const UA_Boolean releaseConti) {
-
-    // TODO: ReadProcessedDetails / ReadAtTimeDetails
-    UA_ReadEventDetails details;
-    UA_ReadEventDetails_init(&details);
-    details.filter = filter;
-    
-    // At least two of the following parameters must be set
-    details.numValuesPerNode = maxItems; // 0 = return all / max server is capable of
-    details.startTime = startTime;
-    details.endTime = endTime;
-
-    return __UA_Client_readHistorical(client, nodeId, &details, timestampsToReturn, continuationPoint, releaseConti);
-}
-
-UA_HistoryReadResponse
-__UA_Client_readHistorical_rawModified(UA_Client *client, const UA_NodeId nodeId,
-    const UA_DateTime startTime, const UA_DateTime endTime,
-    const UA_Boolean returnBounds, const UA_UInt32 maxItems,
-    const UA_Boolean readModified, const UA_TimestampsToReturn timestampsToReturn,
-    const UA_ByteString continuationPoint, const UA_Boolean releaseConti) {
-
-    // TODO: ReadProcessedDetails / ReadAtTimeDetails
-    UA_ReadRawModifiedDetails details;
-    UA_ReadRawModifiedDetails_init(&details);
-    details.isReadModified = readModified; // Return only modified values
-    details.returnBounds = returnBounds;   // Return values pre / post given range
-
-                                           // At least two of the following parameters must be set
-    details.numValuesPerNode = maxItems; // 0 = return all / max server is capable of
-    details.startTime = startTime;
-    details.endTime = endTime;
-
-    return __UA_Client_readHistorical(client, nodeId, &details, timestampsToReturn, continuationPoint, releaseConti);
-}
-
 UA_StatusCode
 __UA_Client_readHistorical_service(UA_Client *client, const UA_NodeId nodeId,
                                    const UA_HistoricalIteratorCallback callback,
-                                   const UA_DateTime startTime, const UA_DateTime endTime,
-                                   const UA_Boolean returnBounds, const UA_UInt32 maxItems,
-                                   const UA_Boolean readModified, const UA_TimestampsToReturn timestampsToReturn,
-                                   void *handle) {
+                                   void *details, const UA_TimestampsToReturn timestampsToReturn,
+                                   UA_Boolean isInverse, UA_UInt32 maxItems, void *handle) {
 
-    UA_Boolean isInverse = !startTime || (startTime > endTime);
     UA_ByteString continuationPoint = UA_BYTESTRING_NULL;
     UA_Boolean continuationAvail = UA_FALSE;
     UA_Boolean fetchMore = UA_FALSE;
@@ -548,8 +504,7 @@ __UA_Client_readHistorical_service(UA_Client *client, const UA_NodeId nodeId,
         /* We release the continuation point, if no more data is requested by the user */
         UA_Boolean cleanup = !fetchMore && continuationAvail;
         UA_HistoryReadResponse response =
-            __UA_Client_readHistorical_rawModified(client, nodeId, startTime, endTime, returnBounds, maxItems,
-                                                   readModified, timestampsToReturn, continuationPoint, cleanup);
+            __UA_Client_readHistorical(client, nodeId, details, timestampsToReturn, continuationPoint, cleanup);
 
         if (cleanup) {
             retval = response.responseHeader.serviceResult;
@@ -592,14 +547,66 @@ cleanup:    UA_HistoryReadResponse_deleteMembers(&response);
 }
 
 UA_StatusCode
+UA_Client_readHistorical_events(UA_Client *client, const UA_NodeId nodeId,
+                                const UA_HistoricalIteratorCallback callback,
+                                const UA_DateTime startTime, const UA_DateTime endTime,
+                                const UA_EventFilter filter, const UA_UInt32 maxItems,
+                                const UA_TimestampsToReturn timestampsToReturn, void* handle) {
+
+    // TODO: ReadProcessedDetails / ReadAtTimeDetails
+    UA_ReadEventDetails details;
+    UA_ReadEventDetails_init(&details);
+    details.filter = filter;
+
+    // At least two of the following parameters must be set
+    details.numValuesPerNode = maxItems; // 0 = return all / max server is capable of
+    details.startTime = startTime;
+    details.endTime = endTime;
+
+    UA_Boolean isInverse = !startTime || (endTime && (startTime > endTime));
+    UA_StatusCode retval = __UA_Client_readHistorical_service(client, nodeId, callback, &details,
+                                              timestampsToReturn, isInverse, 0, handle);
+
+    UA_ReadEventDetails_deleteMembers(&details);
+    return retval;
+}
+
+UA_StatusCode
+__UA_Client_readHistorical_service_rawMod(UA_Client *client, const UA_NodeId nodeId,
+                                          const UA_HistoricalIteratorCallback callback,
+                                          const UA_DateTime startTime, const UA_DateTime endTime,
+                                          const UA_Boolean returnBounds, const UA_UInt32 maxItems,
+                                          const UA_Boolean readModified, const UA_TimestampsToReturn timestampsToReturn,
+                                          void *handle) {
+
+    // TODO: ReadProcessedDetails / ReadAtTimeDetails
+    UA_ReadRawModifiedDetails details;
+    UA_ReadRawModifiedDetails_init(&details);
+    details.isReadModified = readModified; // Return only modified values
+    details.returnBounds = returnBounds;   // Return values pre / post given range
+
+    // At least two of the following parameters must be set
+    details.numValuesPerNode = maxItems;   // 0 = return all / max server is capable of
+    details.startTime = startTime;
+    details.endTime = endTime;
+
+    UA_Boolean isInverse = !startTime || (endTime && (startTime > endTime));
+    UA_StatusCode retval = __UA_Client_readHistorical_service(client, nodeId, callback, &details,
+                                                              timestampsToReturn, isInverse, maxItems, handle);
+
+    UA_ReadRawModifiedDetails_deleteMembers(&details);
+    return retval;
+}
+
+UA_StatusCode
 UA_Client_readHistorical_raw(UA_Client *client, const UA_NodeId nodeId,
                              const UA_HistoricalIteratorCallback callback,
                              const UA_DateTime startTime, const UA_DateTime endTime,
                              const UA_Boolean returnBounds, const UA_UInt32 maxItems,
                              const UA_TimestampsToReturn timestampsToReturn, void *handle) {
 
-    return __UA_Client_readHistorical_service(client, nodeId, callback, startTime, endTime,
-                                              returnBounds, maxItems, UA_FALSE, timestampsToReturn, handle);
+    return __UA_Client_readHistorical_service_rawMod(client, nodeId, callback, startTime, endTime, returnBounds,
+                                                     maxItems, UA_FALSE, timestampsToReturn, handle);
 }
 
 UA_StatusCode
@@ -609,6 +616,6 @@ UA_Client_readHistorical_modified(UA_Client *client, const UA_NodeId nodeId,
                                   const UA_Boolean returnBounds, const UA_UInt32 maxItems,
                                   const UA_TimestampsToReturn timestampsToReturn, void *handle) {
 
-    return __UA_Client_readHistorical_service(client, nodeId, callback, startTime, endTime,
-                                              returnBounds, maxItems, UA_TRUE, timestampsToReturn, handle);
+    return __UA_Client_readHistorical_service_rawMod(client, nodeId, callback, startTime, endTime, returnBounds,
+                                                     maxItems, UA_TRUE, timestampsToReturn, handle);
 }

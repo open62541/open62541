@@ -444,6 +444,13 @@ typedef UA_Boolean
                                  const UA_HistoryData *data, void *handle);
 
 UA_StatusCode UA_EXPORT
+UA_Client_readHistorical_events(UA_Client *client, const UA_NodeId nodeId,
+                                const UA_HistoricalIteratorCallback callback,
+                                const UA_DateTime startTime, const UA_DateTime endTime,
+                                const UA_EventFilter filter, const UA_UInt32 maxItems,
+                                const UA_TimestampsToReturn timestampsToReturn, void* handle);
+
+UA_StatusCode UA_EXPORT
 UA_Client_readHistorical_raw(UA_Client *client, const UA_NodeId nodeId,
                              const UA_HistoricalIteratorCallback callback,
                              const UA_DateTime startTime, const UA_DateTime endTime,
