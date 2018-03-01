@@ -1,6 +1,11 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
 #include <stdio.h>
 #include "open62541.h"
 
@@ -18,12 +23,12 @@ readHist(const UA_NodeId nodeId, const UA_Boolean isInverse,
          const UA_HistoryData *data, void *isDouble) {
 
     printf("\nRead historical callback:\n");
-    printf("\tValue count:\t%d\n", data->dataValuesSize);
+    printf("\tValue count:\t%u\n", (UA_UInt32)data->dataValuesSize);
     printf("\tIs inverse:\t%d\n", isInverse);
     printf("\tHas more data:\t%d\n\n", moreDataAvailable);
 
     /* Iterate over all values */
-    for (int i = 0; i < data->dataValuesSize; ++i)
+    for (UA_UInt32 i = 0; i < data->dataValuesSize; ++i)
     {
         UA_DataValue val = data->dataValues[i];
         
@@ -31,9 +36,8 @@ readHist(const UA_NodeId nodeId, const UA_Boolean isInverse,
         if (!val.hasValue) {
             if (val.hasStatus) {
                 if (val.status == UA_STATUSCODE_BADBOUNDNOTFOUND)
-                    printf("Skipping bounds (i=%d)\n\n", i);
+                    printf("Skipping bounds (i=%u)\n\n", i);
                 else
-                    printf("Skipping (i=%d) (status=%08x -> %s)\n\n", i, val.status, UA_StatusCode_name(val.status));
             }
 
             continue;
@@ -42,16 +46,16 @@ readHist(const UA_NodeId nodeId, const UA_Boolean isInverse,
         /* The handle is used to determine double and byte request */
         if ((UA_Boolean)isDouble) {
             UA_Double hrValue = *(UA_Double *)val.value.data;
-            printf("ByteValue (i=%d) %f\n", i, hrValue);
+            printf("ByteValue (i=%u) %f\n", i, hrValue);
         }
         else {
             UA_Byte hrValue = *(UA_Byte *)val.value.data;
-            printf("DoubleValue (i=%d) %d\n", i, hrValue);
+            printf("DoubleValue (i=%u) %d\n", i, hrValue);
         }
 
         /* Print status and timestamps */
         if (val.hasStatus)
-            printf("Status %u\n", val.status);
+            printf("Status 0x%08x\n", val.status);
         if (val.hasServerTimestamp) {
             UA_DateTimeStruct dts = UA_DateTime_toStruct(val.serverTimestamp);
             printf("ServerTime: %02u-%02u-%04u %02u:%02u:%02u.%03u\n",
