@@ -175,7 +175,8 @@ readValueAttribute(UA_Server *server, UA_Session *session,
 }
 
 static const UA_String binEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
-/* static const UA_String xmlEncoding = {sizeof("Default Xml")-1, (UA_Byte*)"Default Xml"}; */
+static const UA_String xmlEncoding = {sizeof("Default XML")-1, (UA_Byte*)"Default XML"};
+static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Default JSON"};
 
 #define CHECK_NODECLASS(CLASS)                                  \
     if(!(node->nodeClass & (CLASS))) {                          \
@@ -193,12 +194,16 @@ Read(const UA_Node *node, UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Read the attribute %i", id->attributeId);
 
-    /* XML encoding is not supported */
+    /* Only Binary Encoding is supported */
     if(id->dataEncoding.name.length > 0 &&
        !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
-           v->hasStatus = true;
+        if(UA_String_equal(&xmlEncoding, &id->dataEncoding.name) ||
+           UA_String_equal(&jsonEncoding, &id->dataEncoding.name))
            v->status = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
-           return;
+        else
+           v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
+        v->hasStatus = true;
+        return;
     }
 
     /* Index range for an attribute other than value */
