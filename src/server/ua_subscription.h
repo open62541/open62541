@@ -19,6 +19,18 @@
 #include "ua_types_generated.h"
 #include "ua_session.h"
 
+/**
+ * MonitoredItems create Notifications. Subscriptions collect Notifications from
+ * (several) MonitoredItems and publish them to the client.
+ *
+ * Notifications are put into two queues at the same time. One for the
+ * MonitoredItem that generated the notification. Here we can remove it if the
+ * space reserved for the MonitoredItem runs full. The second queue is the
+ * "global" queue for all Notifications generated in a Subscription. For
+ * publication, the notifications are taken out of the "global" queue in the
+ * order of their creation.
+ */
+
 /*****************/
 /* MonitoredItem */
 /*****************/
@@ -55,8 +67,6 @@ typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 struct UA_MonitoredItem {
     LIST_ENTRY(UA_MonitoredItem) listEntry;
     UA_Subscription *subscription;
-
-    /* Identifier */
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
 
@@ -115,13 +125,13 @@ typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) List
 
 struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
+    UA_Session *session;
+    UA_UInt32 subscriptionId;
 
     /* Settings */
-    UA_Session *session;
     UA_UInt32 lifeTimeCount;
     UA_UInt32 maxKeepAliveCount;
     UA_Double publishingInterval; /* in ms */
-    UA_UInt32 subscriptionId;
     UA_UInt32 notificationsPerPublish;
     UA_Boolean publishingEnabled;
     UA_UInt32 priority;
@@ -131,16 +141,17 @@ struct UA_Subscription {
     UA_UInt32 sequenceNumber;
     UA_UInt32 currentKeepAliveCount;
     UA_UInt32 currentLifetimeCount;
-    UA_UInt32 lastMonitoredItemId;
 
     /* Publish Callback */
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
 
     /* MonitoredItems */
+    UA_UInt32 lastMonitoredItemId; /* increase the identifiers */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
     UA_UInt32 monitoredItemsSize;
 
+    /* Global list of notifications from the MonitoredItems */
     NotificationQueue notificationQueue;
     UA_UInt32 notificationQueueSize;
 
@@ -153,26 +164,16 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
 void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
-
-void
-UA_Subscription_addMonitoredItem(UA_Subscription *sub,
-                                 UA_MonitoredItem *newMon);
-
-UA_MonitoredItem *
-UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
+void UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon);
+UA_MonitoredItem * UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
 
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemId);
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
+UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
+void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
+UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
 
-UA_StatusCode
-UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
-
-void
-UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
-
-UA_Boolean
-UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
 #endif /* UA_SUBSCRIPTION_H_ */
