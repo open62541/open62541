@@ -132,7 +132,6 @@ struct UA_Subscription {
     UA_UInt32 currentKeepAliveCount;
     UA_UInt32 currentLifetimeCount;
     UA_UInt32 lastMonitoredItemId;
-    UA_UInt32 numMonitoredItems;
 
     /* Publish Callback */
     UA_UInt64 publishCallbackId;
@@ -140,6 +139,7 @@ struct UA_Subscription {
 
     /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
+    UA_UInt32 monitoredItemsSize;
 
     NotificationQueue notificationQueue;
     UA_UInt32 notificationQueueSize;
@@ -154,18 +154,16 @@ void UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 
-UA_StatusCode
-UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
-                                    UA_UInt32 monitoredItemId);
-
 void
 UA_Subscription_addMonitoredItem(UA_Subscription *sub,
                                  UA_MonitoredItem *newMon);
-UA_UInt32
-UA_Subscription_getNumMonitoredItems(UA_Subscription *sub);
 
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId);
+
+UA_StatusCode
+UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
+                                    UA_UInt32 monitoredItemId);
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
 
