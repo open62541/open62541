@@ -71,7 +71,7 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub,
                                  UA_UInt32 monitoredItemId) {
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->itemId == monitoredItemId)
+        if(mon->monitoredItemId == monitoredItemId)
             break;
     }
     return mon;
@@ -83,7 +83,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     /* Find the MonitoredItem */
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->itemId == monitoredItemId)
+        if(mon->monitoredItemId == monitoredItemId)
             break;
     }
     if(!mon)
@@ -151,21 +151,21 @@ static void
 moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotification *mins,
                                     size_t minsSize) {
     size_t pos = 0;
-    MonitoredItem_queuedValue *qv, *qv_tmp;
-    TAILQ_FOREACH_SAFE(qv, &sub->notificationQueue, globalEntry, qv_tmp) {
+    UA_Notification *notification, *notification_tmp;
+    TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
         if(pos >= minsSize)
             return;
         UA_MonitoredItemNotification *min = &mins[pos];
-        min->clientHandle = qv->clientHandle;
-        if(qv->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            min->value = qv->data.value;
+        min->clientHandle = notification->clientHandle;
+        if(notification->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+            min->value = notification->data.value;
         } else {
             /* TODO implementation for events */
         }
-        TAILQ_REMOVE(&sub->notificationQueue, qv, globalEntry);
-        TAILQ_REMOVE(&qv->mon->queue, qv, listEntry);
-        --(qv->mon->currentQueueSize);
-        UA_free(qv);
+        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+        TAILQ_REMOVE(&notification->mon->queue, notification, listEntry);
+        --(notification->mon->currentQueueSize);
+        UA_free(notification);
         --sub->readyNotifications;
         ++pos;
     }

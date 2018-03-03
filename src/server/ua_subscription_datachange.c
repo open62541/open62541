@@ -36,21 +36,21 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                            "Subscription %u | MonitoredItem %i | "
                            "Delete the MonitoredItem",
-                           sub->subscriptionId, monitoredItem->itemId);
+                           sub->subscriptionId, monitoredItem->monitoredItemId);
 
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Remove the sampling callback */
         MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
         /* Clear the queued samples */
-        MonitoredItem_queuedValue *val, *val_tmp;
-        TAILQ_FOREACH_SAFE(val, &monitoredItem->queue, listEntry, val_tmp) {
-            TAILQ_REMOVE(&monitoredItem->queue, val, listEntry);
+        UA_Notification *notification, *notification_tmp;
+        TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue, listEntry, notification_tmp) {
+            TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
 
             /* Remove the item in the global queue */
-            TAILQ_REMOVE(&sub->notificationQueue, val, globalEntry);
-            UA_DataValue_deleteMembers(&val->data.value);
-            UA_free(val);
+            TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+            UA_DataValue_deleteMembers(&notification->data.value);
+            UA_free(notification);
 
             if (sub->pendingNotifications)
                 sub->pendingNotifications--;
@@ -73,9 +73,10 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 void
-MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon, MonitoredItem_queuedValue *newQueuedItem) {
+MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon,
+                               UA_Notification *newNotification) {
     UA_Boolean valueDiscarded = false;
-    MonitoredItem_queuedValue *queueItem;
+    UA_Notification *notification;
 #ifndef __clang_analyzer__
     while(mon->currentQueueSize > mon->maxQueueSize) {
         /* maxQueuesize is at least 1 */
@@ -84,31 +85,31 @@ MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon, Moni
         /* Get the item to remove. New items are added to the end */
         if(mon->discardOldest) {
             /* Remove the oldest */
-            queueItem = TAILQ_FIRST(&mon->queue);
+            notification = TAILQ_FIRST(&mon->queue);
         } else {
             /* Keep the newest, remove the second-newest */
-            queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-            queueItem = TAILQ_PREV(queueItem, QueuedValueQueue, listEntry);
+            notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+            notification = TAILQ_PREV(notification, NotificationQueue, listEntry);
         }
-        UA_assert(queueItem);
+        UA_assert(notification);
 
         /* Remove the item */
-        TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
+        TAILQ_REMOVE(&mon->queue, notification, listEntry);
         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            UA_DataValue_deleteMembers(&queueItem->data.value);
+            UA_DataValue_deleteMembers(&notification->data.value);
         } else {
             //TODO: event implemantation
         }
 
-        MonitoredItem_queuedValue *nextGlobalQueueItem = TAILQ_NEXT(queueItem, globalEntry);
-        TAILQ_REMOVE(&sub->notificationQueue, queueItem, globalEntry);
+        UA_Notification *nextGlobalNotification = TAILQ_NEXT(notification, globalEntry);
+        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
 
-        if(newQueuedItem) {
-            if(nextGlobalQueueItem)
-                TAILQ_INSERT_BEFORE(nextGlobalQueueItem, newQueuedItem, globalEntry);
+        if(newNotification) {
+            if(nextGlobalNotification)
+                TAILQ_INSERT_BEFORE(nextGlobalNotification, newNotification, globalEntry);
             else
-                TAILQ_INSERT_TAIL(&sub->notificationQueue, newQueuedItem, globalEntry);
-            newQueuedItem = NULL;
+                TAILQ_INSERT_TAIL(&sub->notificationQueue, newNotification, globalEntry);
+            newNotification = NULL;
         } else { 
             if (sub->pendingNotifications)
                 --sub->pendingNotifications;
@@ -116,7 +117,7 @@ MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon, Moni
                 --sub->readyNotifications;
         }
 
-        UA_free(queueItem);
+        UA_free(notification);
         --mon->currentQueueSize;
         valueDiscarded = true;
     }
@@ -128,26 +129,26 @@ MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon, Moni
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Get the element that carries the infobits */
         if(mon->discardOldest)
-            queueItem = TAILQ_FIRST(&mon->queue);
+            notification = TAILQ_FIRST(&mon->queue);
         else
-            queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-        UA_assert(queueItem);
+            notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+        UA_assert(notification);
 
         /* If the queue size is reduced to one, remove the infobits */
         if(mon->maxQueueSize == 1) {
-            queueItem->data.value.status &= ~(UA_StatusCode) (UA_STATUSCODE_INFOTYPE_DATAVALUE |
+            notification->data.value.status &= ~(UA_StatusCode) (UA_STATUSCODE_INFOTYPE_DATAVALUE |
                                                               UA_STATUSCODE_INFOBITS_OVERFLOW);
 
             goto end;
         }
 
         /* Add the infobits either to the newest or the new last entry */
-        queueItem->data.value.hasStatus = true;
-        queueItem->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+        notification->data.value.hasStatus = true;
+        notification->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
     }
 end:
-    if(newQueuedItem) {
-        TAILQ_INSERT_TAIL(&sub->notificationQueue, newQueuedItem, globalEntry);
+    if(newNotification) {
+        TAILQ_INSERT_TAIL(&sub->notificationQueue, newNotification, globalEntry);
         ++sub->pendingNotifications;
     }
 }
@@ -229,13 +230,13 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
         return false;
 
     /* Allocate the entry for the publish queue */
-    MonitoredItem_queuedValue *newQueueItem =
-        (MonitoredItem_queuedValue *)UA_malloc(sizeof(MonitoredItem_queuedValue));
-    if(!newQueueItem) {
+    UA_Notification *newNotification =
+        (UA_Notification *)UA_malloc(sizeof(UA_Notification));
+    if(!newNotification) {
         UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                "Subscription %u | MonitoredItem %i | "
                                "Item for the publishing queue could not be allocated",
-                               sub->subscriptionId, monitoredItem->itemId);
+                               sub->subscriptionId, monitoredItem->monitoredItemId);
         return false;
     }
 
@@ -246,8 +247,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | MonitoredItem %i | "
                                    "ByteString to compare values could not be created",
-                                   sub->subscriptionId, monitoredItem->itemId);
-            UA_free(newQueueItem);
+                                   sub->subscriptionId, monitoredItem->monitoredItemId);
+            UA_free(newNotification);
             return false;
         }
         *valueEncoding = cbs;
@@ -256,39 +257,38 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     /* Prepare the newQueueItem */
     if(value->hasValue && value->value.storageType == UA_VARIANT_DATA_NODELETE) {
         /* Make a deep copy of the value */
-        UA_StatusCode retval = UA_DataValue_copy(value, &newQueueItem->data.value);
+        UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | MonitoredItem %i | "
                                    "Item for the publishing queue could not be prepared",
-                                   sub->subscriptionId, monitoredItem->itemId);
-            UA_free(newQueueItem);
+                                   sub->subscriptionId, monitoredItem->monitoredItemId);
+            UA_free(newNotification);
             return false;
         }
     } else {
-        newQueueItem->data.value = *value; /* Just copy the value and do not release it */
+        newNotification->data.value = *value; /* Just copy the value and do not release it */
     }
-    newQueueItem->clientHandle = monitoredItem->clientHandle;
+    newNotification->clientHandle = monitoredItem->clientHandle;
 
     /* <-- Point of no return --> */
 
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | MonitoredItem %u | Sampled a new value",
-                         sub->subscriptionId, monitoredItem->itemId);
+                         sub->subscriptionId, monitoredItem->monitoredItemId);
 
     /* Replace the encoding for comparison */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = *valueEncoding;
 
     /* Add the sample to the queue for publication */
-    TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
+    TAILQ_INSERT_TAIL(&monitoredItem->queue, newNotification, listEntry);
     ++monitoredItem->currentQueueSize;
 
-
-    newQueueItem->mon = monitoredItem;
+    newNotification->mon = monitoredItem;
 
     /* Remove entries from the queue if required and add the sample to the global queue */
-    MonitoredItem_ensureQueueSpace(sub, monitoredItem, newQueueItem);
+    MonitoredItem_ensureQueueSpace(sub, monitoredItem, newNotification);
 
     return true;
 }
@@ -301,7 +301,7 @@ UA_MonitoredItem_SampleCallback(UA_Server *server,
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                              "Subscription %u | MonitoredItem %i | "
                              "Not a data change notification",
-                             sub->subscriptionId, monitoredItem->itemId);
+                             sub->subscriptionId, monitoredItem->monitoredItemId);
         return;
     }
 
