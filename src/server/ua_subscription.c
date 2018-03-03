@@ -31,8 +31,7 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
     newSub->session = session;
     newSub->subscriptionId = subscriptionId;
     newSub->numMonitoredItems = 0;
-    newSub->readyNotifications = 0;
-    newSub->pendingNotifications = 0;
+    newSub->notificationQueueSize = 0;
     newSub->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     TAILQ_INIT(&newSub->retransmissionQueue);
     TAILQ_INIT(&newSub->notificationQueue);
@@ -61,8 +60,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
         UA_free(nme);
     }
     sub->retransmissionQueueSize = 0;
-    sub->readyNotifications = 0;
-    sub->pendingNotifications = 0;
+    sub->notificationQueueSize = 0;
     sub->numMonitoredItems = 0;
 }
 
@@ -155,18 +153,24 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotifi
     TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
         if(pos >= minsSize)
             return;
+
+        UA_MonitoredItem *mon = notification->mon;
+
+        /* Remove the notification from the queues */
+        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+        TAILQ_REMOVE(&mon->queue, notification, listEntry);
+        --mon->queueSize;
+        --sub->notificationQueueSize;
+
+        /* Move the content to the response */
         UA_MonitoredItemNotification *min = &mins[pos];
-        min->clientHandle = notification->mon->clientHandle;
-        if(notification->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        min->clientHandle = mon->clientHandle;
+        if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
             min->value = notification->data.value;
         } else {
             /* TODO implementation for events */
         }
-        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-        TAILQ_REMOVE(&notification->mon->queue, notification, listEntry);
-        --(notification->mon->currentQueueSize);
         UA_free(notification);
-        --sub->readyNotifications;
         ++pos;
     }
 }
@@ -247,11 +251,11 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Count the available notifications */
     UA_Boolean moreNotifications = false;
-    size_t notifications = sub->readyNotifications;
+    size_t notifications = sub->notificationQueueSize;
     if(!sub->publishingEnabled)
         notifications = 0;
 
-    if (notifications > sub->notificationsPerPublish) {
+    if(notifications > sub->notificationsPerPublish) {
         notifications = sub->notificationsPerPublish;
         moreNotifications = true;
     }
@@ -369,18 +373,10 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     }
 }
 
-static void
-UA_Subscription_publishTriggeredCallback(UA_Server *server, UA_Subscription *sub) {
-    sub->readyNotifications += sub->pendingNotifications;
-    sub->pendingNotifications = 0;
-    UA_Subscription_publishCallback(server, sub);
-}
-
 UA_Boolean
 UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Reached number of publish request limit");
-
 
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = UA_Session_getPublishReq(session);
@@ -433,10 +429,8 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval =
-        UA_Server_addRepeatedCallback(server,
-                  (UA_ServerCallback)UA_Subscription_publishTriggeredCallback,
-                  sub, (UA_UInt32)sub->publishingInterval,
-                  &sub->publishCallbackId);
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Subscription_publishCallback,
+                                      sub, (UA_UInt32)sub->publishingInterval, &sub->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

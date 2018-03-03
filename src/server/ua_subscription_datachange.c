@@ -45,19 +45,15 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         /* Clear the queued samples */
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue, listEntry, notification_tmp) {
+            /* Remove the item from the queues */
             TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
-
-            /* Remove the item in the global queue */
             TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+            --sub->notificationQueueSize;
+
             UA_DataValue_deleteMembers(&notification->data.value);
             UA_free(notification);
-
-            if (sub->pendingNotifications)
-                sub->pendingNotifications--;
-            else
-                sub->readyNotifications--;
         }
-        monitoredItem->currentQueueSize = 0;
+        monitoredItem->queueSize = 0;
     } else {
         /* TODO: Access val data.event */
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -73,16 +69,17 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 void
-MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon,
-                               UA_Notification *newNotification) {
+MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
     UA_Boolean valueDiscarded = false;
-    UA_Notification *notification;
-#ifndef __clang_analyzer__
-    while(mon->currentQueueSize > mon->maxQueueSize) {
+    UA_Subscription *sub = mon->subscription;
+
+    /* Remove notifications until the queue size is reached */
+    while(mon->queueSize > mon->maxQueueSize) {
         /* maxQueuesize is at least 1 */
-        UA_assert(mon->currentQueueSize >= 2);
+        UA_assert(mon->queueSize >= 2);
 
         /* Get the item to remove. New items are added to the end */
+        UA_Notification *notification = NULL;
         if(mon->discardOldest) {
             /* Remove the oldest */
             notification = TAILQ_FIRST(&mon->queue);
@@ -95,62 +92,49 @@ MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon,
 
         /* Remove the item */
         TAILQ_REMOVE(&mon->queue, notification, listEntry);
+        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+        --mon->queueSize;
+        --sub->notificationQueueSize;
+
+        /* Free the notification */
         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
             UA_DataValue_deleteMembers(&notification->data.value);
         } else {
-            //TODO: event implemantation
+            /* TODO: event implemantation */
         }
 
-        UA_Notification *nextGlobalNotification = TAILQ_NEXT(notification, globalEntry);
-        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-
-        if(newNotification) {
-            if(nextGlobalNotification)
-                TAILQ_INSERT_BEFORE(nextGlobalNotification, newNotification, globalEntry);
-            else
-                TAILQ_INSERT_TAIL(&sub->notificationQueue, newNotification, globalEntry);
-            newNotification = NULL;
-        } else { 
-            if (sub->pendingNotifications)
-                --sub->pendingNotifications;
-            else
-                --sub->readyNotifications;
-        }
-
+        /* Work around a false positive in clang analyzer */
+#ifndef __clang_analyzer__
         UA_free(notification);
-        --mon->currentQueueSize;
+#endif
         valueDiscarded = true;
     }
-#endif
 
     if(!valueDiscarded)
-        goto end;
-
+        return;
+            
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Get the element that carries the infobits */
+        UA_Notification *notification = NULL;
         if(mon->discardOldest)
             notification = TAILQ_FIRST(&mon->queue);
         else
             notification = TAILQ_LAST(&mon->queue, NotificationQueue);
         UA_assert(notification);
 
-        /* If the queue size is reduced to one, remove the infobits */
-        if(mon->maxQueueSize == 1) {
-            notification->data.value.status &= ~(UA_StatusCode) (UA_STATUSCODE_INFOTYPE_DATAVALUE |
-                                                              UA_STATUSCODE_INFOBITS_OVERFLOW);
-
-            goto end;
+        if(mon->maxQueueSize > 1) {
+            /* Add the infobits either to the newest or the new last entry */
+            notification->data.value.hasStatus = true;
+            notification->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE |
+                                                UA_STATUSCODE_INFOBITS_OVERFLOW);
+        } else {
+            /* If the queue size is reduced to one, remove the infobits */
+            notification->data.value.status &= ~(UA_StatusCode)(UA_STATUSCODE_INFOTYPE_DATAVALUE |
+                                                                UA_STATUSCODE_INFOBITS_OVERFLOW);
         }
+    }
 
-        /* Add the infobits either to the newest or the new last entry */
-        notification->data.value.hasStatus = true;
-        notification->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
-    }
-end:
-    if(newNotification) {
-        TAILQ_INSERT_TAIL(&sub->notificationQueue, newNotification, globalEntry);
-        ++sub->pendingNotifications;
-    }
+    /* TODO: Infobits for Events? */
 }
 
 /* Errors are returned as no change detected */
@@ -284,10 +268,12 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
 
     /* Add the sample to the queue for publication */
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newNotification, listEntry);
-    ++monitoredItem->currentQueueSize;
+    TAILQ_INSERT_TAIL(&sub->notificationQueue, newNotification, globalEntry);
+    ++monitoredItem->queueSize;
+    ++sub->notificationQueueSize;
 
     /* Remove entries from the queue if required and add the sample to the global queue */
-    MonitoredItem_ensureQueueSpace(sub, monitoredItem, newNotification);
+    MonitoredItem_ensureQueueSpace(monitoredItem);
 
     return true;
 }

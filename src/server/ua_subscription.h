@@ -43,6 +43,7 @@ typedef struct UA_Notification {
 
     UA_MonitoredItem *mon;
 
+    /* See the monitoredItemType of the MonitoredItem */
     union {
         UA_Event event;
         UA_DataValue value;
@@ -53,31 +54,33 @@ typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
 struct UA_MonitoredItem {
     LIST_ENTRY(UA_MonitoredItem) listEntry;
+    UA_Subscription *subscription;
+
+    /* Identifier */
+    UA_UInt32 monitoredItemId;
+    UA_UInt32 clientHandle;
 
     /* Settings */
-    UA_Subscription *subscription;
-    UA_UInt32 monitoredItemId;
     UA_MonitoredItemType monitoredItemType;
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
     UA_NodeId monitoredNodeId;
     UA_UInt32 attributeId;
-    UA_UInt32 clientHandle;
+    UA_String indexRange;
     UA_Double samplingInterval; // [ms]
-    UA_UInt32 currentQueueSize;
     UA_UInt32 maxQueueSize;
     UA_Boolean discardOldest;
-    UA_String indexRange;
     // TODO: dataEncoding is hardcoded to UA binary
     UA_DataChangeTrigger trigger;
 
     /* Sample Callback */
     UA_UInt64 sampleCallbackId;
+    UA_ByteString lastSampledValue;
     UA_Boolean sampleCallbackIsRegistered;
 
-    /* Sample Queue */
-    UA_ByteString lastSampledValue;
+    /* Notification Queue */
     NotificationQueue queue;
+    UA_UInt32 queueSize;
 };
 
 UA_MonitoredItem * UA_MonitoredItem_new(UA_MonitoredItemType);
@@ -87,10 +90,8 @@ UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_Monitor
 UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
- * data if required. Insert newQueuedItem in global list if non NULL */
-void
-MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon,
-                               UA_Notification *newNotification);
+ * data if required. */
+void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
@@ -141,11 +142,7 @@ struct UA_Subscription {
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
 
     NotificationQueue notificationQueue;
-
-    /* count number of notifications present before last repeated publish callback */
-    UA_UInt32 readyNotifications;
-    /* count number of notifications present after last repeated publish callback */
-    UA_UInt32 pendingNotifications;
+    UA_UInt32 notificationQueueSize;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
