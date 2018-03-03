@@ -274,7 +274,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     newMon->subscription = cmc->sub;
     newMon->attributeId = request->itemToMonitor.attributeId;
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
-    newMon->itemId = ++(cmc->sub->lastMonitoredItemId);
+    newMon->monitoredItemId = ++(cmc->sub->lastMonitoredItemId);
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
@@ -288,7 +288,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     /* Prepare the response */
     result->revisedSamplingInterval = newMon->samplingInterval;
     result->revisedQueueSize = newMon->maxQueueSize;
-    result->monitoredItemId = newMon->itemId;
+    result->monitoredItemId = newMon->monitoredItemId;
 }
 
 void
@@ -416,11 +416,11 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
     } else {
         // TODO correctly implement SAMPLING
         /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be delete */
-        MonitoredItem_queuedValue *val, *val_tmp;
-        TAILQ_FOREACH_SAFE(val, &mon->queue, listEntry, val_tmp) {
-            TAILQ_REMOVE(&mon->queue, val, listEntry);
-            UA_DataValue_deleteMembers(&val->data.value);
-            UA_free(val);
+        UA_Notification *notification, *notification_tmp;
+        TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
+            TAILQ_REMOVE(&mon->queue, notification, listEntry);
+            UA_DataValue_deleteMembers(&notification->data.value);
+            UA_free(notification);
         }
         mon->currentQueueSize = 0;
 

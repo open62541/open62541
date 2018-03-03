@@ -29,20 +29,35 @@ typedef enum {
     UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
 } UA_MonitoredItemType;
 
-
-/* not used yet, placeholder for event implementation */
+/* Not used yet. Placeholder for a future event implementation. */
 typedef struct UA_Event {
    UA_Int32 eventId;
 } UA_Event;
 
-typedef TAILQ_HEAD(QueuedValueQueue, MonitoredItem_queuedValue) QueuedValueQueue;
+struct UA_MonitoredItem;
+typedef struct UA_MonitoredItem UA_MonitoredItem;
 
-typedef struct UA_MonitoredItem {
+typedef struct UA_Notification {
+    TAILQ_ENTRY(UA_Notification) listEntry;
+    TAILQ_ENTRY(UA_Notification) globalEntry;
+
+    UA_MonitoredItem *mon;
+
+    UA_UInt32 clientHandle;
+    union {
+        UA_Event event;
+        UA_DataValue value;
+    } data;
+} UA_Notification;
+
+typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
+
+struct UA_MonitoredItem {
     LIST_ENTRY(UA_MonitoredItem) listEntry;
 
     /* Settings */
     UA_Subscription *subscription;
-    UA_UInt32 itemId;
+    UA_UInt32 monitoredItemId;
     UA_MonitoredItemType monitoredItemType;
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
@@ -63,21 +78,8 @@ typedef struct UA_MonitoredItem {
 
     /* Sample Queue */
     UA_ByteString lastSampledValue;
-    QueuedValueQueue queue;
-} UA_MonitoredItem;
-
-typedef struct MonitoredItem_queuedValue {
-    TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
-    TAILQ_ENTRY(MonitoredItem_queuedValue) globalEntry;
-
-    UA_MonitoredItem *mon;
-
-    UA_UInt32 clientHandle;
-    union {
-        UA_Event event;
-        UA_DataValue value;
-    } data;
-} MonitoredItem_queuedValue;
+    NotificationQueue queue;
+};
 
 UA_MonitoredItem * UA_MonitoredItem_new(UA_MonitoredItemType);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
@@ -88,7 +90,8 @@ UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_Monit
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. Insert newQueuedItem in global list if non NULL */
 void
-MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon, MonitoredItem_queuedValue *newQueuedItem);
+MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon,
+                               UA_Notification *newNotification);
 
 /****************/
 /* Subscription */
@@ -138,7 +141,7 @@ struct UA_Subscription {
     /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
 
-    QueuedValueQueue notificationQueue;
+    NotificationQueue notificationQueue;
 
     /* count number of notifications present before last repeated publish callback */
     UA_UInt32 readyNotifications;
