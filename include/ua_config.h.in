@@ -130,13 +130,18 @@ extern "C" {
 
 #endif
 
+/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
+ * Otherwise revert to alloca. Note that alloca is not supported on some
+ * plattforms. */
 #if defined(__GNUC__) || defined(__clang__)
-# define UA_alloca(size) __builtin_alloca (size)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
 #elif defined(_WIN32)
-# define UA_alloca(SIZE) _alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)_alloca(sizeof(TYPE) * SIZE)
 #else
 # include <alloca.h>
-# define UA_alloca(SIZE) alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)alloca(sizeof(TYPE) * SIZE)
 #endif
 
 /**

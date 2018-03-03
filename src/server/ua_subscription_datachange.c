@@ -312,7 +312,7 @@ UA_MonitoredItem_SampleCallback(UA_Server *server,
     /* Stack-allocate some memory for the value encoding. We might heap-allocate
      * more memory if needed. This is just enough for scalars and small
      * structures. */
-    UA_Byte *stackValueEncoding = (UA_Byte *)UA_alloca(UA_VALUENCODING_MAXSTACK);
+    UA_STACKARRAY(UA_Byte, stackValueEncoding, UA_VALUENCODING_MAXSTACK);
     UA_ByteString valueEncoding;
     valueEncoding.data = stackValueEncoding;
     valueEncoding.length = UA_VALUENCODING_MAXSTACK;

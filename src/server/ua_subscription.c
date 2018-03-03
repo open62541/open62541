@@ -339,9 +339,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
     /* Get the available sequence numbers from the retransmission queue */
     size_t available = sub->retransmissionQueueSize;
+    UA_STACKARRAY(UA_UInt32, seqNumbers, available);
     if(available > 0) {
-        response->availableSequenceNumbers =
-            (UA_UInt32*)UA_alloca(available * sizeof(UA_UInt32));
+        response->availableSequenceNumbers = seqNumbers;
         response->availableSequenceNumbersSize = available;
         size_t i = 0;
         UA_NotificationMessageEntry *nme;
