@@ -40,9 +40,8 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
 
 void
 UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                         "Subscription %u | Delete the subscription",
-                         sub->subscriptionId);
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                             "Delete the subscription", sub->subscriptionId);
 
     Subscription_unregisterPublishCallback(server, sub);
 
@@ -51,6 +50,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
         MonitoredItem_delete(server, mon);
     }
+    sub->numMonitoredItems = 0;
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
@@ -60,8 +60,6 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
         UA_free(nme);
     }
     sub->retransmissionQueueSize = 0;
-    sub->notificationQueueSize = 0;
-    sub->numMonitoredItems = 0;
 }
 
 UA_MonitoredItem *
@@ -357,20 +355,18 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                                           UA_MESSAGETYPE_MSG, response,
                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
-    /* Reset subscription state to normal. */
+    /* Reset subscription state to normal */
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
     sub->currentKeepAliveCount = 0;
 
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize,
                     &UA_TYPES[UA_TYPES_UINT32]);
-    UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
+    UA_free(pre); /* No need for UA_PublishResponse_deleteMembers */
 
-    if(moreNotifications) {
-        /* Repeat sending responses right away if there are more notifications
-         * to send */
+    /* Repeat sending responses if there are more notifications to send */
+    if(moreNotifications)
         UA_Subscription_publishCallback(server, sub);
-    }
 }
 
 UA_Boolean
