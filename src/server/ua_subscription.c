@@ -30,8 +30,6 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
     /* Remaining members are covered by calloc zeroing out the memory */
     newSub->session = session;
     newSub->subscriptionId = subscriptionId;
-    newSub->numMonitoredItems = 0;
-    newSub->notificationQueueSize = 0;
     newSub->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     TAILQ_INIT(&newSub->retransmissionQueue);
     TAILQ_INIT(&newSub->notificationQueue);
@@ -50,7 +48,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
         MonitoredItem_delete(server, mon);
     }
-    sub->numMonitoredItems = 0;
+    sub->monitoredItemsSize = 0;
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
@@ -87,19 +85,14 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 
     /* Remove the MonitoredItem */
     MonitoredItem_delete(server, mon);
-    sub->numMonitoredItems--;
+    sub->monitoredItemsSize--;
     return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon) {
-    sub->numMonitoredItems++;
+    sub->monitoredItemsSize++;
     LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
-}
-
-UA_UInt32
-UA_Subscription_getNumMonitoredItems(UA_Subscription *sub) {
-    return sub->numMonitoredItems;
 }
 
 static void

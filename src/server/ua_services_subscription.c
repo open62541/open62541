@@ -220,7 +220,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                               UA_MonitoredItemCreateResult *result) {
     /* Check available capacity */
     if(server->config.maxMonitoredItemsPerSubscription != 0 &&
-       UA_Subscription_getNumMonitoredItems(cmc->sub) >= server->config.maxMonitoredItemsPerSubscription) {
+       cmc->sub->monitoredItemsSize >= server->config.maxMonitoredItemsPerSubscription) {
         result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
     }
