@@ -269,13 +269,14 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     } else {
         newNotification->data.value = *value; /* Just copy the value and do not release it */
     }
-    newNotification->clientHandle = monitoredItem->clientHandle;
 
     /* <-- Point of no return --> */
 
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | MonitoredItem %u | Sampled a new value",
                          sub->subscriptionId, monitoredItem->monitoredItemId);
+
+    newNotification->mon = monitoredItem;
 
     /* Replace the encoding for comparison */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
@@ -284,8 +285,6 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     /* Add the sample to the queue for publication */
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newNotification, listEntry);
     ++monitoredItem->currentQueueSize;
-
-    newNotification->mon = monitoredItem;
 
     /* Remove entries from the queue if required and add the sample to the global queue */
     MonitoredItem_ensureQueueSpace(sub, monitoredItem, newNotification);

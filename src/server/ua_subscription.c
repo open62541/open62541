@@ -156,7 +156,7 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotifi
         if(pos >= minsSize)
             return;
         UA_MonitoredItemNotification *min = &mins[pos];
-        min->clientHandle = notification->clientHandle;
+        min->clientHandle = notification->mon->clientHandle;
         if(notification->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
             min->value = notification->data.value;
         } else {
