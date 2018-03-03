@@ -327,7 +327,7 @@ START_TEST(Server_overflow) {
     }
     ck_assert_ptr_ne(mon, NULL);
     UA_assert(mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     UA_Notification *notification;
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
@@ -335,21 +335,21 @@ START_TEST(Server_overflow) {
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(notification->data.value.hasStatus, true);
@@ -387,7 +387,7 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
     notification = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(notification->data.value.hasStatus, true);
@@ -417,7 +417,7 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.value.hasStatus, false);
@@ -447,7 +447,7 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     notification = TAILQ_FIRST(&mon->queue);
     ck_assert_uint_eq(notification->data.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */

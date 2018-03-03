@@ -343,7 +343,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     result->revisedQueueSize = mon->maxQueueSize;
 
     /* Remove some notifications if the queue is now too small */
-    MonitoredItem_ensureQueueSpace(sub, mon, NULL);
+    MonitoredItem_ensureQueueSpace(mon);
 }
 
 void
@@ -375,9 +375,9 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_ModifyMonitoredItem, sub,
-                                           &request->itemsToModifySize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
+                  (UA_ServiceOperation)Operation_ModifyMonitoredItem, sub,
+                  &request->itemsToModifySize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
 }
 
 struct setMonitoringContext {
@@ -414,19 +414,23 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
         MonitoredItem_registerSampleCallback(server, mon);
     } else {
+        MonitoredItem_unregisterSampleCallback(server, mon);
+
         // TODO correctly implement SAMPLING
-        /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be delete */
+        /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
             TAILQ_REMOVE(&mon->queue, notification, listEntry);
+            TAILQ_REMOVE(&smc->sub->notificationQueue, notification, globalEntry);
+            --smc->sub->notificationQueueSize;
+
             UA_DataValue_deleteMembers(&notification->data.value);
             UA_free(notification);
         }
-        mon->currentQueueSize = 0;
+        mon->queueSize = 0;
 
-        /* initialize lastSampledValue */
+        /* Initialize lastSampledValue */
         UA_ByteString_deleteMembers(&mon->lastSampledValue);
-        MonitoredItem_unregisterSampleCallback(server, mon);
     }
 }
 
@@ -434,8 +438,7 @@ void
 Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
                           const UA_SetMonitoringModeRequest *request,
                           UA_SetMonitoringModeResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing SetMonitoringMode");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing SetMonitoringMode");
 
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
@@ -555,8 +558,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     if(session->lastSeenSubscriptionId > 0) {
         /* If we found anything one the first loop or if there are LATE 
          * in the list before lastSeenSubscriptionId and not LATE after 
-         * lastSeenSubscriptionId we need a second loop.
-         */
+         * lastSeenSubscriptionId we need a second loop. */
         loopCount = 2;
         /* We must find the last seen subscription id  */
         found = false;
@@ -604,11 +606,11 @@ void
 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                             const UA_DeleteSubscriptionsRequest *request,
                             UA_DeleteSubscriptionsResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing DeleteSubscriptionsRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteSubscriptionsRequest");
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_DeleteSubscription, NULL,
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_DeleteSubscription, NULL,
                                            &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 
@@ -630,8 +632,7 @@ void
 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_DeleteMonitoredItemsRequest *request,
                              UA_DeleteMonitoredItemsResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing DeleteMonitoredItemsRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteMonitoredItemsRequest");
 
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
@@ -650,7 +651,8 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     sub->currentLifetimeCount = 0;
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
                                            &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
@@ -659,8 +661,7 @@ void
 Service_Republish(UA_Server *server, UA_Session *session,
                   const UA_RepublishRequest *request,
                   UA_RepublishResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing RepublishRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RepublishRequest");
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
