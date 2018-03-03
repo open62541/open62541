@@ -46,8 +46,16 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         MonitoredItem_queuedValue *val, *val_tmp;
         TAILQ_FOREACH_SAFE(val, &monitoredItem->queue, listEntry, val_tmp) {
             TAILQ_REMOVE(&monitoredItem->queue, val, listEntry);
+
+            /* Remove the item in the global queue */
+            TAILQ_REMOVE(&sub->notificationQueue, val, globalEntry);
             UA_DataValue_deleteMembers(&val->data.value);
             UA_free(val);
+
+            if (sub->pendingNotifications)
+                sub->pendingNotifications--;
+            else
+                sub->readyNotifications--;
         }
         monitoredItem->currentQueueSize = 0;
     } else {
@@ -65,7 +73,7 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 void
-MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
+MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon, MonitoredItem_queuedValue *newQueuedItem) {
     UA_Boolean valueDiscarded = false;
     MonitoredItem_queuedValue *queueItem;
 #ifndef __clang_analyzer__
@@ -84,10 +92,6 @@ MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
         }
         UA_assert(queueItem);
 
-        /* Copy the sampled date time of the removed item to the last item */
-        MonitoredItem_queuedValue *lastQueueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-        lastQueueItem->sampledDateTime = queueItem->sampledDateTime;
-
         /* Remove the item */
         TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
@@ -95,6 +99,23 @@ MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
         } else {
             //TODO: event implemantation
         }
+
+        MonitoredItem_queuedValue *nextGlobalQueueItem = TAILQ_NEXT(queueItem, globalEntry);
+        TAILQ_REMOVE(&sub->notificationQueue, queueItem, globalEntry);
+
+        if(newQueuedItem) {
+            if(nextGlobalQueueItem)
+                TAILQ_INSERT_BEFORE(nextGlobalQueueItem, newQueuedItem, globalEntry);
+            else
+                TAILQ_INSERT_TAIL(&sub->notificationQueue, newQueuedItem, globalEntry);
+            newQueuedItem = NULL;
+        } else { 
+            if (sub->pendingNotifications)
+                --sub->pendingNotifications;
+            else
+                --sub->readyNotifications;
+        }
+
         UA_free(queueItem);
         --mon->currentQueueSize;
         valueDiscarded = true;
@@ -102,7 +123,7 @@ MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
 #endif
 
     if(!valueDiscarded)
-        return;
+        goto end;
 
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Get the element that carries the infobits */
@@ -116,12 +137,18 @@ MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
         if(mon->maxQueueSize == 1) {
             queueItem->data.value.status &= ~(UA_StatusCode) (UA_STATUSCODE_INFOTYPE_DATAVALUE |
                                                               UA_STATUSCODE_INFOBITS_OVERFLOW);
-            return;
+
+            goto end;
         }
 
         /* Add the infobits either to the newest or the new last entry */
         queueItem->data.value.hasStatus = true;
         queueItem->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    }
+end:
+    if(newQueuedItem) {
+        TAILQ_INSERT_TAIL(&sub->notificationQueue, newQueuedItem, globalEntry);
+        ++sub->pendingNotifications;
     }
 }
 
@@ -257,11 +284,12 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
     ++monitoredItem->currentQueueSize;
 
-    /* Save the sampled date time */
-    newQueueItem->sampledDateTime = UA_DateTime_nowMonotonic();
 
-    /* Remove entries from the queue if required */
-    MonitoredItem_ensureQueueSpace(monitoredItem);
+    newQueueItem->mon = monitoredItem;
+
+    /* Remove entries from the queue if required and add the sample to the global queue */
+    MonitoredItem_ensureQueueSpace(sub, monitoredItem, newQueueItem);
+
     return true;
 }
 
