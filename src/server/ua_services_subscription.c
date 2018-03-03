@@ -274,7 +274,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     newMon->subscription = cmc->sub;
     newMon->attributeId = request->itemToMonitor.attributeId;
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
-    newMon->monitoredItemId = ++(cmc->sub->lastMonitoredItemId);
+    newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
