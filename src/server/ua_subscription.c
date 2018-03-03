@@ -22,19 +22,21 @@
 UA_Subscription *
 UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
     /* Allocate the memory */
-    UA_Subscription *newItem =
+    UA_Subscription *newSub =
         (UA_Subscription*)UA_calloc(1, sizeof(UA_Subscription));
-    if(!newItem)
+    if(!newSub)
         return NULL;
 
     /* Remaining members are covered by calloc zeroing out the memory */
-    newItem->session = session;
-    newItem->subscriptionId = subscriptionId;
-    newItem->numMonitoredItems = 0;
-    newItem->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
-    TAILQ_INIT(&newItem->retransmissionQueue);
-    newItem->lastTriggeredPublishCallback = UA_DateTime_nowMonotonic();
-    return newItem;
+    newSub->session = session;
+    newSub->subscriptionId = subscriptionId;
+    newSub->numMonitoredItems = 0;
+    newSub->readyNotifications = 0;
+    newSub->pendingNotifications = 0;
+    newSub->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
+    TAILQ_INIT(&newSub->retransmissionQueue);
+    TAILQ_INIT(&newSub->notificationQueue);
+    return newSub;
 }
 
 void
@@ -48,7 +50,6 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        LIST_REMOVE(mon, listEntry);
         MonitoredItem_delete(server, mon);
     }
 
@@ -60,6 +61,9 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
         UA_free(nme);
     }
     sub->retransmissionQueueSize = 0;
+    sub->readyNotifications = 0;
+    sub->pendingNotifications = 0;
+    sub->numMonitoredItems = 0;
 }
 
 UA_MonitoredItem *
@@ -86,7 +90,6 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     /* Remove the MonitoredItem */
-    LIST_REMOVE(mon, listEntry);
     MonitoredItem_delete(server, mon);
     sub->numMonitoredItems--;
     return UA_STATUSCODE_GOOD;
@@ -101,29 +104,6 @@ UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon)
 UA_UInt32
 UA_Subscription_getNumMonitoredItems(UA_Subscription *sub) {
     return sub->numMonitoredItems;
-}
-
-static size_t
-countQueuedNotifications(UA_Subscription *sub,
-                         UA_Boolean *moreNotifications) {
-    if(!sub->publishingEnabled)
-        return 0;
-
-    size_t notifications = 0;
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        MonitoredItem_queuedValue *qv;
-        TAILQ_FOREACH(qv, &mon->queue, listEntry) {
-            if(notifications >= sub->notificationsPerPublish) {
-                *moreNotifications = true;
-                break;
-            }
-            /* Only count if the item was sampled before lastTriggeredPublishCallback or events */
-            if((sub->lastTriggeredPublishCallback >= qv->sampledDateTime) || (mon->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY))
-                ++notifications;
-        }
-    }
-    return notifications;
 }
 
 static void
@@ -165,49 +145,29 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_MonitoredItem *
-selectFirstMonToIterate(UA_Subscription *sub) {
-    UA_MonitoredItem *mon = LIST_FIRST(&sub->monitoredItems);
-    if(sub->nextMonitoredItemIdToBrowse > 0) {
-        while(mon) {
-            if(mon->itemId == sub->nextMonitoredItemIdToBrowse)
-                break;
-            mon = LIST_NEXT(mon, listEntry);
-        }
-        if(!mon)
-            mon = LIST_FIRST(&sub->monitoredItems);
-    }
-    return mon;
-}
-
 /* Iterate over the monitoreditems of the subscription, starting at mon, and
  * move notifications into the response. */
 static void
-moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
-                                    UA_MonitoredItemNotification *mins, size_t minsSize,
-                                    size_t *pos) {
+moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotification *mins,
+                                    size_t minsSize) {
+    size_t pos = 0;
     MonitoredItem_queuedValue *qv, *qv_tmp;
-    while(mon) {
-        sub->nextMonitoredItemIdToBrowse = mon->itemId;
-        TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
-            if(*pos >= minsSize)
-                return;
-            /* Only move if the item was sampled before lastTriggeredPublishCallback or events */
-            if((sub->lastTriggeredPublishCallback >= qv->sampledDateTime) || (mon->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY)) {
-                UA_MonitoredItemNotification *min = &mins[*pos];
-                min->clientHandle = qv->clientHandle;
-                if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-                    min->value = qv->data.value;
-                } else {
-                    /* TODO implementation for events */
-                }
-                TAILQ_REMOVE(&mon->queue, qv, listEntry);
-                UA_free(qv);
-                --mon->currentQueueSize;
-                ++(*pos);
-            }
+    TAILQ_FOREACH_SAFE(qv, &sub->notificationQueue, globalEntry, qv_tmp) {
+        if(pos >= minsSize)
+            return;
+        UA_MonitoredItemNotification *min = &mins[pos];
+        min->clientHandle = qv->clientHandle;
+        if(qv->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+            min->value = qv->data.value;
+        } else {
+            /* TODO implementation for events */
         }
-        mon = LIST_NEXT(mon, listEntry);
+        TAILQ_REMOVE(&sub->notificationQueue, qv, globalEntry);
+        TAILQ_REMOVE(&qv->mon->queue, qv, listEntry);
+        --(qv->mon->currentQueueSize);
+        UA_free(qv);
+        --sub->readyNotifications;
+        ++pos;
     }
 }
 
@@ -245,18 +205,7 @@ prepareNotificationMessage(UA_Subscription *sub,
 
     /* Move notifications into the response .. the point of no return */
 
-    /* Select the first monitoredItem or the first monitoreditem after the last
-     * that was processed. */
-    UA_MonitoredItem *mon = selectFirstMonToIterate(sub);
-
-    /* Move notifications into the response */
-    size_t l = 0;
-    moveNotificationsFromMonitoredItems(sub, mon, dcn->monitoredItems, notifications, &l);
-    if(l < notifications) {
-        /* Not done. We skipped MonitoredItems. Restart at the beginning. */
-        moveNotificationsFromMonitoredItems(sub, LIST_FIRST(&sub->monitoredItems),
-                                            dcn->monitoredItems, notifications, &l);
-    }
+    moveNotificationsFromMonitoredItems(sub, dcn->monitoredItems, notifications);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -298,7 +247,14 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Count the available notifications */
     UA_Boolean moreNotifications = false;
-    size_t notifications = countQueuedNotifications(sub, &moreNotifications);
+    size_t notifications = sub->readyNotifications;
+    if(!sub->publishingEnabled)
+        notifications = 0;
+
+    if (notifications > sub->notificationsPerPublish) {
+        notifications = sub->notificationsPerPublish;
+        moreNotifications = true;
+    }
 
     /* Return if no notifications and no keepalive */
     if(notifications == 0) {
@@ -406,11 +362,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                     &UA_TYPES[UA_TYPES_UINT32]);
     UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
 
-    if(!moreNotifications) {
-        /* All notifications were sent. The next time, just start at the first
-         * monitoreditem. */
-        sub->nextMonitoredItemIdToBrowse = 0;
-    } else {
+    if(moreNotifications) {
         /* Repeat sending responses right away if there are more notifications
          * to send */
         UA_Subscription_publishCallback(server, sub);
@@ -419,7 +371,8 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
 static void
 UA_Subscription_publishTriggeredCallback(UA_Server *server, UA_Subscription *sub) {
-    sub->lastTriggeredPublishCallback = UA_DateTime_nowMonotonic();
+    sub->readyNotifications += sub->pendingNotifications;
+    sub->pendingNotifications = 0;
     UA_Subscription_publishCallback(server, sub);
 }
 

@@ -35,16 +35,6 @@ typedef struct UA_Event {
    UA_Int32 eventId;
 } UA_Event;
 
-typedef struct MonitoredItem_queuedValue {
-    TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
-    UA_UInt32 clientHandle;
-    UA_DateTime sampledDateTime;
-    union {
-        UA_Event event;
-        UA_DataValue value;
-    } data;
-} MonitoredItem_queuedValue;
-
 typedef TAILQ_HEAD(QueuedValueQueue, MonitoredItem_queuedValue) QueuedValueQueue;
 
 typedef struct UA_MonitoredItem {
@@ -76,6 +66,19 @@ typedef struct UA_MonitoredItem {
     QueuedValueQueue queue;
 } UA_MonitoredItem;
 
+typedef struct MonitoredItem_queuedValue {
+    TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
+    TAILQ_ENTRY(MonitoredItem_queuedValue) globalEntry;
+
+    UA_MonitoredItem *mon;
+
+    UA_UInt32 clientHandle;
+    union {
+        UA_Event event;
+        UA_DataValue value;
+    } data;
+} MonitoredItem_queuedValue;
+
 UA_MonitoredItem * UA_MonitoredItem_new(UA_MonitoredItemType);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void UA_MonitoredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
@@ -83,8 +86,9 @@ UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_Monitor
 UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
- * data if required. */
-void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon);
+ * data if required. Insert newQueuedItem in global list if non NULL */
+void
+MonitoredItem_ensureQueueSpace(UA_Subscription *sub, UA_MonitoredItem *mon, MonitoredItem_queuedValue *newQueuedItem);
 
 /****************/
 /* Subscription */
@@ -130,14 +134,16 @@ struct UA_Subscription {
     /* Publish Callback */
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
-    UA_DateTime lastTriggeredPublishCallback;
 
     /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
-    /* When the last publish response could not hold all available
-     * notifications, in the next iteration, start at the monitoreditem with
-     * this id. If zero, start at the first monitoreditem. */
-    UA_UInt32 nextMonitoredItemIdToBrowse;
+
+    QueuedValueQueue notificationQueue;
+
+    /* count number of notifications present before last repeated publish callback */
+    UA_UInt32 readyNotifications;
+    /* count number of notifications present after last repeated publish callback */
+    UA_UInt32 pendingNotifications;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
