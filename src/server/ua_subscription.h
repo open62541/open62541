@@ -154,6 +154,7 @@ struct UA_Subscription {
     /* Global list of notifications from the MonitoredItems */
     NotificationQueue notificationQueue;
     UA_UInt32 notificationQueueSize;
+    UA_UInt32 readyNotifications; /* Notifications to be sent out now (already late) */
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
@@ -171,7 +172,7 @@ UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemId);
 
-void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
+void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
 void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);

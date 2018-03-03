@@ -68,51 +68,60 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Server_delayedFree(server, monitoredItem);
 }
 
-void
-MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
-    UA_Boolean valueDiscarded = false;
-    UA_Subscription *sub = mon->subscription;
+void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
+    if(mon->queueSize <= mon->maxQueueSize)
+        return;
 
     /* Remove notifications until the queue size is reached */
+    UA_Subscription *sub = mon->subscription;
     while(mon->queueSize > mon->maxQueueSize) {
-        /* maxQueuesize is at least 1 */
-        UA_assert(mon->queueSize >= 2);
+        UA_assert(mon->queueSize >= 2); /* At least two Notifications in the queue */
 
-        /* Get the item to remove. New items are added to the end */
-        UA_Notification *notification = NULL;
+        /* Make sure that the MonitoredItem does not lose its place in the
+         * global queue when notifications are removed. Otherwise the
+         * MonitoredItem can "starve" itself by putting new notifications always
+         * at the end of the global queue and removing the old ones.
+         *
+         * - If the oldest notification is removed, put the second oldest
+         *   notification right behind it.
+         * - If the newest notification is removed, put the new notification
+         *   right behind it. */
+
+        UA_Notification *del; /* The notification that will be deleted */
+        UA_Notification *after_del; /* The notification to keep and move after del */
         if(mon->discardOldest) {
             /* Remove the oldest */
-            notification = TAILQ_FIRST(&mon->queue);
+            del = TAILQ_FIRST(&mon->queue);
+            after_del = TAILQ_NEXT(del, listEntry);
         } else {
-            /* Keep the newest, remove the second-newest */
-            notification = TAILQ_LAST(&mon->queue, NotificationQueue);
-            notification = TAILQ_PREV(notification, NotificationQueue, listEntry);
+            /* Remove the second newest (to keep the up-to-date notification) */
+            after_del = TAILQ_LAST(&mon->queue, NotificationQueue);
+            del = TAILQ_PREV(after_del, NotificationQueue, listEntry);
         }
-        UA_assert(notification);
 
-        /* Remove the item */
-        TAILQ_REMOVE(&mon->queue, notification, listEntry);
-        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+        /* Move after_del right after del in the global queue */
+        TAILQ_REMOVE(&sub->notificationQueue, after_del, globalEntry);
+        TAILQ_INSERT_AFTER(&sub->notificationQueue, del, after_del, globalEntry);
+
+        /* Remove the notification from the queues */
+        TAILQ_REMOVE(&mon->queue, del, listEntry);
+        TAILQ_REMOVE(&sub->notificationQueue, del, globalEntry);
         --mon->queueSize;
         --sub->notificationQueueSize;
 
         /* Free the notification */
         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            UA_DataValue_deleteMembers(&notification->data.value);
+            UA_DataValue_deleteMembers(&del->data.value);
         } else {
             /* TODO: event implemantation */
         }
 
         /* Work around a false positive in clang analyzer */
 #ifndef __clang_analyzer__
-        UA_free(notification);
+        UA_free(del);
 #endif
-        valueDiscarded = true;
     }
 
-    if(!valueDiscarded)
-        return;
-            
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Get the element that carries the infobits */
         UA_Notification *notification = NULL;
@@ -266,13 +275,13 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = *valueEncoding;
 
-    /* Add the sample to the queue for publication */
+    /* Add the notification to the end of local and global queue */
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newNotification, listEntry);
     TAILQ_INSERT_TAIL(&sub->notificationQueue, newNotification, globalEntry);
     ++monitoredItem->queueSize;
     ++sub->notificationQueueSize;
 
-    /* Remove entries from the queue if required and add the sample to the global queue */
+    /* Remove some notifications if the queue is beyond maximum capacity */
     MonitoredItem_ensureQueueSpace(monitoredItem);
 
     return true;

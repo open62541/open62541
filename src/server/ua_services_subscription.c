@@ -70,7 +70,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            UA_CreateSubscriptionResponse *response) {
     /* Check limits for the number of subscriptions */
     if((server->config.maxSubscriptionsPerSession != 0) &&
-       (UA_Session_getNumSubscriptions(session) >= server->config.maxSubscriptionsPerSession)) {
+       (session->numPublishReq >= server->config.maxSubscriptionsPerSession)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -83,8 +83,8 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    newSubscription->subscriptionId = UA_Session_getUniqueSubscriptionId(session);
-    UA_Session_addSubscription(session, newSubscription);
+
+    UA_Session_addSubscription(session, newSubscription); /* Also assigns the subscription id */
 
     /* Set the subscription parameters */
     newSubscription->publishingEnabled = request->publishingEnabled;
@@ -389,8 +389,7 @@ static void
 Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
                             struct setMonitoringContext *smc,
                             UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
-    UA_MonitoredItem *mon =
-        UA_Subscription_getMonitoredItem(smc->sub, *monitoredItemId);
+    UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(smc->sub, *monitoredItemId);
     if(!mon) {
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
@@ -401,7 +400,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* check monitoringMode is valid or not */
+    /* Check if the MonitoringMode is valid or not */
     if(smc->monitoringMode > UA_MONITORINGMODE_REPORTING) {
         *result = UA_STATUSCODE_BADMONITORINGMODEINVALID;
         return;
@@ -458,9 +457,10 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
     smc.monitoringMode = request->monitoringMode;
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_SetMonitoringMode, &smc,
-                                           &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        UA_Server_processServiceOperations(server, session,
+                  (UA_ServiceOperation)Operation_SetMonitoringMode, &smc,
+                  &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 /* TODO: Unify with senderror in ua_server_binary.c */
@@ -479,8 +479,7 @@ subscriptionSendError(UA_SecureChannel *channel, UA_UInt32 requestHandle,
 void
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing PublishRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing PublishRequest");
 
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {
@@ -493,7 +492,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * resources for the new publish request. If the limit has been reached the
      * oldest publish request shall be responded */
     if((server->config.maxPublishReqPerSession != 0) &&
-       (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)) {
+       (session->numPublishReq >= server->config.maxPublishReqPerSession)) {
         if(!UA_Subscription_reachedPublishReqLimit(server, session)) {
             subscriptionSendError(session->header.channel, requestId,
                                   request->requestHeader.requestHandle,
@@ -502,6 +501,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         }
     }
 
+    /* Allocate the response to store it in the retransmission queue */
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)
         UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
@@ -510,12 +510,14 @@ Service_Publish(UA_Server *server, UA_Session *session,
                               UA_STATUSCODE_BADOUTOFMEMORY);
         return;
     }
-    entry->requestId = requestId;
 
-    /* Build the response */
+    /* Prepare the response */
+    entry->requestId = requestId;
     UA_PublishResponse *response = &entry->response;
     UA_PublishResponse_init(response);
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
+
+    /* Allocate the results array to acknowledge the acknowledge */
     if(request->subscriptionAcknowledgementsSize > 0) {
         response->results = (UA_StatusCode *)
             UA_Array_new(request->subscriptionAcknowledgementsSize,
@@ -542,48 +544,59 @@ Service_Publish(UA_Server *server, UA_Session *session,
             continue;
         }
         /* Remove the acked transmission from the retransmission queue */
-        response->results[i] =
-            UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
+        response->results[i] = UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
     }
 
-    /* Queue the publish response */
-    UA_Session_addPublishReq(session, entry);
+    /* Queue the publish response. It will be dequeued in a repeated publish
+     * callback. This can also be triggered right now for a late
+     * subscription. */
+    UA_Session_queuePublishReq(session, entry, false);
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message");
 
-    /* Answer immediately to a late subscription */
-    UA_Subscription *immediate;
-    UA_Boolean found = true;
-    int loopCount = 1;
+    /* If there are late subscriptions, the new publish request is used to
+     * answer them immediately. However, a single subscription that generates
+     * many notifications must not "starve" other late subscriptions. Therefore
+     * we keep track of the last subscription that got preferential treatment.
+     * We start searching for late subscriptions **after** the last one. */
 
+    UA_Subscription *immediate = NULL;
     if(session->lastSeenSubscriptionId > 0) {
-        /* If we found anything one the first loop or if there are LATE 
-         * in the list before lastSeenSubscriptionId and not LATE after 
-         * lastSeenSubscriptionId we need a second loop. */
-        loopCount = 2;
-        /* We must find the last seen subscription id  */
-        found = false;
-    }
-
-    for(int i = 0; i < loopCount; i++) {
         LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
-            if(!found) {
-                if(session->lastSeenSubscriptionId == immediate->subscriptionId) {
-                    found = true;
-                }
-            } else {
-                if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
-                    session->lastSeenSubscriptionId = immediate->subscriptionId;
-                    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                         "Subscription %u | Response on a late subscription",
-                                         immediate->subscriptionId);
-                    UA_Subscription_publishCallback(server, immediate);
-                    return;
-                }
+            if(immediate->subscriptionId == session->lastSeenSubscriptionId) {
+                immediate = LIST_NEXT(immediate, listEntry);
+                break;
             }
         }
-        /* after the first loop, we can publish the first subscription with UA_SUBSCRIPTIONSTATE_LATE */
-        found = true;
     }
+
+    /* If no entry was found, start at the beginning and don't restart  */
+    UA_Boolean found = false;
+    if(!immediate)
+        immediate = LIST_FIRST(&session->serverSubscriptions);
+    else
+        found = true;
+
+ repeat:
+    while(immediate) {
+        if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
+            session->lastSeenSubscriptionId = immediate->subscriptionId;
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Subscription %u | Response on a late subscription",
+                                 immediate->subscriptionId);
+            UA_Subscription_publish(server, immediate);
+            return;
+        }
+        immediate = LIST_NEXT(immediate, listEntry);
+    }
+
+    /* Restart at the beginning of the list */
+    if(found) {
+        immediate = LIST_FIRST(&session->serverSubscriptions);
+        found = false;
+        goto repeat;
+    }
+
+    /* No late subscription this time */
     session->lastSeenSubscriptionId = 0;
 }
 
@@ -610,9 +623,9 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_DeleteSubscription, NULL,
-                                           &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                  (UA_ServiceOperation)Operation_DeleteSubscription, NULL,
+                  &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 
     /* The session has at least one subscription */
     if(LIST_FIRST(&session->serverSubscriptions))
@@ -652,14 +665,13 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
-                                           &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+                  (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
+                  &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 void
-Service_Republish(UA_Server *server, UA_Session *session,
-                  const UA_RepublishRequest *request,
+Service_Republish(UA_Server *server, UA_Session *session, const UA_RepublishRequest *request,
                   UA_RepublishResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RepublishRequest");
 
