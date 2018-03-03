@@ -108,14 +108,18 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
     attr.dataType = UA_NODEID_NUMERIC(0, dataType);
     attr.isAbstract = isAbstract;
     attr.valueRank = valueRank;
+
     if(type) {
-        void *val = UA_alloca(type->memSize);
-        UA_init(val, type);
-        UA_Variant_setScalar(&attr.value, val, type);
+        UA_STACKARRAY(UA_Byte, tempVal, type->memSize);
+        UA_init(tempVal, type);
+        UA_Variant_setScalar(&attr.value, tempVal, type);
+        return UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
+                                             UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
+                                             UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
     }
     return UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
-                                  UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
-                                  UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
+                                         UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
+                                         UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
 }
 
 /**********************/
