@@ -66,6 +66,8 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 if(UA_ENABLE_ENCRYPTION)
     set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+    set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
 add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources})
