@@ -43,7 +43,6 @@ typedef struct UA_Notification {
 
     UA_MonitoredItem *mon;
 
-    UA_UInt32 clientHandle;
     union {
         UA_Event event;
         UA_DataValue value;
