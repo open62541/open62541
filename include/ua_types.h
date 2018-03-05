@@ -174,6 +174,9 @@ UA_STRING(char *chars) {
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
+/* Define strings at compile time (in ROM) */
+#define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
+
 /**
  * .. _datetime:
  *
