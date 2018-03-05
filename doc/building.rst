@@ -168,7 +168,7 @@ specified by the following options:
 **UA_BUILD_EXAMPLES_NODESET_COMPILER**
    Generate an OPC UA information model from a nodeset XML (experimental)
 
-**UA_BUILD_SELFIGNED_CERTIFICATE**
+**UA_BUILD_SELFSIGNED_CERTIFICATE**
    Generate a self-signed certificate for the server (openSSL required)
 
 UA_ENABLE_* group
