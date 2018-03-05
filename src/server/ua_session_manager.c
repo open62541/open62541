@@ -72,7 +72,9 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
             continue;
         UA_LOG_INFO_SESSION(sm->server->config.logger, &sentry->session,
                             "Session has timed out");
-        sm->server->config.accessControl.closeSession(&sentry->session.sessionId,
+        sm->server->config.accessControl.closeSession(sm->server,
+                                                      &sm->server->config.accessControl,
+                                                      &sentry->session.sessionId,
                                                       sentry->session.sessionHandle);
         removeSession(sm, sentry);
     }
