@@ -892,7 +892,8 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
                         const UA_NodeId *referenceTypeId, UA_NodeId *outNewNodeId) {
     /* Do not check access for server */
     if(session != &adminSession && server->config.accessControl.allowAddNode &&
-       !server->config.accessControl.allowAddNode(&session->sessionId, session->sessionHandle, item)) {
+       !server->config.accessControl.allowAddNode(server, &server->config.accessControl,
+                                                  &session->sessionId, session->sessionHandle, item)) {
         return UA_STATUSCODE_BADUSERACCESSDENIED;
     }
 
@@ -1258,7 +1259,8 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
                     const UA_DeleteNodesItem *item, UA_StatusCode *result) {
     /* Do not check access for server */
     if(session != &adminSession && server->config.accessControl.allowDeleteNode &&
-       !server->config.accessControl.allowDeleteNode(&session->sessionId, session->sessionHandle, item)) {
+       !server->config.accessControl.allowDeleteNode(server, &server->config.accessControl,
+                                                     &session->sessionId, session->sessionHandle, item)) {
         *result = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
@@ -1336,7 +1338,8 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval) {
     /* Do not check access for server */
     if(session != &adminSession && server->config.accessControl.allowAddReference &&
-       !server->config.accessControl. allowAddReference(&session->sessionId, session->sessionHandle, item)) {
+       !server->config.accessControl.allowAddReference(server, &server->config.accessControl,
+                                                       &session->sessionId, session->sessionHandle, item)) {
         *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
@@ -1435,7 +1438,8 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
                           const UA_DeleteReferencesItem *item, UA_StatusCode *retval) {
     /* Do not check access for server */
     if(session != &adminSession && server->config.accessControl.allowDeleteReference &&
-       !server->config.accessControl.allowDeleteReference(&session->sessionId, session->sessionHandle, item)) {
+       !server->config.accessControl.allowDeleteReference(server, &server->config.accessControl,
+                                                          &session->sessionId, session->sessionHandle, item)) {
         *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }

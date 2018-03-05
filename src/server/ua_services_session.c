@@ -239,8 +239,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
-        server->config.accessControl.activateSession(&session->sessionId,
-                                                     &request->userIdentityToken,
+        server->config.accessControl.activateSession(server, &server->config.accessControl,
+                                                     &session->sessionId, &request->userIdentityToken,
                                                      &session->sessionHandle);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -283,8 +283,8 @@ Service_CloseSession(UA_Server *server, UA_Session *session,
     UA_LOG_INFO_SESSION(server->config.logger, session, "CloseSession");
 
     /* Callback into userland access control */
-    server->config.accessControl.closeSession(&session->sessionId,
-                                              session->sessionHandle);
+    server->config.accessControl.closeSession(server, &server->config.accessControl,
+                                              &session->sessionId, session->sessionHandle);
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken);
