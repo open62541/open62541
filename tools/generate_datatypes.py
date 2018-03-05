@@ -491,8 +491,14 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 extern "C" {
 #endif
 
+#ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
-''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+#else
+#include "open62541.h"
+#endif
+
+''')
 
 filtered_types = iter_types(types, False)
 filtered_opaque_types = iter_types(types, True)
