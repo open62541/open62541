@@ -26,9 +26,6 @@
 #include "ua_types_generated_handling.h"
 #include "ua_client_subscriptions.h"
 
-#define ANONYMOUS_POLICY "open62541-anonymous-policy"
-#define USERNAME_POLICY "open62541-username-policy"
-
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
  * heterogeneous across the three. */
@@ -82,26 +79,17 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
     endpoint->endpointDescription.transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-    /* enable anonymous and username/password */
-    size_t policies = 2;
-    endpoint->endpointDescription.userIdentityTokens = (UA_UserTokenPolicy *)
-        UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(!endpoint->endpointDescription.userIdentityTokens)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    endpoint->endpointDescription.userIdentityTokensSize = policies;
-
-    endpoint->endpointDescription.userIdentityTokens[0].tokenType =
-        UA_USERTOKENTYPE_ANONYMOUS;
-    endpoint->endpointDescription.userIdentityTokens[0].policyId =
-        UA_STRING_ALLOC(ANONYMOUS_POLICY);
-
-    endpoint->endpointDescription.userIdentityTokens[1].tokenType =
-        UA_USERTOKENTYPE_USERNAME;
-    endpoint->endpointDescription.userIdentityTokens[1].policyId =
-        UA_STRING_ALLOC(USERNAME_POLICY);
+    /* Enable all login mechanisms from the access control plugin  */
+    UA_StatusCode retval = UA_Array_copy(conf->accessControl.userTokenPolicies, 
+                                         conf->accessControl.userTokenPoliciesSize,
+                                         (void**)&endpoint->endpointDescription.userIdentityTokens,
+                                         &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    endpoint->endpointDescription.userIdentityTokensSize = 
+        conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
-
     UA_ApplicationDescription_copy(&conf->applicationDescription,
                                    &endpoint->endpointDescription.server);
 
@@ -127,8 +115,8 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
     UA_StatusCode retval =
-        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, &conf->certificateVerification, localCertificate,
-                                        localPrivateKey, conf->logger);
+        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, &conf->certificateVerification,
+                                        localCertificate, localPrivateKey, conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);
         return retval;
@@ -140,26 +128,17 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
     endpoint->endpointDescription.transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-    /* enable anonymous and username/password */
-    size_t policies = 1;
-    endpoint->endpointDescription.userIdentityTokens = (UA_UserTokenPolicy *)
-        UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(!endpoint->endpointDescription.userIdentityTokens)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    endpoint->endpointDescription.userIdentityTokensSize = policies;
-
-    endpoint->endpointDescription.userIdentityTokens[0].tokenType =
-        UA_USERTOKENTYPE_ANONYMOUS;
-    endpoint->endpointDescription.userIdentityTokens[0].policyId =
-        UA_STRING_ALLOC(ANONYMOUS_POLICY);
-    /*
-    endpoint->endpointDescription.userIdentityTokens[1].tokenType =
-        UA_USERTOKENTYPE_USERNAME;
-    endpoint->endpointDescription.userIdentityTokens[1].policyId =
-        UA_STRING_ALLOC(USERNAME_POLICY);*/
+    /* Enable all login mechanisms from the access control plugin  */
+    retval = UA_Array_copy(conf->accessControl.userTokenPolicies, 
+                           conf->accessControl.userTokenPoliciesSize,
+                           (void**)&endpoint->endpointDescription.userIdentityTokens,
+                           &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    endpoint->endpointDescription.userIdentityTokensSize = 
+        conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
-
     UA_ApplicationDescription_copy(&conf->applicationDescription,
                                    &endpoint->endpointDescription.server);
 
@@ -167,6 +146,11 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
 }
 
 #endif
+
+const size_t usernamePasswordsSize = 2;
+UA_UsernamePasswordLogin usernamePasswords[2] = {
+    { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
+    { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
 
 static UA_ServerConfig *
 createDefaultConfig(void) {
@@ -227,19 +211,8 @@ createDefaultConfig(void) {
     conf->nodeLifecycle.constructor = NULL;
     conf->nodeLifecycle.destructor = NULL;
 
-    /* Access Control */
-    conf->accessControl.enableAnonymousLogin = true;
-    conf->accessControl.enableUsernamePasswordLogin = true;
-    conf->accessControl.activateSession = activateSession_default;
-    conf->accessControl.closeSession = closeSession_default;
-    conf->accessControl.getUserRightsMask = getUserRightsMask_default;
-    conf->accessControl.getUserAccessLevel = getUserAccessLevel_default;
-    conf->accessControl.getUserExecutable = getUserExecutable_default;
-    conf->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_default;
-    conf->accessControl.allowAddNode = allowAddNode_default;
-    conf->accessControl.allowAddReference = allowAddReference_default;
-    conf->accessControl.allowDeleteNode = allowDeleteNode_default;
-    conf->accessControl.allowDeleteReference = allowDeleteReference_default;
+    /* Access Control. Anonymous Login only. */
+    conf->accessControl = UA_AccessControl_default(true, usernamePasswordsSize, usernamePasswords);
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
@@ -443,6 +416,9 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
 
     /* Certificate Validation */
     config->certificateVerification.deleteMembers(&config->certificateVerification);
+
+    /* Access Control */
+    config->accessControl.deleteMembers(&config->accessControl);
 
     UA_free(config);
 }
