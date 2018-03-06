@@ -9,8 +9,9 @@ fi
 git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/open62541/open62541-www
 cd open62541-www
 
-rm -r -f ./doc/current/* || true # ignore result
-cp -r ../../doc/* ./doc/current/
+rm -r -f ./doc/0.3 || true # ignore result
+mkdir ./doc/0.3 || true # ignore result
+cp -r ../../doc/* ./doc/0.3/
 cp -r ../../doc_latex/open62541.pdf ./doc/open62541-current.pdf
 git add -A ./doc
 git config --global user.email "open62541-travis-ci@users.noreply.github.com"
