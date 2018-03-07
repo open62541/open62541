@@ -131,7 +131,7 @@ encodeWithExchangeBuffer(const void *ptr, encodeBinarySignature encodeFunc, Ctx 
 
 #if !UA_BINARY_OVERLAYABLE_INTEGER
 
-#pragma message Integer endianness could not be detected to be little endian. Use slow generic encoding.
+#pragma message "Integer endianness could not be detected to be little endian. Use slow generic encoding."
 
 /* These en/decoding functions are only used when the architecture isn't little-endian. */
 static void
