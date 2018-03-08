@@ -88,7 +88,7 @@ struct UA_MonitoredItem {
     // TODO: dataEncoding is hardcoded to UA binary
     union {
         UA_EventFilter eventFilter;
-        UA_DataChangeTrigger trigger;
+        UA_DataChangeFilter dataChangeFilter;
     } filter;
     UA_Variant lastValue;
 

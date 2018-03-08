@@ -164,11 +164,9 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 
     /* Filter */
     if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED) {
-        UA_DataChangeFilter_init(&(mon->filter));
-        mon->filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
-    } else if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERINVALID;
-    } else {
+        UA_DataChangeFilter_init(&(mon->filter.dataChangeFilter));
+        mon->filter.dataChangeFilter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+    } else if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
         UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
         // TODO implement EURange to support UA_DEADBANDTYPE_PERCENT
         if (filter->deadbandType == UA_DEADBANDTYPE_PERCENT) {
@@ -181,7 +179,11 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
         if (!isDataTypeNumeric(mon->lastValue.type)) {
             return UA_STATUSCODE_BADFILTERNOTALLOWED;
         }
-        UA_DataChangeFilter_copy(filter, &(mon->filter));
+        UA_DataChangeFilter_copy(filter, &(mon->filter.dataChangeFilter));
+    } else if (params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTER]) {
+        UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data, &(mon->filter.eventFilter));
+    } else {
+        return UA_STATUSCODE_BADMONITOREDITEMFILTERINVALID;
     }
 
     UA_MonitoredItem_unregisterSampleCallback(server, mon);

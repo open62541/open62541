@@ -287,10 +287,10 @@ detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataVal
     }
 
     if(isDataTypeNumeric(value->value.type) &&
-       (mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
-        mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
-        if(mon->filter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
-            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue, mon->filter.deadbandValue))
+       (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+        mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
+        if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
+            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue, mon->filter.dataChangeFilter.deadbandValue))
                 return false;
         }
         /* else if (mon->filter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
@@ -370,12 +370,12 @@ static UA_Boolean
 detectValueChange(UA_Server *server, UA_MonitoredItem *mon,
                   UA_DataValue value, UA_ByteString *encoding) {
     /* Apply Filter */
-    if(mon->filter.trigger == UA_DATACHANGETRIGGER_STATUS)
+    if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS)
         value.hasValue = false;
 
     value.hasServerTimestamp = false;
     value.hasServerPicoseconds = false;
-    if(mon->filter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+    if(mon->filter.dataChangeFilter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
         value.hasSourceTimestamp = false;
         value.hasSourcePicoseconds = false;
     }
