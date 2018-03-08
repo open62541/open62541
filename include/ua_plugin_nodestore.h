@@ -242,22 +242,9 @@ typedef struct {
 
 /** Attributes for nodes which are capable of generating events */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-/* linked list of monitoredItems */
-    typedef struct UA_MonitoredItemQueueEntry {
-        struct {
-            struct UA_MonitoredItemQueueEntry *sle_next;	/* next element */
-        } next;
-        struct UA_MonitoredItem *mon;
-    } UA_MonitoredItemQueueEntry;
-
-    typedef struct UA_MonitoredItemQueue {
-        struct UA_MonitoredItemQueueEntry *slh_first;	/* first element */
-    } UA_MonitoredItemQueue;
-
-
 /* Store active monitoredItems on this node */
-#define UA_EVENT_ATTRIBUTES                                         \
-    UA_MonitoredItemQueue monitoredItemQueue;
+# define UA_EVENT_ATTRIBUTES                                         \
+    struct UA_MonitoredItem *monitoredItemQueue;
 #endif
 
 /**

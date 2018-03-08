@@ -54,7 +54,7 @@ static UA_StatusCode addNewEventType(UA_Server *server) {
  */
 static UA_StatusCode setUpEvent(UA_Server *server, UA_NodeId *outId) {
     UA_StatusCode retval;
-    retval = UA_Server_createEvent(server, eventType, outId, NULL);
+    retval = UA_Server_createEvent(server, eventType, outId);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                        "createEvent failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -107,9 +107,8 @@ static UA_StatusCode setUpEvent(UA_Server *server, UA_NodeId *outId) {
  * ^^^^^^^^^^^^^^^^^^^^
  * First a node representing an event is generated using ``setUpEvent``. Once our event is good to go, we specify
  * a node which emits the event - in this case the server node. We can use ``UA_Server_triggerEvent`` to trigger our
- * event onto said node. Note that once ``UA_Sever_triggerEvent`` has been called, the node representation of the event
- * is deleted.
- */
+ * event onto said node. Passing ``NULL`` as the second-last argument means we will not receive the `EventId`.
+ * The last boolean argument states whether the node should be deleted. */
 static UA_StatusCode
 generateEventMethodCallback(UA_Server *server,
                          const UA_NodeId *sessionId, void *sessionHandle,
@@ -126,14 +125,13 @@ generateEventMethodCallback(UA_Server *server,
         return retval;
     }
 
-    retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
                        "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Generate Event was called.");
     return retval;
 }
 

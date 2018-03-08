@@ -25,7 +25,8 @@ void UA_Notification_delete(UA_Notification *n) {
     if(n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         UA_DataValue_deleteMembers(&n->data.value);
     } else if (n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-        UA_Array_delete(&n->data.event.fields, n->data.event.fields.eventFieldsSize, &UA_TYPES[UA_TYPES_EVENTFIELDLIST]);
+        UA_Array_delete(n->data.event.fields.eventFields, n->data.event.fields.eventFieldsSize,
+                        &UA_TYPES[UA_TYPES_VARIANT]);
     }
     UA_free(n);
 }
@@ -152,8 +153,8 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
 /* EventChange: Iterate over the monitoredItems of the subscription, starting at mon, and
  *              move notifications into the response. */
 static void
-moveNotificationsFromEvents(UA_Server *server, UA_Subscription *sub, UA_EventFieldList *efls,
-                            size_t eflsSize) {
+Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *sub, UA_EventFieldList *efls,
+                                           size_t eflsSize) {
     UA_StatusCode retval;
     size_t pos = 0;
     UA_Notification *notification, *notification_tmp;
@@ -198,8 +199,8 @@ moveNotificationsFromEvents(UA_Server *server, UA_Subscription *sub, UA_EventFie
 /* DataChange: Iterate over the monitoreditems of the subscription, starting at mon, and
  *             move notifications into the response. */
 static void
-moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotification *mins,
-                                    size_t minsSize) {
+DataChange_moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotification *mins,
+                                               size_t minsSize) {
     size_t pos = 0;
     UA_Notification *notification, *notification_tmp;
     TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
@@ -257,7 +258,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub, UA_Notificat
         dcn->monitoredItemsSize = notifications;
 
         /* Move notifications into the response .. the point of no return */
-        moveNotificationsFromMonitoredItems(sub, dcn->monitoredItems, notifications);
+        DataChange_moveNotificationsFromMonitoredItems(sub, dcn->monitoredItems, notifications);
     }
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     else if (LIST_FIRST(&sub->monitoredItems)->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
@@ -281,7 +282,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub, UA_Notificat
         enl->eventsSize = notifications;
 
         /* Move the list into the response .. the point of no return */
-        moveNotificationsFromEvents(server, sub, enl->events, notifications);
+        Events_moveNotificationsFromMonitoredItems(server, sub, enl->events, notifications);
     }
 #endif
     else {

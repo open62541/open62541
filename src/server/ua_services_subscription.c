@@ -235,7 +235,10 @@ static const UA_String binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 static UA_StatusCode UA_Server_addMonitoredItemToNodeEditNodeCallback(UA_Server *server, UA_Session *session,
                                                                       UA_Node *node, void *data) {
-    SLIST_INSERT_HEAD(&((UA_ObjectNode *)node)->monitoredItemQueue, (UA_MonitoredItemQueueEntry *)data, next);
+    /* data is the MonitoredItem */
+    /* SLIST_INSERT_HEAD */
+    ((UA_MonitoredItem *)data)->next = ((UA_ObjectNode *)node)->monitoredItemQueue;
+    ((UA_ObjectNode *)node)->monitoredItemQueue = (UA_MonitoredItem *)data;
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -332,14 +335,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         if (newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         /* insert the monitored item into the node's queue */
-        UA_MonitoredItemQueueEntry *entry = (UA_MonitoredItemQueueEntry *) UA_malloc(sizeof(UA_MonitoredItemQueueEntry));
-        if (!entry) {
-            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-            return;
-        }
-        entry->mon = newMon;
         UA_Server_editNode(server, NULL, &newMon->monitoredNodeId, UA_Server_addMonitoredItemToNodeEditNodeCallback,
-                           entry);
+                           newMon);
     }
 #endif
     } else {

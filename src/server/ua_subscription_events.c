@@ -73,8 +73,8 @@ static UA_StatusCode findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_
 
 /* Searches for an attribute of an event with the name 'name' and the depth from the event relativePathSize.
  * Returns the browsePathResult of searching for that node */
-static void UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t relativePathSize, UA_NodeId *event,
-                                      UA_BrowsePathResult *out) {
+static void UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t relativePathSize,
+                                      const UA_NodeId *event, UA_BrowsePathResult *out) {
     /* get a list with all subtypes of aggregates */
     struct getNodesHandle handle;
     Events_nodeList list;
@@ -117,8 +117,7 @@ static void UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name,
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
-                      UA_NodeId *outNodeId, UA_ByteString *outEventId) {
+UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
     if (!outNodeId) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -134,18 +133,9 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* set the eventId attribute */
-    UA_ByteString eventId;
-    UA_ByteString_init(&eventId);
-    retval = UA_Event_generateEventId(server, &eventId);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_delete(&eventId);
-        return retval;
-    }
-
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName.locale = UA_STRING_NULL;
-    oAttr.displayName.text = eventId;
+    oAttr.displayName.text = UA_STRING_NULL;
     oAttr.description.locale = UA_STRING_NULL;
     oAttr.description.text = UA_STRING_NULL;
 
@@ -168,43 +158,26 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                      "Adding event failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
-
-    /* find the eventId VariableNode */
+    /* find the eventType variableNode */
+    name = UA_QUALIFIEDNAME(0, "EventType");
     UA_BrowsePathResult bpr;
     UA_BrowsePathResult_init(&bpr);
-    UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventId");
-    UA_Event_findVariableNode(server, &findName, 1, outNodeId, &bpr);
-    if (bpr.statusCode != UA_STATUSCODE_GOOD) {
-        return bpr.statusCode;
-    }
-
-    UA_Variant value;
-    UA_Variant_init(&value);
-    UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-
-    UA_BrowsePathResult_deleteMembers(&bpr);
-
-    /* find the eventType variableNode */
-    findName = UA_QUALIFIEDNAME(0, "EventType");
-    UA_Event_findVariableNode(server, &findName, 1, outNodeId, &bpr);
+    UA_Event_findVariableNode(server, &name, 1, outNodeId, &bpr);
     if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         return bpr.statusCode;
     }
+    UA_Variant value;
+    UA_Variant_init(&value);
     UA_Variant_setScalarCopy(&value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_Variant_deleteMembers(&value);
-    if (outEventId) {
-        UA_ByteString_copy(&eventId, outEventId);
-    }
-    UA_ByteString_deleteMembers(&eventId);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     /* the object is not put in any queues until it is triggered */
     return retval;
 }
 
-static UA_Boolean isValidEvent(UA_Server *server, UA_NodeId *validEventParent, UA_NodeId *eventId) {
+static UA_Boolean isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_NodeId *eventId) {
     /* find the eventType variableNode */
     UA_BrowsePathResult bpr;
     UA_BrowsePathResult_init(&bpr);
@@ -235,7 +208,7 @@ static UA_StatusCode whereClausesApply(UA_Server *server, const UA_ContentFilter
 }
 
 /* filters the given event with the given filter and writes the results into a notification */
-static UA_StatusCode UA_Server_filterEvent(UA_Server *server, UA_NodeId *eventNode, UA_EventFilter *filter,
+static UA_StatusCode UA_Server_filterEvent(UA_Server *server, const UA_NodeId *eventNode, UA_EventFilter *filter,
                                            UA_EventNotification *notification) {
     if (filter->selectClausesSize == 0) {
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
@@ -314,7 +287,8 @@ static UA_StatusCode UA_Server_filterEvent(UA_Server *server, UA_NodeId *eventNo
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode eventSetConstants(UA_Server *server, UA_NodeId *event, const UA_NodeId *origin) {
+static UA_StatusCode eventSetConstants(UA_Server *server, const UA_NodeId *event, const UA_NodeId *origin,
+                                       UA_ByteString *outEventId) {
     UA_BrowsePathResult bpr;
     UA_BrowsePathResult_init(&bpr);
     /* set the source */
@@ -328,8 +302,8 @@ static UA_StatusCode eventSetConstants(UA_Server *server, UA_NodeId *event, cons
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalarCopy(&value, origin, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_deleteMembers(&value);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    UA_Variant_deleteMembers(&value);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     /* set the receive time */
@@ -343,8 +317,32 @@ static UA_StatusCode eventSetConstants(UA_Server *server, UA_NodeId *event, cons
     UA_DateTime time = UA_DateTime_now();
     UA_Variant_setScalar(&value, &time, &UA_TYPES[UA_TYPES_DATETIME]);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-
     UA_BrowsePathResult_deleteMembers(&bpr);
+
+    /* set the eventId attribute */
+    UA_ByteString eventId;
+    UA_ByteString_init(&eventId);
+    UA_StatusCode retval = UA_Event_generateEventId(server, &eventId);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_deleteMembers(&eventId);
+        return retval;
+    }
+    if (outEventId) {
+        UA_ByteString_copy(&eventId, outEventId);
+    }
+    name = UA_QUALIFIEDNAME(0, "EventId");
+    UA_Event_findVariableNode(server, &name, 1, event, &bpr);
+    if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+        UA_StatusCode tmp = bpr.statusCode;
+        UA_BrowsePathResult_deleteMembers(&bpr);
+        return tmp;
+    }
+    UA_Variant_init(&value);
+    UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    UA_ByteString_deleteMembers(&eventId);
+    UA_BrowsePathResult_deleteMembers(&bpr);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -375,7 +373,8 @@ static UA_StatusCode getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boole
 }
 
 /* filters an event according to the filter specified by mon and then adds it to mons notification queue */
-static UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, UA_NodeId *event, UA_MonitoredItem *mon) {
+static UA_StatusCode
+UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon) {
     UA_Notification *notification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
     if (!notification) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -399,7 +398,8 @@ static UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, UA_Node
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const UA_NodeId origin) {
+UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
+                       UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
     /* make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
     UA_NodeId objectsFolderId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId references[2] = {
@@ -411,7 +411,7 @@ UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const UA_NodeId orig
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = eventSetConstants(server, event, &origin);
+    UA_StatusCode retval = eventSetConstants(server, &eventNodeId, &origin, outEventId);
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
@@ -430,10 +430,10 @@ UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const UA_NodeId orig
     /* add the event to each node's monitored items */
     Events_nodeListElement *parentIter, *tmp_parentIter;
     LIST_FOREACH_SAFE(parentIter, &parentList, listEntry, tmp_parentIter) {
-        UA_MonitoredItemQueueEntry *monIter;
         const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, parentIter->node);
-        SLIST_FOREACH(monIter, &node->monitoredItemQueue, next) {
-            retval = UA_Event_addEventToMonitoredItem(server, event, monIter->mon);
+        /* SLIST_FOREACH */
+        for (UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
+            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
             if (retval != UA_STATUSCODE_GOOD) {
                 UA_Nodestore_release(server, (const UA_Node *) node);
                 return retval;
@@ -446,13 +446,17 @@ UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const UA_NodeId orig
     }
 
     /* delete the node representation of the event */
-    retval = UA_Server_deleteNode(server, *event, UA_TRUE);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Attempt to remove event using deleteNode failed. StatusCode %s", UA_StatusCode_name(retval));
-        return retval;
+    if (deleteEventNode) {
+        retval = UA_Server_deleteNode(server, eventNodeId, UA_TRUE);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(server->config.logger,
+                           UA_LOGCATEGORY_SERVER,
+                           "Attempt to remove event using deleteNode failed. StatusCode %s",
+                           UA_StatusCode_name(retval));
+            return retval;
+        }
     }
     return UA_STATUSCODE_GOOD;
 }
 
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */

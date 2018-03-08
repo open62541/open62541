@@ -27,16 +27,26 @@ void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
 static UA_StatusCode removeMonitoredItemFromNodeCallback(UA_Server *server, UA_Session *session, UA_Node *node,
                                                          void *data) {
     /* data is the monitoredItemID */
-    UA_MonitoredItemQueueEntry *entry, *tmp_entry;
-    SLIST_FOREACH_SAFE(entry, &((UA_ObjectNode *) node)->monitoredItemQueue, next, tmp_entry) {
-        if (entry->mon->monitoredItemId == *(UA_UInt32 *)data) {
-            SLIST_REMOVE(&((UA_ObjectNode *) node)->monitoredItemQueue, entry, UA_MonitoredItemQueueEntry, next);
+    /* catch edge case that it's the first element */
+    if (data == ((UA_ObjectNode *) node)->monitoredItemQueue) {
+        ((UA_ObjectNode *)node)->monitoredItemQueue = ((UA_MonitoredItem *)data)->next;
+        return UA_STATUSCODE_GOOD;
+    }
+    /* SLIST_FOREACH */
+    for (UA_MonitoredItem *entry = ((UA_ObjectNode *) node)->monitoredItemQueue->next;
+         entry != NULL; entry=entry->next) {
+        if (entry == (UA_MonitoredItem *)data) {
+            /* SLIST_REMOVE */
+            UA_MonitoredItem *iter = ((UA_ObjectNode *) node)->monitoredItemQueue;
+            for (; iter->next != entry; iter=iter->next) {}
+            iter->next = entry->next;
             UA_free(entry);
+            break;
         }
     }
     return UA_STATUSCODE_GOOD;
 }
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
@@ -72,11 +82,11 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if (monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         /* Remove the monitored item from the node queue */
         UA_Server_editNode(server, NULL, &monitoredItem->monitoredNodeId, removeMonitoredItemFromNodeCallback,
-                           &monitoredItem->monitoredItemId);
+                           monitoredItem);
         /* Delete the event filter */
         UA_EventFilter_deleteMembers(&monitoredItem->filter.eventFilter);
     }
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     /* Remove the monitored item */
     UA_String_deleteMembers(&monitoredItem->indexRange);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
@@ -136,7 +146,7 @@ UA_StatusCode MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem
 #else
         --mon->queueSize;
         --sub->notificationQueueSize;
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
         /* Free the notification */
         if (mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
@@ -176,7 +186,7 @@ UA_StatusCode MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem
                 TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry);
                 TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
             }
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
         }
         UA_Notification_delete(del);
     }

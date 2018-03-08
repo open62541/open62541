@@ -100,6 +100,9 @@ struct UA_MonitoredItem {
     /* Notification Queue */
     NotificationQueue queue;
     UA_UInt32 queueSize;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_MonitoredItem *next;
+#endif
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);
