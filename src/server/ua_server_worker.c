@@ -16,6 +16,11 @@
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
+
+#ifdef UA_ENABLE_EVENTS
+    #include "ua_subscription_events.h"
+#endif
+
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
 #include <valgrind/memcheck.h>
 #endif
@@ -345,6 +350,18 @@ UA_Server_run_startup(UA_Server *server) {
         startMulticastDiscoveryServer(server);
 #endif
 
+    /* create the OverFlowEventType */
+#ifdef UA_ENABLE_EVENTS
+    UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
+    overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
+    overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
+    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
+                                overflowAttr, NULL, NULL);
+#endif
+
     return result;
 }
 
@@ -393,6 +410,10 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
+#endif
+
+#ifdef UA_DEBUG_EVENTS
+    UA_Event_generateExampleEvent(server);
 #endif
 
     now = UA_DateTime_nowMonotonic();

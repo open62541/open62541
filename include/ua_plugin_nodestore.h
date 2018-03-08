@@ -22,6 +22,13 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
+#ifdef UA_ENABLE_EVENTS
+#include <queue.h>
+/* forward declaration */
+struct UA_MonitoredItem;
+#endif
+
+#include "ua_types.h"
 
 /**
  * .. _information-modelling:
@@ -233,6 +240,22 @@ typedef struct {
     UA_MethodCallback method;
 } UA_MethodNode;
 
+
+/** Attributes for nodes which are capable of generating events */
+#ifdef UA_ENABLE_EVENTS
+/* linked list of monitoredItems */
+    typedef struct UA_MonitoredItemQueueEntry {
+        LIST_ENTRY(UA_MonitoredItemQueueEntry) listEntry;
+        struct UA_MonitoredItem *mon;
+    } UA_MonitoredItemQueueEntry;
+
+    typedef LIST_HEAD(UA_MonitoredItemQueue, UA_MonitoredItemQueueEntry) UA_MonitoredItemQueue;
+
+#define UA_EVENT_ATTRIBUTES                                         \
+/* Store active monitoredItems on this node */                      \
+    UA_MonitoredItemQueue monitoredItemQueue;
+#endif
+
 /**
  * ObjectNode
  * ----------
@@ -244,6 +267,9 @@ typedef struct {
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
+#ifdef UA_ENABLE_EVENTS
+    UA_EVENT_ATTRIBUTES
+#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 
