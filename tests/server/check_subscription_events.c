@@ -26,8 +26,9 @@ UA_Client *client;
 static UA_UInt32 subscriptionId;
 static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
-static size_t nSelectClauses = 1;
+static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
+static UA_SimpleAttributeOperand *selectClauses;
 
 UA_Double publishingInterval = 500.0;
 
@@ -45,40 +46,74 @@ static void addNewEventType(void) {
     UA_LocalizedText_deleteMembers(&attr.description);
 }
 
-static UA_SimpleAttributeOperand *setupSelectClauses(void) {
-    // only creating 1 selectClause for now, if more things are to be checked it can be changed easily
-    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand *)
-            UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+static void setupSelectClauses(void) {
+    // check for severity (set manually), message (set manually), eventType (automatic) and sourceNode (automatic)
+    selectClauses = (UA_SimpleAttributeOperand *)
+                     UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     if (!selectClauses)
-        return NULL;
+        return;
 
     for (size_t i = 0; i < nSelectClauses; ++i) {
         UA_SimpleAttributeOperand_init(&selectClauses[i]);
+        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].browsePathSize = 1;
+        selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
+        selectClauses[i].browsePath = (UA_QualifiedName *)
+                       UA_Array_new(selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        if (!selectClauses[i].browsePathSize) {
+            UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+        }
     }
 
-    selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    selectClauses[0].browsePathSize = 1;
-    selectClauses[0].browsePath = (UA_QualifiedName *)
-            UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if (!selectClauses[0].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
     selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
-
-    return selectClauses;
+    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+    selectClauses[2].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "EventType");
+    selectClauses[3].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "SourceNode");
 }
 
 static void
 handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                       UA_UInt32 monId, void *monContext,
                       size_t nEventFields, UA_Variant *eventFields) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Event was found");
+    UA_Boolean foundSeverity = UA_FALSE;
+    UA_Boolean foundMessage = UA_FALSE;
+    UA_Boolean foundType = UA_FALSE;
+    UA_Boolean foundSource = UA_FALSE;
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    ck_assert_uint_eq(nEventFields, 1);
-    ck_assert(UA_Variant_hasScalarType(&eventFields[0], &UA_TYPES[UA_TYPES_UINT16]));
-    ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[0].data)), 1000);
+    ck_assert_uint_eq(nEventFields, nSelectClauses);
+    // check all event fields
+    for (unsigned int i = 0; i < nEventFields; i++) {
+        // find out which attribute of the event is being looked at
+        if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
+            // Severity
+            ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[i].data)), 1000);
+            foundSeverity = UA_TRUE;
+        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+            // Message
+            UA_LocalizedText comp = UA_LOCALIZEDTEXT("en-US", "Generated Event");
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->locale, &comp.locale));
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->text, &comp.text));
+            foundMessage = UA_TRUE;
+        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
+            // either SourceNode or EventType
+            UA_NodeId serverId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+            if (UA_NodeId_equal((UA_NodeId *)eventFields[i].data, &eventType)) {
+                // EventType
+                foundType = UA_TRUE;
+            } else if (UA_NodeId_equal((UA_NodeId *)eventFields[i].data, &serverId)) {
+                // SourceNode
+                foundSource = UA_TRUE;
+            } else {
+                ck_assert_msg(UA_FALSE, "NodeId doesn't match");
+            }
+        } else {
+            ck_assert_msg(UA_FALSE, "Field doesn't match");
+        }
+    }
+    ck_assert_uint_eq(foundMessage, UA_TRUE);
+    ck_assert_uint_eq(foundSeverity, UA_TRUE);
+    ck_assert_uint_eq(foundType, UA_TRUE);
+    ck_assert_uint_eq(foundSource, UA_TRUE);
     notificationReceived = true;
 }
 
@@ -121,6 +156,7 @@ static void setup(void) {
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     addNewEventType();
+    setupSelectClauses();
     THREAD_CREATE(server_thread, serverloop);
 
     client = UA_Client_new(UA_ClientConfig_default);
@@ -137,7 +173,7 @@ static void teardown(void) {
     UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-//    UA_Array_delete(ptr_filter, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -167,6 +203,14 @@ static UA_StatusCode eventSetup(UA_NodeId *eventNodeId) {
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
+    //add a message to the event
+    rpe.targetName = UA_QUALIFIEDNAME(0, "Message");
+    bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    UA_BrowsePathResult_deleteMembers(&bpr);
+
     return retval;
 }
 
@@ -179,7 +223,7 @@ static UA_MonitoredItemCreateResult addMonitoredItem(UA_Client_EventNotification
 
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    filter.selectClauses = setupSelectClauses();
+    filter.selectClauses = selectClauses;
     filter.selectClausesSize = nSelectClauses;
 
     item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -232,6 +276,52 @@ START_TEST(generateEvents)
     }
 END_TEST
 
+static void
+handler_events_propagate(UA_Client *lclient, UA_UInt32 subId, void *subContext,
+                         UA_UInt32 monId, void *monContext,
+                         size_t nEventFields, UA_Variant *eventFields) {
+    UA_Boolean foundSeverity = UA_FALSE;
+    UA_Boolean foundMessage = UA_FALSE;
+    UA_Boolean foundType = UA_FALSE;
+    UA_Boolean foundSource = UA_FALSE;
+    ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
+    ck_assert_uint_eq(nEventFields, nSelectClauses);
+    // check all event fields
+    for (unsigned int i = 0; i < nEventFields; i++) {
+        // find out which attribute of the event is being looked at
+        if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
+            // Severity
+            ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[i].data)), 1000);
+            foundSeverity = UA_TRUE;
+        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+            // Message
+            UA_LocalizedText comp = UA_LOCALIZEDTEXT("en-US", "Generated Event");
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->locale, &comp.locale));
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->text, &comp.text));
+            foundMessage = UA_TRUE;
+        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
+            // either SourceNode or EventType
+            UA_NodeId serverNameSpaceId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES);
+            if (UA_NodeId_equal((UA_NodeId *)eventFields[i].data, &eventType)) {
+                // EventType
+                foundType = UA_TRUE;
+            } else if (UA_NodeId_equal((UA_NodeId *)eventFields[i].data, &serverNameSpaceId)) {
+                // SourceNode
+                foundSource = UA_TRUE;
+            } else {
+                ck_assert_msg(UA_FALSE, "NodeId doesn't match");
+            }
+        } else {
+            ck_assert_msg(UA_FALSE, "Field doesn't match");
+        }
+    }
+    ck_assert_uint_eq(foundMessage, UA_TRUE);
+    ck_assert_uint_eq(foundSeverity, UA_TRUE);
+    ck_assert_uint_eq(foundType, UA_TRUE);
+    ck_assert_uint_eq(foundSource, UA_TRUE);
+    notificationReceived = true;
+}
+
 START_TEST(uppropagation) {
         // trigger first event
         UA_NodeId eventNodeId;
@@ -239,7 +329,7 @@ START_TEST(uppropagation) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         //add a monitored item
-        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple);
+        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate);
         ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
         // trigger the event on a child of server, using namespaces in this case (no reason in particular)
         retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), NULL,
@@ -268,7 +358,6 @@ START_TEST(uppropagation) {
         ck_assert_uint_eq(deleteResponse.resultsSize, 1);
 
         UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
-    return;
 }
 END_TEST
 
