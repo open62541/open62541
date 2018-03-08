@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <ua_log_stdout.h>
-#include <server/ua_subscription_events.h>
 #include "ua_client_subscriptions.h"
 #include "ua_server.h"
 #include "server/ua_services.h"
@@ -273,6 +272,7 @@ START_TEST(uppropagation) {
 }
 END_TEST
 
+/*
 static void
 handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                         UA_UInt32 monId, void *monContext,
@@ -326,9 +326,9 @@ START_TEST(eventOverflow)
         ck_assert_uint_eq(deleteResponse.resultsSize, 1);
 
         UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
-        return;
     }
 END_TEST
+*/
 
 #endif // UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
@@ -340,7 +340,7 @@ static Suite *testSuite_Client(void) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     tcase_add_test(tc_server, generateEvents);
     tcase_add_test(tc_server, uppropagation);
-    tcase_add_test(tc_server, eventOverflow);
+//    tcase_add_test(tc_server, eventOverflow);
 #endif // UA_ENABLE_SUBSCRIPTIONS_EVENTS
     suite_add_tcase(s, tc_server);
 
