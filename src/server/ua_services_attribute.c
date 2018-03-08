@@ -32,7 +32,8 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
     if(session == &adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
     return node->writeMask &
-        server->config.accessControl.getUserRightsMask(&session->sessionId, session->sessionHandle,
+        server->config.accessControl.getUserRightsMask(server, &server->config.accessControl,
+                                                       &session->sessionId, session->sessionHandle,
                                                        &node->nodeId, node->context);
 }
 
@@ -50,7 +51,8 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
     if(session == &adminSession)
         return 0xFF; /* the local admin user has all rights */
     return node->accessLevel &
-        server->config.accessControl.getUserAccessLevel(&session->sessionId, session->sessionHandle,
+        server->config.accessControl.getUserAccessLevel(server, &server->config.accessControl,
+                                                        &session->sessionId, session->sessionHandle,
                                                         &node->nodeId, node->context);
 }
 
@@ -60,7 +62,8 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
     if(session == &adminSession)
         return true; /* the local admin user has all rights */
     return node->executable &
-        server->config.accessControl.getUserExecutable(&session->sessionId, session->sessionHandle,
+        server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
+                                                       &session->sessionId, session->sessionHandle,
                                                        &node->nodeId, node->context);
 }
 
@@ -1302,7 +1305,9 @@ UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession, &value->nodeId,
-                  (UA_EditNodeCallback)copyAttributeIntoNode, value);
+                  (UA_EditNodeCallback)copyAttributeIntoNode,
+                   /* casting away const qualifier because callback uses const anyway */
+                   (UA_WriteValue *)(uintptr_t)value);
     return retval;
 }
 
