@@ -720,7 +720,7 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
             if (client->config.subscriptionInactivityCallback)
                 client->config.subscriptionInactivityCallback(client, sub->subscriptionId, sub->context);
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Inactivity for Subscription %d.", sub->subscriptionId);
+                         "Inactivity for Subscription %u.", sub->subscriptionId);
         }
     }
 }
