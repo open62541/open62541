@@ -27,6 +27,7 @@ static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
+static UA_Boolean overflowNotificationReceived;
 static UA_SimpleAttributeOperand *selectClauses;
 
 UA_Double publishingInterval = 500.0;
@@ -361,18 +362,21 @@ START_TEST(uppropagation) {
 }
 END_TEST
 
-/*
 static void
 handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                         UA_UInt32 monId, void *monContext,
                         size_t nEventFields, UA_Variant *eventFields) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Event overflow was found");
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    ck_assert_uint_eq(nEventFields, 1);
-    ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-    UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
-    ck_assert((UA_NodeId_equal((UA_NodeId *)eventFields->data, &comp)));
-    notificationReceived = true;
+    if (nEventFields == 1) {
+        /* overflow was received */
+        ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
+        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        ck_assert((UA_NodeId_equal((UA_NodeId *)eventFields->data, &comp)));
+        overflowNotificationReceived = UA_TRUE;
+    } else if (nEventFields == 4) {
+        /* other event was received */
+        handler_events_simple(lclient, subId, subContext, monId, monContext, nEventFields, eventFields);
+    }
 }
 
 // ensures an eventQueueOverflowEvent is published when appropriate
@@ -384,21 +388,21 @@ START_TEST(eventOverflow)
 
         // trigger first event
         UA_NodeId eventNodeId;
-        UA_StatusCode retval = UA_STATUSCODE_GOOD;
-        for (int i = 0; i < 3; i++) {
-            retval = eventSetup(&eventNodeId);
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-            retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
+        UA_StatusCode retval = eventSetup(&eventNodeId);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-
-        // fetch the events
+        // fetch the events, ensure both the overflow and the original event are received
         notificationReceived = false;
+        overflowNotificationReceived = true;
         UA_fakeSleep((UA_UInt32) publishingInterval + 100);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(notificationReceived, true);
+        ck_assert_uint_eq(overflowNotificationReceived, true);
         ck_assert_uint_eq(createResult.revisedQueueSize, 1);
 
         // delete the monitoredItem
@@ -417,7 +421,6 @@ START_TEST(eventOverflow)
         UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
     }
 END_TEST
-*/
 
 #endif // UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
@@ -429,7 +432,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, generateEvents);
     tcase_add_test(tc_server, uppropagation);
-//    tcase_add_test(tc_server, eventOverflow);
+    tcase_add_test(tc_server, eventOverflow);
 #endif // UA_ENABLE_SUBSCRIPTIONS_EVENTS
     suite_add_tcase(s, tc_server);
 
