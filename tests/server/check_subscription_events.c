@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <ua_log_stdout.h>
 #include "ua_client_subscriptions.h"
 #include "ua_server.h"
 #include "server/ua_services.h"
@@ -14,14 +13,14 @@
 #include "check.h"
 #include "testing_clock.h"
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
 static UA_Server *server;
 static UA_ServerConfig *config;
 static UA_Boolean *running;
 static THREAD_HANDLE server_thread;
 
 UA_Client *client;
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 static UA_UInt32 subscriptionId;
 static UA_UInt32 monitoredItemId;
@@ -31,6 +30,7 @@ static UA_Boolean notificationReceived;
 static UA_SimpleAttributeOperand *selectClauses;
 
 UA_Double publishingInterval = 500.0;
+
 
 static void addNewEventType(void) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
@@ -425,8 +425,8 @@ END_TEST
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Events");
     TCase *tc_server = tcase_create("Server Subscription Events");
-    tcase_add_checked_fixture(tc_server, setup, teardown);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, generateEvents);
     tcase_add_test(tc_server, uppropagation);
 //    tcase_add_test(tc_server, eventOverflow);
