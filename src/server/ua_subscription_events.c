@@ -45,43 +45,6 @@ static UA_StatusCode UA_Event_generateEventId(UA_Server *server, UA_ByteString *
     return UA_STATUSCODE_GOOD;
 }
 
-/* returns the EventId of a node representation of an event */
-static UA_StatusCode UA_Server_getEventId(UA_Server *server, UA_NodeId *eventNodeId, UA_ByteString *outId) {
-    UA_RelativePathElement rpe;
-    UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
-    rpe.targetName = UA_QUALIFIEDNAME(0, "EventId");
-
-    UA_BrowsePath bp;
-    UA_BrowsePath_init(&bp);
-    bp.startingNode = *eventNodeId;
-    bp.relativePath.elementsSize = 1;
-    bp.relativePath.elements = &rpe;
-
-    UA_StatusCode retval;
-
-    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND, "Event is missing EventId attribute.\n");
-        return bpr.statusCode;
-    }
-
-    UA_Variant result;
-    UA_Variant_init(&result);
-    retval = UA_Server_readValue(server, bpr.targets[0].targetId.nodeId, &result);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_BrowsePathResult_deleteMembers(&bpr);
-        return retval;
-    }
-
-    UA_ByteString_copy((UA_ByteString *) result.data, outId);
-    UA_Variant_deleteMembers(&result);
-    UA_BrowsePathResult_deleteMembers(&bpr);
-    return retval;
-}
-
 static UA_StatusCode findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
                                                          UA_NodeId referenceTypeId, void *handle) {
     /* only subtypes of hasSubtype */
@@ -153,7 +116,14 @@ static void UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name,
     }
 }
 
-UA_StatusCode UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
+UA_StatusCode UA_EXPORT
+UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
+                      UA_NodeId *outNodeId, UA_ByteString *outEventId) {
+    if (!outNodeId) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     UA_StatusCode retval;
 
     /* make sure the eventType is a subtype of BaseEventType */
@@ -224,6 +194,9 @@ UA_StatusCode UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType
     UA_Variant_setScalarCopy(&value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_Variant_deleteMembers(&value);
+    if (outEventId) {
+        UA_ByteString_copy(&eventId, outEventId);
+    }
     UA_ByteString_deleteMembers(&eventId);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
@@ -425,8 +398,8 @@ static UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, UA_Node
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const UA_NodeId origin,
-                                     UA_ByteString *outId) {
+UA_StatusCode UA_EXPORT
+UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const UA_NodeId origin) {
     /* make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
     UA_NodeId objectsFolderId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId references[2] = {
@@ -470,14 +443,6 @@ UA_StatusCode UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const 
         LIST_REMOVE(parentIter, listEntry);
         UA_NodeId_delete(parentIter->node);
         UA_free(parentIter);
-    }
-
-    /* get the eventId */
-    retval = UA_Server_getEventId(server, event, outId);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "getEventId failed. StatusCode %s", UA_StatusCode_name(retval));
-        return retval;
     }
 
     /* delete the node representation of the event */

@@ -17,10 +17,6 @@
 #include "ua_util.h"
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    #include "ua_subscription_events.h"
-#endif
-
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
 #include <valgrind/memcheck.h>
 #endif
@@ -348,21 +344,6 @@ UA_Server_run_startup(UA_Server *server) {
     if(server->config.applicationDescription.applicationType ==
        UA_APPLICATIONTYPE_DISCOVERYSERVER)
         startMulticastDiscoveryServer(server);
-#endif
-
-    /* create the OverFlowEventType
-     * The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
-     * directly, but need to create a subtype. This is already posted on the OPC Foundation bug tracker under the
-     * following link for clarification: https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
-    overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
-    overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
-                                overflowAttr, NULL, NULL);
 #endif
 
     return result;

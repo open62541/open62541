@@ -1122,8 +1122,10 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  * ------
  * The method ``UA_Server_createEvent`` creates an event and represents it as node. The node receives a unique `EventId`
  * which is automatically added to the node.
- * The method returns a `NodeId` to the object node which represents the event. The `NodeId` can be used to set the
- * attributes of the event.
+ * The method returns a `NodeId` to the object node which represents the event through ``outNodeId``. The `NodeId` can
+ * be used to set the attributes of the event. The generated `NodeId` is always numeric. ``outNodeId`` cannot be 
+ * ``NULL``. The `EventId` for the new event is generated automatically and is returned through ``outEventId``.
+ * ``NULL`` can be passed if the `EventId` is not needed.
  *
  * The method ``UA_Server_triggerEvent`` "triggers" an event by adding it to all monitored items of the specified
  * origin node and those of all its parents. Any filters specified by the monitored items are automatically applied.
@@ -1131,11 +1133,12 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-UA_StatusCode UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
-                                    UA_NodeId *outNodeId);
+UA_StatusCode UA_EXPORT
+UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
+                      UA_NodeId *outNodeId, UA_ByteString *outEventId);
 
-UA_StatusCode UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event,
-                                     const UA_NodeId origin, UA_ByteString *outId);
+UA_StatusCode UA_EXPORT
+UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, const UA_NodeId origin);
 
 #endif
 

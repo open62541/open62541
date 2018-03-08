@@ -54,7 +54,7 @@ static UA_StatusCode addNewEventType(UA_Server *server) {
  */
 static UA_StatusCode setUpEvent(UA_Server *server, UA_NodeId *outId) {
     UA_StatusCode retval;
-    retval = UA_Server_createEvent(server, eventType, outId);
+    retval = UA_Server_createEvent(server, eventType, outId, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                        "createEvent failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -118,31 +118,22 @@ generateEventMethodCallback(UA_Server *server,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
     /* set up event */
-    UA_NodeId *eventNodeId = UA_NodeId_new();
-    if (!eventNodeId) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Failed to allocate memory for eventId");
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    UA_StatusCode retval = setUpEvent(server, eventNodeId);
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = setUpEvent(server, &eventNodeId);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Creating event failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
 
-    UA_ByteString id;
-    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &id);
+    retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&id);
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                       "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
 
-    UA_Variant_setScalarCopy(output, &id, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Generate Event was called.");
-    UA_NodeId_delete(eventNodeId);
-    UA_ByteString_deleteMembers(&id);
     return retval;
 }
 
@@ -155,24 +146,17 @@ generateEventMethodCallback(UA_Server *server,
 
 static void
 addGenerateEventMethod(UA_Server *server) {
-    UA_Argument outputArgument;
-    UA_Argument_init(&outputArgument);
-    outputArgument.description = UA_LOCALIZEDTEXT("en-US", "The eventId of the generated event.");
-    outputArgument.name = UA_STRING("EventId");
-    outputArgument.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
-    outputArgument.valueRank = -1; /* scalar */
-
     UA_MethodAttributes generateAttr = UA_MethodAttributes_default;
     generateAttr.description = UA_LOCALIZEDTEXT("en-US","Generate an event.");
     generateAttr.displayName = UA_LOCALIZEDTEXT("en-US","Generate Event");
     generateAttr.executable = true;
     generateAttr.userExecutable = true;
-    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Generate Event"),
                             generateAttr, &generateEventMethodCallback,
-                            0, NULL, 1, &outputArgument, NULL, NULL);
+                            0, NULL, 0, NULL, NULL, NULL);
 }
 
 int main (void) {
