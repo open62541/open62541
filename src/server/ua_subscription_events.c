@@ -43,32 +43,6 @@ UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
-                                    UA_NodeId referenceTypeId, void *handle) {
-    /* only subtypes of hasSubtype */
-    UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    if(isInverse || !UA_NodeId_equal(&referenceTypeId, &hasSubtypeId))
-        return UA_STATUSCODE_GOOD;
-
-    Events_nodeListElement *entry = (Events_nodeListElement *) UA_malloc(sizeof(Events_nodeListElement));
-    if(!entry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode retval = UA_NodeId_copy(&parentId, &entry->nodeId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(entry);
-        return retval;
-    }
-
-    LIST_INSERT_HEAD(&((struct getNodesHandle *) handle)->nodes, entry, listEntry);
-
-    /* recursion */
-    UA_Server_forEachChildNodeCall(((struct getNodesHandle *) handle)->server,
-                                   parentId, findAllSubtypesNodeIteratorCallback, handle);
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode UA_EXPORT
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
     if (!outNodeId) {
