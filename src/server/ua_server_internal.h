@@ -178,7 +178,7 @@ typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
                                  const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback,
-                                 const void *data);
+                                 void *data);
 
 /*************/
 /* Callbacks */
