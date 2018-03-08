@@ -128,46 +128,61 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         /* Create an overflow notification */
-        /* if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) { */
-        /*     /\* EventFilterResult currently isn't being used */
-        /*     UA_EventFilterResult_deleteMembers(&del->data.event->result); *\/ */
-        /*     UA_EventFieldList_deleteMembers(&del->data.event.fields); */
+         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+             /* check if an overflowEvent is being deleted
+              * TODO: make sure overflowEvents are never deleted */
+             UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+             UA_Boolean deletingOverflowEvent =
+                     del->data.event.fields.eventFieldsSize == 1 &&
+                     del->data.event.fields.eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
+                     UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields[0].data, &overflowId);
 
-        /*     /\* cause an overflowEvent *\/ */
-        /*     /\* an overflowEvent does not care about event filters and as such */
-        /*      * will not be "triggered" correctly. Instead, a notification will */
-        /*      * be inserted into the queue which includes only the nodeId of the */
-        /*      * overflowEventType. It is up to the client to check for possible */
-        /*      * overflows. *\/ */
-        /*     UA_Notification *overflowNotification = (UA_Notification *) UA_malloc(sizeof(UA_Notification)); */
-        /*     if(!overflowNotification) */
-        /*         return UA_STATUSCODE_BADOUTOFMEMORY; */
+             /* cause an overflowEvent */
+             /* an overflowEvent does not care about event filters and as such
+              * will not be "triggered" correctly. Instead, a notification will
+              * be inserted into the queue which includes only the nodeId of the
+              * overflowEventType. It is up to the client to check for possible
+              * overflows. */
+             UA_Notification *overflowNotification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
+             if(!overflowNotification)
+                 return UA_STATUSCODE_BADOUTOFMEMORY;
 
-        /*     UA_EventFieldList_init(&overflowNotification->data.event.fields); */
-        /*     overflowNotification->data.event.fields.eventFields = UA_Variant_new(); */
-        /*     if(!overflowNotification->data.event.fields.eventFields) { */
-        /*         UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields); */
-        /*         UA_free(overflowNotification); */
-        /*         return UA_STATUSCODE_BADOUTOFMEMORY; */
-        /*     } */
+             UA_EventFieldList_init(&overflowNotification->data.event.fields);
+             overflowNotification->data.event.fields.eventFields = UA_Variant_new();
+             if(!overflowNotification->data.event.fields.eventFields) {
+                 UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
+                 UA_free(overflowNotification);
+                 return UA_STATUSCODE_BADOUTOFMEMORY;
+             }
 
-        /*     UA_Variant_init(overflowNotification->data.event.fields.eventFields); */
-        /*     overflowNotification->data.event.fields.eventFieldsSize = 1; */
-        /*     UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE); */
-        /*     UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields, */
-        /*                              &overflowId, &UA_TYPES[UA_TYPES_NODEID]); */
-        /*     overflowNotification->mon = mon; */
-        /*     if(mon->discardOldest) { */
-        /*         TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry); */
-        /*         TAILQ_INSERT_HEAD(&mon->subscription->notificationQueue, overflowNotification, globalEntry); */
-        /*     } else { */
-        /*         TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry); */
-        /*         TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, overflowNotification, globalEntry); */
-        /*     } */
-        /*     ++mon->queueSize; */
-        /*     ++sub->notificationQueueSize; */
-        /*     ++sub->eventNotifications; */
-        /* } */
+             UA_Variant_init(overflowNotification->data.event.fields.eventFields);
+             overflowNotification->data.event.fields.eventFieldsSize = 1;
+             UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
+                                      &overflowId, &UA_TYPES[UA_TYPES_NODEID]);
+             overflowNotification->mon = mon;
+             if(mon->discardOldest) {
+                 TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry);
+                 TAILQ_INSERT_HEAD(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
+             } else {
+                 TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry);
+                 TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
+             }
+
+             /* removing an OverflowEvent and adding an OverflowEvent causes the amount
+              * of overflows to remain the same */
+             if (!deletingOverflowEvent) {
+                 ++mon->eventOverflows;
+                 /* mon->queueSize will be reduced in Notification_delete */
+             }
+
+             /* The amount of notifications in the subscription don't change. The specification
+              * only states that the queue size in each MonitoredItem isn't affected by OverflowEvents.
+              * Since they are reduced in Notification_delete the queues are increased here, so they
+              * will remain the same in the end.
+              */
+             ++sub->notificationQueueSize;
+             ++sub->eventNotifications;
+         }
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
         /* Delete the notification. This also removes the notification from the

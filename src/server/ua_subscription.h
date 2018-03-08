@@ -115,6 +115,8 @@ struct UA_MonitoredItem {
     UA_UInt32 queueSize;
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next;
+    /* Save the amount of OverflowEvents in a separate counter */
+    UA_UInt32 eventOverflows;
 #endif
 };
 
