@@ -7,12 +7,17 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_subscription.h"
 #include "ua_config_default.h"
+#include "thread_wrapper.h"
 
 #include "check.h"
 #include "testing_clock.h"
 
-static UA_Server *server = NULL;
-static UA_ServerConfig *config = NULL;
+static UA_Server *server;
+static UA_ServerConfig *config;
+static UA_Boolean *running;
+static THREAD_HANDLE server_thread;
+
+UA_Client *client;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
@@ -21,6 +26,20 @@ static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 1;
 static UA_SimpleAttributeOperand *ptr_filter = NULL;
+
+static void addNewEventType(void) {
+    UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "SimpleEventType");
+    attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The simple event type we created");
+
+    UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_QUALIFIEDNAME(0, "SimpleEventType"),
+                                attr, NULL, &eventType);
+    UA_LocalizedText_deleteMembers(&attr.displayName);
+    UA_LocalizedText_deleteMembers(&attr.description);
+}
 
 static UA_SimpleAttributeOperand *setupSelectClauses(void) {
     // only creating 1 selectClause for now, if more things are to be checked it can be changed easily
@@ -47,7 +66,6 @@ static UA_SimpleAttributeOperand *setupSelectClauses(void) {
 
     return selectClauses;
 }
-
 
 // create a subscription and add a monitored item to it
 static void setupSubscription(void) {
@@ -99,27 +117,6 @@ static void setupSubscription(void) {
     UA_CreateMonitoredItemsResponse_deleteMembers(&monResponse);
 }
 
-static void addNewEventType(void) {
-    UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "SimpleEventType");
-    attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The simple event type we created");
-
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                UA_QUALIFIEDNAME(0, "SimpleEventType"),
-                                attr, NULL, &eventType);
-    UA_LocalizedText_deleteMembers(&attr.displayName);
-    UA_LocalizedText_deleteMembers(&attr.description);
-}
-static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
-    UA_Server_run_startup(server);
-    setupSubscription();
-    addNewEventType();
-}
-
 static void removeSubscription(void) {
     /* Remove the subscriptions */
     UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
@@ -136,12 +133,40 @@ static void removeSubscription(void) {
     UA_DeleteSubscriptionsResponse_deleteMembers(&deleteSubscriptionsResponse);
 }
 
+THREAD_CALLBACK(serverloop) {
+    while(*running)
+        UA_Server_run_iterate(server, true);
+    return 0;
+}
+
+static void setup(void) {
+    running = UA_Boolean_new();
+    *running = true;
+    config = UA_ServerConfig_new_default();
+    config->maxPublishReqPerSession = 5;
+    server = UA_Server_new(config);
+    UA_Server_run_startup(server);
+    addNewEventType();
+    setupSubscription();
+    THREAD_CREATE(server_thread, serverloop);
+
+    client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+
 static void teardown(void) {
     removeSubscription();
+    *running = false;
+    THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
+    UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     UA_Array_delete(ptr_filter, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
 }
 
 // ensure events are received with proper values
@@ -171,10 +196,8 @@ START_TEST(generateEvents) {
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     // trigger the event
-    UA_ByteString eventId;
-    retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &eventId);
+    retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_ByteString_deleteMembers(&eventId);
 
     // get the monitored item to check whether the event is in the queue
 
