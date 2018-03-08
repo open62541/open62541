@@ -16,7 +16,6 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_subscription_events.h"
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */

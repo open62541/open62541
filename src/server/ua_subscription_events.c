@@ -7,7 +7,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
-#include "ua_subscription_events.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
