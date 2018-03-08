@@ -1,6 +1,9 @@
-//
-// Created by aribr on 01/02/2018.
-//
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
+ */
 
 #include "ua_server_internal.h"
 #include "ua_subscription_events.h"
