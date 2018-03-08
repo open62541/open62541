@@ -42,10 +42,10 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Remove the sampling callback */
         UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
-    } else {
+    } else if (monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         /* TODO: Access val data.event */
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "MonitoredItemTypes other than ChangeNotify are not supported yet");
+                     "MonitoredItemTypes other than ChangeNotify or EventNotify are not supported yet");
     }
 
     /* Remove the queued notifications if attached to a subscription */
@@ -58,14 +58,13 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
             TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
             TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
             --sub->notificationQueueSize;
-            if (monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-                UA_Notification_delete(notification);
-            } else if (monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-                UA_EventFieldList_delete(notification->data.event->fields);
-                /* EventFilterResult currently isn't being used
-                UA_EventFilterResult_delete(notification->data.event->result); */
-                UA_free(notification->data.event);
+            /*
+            if (monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+                 EventFilterResult currently isn't being used
+                UA_EventFilterResult_delete(notification->data.event->result);
             }
+            */
+            UA_Notification_delete(notification);
         }
         monitoredItem->queueSize = 0;
     }
@@ -140,9 +139,7 @@ UA_StatusCode MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem
 #endif
 
         /* Free the notification */
-        if (mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            UA_Notification_delete(del);
-        } else if (mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        if (mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
             /* EventFilterResult currently isn't being used
             UA_EventFilterResult_deleteMembers(&del->data.event->result); */
@@ -181,6 +178,7 @@ UA_StatusCode MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem
             }
 #endif
         }
+        UA_Notification_delete(del);
     }
 
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
@@ -426,7 +424,7 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
         ++sub->notificationQueueSize;
 
         /* Remove some notifications if the queue is beyond maximum capacity */
-        MonitoredItem_ensureQueueSpace(monitoredItem);
+        MonitoredItem_ensureQueueSpace(server, monitoredItem);
     } else {
         /* Call the local callback if not attached to a subscription */
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) monitoredItem;

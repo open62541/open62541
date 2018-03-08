@@ -24,10 +24,9 @@
 void UA_Notification_delete(UA_Notification *n) {
     if(n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         UA_DataValue_deleteMembers(&n->data.value);
-    } else {
-        // TODO: Event-Handling
+    } else if (n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        UA_Array_delete(&n->data.event.fields, n->data.event.fields.eventFieldsSize, &UA_TYPES[UA_TYPES_EVENTFIELDLIST]);
     }
-
     UA_free(n);
 }
 

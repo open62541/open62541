@@ -329,7 +329,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     if(cmc->sub) {
         newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
         UA_Subscription_addMonitoredItem(cmc->sub, newMon);
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         if (newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         /* insert the monitored item into the node's queue */
         UA_MonitoredItemQueueEntry *entry = (UA_MonitoredItemQueueEntry *) UA_malloc(sizeof(UA_MonitoredItemQueueEntry));
