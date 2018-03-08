@@ -99,6 +99,9 @@ mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
 
+option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
+mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
+
 option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
 if (MSVC AND UA_ENABLE_FULL_NS0)
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)
@@ -300,7 +303,7 @@ endif()
 if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
 
-  if(NOT BUILD_SHARED_LIBS)
+  if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
     set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
         CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
     foreach(CompilerFlag ${CompilerFlags})
