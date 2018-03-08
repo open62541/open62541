@@ -34,7 +34,7 @@ loadFile(const char *const path) {
     /* Get the file length, allocate the data and read */
     fseek(fp, 0, SEEK_END);
     fileContents.length = (size_t)ftell(fp);
-    fileContents.data = (UA_Byte*)UA_malloc(fileContents.length * sizeof(UA_Byte));
+    fileContents.data = (UA_Byte *)UA_malloc(fileContents.length * sizeof(UA_Byte));
     if(fileContents.data) {
         fseek(fp, 0, SEEK_SET);
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
@@ -87,11 +87,11 @@ helloWorld(UA_Server *server,
            size_t inputSize, const UA_Variant *input,
            size_t outputSize, UA_Variant *output) {
     /* input is a scalar string (checked by the server) */
-    UA_String *name = (UA_String *) input[0].data;
+    UA_String *name = (UA_String *)input[0].data;
     UA_String hello = UA_STRING("Hello ");
     UA_String greet;
     greet.length = hello.length + name->length;
-    greet.data = (UA_Byte *) UA_malloc(greet.length);
+    greet.data = (UA_Byte *)UA_malloc(greet.length);
     memcpy(greet.data, hello.data, hello.length);
     memcpy(greet.data + hello.length, name->data, name->length);
     UA_Variant_setScalarCopy(output, &greet, &UA_TYPES[UA_TYPES_STRING]);
@@ -132,8 +132,8 @@ main(int argc, char **argv) {
     if(argc < 3) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Missing arguments for encryption support. "
-                     "Arguments are <server-certificate.der> "
-                     "<private-key.der> [<trustlist1.crl>, ...]");
+                         "Arguments are <server-certificate.der> "
+                         "<private-key.der> [<trustlist1.crl>, ...]");
         return 1;
     }
 
@@ -145,21 +145,21 @@ main(int argc, char **argv) {
     UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
     if(argc > 3) {
-        trustListSize = (size_t)argc-3;
-        trustList = (UA_ByteString*)
+        trustListSize = (size_t)argc - 3;
+        trustList = (UA_ByteString *)
             UA_alloca(sizeof(UA_ByteString) * trustListSize);
         for(size_t i = 0; i < trustListSize; i++)
-            trustList[i] = loadFile(argv[i+3]);
+            trustList[i] = loadFile(argv[i + 3]);
     }
 
-    /* Loading of a revocation list currentlu unsupported */
+    /* Loading of a revocation list currently unsupported */
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
     UA_ServerConfig *config =
-        UA_ServerConfig_new_basic128rsa15(4840, &certificate, &privateKey,
-                                          trustList, trustListSize,
-                                          revocationList, revocationListSize);
+        UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
+                                                trustList, trustListSize,
+                                                revocationList, revocationListSize);
     UA_ByteString_deleteMembers(&certificate);
     UA_ByteString_deleteMembers(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
@@ -329,7 +329,7 @@ main(int argc, char **argv) {
 
         /* add an matrix node for every built-in type */
         void *myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
-        attr.value.arrayDimensions = (UA_UInt32 *) UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
+        attr.value.arrayDimensions = (UA_UInt32 *)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
         attr.value.arrayDimensions[0] = 3;
         attr.value.arrayDimensions[1] = 3;
         attr.value.arrayDimensionsSize = 2;
@@ -458,5 +458,5 @@ main(int argc, char **argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int) retval;
+    return (int)retval;
 }

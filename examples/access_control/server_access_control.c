@@ -7,33 +7,33 @@
 #include "open62541.h"
 
 static UA_Boolean
-allowAddNode(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_AddNodesItem *item)
-{
+allowAddNode(UA_Server *server, UA_AccessControl *ac,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_AddNodesItem *item) {
     printf("Called allowAddNode\n");
     return UA_TRUE;
 }
 
 static UA_Boolean
-allowAddReference(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_AddReferencesItem *item)
-{
+allowAddReference(UA_Server *server, UA_AccessControl *ac,
+                  const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_AddReferencesItem *item) {
     printf("Called allowAddReference\n");
     return UA_TRUE;
 }
 
 static UA_Boolean
-allowDeleteNode(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_DeleteNodesItem *item)
-{
+allowDeleteNode(UA_Server *server, UA_AccessControl *ac,
+                const UA_NodeId *sessionId, void *sessionContext,
+                const UA_DeleteNodesItem *item) {
     printf("Called allowDeleteNode\n");
     return UA_FALSE; // Do not allow deletion from client
 }
 
 static UA_Boolean
-allowDeleteReference(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_DeleteReferencesItem *item)
-{
+allowDeleteReference(UA_Server *server, UA_AccessControl *ac,
+                     const UA_NodeId *sessionId, void *sessionContext,
+                     const UA_DeleteReferencesItem *item) {
     printf("Called allowDeleteReference\n");
     return UA_TRUE;
 }
