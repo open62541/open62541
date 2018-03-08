@@ -149,7 +149,7 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 /* EventChange: Iterate over the monitoredItems of the subscription, starting at mon, and
  *              move notifications into the response. */
 static void
@@ -170,9 +170,9 @@ moveNotificationsFromEvents(UA_Server *server, UA_Subscription *sub, UA_EventFie
 
         /* removing an overflowEvent should not reduce the queueSize */
         UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
-        if (!(notification->data.event->fields->eventFieldsSize == 1
-                && notification->data.event->fields->eventFields->type == &UA_TYPES[UA_TYPES_NODEID]
-                && UA_NodeId_equal((UA_NodeId *)notification->data.event->fields->eventFields->data, &overflowId))) {
+        if (!(notification->data.event.fields.eventFieldsSize == 1
+                && notification->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID]
+                && UA_NodeId_equal((UA_NodeId *)notification->data.event.fields.eventFields->data, &overflowId))) {
             --mon->queueSize;
             --sub->notificationQueueSize;
         }
@@ -180,18 +180,17 @@ moveNotificationsFromEvents(UA_Server *server, UA_Subscription *sub, UA_EventFie
         /* Move the content to the response */
         UA_EventFieldList *efl = &efls[pos];
         efl->clientHandle = mon->clientHandle;
-        efl->eventFieldsSize = notification->data.event->fields->eventFieldsSize;
-        retval = UA_Array_copy(notification->data.event->fields->eventFields,
-                               notification->data.event->fields->eventFieldsSize,
+        efl->eventFieldsSize = notification->data.event.fields.eventFieldsSize;
+        retval = UA_Array_copy(notification->data.event.fields.eventFields,
+                               notification->data.event.fields.eventFieldsSize,
                                (void **) &efl->eventFields, &UA_TYPES[UA_TYPES_VARIANT]);
         if (retval != UA_STATUSCODE_GOOD) {
             return;
         }
 
         /* EventFilterResult currently isn't being used
-        UA_EventFilterResult_delete(notification->data.event->result); */
-        UA_EventFieldList_delete(notification->data.event->fields);
-        UA_free(notification->data.event);
+        UA_EventFilterResult_deleteMembers(&notification->data.event.result); */
+        UA_EventFieldList_deleteMembers(&notification->data.event.fields);
         UA_free(notification);
     }
 }
@@ -261,7 +260,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub, UA_Notificat
         /* Move notifications into the response .. the point of no return */
         moveNotificationsFromMonitoredItems(sub, dcn->monitoredItems, notifications);
     }
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     else if (LIST_FIRST(&sub->monitoredItems)->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
 
         UA_EventNotificationList *enl = UA_EventNotificationList_new();

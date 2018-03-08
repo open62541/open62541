@@ -46,9 +46,9 @@ struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 typedef struct UA_EventNotification {
-    UA_EventFieldList *fields;
+    UA_EventFieldList fields;
     /* EventFilterResult currently isn't being used
-    UA_EventFilterResult *result; */
+    UA_EventFilterResult result; */
 } UA_EventNotification;
 
 typedef struct UA_Notification {
@@ -59,7 +59,7 @@ typedef struct UA_Notification {
 
     /* See the monitoredItemType of the MonitoredItem */
     union {
-        UA_EventNotification *event;
+        UA_EventNotification event;
         UA_DataValue value;
     } data;
 } UA_Notification;
@@ -87,7 +87,7 @@ struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
     union {
-        UA_EventFilter *eventFilter;
+        UA_EventFilter eventFilter;
         UA_DataChangeTrigger trigger;
     } filter;
     UA_Variant lastValue;

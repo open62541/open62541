@@ -17,7 +17,7 @@
 #include "ua_util.h"
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     #include "ua_subscription_events.h"
 #endif
 
@@ -354,7 +354,7 @@ UA_Server_run_startup(UA_Server *server) {
      * The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
      * directly, but need to create a subtype. This is already posted on the OPC Foundation bug tracker under the
      * following link for clarification: https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
     overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
     overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
@@ -413,10 +413,6 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
-#endif
-
-#ifdef UA_DEBUG_EVENTS
-    UA_Event_generateExampleEvent(server);
 #endif
 
     now = UA_DateTime_nowMonotonic();

@@ -132,9 +132,8 @@ generateEventMethodCallback(UA_Server *server,
         return retval;
     }
 
-    UA_NodeId serverId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     UA_ByteString id;
-    retval = UA_Server_triggerEvent(server, eventNodeId, &serverId, &id);
+    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &id);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&id);
         return retval;

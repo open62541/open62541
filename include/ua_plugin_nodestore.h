@@ -22,8 +22,7 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
-#ifdef UA_ENABLE_EVENTS
-#include <queue.h>
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 /* forward declaration */
 struct UA_MonitoredItem;
 #endif
@@ -242,14 +241,18 @@ typedef struct {
 
 
 /** Attributes for nodes which are capable of generating events */
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 /* linked list of monitoredItems */
     typedef struct UA_MonitoredItemQueueEntry {
-        LIST_ENTRY(UA_MonitoredItemQueueEntry) listEntry;
+        struct {								\
+            struct UA_MonitoredItemQueueEntry *sle_next;	/* next element */			\
+        } next;
         struct UA_MonitoredItem *mon;
     } UA_MonitoredItemQueueEntry;
 
-    typedef LIST_HEAD(UA_MonitoredItemQueue, UA_MonitoredItemQueueEntry) UA_MonitoredItemQueue;
+    typedef struct UA_MonitoredItemQueue {								\
+        struct UA_MonitoredItemQueueEntry *slh_first;	/* first element */			\
+    } UA_MonitoredItemQueue;
 
 #define UA_EVENT_ATTRIBUTES                                         \
 /* Store active monitoredItems on this node */                      \
@@ -267,7 +270,7 @@ typedef struct {
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_EVENT_ATTRIBUTES
 #endif
     UA_Byte eventNotifier;

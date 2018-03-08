@@ -8,13 +8,9 @@
 #ifndef UA_SUBSCRIPTION_EVENTS_H_
 #define UA_SUBSCRIPTION_EVENTS_H_
 
-#ifdef UA_ENABLE_EVENTS
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 #define UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE 4035
-
-#ifdef UA_DEBUG_EVENTS
-void UA_Event_generateExampleEvent(UA_Server *server);
-#endif
 
 #endif
 
