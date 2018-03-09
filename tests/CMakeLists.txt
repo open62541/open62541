@@ -21,9 +21,9 @@ include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 if (MSVC)
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
 else()
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
 
@@ -42,6 +42,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
+    set(test_plugin_sources ${test_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_common.c)
     set(test_plugin_sources ${test_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
     set(test_plugin_sources ${test_plugin_sources}
