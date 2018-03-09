@@ -8,7 +8,6 @@
 
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
-#include <mbedtls/sha1.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/ctr_drbg.h>
@@ -18,6 +17,7 @@
 
 #include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"
+#include "ua_securitypolicy_common.h"
 #include "ua_securitypolicy_basic256sha256.h"
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
@@ -79,16 +79,6 @@ typedef struct {
 
     mbedtls_x509_crt remoteCertificate;
 } Basic256Sha256_ChannelContext;
-
-static void
-sha1(const unsigned char *input, size_t ilen, unsigned char output[20] ) {
-    mbedtls_sha1_context sha1Context;
-    mbedtls_sha1_init(&sha1Context);
-    mbedtls_sha1_starts(&sha1Context);
-    mbedtls_sha1_update(&sha1Context, input, ilen);
-    mbedtls_sha1_finish(&sha1Context, output);
-    mbedtls_sha1_free(&sha1Context);
-}
 
 /********************/
 /* AsymmetricModule */
@@ -282,8 +272,8 @@ asym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
-asym_getRemoteEncryptionKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                  const Basic256Sha256_ChannelContext *cc) {
+asym_getRemoteEncryptionKeyLength_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
+                                                    const Basic256Sha256_ChannelContext *cc) {
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
 }
 
@@ -295,8 +285,8 @@ asym_getRemoteBlockSize_sp_basic256sha256(const UA_SecurityPolicy *securityPolic
 }
 
 static size_t
-asym_getRemotePlainTextBlockSize(const UA_SecurityPolicy *securityPolicy,
-                                 const Basic256Sha256_ChannelContext *cc) {
+asym_getRemotePlainTextBlockSize_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
+                                                   const Basic256Sha256_ChannelContext *cc) {
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len - UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN;
 }
@@ -903,13 +893,13 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, UA_CertificateVerifi
             asym_decrypt_sp_basic256sha256;
     asym_encryptionAlgorithm->getLocalKeyLength = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemoteKeyLength =
-        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength;
+        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength_sp_basic256sha256;
     asym_encryptionAlgorithm->getLocalBlockSize = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemoteBlockSize = (size_t (*)(const UA_SecurityPolicy *,
                                                                const void *))asym_getRemoteBlockSize_sp_basic256sha256;
     asym_encryptionAlgorithm->getLocalPlainTextBlockSize = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemotePlainTextBlockSize =
-        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemotePlainTextBlockSize;
+        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemotePlainTextBlockSize_sp_basic256sha256;
 
     asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_basic256sha256;
     asymmetricModule->compareCertificateThumbprint =
