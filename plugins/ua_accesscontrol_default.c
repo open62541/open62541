@@ -234,6 +234,9 @@ UA_AccessControl_default(UA_Boolean allowAnonymous, size_t usernamePasswordLogin
     if(usernamePasswordLoginSize > 0) {
         ac.userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
         ac.userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
+        /* No encryption of username/password supported at the moment */
+        ac.userTokenPolicies[policies].securityPolicyUri =
+            UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
     }
     return ac;
 }
