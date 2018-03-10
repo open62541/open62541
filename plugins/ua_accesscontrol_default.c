@@ -30,11 +30,21 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId,
                         const UA_ExtensionObject *userIdentityToken,
                         void **sessionContext) {
+    AccessControlContext *context = (AccessControlContext*)ac->context;
+
+    /* The empty token is interpreted as anonymous */
+    if(userIdentityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
+        if(!context->allowAnonymous)
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+        /* No userdata atm */
+        *sessionContext = NULL;
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Could the token be decoded? */
     if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-    AccessControlContext *context = (AccessControlContext*)ac->context;
 
     /* Anonymous login */
     if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
