@@ -189,7 +189,7 @@ UA_AccessControl_default(UA_Boolean allowAnonymous, size_t usernamePasswordLogin
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
     AccessControlContext *context = (AccessControlContext*)
         UA_malloc(sizeof(AccessControlContext));
-    
+
     UA_AccessControl ac;
     memset(&ac, 0, sizeof(ac));
     ac.context = context;
