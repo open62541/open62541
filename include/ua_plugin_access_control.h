@@ -34,6 +34,14 @@ struct UA_AccessControl {
     size_t userTokenPoliciesSize;
     UA_UserTokenPolicy *userTokenPolicies;
 
+struct UA_AccessControl {
+    void *context;
+    void (*deleteMembers)(UA_AccessControl *ac);
+
+    /* Supported login mechanisms. The server endpoints are created from here. */
+    size_t userTokenPoliciesSize;
+    UA_UserTokenPolicy *userTokenPolicies;
+
     /* Authenticate a session. The session context is attached to the session and
      * later passed into the node-based access control callbacks. */
     UA_StatusCode (*activateSession)(UA_Server *server, UA_AccessControl *ac,

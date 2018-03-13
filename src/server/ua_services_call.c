@@ -160,7 +160,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     if(session != &adminSession)
         executable = executable &&
             server->config.accessControl.getUserExecutableOnObject(server,
-                           &server->config.accessControl, &session->sessionId,
+                           &server->config.accessControl,&session->sessionId,
                            session->sessionHandle, &request->methodId, method->context,
                            &request->objectId, object->context);
     if(!executable) {
