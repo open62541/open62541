@@ -27,7 +27,6 @@
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
 #include "ua_client_subscriptions.h"
-#include "ua_client_highlevel.h"
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
