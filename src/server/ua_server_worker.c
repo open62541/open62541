@@ -448,9 +448,16 @@ UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+    size_t loopCount = 0;
+#endif
     while(*running) {
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
-        VALGRIND_DO_LEAK_CHECK;
+        if(loopCount == 0) {
+            VALGRIND_DO_LEAK_CHECK;
+        }
+        ++loopCount;
+        loopCount %= UA_VALGRIND_INTERACTIVE_INTERVAL;
 #endif
         UA_Server_run_iterate(server, true);
     }
