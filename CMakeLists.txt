@@ -133,6 +133,9 @@ mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
 set(UA_FREERTOS OFF CACHE BOOL "Enable if you want to compile for freeRTOS")
 mark_as_advanced(UA_FREERTOS)
 
+set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
+mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
+
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
 mark_as_advanced(UA_DEBUG)
