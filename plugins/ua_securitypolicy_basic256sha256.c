@@ -14,6 +14,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
+#include <mbedtls/version.h>
 
 #include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"
@@ -94,7 +95,12 @@ asym_verify_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA256_LENGTH];
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    // TODO check return status
+    mbedtls_sha256_ret(message->data, message->length, hash, 0);
+#else
     mbedtls_sha256(message->data, message->length, hash, 0);
+#endif
 
     /* Set the RSA settings */
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
@@ -125,7 +131,12 @@ asym_sign_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA256_LENGTH];
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    // TODO check return status
+    mbedtls_sha256_ret(message->data, message->length, hash, 0);
+#else
     mbedtls_sha256(message->data, message->length, hash, 0);
+#endif
 
     Basic256Sha256_PolicyContext *pc = cc->policyContext;
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
