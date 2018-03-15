@@ -65,8 +65,6 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 
 if(UA_ENABLE_ENCRYPTION)
     set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_common.c)
-    set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
     set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)

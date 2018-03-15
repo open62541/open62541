@@ -15,10 +15,10 @@
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
+#include <mbedtls/sha1.h>
 
 #include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"
-#include "ua_securitypolicy_common.h"
 #include "ua_securitypolicy_basic256sha256.h"
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
@@ -316,7 +316,11 @@ asym_makeThumbprint_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* The certificate thumbprint is always a 20 bit sha1 hash, see Part 4 of the Specification. */
-    sha1(certificate->data, certificate->length, thumbprint->data);
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    mbedtls_sha1_ret(certificate->data, certificate->length, thumbprint->data);
+#else
+    mbedtls_sha1(certificate->data, certificate->length, thumbprint->data);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
