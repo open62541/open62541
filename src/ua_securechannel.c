@@ -110,7 +110,7 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     /* Remove the buffered chunks */
     struct ChunkEntry *ch, *temp_ch;
     LIST_FOREACH_SAFE(ch, &channel->chunks, pointers, temp_ch) {
-        UA_ByteString_deleteMembers(&ch->bytes);
+        UA_free(ch->bytes);
         LIST_REMOVE(ch, pointers);
         UA_free(ch);
     }
@@ -720,7 +720,7 @@ UA_SecureChannel_removeChunks(UA_SecureChannel *channel, UA_UInt32 requestId) {
     struct ChunkEntry *ch;
     LIST_FOREACH(ch, &channel->chunks, pointers) {
         if(ch->requestId == requestId) {
-            UA_ByteString_deleteMembers(&ch->bytes);
+            UA_free(ch->bytes);
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
             return;
@@ -730,15 +730,22 @@ UA_SecureChannel_removeChunks(UA_SecureChannel *channel, UA_UInt32 requestId) {
 
 static UA_StatusCode
 appendChunk(struct ChunkEntry *chunkEntry, const UA_ByteString *chunkBody) {
-    UA_Byte *new_bytes = (UA_Byte *)
-        UA_realloc(chunkEntry->bytes.data, chunkEntry->bytes.length + chunkBody->length);
-    if(!new_bytes) {
-        UA_ByteString_deleteMembers(&chunkEntry->bytes);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    size_t new_size = chunkEntry->count + chunkBody->length;
+    if (new_size > chunkEntry->size) {
+        size_t capacity = 3 * new_size / 2;
+        UA_Byte *new_bytes = (UA_Byte *)
+            UA_realloc(chunkEntry->bytes, capacity);
+        if (!new_bytes) {
+            UA_free(chunkEntry->bytes);
+            chunkEntry->size = 0;
+            chunkEntry->count = 0;
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        chunkEntry->bytes = new_bytes;
+        chunkEntry->size = capacity;
     }
-    chunkEntry->bytes.data = new_bytes;
-    memcpy(&chunkEntry->bytes.data[chunkEntry->bytes.length], chunkBody->data, chunkBody->length);
-    chunkEntry->bytes.length += chunkBody->length;
+    memcpy(&chunkEntry->bytes[chunkEntry->count], chunkBody->data, chunkBody->length);
+    chunkEntry->count += chunkBody->length;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -756,8 +763,8 @@ UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
         ch = (struct ChunkEntry *)UA_malloc(sizeof(struct ChunkEntry));
         if(!ch)
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        memset(ch, 0, sizeof(struct ChunkEntry));
         ch->requestId = requestId;
-        UA_ByteString_init(&ch->bytes);
         LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
     }
 
@@ -781,7 +788,11 @@ UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
         UA_StatusCode retval = appendChunk(chunkEntry, chunkBody);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        bytes = chunkEntry->bytes;
+        
+        UA_ByteString_init(&bytes);
+        bytes.data = chunkEntry->bytes;
+        bytes.length = chunkEntry->count;
+
         LIST_REMOVE(chunkEntry, pointers);
         UA_free(chunkEntry);
     }
