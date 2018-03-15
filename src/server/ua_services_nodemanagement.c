@@ -1201,15 +1201,15 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
 
 static void
 removeChildren(UA_Server *server, UA_Session *session,
-               const UA_Node *node) {
+               const UA_Node *node, const UA_NodeId referenceTypeId) {
     /* Browse to get all children of the node */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = node->nodeId;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+    bd.referenceTypeId = referenceTypeId;
     bd.includeSubtypes = true;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    bd.nodeClassMask = UA_NODECLASS_UNSPECIFIED;
     bd.resultMask = UA_BROWSERESULTMASK_NONE;
 
     UA_BrowseResult br;
@@ -1239,10 +1239,12 @@ removeChildren(UA_Server *server, UA_Session *session,
 static void
 removeDeconstructedNode(UA_Server *server, UA_Session *session,
                         const UA_Node *node, UA_Boolean removeTargetRefs) {
-    /* Remove all children of the node */
-    removeChildren(server, session, node);
+    /* Remove children of the node */
+    removeChildren(server, session, node, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCHILD));
+    removeChildren(server, session, node, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+    removeChildren(server, session, node, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE));
 
-    /* Remove references to the node (not the references going out, as the node
+    /* Remove references to this node (not the references going out, as the node
      * will be deleted anyway) */
     if(removeTargetRefs)
         removeIncomingReferences(server, session, node);
@@ -1268,7 +1270,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
-    if(UA_Node_hasSubTypeOrInstances(node)) {
+    if(!server->bootstrapNS0 && UA_Node_hasSubTypeOrInstances(node)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "Delete Nodes: Cannot delete a type node "
                             "with active instances or subtypes");

@@ -15,21 +15,28 @@
 
 static UA_Server *server = NULL;
 static UA_ServerConfig *config = NULL;
-static UA_Int32 handleCalled = 0;
+static UA_UInt32 constructed = 0;
 
 static UA_StatusCode
-globalInstantiationMethod(UA_Server *server_,
-                          const UA_NodeId *sessionId, void *sessionContext,
-                          const UA_NodeId *nodeId, void **nodeContext) {
-    handleCalled++;
+globalConstructor(UA_Server *server_,
+                  const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *nodeId, void **nodeContext) {
+    constructed++;
     return UA_STATUSCODE_GOOD;
+}
+
+static void
+globalDestructor(UA_Server *server_,
+                 const UA_NodeId *sessionId, void *sessionContext,
+                 const UA_NodeId *nodeId, void *nodeContext) {
+    constructed--;
 }
 
 static void setup(void) {
     config = UA_ServerConfig_new_default();
     UA_GlobalNodeLifecycle lifecycle;
-    lifecycle.constructor = globalInstantiationMethod;
-    lifecycle.destructor = NULL;
+    lifecycle.constructor = globalConstructor;
+    lifecycle.destructor = globalDestructor;
     config->nodeLifecycle = lifecycle;
     server = UA_Server_new(config);
 }
@@ -37,6 +44,7 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
+    ck_assert_uint_eq(constructed, 0);
 }
 
 START_TEST(AddVariableNode) {
@@ -117,13 +125,11 @@ START_TEST(AddComplexTypeWithInheritance) {
     UA_QualifiedName myObjectName = UA_QUALIFIEDNAME(1, "the.fake.Server.Struct");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_StatusCode res =
-        UA_Server_addObjectNode(server, myObjectNodeId, parentNodeId,
-                                parentReferenceNodeId, myObjectName,
-                                UA_NODEID_NUMERIC(0, 2004), attr,
-                                &handleCalled, NULL);
+    UA_StatusCode res = UA_Server_addObjectNode(server, myObjectNodeId, parentNodeId,
+                                                parentReferenceNodeId, myObjectName,
+                                                UA_NODEID_NUMERIC(0, 2004), attr,
+                                                NULL, NULL);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
-    ck_assert_int_gt(handleCalled, 0); // Should be 58, but may depend on NS0 XML detail
 } END_TEST
 
 START_TEST(AddNodeTwiceGivesError) {

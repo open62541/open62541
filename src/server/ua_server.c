@@ -98,6 +98,30 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
 /* Server Lifecycle */
 /********************/
 
+static void DeconstructVisitor(void *visitorContext, const UA_Node *node) {
+    UA_Server *server = (UA_Server*)visitorContext;
+    if(server->config.nodeLifecycle.destructor)
+        server->config.nodeLifecycle.destructor(server, &adminSession.sessionId,
+                                                adminSession.sessionHandle,
+                                                &node->nodeId, node->context);
+    server->config.nodestore.removeNode(server->config.nodestore.context, &node->nodeId);
+}
+
+static void UA_Server_cleanupInformationModel(UA_Server *server) {
+    /* Delete the nodes in the information model. This is done recursively,
+     * starting by the root node. Afterwards, we "manually" remove the remaining
+     * nodes that have no parent (such as the ModellingRule nodes). */
+    server->bootstrapNS0 = true;
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), false);
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTTYPESFOLDER), false);
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VARIABLETYPESFOLDER), false);
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_DATATYPESFOLDER), false);
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), false);
+    server->bootstrapNS0 = false;
+
+    server->config.nodestore.iterate(server->config.nodestore.context, server, DeconstructVisitor);
+}
+
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
@@ -106,6 +130,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_DISCOVERY
+    /* Delete discovery mechanisms */
     registeredServer_list_entry *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
@@ -141,8 +166,10 @@ void UA_Server_delete(UA_Server *server) {
         }
     }
 # endif
-
 #endif
+
+    /* Clean up the information model */
+    UA_Server_cleanupInformationModel(server);
 
 #ifdef UA_ENABLE_MULTITHREADING
     /* Process new delayed callbacks from the cleanup */
