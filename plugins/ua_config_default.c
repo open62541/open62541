@@ -183,11 +183,6 @@ createSecurityPolicyBasic256Sha256Endpoint(UA_ServerConfig *const conf,
     UA_ApplicationDescription_copy(&conf->applicationDescription,
                                    &endpoint->endpointDescription.server);
 
-    UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
-
-    UA_ApplicationDescription_copy(&conf->applicationDescription,
-                                   &endpoint->endpointDescription.server);
-
     return UA_STATUSCODE_GOOD;
 }
 
