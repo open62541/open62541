@@ -442,8 +442,6 @@ if(UA_ENABLE_ENCRYPTION)
     set(default_plugin_headers ${default_plugin_headers}
             ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.h)
     set(default_plugin_sources ${default_plugin_sources}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_common.c)
-    set(default_plugin_sources ${default_plugin_sources}
             ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
     set(default_plugin_sources ${default_plugin_sources}
             ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
