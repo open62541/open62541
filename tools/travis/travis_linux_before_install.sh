@@ -30,9 +30,9 @@ if [ -z ${DOCKER+x} ]; then
 		rm -rf tcc_install
 	fi
 
-	wget https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.6.1.tar.gz
-	tar xf mbedtls-2.6.1.tar.gz
-	cd mbedtls-mbedtls-2.6.1
+	wget https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.7.1.tar.gz
+	tar xf mbedtls-2.7.1.tar.gz
+	cd mbedtls-mbedtls-2.7.1
 	cmake -DENABLE_TESTING=Off .
 	make -j
 	sudo make install
