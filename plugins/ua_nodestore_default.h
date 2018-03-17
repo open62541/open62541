@@ -14,6 +14,13 @@
 extern "C" {
 #endif
 
+typedef UA_StatusCode (*UA_NodeMapNodeNotFoundCallback)(void *handlerContext, const UA_NodeId *node);
+
+/* Sets or unsets a callback that is triggered when the default Nodestore cannot find the requested node */
+UA_EXPORT void 
+UA_Nodestore_default_setNodeNotFoundCallback(void *context, void *handlerContext,
+                                             UA_NodeMapNodeNotFoundCallback handler);
+
 /* Initializes the nodestore, sets the context and function pointers */
 UA_StatusCode UA_EXPORT
 UA_Nodestore_default_new(UA_Nodestore *ns);

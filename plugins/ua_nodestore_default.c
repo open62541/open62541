@@ -42,6 +42,8 @@ typedef struct {
     UA_UInt32 size;
     UA_UInt32 count;
     UA_UInt32 sizePrimeIndex;
+    UA_NodeMapNodeNotFoundCallback nodeNotFoundHandler;
+    void *nodeNotFoundHandlerContext;
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_t mutex; /* Protect access */
 #endif
@@ -253,6 +255,17 @@ UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
     UA_NodeMapEntry **entry = findOccupiedSlot(ns, nodeid);
     if(!entry) {
         END_CRITSECT(ns);
+        if(ns->nodeNotFoundHandler == NULL) {
+            return NULL;
+        }
+        if(ns->nodeNotFoundHandler(ns->nodeNotFoundHandlerContext, nodeid) != UA_STATUSCODE_GOOD) {
+            return NULL;
+        }
+        BEGIN_CRITSECT(ns);
+        entry = findOccupiedSlot(ns, nodeid);
+    }
+    if(!entry) {
+        END_CRITSECT(ns);
         return NULL;
     }
     ++(*entry)->refCount;
@@ -282,6 +295,17 @@ UA_NodeMap_getNodeCopy(void *context, const UA_NodeId *nodeid,
     UA_NodeMap *ns = (UA_NodeMap*)context;
     BEGIN_CRITSECT(ns);
     UA_NodeMapEntry **slot = findOccupiedSlot(ns, nodeid);
+    if(!slot) {
+        END_CRITSECT(ns);
+        if(ns->nodeNotFoundHandler == NULL) {
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        }
+        if(ns->nodeNotFoundHandler(ns->nodeNotFoundHandlerContext, nodeid) != UA_STATUSCODE_GOOD) {
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        }
+        BEGIN_CRITSECT(ns);
+        slot = findOccupiedSlot(ns, nodeid);
+    }
     if(!slot) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -414,6 +438,17 @@ UA_NodeMap_iterate(void *context, void *visitorContext,
     END_CRITSECT(ns);
 }
 
+void
+UA_Nodestore_default_setNodeNotFoundCallback(void *context, void *handlerContext,
+                                             UA_NodeMapNodeNotFoundCallback handler) {
+    /* Sets or unsets a callback that is triggered whenever the NodeMap fails to find a requested node */
+    UA_NodeMap *ns = (UA_NodeMap*)context;
+    BEGIN_CRITSECT(ns);
+    ns->nodeNotFoundHandler = handler;
+    ns->nodeNotFoundHandlerContext = handlerContext;
+    END_CRITSECT(ns);
+}
+
 static void
 UA_NodeMap_delete(void *context) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
@@ -440,6 +475,8 @@ UA_Nodestore_default_new(UA_Nodestore *ns) {
     UA_NodeMap *nodemap = (UA_NodeMap*)UA_malloc(sizeof(UA_NodeMap));
     if(!nodemap)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    nodemap->nodeNotFoundHandler = NULL;
+    nodemap->nodeNotFoundHandlerContext = NULL;
     nodemap->sizePrimeIndex = higher_prime_index(UA_NODEMAP_MINSIZE);
     nodemap->size = primes[nodemap->sizePrimeIndex];
     nodemap->count = 0;
