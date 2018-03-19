@@ -4,10 +4,11 @@ $ErrorActionPreference = "Stop"
 
 Write-Host -ForegroundColor Green "`n### Installing CMake and python ###`n"
 & cinst --no-progress cmake python2
+& C:\Python27\python.exe -m pip install --upgrade pip
 & C:\Python27\Scripts\pip.exe install six
 
 Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
-& pip install --user sphinx sphinx_rtd_theme
+& C:\Python27\Scripts\pip.exe install --user sphinx sphinx_rtd_theme
 
 Write-Host -ForegroundColor Green "`n### Installing Miktex ###`n"
 if (-not (Test-Path "c:\miktex\texmfs\install\miktex\bin\pdflatex.exe")) {
