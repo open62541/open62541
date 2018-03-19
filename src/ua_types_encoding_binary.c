@@ -1732,7 +1732,7 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1
 };
 
 size_t
-UA_calcSizeBinary(void *p, const UA_DataType *type) {
+UA_calcSizeBinary(const void *p, const UA_DataType *type) {
     size_t s = 0;
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;
