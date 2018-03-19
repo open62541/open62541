@@ -71,7 +71,7 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
  * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since
  * it does not access global (thread-local) variables. */
 size_t
-UA_calcSizeBinary(void *p, const UA_DataType *type);
+UA_calcSizeBinary(const void *p, const UA_DataType *type);
 
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId);
