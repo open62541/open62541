@@ -101,7 +101,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        zip -r open62541-win32.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win32.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
         cp open62541-win32.zip ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_mingw32\\r'
@@ -111,7 +111,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        zip -r open62541-win64.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win64.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
         cp open62541-win64.zip ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_mingw64\\r'
@@ -121,7 +121,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        tar -pczf open62541-linux32.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
+        tar -pczf open62541-linux32.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
         cp open62541-linux32.tar.gz ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_linux\\r'
@@ -133,7 +133,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        tar -pczf open62541-raspberrypi.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
+        tar -pczf open62541-raspberrypi.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
         cp open62541-raspberrypi.tar.gz ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_raspi\\r'
@@ -144,7 +144,7 @@ else
     cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
-    tar -pczf open62541-linux64.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
+    tar -pczf open62541-linux64.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
     cp open62541-linux64.tar.gz ..
     cp open62541.h ../.. # copy single file-release
     cp open62541.c ../.. # copy single file-release
