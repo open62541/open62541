@@ -47,7 +47,9 @@ typedef struct UA_SessionHeader {
 struct ChunkEntry {
     LIST_ENTRY(ChunkEntry) pointers;
     UA_UInt32 requestId;
-    UA_ByteString bytes;
+    UA_Byte* bytes;
+    size_t size;
+    size_t count;
 };
 
 typedef enum {
