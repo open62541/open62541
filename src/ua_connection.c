@@ -55,8 +55,8 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     /* Encode and send the response */
     UA_Byte *bufPos = msg.data;
     const UA_Byte *bufEnd = &msg.data[msg.length];
-    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, &bufEnd);
-    UA_TcpErrorMessage_encodeBinary(error, &bufPos, &bufEnd);
+    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, bufEnd);
+    UA_TcpErrorMessage_encodeBinary(error, &bufPos, bufEnd);
     msg.length = header.messageSize;
     connection->send(connection, &msg);
 }
