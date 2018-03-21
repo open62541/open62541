@@ -25,6 +25,7 @@ extern "C" {
 #include "ua_types_generated_handling.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_log.h"
+#include "ua_client_config.h"
 
 /**
  * .. _client:
@@ -45,61 +46,6 @@ extern "C" {
  *
  * Client Lifecycle
  * ---------------- */
-
-typedef enum {
-    UA_CLIENTSTATE_DISCONNECTED,        /* The client is disconnected */
-    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
-    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
-    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
-    UA_CLIENTSTATE_SESSION_RENEWED      /* A session with the server is open (renewed) */
-} UA_ClientState;
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/**
- * Client Lifecycle callback
- * ------------------------- */
-
-typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
-
-/**
- * Subscription Inactivity callback
- * ------------------------- */
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-typedef void (*UA_SubscriptionInactivityCallback)(UA_Client *client, UA_UInt32 subscriptionId, void *subContext);
-#endif
-
-/**
- * Client Configuration
- * -------------------- */
-
-typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout in ms */
-    UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
-                                        to be renewed) */
-    UA_Logger logger;
-    UA_ConnectionConfig localConnectionConfig;
-    UA_ConnectClientConnection connectionFunc;
-
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
-
-    /* Callback function */
-    UA_ClientStateCallback stateCallback;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_SubscriptionInactivityCallback subscriptionInactivityCallback;
-#endif
-
-    void *clientContext;
-
-    /* number of PublishResponse standing in the sever */
-    /* 0 = background task disabled                    */
-    UA_UInt16 outStandingPublishRequests;
-} UA_ClientConfig;
-
 
 /* Create a new client */
 UA_Client UA_EXPORT *

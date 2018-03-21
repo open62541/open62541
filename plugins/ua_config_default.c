@@ -11,12 +11,12 @@
 
 #include "ua_plugin_securitypolicy.h"
 #include "ua_config_default.h"
+#include "ua_client_config.h"
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
 #include "ua_pki_certificate.h"
 #include "ua_nodestore_default.h"
-#include "ua_types_generated.h"
 #include "ua_securitypolicy_none.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -24,9 +24,6 @@
 #include "ua_securitypolicy_basic256sha256.h"
 #endif
 
-#include "ua_types.h"
-#include "ua_types_generated_handling.h"
-#include "ua_client_subscriptions.h"
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
