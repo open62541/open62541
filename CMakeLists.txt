@@ -339,6 +339,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
@@ -357,7 +358,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
