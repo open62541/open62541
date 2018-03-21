@@ -147,8 +147,9 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *const channel,
         cryptoModule->encryptionAlgorithm.getLocalBlockSize(securityPolicy, channel->channelContext);
     size_t signingKeyLength =
         cryptoModule->signatureAlgorithm.getLocalKeyLength(securityPolicy, channel->channelContext);
-    const size_t buffSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
-    UA_ByteString buffer = {buffSize, (UA_Byte *)UA_alloca(buffSize)};
+    const size_t bufSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
+    UA_STACKARRAY(UA_Byte, bufBytes, bufSize);
+    UA_ByteString buffer = {bufSize, bufBytes};
 
     /* Local keys */
     UA_StatusCode retval = symmetricModule->generateKey(securityPolicy, &channel->remoteNonce,
@@ -180,8 +181,9 @@ UA_SecureChannel_generateRemoteKeys(const UA_SecureChannel *const channel,
         cryptoModule->encryptionAlgorithm.getRemoteBlockSize(securityPolicy, channel->channelContext);
     size_t signingKeyLength =
         cryptoModule->signatureAlgorithm.getRemoteKeyLength(securityPolicy, channel->channelContext);
-    const size_t buffSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
-    UA_ByteString buffer = {buffSize, (UA_Byte *)UA_alloca(buffSize)};
+    const size_t bufSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
+    UA_STACKARRAY(UA_Byte, bufBytes, bufSize);
+    UA_ByteString buffer = {bufSize, bufBytes};
 
     /* Remote keys */
     UA_StatusCode retval = symmetricModule->generateKey(securityPolicy, &channel->localNonce,

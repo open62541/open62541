@@ -36,18 +36,23 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Sign the signature */
+    /* Allocate a temp buffer */
     size_t dataToSignSize = request->clientCertificate.length + request->clientNonce.length;
-    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
-    if(dataToSignSize > 4096)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_ByteString dataToSign;
+    retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval; /* signatureData->signature is cleaned up with the response */
 
-    UA_ByteString dataToSign = {dataToSignSize, (UA_Byte*)UA_alloca(dataToSignSize)};
+    /* Sign the signature */
     memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
-    return securityPolicy->certificateSigningAlgorithm.
+    retval = securityPolicy->certificateSigningAlgorithm.
         sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
+
+    /* Clean up */
+    UA_ByteString_deleteMembers(&dataToSign);
+    return retval;
 }
 
 void

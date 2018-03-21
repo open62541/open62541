@@ -74,8 +74,7 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     }
 
     UA_PublishResponseEntry *entry;
-    while((entry = UA_Session_getPublishReq(session))) {
-        UA_Session_removePublishReq(session,entry);
+    while((entry = UA_Session_dequeuePublishReq(session))) {
         UA_PublishResponse_deleteMembers(&entry->response);
         UA_free(entry);
     }
@@ -121,8 +120,10 @@ void UA_Session_updateLifetime(UA_Session *session) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscription) {
-    session->numSubscriptions++;
+    newSubscription->subscriptionId = ++session->lastSubscriptionId;
+
     LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
+    session->numSubscriptions++;
 }
 
 UA_StatusCode
@@ -151,11 +152,6 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_UInt32
-UA_Session_getNumSubscriptions( UA_Session *session ) {
-   return session->numSubscriptions;
-}
-
 UA_Subscription *
 UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     UA_Subscription *sub;
@@ -166,34 +162,22 @@ UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId) {
     return sub;
 }
 
-UA_UInt32 UA_Session_getUniqueSubscriptionId(UA_Session *session) {
-    return ++(session->lastSubscriptionId);
-}
-
-UA_UInt32
-UA_Session_getNumPublishReq(UA_Session *session) {
-    return session->numPublishReq;
-}
-
 UA_PublishResponseEntry*
-UA_Session_getPublishReq(UA_Session *session) {
-    return SIMPLEQ_FIRST(&session->responseQueue);
-}
-
-void
-UA_Session_removePublishReq( UA_Session *session, UA_PublishResponseEntry* entry) {
-    UA_PublishResponseEntry* firstEntry;
-    firstEntry = SIMPLEQ_FIRST(&session->responseQueue);
-
-    /* Remove the response from the response queue */
-    if((firstEntry != 0) && (firstEntry == entry)) {
+UA_Session_dequeuePublishReq(UA_Session *session) {
+    UA_PublishResponseEntry* entry = SIMPLEQ_FIRST(&session->responseQueue);
+    if(entry) {
         SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
         session->numPublishReq--;
     }
+    return entry;
 }
 
-void UA_Session_addPublishReq( UA_Session *session, UA_PublishResponseEntry* entry) {
-    SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
+void
+UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, UA_Boolean head) {
+    if(!head)
+        SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
+    else
+        SIMPLEQ_INSERT_HEAD(&session->responseQueue, entry, listEntry);
     session->numPublishReq++;
 }
 

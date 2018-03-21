@@ -28,7 +28,6 @@ extern "C" {
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_ENCRYPTION
-#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
@@ -40,6 +39,8 @@ extern "C" {
 #cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 #cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
+#define UA_VALGRIND_INTERACTIVE_INTERVAL ${UA_VALGRIND_INTERACTIVE_INTERVAL}
 
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
@@ -129,13 +130,18 @@ extern "C" {
 
 #endif
 
+/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
+ * Otherwise revert to alloca. Note that alloca is not supported on some
+ * plattforms. */
 #if defined(__GNUC__) || defined(__clang__)
-# define UA_alloca(size) __builtin_alloca (size)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
 #elif defined(_WIN32)
-# define UA_alloca(SIZE) _alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)_alloca(sizeof(TYPE) * SIZE)
 #else
 # include <alloca.h>
-# define UA_alloca(SIZE) alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)alloca(sizeof(TYPE) * SIZE)
 #endif
 
 /**

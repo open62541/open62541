@@ -1352,7 +1352,9 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
 
     /* Add the first direction */
     *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                 (UA_EditNodeCallback)addOneWayReference, item);
+                                 (UA_EditNodeCallback)addOneWayReference,
+                                 /* cast away const because callback uses const anyway */
+                                 (UA_AddReferencesItem *)(uintptr_t)item);
     UA_Boolean firstExisted = UA_FALSE;
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         *retval = UA_STATUSCODE_GOOD;
@@ -1446,7 +1448,9 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
 
     // TODO: Check consistency constraints, remove the references.
     *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                 (UA_EditNodeCallback)deleteOneWayReference, item);
+                                 (UA_EditNodeCallback)deleteOneWayReference,
+                                 /* cast away const qualifier because callback uses it anyway */
+                                 (UA_DeleteReferencesItem *)(uintptr_t)item);
     if(*retval != UA_STATUSCODE_GOOD)
         return;
 
@@ -1506,7 +1510,7 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
 
 static UA_StatusCode
 setValueCallback(UA_Server *server, UA_Session *session,
-                 UA_VariableNode *node, UA_ValueCallback *callback) {
+                 UA_VariableNode *node, const UA_ValueCallback *callback) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->value.data.callback = *callback;
@@ -1518,7 +1522,9 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
                                         const UA_ValueCallback callback) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
-                              (UA_EditNodeCallback)setValueCallback, &callback);
+                              (UA_EditNodeCallback)setValueCallback,
+                              /* cast away const because callback uses const anyway */
+                              (UA_ValueCallback *)(uintptr_t) &callback);
 }
 
 /***************************************************/
@@ -1564,7 +1570,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
 
 static UA_StatusCode
 setDataSource(UA_Server *server, UA_Session *session,
-              UA_VariableNode* node, UA_DataSource *dataSource) {
+              UA_VariableNode* node, const UA_DataSource *dataSource) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     if(node->valueSource == UA_VALUESOURCE_DATA)
@@ -1579,7 +1585,8 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
                               (UA_EditNodeCallback)setDataSource,
-                              &dataSource);
+                            /* casting away const because callback casts it back anyway */
+                              (UA_DataSource *) (uintptr_t)&dataSource);
 }
 
 /************************************/
