@@ -152,9 +152,10 @@ class Type(object):
         return funcs
 
     def encoding_h(self):
-        enc = "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte **bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, bufEnd, NULL, NULL);\n}\n"
+        enc = "static UA_INLINE size_t\nUA_%s_calcSizeBinary(const UA_%s *src) {\n    return UA_calcSizeBinary(src, %s);\n}\n"
+        enc += "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, 0, NULL);\n}"
-        return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 2))))
+        return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 3))))
 
 class BuiltinType(Type):
     def __init__(self, name):
@@ -491,8 +492,14 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 extern "C" {
 #endif
 
+#ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
-''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+#else
+#include "open62541.h"
+#endif
+
+''')
 
 filtered_types = iter_types(types, False)
 filtered_opaque_types = iter_types(types, True)

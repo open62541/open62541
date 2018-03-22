@@ -88,7 +88,7 @@ HelAckHandshake(UA_Client *client) {
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
-    retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, &bufEnd);
+    retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
     UA_TcpHelloMessage_deleteMembers(&hello);
 
     /* Encode the message header at offset 0 */
@@ -96,7 +96,7 @@ HelAckHandshake(UA_Client *client) {
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32)((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, &bufEnd);
+    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
         return retval;

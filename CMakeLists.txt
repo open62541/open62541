@@ -15,17 +15,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib CACHE PATH "Installation path of libraries")
-
 ###########
 # Version #
 ###########
 
 set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 3)
+set(OPEN62541_VER_MINOR 4)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "-dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
+#  If a relative path is specified, it is treated as relative to the $<INSTALL_PREFIX>
 set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 
 # Set OPEN62541_VER_COMMIT
@@ -87,6 +86,9 @@ endif()
 option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
 
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB)
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -99,12 +101,18 @@ mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
 
+option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
+mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
+
 option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
 if (MSVC AND UA_ENABLE_FULL_NS0)
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)
     # See https://github.com/open62541/open62541/issues/1326
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
+
+option(UA_FILE_NS0 "Custom NodeSet file containing NS0")
+mark_as_advanced(UA_FILE_NS0)
 
 # Semaphores/file system may not be available on embedded devices. It can be
 # disabled with the following option
@@ -126,6 +134,9 @@ mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
 
 set(UA_FREERTOS OFF CACHE BOOL "Enable if you want to compile for freeRTOS")
 mark_as_advanced(UA_FREERTOS)
+
+set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
+mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
 
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
@@ -247,13 +258,13 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         remove_definitions(-Werror -Wpedantic -Wno-static-in-inline -fPIC)
         add_definitions(-D_WRS_KERNEL)
     endif()
-    
+
     if(UA_FREERTOS)
        SET(UA_FREERTOS_INCLUDES "" CACHE STRING "Folders to include from the freeRTOS OS")
        include_directories(${UA_FREERTOS_INCLUDES})
         # Disable flags for freeRTOS
         remove_definitions(-fPIC -Wconversion )
-        add_definitions(-DUA_FREERTOS -DLWIP_TIMEVAL_PRIVATE=0 -DLWIP_COMPAT_MUTEX=0 -DLWIP_POSIX_SOCKETS_IO_NAMES=0 -mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs 
+        add_definitions(-DUA_FREERTOS -DLWIP_TIMEVAL_PRIVATE=0 -DLWIP_COMPAT_MUTEX=0 -DLWIP_POSIX_SOCKETS_IO_NAMES=0 -mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs
                         -ffunction-sections -fdata-sections  -fno-exceptions -fstack-usage -Wno-unused-variable -Wno-format -Wno-format-security -Wno-format-nonliteral)
         list(APPEND open62541_LIBRARIES c m stdc++ supc++)
     endif(UA_FREERTOS)
@@ -297,7 +308,7 @@ endif()
 if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
 
-  if(NOT BUILD_SHARED_LIB)
+  if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
     set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
         CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
     foreach(CompilerFlag ${CompilerFlags})
@@ -431,10 +442,15 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
-    set(default_plugin_headers ${default_plugin_headers}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h)
-    set(default_plugin_sources ${default_plugin_sources}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h
+                                       ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c
+                                       ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
+endif()
+
+if(UA_ENABLE_PUBSUB)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c)
 endif()
 
 if(UA_DEBUG_DUMP_PKGS)
@@ -467,19 +483,24 @@ endif()
 #########################
 
 if (UA_ENABLE_FULL_NS0)
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    endif()
     set(UA_FILE_DATATYPES "")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
-    if(NOT EXISTS "${UA_FILE_NS0}")
-        message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
-    endif()
 else()
-    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    endif()
     set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 endif()
+if(NOT EXISTS "${UA_FILE_NS0}")
+    message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+endif()
+
 
 if (UA_FILE_DATATYPES STREQUAL "")
     set(SELECTED_TYPES_TMP "")

@@ -159,7 +159,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     UA_Boolean executable = method->executable;
     if(session != &adminSession)
         executable = executable &&
-            server->config.accessControl.getUserExecutableOnObject(&session->sessionId,
+            server->config.accessControl.getUserExecutableOnObject(server, 
+                           &server->config.accessControl, &session->sessionId,
                            session->sessionHandle, &request->methodId, method->context,
                            &request->objectId, object->context);
     if(!executable) {

@@ -48,7 +48,7 @@ add_example(tutorial_client_events tutorial_client_events.c)
 # Example Server #
 ##################
 
-add_example(server server.c)
+add_example(server_ctt server_ctt.c)
 
 ##################
 # Example Client #

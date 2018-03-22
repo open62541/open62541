@@ -77,6 +77,7 @@ certificateVerification_verify(void *verificationContext,
         /*              UA_LOGCATEGORY_SECURITYPOLICY, */
         /*              "Verifying the certificate failed with error: %s", buff); */
 
+        mbedtls_x509_crt_free(&remoteCertificate);
         if(flags & MBEDTLS_X509_BADCERT_NOT_TRUSTED)
             return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
 
@@ -91,6 +92,7 @@ certificateVerification_verify(void *verificationContext,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
+    mbedtls_x509_crt_free(&remoteCertificate);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -118,7 +120,10 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
 
     cv->context = (void*)ci;
-    cv->verifyCertificate = certificateVerification_verify;
+    if(certificateTrustListSize > 0)
+        cv->verifyCertificate = certificateVerification_verify;
+    else
+        cv->verifyCertificate = verifyAllowAll;
     cv->deleteMembers = certificateVerification_deleteMembers;
 
     int err = 0;

@@ -174,6 +174,9 @@ UA_STRING(char *chars) {
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
+/* Define strings at compile time (in ROM) */
+#define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
+
 /**
  * .. _datetime:
  *
@@ -377,6 +380,9 @@ typedef struct {
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 
+UA_Boolean UA_EXPORT UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
+                                             const UA_ExpandedNodeId *n2);
+
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
@@ -443,6 +449,10 @@ UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
     qn.name = UA_STRING_ALLOC(chars); return qn;
 }
+
+UA_Boolean UA_EXPORT
+UA_QualifiedName_equal(const UA_QualifiedName *qn1,
+                       const UA_QualifiedName *qn2);
 
 /**
  * LocalizedText

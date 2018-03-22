@@ -26,7 +26,6 @@
 #include "ua_types_generated_handling.h"
 #include "ua_securitypolicy_none.h"
 
-
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 // store the authentication token and session ID so we can help fuzzing by setting
 // these values in the next request automatically
@@ -52,7 +51,7 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
     UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, &offset, &requestHeader);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    void *response = UA_alloca(responseType->memSize);
+    UA_STACKARRAY(UA_Byte, response, responseType->memSize);
     UA_init(response, responseType);
     UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)response;
     responseHeader->requestHandle = requestHeader.requestHandle;
@@ -315,13 +314,13 @@ processHEL(UA_Server *server, UA_Connection *connection,
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
 
-    retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
+    retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &ack_msg);
         return retval;
     }
 
-    retval = UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
+    retval = UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &ack_msg);
         return retval;
@@ -423,7 +422,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_assert(responseType);
 
     /* Decode the request */
-    void *request = UA_alloca(requestType->memSize);
+    UA_STACKARRAY(UA_Byte, request, requestType->memSize);
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
     retval = UA_decodeBinary(msg, &offset, request, requestType,
                              server->config.customDataTypesSize,
@@ -435,7 +434,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Prepare the respone */
-    void *response = UA_alloca(responseType->memSize);
+    UA_STACKARRAY(UA_Byte, responseBuf, responseType->memSize);
+    void *response = (void*)(uintptr_t)&responseBuf[0]; /* Get around aliasing rules */
     UA_init(response, responseType);
     UA_Session *session = NULL; /* must be initialized before goto send_response */
 

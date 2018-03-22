@@ -75,6 +75,7 @@ void UA_Session_init(UA_Session *session);
 void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server *server);
 void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel);
 void UA_Session_detachFromSecureChannel(UA_Session *session);
+UA_StatusCode UA_Session_generateNonce(UA_Session *session);
 
 /* If any activity on a session happens, the timeout is extended */
 void UA_Session_updateLifetime(UA_Session *session);
@@ -84,32 +85,12 @@ void UA_Session_updateLifetime(UA_Session *session);
  * --------------------- */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+
 void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscription);
-
-UA_UInt32
-UA_Session_getNumSubscriptions(UA_Session *session );
-
-UA_Subscription *
-UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId);
-
-UA_StatusCode
-UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
-                              UA_UInt32 subscriptionId);
-
-UA_UInt32
-UA_Session_getUniqueSubscriptionId(UA_Session *session);
-
-UA_UInt32
-UA_Session_getNumPublishReq(UA_Session *session);
-
-UA_PublishResponseEntry*
-UA_Session_getPublishReq(UA_Session *session);
-
-void
-UA_Session_removePublishReq(UA_Session *session, UA_PublishResponseEntry* entry);
-
-void
-UA_Session_addPublishReq(UA_Session *session, UA_PublishResponseEntry* entry);
+UA_Subscription * UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId);
+UA_StatusCode UA_Session_deleteSubscription(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionId);
+void UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, UA_Boolean head);
+UA_PublishResponseEntry* UA_Session_dequeuePublishReq(UA_Session *session);
 
 #endif
 

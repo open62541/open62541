@@ -174,11 +174,11 @@ struct UA_Server {
  * stack. Either a copy or the original node for in-situ editing. Depends on
  * multithreading and the nodestore.*/
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
-                                             UA_Node *node, const void*);
+                                             UA_Node *node, void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
                                  const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback,
-                                 const void *data);
+                                 void *data);
 
 /*************/
 /* Callbacks */
@@ -188,6 +188,17 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
  * finished */
 UA_StatusCode
 UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
+
+UA_StatusCode
+UA_Server_delayedFree(UA_Server *server, void *data);
+
+#ifndef UA_ENABLE_MULTITHREADING
+/* Execute all delayed callbacks regardless of whether the worker threads have
+ * finished previous work */
+void UA_Server_cleanupDelayedCallbacks(UA_Server *server);
+#else
+void UA_Server_cleanupDispatchQueue(UA_Server *server);
+#endif
 
 /* Callback is executed in the same thread or, if possible, dispatched to one of
  * the worker threads. */
@@ -241,7 +252,8 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
-                                   const UA_DataType *responseOperationsType);
+                                   const UA_DataType *responseOperationsType)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /***************************************/
 /* Check Information Model Consistency */
@@ -341,13 +353,14 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 /* Creates a new node in the nodestore. */
 UA_StatusCode
 Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
-                        const UA_AddNodesItem *item, UA_NodeId *outNewNodeId);
+                        const UA_AddNodesItem *item, const UA_NodeId *parentNodeId,
+                        const UA_NodeId *referenceTypeId,
+                        UA_NodeId *outNewNodeId);
 
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session,
-                         const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
+                         const UA_NodeId *nodeId);
 
 /**********************/
 /* Create Namespace 0 */

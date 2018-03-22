@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* TODO add event based testing */
+
 #include "ua_server.h"
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
@@ -325,37 +327,38 @@ START_TEST(Server_overflow) {
     }
     ck_assert_ptr_ne(mon, NULL);
     UA_assert(mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    MonitoredItem_queuedValue *queueItem;
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    UA_Notification *notification;
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    notification = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, true);
+    ck_assert_uint_eq(notification->data.value.status,
+                      UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Remove status for next test */
-    queueItem->value.hasStatus = false;
-    queueItem->value.status = 0;
+    notification->data.value.hasStatus = false;
+    notification->data.value.status = 0;
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
@@ -375,7 +378,8 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse modifyMonitoredItemsResponse;
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
-    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest, &modifyMonitoredItemsResponse);
+    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest,
+                                 &modifyMonitoredItemsResponse);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -383,11 +387,12 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
-    queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    notification = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, true);
+    ck_assert_uint_eq(notification->data.value.status,
+                      UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -403,7 +408,8 @@ START_TEST(Server_overflow) {
 
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
-    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest, &modifyMonitoredItemsResponse);
+    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest,
+                                 &modifyMonitoredItemsResponse);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -411,10 +417,10 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false);
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -441,10 +447,10 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
-    queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
+    notification = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
 
     /* Remove the subscriptions */
     UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
@@ -456,7 +462,8 @@ START_TEST(Server_overflow) {
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
 
-    Service_DeleteSubscriptions(server, &adminSession, &deleteSubscriptionsRequest, &deleteSubscriptionsResponse);
+    Service_DeleteSubscriptions(server, &adminSession, &deleteSubscriptionsRequest,
+                                &deleteSubscriptionsResponse);
     ck_assert_uint_eq(deleteSubscriptionsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteSubscriptionsResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteSubscriptionsResponse.results[0], UA_STATUSCODE_GOOD);
@@ -502,7 +509,6 @@ START_TEST(Server_deleteMonitoredItems) {
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
-
 }
 END_TEST
 
@@ -531,17 +537,49 @@ START_TEST(Server_lifeTimeCount) {
     Service_CreateSubscription(server, &adminSession, &request, &response);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 2);
-    /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount */
+    /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount == 3 */
     ck_assert_uint_eq(response.revisedLifetimeCount, 6);
     UA_Double publishingInterval = response.revisedPublishingInterval;
     ck_assert(publishingInterval > 0.0f);
+    subscriptionId = response.subscriptionId;
     UA_CreateSubscriptionResponse_deleteMembers(&response);
 
-    UA_Server_run_iterate(server, false);
+    /* Add a MonitoredItem to the second subscription */
+    UA_CreateMonitoredItemsRequest mrequest;
+    UA_CreateMonitoredItemsRequest_init(&mrequest);
+    mrequest.subscriptionId = subscriptionId;
+    mrequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    rvi.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    rvi.indexRange = UA_STRING_NULL;
+    item.itemToMonitor = rvi;
+    item.requestedParameters.samplingInterval = publishingInterval / 5.0;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_MonitoringParameters params;
+    UA_MonitoringParameters_init(&params);
+    item.requestedParameters = params;
+    mrequest.itemsToCreateSize = 1;
+    mrequest.itemsToCreate = &item;
 
+    UA_CreateMonitoredItemsResponse mresponse;
+    UA_CreateMonitoredItemsResponse_init(&mresponse);
+    Service_CreateMonitoredItems(server, &adminSession, &mrequest, &mresponse);
+    ck_assert_uint_eq(mresponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(mresponse.resultsSize, 1);
+    ck_assert_uint_eq(mresponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = mresponse.results[0].monitoredItemId;
+    ck_assert_uint_gt(monitoredItemId, 0);
+    UA_MonitoredItemCreateRequest_deleteMembers(&item);
+    UA_CreateMonitoredItemsResponse_deleteMembers(&mresponse);
+
+    UA_Server_run_iterate(server, false);
     UA_UInt32 count = 0;
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 0);
         count++;
     }
@@ -551,7 +589,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 1);
         count++;
     }
@@ -562,7 +600,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 2);
         count++;
     }
@@ -573,7 +611,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 3);
         count++;
     }
@@ -584,7 +622,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 4);
         count++;
     }
@@ -595,7 +633,7 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 5);
         count++;
     }
@@ -606,18 +644,19 @@ START_TEST(Server_lifeTimeCount) {
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 6);
         count++;
     }
     ck_assert_uint_eq(count, 1);
 
-    /* Sleep until the publishing interval times out */
+    /* Sleep until the publishing interval times out. The next iteration removes
+     * the subscription. */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
 
     count = 0;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         count++;
     }
     ck_assert_uint_eq(count, 0);

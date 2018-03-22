@@ -303,13 +303,13 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
     typeStr = "UA_" + typeBrowseNode
 
     if parentNode.valueRank > 0:
-        code.append(typeStr + " *" + valueName + " = (" + typeStr + "*) UA_alloca(" + typeArr + ".memSize * " + str(parentNode.valueRank) + ");")
+        code.append("UA_STACKARRAY(" + typeStr + ", " + valueName + "," + str(parentNode.valueRank) + ");")
         for i in range(0, parentNode.valueRank):
             code.append("UA_init(&" + valueName + "[" + str(i) + "], &" + typeArr + ");")
             code.append("UA_Variant_setArray(&attr.value, " + valueName + ", (UA_Int32) " +
                         str(parentNode.valueRank) + ", &" + typeArr + ");")
     else:
-        code.append("void *" + valueName + " = UA_alloca(" + typeArr + ".memSize);")
+        code.append("UA_STACKARRAY(" + typeStr + ", " + valueName + ", 1);")
         code.append("UA_init(" + valueName + ", &" + typeArr + ");")
         code.append("UA_Variant_setScalar(&attr.value, " + valueName + ", &" + typeArr + ");")
 
@@ -459,7 +459,7 @@ def generateSubtypeOfDefinitionCode(node):
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
-def generateNodeCode_begin(node, nodeset, max_string_length):
+def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentrefs):
     code = []
     code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
 
@@ -492,9 +492,19 @@ def generateNodeCode_begin(node, nodeset, max_string_length):
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
 
     typeDef = getNodeTypeDefinition(node)
+    isDataTypeEncodingType = typeDef is not None and typeDef.ns == 0 and typeDef.i == 76
+    # Object nodes of type DataTypeEncoding do not have any parent
+    if not generate_ns0 and not isDataTypeEncodingType:
+        (parentNode, parentRef) = extractNodeParent(node, parentrefs)
+        if parentNode is None or parentRef is None:
+            return None
+    else:
+        (parentNode, parentRef) = (NodeId(), NodeId())
 
     code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".format(node.__class__.__name__.upper().replace("NODE" ,"")))
     code.append(generateNodeIdCode(node.id) + ",")
+    code.append(generateNodeIdCode(parentNode) + ",")
+    code.append(generateNodeIdCode(parentRef) + ",")
     code.append(generateQualifiedNameCode(node.browseName, max_string_length=max_string_length) + ",")
     if isinstance(node, VariableTypeNode):
         # we need the HasSubtype reference
@@ -514,38 +524,20 @@ def generateNodeCode_begin(node, nodeset, max_string_length):
     
     return "\n".join(code)
 
-def generateNodeCode_finish(node, generate_ns0, parentrefs):
+def generateNodeCode_finish(node):
     code = []
-
-    typeDef = getNodeTypeDefinition(node)
-    isDataTypeEncodingType = typeDef is not None and typeDef.ns == 0 and typeDef.i == 76
-    # Object nodes of type DataTypeEncoding do not have any parent
-    if not generate_ns0 and not isDataTypeEncodingType:
-        (parentNode, parentRef) = extractNodeParent(node, parentrefs)
-        if parentNode is None or parentRef is None:
-            return None
-    else:
-        (parentNode, parentRef) = (NodeId(), NodeId())
 
 
     if isinstance(node, MethodNode):
         code.append("UA_Server_addMethodNode_finish(server, ")
     else:
         code.append("UA_Server_addNode_finish(server, ")
-    code.append(generateNodeIdCode(node.id) + ",")
-    code.append(generateNodeIdCode(parentNode) + ",")
-    code.append(generateNodeIdCode(parentRef) + ",")
+    code.append(generateNodeIdCode(node.id))
 
     if isinstance(node, MethodNode):
-        code.append("NULL, 0, NULL, 0, NULL);")
+        code.append(", NULL, 0, NULL, 0, NULL);")
     else:
-
-        if isinstance(node, VariableTypeNode):
-            # we need the HasSubtype reference
-            code.append(generateSubtypeOfDefinitionCode(node) + ");")
-        else:
-            typeDefCode = "UA_NODEID_NULL" if typeDef is None else generateNodeIdCode(typeDef)
-            code.append(typeDefCode + ");")
+        code.append(");")
 
     return "\n".join(code)
 

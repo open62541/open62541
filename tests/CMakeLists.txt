@@ -11,6 +11,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/src/server)
+include_directories(${PROJECT_SOURCE_DIR}/src/pubsub)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
@@ -21,9 +22,9 @@ include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 if (MSVC)
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
 else()
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
 
@@ -38,11 +39,14 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+)
 
 if(UA_ENABLE_ENCRYPTION)
     set(test_plugin_sources ${test_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+    set(test_plugin_sources ${test_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
@@ -159,6 +163,12 @@ if(UA_ENABLE_DISCOVERY)
     add_executable(check_discovery server/check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_discovery ${LIBS})
     add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
+endif()
+
+if(UA_ENABLE_PUBSUB)
+    add_executable(check_pubsub_encoding pubsub/check_pubsub_encoding.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_pubsub_encoding ${LIBS})
+    add_test_valgrind(pubsub_encoding ${TESTS_BINARY_DIR}/check_pubsub_encoding)
 endif()
 
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)

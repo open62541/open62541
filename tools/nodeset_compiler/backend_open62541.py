@@ -189,19 +189,55 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
     if internal_headers:
         writeh("""
 #ifdef UA_NO_AMALGAMATION
-#include "ua_server.h"
-#include "ua_types_encoding_binary.h"
-%s
+# include "ua_server.h"
+# include "ua_types_encoding_binary.h"
 #else
-#include "open62541.h"
+# include "open62541.h"
+
+/* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
+
+# ifndef UA_Nodestore_remove //this definition is needed to hide this code in the amalgamated .c file
+
+typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
+                                                 const UA_Byte **bufEnd);
+
+UA_StatusCode
+UA_encodeBinary(const void *src, const UA_DataType *type,
+                UA_Byte **bufPos, const UA_Byte **bufEnd,
+                UA_exchangeEncodeBuffer exchangeCallback,
+                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+UA_StatusCode
+UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
+                const UA_DataType *type, size_t customTypesSize,
+                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+size_t
+UA_calcSizeBinary(void *p, const UA_DataType *type);
+
+const UA_DataType *
+UA_findDataTypeByBinary(const UA_NodeId *typeId);
+
+# endif // UA_Nodestore_remove
+
 #endif
+
+%s
 """ % (additionalHeaders))
     else:
         writeh("""
 #include "open62541.h"
 """)
     writeh("""
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 extern UA_StatusCode %s(UA_Server *server);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* %s_H_ */""" % \
            (outfilebase, outfilebase.upper()))
@@ -226,13 +262,13 @@ extern UA_StatusCode %s(UA_Server *server);
         # Print node
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {\n")
-            code = generateNodeCode_begin(node, nodeset, max_string_length)
+            code = generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentrefs)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
                 continue
             else:
+                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {\n")
                 writec(code)
 
         # Print inverse references leading to this node
@@ -242,7 +278,7 @@ extern UA_StatusCode %s(UA_Server *server);
         writec("return retVal;\n}")
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {\n")
-        code = generateNodeCode_finish(node, generate_ns0, parentrefs)
+        code = generateNodeCode_finish(node)
         writec("return " + code + "\n}\n")
 
         functionNumber = functionNumber + 1

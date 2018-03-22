@@ -59,7 +59,7 @@ int main(void) {
  * ^^^^^^^^^^^^^
  *
  * - Try to connect to some other OPC UA server by changing
- *   ``opc.tcp://localhost:16664`` to an appropriate address (remember that the
+ *   ``opc.tcp://localhost:4840`` to an appropriate address (remember that the
  *   queried node is contained in any OPC UA server).
  *
  * - Try to set the value of the variable node (ns=1,i="the.answer") containing

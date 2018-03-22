@@ -353,7 +353,7 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
 UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
-                   const void *data) {
+                   void *data) {
 #ifndef UA_ENABLE_MULTITHREADING
     const UA_Node *node = UA_Nodestore_get(server, nodeId);
     if(!node)
@@ -384,8 +384,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   void *context,
-                                   const size_t *requestOperations,
+                                   void *context, const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType) {

@@ -36,7 +36,7 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  */
 
 /*
- * Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
+ * Copyright (C) 2014-2018 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
  * redistribute it and/or modify it under the terms of the Mozilla Public
