@@ -44,6 +44,9 @@ extern "C" {
  * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
  * <client-subscriptions>`.
  *
+ *
+ * .. include:: client_config.rst
+ *
  * Client Lifecycle
  * ---------------- */
 
@@ -176,6 +179,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  *
  * Services
  * --------
+ *
  * The raw OPC UA services are exposed to the client. But most of them time, it
  * is better to use the convenience functions from ``ua_client_highlevel.h``
  * that wrap the raw services. */
@@ -185,7 +189,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
                     const UA_DataType *responseType);
 
-/**
+/*
  * Attribute Service Set
  * ^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_ReadResponse
@@ -204,7 +208,7 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
-/**
+/*
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
 #ifdef UA_ENABLE_METHODCALLS
@@ -217,7 +221,7 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
 }
 #endif
 
-/**
+/*
  * NodeManagement Service Set
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_AddNodesResponse
@@ -255,7 +259,7 @@ UA_Client_Service_deleteReferences(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * View Service Set
  * ^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_BrowseResponse
@@ -305,7 +309,7 @@ UA_Client_Service_unregisterNodes(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * Query Service Set
  * ^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_QueryFirstResponse

@@ -15,7 +15,7 @@ extern "C" {
 #include "ua_plugin_network.h"
 
 /**
- * .. _client-configuration:
+ * .. _client-config:
  *
  * Client Configuration
  * --------------------
@@ -49,21 +49,21 @@ typedef struct UA_Client UA_Client;
 
 /**
  * Client Lifecycle callback
- * ------------------------- */
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
 
 /**
  * Subscription Inactivity callback
- * ------------------------- */
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 typedef void (*UA_SubscriptionInactivityCallback)(UA_Client *client, UA_UInt32 subscriptionId, void *subContext);
 #endif
 
 /**
- * Client Configuration
- * -------------------- */
+ * Client Configuration Data
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 typedef struct UA_ClientConfig {
     UA_UInt32 timeout;               /* Sync response timeout in ms */
@@ -91,12 +91,11 @@ typedef struct UA_ClientConfig {
 } UA_ClientConfig;
 
 
-/** Get the client configuration from the configuration plugin. Used by the
+/* Get the client configuration from the configuration plugin. Used by the
  * server when it needs client functionality to register to a discovery server
  * or when the server needs to create a client for other purposes
  *
- * @return The client configuration structure
- **/
+ * @return The client configuration structure */
 UA_ClientConfig UA_EXPORT
 UA_Server_getClientConfig(void);
 
