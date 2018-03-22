@@ -23,7 +23,7 @@ echo "=== Pushing doc for ${target_dir} ==="
 rm -r -f ./doc/${target_dir} || true # ignore result
 mkdir ./doc/${target_dir} || true # ignore result
 cp -r ../../doc/* ./doc/${target_dir}/
-cp -r ../../doc_latex/open62541.pdf ./doc/open62541-current.pdf
+cp -r ../../doc_latex/open62541.pdf ./doc/open62541-${target_dir}.pdf
 git add -A ./doc
 git config --global user.email "open62541-travis-ci@users.noreply.github.com"
 git config --global user.name "Open62541 travis-ci"
