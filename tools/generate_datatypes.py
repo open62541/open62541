@@ -513,9 +513,7 @@ printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.u
 
 i = 0
 for t in filtered_types:
-    if i != 0:
-        printh("\n")
-    printh("/**\n * " +  t.name)
+    printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
         printh(" */")
@@ -529,9 +527,7 @@ for t in filtered_types:
 i = 0
 # Generate alias for opaque types
 for t in filtered_opaque_types:
-    if i != 0:
-        printh("\n")
-    printh("/**\n * " +  t.name)
+    printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
         printh(" */")
