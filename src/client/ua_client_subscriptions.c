@@ -113,8 +113,7 @@ UA_Client_Subscription_deleteInternal(UA_Client *client, UA_Client_Subscription 
 
 UA_DeleteSubscriptionsResponse UA_EXPORT
 UA_Client_Subscriptions_delete(UA_Client *client, const UA_DeleteSubscriptionsRequest request) {
-    UA_Client_Subscription **subs = (UA_Client_Subscription**)
-        UA_alloca(sizeof(void*) * request.subscriptionIdsSize);
+    UA_STACKARRAY(UA_Client_Subscription*, subs, request.subscriptionIdsSize);
     memset(subs, 0, sizeof(void*) * request.subscriptionIdsSize);
 
     /* temporary remove the subscriptions from the list */
@@ -227,8 +226,7 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
     UA_Client_Subscription *sub = NULL;
     
     /* Allocate the memory for internal representations */
-    UA_Client_MonitoredItem **mis = (UA_Client_MonitoredItem**)
-        UA_alloca(sizeof(void*) * itemsToCreateSize);
+    UA_STACKARRAY(UA_Client_MonitoredItem*, mis, itemsToCreateSize);
     memset(mis, 0, sizeof(void*) * itemsToCreateSize);
     for(size_t i = 0; i < itemsToCreateSize; i++) {
         mis[i] = (UA_Client_MonitoredItem*)UA_malloc(sizeof(UA_Client_MonitoredItem));

@@ -250,7 +250,7 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
-    ContinuationPointEntry *cp = (ContinuationPointEntry*)UA_alloca(sizeof(ContinuationPointEntry));
+    UA_STACKARRAY(ContinuationPointEntry, cp, 1);
     memset(cp, 0, sizeof(ContinuationPointEntry));
     cp->maxReferences = *maxrefs;
     cp->browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */

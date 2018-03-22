@@ -327,37 +327,38 @@ START_TEST(Server_overflow) {
     }
     ck_assert_ptr_ne(mon, NULL);
     UA_assert(mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    MonitoredItem_queuedValue *queueItem;
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
+    UA_Notification *notification;
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 3); 
+    ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
-    queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->data.value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->data.value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    notification = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, true);
+    ck_assert_uint_eq(notification->data.value.status,
+                      UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Remove status for next test */
-    queueItem->data.value.hasStatus = false;
-    queueItem->data.value.status = 0;
+    notification->data.value.hasStatus = false;
+    notification->data.value.status = 0;
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest modifyMonitoredItemsRequest;
@@ -377,7 +378,8 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse modifyMonitoredItemsResponse;
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
-    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest, &modifyMonitoredItemsResponse);
+    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest,
+                                 &modifyMonitoredItemsResponse);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -385,11 +387,12 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->currentQueueSize, 2); 
+    ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 2); 
-    queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->data.value.hasStatus, true);
-    ck_assert_uint_eq(queueItem->data.value.status, UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
+    notification = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, true);
+    ck_assert_uint_eq(notification->data.value.status,
+                      UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -405,7 +408,8 @@ START_TEST(Server_overflow) {
 
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
-    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest, &modifyMonitoredItemsResponse);
+    Service_ModifyMonitoredItems(server, &adminSession, &modifyMonitoredItemsRequest,
+                                 &modifyMonitoredItemsResponse);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -413,10 +417,10 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
-    queueItem = TAILQ_LAST(&mon->queue, QueuedValueQueue);
-    ck_assert_uint_eq(queueItem->data.value.hasStatus, false);
+    notification = TAILQ_LAST(&mon->queue, NotificationQueue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     /* Modify the MonitoredItem */
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
@@ -443,10 +447,10 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
     UA_MonitoredItem_SampleCallback(server, mon);
-    ck_assert_uint_eq(mon->currentQueueSize, 1); 
+    ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
-    queueItem = TAILQ_FIRST(&mon->queue);
-    ck_assert_uint_eq(queueItem->data.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
+    notification = TAILQ_FIRST(&mon->queue);
+    ck_assert_uint_eq(notification->data.value.hasStatus, false); /* the infobit is only set if the queue is larger than one */
 
     /* Remove the subscriptions */
     UA_DeleteSubscriptionsRequest deleteSubscriptionsRequest;
@@ -458,7 +462,8 @@ START_TEST(Server_overflow) {
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
 
-    Service_DeleteSubscriptions(server, &adminSession, &deleteSubscriptionsRequest, &deleteSubscriptionsResponse);
+    Service_DeleteSubscriptions(server, &adminSession, &deleteSubscriptionsRequest,
+                                &deleteSubscriptionsResponse);
     ck_assert_uint_eq(deleteSubscriptionsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteSubscriptionsResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteSubscriptionsResponse.results[0], UA_STATUSCODE_GOOD);
@@ -504,7 +509,6 @@ START_TEST(Server_deleteMonitoredItems) {
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
-
 }
 END_TEST
 

@@ -265,8 +265,8 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
     /* test if the supported binary profile shall be returned */
     size_t reSize = sizeof(UA_Boolean) * server->config.endpointsSize;
-    UA_Boolean *relevant_endpoints = (UA_Boolean *)UA_alloca(reSize);
-    memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->config.endpointsSize);
+    UA_STACKARRAY(UA_Boolean, relevant_endpoints, reSize);
+    memset(relevant_endpoints, 0, reSize);
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
         for(size_t j = 0; j < server->config.endpointsSize; ++j)

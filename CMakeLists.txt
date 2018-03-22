@@ -15,8 +15,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib CACHE PATH "Installation path of libraries")
-
 ###########
 # Version #
 ###########
@@ -26,6 +24,7 @@ set(OPEN62541_VER_MINOR 3)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
+#  If a relative path is specified, it is treated as relative to the $<INSTALL_PREFIX>
 set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 
 # Set OPEN62541_VER_COMMIT
@@ -132,6 +131,9 @@ mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
 
 set(UA_FREERTOS OFF CACHE BOOL "Enable if you want to compile for freeRTOS")
 mark_as_advanced(UA_FREERTOS)
+
+set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
+mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
 
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)

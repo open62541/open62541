@@ -70,12 +70,8 @@ register_server_with_discovery_server(UA_Server *server,
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
     size_t total_discurls = config_discurls + nl_discurls;
-    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * total_discurls);
-    if(!request.server.discoveryUrls) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    UA_STACKARRAY(UA_String, urlsBuf, total_discurls);
+    request.server.discoveryUrls = urlsBuf;
     request.server.discoveryUrlsSize = total_discurls;
 
     for(size_t i = 0; i < config_discurls; ++i)

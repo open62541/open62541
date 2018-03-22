@@ -174,11 +174,11 @@ struct UA_Server {
  * stack. Either a copy or the original node for in-situ editing. Depends on
  * multithreading and the nodestore.*/
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
-                                             UA_Node *node, const void*);
+                                             UA_Node *node, void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
                                  const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback,
-                                 const void *data);
+                                 void *data);
 
 /*************/
 /* Callbacks */

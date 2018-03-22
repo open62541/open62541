@@ -56,15 +56,12 @@ int main(int argc, char* argv[]) {
     UA_ByteString privateKey = loadFile(argv[2]);
 
     /* Load the trustlist */
-    UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
-    if(argc > 3) {
+    if(argc > 3)
         trustListSize = (size_t)argc-3;
-        trustList = (UA_ByteString*)
-            UA_alloca(sizeof(UA_ByteString) * trustListSize);
-        for(size_t i = 0; i < trustListSize; i++)
-            trustList[i] = loadFile(argv[i+3]);
-    }
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    for(size_t i = 0; i < trustListSize; i++)
+        trustList[i] = loadFile(argv[i+3]);
 
     /* Loading of a revocation list currentlu unsupported */
     UA_ByteString *revocationList = NULL;
