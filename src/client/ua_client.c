@@ -14,6 +14,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2016 (c) Lykurg
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
 #include "ua_client.h"
@@ -23,6 +24,10 @@
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_util.h"
 #include "ua_securitypolicy_none.h"
+#include "ua_securitypolicy_basic128rsa15.h"
+#include "ua_pki_certificate.h"
+
+#define STATUS_CODE_BAD_POINTER 0x01
 
 /********************/
 /* Client Lifecycle */
@@ -49,11 +54,126 @@ UA_Client_new(UA_ClientConfig config) {
     return client;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION
+/* Initializes a secure client with the required configuration, certificate
+ * privatekey, trustlist and revocation list.
+ *
+ * @param  client               client to store configuration
+ * @param  config               new secure configuration for client
+ * @param  certificate          client certificate
+ * @param  privateKey           client's private key
+ * @param  remoteCertificate    server certificate form the endpoints
+ * @param  trustList            list of trustable certificate
+ * @param  trustListSize        count of trustList
+ * @param  revocationList       list of revoked digital certificate
+ * @param  revocationListSize   count of revocationList
+ * @return Returns a client configuration for secure channel */
+static UA_StatusCode
+UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
+                      const UA_ByteString certificate,
+                      const UA_ByteString privateKey,
+                      const UA_ByteString *remoteCertificate,
+                      const UA_ByteString *trustList, size_t trustListSize,
+                      const UA_ByteString *revocationList,
+                      size_t revocationListSize) {
+    if(client == NULL || remoteCertificate == NULL)
+        return STATUS_CODE_BAD_POINTER;
+
+    memset(client, 0, sizeof(UA_Client));
+    /* Allocate memory for certificate verification */
+    client->securityPolicy.certificateVerification =
+                           (UA_CertificateVerification *)
+                            UA_malloc(sizeof(UA_CertificateVerification));
+
+    UA_StatusCode retval =
+    UA_CertificateVerification_Trustlist(client->securityPolicy.certificateVerification,
+                                         trustList, trustListSize,
+                                         revocationList, revocationListSize);
+
+    if(retval != UA_STATUSCODE_GOOD)
+         return retval;
+
+    /* Initiate client security policy as Basic128Rsa15 */
+    UA_SecurityPolicy_Basic128Rsa15(&client->securityPolicy,
+                                    client->securityPolicy.certificateVerification,
+                                    certificate, privateKey, config.logger);
+    client->channel.securityPolicy = &client->securityPolicy;
+    client->channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    client->config = config;
+    if(client->config.stateCallback)
+        client->config.stateCallback(client, client->state);
+
+    if(client->channel.securityPolicy->certificateVerification != NULL) {
+        retval = client->channel.securityPolicy->certificateVerification->
+                 verifyCertificate(client->channel.securityPolicy->certificateVerification->context,
+                                   remoteCertificate);
+    } else {
+        UA_LOG_WARNING(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "No PKI plugin set. Accepting all certificates");
+    }
+
+    const UA_SecurityPolicy *securityPolicy = (UA_SecurityPolicy *) &client->securityPolicy;
+    retval = client->securityPolicy.channelModule.newContext(securityPolicy, remoteCertificate,
+                                                             &client->channel.channelContext);
+
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_ByteString_copy(remoteCertificate, &client->channel.remoteCertificate);
+
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_ByteString remoteCertificateThumbprint = {20, client->channel.remoteCertificateThumbprint};
+
+    /* Invoke remote certificate thumbprint */
+    retval = client->securityPolicy.asymmetricModule.
+             makeCertificateThumbprint(securityPolicy, &client->channel.remoteCertificate,
+                                       &remoteCertificateThumbprint);
+    return retval;
+}
+
+/* Creates a new secure client.
+ *
+ * @param  config               new secure configuration for client
+ * @param  certificate          client certificate
+ * @param  privateKey           client's private key
+ * @param  remoteCertificate    server certificate form the endpoints
+ * @param  trustList            list of trustable certificate
+ * @param  trustListSize        count of trustList
+ * @param  revocationList       list of revoked digital certificate
+ * @param  revocationListSize   count of revocationList
+ * @return Returns a client with secure configuration */
+UA_Client *
+UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
+                     UA_ByteString privateKey, const UA_ByteString *remoteCertificate,
+                     const UA_ByteString *trustList, size_t trustListSize,
+                     const UA_ByteString *revocationList, size_t revocationListSize) {
+    if(remoteCertificate == NULL)
+        return NULL;
+
+    UA_Client *client = (UA_Client *)UA_malloc(sizeof(UA_Client));
+    if(!client)
+        return NULL;
+
+    UA_StatusCode retval = UA_Client_secure_init(client, config, certificate, privateKey,
+                                                 remoteCertificate, trustList, trustListSize,
+                                                 revocationList, revocationListSize);
+    if(retval != UA_STATUSCODE_GOOD){
+        return NULL;
+    }
+
+    return client;
+}
+#endif
+
 static void
 UA_Client_deleteMembers(UA_Client* client) {
     UA_Client_disconnect(client);
     client->securityPolicy.deleteMembers(&client->securityPolicy);
-    UA_SecureChannel_deleteMembersCleanup(&client->channel);
+    /* Commented as UA_SecureChannel_deleteMembers already done
+     * in UA_Client_disconnect function */
+    //UA_SecureChannel_deleteMembersCleanup(&client->channel);
     UA_Connection_deleteMembers(&client->connection);
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
@@ -81,6 +201,13 @@ UA_Client_reset(UA_Client* client) {
 
 void
 UA_Client_delete(UA_Client* client) {
+    /* certificate verification is initialized for secure client
+     * which is deallocated */
+    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        UA_free(client->securityPolicy.certificateVerification);
+    }
+
     UA_Client_deleteMembers(client);
     UA_free(client);
 }
