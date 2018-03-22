@@ -95,7 +95,7 @@ try {
     New-Item -ItemType directory -Path pack_tmp
     Move-Item -Path "build\open62541.c" -Destination pack_tmp\
     Move-Item -Path "build\open62541.h" -Destination pack_tmp\
-    Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server.exe" -Destination pack_tmp\
+    Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server_ctt.exe" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
     if ($env:CC_SHORTNAME -eq "mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.a" -Destination pack_tmp\
@@ -121,7 +121,7 @@ try {
     New-Item -ItemType directory -Path pack_tmp
     Move-Item -Path "build\open62541.c" -Destination pack_tmp\
     Move-Item -Path "build\open62541.h" -Destination pack_tmp\
-    Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server.exe" -Destination pack_tmp\
+    Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server_ctt.exe" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
     if ($env:CC_SHORTNAME -eq "mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll" -Destination pack_tmp\
