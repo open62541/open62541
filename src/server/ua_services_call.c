@@ -4,7 +4,7 @@
  *
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2017 (c) Florian Palm
- *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) LEvertz
