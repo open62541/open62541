@@ -664,15 +664,9 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             connection_releaserecvbuffer(&e->connection, &buf);
         } else if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             /* The socket is shutdown but not closed */
-            if(e->connection.state != UA_CONNECTION_CLOSED) {
-                UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                            "Connection %i | Closed by the client",
-                            e->connection.sockfd);
-            } else {
-                UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                            "Connection %i | Closed by the server",
-                            e->connection.sockfd);
-            }
+            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                        "Connection %i | Closed",
+                        e->connection.sockfd);
             LIST_REMOVE(e, pointers);
             CLOSESOCKET(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);
