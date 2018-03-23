@@ -99,7 +99,7 @@ consider the example OPC UA binary conversation, recorded and displayed with the
    :figwidth: 100 %
    :alt: OPC UA conversation in Wireshark
 
-       OPC UA conversation displayed in Wireshark
+   OPC UA conversation displayed in Wireshark
 
 The top part of the Wireshark window shows the messages from the conversation in
 order. The green line contains the applied filter. Here, we want to see the OPC
