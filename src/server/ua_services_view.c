@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) LEvertz
@@ -250,7 +250,7 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
-    ContinuationPointEntry *cp = (ContinuationPointEntry*)UA_alloca(sizeof(ContinuationPointEntry));
+    UA_STACKARRAY(ContinuationPointEntry, cp, 1);
     memset(cp, 0, sizeof(ContinuationPointEntry));
     cp->maxReferences = *maxrefs;
     cp->browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */

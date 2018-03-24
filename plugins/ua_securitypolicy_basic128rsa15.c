@@ -12,10 +12,11 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
+#include <mbedtls/version.h>
+#include <mbedtls/sha1.h>
 
 #include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"
-#include "ua_securitypolicy_common.h"
 #include "ua_securitypolicy_basic128rsa15.h"
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
@@ -92,7 +93,11 @@ asym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
     /* Compute the sha1 hash */
     unsigned char hash[UA_SHA1_LENGTH];
-    sha1(message->data, message->length, hash);
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    mbedtls_sha1_ret(message->data, message->length, hash);
+#else
+    mbedtls_sha1(message->data, message->length, hash);
+#endif
 
     /* Set the RSA settings */
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
@@ -115,7 +120,11 @@ asym_sign_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA1_LENGTH];
-    sha1(message->data, message->length, hash);
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    mbedtls_sha1_ret(message->data, message->length, hash);
+#else
+    mbedtls_sha1(message->data, message->length, hash);
+#endif
 
     Basic128Rsa15_PolicyContext *pc = cc->policyContext;
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
@@ -281,7 +290,11 @@ asym_makeThumbprint_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(thumbprint->length != UA_SHA1_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    sha1(certificate->data, certificate->length, thumbprint->data);
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    mbedtls_sha1_ret(certificate->data, certificate->length, thumbprint->data);
+#else
+    mbedtls_sha1(certificate->data, certificate->length, thumbprint->data);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 

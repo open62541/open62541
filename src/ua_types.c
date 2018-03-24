@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2014 (c) Leon Urbas
@@ -540,7 +540,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
      * the bounds of the array. The Server shall return a partial result if some
      * elements exist within the range. */
     size_t count = 1;
-    UA_UInt32 *realmax = (UA_UInt32*)UA_alloca(sizeof(UA_UInt32) * dims_count);
+    UA_STACKARRAY(UA_UInt32, realmax, dims_count);
     if(range.dimensionsSize != dims_count)
         return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; ++i) {

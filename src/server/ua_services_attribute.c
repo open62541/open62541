@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2015 (c) Christian Fimmers
@@ -1305,7 +1305,9 @@ UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession, &value->nodeId,
-                  (UA_EditNodeCallback)copyAttributeIntoNode, value);
+                  (UA_EditNodeCallback)copyAttributeIntoNode,
+                   /* casting away const qualifier because callback uses const anyway */
+                   (UA_WriteValue *)(uintptr_t)value);
     return retval;
 }
 

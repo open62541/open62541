@@ -15,17 +15,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib CACHE PATH "Installation path of libraries")
-
 ###########
 # Version #
 ###########
 
 set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 3)
+set(OPEN62541_VER_MINOR 4)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "-dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
+#  If a relative path is specified, it is treated as relative to the $<INSTALL_PREFIX>
 set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 
 # Set OPEN62541_VER_COMMIT
@@ -87,6 +86,9 @@ endif()
 option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
 
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB)
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -132,6 +134,9 @@ mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
 
 set(UA_FREERTOS OFF CACHE BOOL "Enable if you want to compile for freeRTOS")
 mark_as_advanced(UA_FREERTOS)
+
+set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
+mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
 
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
@@ -346,6 +351,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h
@@ -440,16 +446,15 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
-    set(default_plugin_headers ${default_plugin_headers}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h)
-    set(default_plugin_headers ${default_plugin_headers}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.h)
-    set(default_plugin_sources ${default_plugin_sources}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_common.c)
-    set(default_plugin_sources ${default_plugin_sources}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
-    set(default_plugin_sources ${default_plugin_sources}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h
+                                       ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c
+                                       ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
+endif()
+
+if(UA_ENABLE_PUBSUB)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c)
 endif()
 
 if(UA_DEBUG_DUMP_PKGS)

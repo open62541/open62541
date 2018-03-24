@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) Sten Grüner
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -162,12 +162,9 @@ addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
                   UA_MonitoredItemHandlingFunction *hfs, void **hfContexts,
                   UA_StatusCode *itemResults, UA_UInt32 *newMonitoredItemIds) {
     /* Create array of wrappers and callbacks */
-    dataChangeCallbackWrapper **wrappers = (dataChangeCallbackWrapper**)
-        UA_alloca(sizeof(dataChangeCallbackWrapper*) * itemsSize);
-    UA_Client_DeleteMonitoredItemCallback *deleteCbs = (UA_Client_DeleteMonitoredItemCallback*)
-        UA_alloca(sizeof(UA_Client_DeleteMonitoredItemCallback) * itemsSize);
-    UA_Client_DataChangeNotificationCallback *wrapperCbs = (UA_Client_DataChangeNotificationCallback*)
-        UA_alloca(sizeof(UA_MonitoredItemHandlingFunction) * itemsSize);
+    UA_STACKARRAY(dataChangeCallbackWrapper*, wrappers, itemsSize);
+    UA_STACKARRAY(UA_Client_DeleteMonitoredItemCallback, deleteCbs, itemsSize);
+    UA_STACKARRAY(UA_Client_DataChangeNotificationCallback, wrapperCbs, itemsSize);
 
     for(size_t i = 0; i < itemsSize; i++) {
         wrappers[i] = (dataChangeCallbackWrapper*)UA_malloc(sizeof(dataChangeCallbackWrapper));
@@ -249,12 +246,9 @@ addMonitoredEvents(UA_Client *client, const UA_UInt32 subscriptionId,
                    void **hfContexts, UA_StatusCode *itemResults,
                    UA_UInt32 *newMonitoredItemIds) {
     /* Create array of wrappers and callbacks */
-    eventCallbackWrapper **wrappers = (eventCallbackWrapper**)
-        UA_alloca(sizeof(dataChangeCallbackWrapper*) * itemsSize);
-    UA_Client_DeleteMonitoredItemCallback *deleteCbs = (UA_Client_DeleteMonitoredItemCallback*)
-        UA_alloca(sizeof(UA_Client_DeleteMonitoredItemCallback) * itemsSize);
-    UA_Client_EventNotificationCallback *wrapperCbs = (UA_Client_EventNotificationCallback*)
-        UA_alloca(sizeof(UA_MonitoredItemHandlingFunction) * itemsSize);
+    UA_STACKARRAY(eventCallbackWrapper*, wrappers, itemsSize);
+    UA_STACKARRAY(UA_Client_DeleteMonitoredItemCallback, deleteCbs, itemsSize);
+    UA_STACKARRAY(UA_Client_EventNotificationCallback, wrapperCbs, itemsSize);
 
     for(size_t i = 0; i < itemsSize; i++) {
         wrappers[i] = (eventCallbackWrapper*)UA_malloc(sizeof(eventCallbackWrapper));

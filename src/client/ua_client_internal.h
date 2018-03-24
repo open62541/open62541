@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2015-2016 (c) Sten Grüner
- *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Florian Palm
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH

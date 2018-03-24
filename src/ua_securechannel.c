@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -145,8 +145,9 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *const channel,
         cryptoModule->encryptionAlgorithm.getLocalBlockSize(securityPolicy, channel->channelContext);
     size_t signingKeyLength =
         cryptoModule->signatureAlgorithm.getLocalKeyLength(securityPolicy, channel->channelContext);
-    const size_t buffSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
-    UA_ByteString buffer = {buffSize, (UA_Byte *)UA_alloca(buffSize)};
+    const size_t bufSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
+    UA_STACKARRAY(UA_Byte, bufBytes, bufSize);
+    UA_ByteString buffer = {bufSize, bufBytes};
 
     /* Local keys */
     UA_StatusCode retval = symmetricModule->generateKey(securityPolicy, &channel->remoteNonce,
@@ -178,8 +179,9 @@ UA_SecureChannel_generateRemoteKeys(const UA_SecureChannel *const channel,
         cryptoModule->encryptionAlgorithm.getRemoteBlockSize(securityPolicy, channel->channelContext);
     size_t signingKeyLength =
         cryptoModule->signatureAlgorithm.getRemoteKeyLength(securityPolicy, channel->channelContext);
-    const size_t buffSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
-    UA_ByteString buffer = {buffSize, (UA_Byte *)UA_alloca(buffSize)};
+    const size_t bufSize = encryptionBlockSize + signingKeyLength + encryptionKeyLength;
+    UA_STACKARRAY(UA_Byte, bufBytes, bufSize);
+    UA_ByteString buffer = {bufSize, bufBytes};
 
     /* Remote keys */
     UA_StatusCode retval = symmetricModule->generateKey(securityPolicy, &channel->localNonce,

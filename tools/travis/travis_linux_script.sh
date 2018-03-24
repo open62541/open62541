@@ -101,7 +101,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        zip -r open62541-win32.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win32.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
         cp open62541-win32.zip ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_mingw32\\r'
@@ -111,7 +111,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        zip -r open62541-win64.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win64.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt.exe ./bin/examples/client.exe ./bin/libopen62541.dll.a open62541.h open62541.c
         cp open62541-win64.zip ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_mingw64\\r'
@@ -121,7 +121,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        tar -pczf open62541-linux32.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
+        tar -pczf open62541-linux32.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
         cp open62541-linux32.tar.gz ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_linux\\r'
@@ -133,7 +133,7 @@ else
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        tar -pczf open62541-raspberrypi.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
+        tar -pczf open62541-raspberrypi.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
         cp open62541-raspberrypi.tar.gz ..
         cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.cross_raspi\\r'
@@ -144,7 +144,7 @@ else
     cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
-    tar -pczf open62541-linux64.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
+    tar -pczf open62541-linux64.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
     cp open62541-linux64.tar.gz ..
     cp open62541.h ../.. # copy single file-release
     cp open62541.c ../.. # copy single file-release
@@ -216,7 +216,7 @@ else
     mkdir -p build && cd build
     # Valgrind cannot handle the full NS0 because the generated file is too big. Thus run NS0 full without valgrind
     cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_FULL_NS0=ON \
-    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
+    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
     -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=OFF \
     -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF ..
     make -j && make test ARGS="-V"
@@ -228,7 +228,7 @@ else
         echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
         mkdir -p build && cd build
         cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-        -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON  -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
+        -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
         make -j && make test ARGS="-V"

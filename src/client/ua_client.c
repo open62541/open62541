@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015 (c) hfaham
  *    Copyright 2015-2017 (c) Florian Palm
- *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2015 (c) Holger Jeromin
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) TorbenD
@@ -168,7 +168,8 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
         return UA_STATUSCODE_BADREQUESTHEADERINVALID;
 
     /* Allocate the response */
-    void *response = UA_alloca(ac->responseType->memSize);
+    UA_STACKARRAY(UA_Byte, responseBuf, ac->responseType->memSize);
+    void *response = (void*)(uintptr_t)&responseBuf[0]; /* workaround aliasing rules */
 
     /* Verify the type of the response */
     const UA_DataType *responseType = ac->responseType;
@@ -420,7 +421,8 @@ void
 UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                               UA_StatusCode statusCode) {
     /* Create an empty response with the statuscode */
-    void *resp = UA_alloca(ac->responseType->memSize);
+    UA_STACKARRAY(UA_Byte, responseBuf, ac->responseType->memSize);
+    void *resp = (void*)(uintptr_t)&responseBuf[0]; /* workaround aliasing rules */
     UA_init(resp, ac->responseType);
     ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
 
@@ -490,8 +492,12 @@ UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     if (retvalPublish != UA_STATUSCODE_GOOD)
         return retvalPublish;
 #endif
+    UA_StatusCode retval = UA_Client_manuallyRenewSecureChannel(client);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
-    UA_StatusCode retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
+    retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         retval = UA_STATUSCODE_GOOD;
 #ifdef UA_ENABLE_SUBSCRIPTIONS

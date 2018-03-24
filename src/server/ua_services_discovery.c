@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2016 (c) Oleksiy Vasylyev
@@ -265,8 +265,8 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
     /* test if the supported binary profile shall be returned */
     size_t reSize = sizeof(UA_Boolean) * server->config.endpointsSize;
-    UA_Boolean *relevant_endpoints = (UA_Boolean *)UA_alloca(reSize);
-    memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->config.endpointsSize);
+    UA_STACKARRAY(UA_Boolean, relevant_endpoints, reSize);
+    memset(relevant_endpoints, 0, reSize);
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
         for(size_t j = 0; j < server->config.endpointsSize; ++j)

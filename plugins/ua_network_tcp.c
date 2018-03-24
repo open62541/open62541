@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Jose Cabral
@@ -663,15 +663,9 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             connection_releaserecvbuffer(&e->connection, &buf);
         } else if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             /* The socket is shutdown but not closed */
-            if(e->connection.state != UA_CONNECTION_CLOSED) {
-                UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                            "Connection %i | Closed by the client",
-                            e->connection.sockfd);
-            } else {
-                UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                            "Connection %i | Closed by the server",
-                            e->connection.sockfd);
-            }
+            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                        "Connection %i | Closed",
+                        e->connection.sockfd);
             LIST_REMOVE(e, pointers);
             CLOSESOCKET(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);

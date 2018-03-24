@@ -94,7 +94,7 @@ sendHELMessage (UA_Client *client) {
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
     client->connectStatus = UA_TcpHelloMessage_encodeBinary (&hello, &bufPos,
-                                                             &bufEnd);
+                                                             bufEnd);
     UA_TcpHelloMessage_deleteMembers (&hello);
 
     /* Encode the message header at offset 0 */
@@ -106,7 +106,7 @@ sendHELMessage (UA_Client *client) {
     bufPos = message.data;
     client->connectStatus |= UA_TcpMessageHeader_encodeBinary (&messageHeader,
                                                                &bufPos,
-                                                               &bufEnd);
+                                                               bufEnd);
     if (client->connectStatus != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer (conn, &message);
         return client->connectStatus;
@@ -534,9 +534,9 @@ UA_Client_connectInternalAsync (UA_Client *client, const char *endpointUrl,
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client) {
-    if (client->connection.state == UA_CONNECTION_ESTABLISHED &&
-        client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        return sendHELMessage (client);
+    if (client->connection.state == UA_CONNECTION_ESTABLISHED){
+        if (client->state < UA_CLIENTSTATE_WAITING_FOR_ACK)
+            return sendHELMessage (client);
     }
 
     /*if server is not connected*/
