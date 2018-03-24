@@ -51,13 +51,10 @@ static void setup(void) {
     THREAD_CREATE(server_thread, serverloop);
 
     UA_fakeSleep(500);
-    client = UA_Client_new (UA_ClientConfig_default);
-    connected = false;
-    UA_Client_connect_async (client, "opc.tcp://localhost:4840", onConnect,
-                                     &connected);
 }
 
 static void teardown(void) {
+    //UA_fakeSleep(5000);
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
@@ -75,6 +72,10 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
 
 START_TEST(Client_connect_async){
 
+    client = UA_Client_new (UA_ClientConfig_default);
+    connected = false;
+    UA_Client_connect_async (client, "opc.tcp://localhost:4840", onConnect,
+                                     &connected);
 
     UA_UInt32 reqId = 0;
     UA_UInt16 asyncCounter = 0;
@@ -106,6 +107,8 @@ START_TEST(Client_connect_async){
     /*2148335616 = server not connected*/
     ck_assert_uint_eq(retval, 0);
 
+    UA_Client_run_iterate(client, &retval);
+    UA_Client_run_iterate(client, &retval);
     UA_Client_disconnect(client);
     UA_Client_delete (client);
 }

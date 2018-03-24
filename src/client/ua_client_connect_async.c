@@ -123,6 +123,7 @@ sendHELMessage (UA_Client *client) {
     }
     UA_LOG_DEBUG (client->config.logger, UA_LOGCATEGORY_NETWORK,
                   "Sent HEL message");
+    client->state = UA_CLIENTSTATE_WAITING_FOR_ACK;
     return client->connectStatus;
 }
 

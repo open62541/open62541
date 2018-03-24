@@ -399,7 +399,8 @@ receiveServiceResponse_async (UA_Client *client, void *response,
 UA_StatusCode
 receivePacket_async (UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if (UA_Client_getState (client) == UA_CLIENTSTATE_DISCONNECTED) {
+    if (UA_Client_getState (client) == UA_CLIENTSTATE_DISCONNECTED ||
+            UA_Client_getState (client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
         retval = UA_Connection_receiveChunksNonBlocking (
                 &client->connection, client, client->ackResponseCallback);
     }
