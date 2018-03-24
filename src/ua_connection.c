@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -55,8 +55,8 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     /* Encode and send the response */
     UA_Byte *bufPos = msg.data;
     const UA_Byte *bufEnd = &msg.data[msg.length];
-    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, &bufEnd);
-    UA_TcpErrorMessage_encodeBinary(error, &bufPos, &bufEnd);
+    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, bufEnd);
+    UA_TcpErrorMessage_encodeBinary(error, &bufPos, bufEnd);
     msg.length = header.messageSize;
     connection->send(connection, &msg);
 }

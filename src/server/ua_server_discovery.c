@@ -2,13 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
 #include "ua_server_internal.h"
 #include "ua_client.h"
-#include "ua_config_default.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
@@ -24,7 +23,8 @@ register_server_with_discovery_server(UA_Server *server,
     }
 
     /* Create the client */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_ClientConfig clientConfig = UA_Server_getClientConfig();
+    UA_Client *client = UA_Client_new(clientConfig);
     if(!client)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 

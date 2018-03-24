@@ -366,7 +366,7 @@ If you start the server and inspect the nodes with UA Expert, you will find the 
 .. figure:: nodeset_compiler_pump.png
    :alt: Instantiated Pump Object with inherited children
 
-       Instantiated Pump Object with inherited children
+   Instantiated Pump Object with inherited children
 
 As you can see the pump has inherited it's parents attributes (ManufacturerName and ModelName). Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been ommitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
 

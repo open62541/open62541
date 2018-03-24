@@ -20,6 +20,8 @@
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
 
+static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
+
 static UA_ByteString
 loadFile(const char *const path) {
     UA_ByteString fileContents = UA_STRING_NULL;
@@ -199,7 +201,7 @@ main(int argc, char **argv) {
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
-                              myIntegerName, UA_NODEID_NULL, myVar, NULL, NULL);
+                              myIntegerName, baseDataVariableType, myVar, NULL, NULL);
     UA_Variant_deleteMembers(&myVar.value);
 
     /* add a variable with the datetime data source */
@@ -215,7 +217,7 @@ main(int argc, char **argv) {
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
-                                        UA_NODEID_NULL, v_attr, dateDataSource, NULL, NULL);
+                                        baseDataVariableType, v_attr, dateDataSource, NULL, NULL);
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
@@ -314,14 +316,14 @@ main(int argc, char **argv) {
         UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                  qualifiedName, UA_NODEID_NULL, attr, NULL, NULL);
+                                  qualifiedName, baseDataVariableType, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an array node for every built-in type */
         UA_Variant_setArray(&attr.value, UA_Array_new(10, &UA_TYPES[type]), 10, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, ARRAYID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
-                                  UA_NODEID_NULL, attr, NULL, NULL);
+                                  baseDataVariableType, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an matrix node for every built-in type */
@@ -335,7 +337,7 @@ main(int argc, char **argv) {
         attr.value.type = &UA_TYPES[type];
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, MATRIXID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
-                                  UA_NODEID_NULL, attr, NULL, NULL);
+                                  baseDataVariableType, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
 #ifdef UA_ENABLE_TYPENAMES
         UA_LocalizedText_deleteMembers(&attr.displayName);
@@ -348,8 +350,7 @@ main(int argc, char **argv) {
        Test->NodeIds->Paths->Starting Node 1 */
     object_attr.description = UA_LOCALIZEDTEXT("en-US", "DepthDemo");
     object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "DepthDemo");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID),
-                            UA_NODEID_NUMERIC(1, DEMOID),
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID), UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "DepthDemo"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
