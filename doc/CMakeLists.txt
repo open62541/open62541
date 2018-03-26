@@ -31,6 +31,8 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/pl
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h ${DOC_SRC_DIR}/plugin_pubsub_connection.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)
@@ -60,6 +62,8 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
+          ${DOC_SRC_DIR}/plugin_pubsub_connection.rst
+          ${DOC_SRC_DIR}/pubsub.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
@@ -89,6 +93,8 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
+          ${DOC_SRC_DIR}/plugin_pubsub_connection.rst
+          ${DOC_SRC_DIR}/pubsub.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)
 

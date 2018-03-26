@@ -26,6 +26,10 @@ extern "C" {
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
 
+#ifdef UA_ENABLE_PUBSUB
+#include "ua_pubsub_manager.h"
+#endif
+
 #ifdef UA_ENABLE_MULTITHREADING
 
 #include <pthread.h>
@@ -140,6 +144,11 @@ struct UA_Server {
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
+
+#ifdef UA_ENABLE_PUBSUB
+    /* Publish/Subscribe toplevel container */
+    UA_PubSubManager pubSubManager;
+#endif
 
     /* Config */
     UA_ServerConfig config;

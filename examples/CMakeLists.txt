@@ -113,3 +113,11 @@ if(UA_ENABLE_DISCOVERY)
 endif()
 
 add_subdirectory(nodeset)
+
+####################
+#  Example PubSub  #
+####################
+
+if(UA_ENABLE_PUBSUB)
+    add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
+endif()

@@ -105,6 +105,10 @@ void UA_Server_delete(UA_Server *server) {
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
+#ifdef UA_ENABLE_PUBSUB
+    UA_PubSubManager_delete(server, &server->pubSubManager);
+#endif
+
 #ifdef UA_ENABLE_DISCOVERY
     registeredServer_list_entry *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {

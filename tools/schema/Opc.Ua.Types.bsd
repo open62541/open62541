@@ -2703,4 +2703,9 @@
     <opc:EnumeratedValue Name="Unknown" Value="4" />
   </opc:EnumeratedType>
 
+  <opc:StructuredType Name="NetworkAddressUrlDataType" BaseType="tns:NetworkAddressDataType">
+    <opc:Field Name="NetworkInterface" TypeName="opc:String" SourceType="tns:NetworkAddressDataType" />
+    <opc:Field Name="Url" TypeName="opc:String" />
+  </opc:StructuredType>
+
 </opc:TypeDictionary>
