@@ -219,7 +219,7 @@ if(NOT WIN32)
   endif()
 else()
   list(APPEND open62541_LIBRARIES ws2_32)
-    if(UA_ENABLE_DISCOVERY_MULTICAST)
+    if(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_PUBSUB)
         list(APPEND open62541_LIBRARIES iphlpapi)
     endif()
 endif()
@@ -337,6 +337,7 @@ endif()
 include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins
                     ${PROJECT_SOURCE_DIR}/deps
+                    ${PROJECT_SOURCE_DIR}/src/pubsub
                     ${PROJECT_BINARY_DIR}
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
@@ -353,6 +354,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_pki.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_config.h
@@ -454,9 +457,16 @@ if(UA_ENABLE_ENCRYPTION)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
+            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
+            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c)
+
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
 endif()
+
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)

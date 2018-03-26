@@ -201,3 +201,5 @@ AggregateConfiguration
 AggregateFilter
 SetTriggeringRequest
 SetTriggeringResponse
+KeyValuePair
+NetworkAddressUrlDataType
