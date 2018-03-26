@@ -649,8 +649,3 @@ const UA_ClientConfig UA_ClientConfig_default = {
 
     10 /* .outStandingPublishRequests */
 };
-
-UA_ClientConfig UA_Server_getClientConfig(void)
-{
-    return UA_ClientConfig_default;
-}

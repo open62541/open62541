@@ -57,3 +57,9 @@ UA_realSleep(UA_UInt32 duration) {
     nanosleep(&sleepValue, NULL);
 #endif
 }
+
+void
+UA_comboSleep(UA_UInt32 duration) {
+    UA_fakeSleep(duration);
+    UA_realSleep(duration);
+}

@@ -503,8 +503,9 @@ createSession(UA_Client *client) {
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
 
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+    if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+        (client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+         client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)) {
         UA_ByteString_copy(&response.serverNonce, &client->channel.remoteNonce);
 
         if(!UA_ByteString_equal(&response.serverCertificate,
@@ -638,6 +639,11 @@ cleanup:
 UA_StatusCode
 UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_TRUE);
+}
+
+UA_StatusCode
+UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
+    return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_FALSE);
 }
 
 UA_StatusCode

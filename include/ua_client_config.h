@@ -90,15 +90,6 @@ typedef struct UA_ClientConfig {
     UA_UInt16 outStandingPublishRequests;
 } UA_ClientConfig;
 
-
-/* Get the client configuration from the configuration plugin. Used by the
- * server when it needs client functionality to register to a discovery server
- * or when the server needs to create a client for other purposes
- *
- * @return The client configuration structure */
-UA_ClientConfig UA_EXPORT
-UA_Server_getClientConfig(void);
-
 #ifdef __cplusplus
 }
 #endif
