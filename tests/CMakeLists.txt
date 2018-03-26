@@ -16,6 +16,8 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
+add_definitions(-DUA_sleep_ms=UA_comboSleep)
+
 #############################
 # Compiled binaries folders #
 #############################

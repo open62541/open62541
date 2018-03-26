@@ -13,32 +13,9 @@
 
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server,
-                                      const char* discoveryServerUrl,
+                                      UA_Client *client,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
-    if(!discoveryServerUrl) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "No discovery server url provided");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Create the client */
-    UA_ClientConfig clientConfig = UA_Server_getClientConfig();
-    UA_Client *client = UA_Client_new(clientConfig);
-    if(!client)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Connect the client */
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Connecting to the discovery server failed with statuscode %s",
-                     UA_StatusCode_name(retval));
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return retval;
-    }
-
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
@@ -132,21 +109,19 @@ register_server_with_discovery_server(UA_Server *server,
                      UA_StatusCode_name(serviceResult));
     }
 
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
     return serviceResult;
 }
 
 UA_StatusCode
-UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
+    return register_server_with_discovery_server(server, client,
                                                  UA_FALSE, semaphoreFilePath);
 }
 
 UA_StatusCode
-UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
+UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
+    return register_server_with_discovery_server(server, client,
                                                  UA_TRUE, NULL);
 }
 
