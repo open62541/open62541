@@ -4,6 +4,10 @@ set -e
 
 # Sonar code quality
 if ! [ -z ${SONAR+x} ]; then
+    if ! [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+        # Skip on forks
+        exit 0;
+    fi
     git fetch --unshallow
 	mkdir -p build && cd build
 	build-wrapper-linux-x86-64 --out-dir ../bw-output cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
