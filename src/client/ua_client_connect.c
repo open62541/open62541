@@ -506,6 +506,7 @@ createSession(UA_Client *client) {
     if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
         (client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
          client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)) {
+        UA_ByteString_deleteMembers(&client->channel.remoteNonce);
         UA_ByteString_copy(&response.serverNonce, &client->channel.remoteNonce);
 
         if(!UA_ByteString_equal(&response.serverCertificate,

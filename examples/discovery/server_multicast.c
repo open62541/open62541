@@ -250,7 +250,8 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
                                           certificate, privateKey,
                                           &endpointRegister->serverCertificate,
                                           trustList, trustListSize,
-                                          revocationList, revocationListSize);
+                                          revocationList, revocationListSize,
+                                          UA_SecurityPolicy_Basic128Rsa15);
     UA_ByteString_deleteMembers(&certificate);
     UA_ByteString_deleteMembers(&privateKey);
     for (size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {

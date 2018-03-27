@@ -1,9 +1,5 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- *
- *     Copyright 2018 (c) Kalycito Infotech Private Limited
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <stdio.h>
 #include <errno.h>
@@ -145,7 +141,7 @@ int main(int argc, char* argv[]) {
                                   remoteCertificate,
                                   trustList, trustListSize,
                                   revocationList, revocationListSize,
-                                  UA_SecurityPolicy_Basic128Rsa15);
+                                  UA_SecurityPolicy_Basic256Sha256);
     if(client == NULL) {
         UA_ByteString_delete(remoteCertificate); /* Dereference the memory */
         return FAILURE;

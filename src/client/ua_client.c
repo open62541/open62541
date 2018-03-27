@@ -58,15 +58,16 @@ UA_Client_new(UA_ClientConfig config) {
 /* Initializes a secure client with the required configuration, certificate
  * privatekey, trustlist and revocation list.
  *
- * @param  client               client to store configuration
- * @param  config               new secure configuration for client
- * @param  certificate          client certificate
- * @param  privateKey           client's private key
- * @param  remoteCertificate    server certificate form the endpoints
- * @param  trustList            list of trustable certificate
- * @param  trustListSize        count of trustList
- * @param  revocationList       list of revoked digital certificate
- * @param  revocationListSize   count of revocationList
+ * @param  client                   client to store configuration
+ * @param  config                   new secure configuration for client
+ * @param  certificate              client certificate
+ * @param  privateKey               client's private key
+ * @param  remoteCertificate        server certificate form the endpoints
+ * @param  trustList                list of trustable certificate
+ * @param  trustListSize            count of trustList
+ * @param  revocationList           list of revoked digital certificate
+ * @param  revocationListSize       count of revocationList
+ * @param  securityPolicyFunction   securityPolicy function
  * @return Returns a client configuration for secure channel */
 static UA_StatusCode
 UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
@@ -75,7 +76,8 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
                       const UA_ByteString *remoteCertificate,
                       const UA_ByteString *trustList, size_t trustListSize,
                       const UA_ByteString *revocationList,
-                      size_t revocationListSize) {
+                      size_t revocationListSize,
+                      UA_SecurityPolicy_Func securityPolicyFunction) {
     if(client == NULL || remoteCertificate == NULL)
         return STATUS_CODE_BAD_POINTER;
 
@@ -93,10 +95,10 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     if(retval != UA_STATUSCODE_GOOD)
          return retval;
 
-    /* Initiate client security policy as Basic128Rsa15 */
-    UA_SecurityPolicy_Basic128Rsa15(&client->securityPolicy,
-                                    client->securityPolicy.certificateVerification,
-                                    certificate, privateKey, config.logger);
+    /* Initiate client security policy */
+    (*securityPolicyFunction)(&client->securityPolicy,
+                              client->securityPolicy.certificateVerification,
+                              certificate, privateKey, config.logger);
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     client->config = config;
@@ -135,20 +137,22 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
 
 /* Creates a new secure client.
  *
- * @param  config               new secure configuration for client
- * @param  certificate          client certificate
- * @param  privateKey           client's private key
- * @param  remoteCertificate    server certificate form the endpoints
- * @param  trustList            list of trustable certificate
- * @param  trustListSize        count of trustList
- * @param  revocationList       list of revoked digital certificate
- * @param  revocationListSize   count of revocationList
+ * @param  config                   new secure configuration for client
+ * @param  certificate              client certificate
+ * @param  privateKey               client's private key
+ * @param  remoteCertificate        server certificate form the endpoints
+ * @param  trustList                list of trustable certificate
+ * @param  trustListSize            count of trustList
+ * @param  revocationList           list of revoked digital certificate
+ * @param  revocationListSize       count of revocationList
+ * @param  securityPolicyFunction   securityPolicy function
  * @return Returns a client with secure configuration */
 UA_Client *
 UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
                      UA_ByteString privateKey, const UA_ByteString *remoteCertificate,
                      const UA_ByteString *trustList, size_t trustListSize,
-                     const UA_ByteString *revocationList, size_t revocationListSize) {
+                     const UA_ByteString *revocationList, size_t revocationListSize,
+                     UA_SecurityPolicy_Func securityPolicyFunction) {
     if(remoteCertificate == NULL)
         return NULL;
 
@@ -158,7 +162,8 @@ UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
 
     UA_StatusCode retval = UA_Client_secure_init(client, config, certificate, privateKey,
                                                  remoteCertificate, trustList, trustListSize,
-                                                 revocationList, revocationListSize);
+                                                 revocationList, revocationListSize,
+                                                 securityPolicyFunction);
     if(retval != UA_STATUSCODE_GOOD){
         return NULL;
     }
@@ -205,6 +210,8 @@ UA_Client_delete(UA_Client* client) {
      * which is deallocated */
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if (client->securityPolicy.certificateVerification->deleteMembers)
+            client->securityPolicy.certificateVerification->deleteMembers(client->securityPolicy.certificateVerification);
         UA_free(client->securityPolicy.certificateVerification);
     }
 

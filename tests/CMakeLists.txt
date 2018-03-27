@@ -203,6 +203,18 @@ add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_O
 target_link_libraries(check_client_highlevel ${LIBS})
 add_test_valgrind(client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
 
+# Test Encryption
+
+if(UA_ENABLE_ENCRYPTION)
+    add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
+    add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)
+
+    add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic256sha256 ${LIBS})
+    add_test_valgrind(encryption_basic256sha256 ${TESTS_BINARY_DIR}/check_encryption_basic256sha256)
+endif()
+
 #############################
 #                           #
 # Test for Nodeset Compiler #

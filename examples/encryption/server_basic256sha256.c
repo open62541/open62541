@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
     size_t revocationListSize = 0;
 
     UA_ServerConfig *config =
-        UA_ServerConfig_new_basic128rsa15(4840, &certificate, &privateKey,
+        UA_ServerConfig_new_basic256sha256(4840, &certificate, &privateKey,
                                           trustList, trustListSize,
                                           revocationList, revocationListSize);
     UA_ByteString_deleteMembers(&certificate);
