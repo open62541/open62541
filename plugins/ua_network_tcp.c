@@ -1153,6 +1153,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
             break;
         }
 
+        if (connection.state != UA_CONNECTION_CLOSED){
+            shutdown((SOCKET)connection.sockfd, 2);
+            CLOSESOCKET(connection.sockfd);
+            connection.state = UA_CONNECTION_CLOSED;
+        }
     } while ((UA_DateTime_nowMonotonic() - connStart) < dtTimeout);
 
     freeaddrinfo(server);
