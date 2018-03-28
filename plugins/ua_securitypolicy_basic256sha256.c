@@ -200,7 +200,6 @@ asym_encrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     size_t lenDataToEncrypt = data->length;
     size_t inOffset = 0;
     size_t offset = 0;
-    size_t outLength = 0;
     const unsigned char *label = NULL;
     Basic256Sha256_PolicyContext *pc = cc->policyContext;
     while(lenDataToEncrypt >= plainTextBlockSize) {
@@ -215,9 +214,8 @@ asym_encrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
             return retval;
         }
 
-        outLength += remoteRsaContext->len;
         inOffset += plainTextBlockSize;
-        offset += outLength;
+        offset += remoteRsaContext->len;
         lenDataToEncrypt -= plainTextBlockSize;
     }
 
