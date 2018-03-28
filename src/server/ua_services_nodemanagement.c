@@ -876,8 +876,6 @@ AddNode_typeCheckAddRefs(UA_Server *server, UA_Session *session, const UA_NodeId
     UA_Nodestore_release(server, node);
     if(type)
         UA_Nodestore_release(server, type);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_Server_deleteNode(server, *nodeId, UA_TRUE);
     return retval;
 }
 
@@ -980,6 +978,8 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
     /* Typecheck and add references to parent and type definition */
     retval = AddNode_typeCheckAddRefs(server, session, outNewNodeId, parentNodeId,
                                       referenceTypeId, &item->typeDefinition.nodeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_Server_deleteNode(server, *outNewNodeId, UA_TRUE);
     if(outNewNodeId == &newId)
         UA_NodeId_deleteMembers(&newId);
     return retval;
