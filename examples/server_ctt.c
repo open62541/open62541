@@ -177,6 +177,20 @@ main(int argc, char **argv) {
                               myIntegerName, baseDataVariableType, myVar, NULL, NULL);
     UA_Variant_deleteMembers(&myVar.value);
 
+    /* add a static variable that is readable but not writable*/
+    myVar = UA_VariableAttributes_default;
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer - not readable");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer - not readable");
+    myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
+    myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    myVar.valueRank = -1;
+    UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    const UA_QualifiedName myInteger2Name = UA_QUALIFIEDNAME(1, "the answer - not readable");
+    const UA_NodeId myInteger2NodeId = UA_NODEID_STRING(1, "the.answer.no.read");
+    UA_Server_addVariableNode(server, myInteger2NodeId, parentNodeId, parentReferenceNodeId,
+                              myInteger2Name, baseDataVariableType, myVar, NULL, NULL);
+    UA_Variant_deleteMembers(&myVar.value);
+
     /* add a variable with the datetime data source */
     UA_DataSource dateDataSource;
     dateDataSource.read = readTimeData;
