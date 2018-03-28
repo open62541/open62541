@@ -22,6 +22,7 @@ extern "C" {
 
 #include "ua_config.h"
 #include "ua_constants.h"
+#include "ua_statuscodes.h"
 
 #define UA_BUILTIN_TYPES_COUNT 25U
 

@@ -345,6 +345,8 @@ include_directories(${PROJECT_SOURCE_DIR}/include
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
@@ -389,7 +391,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
@@ -503,6 +505,7 @@ if (UA_ENABLE_FULL_NS0)
     endif()
     set(UA_FILE_DATATYPES "")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
 else()
     if(NOT UA_FILE_NS0)
@@ -510,6 +513,7 @@ else()
     endif()
     set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 endif()
 if(NOT EXISTS "${UA_FILE_NS0}")
@@ -571,15 +575,28 @@ add_custom_target(open62541-generator-transport DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
 
 # statuscode explanation
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
         PRE_BUILD
         COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions
+        ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv)
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
+                ${UA_FILE_STATUSCODES})
+
+# nodeid explanation
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
+        ${UA_FILE_NODEIDS}  ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
+        ${UA_FILE_NODEIDS})
+
+# we need a custom target to avoid that the generator is called concurrently and
+# thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-statuscode DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c)
+        ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
 
 # single-file release
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h

@@ -28,6 +28,7 @@ extern "C" {
 #include "ua_plugin_network.h"
 #include "ua_plugin_log.h"
 #include "ua_client_config.h"
+#include "ua_nodeids.h"
 
 /**
  * .. _client:

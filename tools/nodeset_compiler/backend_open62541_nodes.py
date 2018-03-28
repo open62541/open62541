@@ -290,13 +290,14 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
     return [code, codeCleanup]
 
 
-def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True):
+def generateValueCodeDummy(dataTypeNode, parentNode, nodeset):
     code = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
 
     typeBrowseNode = dataTypeNode.browseName.name
     if typeBrowseNode == "NumericRange":
-        # in the stack we define a separate structure for the numeric range, but the value itself is just a string
+        # in the stack we define a separate structure for the numeric range, but
+        # the value itself is just a string
         typeBrowseNode = "String"
 
     typeArr = dataTypeNode.typesArray + "[" + dataTypeNode.typesArray + "_" + typeBrowseNode.upper() + "]"
