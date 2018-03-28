@@ -30,13 +30,11 @@ if sys.version_info[0] >= 3:
 
 class Reference(object):
     # all either nodeids or strings with an alias
-    def __init__(self, source, referenceType, target, isForward=True, hidden=False, inferred=False):
+    def __init__(self, source, referenceType, target, isForward):
         self.source = source
         self.referenceType = referenceType
         self.target = target
         self.isForward = isForward
-        self.hidden = hidden  # the reference is part of a nodeset that already exists
-        self.inferred = inferred
 
     def __str__(self):
         retval = str(self.source)
@@ -67,7 +65,6 @@ class Node(object):
         self.writeMask = 0
         self.userWriteMask = 0
         self.references = set()
-        self.inverseReferences = set()
         self.hidden = False
 
     def __str__(self):
@@ -133,10 +130,21 @@ class Node(object):
                         reftype = av  # alias, such as "HasSubType"
                 elif at == "IsForward":
                     forward = not "false" in av.lower()
-            if forward:
-                self.references.add(Reference(source, reftype, target, forward))
-            else:
-                self.inverseReferences.add(Reference(source, reftype, target, forward))
+            self.references.add(Reference(source, reftype, target, forward))
+
+    def popParentRef(self, parentreftypes):
+        for ref in self.references:
+            if ref.referenceType in parentreftypes and not ref.isForward:
+                self.references.remove(ref)
+                return ref
+        return Reference(NodeId(), NodeId(), NodeId(), False)
+
+    def popTypeDef(self):
+        for ref in self.references:
+            if ref.referenceType.i == 40 and ref.isForward:
+                self.references.remove(ref)
+                return ref
+        return Reference(NodeId(), NodeId(), NodeId(), False)
 
     def replaceAliases(self, aliases):
         if str(self.id) in aliases:
@@ -151,23 +159,12 @@ class Node(object):
                 ref.referenceType = NodeId(aliases[ref.referenceType])
             new_refs.add(ref)
         self.references = new_refs
-        new_inv_refs = set()
-        for ref in self.inverseReferences:
-            if str(ref.source) in aliases:
-                ref.source = NodeId(aliases[ref.source])
-            if str(ref.target) in aliases:
-                ref.target = NodeId(aliases[ref.target])
-            if str(ref.referenceType) in aliases:
-                ref.referenceType = NodeId(aliases[ref.referenceType])
-            new_inv_refs.add(ref)
-        self.inverseReferences = new_inv_refs
 
     def replaceNamespaces(self, nsMapping):
         self.id.ns = nsMapping[self.id.ns]
         self.browseName.ns = nsMapping[self.browseName.ns]
         if hasattr(self, 'dataType') and isinstance(self.dataType, NodeId):
             self.dataType.ns = nsMapping[self.dataType.ns]
-
         new_refs = set()
         for ref in self.references:
             ref.source.ns = nsMapping[ref.source.ns]
@@ -175,13 +172,6 @@ class Node(object):
             ref.referenceType.ns = nsMapping[ref.referenceType.ns]
             new_refs.add(ref)
         self.references = new_refs
-        new_inv_refs = set()
-        for ref in self.inverseReferences:
-            ref.source.ns = nsMapping[ref.source.ns]
-            ref.target.ns = nsMapping[ref.target.ns]
-            ref.referenceType.ns = nsMapping[ref.referenceType.ns]
-            new_inv_refs.add(ref)
-        self.inverseReferences = new_inv_refs
 
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):
@@ -493,7 +483,9 @@ class DataTypeNode(Node):
 
         if self.__xmlDefinition__ == None:
             # Check if there is a supertype available
-            for ref in self.inverseReferences:
+            for ref in self.references:
+                if ref.isForward:
+                    continue
                 # hasSubtype
                 if ref.referenceType.i == 45:
                     targetNode = nodeset.nodes[ref.target]

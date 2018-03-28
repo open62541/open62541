@@ -171,13 +171,10 @@ class NodeSet(object):
         if ndtype == 'referencetype':
             node = ReferenceTypeNode(xmlelement)
 
-        if node and hidden:
-            node.hidden = True
-            # References from an existing nodeset are all suppressed
-            for ref in node.references:
-                ref.hidden = True
-            for ref in node.inverseReferences:
-                ref.hidden = True
+        if node == None:
+            return None
+
+        node.hidden = hidden
         return node
 
     def hide_node(self, nodeId, hidden=True):
@@ -185,11 +182,6 @@ class NodeSet(object):
             return False
         node = self.nodes[nodeId]
         node.hidden = hidden
-        # References from an existing nodeset are all suppressed
-        for ref in node.references:
-            ref.hidden = hidden
-        for ref in node.inverseReferences:
-            ref.hidden = hidden
         return True
 
     def merge_dicts(self, *dict_args):
@@ -252,19 +244,6 @@ class NodeSet(object):
             self.nodes[node.id] = node
             newnodes.append(node)
 
-        # add inverse references
-        for node in newnodes:
-            for ref in node.references:
-                newsource = self.nodes[ref.target]
-                hide = ref.hidden or (node.hidden and newsource.hidden)
-                newref = Reference(newsource.id, ref.referenceType, ref.source, False, hide, inferred=True)
-                newsource.inverseReferences.add(newref)
-            for ref in node.inverseReferences:
-                newsource = self.nodes[ref.target]
-                hide = ref.hidden or (node.hidden and newsource.hidden)
-                newref = Reference(newsource.id, ref.referenceType, ref.source, True, hide, inferred=True)
-                newsource.references.add(newref)
-
     def getBinaryEncodingIdForNode(self, nodeId):
         """
         The node should have a 'HasEncoding' forward reference which points to the encoding ids.
@@ -292,19 +271,19 @@ class NodeSet(object):
                 stat[n.isEncodable()] = stat[n.isEncodable()] + 1
         logger.debug("Type definitions built/passed: " +  str(stat))
 
-
     def allocateVariables(self):
         for n in self.nodes.values():
             if isinstance(n, VariableNode):
                 n.allocateValue(self)
-
 
     def getBaseDataType(self, node):
         if node is None:
             return None
         if node.browseName.name not in opaque_type_mapping:
             return node
-        for ref in node.inverseReferences:
+        for ref in node.references:
+            if ref.isForward:
+                continue
             if ref.referenceType.i == 45:
                 return self.getBaseDataType(self.nodes[ref.target])
         return node
@@ -328,11 +307,7 @@ class NodeSet(object):
         return None
 
     def getRelevantOrderingReferences(self):
-        relevant_types = getSubTypesOf(self,
-                                       self.getNodeByBrowseName("HierarchicalReferences"),
-                                       [])
-        relevant_types += getSubTypesOf(self,
-                                        self.getNodeByBrowseName("HasEncoding"),
-                                        [])
-        relevant_types = map(lambda x: x.id, relevant_types)
-        return list(relevant_types)
+        relevant_types = getSubTypesOf(self, self.getNodeByBrowseName("HierarchicalReferences"), [])
+        relevant_types += getSubTypesOf(self, self.getNodeByBrowseName("HasEncoding"), [])
+        relevant_types += getSubTypesOf(self, self.getNodeByBrowseName("HasTypeDefinition"), [])
+        return list(map(lambda x: x.id, relevant_types))
