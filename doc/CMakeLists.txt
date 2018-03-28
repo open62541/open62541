@@ -19,6 +19,7 @@ endfunction()
 # Doc from headers
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_types.h ${DOC_SRC_DIR}/types.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_constants.h ${DOC_SRC_DIR}/constants.rst)
+generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${DOC_SRC_DIR}/types_generated.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server_config.h ${DOC_SRC_DIR}/server_config.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${DOC_SRC_DIR}/server.rst)
@@ -47,6 +48,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c ${DOC_S
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
+          ${DOC_SRC_DIR}/statuscodes.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/server_config.rst
           ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
           ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst
@@ -78,6 +80,7 @@ add_dependencies(doc_pdf doc_latex)
 add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
+          ${DOC_SRC_DIR}/statuscodes.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/server_config.rst
           ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
           ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst

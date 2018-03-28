@@ -20,6 +20,7 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_nodeids.h"
 
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
