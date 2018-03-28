@@ -721,7 +721,8 @@ AddNode_typeCheckAddRefs(UA_Server *server, UA_Session *session, const UA_NodeId
                                   parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: The parent reference is invalid");
+                            "AddNodes: The parent reference is invalid "
+                            "with status code %s", UA_StatusCode_name(retval));
         goto cleanup;
     }
 
