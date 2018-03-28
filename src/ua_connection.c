@@ -80,8 +80,8 @@ prependIncompleteChunk(UA_Connection *connection, UA_ByteString *message) {
 }
 
 static UA_StatusCode
-bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos, const UA_Byte *end) {
-    size_t length = (uintptr_t)end - (uintptr_t)pos;
+bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos, size_t length) {
+    UA_assert(length > 0);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, length);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -94,18 +94,19 @@ processChunk(UA_Connection *connection, void *application,
              UA_Connection_processChunk processCallback,
              const UA_Byte **posp, const UA_Byte *end, UA_Boolean *done) {
     const UA_Byte *pos = *posp;
-    size_t length = (uintptr_t)end - (uintptr_t)pos;
+    const size_t length = (uintptr_t)end - (uintptr_t)pos;
 
     /* At least 8 byte needed for the header. Wait for the next chunk. */
     if(length < 8) {
-        bufferIncompleteChunk(connection, pos, end);
+        if(length > 0)
+            bufferIncompleteChunk(connection, pos, length);
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
 
     /* Check the message type */
-    UA_MessageType msgtype = (UA_MessageType)((UA_UInt32)pos[0] + ((UA_UInt32)pos[1] << 8) +
-        ((UA_UInt32)pos[2] << 16));
+    UA_MessageType msgtype = (UA_MessageType)
+        ((UA_UInt32)pos[0] + ((UA_UInt32)pos[1] << 8) + ((UA_UInt32)pos[2] << 16));
     if(msgtype != UA_MESSAGETYPE_MSG && msgtype != UA_MESSAGETYPE_ERR &&
        msgtype != UA_MESSAGETYPE_OPN && msgtype != UA_MESSAGETYPE_HEL &&
        msgtype != UA_MESSAGETYPE_ACK && msgtype != UA_MESSAGETYPE_CLO) {
@@ -131,7 +132,7 @@ processChunk(UA_Connection *connection, void *application,
 
     /* Wait for the next packet to process the complete chunk */
     if(chunk_length > length) {
-        bufferIncompleteChunk(connection, pos, end);
+        bufferIncompleteChunk(connection, pos, length);
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
