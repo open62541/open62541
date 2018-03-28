@@ -1,6 +1,20 @@
 #!/bin/bash
 set -e
 
+
+# Sonar code quality
+if ! [ -z ${SONAR+x} ]; then
+    git fetch --unshallow
+	mkdir -p build && cd build
+	build-wrapper-linux-x86-64 --out-dir ../bw-output cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+    -DUA_ENABLE_ENCRYPTION .. \
+    && make -j
+	cd ..
+	sonar-scanner
+	exit 0
+fi
+
 # Docker build test
 if ! [ -z ${DOCKER+x} ]; then
     docker build -t open62541 .
