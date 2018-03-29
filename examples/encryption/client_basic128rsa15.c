@@ -1,51 +1,15 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- *
- *     Copyright 2018 (c) Kalycito Infotech Private Limited
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <stdio.h>
 #include <errno.h>
 
 #include "open62541.h"
+#include "../common.h"
 
 #define MIN_ARGS           3
 #define FAILURE            1
 #define CONNECTION_STRING  "opc.tcp://localhost:4840"
-
-/* loadFile parses the certificate file.
- *
- * @param  path               specifies the file name given in argv[]
- * @return Returns the file content after parsing */
-static UA_ByteString loadFile(const char *const path) {
-    UA_ByteString fileContents = UA_BYTESTRING_NULL;
-    if(path == NULL)
-        return fileContents;
-
-    /* Open the file */
-    FILE *fp = fopen(path, "rb");
-    if(!fp) {
-        errno = 0; /* We read errno also from the tcp layer */
-        return fileContents;
-    }
-
-    /* Get the file length, allocate the data and read */
-    fseek(fp, 0, SEEK_END);
-    fileContents.length = (size_t)ftell(fp);
-    fileContents.data = (UA_Byte*)UA_malloc(fileContents.length * sizeof(UA_Byte));
-    if(fileContents.data) {
-        fseek(fp, 0, SEEK_SET);
-        size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
-        if(read != fileContents.length)
-            UA_ByteString_deleteMembers(&fileContents);
-    } else {
-        fileContents.length = 0;
-    }
-
-    fclose(fp);
-    return fileContents;
-}
 
 /* cleanupClient deletes the memory allocated for client configuration.
  *

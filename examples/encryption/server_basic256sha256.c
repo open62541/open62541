@@ -5,33 +5,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "open62541.h"
-
-static UA_ByteString loadFile(const char *const path) {
-    UA_ByteString fileContents = UA_STRING_NULL;
-
-    /* Open the file */
-    FILE *fp = fopen(path, "rb");
-    if(!fp) {
-        errno = 0; /* We read errno also from the tcp layer... */
-        return fileContents;
-    }
-
-    /* Get the file length, allocate the data and read */
-    fseek(fp, 0, SEEK_END);
-    fileContents.length = (size_t)ftell(fp);
-    fileContents.data = (UA_Byte*)UA_malloc(fileContents.length * sizeof(UA_Byte));
-    if(fileContents.data) {
-        fseek(fp, 0, SEEK_SET);
-        size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
-        if(read != fileContents.length)
-            UA_ByteString_deleteMembers(&fileContents);
-    } else {
-        fileContents.length = 0;
-    }
-    fclose(fp);
-
-    return fileContents;
-}
+#include "../common.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
