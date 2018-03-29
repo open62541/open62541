@@ -53,10 +53,11 @@ typedef struct {
 typedef enum {
     UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
                                 * will be deleted */
-    UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
+	UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
                                 * is not done */
     UA_CONNECTION_ESTABLISHED  /* The socket is open and the connection
                                 * configured */
+
 } UA_ConnectionState;
 
 struct UA_Connection {
@@ -72,7 +73,7 @@ struct UA_Connection {
     void *handle;                    /* A pointer to internal data */
     UA_ByteString incompleteMessage; /* A half-received message (TCP is a
                                       * streaming protocol) is stored here */
-
+    UA_UInt64 connectCallbackID;     /* Callback Id, for the connect-loop */
     /* Get a buffer for sending */
     UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length,
                                    UA_ByteString *buf);

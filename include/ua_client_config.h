@@ -37,15 +37,35 @@ extern "C" {
 
 typedef enum {
     UA_CLIENTSTATE_DISCONNECTED,        /* The client is disconnected */
+    UA_CLIENTSTATE_WAITING_FOR_ACK,     /* The Client has sent HEL and waiting*/
     UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
     UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
     UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
+    UA_CLIENTSTATE_SESSION_DISCONNECTED,  /*disconnected vs renewed?*/
     UA_CLIENTSTATE_SESSION_RENEWED      /* A session with the server is open (renewed) */
 } UA_ClientState;
 
 
 struct UA_Client;
 typedef struct UA_Client UA_Client;
+
+typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
+        UA_UInt32 requestId, void *response);
+/*
+ * Repeated Callbacks
+ * ------------------ */
+typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client, void *data);
+
+UA_StatusCode
+UA_Client_addRepeatedCallback(UA_Client *Client, UA_ClientCallback callback,
+        void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
+
+UA_StatusCode
+UA_Client_changeRepeatedCallbackInterval(UA_Client *Client,
+        UA_UInt64 callbackId, UA_UInt32 interval);
+
+UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *Client,
+        UA_UInt64 callbackId);
 
 /**
  * Client Lifecycle callback
@@ -72,6 +92,8 @@ typedef struct UA_ClientConfig {
     UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
     UA_ConnectClientConnection connectionFunc;
+    UA_ConnectClientConnection initConnectionFunc;
+    UA_ClientCallback pollConnectionFunc;
 
     /* Custom DataTypes */
     size_t customDataTypesSize;

@@ -69,13 +69,13 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
     switch(clientState) {
         case UA_CLIENTSTATE_DISCONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
-        break;
+        break; 
         case UA_CLIENTSTATE_CONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A TCP connection to the server is open");
-        break;
+        break; 
         case UA_CLIENTSTATE_SECURECHANNEL:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A SecureChannel to the server is open");
-        break;
+        break; 
         case UA_CLIENTSTATE_SESSION:{
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A session with the server is open");
             /* A new session was created. We need to create the subscription. */
@@ -100,11 +100,13 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
             if(monResponse.statusCode == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monResponse.monitoredItemId);
         }
-        break;
+        break; 
         case UA_CLIENTSTATE_SESSION_RENEWED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A session with the server is open (renewed)");
             /* The session was renewed. We don't need to recreate the subscription. */
         break;
+        default:
+            break;
     }
     return;
 }

@@ -42,7 +42,16 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
     if(client->config.stateCallback)
-        client->config.stateCallback(client, client->state);
+        client->config.stateCallback (client, client->state);
+    //catch error during async connection
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
+    /*needed by async client*/
+    UA_Timer_init (&client->timer);
+
+#ifndef UA_ENABLE_MULTITHREADING
+    SLIST_INIT(&client->delayedClientCallbacks);
+#endif
 }
 
 UA_Client *
@@ -329,7 +338,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Call the callback */
-    ac->callback(client, ac->userdata, requestId, response, ac->responseType);
+    ac->callback(client, ac->userdata, requestId, response);
     UA_deleteMembers(response, ac->responseType);
 
     /* Remove the callback */
@@ -503,6 +512,46 @@ __UA_Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
 }
 
+UA_StatusCode
+receiveServiceResponse_async (UA_Client *client, void *response,
+                              const UA_DataType *responseType) {
+    SyncResponseDescription rd = { client, false, 0, response, responseType };
+
+    UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking (
+            &client->connection, &rd, client_processChunk);
+    /*let client run when non critical timeout*/
+    if (retval != UA_STATUSCODE_GOOD
+            && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            client->state = UA_CLIENTSTATE_DISCONNECTED;
+        else
+            UA_Client_disconnect (client);
+    }
+    return retval;
+}
+
+UA_StatusCode
+receivePacket_async (UA_Client *client) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if (UA_Client_getState (client) == UA_CLIENTSTATE_DISCONNECTED ||
+            UA_Client_getState (client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
+        retval = UA_Connection_receiveChunksNonBlocking (
+                &client->connection, client, client->ackResponseCallback);
+    }
+    else if (UA_Client_getState (client) == UA_CLIENTSTATE_CONNECTED) {
+        retval = UA_Connection_receiveChunksNonBlocking (
+                &client->connection, client,
+                client->openSecureChannelResponseCallback);
+    }
+    if (retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            client->state = UA_CLIENTSTATE_DISCONNECTED;
+        else
+            UA_Client_disconnect (client);
+    }
+    return retval;
+}
+
 void
 UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                               UA_StatusCode statusCode) {
@@ -512,7 +561,7 @@ UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
     UA_init(resp, ac->responseType);
     ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
 
-    ac->callback(client, ac->userdata, ac->requestId, resp, ac->responseType);
+    ac->callback(client, ac->userdata, ac->requestId, resp);
 
     /* Clean up the response. Users might move data into it. For whatever reasons. */
     UA_deleteMembers(resp, ac->responseType);
@@ -556,6 +605,21 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
+UA_Client_sendAsyncRequest (UA_Client *client, const void *request,
+                            const UA_DataType *requestType,
+                            UA_ClientAsyncServiceCallback callback,
+                            const UA_DataType *responseType, void *userdata,
+                            UA_UInt32 *requestId) {
+    if (UA_Client_getState (client) < UA_CLIENTSTATE_SECURECHANNEL) {
+        UA_LOG_INFO (client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Cient must be connected to send high-level requests");
+        return UA_STATUSCODE_GOOD;
+    }
+    return __UA_Client_AsyncService (client, request, requestType, callback,
+                                     responseType, userdata, requestId);
+}
+
+UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* TODO: Call repeated jobs that are scheduled */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -576,4 +640,19 @@ UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
 #endif
     return retval;
+}
+
+UA_StatusCode
+UA_Client_addRepeatedCallback (UA_Client *Client, UA_ClientCallback callback,
+                               void *data, UA_UInt32 interval,
+                               UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback (&Client->timer,
+                                         (UA_TimerCallback) callback, data,
+                                         interval, callbackId);
+}
+
+
+UA_StatusCode
+UA_Client_removeRepeatedCallback (UA_Client *Client, UA_UInt64 callbackId) {
+    return UA_Timer_removeRepeatedCallback (&Client->timer, callbackId);
 }

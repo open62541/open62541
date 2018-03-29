@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015-2017 (c) Florian Palm
@@ -104,6 +104,11 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
+UA_StatusCode UA_EXPORT
+UA_Client_connect_async (UA_Client *client, const char *endpointUrl,
+                         UA_ClientAsyncServiceCallback callback,
+                         void *connected);
+
 /* Connect to the server without creating a session
  *
  * @param client to use
@@ -111,6 +116,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl);
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
 UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl);
+
 
 /* Connect to the selected server with the given username and password
  *
@@ -126,6 +132,9 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
 /* Disconnect and close a connection to the selected server */
 UA_StatusCode UA_EXPORT
 UA_Client_disconnect(UA_Client *client);
+
+UA_StatusCode UA_EXPORT
+UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId);
 
 /* Close a connection to the selected server */
 UA_StatusCode UA_EXPORT
@@ -375,11 +384,6 @@ UA_Client_Service_queryNext(UA_Client *client,
 UA_StatusCode UA_EXPORT
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 
-typedef void
-(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, void *response,
-                                 const UA_DataType *responseType);
-
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
  *
@@ -393,12 +397,21 @@ typedef void
  * UA_STATUSCODE_BADSHUTDOWN.
  *
  * The userdata and requestId arguments can be NULL. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
                          UA_ClientAsyncServiceCallback callback,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
+
+UA_StatusCode UA_EXPORT
+UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
+        const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
+        const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
+
+UA_UInt16 UA_EXPORT
+UA_Client_run_iterate(UA_Client *client, UA_StatusCode *retval);
+
 
 static UA_INLINE UA_StatusCode
 UA_Client_AsyncService_read(UA_Client *client, const UA_ReadRequest *request,

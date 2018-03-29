@@ -563,6 +563,17 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
 }
 
 /**
+ * .. _client-subscriptions:
+ *
+ * Subscriptions Handling
+ * ^^^^^^^^^^^^^^^^^^^^^^
+ * At this time, the client does not yet contain its own thread or event-driven
+ * main-loop. So the client will not perform any actions automatically in the
+ * background. This is especially relevant for subscriptions. The user will have
+ * to periodically call `UA_Client_Subscriptions_manuallySendPublishRequest`.
+ * See also :ref:`here <client-subscriptions>`. */
+
+/**
  * Misc Highlevel Functionality
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 /* Get the namespace-index of a namespace-URI
