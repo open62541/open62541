@@ -228,6 +228,7 @@ START_TEST(Client_subscription_keepAlive) {
     ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
     UA_UInt32 monId = monResponse.monitoredItemId;
 
+    /* Ensure that the subscription is late */
     UA_fakeSleep((UA_UInt32)(publishingInterval + 1));
 
     /* Manually send a publish request */

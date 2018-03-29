@@ -104,4 +104,4 @@ good starting points for new contributors:
 
 - `Report bugs <https://github.com/open62541/open62541/issues>`_
 - Improve the `documentation <http://open62541.org/doc/current>`_
-- Work on issues marked as `easy hacks <https://github.com/open62541/open62541/labels/easy%20hack>`_
+- Work on issues marked as `good first issue <https://github.com/open62541/open62541/labels/good%20first%20issue>`_

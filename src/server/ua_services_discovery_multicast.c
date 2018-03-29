@@ -194,8 +194,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     /* Iterate over all records and add to filtered list */
     UA_UInt32 filteredCount = 0;
-    UA_ServerOnNetwork** filtered =
-        (UA_ServerOnNetwork**)UA_alloca(sizeof(UA_ServerOnNetwork*) * recordCount);
+    UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
     serverOnNetwork_list_entry* current;
     LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
         if(filteredCount >= recordCount)
@@ -553,8 +552,8 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     mdns_set_address_record(server, fullServiceDomain, localDomain);
 
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
+    UA_STACKARRAY(char, pathChars, path->length + 1);
     if(createTxt) {
-        char *pathChars = (char *)UA_alloca(path->length + 1);
         memcpy(pathChars, path->data, path->length);
         pathChars[path->length] = 0;
         mdns_create_txt(server, fullServiceDomain, pathChars, capabilites,

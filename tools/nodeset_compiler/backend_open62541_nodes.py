@@ -303,13 +303,13 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
     typeStr = "UA_" + typeBrowseNode
 
     if parentNode.valueRank > 0:
-        code.append(typeStr + " *" + valueName + " = (" + typeStr + "*) UA_alloca(" + typeArr + ".memSize * " + str(parentNode.valueRank) + ");")
+        code.append("UA_STACKARRAY(" + typeStr + ", " + valueName + "," + str(parentNode.valueRank) + ");")
         for i in range(0, parentNode.valueRank):
             code.append("UA_init(&" + valueName + "[" + str(i) + "], &" + typeArr + ");")
             code.append("UA_Variant_setArray(&attr.value, " + valueName + ", (UA_Int32) " +
                         str(parentNode.valueRank) + ", &" + typeArr + ");")
     else:
-        code.append("void *" + valueName + " = UA_alloca(" + typeArr + ".memSize);")
+        code.append("UA_STACKARRAY(" + typeStr + ", " + valueName + ", 1);")
         code.append("UA_init(" + valueName + ", &" + typeArr + ");")
         code.append("UA_Variant_setScalar(&attr.value, " + valueName + ", &" + typeArr + ");")
 
