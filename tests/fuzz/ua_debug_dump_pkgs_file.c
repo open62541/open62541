@@ -158,8 +158,11 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     } else {
         // make a backup of the sequence number and reset it, because processChunk increases it
         UA_UInt32 seqBackup = connection->channel->receiveSequenceNumber;
-        UA_SecureChannel_processChunk(connection->channel, messageBuffer,
+        UA_ByteString messageBufferCopy;
+        UA_ByteString_copy(messageBuffer, &messageBufferCopy);
+        UA_SecureChannel_processChunk(connection->channel, &messageBufferCopy,
                                       UA_debug_dump_setName_withChannel, &dump_filename);
+        UA_ByteString_deleteMembers(&messageBufferCopy);
         connection->channel->receiveSequenceNumber = seqBackup;
     }
 

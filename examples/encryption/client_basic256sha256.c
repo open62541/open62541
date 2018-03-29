@@ -109,7 +109,7 @@ int main(int argc, char* argv[]) {
                                   remoteCertificate,
                                   trustList, trustListSize,
                                   revocationList, revocationListSize,
-                                  UA_SecurityPolicy_Basic128Rsa15);
+                                  UA_SecurityPolicy_Basic256Sha256);
     if(client == NULL) {
         UA_ByteString_delete(remoteCertificate); /* Dereference the memory */
         return FAILURE;

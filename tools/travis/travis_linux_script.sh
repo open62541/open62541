@@ -4,7 +4,10 @@ set -e
 
 # Sonar code quality
 if ! [ -z ${SONAR+x} ]; then
-    if ! [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+    if ([ "${TRAVIS_REPO_SLUG}" != "open62541/open62541" ] ||
+        [ "${TRAVIS_PULL_REQUEST}" != "false" ] ||
+        [ "${TRAVIS_BRANCH}" != "master" ]); then
+        echo "Skipping Sonarcloud on forks"
         # Skip on forks
         exit 0;
     fi

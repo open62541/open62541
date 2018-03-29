@@ -378,6 +378,13 @@ UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityP
                                                               const void *channelContext,
                                                               size_t maxEncryptionLength);
 
+
+typedef UA_StatusCode (*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,
+                                                UA_CertificateVerification *certificateVerification,
+                                                const UA_ByteString localCertificate,
+                                                const UA_ByteString localPrivateKey,
+                                                UA_Logger logger);
+
 #ifdef __cplusplus
 }
 #endif
