@@ -106,6 +106,15 @@ UA_Client_connect_async (UA_Client *client, const char *endpointUrl,
                          UA_ClientAsyncServiceCallback callback,
                          void *connected);
 
+/* Connect to the server without creating a session
+ *
+ * @param client to use
+ * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl);
+
+
 /* Connect to the selected server with the given username and password
  *
  * @param client to use

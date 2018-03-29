@@ -60,7 +60,6 @@
 # define WIN32_INT (int)
 # define OPTVAL_TYPE char
 # define ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
-# define UA_sleep_ms(X) Sleep(X)
 #else /* _WIN32 */
 # if defined(UA_FREERTOS)
 #  define UA_FREERTOS_HOSTNAME "10.200.4.114"
@@ -78,7 +77,6 @@ static inline int gethostname_freertos(char* name, size_t len){
 #  ifdef BYTE_ORDER
 #   undef BYTE_ORDER
 #  endif
-#  define UA_sleep_ms(X) vTaskDelay(pdMS_TO_TICKS(X))
 # else /* Not freeRTOS */
 #  define CLOSESOCKET(S) close(S)
 #  include <arpa/inet.h>
@@ -88,16 +86,8 @@ static inline int gethostname_freertos(char* name, size_t len){
 #  if defined(_WRS_KERNEL)
 #   include <hostLib.h>
 #   include <selectLib.h>
-#   define UA_sleep_ms(X)                            \
-    {                                                \
-    struct timespec timeToSleep;                     \
-      timeToSleep.tv_sec = X / 1000;                 \
-      timeToSleep.tv_nsec = 1000000 * (X % 1000);    \
-      nanosleep(&timeToSleep, NULL);                 \
-    }
 #  else /* defined(_WRS_KERNEL) */
 #   include <sys/select.h>
-#   define UA_sleep_ms(X) usleep(X * 1000)
 #  endif /* defined(_WRS_KERNEL) */
 # endif /* Not freeRTOS */
 
@@ -123,6 +113,34 @@ static inline int gethostname_freertos(char* name, size_t len){
 #  include <netinet/tcp.h>
 # endif
 #endif /* _WIN32 */
+
+#ifndef UA_sleep_ms
+# ifdef _WIN32
+#  define UA_sleep_ms(X) Sleep(X)
+# else /* _WIN32 */
+#  if defined(UA_FREERTOS)
+#   define UA_sleep_ms(X) vTaskDelay(pdMS_TO_TICKS(X))
+#  else /* Not freeRTOS */
+#   if defined(_WRS_KERNEL)
+#    include <hostLib.h>
+#    include <selectLib.h>
+#    define UA_sleep_ms(X)                            \
+     {                                                \
+     struct timespec timeToSleep;                     \
+       timeToSleep.tv_sec = X / 1000;                 \
+       timeToSleep.tv_nsec = 1000000 * (X % 1000);    \
+       nanosleep(&timeToSleep, NULL);                 \
+     }
+#   else /* defined(_WRS_KERNEL) */
+#    define UA_sleep_ms(X) usleep(X * 1000)
+#   endif /* defined(_WRS_KERNEL) */
+#  endif /* Not freeRTOS */
+# endif /* _WIN32 */
+#else /* UA_sleep_ms */
+/* With this one can define its own UA_sleep_ms using a preprocessor define.
+E.g. see unit tests. */
+void UA_sleep_ms(size_t);
+#endif
 
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using
