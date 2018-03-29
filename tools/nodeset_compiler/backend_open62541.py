@@ -269,21 +269,34 @@ extern UA_StatusCode %s(UA_Server *server);
                 continue
             else:
                 writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {\n")
+                if isinstance(node, MethodNode):
+                    writec("#ifdef UA_ENABLE_METHODCALLS")
                 writec(code)
 
         # Print inverse references leading to this node
         for ref in node.printRefs:
             writec(generateReferenceCode(ref))
             
-        writec("return retVal;\n}")
+        writec("return retVal;")
+        if isinstance(node, MethodNode):
+            writec("#else")
+            writec("return UA_STATUSCODE_GOOD;")
+            writec("#endif /* UA_ENABLE_METHODCALLS */")
+        writec("}");
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {\n")
+        if isinstance(node, MethodNode):
+            writec("#ifdef UA_ENABLE_METHODCALLS")
         code = generateNodeCode_finish(node)
-        writec("return " + code + "\n}\n")
+        writec("return " + code)
+        if isinstance(node, MethodNode):
+            writec("#else")
+            writec("return UA_STATUSCODE_GOOD;")
+            writec("#endif /* UA_ENABLE_METHODCALLS */")
+        writec("}");
 
         functionNumber = functionNumber + 1
-    
-    
+
     writec("""
 UA_StatusCode %s(UA_Server *server) {
 UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
