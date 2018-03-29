@@ -51,12 +51,13 @@ typedef struct {
 } UA_ConnectionConfig;
 
 typedef enum {
-    UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
-                                * is not done */
-    UA_CONNECTION_ESTABLISHED, /* The socket is open and the connection
-                                * configured */
-    UA_CONNECTION_CLOSED       /* The socket has been closed and the connection
+    UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
                                 * will be deleted */
+	UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
+                                * is not done */
+    UA_CONNECTION_ESTABLISHED  /* The socket is open and the connection
+                                * configured */
+
 } UA_ConnectionState;
 
 struct UA_Connection {
