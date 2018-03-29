@@ -643,9 +643,13 @@ const UA_ClientConfig UA_ClientConfig_default = {
     NULL, /*.customDataTypes */
 
     NULL, /*.stateCallback */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     NULL, /*.subscriptionInactivityCallback */
+#endif
 
     NULL,  /*.clientContext */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     10 /* .outStandingPublishRequests */
+#endif
 };
