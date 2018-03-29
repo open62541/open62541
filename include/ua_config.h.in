@@ -93,6 +93,9 @@ extern "C" {
 #elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
 # define UA_CTASTR2(pre,post) pre ## post
 # define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
+# ifndef __COUNTER__ /* PPC GCC fix */
+#  define __COUNTER__ __LINE__
+# endif
 # define UA_STATIC_ASSERT(cond,msg)                             \
     typedef struct {                                            \
         int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \

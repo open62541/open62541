@@ -136,6 +136,7 @@ QueryDataSet
 ParsingResult
 ContentFilterElementResult
 ContentFilterResult
+EventFilterResult
 QueryFirstResponse
 QueryNextRequest
 QueryNextResponse
@@ -173,6 +174,9 @@ DeadbandType
 DataChangeFilter
 EventFilter
 FilterOperand
+ElementOperand
+LiteralOperand
+AttributeOperand
 SimpleAttributeOperand
 EventNotificationList
 EventFieldList

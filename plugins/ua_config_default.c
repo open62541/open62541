@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Julian Grothoff
@@ -11,12 +11,12 @@
 
 #include "ua_plugin_securitypolicy.h"
 #include "ua_config_default.h"
+#include "ua_client_config.h"
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
 #include "ua_pki_certificate.h"
 #include "ua_nodestore_default.h"
-#include "ua_types_generated.h"
 #include "ua_securitypolicy_none.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -24,9 +24,6 @@
 #include "ua_securitypolicy_basic256sha256.h"
 #endif
 
-#include "ua_types.h"
-#include "ua_types_generated_handling.h"
-#include "ua_client_subscriptions.h"
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
@@ -652,3 +649,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
 
     10 /* .outStandingPublishRequests */
 };
+
+UA_ClientConfig UA_Server_getClientConfig(void)
+{
+    return UA_ClientConfig_default;
+}
