@@ -1019,14 +1019,12 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
         }
 
         /* Add (mandatory) child nodes from the type definition */
-        if(!server->bootstrapNS0) {
-            retval = addChildren(server, session, node, type);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO_SESSION(server->config.logger, session,
-                                    "AddNodes: Adding child nodes failed with error code %s",
-                                    UA_StatusCode_name(retval));
-                goto cleanup;
-            }
+        retval = addChildren(server, session, node, type);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "AddNodes: Adding child nodes failed with error code %s",
+                                UA_StatusCode_name(retval));
+            goto cleanup;
         }
     }
 
