@@ -238,14 +238,12 @@ checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResp
     if(!channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString dataToVerify     = {0, NULL};
-    UA_StatusCode retval           = UA_STATUSCODE_GOOD;
-    size_t        dataToVerifySize = 0;
     const UA_SecurityPolicy* securityPolicy   = channel->securityPolicy;
     const UA_ByteString*     localCertificate = &securityPolicy->localCertificate;
 
-    dataToVerifySize = localCertificate->length + channel->localNonce.length;
-    retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
+    size_t dataToVerifySize = localCertificate->length + channel->localNonce.length;
+    UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
