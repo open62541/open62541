@@ -646,9 +646,9 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
 /* Check if the valuerank allows for the value dimension */
 static UA_Boolean
 compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
-    /* empty arrays (-1) always match */
+    /* Empty arrays (-1) always match */
     if(!value->data)
-        return false;
+        return true;
 
     size_t arrayDims = value->arrayDimensionsSize;
     if(!UA_Variant_isScalar(value))
@@ -698,11 +698,22 @@ compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                 UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range) {
-    /* Empty variant is only allowed for BaseDataType */
+    /* Empty value */
     if(!value->type) {
+        /* Empty value is allowed for BaseDataType */
         if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
             return true;
+
+        /* Workaround: Allow empty value if the target data type is abstract */
+        const UA_Node *datatype = UA_Nodestore_get(server, targetDataTypeId);
+        if(datatype && datatype->nodeClass == UA_NODECLASS_DATATYPE) {
+            UA_Boolean isAbstract = ((const UA_DataTypeNode*)datatype)->isAbstract;
+            UA_Nodestore_release(server, datatype);
+            if(isAbstract)
+                return true;
+        }
+
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Only Variables with data type BaseDataType may contain "
                     "a null (empty) value");
