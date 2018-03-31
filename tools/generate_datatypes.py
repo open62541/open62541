@@ -462,7 +462,7 @@ def printe(string):
 def printc(string):
     print(string, end='\n', file=fc)
 
-def iter_types(v, opaqueType):
+def iter_types(v):
     l = None
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
@@ -472,13 +472,8 @@ def iter_types(v, opaqueType):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
-    if opaqueType:
-        # only opaque type
-        l = list(filter(lambda t: t.name in opaque_type_mapping, l))
-    else:
-        # remove opaque type
-        l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
     return l
+
 ################
 # Print Header #
 ################
@@ -503,8 +498,7 @@ extern "C" {
 
 ''')
 
-filtered_types = iter_types(types, False)
-filtered_opaque_types = iter_types(types, True)
+filtered_types = iter_types(types)
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
@@ -524,20 +518,6 @@ for t in filtered_types:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
-    i += 1
-
-i = 0
-# Generate alias for opaque types
-for t in filtered_opaque_types:
-    printh("\n/**\n * " +  t.name)
-    printh(" * " + "^" * len(t.name))
-    if t.description == "":
-        printh(" */")
-    else:
-        printh(" * " + t.description + " */")
-    if type(t) != BuiltinType:
-        printh(t.typedef_h() + "\n")
-    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
     i += 1
 
 printh('''
