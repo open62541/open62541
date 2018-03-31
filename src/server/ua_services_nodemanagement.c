@@ -524,7 +524,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
         retval = AddNode_typeCheckAddRefs(server, session, &newNodeId, destinationNodeId,
                                           &rd->referenceTypeId, typeId);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Nodestore_delete(server, node);
+            UA_Nodestore_remove(server, &node->nodeId);
             UA_Nodestore_release(server, type);
             return retval;
         }
