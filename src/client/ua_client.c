@@ -528,11 +528,12 @@ void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCod
 }
 
 UA_StatusCode
-__UA_Client_AsyncService(UA_Client *client, const void *request,
-                         const UA_DataType *requestType,
-                         UA_ClientAsyncServiceCallback callback,
-                         const UA_DataType *responseType,
-                         void *userdata, UA_UInt32 *requestId) {
+__UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
+                           const UA_DataType *requestType,
+                           UA_ClientAsyncServiceCallback callback,
+                           const UA_DataType *responseType,
+                           void *userdata, UA_UInt32 *requestId,
+                           UA_UInt32 timeout) {
     /* Prepare the entry for the linked list */
     AsyncServiceCall *ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
     if(!ac)
@@ -540,6 +541,7 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
     ac->callback = callback;
     ac->responseType = responseType;
     ac->userdata = userdata;
+    ac->timeout = timeout;
 
     /* Call the service and set the requestId */
     UA_StatusCode retval = sendSymmetricServiceRequest(client, request, requestType, &ac->requestId);
@@ -548,11 +550,87 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
         return retval;
     }
 
+    ac->start = UA_DateTime_nowMonotonic();
+
     /* Store the entry for async processing */
     LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
     if(requestId)
         *requestId = ac->requestId;
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+__UA_Client_AsyncService(UA_Client *client, const void *request,
+                         const UA_DataType *requestType,
+                         UA_ClientAsyncServiceCallback callback,
+                         const UA_DataType *responseType,
+                         void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncServiceEx(client, request, requestType, callback,
+                                      responseType, userdata, requestId,
+                                      client->config.timeout);
+}
+
+static void
+backgroundConnectivityCallback(UA_Client *client, void *userdata,
+                               UA_UInt32 requestId, const UA_ReadResponse *response) {
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
+        if (client->config.inactivityCallback)
+            client->config.inactivityCallback(client);
+    }
+    client->pendingConnectivityCheck = false;
+    client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
+}
+
+static UA_StatusCode
+UA_Client_backgroundConnectivity(UA_Client *client) {
+    if(!client->config.connectivityCheckInterval)
+        return UA_STATUSCODE_GOOD;
+
+    if (client->pendingConnectivityCheck)
+        return UA_STATUSCODE_GOOD;
+
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextDate = client->lastConnectivityCheck + (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
+
+    if(now <= nextDate)
+        return UA_STATUSCODE_GOOD;
+
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvid.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+
+    request.nodesToRead = &rvid;
+    request.nodesToReadSize = 1;
+
+    UA_StatusCode retval = __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+                                                    (UA_ClientAsyncServiceCallback)backgroundConnectivityCallback,
+                                                    &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL);
+
+    client->pendingConnectivityCheck = true;
+
+    return retval;
+}
+
+static void
+asyncServiceTimeoutCheck(UA_Client *client) {
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+
+    /* Timeout occurs, remove the callback */
+    AsyncServiceCall *ac, *ac_tmp;
+    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
+        if (!ac->timeout)
+            continue;
+
+        if (ac->start + (UA_DateTime)(ac->timeout * UA_DATETIME_MSEC) <= now) {
+            LIST_REMOVE(ac, pointers);
+            UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADTIMEOUT);
+            UA_free(ac);
+        }
+    }
 }
 
 UA_StatusCode
@@ -567,6 +645,10 @@ UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    retval = UA_Client_backgroundConnectivity(client);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
     retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
@@ -575,5 +657,6 @@ UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* The inactivity check must be done after receiveServiceResponse */
     UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
 #endif
+    asyncServiceTimeoutCheck(client);
     return retval;
 }

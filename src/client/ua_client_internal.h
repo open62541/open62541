@@ -88,6 +88,8 @@ typedef struct AsyncServiceCall {
     UA_ClientAsyncServiceCallback callback;
     const UA_DataType *responseType;
     void *userdata;
+    UA_DateTime start;
+    UA_UInt32 timeout;
 } AsyncServiceCall;
 
 void UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
@@ -136,6 +138,10 @@ struct UA_Client {
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
     UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
+
+    /* Connectivity check */
+    UA_DateTime lastConnectivityCheck;
+    UA_Boolean pendingConnectivityCheck;
 };
 
 void
