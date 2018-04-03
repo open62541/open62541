@@ -274,8 +274,8 @@ UA_Server_new(const UA_ServerConfig *config) {
     UA_StatusCode retVal = UA_Server_initNS0(server);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(config->logger, UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 failed with %s. "
-                     "See previous outputs for any error messages.",
+                     "Namespace 0 could not be bootstrapped with error %s. "
+                     "Shutting down the server.",
                      UA_StatusCode_name(retVal));
         UA_Server_delete(server);
         return NULL;
