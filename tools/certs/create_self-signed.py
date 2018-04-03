@@ -52,6 +52,9 @@ os.system("""openssl x509 -req \
     -extensions v3_ca""".format(openssl_conf))
 os.system("openssl x509 -in localhost.crt -outform der -out server_cert.der")
 os.system("openssl rsa -inform PEM -in localhost.key -outform DER -out server_key.der")
+# Convert certificate authority(CA) file 'ca.crt' into DER encoded form
+# to provide as trust list input
+os.system("openssl x509 -in ca.crt -outform der -out ca_cert.der")
 
 os.remove("localhost.key")
 os.remove("localhost.crt")
