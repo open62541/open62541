@@ -67,18 +67,27 @@ int main(int argc, char* argv[]) {
         return (int)retval;
     }
 
+    UA_String securityPolicyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     printf("%i endpoints found\n", (int)endpointArraySize);
     for(size_t endPointCount = 0; endPointCount < endpointArraySize; endPointCount++) {
-        printf("URL of endpoint %i is %.*s\n", (int)endPointCount,
+        printf("URL of endpoint %i is %.*s / %.*s\n", (int)endPointCount,
                (int)endpointArray[endPointCount].endpointUrl.length,
-               endpointArray[endPointCount].endpointUrl.data);
-        if(endpointArray[endPointCount].securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+               endpointArray[endPointCount].endpointUrl.data,
+               (int)endpointArray[endPointCount].securityPolicyUri.length,
+               endpointArray[endPointCount].securityPolicyUri.data);
+
+        if(endpointArray[endPointCount].securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            continue;
+
+        if(UA_String_equal(&endpointArray[endPointCount].securityPolicyUri, &securityPolicyUri)) {
             UA_ByteString_copy(&endpointArray[endPointCount].serverCertificate, remoteCertificate);
+            break;
+        }
     }
 
     if(UA_ByteString_equal(remoteCertificate, &UA_BYTESTRING_NULL)) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Server does not support Security Mode of"
+                     "Server does not support Security Basic256Sha256 Mode of"
                      " UA_MESSAGESECURITYMODE_SIGNANDENCRYPT");
         cleanupClient(client, remoteCertificate);
         return FAILURE;
