@@ -1,6 +1,12 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/examples)
+
+set(examples_headers
+    ${examples_headers}
+    ${PROJECT_SOURCE_DIR}/examples/common.h
+    )
 
 #############################
 # Compiled binaries folders #
@@ -9,7 +15,7 @@ include_directories(${PROJECT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
 
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
-  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN})
+  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN} ${examples_headers})
   target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
   assign_source_group(${EXAMPLE_SOURCE})
   add_dependencies(${EXAMPLE_NAME} open62541-amalgamation-header open62541-amalgamation-source)

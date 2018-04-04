@@ -557,8 +557,6 @@ UA_Server_initNS0(UA_Server *server) {
     server->bootstrapNS0 = true;
     retVal = ua_namespace0(server);
     server->bootstrapNS0 = false;
-    if(retVal != UA_STATUSCODE_GOOD)
-        return retVal;
 
     /* NamespaceArray */
     UA_DataSource namespaceDataSource = {readNamespaces, NULL};
@@ -740,5 +738,11 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_setMethodNode_callback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);
 #endif
-    return retVal;
+
+    if(retVal != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 (after bootstrapping) "
+                     "failed with %s. See previous outputs for any error messages.",
+                     UA_StatusCode_name(retVal));
+    return UA_STATUSCODE_GOOD;
 }
