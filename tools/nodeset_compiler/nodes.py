@@ -619,5 +619,5 @@ class ViewNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "ContainsNoLoops":
                 self.containsNoLoops = "false" not in av.lower()
-            if at == "eventNotifier":
+            if at == "EventNotifier":
                 self.eventNotifier = "false" not in av.lower()
