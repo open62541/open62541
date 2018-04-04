@@ -417,11 +417,11 @@ getEndpoints(UA_Client *client) {
         if(endpoint->transportProfileUri.length != 0 &&
            !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
             continue;
-        /* look out for an endpoint without security */
-        if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
+
+        /* look for an endpoint corresponding to the client security policy */
+        if(!UA_String_equal(&endpoint->securityPolicyUri, &client->securityPolicy.policyUri))
             continue;
 
-        /* endpoint with no security found */
         endpointFound = true;
 
         /* look for a user token policy with an anonymous token */
