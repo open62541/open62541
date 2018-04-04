@@ -5,7 +5,7 @@
 #include <errno.h>
 
 #include "open62541.h"
-#include "../common.h"
+#include "common.h"
 
 #define MIN_ARGS           3
 #define FAILURE            1

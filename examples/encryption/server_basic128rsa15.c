@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "open62541.h"
-#include "../common.h"
+#include "common.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
