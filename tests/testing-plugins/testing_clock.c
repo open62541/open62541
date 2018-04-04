@@ -42,7 +42,7 @@ UA_realSleep(UA_UInt32 duration) {
 }
 
 void
-UA_comboSleep(UA_UInt32 duration) {
-    UA_fakeSleep(duration);
-    UA_realSleep(duration);
+UA_comboSleep(size_t duration) {
+    UA_fakeSleep((UA_UInt32)duration);
+    UA_realSleep((UA_UInt32)duration);
 }

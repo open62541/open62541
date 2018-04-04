@@ -83,7 +83,13 @@
 
 #define ssize_t int
 #define OPTVAL_TYPE char
+#ifndef UA_sleep_ms
 #define UA_sleep_ms(X) Sleep(X)
+#else /* UA_sleep_ms */
+/* With this one can define its own UA_sleep_ms using a preprocessor define.
+E.g. see unit tests. */
+void UA_sleep_ms(size_t ms);
+#endif
 
 #define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)

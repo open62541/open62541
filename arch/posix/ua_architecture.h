@@ -29,7 +29,13 @@
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
+#ifndef UA_sleep_ms
 #define UA_sleep_ms(X) usleep(X * 1000)
+#else /* UA_sleep_ms */
+/* With this one can define its own UA_sleep_ms using a preprocessor define.
+E.g. see unit tests. */
+void UA_sleep_ms(size_t ms);
+#endif
 
 #define OPTVAL_TYPE int
 
