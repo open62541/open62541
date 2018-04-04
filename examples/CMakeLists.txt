@@ -126,4 +126,5 @@ add_subdirectory(nodeset)
 
 if(UA_ENABLE_PUBSUB)
     add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
+    add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
 endif()

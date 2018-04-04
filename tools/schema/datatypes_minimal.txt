@@ -203,3 +203,15 @@ SetTriggeringRequest
 SetTriggeringResponse
 KeyValuePair
 NetworkAddressUrlDataType
+ConfigurationVersionDataType
+DataSetMetaDataType
+FieldMetaData
+DataSetFieldFlags
+StructureDescription
+EnumDescription
+StructureDefinition
+EnumDefinition
+StructureType
+StructureField
+EnumField
+PublishedVariableDataType
