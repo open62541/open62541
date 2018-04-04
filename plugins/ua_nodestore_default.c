@@ -342,15 +342,24 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
         while(true) {
             node->nodeId.identifier.numeric = identifier;
             slot = findFreeSlot(ns, &node->nodeId);
-            if(slot)
+            /* findFreeSlot will return a free slot, but will not check, if the node ID already
+             * exists in the nodestore. There may be a free slot before the already existing node
+             * is found, e.g. if another node occupied the slot and is now freed.
+             * Thus we also need to check that the node ID does not occupy any remaining slot */
+            if (slot && !findOccupiedSlot(ns, &node->nodeId))
                 break;
             identifier += increase;
             if(identifier >= size)
                 identifier -= size;
         }
     } else {
+        /* findFreeSlot will return a free slot, but will not check, if the node ID already
+		 * exists in the nodestore. There may be a free slot before the already existing node
+		 * is found, e.g. if another node occupied the slot and is now freed.
+		 * Thus we also need to check that the node ID does not occupy any remaining slot */
         slot = findFreeSlot(ns, &node->nodeId);
-        if(!slot) {
+        UA_NodeMapEntry **slotCheck = findOccupiedSlot(ns, &node->nodeId);
+        if(!slot || slotCheck) {
             deleteEntry(container_of(node, UA_NodeMapEntry, node));
             END_CRITSECT(ns);
             return UA_STATUSCODE_BADNODEIDEXISTS;
