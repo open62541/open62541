@@ -40,10 +40,6 @@ int main(int argc, char* argv[]) {
     UA_EndpointDescription* endpointArray      = NULL;
     size_t                  endpointArraySize  = 0;
 
-    /* Load certificate and private key */
-    UA_ByteString           certificate        = loadFile(argv[1]);
-    UA_ByteString           privateKey         = loadFile(argv[2]);
-
     if(argc < MIN_ARGS) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "The Certificate and key is missing."
@@ -52,6 +48,10 @@ int main(int argc, char* argv[]) {
                      "[<trustlist1.crl>, ...]");
         return FAILURE;
     }
+
+    /* Load certificate and private key */
+    UA_ByteString           certificate        = loadFile(argv[1]);
+    UA_ByteString           privateKey         = loadFile(argv[2]);
 
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
