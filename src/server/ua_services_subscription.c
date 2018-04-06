@@ -153,10 +153,29 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
-static void
+static UA_StatusCode
 setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,
                          const UA_MonitoringParameters *params) {
+
+    /* Filter */
+    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED ||
+       params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
+        /* Default: Trigger only on the value and the statuscode */
+        UA_DataChangeFilter_init(&(mon->filter));
+        mon->filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+    } else {
+        UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
+        // TODO implement EURange to support UA_DEADBANDTYPE_PERCENT
+        if (filter->deadbandType == UA_DEADBANDTYPE_PERCENT) {
+            return UA_STATUSCODE_BADNOTIMPLEMENTED;
+        }
+        if (!isDataTypeNumeric(mon->lastValue.type)) {
+            return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        }
+        UA_DataChangeFilter_copy(filter, &(mon->filter));
+    }
+
     MonitoredItem_unregisterSampleCallback(server, mon);
     mon->monitoringMode = monitoringMode;
 
@@ -184,15 +203,6 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     if(samplingInterval != samplingInterval) /* Check for nan */
         mon->samplingInterval = server->config.samplingIntervalLimits.min;
 
-    /* Filter */
-    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED ||
-       params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
-        /* Default: Trigger only on the value and the statuscode */
-        mon->trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
-    } else {
-        UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
-        mon->trigger = filter->trigger;
-    }
 
     /* QueueSize */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
@@ -204,6 +214,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     /* Register sample callback if reporting is enabled */
     if(monitoringMode == UA_MONITORINGMODE_REPORTING)
         MonitoredItem_registerSampleCallback(server, mon);
+    return UA_STATUSCODE_GOOD;
 }
 
 static const UA_String binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
@@ -276,8 +287,14 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
-    setMonitoredItemSettings(server, newMon, request->monitoringMode,
+    retval = setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
+    if(retval != UA_STATUSCODE_GOOD) {
+        result->statusCode = retval;
+        MonitoredItem_delete(server, newMon);
+        --cmc->sub->lastMonitoredItemId;
+        return;
+    }
 
     UA_Subscription_addMonitoredItem(cmc->sub, newMon);
 
@@ -337,8 +354,13 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         result->statusCode = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
+    UA_StatusCode retval;
+    retval = setMonitoredItemSettings(server, mon, mon->monitoringMode, &request->requestedParameters);
+    if(retval != UA_STATUSCODE_GOOD) {
+        result->statusCode = retval;
+        return;
+    }
 
-    setMonitoredItemSettings(server, mon, mon->monitoringMode, &request->requestedParameters);
     result->revisedSamplingInterval = mon->samplingInterval;
     result->revisedQueueSize = mon->maxQueueSize;
 
@@ -430,6 +452,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
         /* Initialize lastSampledValue */
         UA_ByteString_deleteMembers(&mon->lastSampledValue);
+        UA_Variant_deleteMembers(&mon->lastValue);
     }
 }
 
