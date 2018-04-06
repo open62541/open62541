@@ -99,7 +99,7 @@ findFreeSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    } while((UA_UInt32)idx != startIdx || entry);
+    } while((UA_UInt32)idx != startIdx && entry);
 
     /* NULL is returned if there is no free slot (idx == startIdx).
      * Otherwise the first free slot is returned after we are sure,
@@ -221,7 +221,7 @@ findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    } while((UA_UInt32)idx != startIdx || entry);
+    } while((UA_UInt32)idx != startIdx && entry);
 
     /* NULL is returned if there is no free slot (idx == startIdx)
      * and the node id is not found or if the end of the used slots (!entry)
@@ -345,10 +345,10 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
         /* since the size is prime and we don't change the increase val, we will reach the starting id again */
         /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
         /* Thus the node ids may collide */
-        UA_UInt64 identifier = 50000 + ns->count+1; // start value, use 64 bit container to avoid overflow
         UA_UInt32 size = ns->size;
+        UA_UInt64 identifier = mod(50000 + size+1, size); // start value, use 64 bit container to avoid overflow
         UA_UInt32 increase = mod2(ns->count+1, size);
-        UA_UInt32 startId = (UA_UInt32)identifier;
+        UA_UInt32 startId = (UA_UInt32)identifier; // mod ensures us that the id is a valid 32 bit
 
         do {
             node->nodeId.identifier.numeric = (UA_UInt32)identifier;
@@ -359,6 +359,11 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
             if(identifier >= size)
                 identifier -= size;
         } while((UA_UInt32)identifier != startId);
+        
+        if (!slot) {
+            END_CRITSECT(ns);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     } else {
         slot = findFreeSlot(ns, &node->nodeId);
         if(!slot) {
