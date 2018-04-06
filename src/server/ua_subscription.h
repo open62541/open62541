@@ -81,7 +81,8 @@ struct UA_MonitoredItem {
     UA_UInt32 maxQueueSize;
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
-    UA_DataChangeTrigger trigger;
+    UA_DataChangeFilter filter;
+    UA_Variant lastValue;
 
     /* Sample Callback */
     UA_UInt64 sampleCallbackId;
