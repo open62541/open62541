@@ -278,6 +278,10 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
         newMon->isEventMonitoredItem =
             (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
         LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Subscription %u | Added a MonitoredItem with handle %u",
+                     sub->subscriptionId, newMon->clientHandle);
     }
 
     return;
