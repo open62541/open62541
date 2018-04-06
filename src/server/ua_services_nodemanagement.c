@@ -257,7 +257,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!attributes->value.type) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "AddNodes: No value given; Copy the value"
+                             "AddNodes: No value given; Copy the value "
                              "from the TypeDefinition");
         UA_DataValue vt_value;
         UA_DataValue_init(&vt_value);
