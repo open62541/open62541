@@ -137,6 +137,11 @@ class Node(object):
             self.references.add(Reference(source, reftype, target, forward))
 
     def popParentRef(self, parentreftypes):
+        # HasSubtype has precedence
+        for ref in self.references:
+            if ref.referenceType == NodeId("ns=0;i=45") and not ref.isForward:
+                self.references.remove(ref)
+                return ref
         for ref in self.references:
             if ref.referenceType in parentreftypes and not ref.isForward:
                 self.references.remove(ref)
