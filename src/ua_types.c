@@ -1114,3 +1114,12 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     }
     UA_free((void*)((uintptr_t)p & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
+
+UA_Boolean
+isDataTypeNumeric(const UA_DataType *type) {
+    // All data types ids between UA_TYPES_SBYTE and UA_TYPES_DOUBLE are numeric
+    for (int i = UA_TYPES_SBYTE; i <= UA_TYPES_DOUBLE; ++i)
+        if (&UA_TYPES[i] == type)
+            return true;
+    return false;
+}
