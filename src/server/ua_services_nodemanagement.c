@@ -59,12 +59,8 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 #define UA_PARENT_REFERENCES_COUNT 2
 
 const UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
-    {
-        0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}
-    },
-    {
-        0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}
-    }
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}},
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}
 };
 
 
