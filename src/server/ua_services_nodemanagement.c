@@ -231,6 +231,8 @@ static const UA_NodeId baseDataVariableType =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
 static const UA_NodeId baseObjectType =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEOBJECTTYPE}};
+static const UA_NodeId hasTypeDefinition =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASTYPEDEFINITION}};
 
 /* Use attributes from the variable type wherever required */
 static UA_StatusCode
@@ -639,30 +641,15 @@ static UA_StatusCode callConstructors(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-addTypeDefRef(UA_Server *server, UA_Session *session,
-              const UA_Node *node, const UA_Node *type) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_AddReferencesItem addref;
-    UA_AddReferencesItem_init(&addref);
-    addref.sourceNodeId = node->nodeId;
-    addref.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    addref.isForward = true;
-    addref.targetNodeId.nodeId = type->nodeId;
-    Operation_addReference(server, session, NULL, &addref, &retval);
-    return retval;
-}
-
-static UA_StatusCode
-addParentRef(UA_Server *server, UA_Session *session,
-             const UA_NodeId *nodeId,
-             const UA_NodeId *referenceTypeId,
-             const UA_NodeId *parentNodeId) {
+addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+       const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
+       bool forward) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddReferencesItem ref_item;
     UA_AddReferencesItem_init(&ref_item);
     ref_item.sourceNodeId = *nodeId;
     ref_item.referenceTypeId = *referenceTypeId;
-    ref_item.isForward = false;
+    ref_item.isForward = forward;
     ref_item.targetNodeId.nodeId = *parentNodeId;
     Operation_addReference(server, session, NULL, &ref_item, &retval);
     return retval;
@@ -844,7 +831,7 @@ AddNode_typeCheckAddRefs(UA_Server *server, UA_Session *session, const UA_NodeId
             goto cleanup;
         }
 
-        retval = addParentRef(server, session, &node->nodeId, referenceTypeId, parentNodeId);
+        retval = addRef(server, session, &node->nodeId, referenceTypeId, parentNodeId, false);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Adding reference to parent failed");
@@ -856,7 +843,7 @@ AddNode_typeCheckAddRefs(UA_Server *server, UA_Session *session, const UA_NodeId
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_OBJECT) {
         UA_assert(type != NULL); /* see above */
-        retval = addTypeDefRef(server, session, node, type);
+        retval = addRef(server, session, &node->nodeId, &hasTypeDefinition, &type->nodeId, true);
         if(retval != UA_STATUSCODE_GOOD)
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Adding a reference to the type "
