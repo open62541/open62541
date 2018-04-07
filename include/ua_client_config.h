@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #ifndef UA_CLIENT_CONFIG_H
@@ -62,11 +63,17 @@ typedef void (*UA_SubscriptionInactivityCallback)(UA_Client *client, UA_UInt32 s
 #endif
 
 /**
+ * Inactivity callback
+ * ^^^^^^^^^^^^^^^^^^^ */
+
+typedef void (*UA_InactivityCallback)(UA_Client *client);
+
+/**
  * Client Configuration Data
  * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout in ms */
+    UA_UInt32 timeout;               /* ASync + Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_Logger logger;
@@ -80,8 +87,27 @@ typedef struct UA_ClientConfig {
     /* Callback function */
     UA_ClientStateCallback stateCallback;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /**
+     * When outStandingPublishRequests is greater than 0,
+     * the server automatically create publishRequest when
+     * UA_Client_runAsync is called. If the client don't receive
+     * a publishResponse after :
+     *     (sub->publishingInterval * sub->maxKeepAliveCount) +
+     *     client->config.timeout)
+     * then, the client call subscriptionInactivityCallback
+     * The connection can be closed, this in an attempt to
+     * recreate a healthy connection. */
     UA_SubscriptionInactivityCallback subscriptionInactivityCallback;
 #endif
+
+    /** 
+     * When connectivityCheckInterval is greater than 0,
+     * every connectivityCheckInterval (in ms), a async read request
+     * is performed on the server. inactivityCallback is called
+     * when the client receive no response for this read request
+     * The connection can be closed, this in an attempt to
+     * recreate a healthy connection. */
+    UA_InactivityCallback inactivityCallback;
 
     void *clientContext;
 
@@ -90,6 +116,10 @@ typedef struct UA_ClientConfig {
     /* 0 = background task disabled                    */
     UA_UInt16 outStandingPublishRequests;
 #endif
+   /**
+     * connectivity check interval in ms
+     * 0 = background task disabled */
+    UA_UInt32 connectivityCheckInterval;
 } UA_ClientConfig;
 
 
