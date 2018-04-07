@@ -102,7 +102,7 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     /* Check if the referencetype is a reference type node */
     if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Reference type to the parent invalid");
+                            "AddNodes: Reference type to the parent not a ReferenceTypeNode");
         UA_Nodestore_release(server, (const UA_Node*)referenceType);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
@@ -124,15 +124,13 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
         /* type needs hassubtype reference to the supertype */
         if(!UA_NodeId_equal(referenceTypeId, &subtypeId)) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
-                                "AddNodes: New type node need to have a "
-                                "HasSubType reference");
+                                "AddNodes: Type nodes need to have a HasSubType reference to the parent");
             return UA_STATUSCODE_BADREFERENCENOTALLOWED;
         }
         /* supertype needs to be of the same node type  */
         if(parentNodeClass != nodeClass) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
-                                "AddNodes: New type node needs to be of the same "
-                                "node type as the parent");
+                                "AddNodes: Type nodes needs to be of the same node type as their parent");
             return UA_STATUSCODE_BADPARENTNODEIDINVALID;
         }
         return UA_STATUSCODE_GOOD;
@@ -144,7 +142,7 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     if(!isNodeInTree(&server->config.nodestore, referenceTypeId,
                      &hierarchicalReference, &subtypeId, 1)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Reference type is not hierarchical");
+                            "AddNodes: Reference type to the parent is not hierarchical");
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
@@ -165,8 +163,11 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return retval;
 
     /* Check the datatype against the vt */
-    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false))
+    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false)) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: The value is incompatible with the datatype of the VariableType");
         return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
 
     /* Get the array dimensions */
     size_t arrayDims = node->arrayDimensionsSize;
@@ -178,8 +179,11 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     /* Check valueRank against array dimensions */
     if(!(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
          ((const UA_VariableTypeNode*)node)->isAbstract && node->valueRank == 0) &&
-        !compatibleValueRankArrayDimensions(node->valueRank, arrayDims))
+       !compatibleValueRankArrayDimensions(node->valueRank, arrayDims)) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: The value rank and array dimensions are not compatible");
         return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
 
     /* If variable node is created below BaseObjectType and has its default valueRank of -2,
      * skip the test */
@@ -191,14 +195,20 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
        !isNodeInTree(&server->config.nodestore, parentNodeId, &objectTypes,
                      parentReferences, UA_PARENT_REFERENCES_COUNT)) {
         /* Check valueRank against the vt */
-        if(!compatibleValueRanks(node->valueRank, vt->valueRank))
+        if(!compatibleValueRanks(node->valueRank, vt->valueRank)) {
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "AddNodes: The value rank is incomatible with the value rank of the VariableType");
             return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
     }
 
     /* Check array dimensions against the vt */
     if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
-                                  node->arrayDimensionsSize, node->arrayDimensions))
+                                  node->arrayDimensionsSize, node->arrayDimensions)) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: The array dimensions are incomatible with the array dimensions of the VariableType");
         return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
 
     /* Typecheck the value */
     if(!server->bootstrapNS0 && value.hasValue) {
