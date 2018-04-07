@@ -646,12 +646,12 @@ const UA_ClientConfig UA_ClientConfig_default = {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     NULL, /*.subscriptionInactivityCallback */
 #endif
-
+    NULL, /*.inactivityCallback */
     NULL,  /*.clientContext */
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    10 /* .outStandingPublishRequests */
+    10, /* .outStandingPublishRequests */
 #endif
+    0 /* .connectivityCheckInterval */
 };
 
 UA_ClientConfig UA_Server_getClientConfig(void)
