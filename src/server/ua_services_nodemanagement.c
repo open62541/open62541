@@ -653,20 +653,6 @@ addTypeDefRef(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-getTypeDef(UA_Server *server, const UA_Node *node, UA_NodeId **typeDefinitionId) {
-    UA_NodeId hasTypeDef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    for (size_t i=0; i< node->referencesSize; i++) {
-        if (node->references[i].isInverse == UA_FALSE && UA_NodeId_equal(&node->references[i].referenceTypeId, &hasTypeDef) &&
-            node->references[i].targetIdsSize > 0) {
-            *typeDefinitionId = &node->references[i].targetIds[0].nodeId;
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    return UA_STATUSCODE_BADNOTFOUND;
-}
-
-static UA_StatusCode
 addParentRef(UA_Server *server, UA_Session *session,
              const UA_NodeId *nodeId,
              const UA_NodeId *referenceTypeId,
@@ -1006,17 +992,8 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
     /* Instantiate variables and objects */
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_OBJECT) {
-        UA_NodeId *typeDefId;
-        retval = getTypeDef(server, node, &typeDefId);
-        if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_SESSION(server->config.logger, session,
-                                "AddNodes: Can not get type definition of node since it "
-                                "has no 'hasTypeDef' reference");
-            goto cleanup;
-        }
-
         /* Get the type node */
-        type = UA_Nodestore_get(server, typeDefId);
+        type = getNodeType(server, node);
         if(!type) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Node type not found in nodestore");
