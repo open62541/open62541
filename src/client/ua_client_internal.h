@@ -182,35 +182,35 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode
-UA_Client_connectInternalAsync (UA_Client *client, const char *endpointUrl,
-                                UA_ClientAsyncServiceCallback callback,
-                                void *connected, UA_Boolean endpointsHandshake,
-                                UA_Boolean createNewSession);
+UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
+                               UA_ClientAsyncServiceCallback callback,
+                               void *connected, UA_Boolean endpointsHandshake,
+                               UA_Boolean createNewSession);
 
 UA_StatusCode
-UA_Client_getEndpointsInternal (UA_Client *client,
-                                size_t* endpointDescriptionsSize,
-                                UA_EndpointDescription** endpointDescriptions);
+UA_Client_getEndpointsInternal(UA_Client *client,
+                               size_t* endpointDescriptionsSize,
+                               UA_EndpointDescription** endpointDescriptions);
 
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
 UA_StatusCode
-receivePacket_async (UA_Client *client);
+receivePacket_async(UA_Client *client);
 
 UA_StatusCode
-receiveServiceResponse (UA_Client *client, void *response,
-                        const UA_DataType *responseType, UA_DateTime maxDate,
-                        UA_UInt32 *synchronousRequestId);
+receiveServiceResponse(UA_Client *client, void *response,
+                       const UA_DataType *responseType, UA_DateTime maxDate,
+                       UA_UInt32 *synchronousRequestId);
 
 UA_StatusCode
-receiveServiceResponse_async (UA_Client *client, void *response,
-                              const UA_DataType *responseType);
+receiveServiceResponse_async(UA_Client *client, void *response,
+                             const UA_DataType *responseType);
 void
-UA_Client_workerCallback (UA_Client *client, UA_ClientCallback callback,
-                          void *data);
+UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
+                         void *data);
 UA_StatusCode
-UA_Client_delayedCallback (UA_Client *client, UA_ClientCallback callback,
-                           void *data);
+UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
+                          void *data);
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
 #endif /* UA_CLIENT_INTERNAL_H_ */

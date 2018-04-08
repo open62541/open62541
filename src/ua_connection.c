@@ -242,17 +242,16 @@ UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *applicat
     data.application = application;
     data.processCallback = processCallback;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-	/* Listen for messages to arrive */
-	UA_ByteString packet = UA_BYTESTRING_NULL;
-	retval = connection->recv(connection, &packet, 1);
+    /* Listen for messages to arrive */
+    UA_ByteString packet = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = connection->recv(connection, &packet, 1);
 
-	if(retval != UA_STATUSCODE_GOOD&& retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-		return retval;
+    if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT))
+        return retval;
 
-	/* Try to process one complete chunk */
-	retval = UA_Connection_processChunks(connection, &data, completeChunkTrampoline, &packet);
-	connection->releaseRecvBuffer(connection, &packet);
+    /* Try to process one complete chunk */
+    retval = UA_Connection_processChunks(connection, &data, completeChunkTrampoline, &packet);
+    connection->releaseRecvBuffer(connection, &packet);
 
     return retval;
 }

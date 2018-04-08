@@ -1168,12 +1168,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
             connected = true;
             break;
         }
-        /*fix double free (clang)*/
-        if (connection.state != UA_CONNECTION_CLOSED){
-            shutdown((SOCKET)connection.sockfd, 2);
-            CLOSESOCKET(connection.sockfd);
-            connection.state = UA_CONNECTION_CLOSED;
-        }
+        // TODO find why we have double free (clang)
+        ClientNetworkLayerTCP_close(&connection);
 
     } while ((UA_DateTime_nowMonotonic() - connStart) < dtTimeout);
 

@@ -513,41 +513,39 @@ __UA_Client_Service(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
-receiveServiceResponse_async (UA_Client *client, void *response,
-                              const UA_DataType *responseType) {
+receiveServiceResponse_async(UA_Client *client, void *response,
+                             const UA_DataType *responseType) {
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 
-    UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking (
+    UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking(
             &client->connection, &rd, client_processChunk);
     /*let client run when non critical timeout*/
-    if (retval != UA_STATUSCODE_GOOD
+    if(retval != UA_STATUSCODE_GOOD
             && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
-        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
-            client->state = UA_CLIENTSTATE_DISCONNECTED;
-        else
-            UA_Client_disconnect (client);
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+        UA_Client_close(client);
     }
     return retval;
 }
 
 UA_StatusCode
-receivePacket_async (UA_Client *client) {
+receivePacket_async(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if (UA_Client_getState (client) == UA_CLIENTSTATE_DISCONNECTED ||
-            UA_Client_getState (client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        retval = UA_Connection_receiveChunksNonBlocking (
+    if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED ||
+            UA_Client_getState(client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
+        retval = UA_Connection_receiveChunksNonBlocking(
                 &client->connection, client, client->ackResponseCallback);
     }
-    else if (UA_Client_getState (client) == UA_CLIENTSTATE_CONNECTED) {
-        retval = UA_Connection_receiveChunksNonBlocking (
+    else if(UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
+        retval = UA_Connection_receiveChunksNonBlocking(
                 &client->connection, client,
                 client->openSecureChannelResponseCallback);
     }
-    if (retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
-        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
-            client->state = UA_CLIENTSTATE_DISCONNECTED;
-        else
-            UA_Client_disconnect (client);
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+        UA_Client_close(client);
     }
     return retval;
 }

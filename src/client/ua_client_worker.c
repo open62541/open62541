@@ -5,7 +5,6 @@
 #include "ua_util.h"
 #include "ua_client.h"
 #include "ua_client_internal.h"
-#define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
 /**
  * Worker Threads and Dispatch Queue
@@ -91,10 +90,10 @@ asyncServiceTimeoutCheck(UA_Client *client) {
     /* Timeout occurs, remove the callback */
     AsyncServiceCall *ac, *ac_tmp;
     LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
-        if (!ac->timeout)
-            continue;
+        if(!ac->timeout)
+           continue;
 
-        if (ac->start + (UA_DateTime)(ac->timeout * UA_DATETIME_MSEC) <= now) {
+        if(ac->start + (UA_DateTime)(ac->timeout * UA_DATETIME_MSEC) <= now) {
             LIST_REMOVE(ac, pointers);
             UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADTIMEOUT);
             UA_free(ac);
@@ -158,14 +157,15 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
  *       clean up */
 
 UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
+// TODO Remove duplicate code when all tests pass
     if(timeout) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-        if (retvalPublish != UA_STATUSCODE_GOOD)
+        if(retvalPublish != UA_STATUSCODE_GOOD)
             return retvalPublish;
 #endif
         UA_StatusCode retval = UA_Client_manuallyRenewSecureChannel(client);
-        if (retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
         retval = UA_Client_backgroundConnectivity(client);
@@ -186,7 +186,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         UA_StatusCode retval;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-        if (client->state >= UA_CLIENTSTATE_SESSION && retvalPublish != UA_STATUSCODE_GOOD)
+        if(client->state >= UA_CLIENTSTATE_SESSION && retvalPublish != UA_STATUSCODE_GOOD)
             return retvalPublish;
 #endif
         UA_DateTime now = UA_DateTime_nowMonotonic();
@@ -197,14 +197,14 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         retval = UA_Client_connect_iterate(client);
 
         /* Connection failed, drop the rest */
-        if (retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
-        if (cs == UA_CLIENTSTATE_SECURECHANNEL || cs == UA_CLIENTSTATE_SESSION) {
+        if((cs == UA_CLIENTSTATE_SECURECHANNEL) || (cs == UA_CLIENTSTATE_SESSION)) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-            if (cs >= UA_CLIENTSTATE_SESSION) {
+            if(cs >= UA_CLIENTSTATE_SESSION) {
                 retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-                if (retvalPublish != UA_STATUSCODE_GOOD)
+                if(retvalPublish != UA_STATUSCODE_GOOD)
                     return retvalPublish;
             }
 #endif
@@ -217,7 +217,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
 #endif
 
         } else {
-            retval=receivePacket_async(client);
+            retval = receivePacket_async(client);
         }
 
 #ifndef UA_ENABLE_MULTITHREADING
@@ -228,4 +228,3 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         return retval;
     }
 }
-
