@@ -188,6 +188,8 @@ UA_Client_deleteMembers(UA_Client* client) {
     /* Commented as UA_SecureChannel_deleteMembers already done
      * in UA_Client_disconnect function */
     //UA_SecureChannel_deleteMembersCleanup(&client->channel);
+    if (client->connection.free)
+        client->connection.free(&client->connection);
     UA_Connection_deleteMembers(&client->connection);
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
