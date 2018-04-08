@@ -49,7 +49,7 @@ int main(void) {
     config.connectivityCheckInterval = 2000;
 
     UA_Client *client = UA_Client_new(config);
-    UA_Boolean timedOut = false;
+
     /* Endless loop runAsync */
     while (running) {
         /* if already connected, this will return GOOD and do nothing */
@@ -64,7 +64,7 @@ int main(void) {
             continue;
         }
 
-        UA_Client_run_iterate(client, &timedOut);
+        UA_Client_run_iterate(client, 1000);
     };
 
     /* Clean up */

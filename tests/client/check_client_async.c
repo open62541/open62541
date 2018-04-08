@@ -89,18 +89,99 @@ START_TEST(Client_read_async) {
     }
 
     /* Process async responses during 1s */
-    UA_UInt16 timeout = 999;
-    UA_Boolean timedOut = false;
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-
-    while(asyncCounter<100){
-        retval = UA_Client_run_iterate(client, &timedOut);
-
-        if(now + timeout*UA_DATETIME_MSEC <= UA_DateTime_nowMonotonic())
-            timedOut = true;
-    }
+    retval = UA_Client_run_iterate(client, 999);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(asyncCounter, 100);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_read_async_timed) {
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    clientConfig.outStandingPublishRequests = 0;
+
+    UA_Client *client = UA_Client_new(clientConfig);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    UA_UInt16 asyncCounter = 0;
+
+    UA_ReadRequest rr;
+    UA_ReadRequest_init(&rr);
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvid.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+
+    rr.nodesToRead = &rvid;
+    rr.nodesToReadSize = 1;
+
+    retval = __UA_Client_AsyncServiceEx(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
+                                        (UA_ClientAsyncServiceCallback)asyncReadCallback,
+                                        &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL, 999);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process async responses during 1s */
+    retval = UA_Client_run_iterate(client, 999 + 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(asyncCounter, 1);
+
+    /* Simulate network cable unplugged (no response from server) */
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+    retval = __UA_Client_AsyncServiceEx(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
+                                        (UA_ClientAsyncServiceCallback)asyncReadCallback,
+                                        &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL, 100);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* Process async responses during 1s */
+    UA_Client_run_iterate(client, 100 + 1);
+    ck_assert_uint_eq(asyncCounter, 9999);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static UA_Boolean inactivityCallbackTriggered = false;
+
+static void
+inactivityCallback (UA_Client *client) {
+     inactivityCallbackTriggered = true;
+}
+
+START_TEST(Client_connectivity_check) {
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    clientConfig.outStandingPublishRequests = 0;
+    clientConfig.inactivityCallback = inactivityCallback;
+    clientConfig.connectivityCheckInterval = 1000;
+
+    UA_Client *client = UA_Client_new(clientConfig);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    inactivityCallbackTriggered = false;
+
+    retval = UA_Client_run_iterate(client, 1000 + 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(inactivityCallbackTriggered, false);
+
+    /* Simulate network cable unplugged (no response from server) */
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(1000 + 1 + clientConfig.timeout));
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(inactivityCallbackTriggered, true);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -112,6 +193,8 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_read_async);
+    tcase_add_test(tc_client, Client_read_async_timed);
+    tcase_add_test(tc_client, Client_connectivity_check);
     suite_add_tcase(s,tc_client);
     return s;
 }

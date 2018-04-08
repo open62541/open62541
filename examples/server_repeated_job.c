@@ -4,9 +4,6 @@
 #include <signal.h>
 #include "open62541.h"
 
-#include <signal.h>
-#include "open62541.h"
-
 static void
 testCallback(UA_Server *server, void *data) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "testcallback");

@@ -90,7 +90,6 @@ START_TEST(Client_connect_async){
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
     UA_DateTime startTime = UA_DateTime_nowMonotonic();
-    UA_Boolean timedOut = false;
     /*connected gets updated when client is connected*/
     do {
         if (connected) {
@@ -99,16 +98,15 @@ START_TEST(Client_connect_async){
                                               &asyncCounter, &reqId);
         }
         /*manual clock for unit tests*/
-        UA_fakeSleep(20);
+        UA_realSleep(20);
         if (UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC){
-            timedOut = true;
             break; /*sometimes test can stuck*/
         }
 
         /* depending on the number of requests sent UA_Client_run_iterate can be called multiple times
          * here 2 calls are needed so that even when run with valgrind (very slow) the result is still correct*/
-        UA_Client_run_iterate(client, &timedOut);
-        retval = UA_Client_run_iterate(client, &timedOut);
+        UA_Client_run_iterate(client, 0);
+        retval = UA_Client_run_iterate(client, 0);
     }
     while (reqId < 10);
 

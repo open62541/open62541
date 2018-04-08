@@ -70,6 +70,9 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
         case UA_CLIENTSTATE_DISCONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
         break;
+        case UA_CLIENTSTATE_WAITING_FOR_ACK:
+            UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Waiting for ack");
+        break;
         case UA_CLIENTSTATE_CONNECTED:
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A TCP connection to the server is open");
         break;
@@ -105,8 +108,9 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A session with the server is open (renewed)");
             /* The session was renewed. We don't need to recreate the subscription. */
         break;
-        default:
-            break;
+        case UA_CLIENTSTATE_SESSION_DISCONNECTED:
+            UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Session disconnected");
+        break;
     }
     return;
 }
@@ -122,7 +126,6 @@ int main(void) {
     UA_Client *client = UA_Client_new(config);
 
     /* Endless loop runAsync */
-    UA_Boolean timedOut = false;
     while (running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
@@ -136,7 +139,7 @@ int main(void) {
             continue;
         }
 
-        UA_Client_run_iterate(client, &timedOut);
+        UA_Client_run_iterate(client, 1000);
     };
 
     /* Clean up */

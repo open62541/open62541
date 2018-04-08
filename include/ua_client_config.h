@@ -37,13 +37,13 @@ extern "C" {
  * The :ref:`tutorials` provide a good starting point for this. */
 
 typedef enum {
-    UA_CLIENTSTATE_DISCONNECTED,        /* The client is disconnected */
-    UA_CLIENTSTATE_WAITING_FOR_ACK,     /* The Client has sent HEL and waiting*/
-    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
-    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
-    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
-    UA_CLIENTSTATE_SESSION_DISCONNECTED,  /*disconnected vs renewed?*/
-    UA_CLIENTSTATE_SESSION_RENEWED      /* A session with the server is open (renewed) */
+    UA_CLIENTSTATE_DISCONNECTED,         /* The client is disconnected */
+    UA_CLIENTSTATE_WAITING_FOR_ACK,      /* The Client has sent HEL and waiting */
+    UA_CLIENTSTATE_CONNECTED,            /* A TCP connection to the server is open */
+    UA_CLIENTSTATE_SECURECHANNEL,        /* A SecureChannel to the server is open */
+    UA_CLIENTSTATE_SESSION,              /* A session with the server is open */
+    UA_CLIENTSTATE_SESSION_DISCONNECTED, /* Disconnected vs renewed? */
+    UA_CLIENTSTATE_SESSION_RENEWED       /* A session with the server is open (renewed) */
 } UA_ClientState;
 
 

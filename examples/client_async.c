@@ -136,37 +136,36 @@ main (int argc, char *argv[]) {
     UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-    /*connected gets updated when client is connected*/
+    /* Connected gets updated when client is connected */
     UA_Client_connect_async (client, "opc.tcp://localhost:4840", onConnect,
                              &connected);
 
     //UA_StatusCode retval;
 
-    /*what happens if client tries to send request before connected?*/
+    /* What happens if client tries to send request before connected? */
     UA_Client_sendAsyncBrowseRequest (client, &bReq, fileBrowsed, &userdata,
                                       &reqId);
 
     UA_DateTime startTime = UA_DateTime_nowMonotonic();
-    UA_Boolean timedOut = false;
     do {
         /*TODO: fix memory-related bugs if condition not checked*/
         if (connected) {
-            /*if not connected requests are not sent*/
+            /* If not connected requests are not sent */
             UA_Client_sendAsyncBrowseRequest (client, &bReq, fileBrowsed,
                                               &userdata, &reqId);
         }
-        /*requests are processed*/
+        /* Requests are processed */
         UA_BrowseRequest_deleteMembers(&bReq);
-        UA_Client_run_iterate (client, &timedOut);
+        UA_Client_run_iterate (client, 0);
         UA_sleep_ms(100);
 
-        /*break loop if server cannot be connected within 2s -- prevents build timeout*/
+        /* Break loop if server cannot be connected within 2s -- prevents build timeout */
         if (UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC)
             break;
     }
     while (reqId < 10);
 
-    /*Demo: high-level functions*/
+    /* Demo: high-level functions */
     UA_Int32 value = 0;
     UA_Variant myVariant;
     UA_Variant_init(&myVariant);
@@ -176,29 +175,29 @@ main (int argc, char *argv[]) {
 
     for (UA_UInt16 i = 0; i < 5; i++) {
         if (connected) {
-            /*writing and reading value 1 to 5*/
+            /* writing and reading value 1 to 5 */
             UA_Variant_setScalarCopy (&myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
             value++;
-            UA_Client_writeValueAttribute_async (client,
-                                                 UA_NODEID_STRING (1, "the.answer"),
-                                                 &myVariant, attrWritten, NULL,
-                                                 &reqId);
+            UA_Client_writeValueAttribute_async(client,
+                                                UA_NODEID_STRING (1, "the.answer"),
+                                                &myVariant, attrWritten, NULL,
+                                                &reqId);
             UA_Variant_deleteMembers (&myVariant);
 
-            UA_Client_readValueAttribute_async (client,
-                                                UA_NODEID_STRING (1, "the.answer"),
-                                                readValueAttributeCallback, NULL,
-                                                &reqId);
+            UA_Client_readValueAttribute_async(client,
+                                               UA_NODEID_STRING (1, "the.answer"),
+                                               readValueAttributeCallback, NULL,
+                                               &reqId);
 
 //TODO: check the existance of the nodes inside these functions (otherwise seg faults)
 #ifdef NODES_EXIST
             UA_String stringValue = UA_String_fromChars ("World");
             UA_Variant_setScalar (&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
-            UA_Client_call_async (client,
-                                  UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                                  UA_NODEID_NUMERIC (1, 62541), 1, &input,
-                                  methodCalled, NULL, &reqId);
+            UA_Client_call_async(client,
+                                 UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
+                                 UA_NODEID_NUMERIC (1, 62541), 1, &input,
+                                 methodCalled, NULL, &reqId);
             UA_String_deleteMembers(&stringValue);
 
     #define pathSize 3
@@ -211,16 +210,16 @@ main (int argc, char *argv[]) {
                                                           translateCalled, NULL,
                                                           &reqId);
 #endif
-            /*how often UA_Client_run_iterate is called depends on the number of request sent*/
-            UA_Client_run_iterate (client, &timedOut);
-            UA_Client_run_iterate (client, &timedOut);
+            /* How often UA_Client_run_iterate is called depends on the number of request sent */
+            UA_Client_run_iterate(client, 0);
+            UA_Client_run_iterate(client, 0);
         }
     }
-    UA_Client_run_iterate (client, &timedOut);
+    UA_Client_run_iterate (client, 0);
 
-    /*async disconnect kills unprocessed requests*/
-    //UA_Client_disconnect_async (client, &reqId); //can only be used when connected = true
-    //UA_Client_run_iterate (client, &timedOut);
+    /* Async disconnect kills unprocessed requests */
+    // UA_Client_disconnect_async (client, &reqId); //can only be used when connected = true
+    // UA_Client_run_iterate (client, &timedOut);
     UA_Client_disconnect(client);
     UA_Client_delete (client);
 

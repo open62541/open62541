@@ -26,8 +26,8 @@
  /* Set client state */
  /********************/
 void
-setClientState(UA_Client *client, UA_ClientState state){
-    if(client->state != state){
+setClientState(UA_Client *client, UA_ClientState state) {
+    if(client->state != state) {
         client->state = state;
         if(client->config.stateCallback)
             client->config.stateCallback(client, client->state);
@@ -119,7 +119,7 @@ HelAckHandshake(UA_Client *client) {
     /* Loop until we have a complete chunk */
     retval = UA_Connection_receiveChunksBlocking(conn, client, processACKResponse,
                                                  client->config.timeout);
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Receiving ACK message failed");
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
@@ -209,6 +209,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
                                     UA_DateTime_nowMonotonic() +
                                     ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC),
                                     &requestId);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_close(client);
         return retval;
@@ -720,8 +721,8 @@ UA_Client_disconnect(UA_Client *client) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
-        /* We need to clean up the subscriptions */
-        UA_Client_Subscriptions_clean(client);
+    /* We need to clean up the subscriptions */
+    UA_Client_Subscriptions_clean(client);
 #endif
 
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);

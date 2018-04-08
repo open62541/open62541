@@ -5,7 +5,7 @@
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Jose Cabral
- *    Copyright 2017 (c) Thomas Stalder
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 /* Enable POSIX features */
@@ -239,6 +239,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
     if(connection->state == UA_CONNECTION_CLOSED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
+
     /* Listen on the socket for the given timeout until a message arrives */
     if(timeout > 0) {
         fd_set fdset;
@@ -680,7 +681,6 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             UA_Server_processBinaryMessage(server, &e->connection, &buf);
             connection_releaserecvbuffer(&e->connection, &buf);
         } else if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
-            /* The socket is shutdown but not closed */
             /* The socket is shutdown but not closed */
             UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                         "Connection %i | Closed",

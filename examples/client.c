@@ -114,8 +114,7 @@ int main(int argc, char *argv[]) {
 
 
     /* The first publish request should return the initial value of the variable */
-    UA_Boolean timedOut = false;
-    UA_Client_run_iterate(client, &timedOut);
+    UA_Client_run_iterate(client, 1000);
 #endif
 
     /* Read attribute */
@@ -158,7 +157,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Take another look at the.answer */
-    UA_Client_run_iterate(client, &timedOut);
+    UA_Client_run_iterate(client, 100);
     /* Delete the subscription */
     if(UA_Client_Subscriptions_deleteSingle(client, subId) == UA_STATUSCODE_GOOD)
         printf("Subscription removed\n");
