@@ -42,7 +42,16 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
     if(client->config.stateCallback)
-        client->config.stateCallback(client, client->state);
+        client->config.stateCallback (client, client->state);
+    //catch error during async connection
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
+    /*needed by async client*/
+    UA_Timer_init (&client->timer);
+
+#ifndef UA_ENABLE_MULTITHREADING
+    SLIST_INIT(&client->delayedClientCallbacks);
+#endif
 }
 
 UA_Client *
@@ -329,7 +338,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Call the callback */
-    ac->callback(client, ac->userdata, requestId, response, ac->responseType);
+    ac->callback(client, ac->userdata, requestId, response);
     UA_deleteMembers(response, ac->responseType);
 
     /* Remove the callback */
@@ -503,6 +512,46 @@ __UA_Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
 }
 
+UA_StatusCode
+receiveServiceResponse_async (UA_Client *client, void *response,
+                              const UA_DataType *responseType) {
+    SyncResponseDescription rd = { client, false, 0, response, responseType };
+
+    UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking (
+            &client->connection, &rd, client_processChunk);
+    /*let client run when non critical timeout*/
+    if (retval != UA_STATUSCODE_GOOD
+            && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            client->state = UA_CLIENTSTATE_DISCONNECTED;
+        else
+            UA_Client_disconnect (client);
+    }
+    return retval;
+}
+
+UA_StatusCode
+receivePacket_async (UA_Client *client) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if (UA_Client_getState (client) == UA_CLIENTSTATE_DISCONNECTED ||
+            UA_Client_getState (client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
+        retval = UA_Connection_receiveChunksNonBlocking (
+                &client->connection, client, client->ackResponseCallback);
+    }
+    else if (UA_Client_getState (client) == UA_CLIENTSTATE_CONNECTED) {
+        retval = UA_Connection_receiveChunksNonBlocking (
+                &client->connection, client,
+                client->openSecureChannelResponseCallback);
+    }
+    if (retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            client->state = UA_CLIENTSTATE_DISCONNECTED;
+        else
+            UA_Client_disconnect (client);
+    }
+    return retval;
+}
+
 void
 UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                               UA_StatusCode statusCode) {
@@ -512,7 +561,7 @@ UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
     UA_init(resp, ac->responseType);
     ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
 
-    ac->callback(client, ac->userdata, ac->requestId, resp, ac->responseType);
+    ac->callback(client, ac->userdata, ac->requestId, resp);
 
     /* Clean up the response. Users might move data into it. For whatever reasons. */
     UA_deleteMembers(resp, ac->responseType);
@@ -570,93 +619,33 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                                       client->config.timeout);
 }
 
-static void
-backgroundConnectivityCallback(UA_Client *client, void *userdata,
-                               UA_UInt32 requestId, const UA_ReadResponse *response) {
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
-        if (client->config.inactivityCallback)
-            client->config.inactivityCallback(client);
+
+UA_StatusCode
+UA_Client_sendAsyncRequest (UA_Client *client, const void *request,
+                            const UA_DataType *requestType,
+                            UA_ClientAsyncServiceCallback callback,
+                            const UA_DataType *responseType, void *userdata,
+                            UA_UInt32 *requestId) {
+    if (UA_Client_getState (client) < UA_CLIENTSTATE_SECURECHANNEL) {
+        UA_LOG_INFO (client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Cient must be connected to send high-level requests");
+        return UA_STATUSCODE_GOOD;
     }
-    client->pendingConnectivityCheck = false;
-    client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
-}
-
-static UA_StatusCode
-UA_Client_backgroundConnectivity(UA_Client *client) {
-    if(!client->config.connectivityCheckInterval)
-        return UA_STATUSCODE_GOOD;
-
-    if (client->pendingConnectivityCheck)
-        return UA_STATUSCODE_GOOD;
-
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime nextDate = client->lastConnectivityCheck + (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
-
-    if(now <= nextDate)
-        return UA_STATUSCODE_GOOD;
-
-    UA_ReadRequest request;
-    UA_ReadRequest_init(&request);
-
-    UA_ReadValueId rvid;
-    UA_ReadValueId_init(&rvid);
-    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
-    rvid.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-
-    request.nodesToRead = &rvid;
-    request.nodesToReadSize = 1;
-
-    UA_StatusCode retval = __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                                                    (UA_ClientAsyncServiceCallback)backgroundConnectivityCallback,
-                                                    &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL);
-
-    client->pendingConnectivityCheck = true;
-
-    return retval;
-}
-
-static void
-asyncServiceTimeoutCheck(UA_Client *client) {
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-
-    /* Timeout occurs, remove the callback */
-    AsyncServiceCall *ac, *ac_tmp;
-    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
-        if (!ac->timeout)
-            continue;
-
-        if (ac->start + (UA_DateTime)(ac->timeout * UA_DATETIME_MSEC) <= now) {
-            LIST_REMOVE(ac, pointers);
-            UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADTIMEOUT);
-            UA_free(ac);
-        }
-    }
+    return __UA_Client_AsyncService (client, request, requestType, callback,
+                                     responseType, userdata, requestId);
 }
 
 UA_StatusCode
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
-    /* TODO: Call repeated jobs that are scheduled */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-    if (retvalPublish != UA_STATUSCODE_GOOD)
-        return retvalPublish;
-#endif
-    UA_StatusCode retval = UA_Client_manuallyRenewSecureChannel(client);
-    if (retval != UA_STATUSCODE_GOOD)
-        return retval;
+UA_Client_addRepeatedCallback (UA_Client *Client, UA_ClientCallback callback,
+                               void *data, UA_UInt32 interval,
+                               UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback (&Client->timer,
+                                         (UA_TimerCallback) callback, data,
+                                         interval, callbackId);
+}
 
-    retval = UA_Client_backgroundConnectivity(client);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
 
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
-    retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        retval = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* The inactivity check must be done after receiveServiceResponse */
-    UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
-#endif
-    asyncServiceTimeoutCheck(client);
-    return retval;
+UA_StatusCode
+UA_Client_removeRepeatedCallback (UA_Client *Client, UA_UInt64 callbackId) {
+    return UA_Timer_removeRepeatedCallback (&Client->timer, callbackId);
 }

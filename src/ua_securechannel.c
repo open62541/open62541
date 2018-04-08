@@ -94,8 +94,6 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
-        if(channel->connection->state != UA_CONNECTION_CLOSED)
-            channel->connection->close(channel->connection);
         UA_Connection_detachSecureChannel(channel->connection);
     }
 

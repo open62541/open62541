@@ -105,6 +105,11 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
+UA_StatusCode UA_EXPORT
+UA_Client_connect_async (UA_Client *client, const char *endpointUrl,
+                         UA_ClientAsyncServiceCallback callback,
+                         void *connected);
+
 /* Connect to the server without creating a session
  *
  * @param client to use
@@ -127,6 +132,9 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
 /* Disconnect and close a connection to the selected server */
 UA_StatusCode UA_EXPORT
 UA_Client_disconnect(UA_Client *client);
+
+UA_StatusCode UA_EXPORT
+UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId);
 
 /* Close a connection to the selected server */
 UA_StatusCode UA_EXPORT
@@ -373,13 +381,9 @@ UA_Client_Service_queryNext(UA_Client *client,
 /* Listen on the network and process arriving asynchronous responses in the
  * background. Internal housekeeping and subscription management is done as
  * well. */
-UA_StatusCode UA_EXPORT
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 
-typedef void
-(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, void *response,
-                                 const UA_DataType *responseType);
+/*UA_StatusCode UA_EXPORT
+UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);*/
 
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
@@ -408,6 +412,16 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
 
+/* For async connecting
+ * */
+UA_StatusCode UA_EXPORT
+UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
+        const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
+const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
+
+UA_StatusCode UA_EXPORT
+UA_Client_run_iterate (UA_Client *client, UA_Boolean *timeout);
+
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
  *
@@ -434,46 +448,6 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            const UA_DataType *responseType,
                            void *userdata, UA_UInt32 *requestId,
                            UA_UInt32 timeout);
-
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_read(UA_Client *client, const UA_ReadRequest *request,
-                            UA_ClientAsyncServiceCallback callback,
-                            void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_READREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_READRESPONSE],
-                                    userdata, requestId);
-}
-
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_write(UA_Client *client, const UA_WriteRequest *request,
-                             UA_ClientAsyncServiceCallback callback,
-                             void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_WRITEREQUEST], callback, 
-                                    &UA_TYPES[UA_TYPES_WRITERESPONSE],
-                                    userdata, requestId);
-}
-
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_call(UA_Client *client, const UA_CallRequest *request,
-                            UA_ClientAsyncServiceCallback callback,
-                            void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_CALLRESPONSE],
-                                    userdata, requestId);
-}
-
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request,
-                              UA_ClientAsyncServiceCallback callback,
-                              void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_BROWSEREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE],
-                                    userdata, requestId);
-}
 
 /**
  * .. toctree::

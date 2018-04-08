@@ -668,7 +668,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
 
 static void
 processPublishResponseAsync(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                            void *response, const UA_DataType *responseType) {
+                            void *response) {
     UA_PublishRequest *req = (UA_PublishRequest*)userdata;
     UA_PublishResponse *res = (UA_PublishResponse*)response;
 

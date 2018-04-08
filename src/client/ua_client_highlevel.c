@@ -10,7 +10,9 @@
  */
 
 #include "ua_client.h"
+#include "ua_client_internal.h"
 #include "ua_client_highlevel.h"
+#include "ua_client_highlevel_async.h"
 #include "ua_util.h"
 
 UA_StatusCode
@@ -452,5 +454,207 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     UA_StatusCode retval = processReadArrayDimensionsResult(&response, outArrayDimensions,
                                                             outArrayDimensionsSize);
     UA_ReadResponse_deleteMembers(&response);
+    return retval;
+}
+/*Async Functions*/
+
+/*highlevel callbacks
+ * used to hide response handling details*/
+static
+void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
+        void *response) {
+
+    if (response == NULL) {
+        return;
+    }
+
+    CustomCallback *cc;
+    LIST_FOREACH(cc, &client->customCallbacks, pointers)
+    {
+        if (cc->callbackId == requestId)
+            break;
+    }
+    if (!cc)
+        return;
+
+    UA_ReadResponse rr = *(UA_ReadResponse *) response;
+    if (rr.results[0].status != UA_STATUSCODE_GOOD)
+        UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
+
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_DataValue *res = rr.results;
+    if (!res->hasValue) {
+        return;
+    }
+
+    /*__UA_Client_readAttribute*/
+    memcpy(&out, &res->value, sizeof(UA_Variant));
+    /* Copy value into out */
+    if (cc->attributeId == UA_ATTRIBUTEID_VALUE) {
+        memcpy(&out, &res->value, sizeof(UA_Variant));
+        UA_Variant_init(&res->value);
+    } else if (cc->attributeId == UA_ATTRIBUTEID_NODECLASS) {
+        memcpy(&out, (UA_NodeClass*) res->value.data, sizeof(UA_NodeClass));
+    } else if (UA_Variant_isScalar(&res->value)
+            && res->value.type == cc->outDataType) {
+        memcpy(&out, res->value.data, res->value.type->memSize);
+        UA_free(res->value.data);
+        res->value.data = NULL;
+    }
+
+    //use callbackId to find the right custom callback
+    cc->callback(client, userdata, requestId, &out);
+    LIST_REMOVE(cc, pointers);
+    UA_free(cc);
+    UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
+    UA_Variant_deleteMembers(&out);
+}
+
+/*Read Attributes*/
+UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
+        const UA_NodeId *nodeId, UA_AttributeId attributeId,
+        const UA_DataType *outDataType, UA_ClientAsyncServiceCallback callback,
+        void *userdata, UA_UInt32 *reqId) {
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = *nodeId;
+    item.attributeId = attributeId;
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.nodesToRead = &item;
+    request.nodesToReadSize = 1;
+
+    __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+            ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE], userdata,
+            reqId);
+
+    CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
+    if (!cc)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    cc->callback = callback;
+    cc->callbackId = *reqId;
+
+    cc->attributeId = attributeId;
+    cc->outDataType = outDataType;
+
+    LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/*Write Attributes*/
+UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
+        const UA_NodeId *nodeId, UA_AttributeId attributeId, const void *in,
+        const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
+        void *userdata, UA_UInt32 *reqId) {
+    if (!in)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    wValue.nodeId = *nodeId;
+    wValue.attributeId = attributeId;
+    if (attributeId == UA_ATTRIBUTEID_VALUE)
+        wValue.value.value = *(const UA_Variant*) in;
+    else
+        /* hack. is never written into. */
+        UA_Variant_setScalar(&wValue.value.value, (void*) (uintptr_t) in,
+                inDataType);
+    wValue.value.hasValue = true;
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    wReq.nodesToWrite = &wValue;
+    wReq.nodesToWriteSize = 1;
+
+    return __UA_Client_AsyncService(client, &wReq,
+            &UA_TYPES[UA_TYPES_WRITEREQUEST], callback,
+            &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+}
+
+/*Node Management*/
+
+UA_StatusCode UA_EXPORT
+__UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
+        const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+        const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+        const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+        const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
+        UA_ClientAsyncServiceCallback callback, void *userdata,
+        UA_UInt32 *reqId) {
+    UA_AddNodesRequest request;
+    UA_AddNodesRequest_init(&request);
+    UA_AddNodesItem item;
+    UA_AddNodesItem_init(&item);
+    item.parentNodeId.nodeId = parentNodeId;
+    item.referenceTypeId = referenceTypeId;
+    item.requestedNewNodeId.nodeId = requestedNewNodeId;
+    item.browseName = browseName;
+    item.nodeClass = nodeClass;
+    item.typeDefinition.nodeId = typeDefinition;
+    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    item.nodeAttributes.content.decoded.type = attributeType;
+    item.nodeAttributes.content.decoded.data = (void*) (uintptr_t) attr; // hack. is not written into.
+    request.nodesToAdd = &item;
+    request.nodesToAddSize = 1;
+
+    return __UA_Client_AsyncService(client, &request,
+            &UA_TYPES[UA_TYPES_ADDNODESREQUEST], callback,
+            &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], userdata, reqId);
+
+}
+
+/*Misc Highlevel Functions*/
+UA_StatusCode __UA_Client_call_async(UA_Client *client,
+        const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
+        const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
+        void *userdata, UA_UInt32 *reqId) {
+
+    UA_CallRequest request;
+    UA_CallRequest_init(&request);
+    UA_CallMethodRequest item;
+    UA_CallMethodRequest_init(&item);
+    item.methodId = methodId;
+    item.objectId = objectId;
+    item.inputArguments = (UA_Variant *) (void*) (uintptr_t) input; // cast const...
+    item.inputArgumentsSize = inputSize;
+    request.methodsToCall = &item;
+    request.methodsToCallSize = 1;
+
+    return __UA_Client_AsyncService(client, &request,
+            &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
+            &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
+}
+
+UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
+        char *paths[], UA_UInt32 ids[], size_t pathSize,
+        UA_ClientAsyncServiceCallback callback, void *userdata,
+        UA_UInt32 *reqId) {
+
+    UA_BrowsePath browsePath;
+    UA_BrowsePath_init(&browsePath);
+    browsePath.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    browsePath.relativePath.elements = (UA_RelativePathElement*) UA_Array_new(
+            pathSize, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
+    if (!browsePath.relativePath.elements)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    browsePath.relativePath.elementsSize = pathSize;
+
+    UA_TranslateBrowsePathsToNodeIdsRequest request;
+    UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
+    request.browsePaths = &browsePath;
+    request.browsePathsSize = 1;
+
+    UA_StatusCode retval = __UA_Client_AsyncService(client, &request,
+            &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST], callback,
+            &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE], userdata,
+            reqId);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(browsePath.relativePath.elements,
+                browsePath.relativePath.elementsSize,
+                &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
+        return retval;
+    }
+    UA_BrowsePath_deleteMembers(&browsePath);
     return retval;
 }

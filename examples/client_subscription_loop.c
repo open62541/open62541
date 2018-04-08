@@ -105,6 +105,8 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
             UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "A session with the server is open (renewed)");
             /* The session was renewed. We don't need to recreate the subscription. */
         break;
+        default:
+            break;
     }
     return;
 }
@@ -120,6 +122,7 @@ int main(void) {
     UA_Client *client = UA_Client_new(config);
 
     /* Endless loop runAsync */
+    UA_Boolean timedOut = false;
     while (running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
@@ -133,7 +136,7 @@ int main(void) {
             continue;
         }
 
-        UA_Client_runAsync(client, 1000);
+        UA_Client_run_iterate(client, &timedOut);
     };
 
     /* Clean up */

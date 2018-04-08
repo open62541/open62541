@@ -157,8 +157,9 @@ int main(int argc, char *argv[]) {
 
     monId = result.monitoredItemId;
 
+    UA_Boolean timedOut = false;
     while(running)
-        UA_Client_runAsync(client, 100);
+        UA_Client_run_iterate(client, &timedOut);
 
     /* Delete the subscription */
  cleanup:
