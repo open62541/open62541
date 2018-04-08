@@ -98,7 +98,7 @@ START_TEST(Client_connect_async){
                                               &asyncCounter, &reqId);
         }
         /*manual clock for unit tests*/
-        UA_realSleep(20);
+        UA_fakeSleep(20);
         if (UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC){
             break; /*sometimes test can stuck*/
         }

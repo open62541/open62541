@@ -778,7 +778,10 @@ ClientNetworkLayerTCP_close(UA_Connection *connection) {
     shutdown((SOCKET)connection->sockfd, 2);
     CLOSESOCKET(connection->sockfd);
     connection->state = UA_CONNECTION_CLOSED;
+}
 
+static void
+ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if (connection->handle){
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
         if(tcpConnection->server)
@@ -934,7 +937,7 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
-    connection.free = NULL;
+    connection.free = ClientNetworkLayerTCP_free;
     connection.getSendBuffer = connection_getsendbuffer;
     connection.releaseSendBuffer = connection_releasesendbuffer;
     connection.releaseRecvBuffer = connection_releaserecvbuffer;
@@ -1009,10 +1012,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
-    connection.free = NULL;
+    connection.free = ClientNetworkLayerTCP_free;
     connection.getSendBuffer = connection_getsendbuffer;
     connection.releaseSendBuffer = connection_releasesendbuffer;
     connection.releaseRecvBuffer = connection_releaserecvbuffer;
+    connection.handle = NULL;
 
     UA_String endpointUrlString = UA_STRING((char*)(uintptr_t)endpointUrl);
     UA_String hostnameString = UA_STRING_NULL;
