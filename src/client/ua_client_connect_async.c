@@ -12,6 +12,29 @@
 
 #define UA_MINMESSAGESIZE 8192
 
+/* Asynchronous client connection
+ * To prepare an async connection, UA_Client_connect_async() is called, which does not connect the
+ * client directly. UA_Client_run_iterate() takes care of actually connecting the client:
+ * if client is disconnected:
+ *      send hello msg and set the client state to be WAITING_FOR_ACK
+ *      (see UA_Client_connect_iterate())
+ * if client is waiting for the ACK:
+ *      call the non-blocking receiving function and register processACKResponse_async() as its callback
+ *      (see receivePacket_async())
+ * if ACK is processed (callback called):
+ *      processACKResponse_async() calls openSecureChannel_async() at the end, which prepares the request
+ *      to open secure channel and the client is connected
+ * if client is connected:
+ *      call the non-blocking receiving function and register processOPNResponse() as its callback
+ *      (see receivePacket_async())
+ * if OPN-request processed (callback called)
+ *      send session request, where the session response is put into a normal AsyncServiceCall, and when
+ *      called, request to activate session is sent, where its response is again put into an AsyncServiceCall
+ * in the very last step responseActivateSession():
+ *      the user defined callback that is passed into UA_Client_connect_async() is called and the
+ *      async connection finalized.
+ * */
+
 /***********************/
 /* Open the Connection */
 /***********************/
@@ -277,11 +300,6 @@ openSecureChannel_async(UA_Client *client, UA_Boolean renew) {
     return retval;
 }
 
-/* Functions for async connect, chained by callbacks
- * for example, responseSessionCallback is registered as a callback inside requestSession
- * so that only when "requestSession" is processed by the server "reponseSessionCallback"
- * is called; then requestActivateSession is called at the end of reponseSessionCallback,
- * and so on*/
 
 static void
 responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
@@ -485,15 +503,14 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
                                UA_ClientAsyncServiceCallback callback,
                                void *connected, UA_Boolean endpointsHandshake,
                                UA_Boolean createNewSession) {
+    if(client->state >= UA_CLIENTSTATE_CONNECTED)
+        return UA_STATUSCODE_GOOD;
     UA_ChannelSecurityToken_init (&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     /* set up further callback function to handle secure channel and session establishment  */
     client->ackResponseCallback = processACKResponse_async;
     client->openSecureChannelResponseCallback = processOPNResponse;
     client->endpointsHandshake = endpointsHandshake;
-
-    if(client->state >= UA_CLIENTSTATE_CONNECTED)
-        return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection = client->config.initConnectionFunc (
@@ -513,8 +530,10 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
 
     AsyncServiceCall *ac = (AsyncServiceCall*) UA_malloc(
             sizeof(AsyncServiceCall));
-    if(!ac)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!ac){
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
     ac->callback = callback;
     ac->userdata = connected;
 
@@ -528,7 +547,7 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
     return retval;
 
     cleanup: UA_Client_close(client);
-    return retval;
+             return retval;
 }
 
 UA_StatusCode
@@ -551,9 +570,9 @@ UA_Client_connect_iterate(UA_Client *client) {
 UA_StatusCode
 UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
                         UA_ClientAsyncServiceCallback callback,
-                        void *connected) {
+                        void *userdata) {
     return UA_Client_connectInternalAsync (client, endpointUrl, callback,
-                                           connected, UA_TRUE, UA_TRUE);
+            userdata, UA_TRUE, UA_TRUE);
 }
 
 /*async disconnection*/

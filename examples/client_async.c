@@ -28,10 +28,8 @@
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
 static void
-onConnect (UA_Client *client, void *connected, UA_UInt32 requestId,
+onConnect (UA_Client *client, void *userdata, UA_UInt32 requestId,
            void *status) {
-    if (UA_Client_getState (client) == UA_CLIENTSTATE_SESSION)
-        *(UA_Boolean *) connected = true;
     printf ("Async connect returned with status code %s\n",
             UA_StatusCode_name (*(UA_StatusCode *) status));
 }
@@ -125,7 +123,6 @@ main (int argc, char *argv[]) {
     UA_Client *client = UA_Client_new (UA_ClientConfig_default);
     UA_UInt32 reqId = 0;
     UA_String userdata = UA_STRING ("userdata");
-    UA_Boolean connected = false;
 
     UA_BrowseRequest bReq;
     UA_BrowseRequest_init (&bReq);
@@ -138,7 +135,7 @@ main (int argc, char *argv[]) {
 
     /* Connected gets updated when client is connected */
     UA_Client_connect_async (client, "opc.tcp://localhost:4840", onConnect,
-                             &connected);
+                             NULL);
 
     //UA_StatusCode retval;
 
@@ -149,7 +146,7 @@ main (int argc, char *argv[]) {
     UA_DateTime startTime = UA_DateTime_nowMonotonic();
     do {
         /*TODO: fix memory-related bugs if condition not checked*/
-        if (connected) {
+        if (UA_Client_getState (client) == UA_CLIENTSTATE_SESSION) {
             /* If not connected requests are not sent */
             UA_Client_sendAsyncBrowseRequest (client, &bReq, fileBrowsed,
                                               &userdata, &reqId);
@@ -174,7 +171,7 @@ main (int argc, char *argv[]) {
     UA_Variant_init (&input);
 
     for (UA_UInt16 i = 0; i < 5; i++) {
-        if (connected) {
+        if (UA_Client_getState (client) == UA_CLIENTSTATE_SESSION) {
             /* writing and reading value 1 to 5 */
             UA_Variant_setScalarCopy (&myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
             value++;
