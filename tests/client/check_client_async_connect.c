@@ -68,13 +68,11 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
 START_TEST(Client_connect_async){
     UA_StatusCode retval;
     client = UA_Client_new(UA_ClientConfig_default);
-    UA_Boolean connected = false;;
+    UA_Boolean connected = false;
     UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
                             &connected);
-
     UA_UInt32 reqId = 0;
     UA_UInt16 asyncCounter = 0;
-
     UA_BrowseRequest bReq;
     UA_BrowseRequest_init (&bReq);
     bReq.requestedMaxReferencesPerNode = 0;
@@ -94,6 +92,9 @@ START_TEST(Client_connect_async){
         /* Manual clock for unit tests */
         UA_comboSleep(20);
         retval = UA_Client_run_iterate(client, 0);
+        /*fix infinite loop, but why is server occasionally shut down in Appveyor?!*/
+        if(retval == UA_STATUSCODE_BADSERVERNOTCONNECTED)
+            break;
     } while(reqId < 10);
 
     UA_BrowseRequest_deleteMembers(&bReq);

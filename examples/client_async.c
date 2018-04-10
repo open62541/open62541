@@ -133,11 +133,8 @@ main (int argc, char *argv[]) {
     UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-    /* Connected gets updated when client is connected */
     UA_Client_connect_async (client, "opc.tcp://localhost:4840", onConnect,
                              NULL);
-
-    //UA_StatusCode retval;
 
     /* What happens if client tries to send request before connected? */
     UA_Client_sendAsyncBrowseRequest (client, &bReq, fileBrowsed, &userdata,
