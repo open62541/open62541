@@ -1171,7 +1171,6 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
             connected = true;
             break;
         }
-        // TODO find why we have double free (clang)
         ClientNetworkLayerTCP_close(&connection);
 
     } while ((UA_DateTime_nowMonotonic() - connStart) < dtTimeout);
