@@ -543,7 +543,7 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
     return retval;
 
     cleanup: UA_Client_close(client);
-             return retval;
+        return retval;
 }
 
 UA_StatusCode
