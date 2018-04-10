@@ -98,7 +98,7 @@ START_TEST(Client_connect_async){
                                               &asyncCounter, &reqId);
         }
         /*manual clock for unit tests*/
-        UA_fakeSleep(20);
+        UA_comboSleep(20);
         if (UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC){
             break; /*sometimes test can stuck*/
         }
@@ -122,11 +122,10 @@ END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
-    TCase *tc_client_connect = tcase_create("Client Connect");
+    TCase *tc_client_connect = tcase_create("Client Connect Async");
     tcase_add_checked_fixture(tc_client_connect, setup, teardown);
     tcase_add_test(tc_client_connect, Client_connect_async);
     suite_add_tcase(s,tc_client_connect);
-
     return s;
 }
 
