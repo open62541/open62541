@@ -899,7 +899,6 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
                  * timeout is somehow wrong */
 
         } else {
-
                 connection->sockfd = clientsockfd;
                 connection->state = UA_CONNECTION_ESTABLISHED;
                 return UA_STATUSCODE_GOOD;

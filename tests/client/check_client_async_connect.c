@@ -27,8 +27,6 @@ UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 UA_Client *client;
-UA_StatusCode retval;
-UA_Boolean connected;
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(server, true);
@@ -36,11 +34,10 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void
-onConnect (UA_Client *Client, void *Connected, UA_UInt32 requestId,
+onConnect (UA_Client *Client, void *connected, UA_UInt32 requestId,
            void *status) {
     if (UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
-        *(UA_Boolean *) Connected = true;
-    UA_fakeSleep(10);
+        *(UA_Boolean *)connected = true;
 }
 
 static void setup(void) {
@@ -49,12 +46,11 @@ static void setup(void) {
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
-
-    UA_fakeSleep(500);
+    /* Waiting server is up */
+    UA_comboSleep(1000);
 }
 
 static void teardown(void) {
-    //UA_fakeSleep(5000);
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
@@ -67,15 +63,14 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
                   UA_UInt32 requestId, UA_BrowseResponse *response) {
     UA_UInt16 *asyncCounter = (UA_UInt16*)userdata;
     (*asyncCounter)++;
-    UA_fakeSleep(10);
 }
 
 START_TEST(Client_connect_async){
-
-    client = UA_Client_new (UA_ClientConfig_default);
-    connected = false;
-    UA_Client_connect_async (client, "opc.tcp://localhost:4840", onConnect,
-                                     &connected);
+    UA_StatusCode retval;
+    client = UA_Client_new(UA_ClientConfig_default);
+    UA_Boolean connected = false;;
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
+                            &connected);
 
     UA_UInt32 reqId = 0;
     UA_UInt16 asyncCounter = 0;
@@ -85,36 +80,27 @@ START_TEST(Client_connect_async){
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new ();
     bReq.nodesToBrowseSize = 1;
-    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC (0,
-    UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
+    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-    UA_DateTime startTime = UA_DateTime_nowMonotonic();
-    /*connected gets updated when client is connected*/
-    do {
-        if (connected) {
-            /*if not connected requests are not sent*/
+    /* Connected gets updated when client is connected */
+    do{
+        if(connected) {
+            /* If not connected requests are not sent */
             UA_Client_sendAsyncBrowseRequest (client, &bReq, asyncBrowseCallback,
                                               &asyncCounter, &reqId);
         }
-        /*manual clock for unit tests*/
-        UA_comboSleep(20);
-        if (UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC){
-            break; /*sometimes test can stuck*/
-        }
 
-        /* depending on the number of requests sent UA_Client_run_iterate can be called multiple times
-         * here 2 calls are needed so that even when run with valgrind (very slow) the result is still correct*/
-        UA_Client_run_iterate(client, 0);
+        /* Manual clock for unit tests */
+        UA_comboSleep(20);
         retval = UA_Client_run_iterate(client, 0);
-    }
-    while (reqId < 10);
+    } while(reqId < 10);
 
     UA_BrowseRequest_deleteMembers(&bReq);
-    /*with default setting the client uses 4 requests to connect*/
-    if (connected)
-        ck_assert_uint_eq(asyncCounter, 10-4);
+    ck_assert_uint_eq(connected, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* With default setting the client uses 4 requests to connect */
+    ck_assert_uint_eq(asyncCounter, 10-4);
     UA_Client_disconnect(client);
     UA_Client_delete (client);
 }
@@ -133,7 +119,7 @@ int main(void) {
     Suite *s = testSuite_Client();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
-    srunner_run_all(sr,CK_NORMAL);
+    srunner_run_all(sr, CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
