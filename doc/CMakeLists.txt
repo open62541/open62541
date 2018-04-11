@@ -19,9 +19,12 @@ endfunction()
 # Doc from headers
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_types.h ${DOC_SRC_DIR}/types.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_constants.h ${DOC_SRC_DIR}/constants.rst)
+generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${DOC_SRC_DIR}/types_generated.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${DOC_SRC_DIR}/server.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server_config.h ${DOC_SRC_DIR}/server_config.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${DOC_SRC_DIR}/server.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_config.h ${DOC_SRC_DIR}/client_config.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h ${DOC_SRC_DIR}/client_subscriptions.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${DOC_SRC_DIR}/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h ${DOC_SRC_DIR}/plugin_log.rst)
@@ -29,6 +32,8 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/pl
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h ${DOC_SRC_DIR}/plugin_pubsub_connection.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)
@@ -43,8 +48,10 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c ${DOC_S
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
+          ${DOC_SRC_DIR}/statuscodes.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/server_config.rst
-          ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
+          ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
+          ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst
@@ -57,6 +64,8 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
+          ${DOC_SRC_DIR}/plugin_pubsub_connection.rst
+          ${DOC_SRC_DIR}/pubsub.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
@@ -71,8 +80,10 @@ add_dependencies(doc_pdf doc_latex)
 add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
+          ${DOC_SRC_DIR}/statuscodes.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/server_config.rst
-          ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
+          ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
+          ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst
@@ -85,6 +96,8 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
+          ${DOC_SRC_DIR}/plugin_pubsub_connection.rst
+          ${DOC_SRC_DIR}/pubsub.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)
 

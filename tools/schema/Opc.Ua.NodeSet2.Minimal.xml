@@ -770,6 +770,22 @@
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
+  <UAObjectType NodeId="i=2033" BrowseName="VendorServerInfoType">
+    <DisplayName>VendorServerInfoType</DisplayName>
+    <Description>A base type for vendor specific server information.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="i=2011" BrowseName="VendorServerInfo" ParentNodeId="i=2004">
+    <DisplayName>VendorServerInfo</DisplayName>
+    <Description>Server information provided by the vendor.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2033</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2004</Reference>
+    </References>
+  </UAObject>
   <UAObjectType NodeId="i=2013" BrowseName="ServerCapabilitiesType">
     <DisplayName>ServerCapabilitiesType</DisplayName>
     <Description>Describes the capabilities supported by the server.</Description>
@@ -1031,6 +1047,7 @@
       <Reference ReferenceType="HasComponent">i=2256</Reference>
       <Reference ReferenceType="HasComponent">i=2268</Reference>
       <Reference ReferenceType="HasComponent">i=2274</Reference>
+      <Reference ReferenceType="HasComponent">i=2295</Reference>
       <Reference ReferenceType="HasComponent">i=11492</Reference>
       <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=2004</Reference>
@@ -1182,6 +1199,9 @@
       <Reference ReferenceType="HasProperty">i=2735</Reference>
       <Reference ReferenceType="HasProperty">i=2736</Reference>
       <Reference ReferenceType="HasProperty">i=2737</Reference>
+      <Reference ReferenceType="HasProperty">i=3704</Reference>
+      <Reference ReferenceType="HasComponent">i=2996</Reference>
+      <Reference ReferenceType="HasComponent">i=2997</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=2013</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
     </References>
@@ -1229,6 +1249,14 @@
   <UAVariable NodeId="i=2737" BrowseName="MaxHistoryContinuationPoints" ParentNodeId="i=2268" DataType="UInt16">
     <DisplayName>MaxHistoryContinuationPoints</DisplayName>
     <Description>The maximum number of continuation points for ReadHistory operations per session.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=3704" BrowseName="SoftwareCertificates" ParentNodeId="i=2268" DataType="i=344" ValueRank="1">
+    <DisplayName>SoftwareCertificates</DisplayName>
+    <Description>The software certificates owned by the server.</Description>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
@@ -1314,6 +1342,22 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
     </References>
   </UAVariable>
+  <UAObject NodeId="i=2996" BrowseName="ModellingRules" ParentNodeId="i=2268">
+    <DisplayName>ModellingRules</DisplayName>
+    <Description>A folder for the modelling rules supported by the server.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2268</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2997" BrowseName="AggregateFunctions" ParentNodeId="i=2268">
+    <DisplayName>AggregateFunctions</DisplayName>
+    <Description>A folder for the real time aggregates supported by the server.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2268</Reference>
+    </References>
+  </UAObject>
   <UAObject NodeId="i=2274" BrowseName="ServerDiagnostics" ParentNodeId="i=2253">
     <DisplayName>ServerDiagnostics</DisplayName>
     <Description>Reports diagnostics about the server.</Description>
@@ -1436,6 +1480,14 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=2274</Reference>
     </References>
   </UAVariable>
+  <UAObject NodeId="i=2295" BrowseName="VendorServerInfo" ParentNodeId="i=2253">
+    <DisplayName>VendorServerInfo</DisplayName>
+    <Description>Server information provided by the vendor.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=2033</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+    </References>
+  </UAObject>
   <UAObject NodeId="i=2296" BrowseName="ServerRedundancy" ParentNodeId="i=2253">
     <DisplayName>ServerRedundancy</DisplayName>
     <Description>Describes the redundancy capabilities of the server.</Description>
@@ -1593,6 +1645,21 @@
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
     </References>
+  </UADataType>
+  <UADataType NodeId="i=344" BrowseName="SignedSoftwareCertificate">
+    <DisplayName>SignedSoftwareCertificate</DisplayName>
+    <Description>A software certificate with a digital signature.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="SignedSoftwareCertificate">
+      <Field Name="CertificateData" DataType="i=15">
+        <Description>The data of the certificate.</Description>
+      </Field>
+      <Field Name="Signature" DataType="i=15">
+        <Description>The digital signature.</Description>
+      </Field>
+    </Definition>
   </UADataType>
   <UADataType NodeId="i=338" BrowseName="BuildInfo">
     <DisplayName>BuildInfo</DisplayName>

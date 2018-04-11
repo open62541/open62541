@@ -16,6 +16,8 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
+add_definitions(-DUA_sleep_ms=UA_comboSleep)
+
 #############################
 # Compiled binaries folders #
 #############################
@@ -169,6 +171,12 @@ if(UA_ENABLE_PUBSUB)
     add_executable(check_pubsub_encoding pubsub/check_pubsub_encoding.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_pubsub_encoding ${LIBS})
     add_test_valgrind(pubsub_encoding ${TESTS_BINARY_DIR}/check_pubsub_encoding)
+    add_executable(check_pubsub_connection_udp pubsub/check_pubsub_connection_udp.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_connection_udp ${LIBS})
+    add_test(NAME check_pubsub_connection_udp COMMAND check_pubsub_connection_udp)
+    add_executable(check_pubsub_pds pubsub/check_pubsub_pds.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_pds ${LIBS})
+    add_test(check_pubsub_pds ${TESTS_BINARY_DIR}/check_pubsub_pds)
 endif()
 
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -200,6 +208,18 @@ add_test_valgrind(client_subscriptions_deprecated ${TESTS_BINARY_DIR}/check_clie
 add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})
 add_test_valgrind(client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
+
+# Test Encryption
+
+if(UA_ENABLE_ENCRYPTION)
+    add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
+    add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)
+
+    add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic256sha256 ${LIBS})
+    add_test_valgrind(encryption_basic256sha256 ${TESTS_BINARY_DIR}/check_encryption_basic256sha256)
+endif()
 
 #############################
 #                           #

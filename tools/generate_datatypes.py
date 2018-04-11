@@ -48,8 +48,10 @@ builtin_overlayable = {"Boolean": "true", "SByte": "true", "Byte": "true",
                        "Int32": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt32": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Int64": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Float": "UA_BINARY_OVERLAYABLE_FLOAT", "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
-                       "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER", "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
+                       "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " + \
+                       "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
                        "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " + \
                        "offsetof(UA_Guid, data4) == (2*sizeof(UA_UInt32)))"}
 
@@ -460,7 +462,7 @@ def printe(string):
 def printc(string):
     print(string, end='\n', file=fc)
 
-def iter_types(v, opaqueType):
+def iter_types(v):
     l = None
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
@@ -470,13 +472,8 @@ def iter_types(v, opaqueType):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
-    if opaqueType:
-        # only opaque type
-        l = list(filter(lambda t: t.name in opaque_type_mapping, l))
-    else:
-        # remove opaque type
-        l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
     return l
+
 ################
 # Print Header #
 ################
@@ -501,8 +498,7 @@ extern "C" {
 
 ''')
 
-filtered_types = iter_types(types, False)
-filtered_opaque_types = iter_types(types, True)
+filtered_types = iter_types(types)
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
@@ -513,9 +509,7 @@ printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.u
 
 i = 0
 for t in filtered_types:
-    if i != 0:
-        printh("\n")
-    printh("/**\n * " +  t.name)
+    printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
         printh(" */")
@@ -524,22 +518,6 @@ for t in filtered_types:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
-    i += 1
-
-i = 0
-# Generate alias for opaque types
-for t in filtered_opaque_types:
-    if i != 0:
-        printh("\n")
-    printh("/**\n * " +  t.name)
-    printh(" * " + "^" * len(t.name))
-    if t.description == "":
-        printh(" */")
-    else:
-        printh(" * " + t.description + " */")
-    if type(t) != BuiltinType:
-        printh(t.typedef_h() + "\n")
-    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
     i += 1
 
 printh('''

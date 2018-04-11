@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Henrik Norrman
  */
@@ -21,6 +21,10 @@ extern "C" {
 #include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_nodestore.h"
+
+#ifdef UA_ENABLE_PUBSUB
+#include "ua_plugin_pubsub.h"
+#endif
 
 /**
  * .. _server-configuration:
@@ -85,6 +89,12 @@ struct UA_ServerConfig {
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
     UA_String customHostname;
+
+#ifdef UA_ENABLE_PUBSUB
+    /*PubSub network layer */
+    size_t pubsubTransportLayersSize;
+    UA_PubSubTransportLayer *pubsubTransportLayers;
+#endif
 
     /* Available endpoints */
     size_t endpointsSize;

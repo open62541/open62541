@@ -38,6 +38,7 @@ UA_Server *server_lds;
 UA_ServerConfig *config_lds;
 UA_Boolean *running_lds;
 THREAD_HANDLE server_thread_lds;
+UA_Client *clientRegisterRepeated;
 
 THREAD_CALLBACK(serverloop_lds) {
     while(*running_lds)
@@ -121,16 +122,26 @@ static void teardown_register(void) {
 }
 
 START_TEST(Server_register) {
-    UA_StatusCode retval =
-        UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840", NULL);
+    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegister != NULL);
+    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_register_discovery(server_register, clientRegister , NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegister);
+    UA_Client_delete(clientRegister);
 }
 END_TEST
 
 START_TEST(Server_unregister) {
-    UA_StatusCode retval =
-        UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
+    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegister != NULL);
+    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_unregister_discovery(server_register, clientRegister);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegister);
+    UA_Client_delete(clientRegister);
 }
 END_TEST
 
@@ -152,11 +163,14 @@ START_TEST(Server_register_semaphore) {
     ck_assert_ptr_ne(fp, NULL);
     fclose(fp);
 #endif
-
-    UA_StatusCode retval =
-        UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840",
-                                     SEMAPHORE_PATH);
+    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegister != NULL);
+    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegister);
+    UA_Client_delete(clientRegister);
 }
 END_TEST
 
@@ -167,9 +181,11 @@ START_TEST(Server_unregister_semaphore) {
 END_TEST
 
 START_TEST(Server_register_periodic) {
+    ck_assert(clientRegisterRepeated == NULL);
+    clientRegisterRepeated = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegisterRepeated != NULL);
     // periodic register every minute, first register immediately
-    UA_StatusCode retval =
-        UA_Server_addPeriodicServerRegisterCallback(server_register, "opc.tcp://localhost:4840",
+    UA_StatusCode retval = UA_Server_addPeriodicServerRegisterCallback(server_register, clientRegisterRepeated, "opc.tcp://localhost:4840",
                                                     60*1000, 100, &periodicRegisterCallbackId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
@@ -180,9 +196,11 @@ START_TEST(Server_unregister_periodic) {
     UA_fakeSleep(1000);
     UA_realSleep(1000);
     UA_Server_removeRepeatedCallback(server_register, periodicRegisterCallbackId);
-    UA_StatusCode retval = UA_Server_unregister_discovery(server_register,
-                                                          "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Server_unregister_discovery(server_register, clientRegisterRepeated);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegisterRepeated);
+    UA_Client_delete(clientRegisterRepeated);
+    clientRegisterRepeated=NULL;
 }
 END_TEST
 

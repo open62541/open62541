@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  */
@@ -33,10 +33,10 @@ UA_MonitoredItem_new(UA_MonitoredItemType monType) {
 void
 MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
-    UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
-                           "Subscription %u | MonitoredItem %i | "
-                           "Delete the MonitoredItem", sub->subscriptionId,
-                           monitoredItem->monitoredItemId);
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                        "Subscription %u | MonitoredItem %i | "
+                        "Delete the MonitoredItem", sub->subscriptionId,
+                        monitoredItem->monitoredItemId);
 
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Remove the sampling callback */

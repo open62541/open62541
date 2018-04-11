@@ -1,8 +1,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015-2017 (c) Florian Palm
@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Thomas Stalder
+ *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
 #ifndef UA_CLIENT_H_
@@ -23,8 +24,11 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_log.h"
+#include "ua_client_config.h"
+#include "ua_nodeids.h"
 
 /**
  * .. _client:
@@ -43,67 +47,35 @@ extern "C" {
  * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
  * <client-subscriptions>`.
  *
+ *
+ * .. include:: client_config.rst
+ *
  * Client Lifecycle
  * ---------------- */
-
-typedef enum {
-    UA_CLIENTSTATE_DISCONNECTED,        /* The client is disconnected */
-    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
-    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
-    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
-    UA_CLIENTSTATE_SESSION_RENEWED      /* A session with the server is open (renewed) */
-} UA_ClientState;
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/**
- * Client Lifecycle callback
- * ------------------------- */
-
-typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
-
-/**
- * Subscription Inactivity callback
- * ------------------------- */
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-typedef void (*UA_SubscriptionInactivityCallback)(UA_Client *client, UA_UInt32 subscriptionId, void *subContext);
-#endif
-
-/**
- * Client Configuration
- * -------------------- */
-
-typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout in ms */
-    UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
-                                        to be renewed) */
-    UA_Logger logger;
-    UA_ConnectionConfig localConnectionConfig;
-    UA_ConnectClientConnection connectionFunc;
-
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
-
-    /* Callback function */
-    UA_ClientStateCallback stateCallback;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_SubscriptionInactivityCallback subscriptionInactivityCallback;
-#endif
-
-    void *clientContext;
-
-    /* number of PublishResponse standing in the sever */
-    /* 0 = background task disabled                    */
-    UA_UInt16 outStandingPublishRequests;
-} UA_ClientConfig;
-
 
 /* Create a new client */
 UA_Client UA_EXPORT *
 UA_Client_new(UA_ClientConfig config);
+
+/* Creates a new secure client with the required configuration, certificate
+ * privatekey, trustlist and revocation list.
+ *
+ * @param  config                   new secure configuration for client
+ * @param  certificate              client certificate
+ * @param  privateKey               client's private key
+ * @param  remoteCertificate        server certificate form the endpoints
+ * @param  trustList                list of trustable certificate
+ * @param  trustListSize            count of trustList
+ * @param  revocationList           list of revoked digital certificate
+ * @param  revocationListSize       count of revocationList
+ * @param  securityPolicyFunction   securityPolicy function
+ * @return Returns a client configuration for secure channel */
+UA_Client UA_EXPORT *
+UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
+                     UA_ByteString privateKey, const UA_ByteString *remoteCertificate,
+                     const UA_ByteString *trustList, size_t trustListSize,
+                     const UA_ByteString *revocationList, size_t revocationListSize,
+                     UA_SecurityPolicy_Func securityPolicyFunction);
 
 /* Get the client connection status */
 UA_ClientState UA_EXPORT
@@ -132,6 +104,14 @@ UA_Client_delete(UA_Client *client);
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
+
+/* Connect to the server without creating a session
+ *
+ * @param client to use
+ * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl);
 
 /* Connect to the selected server with the given username and password
  *
@@ -230,6 +210,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  *
  * Services
  * --------
+ *
  * The raw OPC UA services are exposed to the client. But most of them time, it
  * is better to use the convenience functions from ``ua_client_highlevel.h``
  * that wrap the raw services. */
@@ -239,7 +220,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
                     const UA_DataType *responseType);
 
-/**
+/*
  * Attribute Service Set
  * ^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_ReadResponse
@@ -258,7 +239,7 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
-/**
+/*
 * Historical Access Service Set
 * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_HistoryReadResponse
@@ -269,7 +250,7 @@ UA_Client_Service_history_read(UA_Client *client, const UA_HistoryReadRequest re
     return response;
 }
 
-/**
+/*
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
 #ifdef UA_ENABLE_METHODCALLS
@@ -282,7 +263,7 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
 }
 #endif
 
-/**
+/*
  * NodeManagement Service Set
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_AddNodesResponse
@@ -320,7 +301,7 @@ UA_Client_Service_deleteReferences(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * View Service Set
  * ^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_BrowseResponse
@@ -370,7 +351,7 @@ UA_Client_Service_unregisterNodes(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * Query Service Set
  * ^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_QueryFirstResponse

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2016 (c) Oleksiy Vasylyev
@@ -25,6 +25,8 @@
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
+
+#include "ua_client_internal.h"
 
 static UA_StatusCode
 setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *request,
@@ -595,6 +597,7 @@ struct PeriodicServerRegisterCallback {
     UA_UInt32 this_interval;
     UA_UInt32 default_interval;
     UA_Boolean registered;
+    UA_Client* client;
     const char* discovery_server_url;
 };
 
@@ -620,17 +623,26 @@ periodicServerRegister(UA_Server *server, void *data) {
         server_url = cb->discovery_server_url;
     else
         server_url = "opc.tcp://localhost:4840";
+    UA_StatusCode retval = UA_Client_connect_noSession(cb->client, server_url);
+    if (retval == UA_STATUSCODE_GOOD) {
+        /* Register
+		   You can also use a semaphore file. That file must exist. When the file is
+		   deleted, the server is automatically unregistered. The semaphore file has
+		   to be accessible by the discovery server
 
-    /* Register
-       You can also use a semaphore file. That file must exist. When the file is
-       deleted, the server is automatically unregistered. The semaphore file has
-       to be accessible by the discovery server
-    
-       UA_StatusCode retval = UA_Server_register_discovery(server,
-       "opc.tcp://localhost:4840", "/path/to/some/file");
-    */
-    UA_StatusCode retval = UA_Server_register_discovery(server, server_url, NULL);
-
+		   UA_StatusCode retval = UA_Server_register_discovery(server,
+		   "opc.tcp://localhost:4840", "/path/to/some/file");
+		*/
+        retval = UA_Server_register_discovery(server, cb->client, NULL);
+    }
+    if (cb->client->state == UA_CLIENTSTATE_CONNECTED) {
+        UA_StatusCode retval1 = UA_Client_disconnect(cb->client);
+        if(retval1 != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Could not disconnect client from register server. StatusCode %s",
+                         UA_StatusCode_name(retval));
+        }
+    }
     /* Registering failed */
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -668,6 +680,7 @@ periodicServerRegister(UA_Server *server, void *data) {
 
 UA_StatusCode
 UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
+                                            struct UA_Client *client,
                                             const char* discoveryServerUrl,
                                             UA_UInt32 intervalMs,
                                             UA_UInt32 delayFirstRegisterMs,
@@ -680,6 +693,9 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+
+    if (client->connection.state != UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADINVALIDSTATE;
 
     /* check if we are already registering with the given discovery url and remove the old periodic call */
     {
@@ -710,6 +726,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     cb->this_interval = 500;
     cb->default_interval = intervalMs;
     cb->registered = false;
+    cb->client = client;
     cb->discovery_server_url = discoveryServerUrl;
 
 

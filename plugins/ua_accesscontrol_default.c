@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
- *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
@@ -189,7 +189,7 @@ UA_AccessControl_default(UA_Boolean allowAnonymous, size_t usernamePasswordLogin
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
     AccessControlContext *context = (AccessControlContext*)
         UA_malloc(sizeof(AccessControlContext));
-    
+    memset(context, 0, sizeof(AccessControlContext));
     UA_AccessControl ac;
     memset(&ac, 0, sizeof(ac));
     ac.context = context;

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2015 (c) Christian Fimmers
@@ -646,12 +646,12 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
 /* Check if the valuerank allows for the value dimension */
 static UA_Boolean
 compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
-    /* empty arrays (-1) always match */
+    /* Empty arrays (-1) always match */
     if(!value->data)
-        return false;
+        return true;
 
     size_t arrayDims = value->arrayDimensionsSize;
-    if(!UA_Variant_isScalar(value))
+    if(arrayDims == 0 && !UA_Variant_isScalar(value))
         arrayDims = 1; /* array but no arraydimensions -> implicit array dimension 1 */
     return compatibleValueRankArrayDimensions(valueRank, arrayDims);
 }
@@ -698,11 +698,22 @@ compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                 UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range) {
-    /* Empty variant is only allowed for BaseDataType */
+    /* Empty value */
     if(!value->type) {
+        /* Empty value is allowed for BaseDataType */
         if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
             return true;
+
+        /* Workaround: Allow empty value if the target data type is abstract */
+        const UA_Node *datatype = UA_Nodestore_get(server, targetDataTypeId);
+        if(datatype && datatype->nodeClass == UA_NODECLASS_DATATYPE) {
+            UA_Boolean isAbstract = ((const UA_DataTypeNode*)datatype)->isAbstract;
+            UA_Nodestore_release(server, datatype);
+            if(isAbstract)
+                return true;
+        }
+
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Only Variables with data type BaseDataType may contain "
                     "a null (empty) value");

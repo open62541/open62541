@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2014-2015, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Chris Iatrou
@@ -20,12 +20,16 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_nodeids.h"
 
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;
+
+struct UA_ClientConfig;
+struct UA_Client;
 
 /**
  * .. _server:
@@ -452,20 +456,20 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  * When the server shuts down you need to call unregister.
  *
  * @param server
- * @param discoveryServerUrl if set to NULL, the default value
- *        'opc.tcp://localhost:4840' will be used
+ * @param client the client which is used to call the RegisterServer. It must
+ *        already be connected to the correct endpoint
  * @param semaphoreFilePath optional parameter pointing to semaphore file. */
 UA_StatusCode UA_EXPORT
-UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+UA_Server_register_discovery(UA_Server *server, struct UA_Client *client,
                              const char* semaphoreFilePath);
 
 /* Unregister the given server instance from the discovery server.
  * This should only be called when the server is shutting down.
  * @param server
- * @param discoveryServerUrl if set to NULL, the default value
- *        'opc.tcp://localhost:4840' will be used */
+ * @param client the client which is used to call the RegisterServer. It must
+ *        already be connected to the correct endpoint */
 UA_StatusCode UA_EXPORT
-UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
+UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
 
  /* Adds a periodic callback to register the server with the LDS (local discovery server)
   * periodically. The interval between each register call is given as second parameter.
@@ -482,13 +486,17 @@ UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl
   * periodic callback will be removed.
   *
   * @param server
+  * @param client the client which is used to call the RegisterServer.
+  * 		It must not yet be connected and will be connected for every register call
+  * 		to the given discoveryServerUrl.
   * @param discoveryServerUrl if set to NULL, the default value
   *        'opc.tcp://localhost:4840' will be used
   * @param intervalMs
   * @param delayFirstRegisterMs
   * @param periodicCallbackId */
 UA_StatusCode UA_EXPORT
-UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, const char* discoveryServerUrl,
+UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, struct UA_Client *client,
+                                            const char* discoveryServerUrl,
                                             UA_UInt32 intervalMs,
                                             UA_UInt32 delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId);

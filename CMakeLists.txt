@@ -163,6 +163,7 @@ mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
     add_definitions(-DUA_DEBUG_DUMP_PKGS_FILE)
     set(UA_ENABLE_TYPENAMES ON CACHE STRING "" FORCE)
+    set(UA_DEBUG_DUMP_PKGS ON CACHE STRING "" FORCE)
 endif()
 
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
@@ -219,7 +220,7 @@ if(NOT WIN32)
   endif()
 else()
   list(APPEND open62541_LIBRARIES ws2_32)
-    if(UA_ENABLE_DISCOVERY_MULTICAST)
+    if(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_PUBSUB)
         list(APPEND open62541_LIBRARIES iphlpapi)
     endif()
 endif()
@@ -330,9 +331,14 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
 
+if(UA_ENABLE_DISCOVERY)
+    include_directories(${PROJECT_SOURCE_DIR}/src/client)
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/include
-                    ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the default config
+                    ${PROJECT_SOURCE_DIR}/plugins
                     ${PROJECT_SOURCE_DIR}/deps
+                    ${PROJECT_SOURCE_DIR}/src/pubsub
                     ${PROJECT_BINARY_DIR}
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
@@ -340,6 +346,8 @@ include_directories(${PROJECT_SOURCE_DIR}/include
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
@@ -349,8 +357,11 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_pki.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h)
@@ -381,7 +392,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
@@ -449,9 +460,16 @@ if(UA_ENABLE_ENCRYPTION)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
+            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
+            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c)
+
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
 endif()
+
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
@@ -488,6 +506,7 @@ if (UA_ENABLE_FULL_NS0)
     endif()
     set(UA_FILE_DATATYPES "")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
 else()
     if(NOT UA_FILE_NS0)
@@ -495,6 +514,7 @@ else()
     endif()
     set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 endif()
 if(NOT EXISTS "${UA_FILE_NS0}")
@@ -556,15 +576,28 @@ add_custom_target(open62541-generator-transport DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
 
 # statuscode explanation
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
         PRE_BUILD
         COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions
+        ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv)
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
+                ${UA_FILE_STATUSCODES})
+
+# nodeid explanation
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
+        ${UA_FILE_NODEIDS}  ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
+        ${UA_FILE_NODEIDS})
+
+# we need a custom target to avoid that the generator is called concurrently and
+# thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-statuscode DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c)
+        ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
 
 # single-file release
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h

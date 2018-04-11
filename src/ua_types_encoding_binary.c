@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2014 (c) Leon Urbas
@@ -1632,32 +1632,25 @@ CALCSIZE_BINARY(Variant) {
     bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
     bool isBuiltin = src->type->builtin;
 
-    UA_NodeId typeId;
-    UA_NodeId_init(&typeId);
+
     size_t encode_index = src->type->typeIndex;
     if(!isBuiltin) {
         encode_index = UA_BUILTIN_TYPES_COUNT;
-        typeId = src->type->typeId;
-        if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+        if(src->type->typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
             return 0;
     }
 
-    size_t length = src->arrayLength;
-    if(isArray)
-        s += 4;
-    else
-        length = 1;
-
     uintptr_t ptr = (uintptr_t)src->data;
-    size_t memSize = src->type->memSize;
-    for(size_t i = 0; i < length; ++i) {
-        if(!isBuiltin) {
-            /* The type is wrapped inside an extensionobject */
-            s += NodeId_calcSizeBinary(&typeId, NULL);
-            s += 1 + 4; /* encoding byte + length */
-        }
+    size_t length = isArray ? src->arrayLength : 1;
+    if (isArray)
+        s += Array_calcSizeBinary((const void*)ptr, length, src->type);
+    else
         s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, src->type);
-        ptr += memSize;
+
+    if (!isBuiltin) {
+        /* The type is wrapped inside an extensionobject */
+        /* (NodeId + encoding byte + extension object length) * array length */
+        s += (NodeId_calcSizeBinary(&src->type->typeId, NULL) + 1 + 4) * length;
     }
 
     if(hasDimensions)

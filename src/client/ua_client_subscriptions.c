@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) Sten Grüner
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -278,6 +278,10 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
         newMon->isEventMonitoredItem =
             (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
         LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Subscription %u | Added a MonitoredItem with handle %u",
+                     sub->subscriptionId, newMon->clientHandle);
     }
 
     return;

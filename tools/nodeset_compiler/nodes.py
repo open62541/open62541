@@ -30,13 +30,11 @@ if sys.version_info[0] >= 3:
 
 class Reference(object):
     # all either nodeids or strings with an alias
-    def __init__(self, source, referenceType, target, isForward=True, hidden=False, inferred=False):
+    def __init__(self, source, referenceType, target, isForward):
         self.source = source
         self.referenceType = referenceType
         self.target = target
         self.isForward = isForward
-        self.hidden = hidden  # the reference is part of a nodeset that already exists
-        self.inferred = inferred
 
     def __str__(self):
         retval = str(self.source)
@@ -56,6 +54,12 @@ class Reference(object):
     def __hash__(self):
         return hash(str(self))
 
+def RefOrAlias(s):
+    try:
+        return NodeId(s)
+    except Exception:
+        return s
+
 class Node(object):
     def __init__(self):
         self.id = NodeId()
@@ -67,7 +71,6 @@ class Node(object):
         self.writeMask = 0
         self.userWriteMask = 0
         self.references = set()
-        self.inverseReferences = set()
         self.hidden = False
 
     def __str__(self):
@@ -82,7 +85,7 @@ class Node(object):
     def parseXML(self, xmlelement):
         for idname in ['NodeId', 'NodeID', 'nodeid']:
             if xmlelement.hasAttribute(idname):
-                self.id = NodeId(xmlelement.getAttribute(idname))
+                self.id = RefOrAlias(xmlelement.getAttribute(idname))
 
         for (at, av) in xmlelement.attributes.items():
             if at == "BrowseName":
@@ -121,26 +124,43 @@ class Node(object):
         for ref in xmlelement.childNodes:
             if ref.nodeType != ref.ELEMENT_NODE:
                 continue
-            source = NodeId(str(self.id))  # deep-copy of the nodeid
-            target = NodeId(ref.firstChild.data)
+            source = RefOrAlias(str(self.id))  # deep-copy of the nodeid
+            target = RefOrAlias(ref.firstChild.data)
+
             reftype = None
             forward = True
             for (at, av) in ref.attributes.items():
                 if at == "ReferenceType":
-                    if '=' in av:
-                        reftype = NodeId(av)
-                    else:
-                        reftype = av  # alias, such as "HasSubType"
+                    reftype = RefOrAlias(av)
                 elif at == "IsForward":
                     forward = not "false" in av.lower()
-            if forward:
-                self.references.add(Reference(source, reftype, target, forward))
-            else:
-                self.inverseReferences.add(Reference(source, reftype, target, forward))
+            self.references.add(Reference(source, reftype, target, forward))
+
+    def popParentRef(self, parentreftypes):
+        # HasSubtype has precedence
+        for ref in self.references:
+            if ref.referenceType == NodeId("ns=0;i=45") and not ref.isForward:
+                self.references.remove(ref)
+                return ref
+        for ref in self.references:
+            if ref.referenceType in parentreftypes and not ref.isForward:
+                self.references.remove(ref)
+                return ref
+        return Reference(NodeId(), NodeId(), NodeId(), False)
+
+    def popTypeDef(self):
+        for ref in self.references:
+            if ref.referenceType.i == 40 and ref.isForward:
+                self.references.remove(ref)
+                return ref
+        return Reference(NodeId(), NodeId(), NodeId(), False)
 
     def replaceAliases(self, aliases):
         if str(self.id) in aliases:
             self.id = NodeId(aliases[self.id])
+        if isinstance(self, VariableNode) or isinstance(self, VariableTypeNode):
+            if str(self.dataType) in aliases:
+                self.dataType = NodeId(aliases[self.dataType])
         new_refs = set()
         for ref in self.references:
             if str(ref.source) in aliases:
@@ -151,23 +171,12 @@ class Node(object):
                 ref.referenceType = NodeId(aliases[ref.referenceType])
             new_refs.add(ref)
         self.references = new_refs
-        new_inv_refs = set()
-        for ref in self.inverseReferences:
-            if str(ref.source) in aliases:
-                ref.source = NodeId(aliases[ref.source])
-            if str(ref.target) in aliases:
-                ref.target = NodeId(aliases[ref.target])
-            if str(ref.referenceType) in aliases:
-                ref.referenceType = NodeId(aliases[ref.referenceType])
-            new_inv_refs.add(ref)
-        self.inverseReferences = new_inv_refs
 
     def replaceNamespaces(self, nsMapping):
         self.id.ns = nsMapping[self.id.ns]
         self.browseName.ns = nsMapping[self.browseName.ns]
         if hasattr(self, 'dataType') and isinstance(self.dataType, NodeId):
             self.dataType.ns = nsMapping[self.dataType.ns]
-
         new_refs = set()
         for ref in self.references:
             ref.source.ns = nsMapping[ref.source.ns]
@@ -175,13 +184,6 @@ class Node(object):
             ref.referenceType.ns = nsMapping[ref.referenceType.ns]
             new_refs.add(ref)
         self.references = new_refs
-        new_inv_refs = set()
-        for ref in self.inverseReferences:
-            ref.source.ns = nsMapping[ref.source.ns]
-            ref.target.ns = nsMapping[ref.target.ns]
-            ref.referenceType.ns = nsMapping[ref.referenceType.ns]
-            new_inv_refs.add(ref)
-        self.inverseReferences = new_inv_refs
 
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):
@@ -251,10 +253,7 @@ class VariableNode(Node):
             elif at == "MinimumSamplingInterval":
                 self.minimumSamplingInterval = float(av)
             elif at == "DataType":
-                if "=" in av:
-                    self.dataType = NodeId(av)
-                else:
-                    self.dataType = av
+                self.dataType = RefOrAlias(av)
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -262,7 +261,7 @@ class VariableNode(Node):
             if x.localName == "Value":
                 self.xmlValueDef = x
             elif x.localName == "DataType":
-                self.dataType = NodeId(str(x))
+                self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
             elif x.localName == "ArrayDimensions":
@@ -493,7 +492,9 @@ class DataTypeNode(Node):
 
         if self.__xmlDefinition__ == None:
             # Check if there is a supertype available
-            for ref in self.inverseReferences:
+            for ref in self.references:
+                if ref.isForward:
+                    continue
                 # hasSubtype
                 if ref.referenceType.i == 45:
                     targetNode = nodeset.nodes[ref.target]
@@ -623,5 +624,5 @@ class ViewNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "ContainsNoLoops":
                 self.containsNoLoops = "false" not in av.lower()
-            if at == "eventNotifier":
+            if at == "EventNotifier":
                 self.eventNotifier = "false" not in av.lower()

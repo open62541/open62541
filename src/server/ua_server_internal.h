@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
@@ -25,6 +25,10 @@ extern "C" {
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
+
+#ifdef UA_ENABLE_PUBSUB
+#include "ua_pubsub_manager.h"
+#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
 
@@ -140,6 +144,11 @@ struct UA_Server {
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
+
+#ifdef UA_ENABLE_PUBSUB
+    /* Publish/Subscribe toplevel container */
+    UA_PubSubManager pubSubManager;
+#endif
 
     /* Config */
     UA_ServerConfig config;
