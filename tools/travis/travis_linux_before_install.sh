@@ -18,15 +18,32 @@ if [ -z ${DOCKER+x} ]; then
 		sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-3.9 clang-tidy-3.9 libfuzzer-3.9-dev
 	fi
 
-	sudo add-apt-repository -y ppa:lttng/ppa
-	sudo apt-get update -qq
-	sudo apt-get install -y liburcu4 liburcu-dev
+	if [ "$CC" = "tcc" ]; then
+		mkdir tcc_install && cd tcc_install
+		wget https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2
+		tar xf tcc-0.9.27.tar.bz2
+		cd tcc-0.9.27
+		./configure
+		make
+		sudo make install
+		cd ../..
+		rm -rf tcc_install
+	fi
+
+	wget https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.7.1.tar.gz
+	tar xf mbedtls-2.7.1.tar.gz
+	cd mbedtls-mbedtls-2.7.1
+	cmake -DENABLE_TESTING=Off .
+	make -j
+	sudo make install
+
 	echo -en 'travis_fold:end:script.before_install.external\\r'
 
 	echo "=== Installing python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
 	pip install --user cpp-coveralls
 	pip install --user sphinx
 	pip install --user sphinx_rtd_theme
+	pip install --user cpplint
 	echo -en 'travis_fold:end:script.before_install.python\\r'
 
 	echo "=== Installed versions are ===" && echo -en 'travis_fold:start:before_install.versions\\r'

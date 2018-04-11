@@ -1,5 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_nodestore_default.h"
 
@@ -325,12 +329,9 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
         }
     }
 
-    UA_NodeId tempNodeid;
-    tempNodeid = node->nodeId;
-    tempNodeid.namespaceIndex = 0;
     UA_NodeMapEntry **slot;
-    if(tempNodeid.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       tempNodeid.identifier.numeric == 0) {
+    if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+            node->nodeId.identifier.numeric == 0) {
         /* create a random nodeid */
         /* start at least with 50,000 to make sure we don not conflict with nodes from the spec */
         /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */

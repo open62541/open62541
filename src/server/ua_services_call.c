@@ -1,6 +1,16 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2017 (c) Florian Palm
+ *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2016 (c) LEvertz
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Julian Grothoff
+ */
 
 #include "ua_services.h"
 #include "ua_server_internal.h"
@@ -149,7 +159,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     UA_Boolean executable = method->executable;
     if(session != &adminSession)
         executable = executable &&
-            server->config.accessControl.getUserExecutableOnObject(&session->sessionId,
+            server->config.accessControl.getUserExecutableOnObject(server, 
+                           &server->config.accessControl, &session->sessionId,
                            session->sessionHandle, &request->methodId, method->context,
                            &request->objectId, object->context);
     if(!executable) {
@@ -194,9 +205,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 }
 
 static void
-Operation_CallMethod(UA_Server *server, UA_Session *session,
-                     const UA_CallMethodRequest *request,
-                     UA_CallMethodResult *result) {
+Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
+                     const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
     /* Get the method node */
     const UA_MethodNode *method = (const UA_MethodNode*)
         server->config.nodestore.getNode(server->config.nodestore.context,
@@ -239,11 +249,18 @@ void Service_Call(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->responseHeader.serviceResult = 
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_CallMethod,
-                  &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CallMethod, NULL,
+                                           &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+}
+
+UA_CallMethodResult UA_EXPORT
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    Operation_CallMethod(server, &adminSession, NULL, request, &result);
+    return result;
 }
 
 #endif /* UA_ENABLE_METHODCALLS */

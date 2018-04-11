@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 from constants import *
 from nodes import *
 from nodeset import *
-from backend_open62541_nodes import generateNodeCode, generateReferenceCode
+from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode
 
 ##############
 # Sort Nodes #
@@ -160,7 +160,7 @@ def reorderNodesMinDependencies(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0):
+def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
@@ -189,19 +189,55 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
     if internal_headers:
         writeh("""
 #ifdef UA_NO_AMALGAMATION
-#include "ua_server.h"
-#include "ua_types_encoding_binary.h"
-%s
+# include "ua_server.h"
+# include "ua_types_encoding_binary.h"
 #else
-#include "open62541.h"
+# include "open62541.h"
+
+/* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
+
+# ifndef UA_Nodestore_remove //this definition is needed to hide this code in the amalgamated .c file
+
+typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
+                                                 const UA_Byte **bufEnd);
+
+UA_StatusCode
+UA_encodeBinary(const void *src, const UA_DataType *type,
+                UA_Byte **bufPos, const UA_Byte **bufEnd,
+                UA_exchangeEncodeBuffer exchangeCallback,
+                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+UA_StatusCode
+UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
+                const UA_DataType *type, size_t customTypesSize,
+                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+size_t
+UA_calcSizeBinary(void *p, const UA_DataType *type);
+
+const UA_DataType *
+UA_findDataTypeByBinary(const UA_NodeId *typeId);
+
+# endif // UA_Nodestore_remove
+
 #endif
+
+%s
 """ % (additionalHeaders))
     else:
         writeh("""
 #include "open62541.h"
 """)
     writeh("""
+#ifdef __cplusplus
+extern "C" {
+#endif
+    
 extern UA_StatusCode %s(UA_Server *server);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* %s_H_ */""" % \
            (outfilebase, outfilebase.upper()))
@@ -226,26 +262,43 @@ extern UA_StatusCode %s(UA_Server *server);
         # Print node
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "(UA_Server *server, UA_UInt16* ns){\n")
-            code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length)
+            code = generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentrefs)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
                 continue
             else:
+                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {\n")
+                if isinstance(node, MethodNode):
+                    writec("#ifdef UA_ENABLE_METHODCALLS")
                 writec(code)
 
         # Print inverse references leading to this node
         for ref in node.printRefs:
             writec(generateReferenceCode(ref))
             
-        writec("return retVal;\n}")
-        functionNumber = functionNumber + 1
-    
-    
-    writec("""
-UA_StatusCode %s(UA_Server *server) {  // NOLINT
+        writec("return retVal;")
+        if isinstance(node, MethodNode):
+            writec("#else")
+            writec("return UA_STATUSCODE_GOOD;")
+            writec("#endif /* UA_ENABLE_METHODCALLS */")
+        writec("}");
 
+        writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {\n")
+        if isinstance(node, MethodNode):
+            writec("#ifdef UA_ENABLE_METHODCALLS")
+        code = generateNodeCode_finish(node)
+        writec("return " + code)
+        if isinstance(node, MethodNode):
+            writec("#else")
+            writec("return UA_STATUSCODE_GOOD;")
+            writec("#endif /* UA_ENABLE_METHODCALLS */")
+        writec("}");
+
+        functionNumber = functionNumber + 1
+
+    writec("""
+UA_StatusCode %s(UA_Server *server) {
 UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     # Generate namespaces (don't worry about duplicates)
     writec("/* Use namespace ids generated by the server */")
@@ -255,9 +308,12 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
 
     for i in range(0, functionNumber):
-        writec("retVal |= function_" + outfilebase + "_" + str(i) + "(server, ns);")
-    
-        
+        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_begin(server, ns);")
+
+
+    for i in reversed(range(0, functionNumber)):
+        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_finish(server, ns);")
+
     writec("return retVal;\n}")
     outfileh.close()
     fullCode = outfilec.getvalue()

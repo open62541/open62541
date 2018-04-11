@@ -1,10 +1,18 @@
+# Load CMake Packages
+find_package(Check REQUIRED)
+set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+include_directories(${CHECK_INCLUDE_DIRS})
+find_package(Threads REQUIRED)
+if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
+    find_package(Valgrind REQUIRED)
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/src/server)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
-include_directories(${CHECK_INCLUDE_DIRS})
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
 #############################
@@ -13,23 +21,11 @@ include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 if (MSVC)
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
 else()
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
-# Load CMake Packages
-find_package(Check REQUIRED)
-find_package(Threads REQUIRED)
-if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
-    find_package(Valgrind REQUIRED)
-endif()
-
-set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
-if(NOT MSVC)
-    LIST(APPEND LIBS subunit)
-endif()
-include_directories(${CHECK_INCLUDE_DIRS})
 
 # Use different plugins for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
@@ -37,17 +33,28 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+)
+
+if(UA_ENABLE_ENCRYPTION)
+    set(test_plugin_sources ${test_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+    set(test_plugin_sources ${test_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
+endif()
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
-
+if(NOT MSVC)
+    add_definitions(-Wno-deprecated-declarations)
+endif()
 # Workaround some clang warnings in the uni tests
 if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     add_definitions(-Wno-sign-conversion)
@@ -178,6 +185,10 @@ add_test_valgrind(client_async ${TESTS_BINARY_DIR}/check_client_async)
 add_executable(check_client_subscriptions client/check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_subscriptions ${LIBS})
 add_test_valgrind(client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
+
+add_executable(check_client_subscriptions_deprecated client/check_client_subscriptions_deprecated.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_subscriptions_deprecated ${LIBS})
+add_test_valgrind(client_subscriptions_deprecated ${TESTS_BINARY_DIR}/check_client_subscriptions_deprecated)
 
 add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})

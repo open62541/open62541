@@ -14,7 +14,7 @@ import re
 import xml.etree.ElementTree as etree
 import itertools
 import argparse
-from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
+from nodeset_compiler.opaque_type_mapping import opaque_type_mapping, get_base_type_for_opaque
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
@@ -99,7 +99,7 @@ class Type(object):
             "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
             "    " + self.builtin + ", /* .builtin */\n" + \
             "    " + self.pointerfree + ", /* .pointerFree */\n" + \
-            "    " + self.overlayable + ", /* .overlayable */ \n" + \
+            "    " + self.overlayable + ", /* .overlayable */\n" + \
             "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
             "    %s_members" % self.name + " /* .members */\n}"
 
@@ -108,7 +108,10 @@ class Type(object):
             return "#define %s_members NULL" % (self.name)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
         before = None
+        i = 0
+        size = len(self.members)
         for index, member in enumerate(self.members):
+            i += 1
             m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member.name
             m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
             m += "    "
@@ -126,7 +129,9 @@ class Type(object):
                     m += " - sizeof(UA_%s)," % before.memberType.name
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
-            m += ("    true" if member.isArray else "    false") + " /* .isArray */\n},"
+            m += ("    true" if member.isArray else "    false") + " /* .isArray */\n}"
+            if i != size:
+                m += ","
             members += m
             before = member
         return members + "};"
@@ -416,7 +421,6 @@ outname = args.outfile.split("/")[-1]
 inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
 
 
-
 ################
 # Create Types #
 ################
@@ -455,7 +459,7 @@ def printe(string):
 def printc(string):
     print(string, end='\n', file=fc)
 
-def iter_types(v):
+def iter_types(v, opaqueType):
     l = None
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
@@ -465,8 +469,13 @@ def iter_types(v):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
+    if opaqueType:
+        # only opaque type
+        l = list(filter(lambda t: t.name in opaque_type_mapping, l))
+    else:
+        # remove opaque type
+        l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
     return l
-
 ################
 # Print Header #
 ################
@@ -482,10 +491,17 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 extern "C" {
 #endif
 
+#ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
-''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+#else
+#include "open62541.h"
+#endif
 
-filtered_types = iter_types(types)
+''')
+
+filtered_types = iter_types(types, False)
+filtered_opaque_types = iter_types(types, True)
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
@@ -505,6 +521,20 @@ for t in filtered_types:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
+    i += 1
+
+i = 0
+# Generate alias for opaque types
+for t in filtered_opaque_types:
+    printh("\n/**\n * " +  t.name)
+    printh(" * " + "^" * len(t.name))
+    if t.description == "":
+        printh(" */")
+    else:
+        printh(" * " + t.description + " */")
+    if type(t) != BuiltinType:
+        printh(t.typedef_h() + "\n")
+    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
     i += 1
 
 printh('''
@@ -568,7 +598,7 @@ for t in filtered_types:
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in filtered_types:
-    printc("")
+#    printc("")
     printc("/* " + t.name + " */")
     printc(t.datatype_c() + ",")
 printc("};\n")

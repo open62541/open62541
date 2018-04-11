@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_PLUGIN_NETWORK_H_
 #define UA_PLUGIN_NETWORK_H_
@@ -10,6 +14,7 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
+#include "ua_plugin_log.h"
 
 /* Forward declarations */
 struct UA_Connection;
@@ -46,12 +51,12 @@ typedef struct {
 } UA_ConnectionConfig;
 
 typedef enum {
+    UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
+                                * will be deleted */
     UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
                                 * is not done */
-    UA_CONNECTION_ESTABLISHED, /* The socket is open and the connection
+    UA_CONNECTION_ESTABLISHED  /* The socket is open and the connection
                                 * configured */
-    UA_CONNECTION_CLOSED       /* The socket has been closed and the connection
-                                * will be deleted */
 } UA_ConnectionState;
 
 struct UA_Connection {
@@ -189,10 +194,11 @@ struct UA_ServerNetworkLayer {
 
 /* @param localConf the connection config for this client
  * @param endpointUrl to where to connect
- * @param timeout in ms until the connection try times out if remote not reachable */
+ * @param timeout in ms until the connection try times out if remote not reachable
+ * @param logger the logger to use */
 typedef UA_Connection
 (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
-                              const UA_UInt32 timeout);
+                              const UA_UInt32 timeout, UA_Logger logger);
 
 /**
  * Endpoint URL Parser

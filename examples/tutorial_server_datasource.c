@@ -10,7 +10,7 @@
  * near the physical process and clients consuming the data at runtime. In the
  * previous tutorial, we saw how to add variables to an OPC UA information
  * model. This tutorial shows how to connect a variable to runtime information,
- * for example from measurements of a physical process. For simplicty, we take
+ * for example from measurements of a physical process. For simplicity, we take
  * the system clock as the underlying "process".
  *
  * The following code snippets are each concerned with a different way of
@@ -49,7 +49,7 @@ addCurrentTimeVariable(UA_Server *server) {
     UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NULL;
+    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
     UA_Server_addVariableNode(server, currentNodeId, parentNodeId,
                               parentReferenceNodeId, currentName,
                               variableTypeNodeId, attr, NULL, NULL);
@@ -70,7 +70,7 @@ addCurrentTimeVariable(UA_Server *server) {
 static void
 beforeReadTime(UA_Server *server,
                const UA_NodeId *sessionId, void *sessionContext,
-               const UA_NodeId *nodeid, void *nodeContext, 
+               const UA_NodeId *nodeid, void *nodeContext,
                const UA_NumericRange *range, const UA_DataValue *data) {
     UA_DateTime now = UA_DateTime_now();
     UA_Variant value;
@@ -140,7 +140,7 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
     UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time-datasource");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NULL;
+    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
 
     UA_DataSource timeDataSource;
     timeDataSource.read = readCurrentTime;

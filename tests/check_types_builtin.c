@@ -411,7 +411,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     ck_assert_uint_eq(pos, 5);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_VARIANT]));
     //ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
-    ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
+    ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(dst.arrayLength, 0);
     ck_assert_int_ne((uintptr_t)dst.data, 0);
     UA_assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
@@ -810,8 +810,8 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
         {0x00, 0x00, 0x80, 0x7F}, // INF
         {0x00, 0x00, 0x80, 0xFF} // -INF
     };
-#ifdef _WIN32
-    // on WIN32 -NAN is encoded differently
+#if defined(_WIN32) || defined(__TINYC__)
+    // on WIN32 or TinyCC -NAN is encoded differently
     result[4][3] = 127;
 #endif
 
@@ -996,26 +996,6 @@ START_TEST(UA_DateTime_toStructShallWorkOnExample) {
 }
 END_TEST
 
-START_TEST(UA_DateTime_toStringShallWorkOnExample) {
-    // given
-    UA_DateTime src = 13974671891234567 + (11644473600 * 10000000); // ua counts since 1601, unix since 1970
-    //1397467189... is Mon, 14 Apr 2014 09:19:49 GMT
-    //...1234567 are the milli-, micro- and nanoseconds
-
-    UA_String dst;
-
-    // when
-    dst = UA_DateTime_toString(src);
-    // then
-    ck_assert_int_eq(dst.data[0], '0');
-    ck_assert_int_eq(dst.data[1], '4');
-    ck_assert_int_eq(dst.data[2], '/');
-    ck_assert_int_eq(dst.data[3], '1');
-    ck_assert_int_eq(dst.data[4], '4');
-    UA_String_deleteMembers(&dst);
-}
-END_TEST
-
 START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
     // given
     /* UA_Byte data[3] = { 1, 2, 3 }; */
@@ -1196,8 +1176,7 @@ END_TEST
 
 START_TEST(UA_QualifiedName_copyShallWorkOnInputExample) {
     // given
-    UA_String srcName = (UA_String){8, (UA_Byte*)"tEsT123!"};
-    UA_QualifiedName src = {5, srcName};
+    UA_QualifiedName src = UA_QUALIFIEDNAME(5, "tEsT123!");
     UA_QualifiedName dst;
 
     // when
@@ -1526,7 +1505,6 @@ static Suite *testSuite_builtin(void) {
 
     TCase *tc_convert = tcase_create("convert");
     tcase_add_test(tc_convert, UA_DateTime_toStructShallWorkOnExample);
-    tcase_add_test(tc_convert, UA_DateTime_toStringShallWorkOnExample);
     suite_add_tcase(s, tc_convert);
 
     TCase *tc_copy = tcase_create("copy");

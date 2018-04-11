@@ -25,16 +25,15 @@ int main(void) {
     UA_Variant_init(&value);
 
     /* NodeId of the variable holding the current time */
-    const UA_NodeId nodeId =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-
+    const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
+
     if(retval == UA_STATUSCODE_GOOD &&
        UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
-        UA_DateTime raw_date = *(UA_DateTime*)value.data;
-        UA_String string_date = UA_DateTime_toString(raw_date);
-        printf("string date is: %.*s\n", (int)string_date.length, string_date.data);
-        UA_String_deleteMembers(&string_date);
+        UA_DateTime raw_date = *(UA_DateTime *) value.data;
+        UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "date is: %u-%u-%u %u:%u:%u.%03u\n",
+                    dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
     }
 
     /* Clean up */
@@ -60,7 +59,7 @@ int main(void) {
  * ^^^^^^^^^^^^^
  *
  * - Try to connect to some other OPC UA server by changing
- *   ``opc.tcp://localhost:16664`` to an appropriate address (remember that the
+ *   ``opc.tcp://localhost:4840`` to an appropriate address (remember that the
  *   queried node is contained in any OPC UA server).
  *
  * - Try to set the value of the variable node (ns=1,i="the.answer") containing

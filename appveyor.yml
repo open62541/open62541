@@ -40,6 +40,7 @@ environment:
 cache:
   - C:\ProgramData\chocolatey\bin -> tools/appveyor/install.ps1
   - C:\ProgramData\chocolatey\lib -> tools/appveyor/install.ps1
+  - C:\tools\vcpkg\installed -> tools/appveyor/install.ps1
   #- 'c:\miktex'
 
 init:
@@ -50,7 +51,7 @@ install:
 
 before_build:
   # Add installed tools to PATH
-  - set PATH=C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
+  - set PATH=C:\Python27;C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
   # Miktex

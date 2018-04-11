@@ -1,8 +1,18 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016 (c) Lorenz Haas
+ *    Copyright 2017 (c) frax2222
+ *    Copyright 2017 (c) Florian Palm
+ *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Julian Grothoff
+ */
 
 #include "ua_server_internal.h"
+
+#define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
 
 /**********************/
 /* Parse NumericRange */
@@ -85,11 +95,22 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
 /* Information Model Operations */
 /********************************/
 
-UA_Boolean
-isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
+/* Keeps track of already visited nodes to detect circular references */
+struct ref_history {
+    struct ref_history *parent; /* the previous element */
+    const UA_NodeId *id; /* the id of the node at this depth */
+    UA_UInt16 depth;
+};
+
+static UA_Boolean
+isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+                       struct ref_history *visitedRefs, const UA_NodeId *referenceTypeIds,
+                       size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
         return true;
+
+    if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
+        return false;
 
     const UA_Node *node = ns->getNode(ns->context, leafNode);
     if(!node)
@@ -114,8 +135,31 @@ isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
         /* Match the targets or recurse */
         for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-            if(isNodeInTree(ns, &refs->targetIds[j].nodeId, nodeToFind,
-                            referenceTypeIds, referenceTypeIdsSize)) {
+            /* Check if we already have seen the referenced node and skip to
+             * avoid endless recursion. Do this only at every 5th depth to save
+             * effort. Circular dependencies are rare and forbidden for most
+             * reference types. */
+            if(visitedRefs->depth % 5 == 4) {
+                struct ref_history *last = visitedRefs;
+                UA_Boolean skip = UA_FALSE;
+                while(!skip && last) {
+                    if(UA_NodeId_equal(last->id, &refs->targetIds[j].nodeId))
+                        skip = UA_TRUE;
+                    last = last->parent;
+                }
+                if(skip)
+                    continue;
+            }
+
+            /* Stack-allocate the visitedRefs structure for the next depth */
+            struct ref_history nextVisitedRefs = {visitedRefs, &refs->targetIds[j].nodeId,
+                                                  (UA_UInt16)(visitedRefs->depth+1)};
+
+            /* Recurse */
+            UA_Boolean foundRecursive =
+                isNodeInTreeNoCircular(ns, &refs->targetIds[j].nodeId, nodeToFind, &nextVisitedRefs,
+                                       referenceTypeIds, referenceTypeIdsSize);
+            if(foundRecursive) {
                 ns->releaseNode(ns->context, node);
                 return true;
             }
@@ -124,6 +168,13 @@ isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
     ns->releaseNode(ns->context, node);
     return false;
+}
+
+UA_Boolean
+isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
+    struct ref_history visitedRefs = {NULL, leafNode, 0};
+    return isNodeInTreeNoCircular(ns, leafNode, nodeToFind, &visitedRefs, referenceTypeIds, referenceTypeIdsSize);
 }
 
 const UA_Node *
@@ -302,7 +353,7 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
 UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
-                   const void *data) {
+                   void *data) {
 #ifndef UA_ENABLE_MULTITHREADING
     const UA_Node *node = UA_Nodestore_get(server, nodeId);
     if(!node)
@@ -333,7 +384,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   const size_t *requestOperations,
+                                   void *context, const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType) {
@@ -352,7 +403,7 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
     /* No padding after size_t */
     uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
     for(size_t i = 0; i < ops; i++) {
-        operationCallback(server, session, (void*)reqOp, (void*)respOp);
+        operationCallback(server, session, context, (void*)reqOp, (void*)respOp);
         reqOp += requestOperationsType->memSize;
         respOp += responseOperationsType->memSize;
     }

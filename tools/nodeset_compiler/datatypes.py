@@ -136,7 +136,7 @@ class Value(object):
     def parseXML(self, xmlvalue):
         raise Exception("Cannot parse arbitrary value of no type.")
 
-    def parseXMLEncoding(self, xmlvalue, parentDataTypeNode):
+    def parseXMLEncoding(self, xmlvalue, parentDataTypeNode, parent):
         self.checkXML(xmlvalue)
         if not "value" in xmlvalue.localName.lower():
             logger.error("Expected <Value> , but found " + xmlvalue.localName + \
@@ -157,11 +157,15 @@ class Value(object):
             for el in xmlvalue.childNodes:
                 if not el.nodeType == el.ELEMENT_NODE:
                     continue
-                self.value.append(self.__parseXMLSingleValue(el, parentDataTypeNode))
+                val = self.__parseXMLSingleValue(el, parentDataTypeNode, parent)
+                if val is None:
+                    self.value = []
+                    return
+                self.value.append(val)
         else:
-            self.value = [self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode)]
+            self.value = [self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent)]
 
-    def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, alias=None, encodingPart=None):
+    def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, alias=None, encodingPart=None):
         # Parse an encoding list such as enc = [[Int32], ['Duration', ['DateTime']]],
         # returning a possibly aliased variable or list of variables.
         # Keep track of aliases, as ['Duration', ['Hawaii', ['UtcTime', ['DateTime']]]]
@@ -184,8 +188,8 @@ class Value(object):
             if isinstance(enc[0], six.string_types):
                 # 0: 'BuiltinType'
                 if alias != None:
-                    if not xmlvalue.localName == alias:
-                        logger.error("Expected XML element with tag " + alias + " but found " + xmlvalue.localName + " instead")
+                    if not xmlvalue.localName == alias and not xmlvalue.localName == enc[0]:
+                        logger.error(str(parent.id) + ": Expected XML element with tag " + alias + " but found " + xmlvalue.localName + " instead")
                         return None
                     else:
                         t = self.getTypeByString(enc[0], enc)
@@ -194,7 +198,7 @@ class Value(object):
                         return t
                 else:
                     if not valueIsInternalType(xmlvalue.localName):
-                        logger.error("Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.localName + " instead")
+                        logger.error(str(parent.id) + ": Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.localName + " instead")
                     else:
                         t = self.getTypeByString(enc[0], enc)
                         t.parseXML(xmlvalue)
@@ -203,7 +207,7 @@ class Value(object):
             else:
                 # 1: ['Alias', [...], n]
                 # Let the next elif handle this
-                return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, alias=alias, encodingPart=enc[0])
+                return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent, alias=alias, encodingPart=enc[0])
         elif len(enc) == 3 and isinstance(enc[0], six.string_types):
             # [ 'Alias', [...], 0 ]          aliased multipart
             if alias == None:
@@ -212,7 +216,7 @@ class Value(object):
             elif alias != None and len(enc[1]) > 1:
                 alias = enc[0]
             # otherwise drop the alias
-            return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, alias=alias, encodingPart=enc[1])
+            return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent, alias=alias, encodingPart=enc[1])
         else:
             # [ [...], [...], [...]] multifield of unknowns (analyse separately)
             # create an extension object to hold multipart type
@@ -223,18 +227,18 @@ class Value(object):
             #        Consider moving this ExtensionObject specific parsing into the
             #        builtin type and only determining the multipart type at this stage.
             if not xmlvalue.localName == "ExtensionObject":
-                logger.error("Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.localName + " instead.")
+                logger.error(str(parent.id) + ": Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.localName + " instead.")
                 return None
 
             extobj = ExtensionObject()
             extobj.encodingRule = enc
             etype = xmlvalue.getElementsByTagName("TypeId")
             if len(etype) == 0:
-                logger.error("Did not find <TypeId> for ExtensionObject")
+                logger.error(str(parent.id) + ": Did not find <TypeId> for ExtensionObject")
                 return None
             etype = etype[0].getElementsByTagName("Identifier")
             if len(etype) == 0:
-                logger.error("Did not find <Identifier> for ExtensionObject")
+                logger.error(str(parent.id) + ": Did not find <Identifier> for ExtensionObject")
                 return None
 
             etype = NodeId(etype[0].firstChild.data.strip(' \t\n\r'))
@@ -242,7 +246,7 @@ class Value(object):
 
             ebody = xmlvalue.getElementsByTagName("Body")
             if len(ebody) == 0:
-                logger.error("Did not find <Body> for ExtensionObject")
+                logger.error(str(parent.id) + ": Did not find <Body> for ExtensionObject")
                 return None
             ebody = ebody[0]
 
@@ -251,11 +255,11 @@ class Value(object):
             if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
                 ebodypart = getNextElementNode(ebodypart)
             if ebodypart == None:
-                logger.error("Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
+                logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
                 return None
 
             if not ebodypart.localName == parentDataTypeNode.browseName.name:
-                logger.error("Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
+                logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
                              str(ebodypart.localName) + " instead.")
                 return None
             extobj.alias = ebodypart.localName
@@ -264,15 +268,15 @@ class Value(object):
             if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
                 ebodypart = getNextElementNode(ebodypart)
             if ebodypart == None:
-                logger.error("Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
+                logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
                 return None
 
             extobj.value = []
             for e in enc:
                 if not ebodypart == None:
-                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, alias=None, encodingPart=e))
+                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, alias=None, encodingPart=e))
                 else:
-                    logger.error("Expected encoding " + str(e) + " but found none in body.")
+                    logger.error(str(parent.id) + ": Expected encoding " + str(e) + " but found none in body.")
                 ebodypart = getNextElementNode(ebodypart)
             return extobj
 

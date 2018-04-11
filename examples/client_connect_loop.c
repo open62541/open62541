@@ -56,12 +56,12 @@ int main(void) {
     UA_Variant_init(&value);
 
     /* Endless loop reading the server time */
-    while (running) {
+    while(running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
         /* Alternatively you can also use UA_Client_getState to get the current state */
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-        if (retval != UA_STATUSCODE_GOOD) {
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT, "Not connected. Retrying to connect in 1 second");
             /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
             /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */
@@ -74,17 +74,18 @@ int main(void) {
                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
 
         retval = UA_Client_readValueAttribute(client, nodeId, &value);
-        if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT, "Connection was closed. Reconnecting ...");
             continue;
         }
-        if (retval == UA_STATUSCODE_GOOD &&
-            UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
+        if(retval == UA_STATUSCODE_GOOD &&
+           UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
             UA_DateTime raw_date = *(UA_DateTime *) value.data;
-            UA_String string_date = UA_DateTime_toString(raw_date);
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT, "string date is: %.*s", (int) string_date.length, string_date.data);
-            UA_String_deleteMembers(&string_date);
+            UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
+            UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
+                        dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
         }
+        UA_Variant_deleteMembers(&value);
         UA_sleep_ms(1000);
     };
 

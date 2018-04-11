@@ -52,11 +52,11 @@ def generateQualifiedNameCode(value, alloc=False, max_string_length=0):
 
 def generateNodeIdCode(value):
     if not value:
-        return "UA_NODEID_NUMERIC(0,0)"
+        return "UA_NODEID_NUMERIC(0, 0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns[%s],%s)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[%s], %s)" % (value.ns, value.i)
     elif value.s != None:
-        return "UA_NODEID_STRING(ns[%s],%s)" % (value.ns, value.s.replace('"', r'\"'))
+        return "UA_NODEID_STRING(ns[%s], %s)" % (value.ns, value.s.replace('"', r'\"'))
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateExpandedNodeIdCode(value):
@@ -69,7 +69,7 @@ def generateExpandedNodeIdCode(value):
 def generateDateTimeCode(value):
     epoch = datetime.datetime.utcfromtimestamp(0)
     mSecsSinceEpoch = int((value - epoch).total_seconds() * 1000.0)
-    return "( (UA_DateTime)(" + str(mSecsSinceEpoch) + " * UA_MSEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH)"
+    return "( (UA_DateTime)(" + str(mSecsSinceEpoch) + " * UA_DATETIME_MSEC) + UA_DATETIME_UNIX_EPOCH)"
 
 def generateNodeValueCode(node, instanceName, asIndirect=False, max_string_length=0):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
@@ -80,7 +80,7 @@ def generateNodeValueCode(node, instanceName, asIndirect=False, max_string_lengt
         return generateXmlElementCode(node.value, alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == ByteString:
         # replace whitespaces between tags and remove newlines
-        return generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", "", node.value)), alloc=asIndirect, max_string_length=max_string_length)
+        return "UA_BYTESTRING_NULL" if not node.value else generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", "", node.value)), alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == LocalizedText:
         return generateLocalizedTextCode(node, alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == NodeId:

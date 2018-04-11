@@ -1,6 +1,12 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016 (c) Sten Grüner
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Florian Palm
+ */
 
 #ifndef UA_CONSTANTS_H_
 #define UA_CONSTANTS_H_
@@ -156,7 +162,7 @@ typedef enum {
 #define UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY 0x002e0000 // The processing will complete asynchronously.
 #define UA_STATUSCODE_GOODOVERLOAD 0x002f0000 // Sampling has slowed down due to resource limitations.
 #define UA_STATUSCODE_GOODCLAMPED 0x00300000 // The value written was accepted but was clamped.
-#define UA_STATUSCODE_BADNOCOMMUNICATION 0x80310000 // Communication with the data source is defined
+#define UA_STATUSCODE_BADNOCOMMUNICATION 0x80310000 // Communication with the data source is defined, but not established, and there is no last known value available.
 #define UA_STATUSCODE_BADWAITINGFORINITIALDATA 0x80320000 // Waiting for the server to obtain values from the underlying data source.
 #define UA_STATUSCODE_BADNODEIDINVALID 0x80330000 // The syntax of the node id is not valid.
 #define UA_STATUSCODE_BADNODEIDUNKNOWN 0x80340000 // The node id refers to a node that does not exist in the server address space.
@@ -181,7 +187,7 @@ typedef enum {
 #define UA_STATUSCODE_BADEVENTFILTERINVALID 0x80470000 // The event filter is not valid.
 #define UA_STATUSCODE_BADCONTENTFILTERINVALID 0x80480000 // The content filter is not valid.
 #define UA_STATUSCODE_BADFILTEROPERATORINVALID 0x80c10000 // An unregognized operator was provided in a filter.
-#define UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED 0x80c20000 // A valid operator was provided
+#define UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED 0x80c20000 // A valid operator was provided, but the server does not provide support for this filter operator.
 #define UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH 0x80c30000 // The number of operands provided for the filter operator was less then expected for the operand provided.
 #define UA_STATUSCODE_BADFILTEROPERANDINVALID 0x80490000 // The operand used in a content filter is not valid.
 #define UA_STATUSCODE_BADFILTERELEMENTINVALID 0x80c40000 // The referenced element is not a valid element in the content filter.
@@ -237,7 +243,7 @@ typedef enum {
 #define UA_STATUSCODE_BADHISTORYOPERATIONINVALID 0x80710000 // The history details parameter is not valid.
 #define UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED 0x80720000 // The server does not support the requested operation.
 #define UA_STATUSCODE_BADINVALIDTIMESTAMPARGUMENT 0x80bd0000 // The defined timestamp to return was invalid.
-#define UA_STATUSCODE_BADWRITENOTSUPPORTED 0x80730000 // The server not does support writing the combination of value
+#define UA_STATUSCODE_BADWRITENOTSUPPORTED 0x80730000 // The server not does support writing the combination of value, status and timestamps provided.
 #define UA_STATUSCODE_BADTYPEMISMATCH 0x80740000 // The value supplied for the attribute is not of the same type as the attribute's value.
 #define UA_STATUSCODE_BADMETHODINVALID 0x80750000 // The method id does not refer to a method for the specified object.
 #define UA_STATUSCODE_BADARGUMENTSMISSING 0x80760000 // The client did not specify all of the input arguments for the method.
@@ -262,7 +268,7 @@ typedef enum {
 #define UA_STATUSCODE_BADSEQUENCENUMBERINVALID 0x80880000 // The sequence number is not valid.
 #define UA_STATUSCODE_BADPROTOCOLVERSIONUNSUPPORTED 0x80be0000 // The applications do not have compatible protocol versions.
 #define UA_STATUSCODE_BADCONFIGURATIONERROR 0x80890000 // There is a problem with the configuration that affects the usefulness of the value.
-#define UA_STATUSCODE_BADNOTCONNECTED 0x808a0000 // The variable should receive its value from another variable
+#define UA_STATUSCODE_BADNOTCONNECTED 0x808a0000 // The variable should receive its value from another variable, but has never been configured to do so.
 #define UA_STATUSCODE_BADDEVICEFAILURE 0x808b0000 // There has been a failure in the device/data source that generates the value that has affected the value.
 #define UA_STATUSCODE_BADSENSORFAILURE 0x808c0000 // There has been a failure in the sensor from which the value is derived by the device/data source.
 #define UA_STATUSCODE_BADOUTOFSERVICE 0x808d0000 // The source of the data is not operational.
@@ -275,10 +281,10 @@ typedef enum {
 #define UA_STATUSCODE_UNCERTAINENGINEERINGUNITSEXCEEDED 0x40940000 // The value is outside of the range of values defined for this parameter.
 #define UA_STATUSCODE_UNCERTAINSUBNORMAL 0x40950000 // The value is derived from multiple sources and has less than the required number of Good sources.
 #define UA_STATUSCODE_GOODLOCALOVERRIDE 0x00960000 // The value has been overridden.
-#define UA_STATUSCODE_BADREFRESHINPROGRESS 0x80970000 // This Condition refresh failed
+#define UA_STATUSCODE_BADREFRESHINPROGRESS 0x80970000 // This Condition refresh failed, a Condition refresh operation is already in progress.
 #define UA_STATUSCODE_BADCONDITIONALREADYDISABLED 0x80980000 // This condition has already been disabled.
 #define UA_STATUSCODE_BADCONDITIONALREADYENABLED 0x80cc0000 // This condition has already been enabled.
-#define UA_STATUSCODE_BADCONDITIONDISABLED 0x80990000 // Property not available
+#define UA_STATUSCODE_BADCONDITIONDISABLED 0x80990000 // Property not available, this condition is disabled.
 #define UA_STATUSCODE_BADEVENTIDUNKNOWN 0x809a0000 // The specified event id is not recognized.
 #define UA_STATUSCODE_BADEVENTNOTACKNOWLEDGEABLE 0x80bb0000 // The event cannot be acknowledged.
 #define UA_STATUSCODE_BADDIALOGNOTACTIVE 0x80cd0000 // The dialog condition is not active.
@@ -292,7 +298,7 @@ typedef enum {
 #define UA_STATUSCODE_BADBOUNDNOTFOUND 0x80d70000 // No data found to provide upper or lower bound value.
 #define UA_STATUSCODE_BADBOUNDNOTSUPPORTED 0x80d80000 // The server cannot retrieve a bound for the variable.
 #define UA_STATUSCODE_BADDATALOST 0x809d0000 // Data is missing due to collection started/stopped/lost.
-#define UA_STATUSCODE_BADDATAUNAVAILABLE 0x809e0000 // Expected data is unavailable for the requested time range due to an un-mounted volume
+#define UA_STATUSCODE_BADDATAUNAVAILABLE 0x809e0000 // Expected data is unavailable for the requested time range due to an un-mounted volume, an off-line archive or tape, or similar reason for temporary unavailability.
 #define UA_STATUSCODE_BADENTRYEXISTS 0x809f0000 // The data or event was not successfully inserted because a matching entry exists.
 #define UA_STATUSCODE_BADNOENTRYEXISTS 0x80a00000 // The data or event was not successfully updated because no matching entry exists.
 #define UA_STATUSCODE_BADTIMESTAMPNOTSUPPORTED 0x80a10000 // The client requested history using a timestamp format the server does not support (i.e requested ServerTimestamp when server only supports SourceTimestamp).
@@ -322,7 +328,7 @@ typedef enum {
 #define UA_STATUSCODE_BADCONNECTIONREJECTED 0x80ac0000 // Could not establish a network connection to remote server.
 #define UA_STATUSCODE_BADDISCONNECT 0x80ad0000 // The server has disconnected from the client.
 #define UA_STATUSCODE_BADCONNECTIONCLOSED 0x80ae0000 // The network connection has been closed.
-#define UA_STATUSCODE_BADINVALIDSTATE 0x80af0000 // The operation cannot be completed because the object is closed
+#define UA_STATUSCODE_BADINVALIDSTATE 0x80af0000 // The operation cannot be completed because the object is closed, uninitialized or in some other invalid state.
 #define UA_STATUSCODE_BADENDOFSTREAM 0x80b00000 // Cannot move beyond end of the stream.
 #define UA_STATUSCODE_BADNODATAAVAILABLE 0x80b10000 // No data is currently available for reading from a non-blocking stream.
 #define UA_STATUSCODE_BADWAITINGFORRESPONSE 0x80b20000 // The asynchronous operation is waiting for a response.
@@ -331,6 +337,10 @@ typedef enum {
 #define UA_STATUSCODE_BADWOULDBLOCK 0x80b50000 // Non blocking behaviour is required and the operation would block.
 #define UA_STATUSCODE_BADSYNTAXERROR 0x80b60000 // A value had an invalid syntax.
 #define UA_STATUSCODE_BADMAXCONNECTIONSREACHED 0x80b70000 // The operation could not be finished because all available connections are in use.
+
+/* These StatusCodes are manually generated. */
+#define UA_STATUSCODE_INFOTYPE_DATAVALUE 0x00000400
+#define UA_STATUSCODE_INFOBITS_OVERFLOW 0x00000080
 
 /**
  * Namespace Zero NodeIds

@@ -1,6 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015-2017 (c) Florian Palm
+ *    Copyright 2015 (c) Holger Jeromin
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018 (c) Thomas Stalder
+ */
 
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
@@ -14,6 +25,7 @@ extern "C" {
 #include "ua_types_generated_handling.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_log.h"
+#include "ua_client_config.h"
 
 /**
  * .. _client:
@@ -32,39 +44,11 @@ extern "C" {
  * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
  * <client-subscriptions>`.
  *
- * Client Configuration
- * -------------------- */
-
-typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout in ms */
-    UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
-                                        to be renewed) */
-    UA_Logger logger;
-    UA_ConnectionConfig localConnectionConfig;
-    UA_ConnectClientConnection connectionFunc;
-
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
-} UA_ClientConfig;
-
-/**
+ *
+ * .. include:: client_config.rst
+ *
  * Client Lifecycle
  * ---------------- */
-
-typedef enum {
-    UA_CLIENTSTATE_DISCONNECTED,        /* The client is not connected */
-    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
-    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
-    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
-    UA_CLIENTSTATE_SESSION_DISCONNECTED /* A session with the server is open.
-                                         * But the SecureChannel was lost. Try
-                                         * to establish a new SecureChannel and
-                                         * reattach the existing session. */
-} UA_ClientState;
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
 
 /* Create a new client */
 UA_Client UA_EXPORT *
@@ -73,6 +57,10 @@ UA_Client_new(UA_ClientConfig config);
 /* Get the client connection status */
 UA_ClientState UA_EXPORT
 UA_Client_getState(UA_Client *client);
+
+/* Get the client context */
+void UA_EXPORT *
+UA_Client_getContext(UA_Client *client);
 
 /* Reset a client */
 void UA_EXPORT
@@ -89,7 +77,7 @@ UA_Client_delete(UA_Client *client);
 /* Connect to the server
  *
  * @param client to use
- * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
@@ -97,7 +85,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl);
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
- * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
  * @param username
  * @param password
  * @return Indicates whether the operation succeeded or returns an error code */
@@ -105,9 +93,13 @@ UA_StatusCode UA_EXPORT
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
                            const char *username, const char *password);
 
-/* Close a connection to the selected server */
+/* Disconnect and close a connection to the selected server */
 UA_StatusCode UA_EXPORT
 UA_Client_disconnect(UA_Client *client);
+
+/* Close a connection to the selected server */
+UA_StatusCode UA_EXPORT
+UA_Client_close(UA_Client *client);
 
 /* Renew the underlying secure channel */
 UA_StatusCode UA_EXPORT
@@ -121,7 +113,7 @@ UA_Client_manuallyRenewSecureChannel(UA_Client *client);
  *
  * @param client to use. Must be connected to the same endpoint given in
  *        serverUrl or otherwise in disconnected state.
- * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:4840")
  * @param endpointDescriptionsSize size of the array of endpoint descriptions
  * @param endpointDescriptions array of endpoint descriptions that is allocated
  *        by the function (you need to free manually)
@@ -143,7 +135,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
  *
  * @param client to use. Must be connected to the same endpoint given in
  *        serverUrl or otherwise in disconnected state.
- * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:4840")
  * @param serverUrisSize Optional filter for specific server uris
  * @param serverUris Optional filter for specific server uris
  * @param localeIdsSize Optional indication which locale you prefer
@@ -162,7 +154,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
  *
  * @param client to use. Must be connected to the same endpoint given in
  * serverUrl or otherwise in disconnected state.
- * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:4840")
  * @param startingRecordId optional. Only return the records with an ID higher
  *        or equal the given. Can be used for pagination to only get a subset of
  *        the full list
@@ -187,6 +179,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  *
  * Services
  * --------
+ *
  * The raw OPC UA services are exposed to the client. But most of them time, it
  * is better to use the convenience functions from ``ua_client_highlevel.h``
  * that wrap the raw services. */
@@ -196,7 +189,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
                     const UA_DataType *responseType);
 
-/**
+/*
  * Attribute Service Set
  * ^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_ReadResponse
@@ -215,7 +208,7 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
-/**
+/*
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
 #ifdef UA_ENABLE_METHODCALLS
@@ -228,7 +221,7 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
 }
 #endif
 
-/**
+/*
  * NodeManagement Service Set
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_AddNodesResponse
@@ -266,7 +259,7 @@ UA_Client_Service_deleteReferences(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * View Service Set
  * ^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_BrowseResponse
@@ -316,7 +309,7 @@ UA_Client_Service_unregisterNodes(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * Query Service Set
  * ^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_QueryFirstResponse
@@ -337,74 +330,6 @@ UA_Client_Service_queryNext(UA_Client *client,
     return response;
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-/**
- * MonitoredItem Service Set
- * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
-static UA_INLINE UA_CreateMonitoredItemsResponse
-UA_Client_Service_createMonitoredItems(UA_Client *client,
-                                 const UA_CreateMonitoredItemsRequest request) {
-    UA_CreateMonitoredItemsResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_DeleteMonitoredItemsResponse
-UA_Client_Service_deleteMonitoredItems(UA_Client *client,
-                                 const UA_DeleteMonitoredItemsRequest request) {
-    UA_DeleteMonitoredItemsResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE]);
-    return response;
-}
-
-/**
- * Subscription Service Set
- * ^^^^^^^^^^^^^^^^^^^^^^^^ */
-static UA_INLINE UA_CreateSubscriptionResponse
-UA_Client_Service_createSubscription(UA_Client *client,
-                                   const UA_CreateSubscriptionRequest request) {
-    UA_CreateSubscriptionResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_ModifySubscriptionResponse
-UA_Client_Service_modifySubscription(UA_Client *client,
-                                   const UA_ModifySubscriptionRequest request) {
-    UA_ModifySubscriptionResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_DeleteSubscriptionsResponse
-UA_Client_Service_deleteSubscriptions(UA_Client *client,
-                                  const UA_DeleteSubscriptionsRequest request) {
-    UA_DeleteSubscriptionsResponse response;
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST], &response,
-                        &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_PublishResponse
-UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
-    UA_PublishResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-    return response;
-}
-
-#endif
-
 /**
  * .. _client-async-services:
  *
@@ -414,11 +339,30 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
  * be made without waiting for a response first. Responess may come in a
  * different ordering. */
 
+/* Listen on the network and process arriving asynchronous responses in the
+ * background. Internal housekeeping and subscription management is done as
+ * well. */
+UA_StatusCode UA_EXPORT
+UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
+
 typedef void
 (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, const void *response);
+                                 UA_UInt32 requestId, void *response,
+                                 const UA_DataType *responseType);
 
-/* Don't use this function. Use the type versions below instead. */
+/* Use the type versions of this method. See below. However, the general
+ * mechanism of async service calls is explained here.
+ *
+ * We say that an async service call has been dispatched once this method
+ * returns UA_STATUSCODE_GOOD. If there is an error after an async service has
+ * been dispatched, the callback is called with an "empty" response where the
+ * statusCode has been set accordingly. This is also done if the client is
+ * shutting down and the list of dispatched async services is emptied.
+ *
+ * The statusCode received when the client is shutting down is
+ * UA_STATUSCODE_BADSHUTDOWN.
+ *
+ * The userdata and requestId arguments can be NULL. */
 UA_StatusCode UA_EXPORT
 __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
@@ -426,13 +370,51 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
 
-UA_StatusCode UA_EXPORT
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_read(UA_Client *client, const UA_ReadRequest *request,
+                            UA_ClientAsyncServiceCallback callback,
+                            void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_READREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_READRESPONSE],
+                                    userdata, requestId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_write(UA_Client *client, const UA_WriteRequest *request,
+                             UA_ClientAsyncServiceCallback callback,
+                             void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_WRITEREQUEST], callback, 
+                                    &UA_TYPES[UA_TYPES_WRITERESPONSE],
+                                    userdata, requestId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_call(UA_Client *client, const UA_CallRequest *request,
+                            UA_ClientAsyncServiceCallback callback,
+                            void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_CALLRESPONSE],
+                                    userdata, requestId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request,
+                              UA_ClientAsyncServiceCallback callback,
+                              void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_BROWSEREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE],
+                                    userdata, requestId);
+}
 
 /**
  * .. toctree::
  *
- *    client_highlevel */
+ *    client_highlevel
+ *    client_subscriptions */
 
 #ifdef __cplusplus
 } // extern "C"

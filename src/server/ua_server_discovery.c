@@ -1,10 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_server_internal.h"
 #include "ua_client.h"
-#include "ua_config_default.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
@@ -20,7 +23,8 @@ register_server_with_discovery_server(UA_Server *server,
     }
 
     /* Create the client */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_ClientConfig clientConfig = UA_Server_getClientConfig();
+    UA_Client *client = UA_Client_new(clientConfig);
     if(!client)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -66,12 +70,8 @@ register_server_with_discovery_server(UA_Server *server,
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
     size_t total_discurls = config_discurls + nl_discurls;
-    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * total_discurls);
-    if (!request.server.discoveryUrls) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    UA_STACKARRAY(UA_String, urlsBuf, total_discurls);
+    request.server.discoveryUrls = urlsBuf;
     request.server.discoveryUrlsSize = total_discurls;
 
     for(size_t i = 0; i < config_discurls; ++i)
@@ -99,7 +99,6 @@ register_server_with_discovery_server(UA_Server *server,
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;
-    UA_RegisterServer2Response_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
@@ -117,7 +116,6 @@ register_server_with_discovery_server(UA_Server *server,
         request_fallback.server = request.server;
 
         UA_RegisterServerResponse response_fallback;
-        UA_RegisterServerResponse_init(&response_fallback);
 
         __UA_Client_Service(client, &request_fallback,
                             &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],

@@ -1,6 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Julian Grothoff
+ */
 
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
@@ -19,12 +28,16 @@ extern "C" {
 
 #ifdef UA_ENABLE_MULTITHREADING
 
-/* TODO: Don't depend on liburcu */
-#include <urcu.h>
-#include <urcu/lfstack.h>
+#include <pthread.h>
 
 struct UA_Worker;
 typedef struct UA_Worker UA_Worker;
+
+struct UA_WorkerCallback;
+typedef struct UA_WorkerCallback UA_WorkerCallback;
+
+SIMPLEQ_HEAD(UA_DispatchQueue, UA_WorkerCallback);
+typedef struct UA_DispatchQueue UA_DispatchQueue;
 
 #endif /* UA_ENABLE_MULTITHREADING */
 
@@ -117,12 +130,11 @@ struct UA_Server {
 
     /* Worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
-    /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
-    struct cds_wfcq_head dispatchQueue_head;
     UA_Worker *workers; /* there are nThread workers in a running server */
+    UA_DispatchQueue dispatchQueue; /* Dispatch queue for the worker threads */
+    pthread_mutex_t dispatchQueue_accessMutex; /* mutex for access to queue */
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
-    struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
+    pthread_mutex_t dispatchQueue_conditionMutex; /* mutex for access to condition variable */
 #endif
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
@@ -162,11 +174,11 @@ struct UA_Server {
  * stack. Either a copy or the original node for in-situ editing. Depends on
  * multithreading and the nodestore.*/
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
-                                             UA_Node *node, const void*);
+                                             UA_Node *node, void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
                                  const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback,
-                                 const void *data);
+                                 void *data);
 
 /*************/
 /* Callbacks */
@@ -176,6 +188,17 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
  * finished */
 UA_StatusCode
 UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
+
+UA_StatusCode
+UA_Server_delayedFree(UA_Server *server, void *data);
+
+#ifndef UA_ENABLE_MULTITHREADING
+/* Execute all delayed callbacks regardless of whether the worker threads have
+ * finished previous work */
+void UA_Server_cleanupDelayedCallbacks(UA_Server *server);
+#else
+void UA_Server_cleanupDispatchQueue(UA_Server *server);
+#endif
 
 /* Callback is executed in the same thread or, if possible, dispatched to one of
  * the worker threads. */
@@ -218,16 +241,19 @@ const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
+                                    void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
+                                   void *context,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
-                                   const UA_DataType *responseOperationsType);
+                                   const UA_DataType *responseOperationsType)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /***************************************/
 /* Check Information Model Consistency */
@@ -265,27 +291,19 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
 
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType);
+                   const UA_NodeId *constraintDataType, UA_Boolean isValue);
 
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
-/*******************/
-/* Single-Services */
-/*******************/
-
-/* Some services take an array of "independent" requests. The single-services
- * are stored here to keep ua_services.h clean for documentation purposes. */
-
-void Service_Browse_single(UA_Server *server, UA_Session *session,
-                           struct ContinuationPointEntry *cp,
-                           const UA_BrowseDescription *descr,
-                           UA_UInt32 maxrefs, UA_BrowseResult *result);
+void
+Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
+                 const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue
 UA_Server_readWithSession(UA_Server *server, UA_Session *session,
                           const UA_ReadValueId *item,
-                          UA_TimestampsToReturn timestamps);
+                          UA_TimestampsToReturn timestampsToReturn);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */
@@ -334,22 +352,15 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 
 /* Creates a new node in the nodestore. */
 UA_StatusCode
-Operation_addNode_begin(UA_Server *server, UA_Session *session,
-                        const UA_AddNodesItem *item, void *nodeContext,
+Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
+                        const UA_AddNodesItem *item, const UA_NodeId *parentNodeId,
+                        const UA_NodeId *referenceTypeId,
                         UA_NodeId *outNewNodeId);
 
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session,
-                         const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
-
-UA_StatusCode
-UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
-                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                               UA_MethodCallback method,
-                               size_t inputArgumentsSize, const UA_Argument* inputArguments,
-                               size_t outputArgumentsSize, const UA_Argument* outputArguments);
+                         const UA_NodeId *nodeId);
 
 /**********************/
 /* Create Namespace 0 */

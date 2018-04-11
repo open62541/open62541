@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_util.h"
 #include "ua_timer.h"
@@ -102,7 +106,7 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_TimerCallback callback,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated callback */
-    tc->interval = (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME;
+    tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
     tc->id = ++t->idCounter;
     tc->callback = callback;
     tc->data = data;
@@ -132,7 +136,7 @@ addTimerCallbackEntry(UA_Timer *t, UA_TimerCallbackEntry * UA_RESTRICT tc) {
          * between "nextTime - 1s" and "nextTime" if this adjustment groups
          * callbacks with the same repetition interval. */
         if(tmpTc->interval == tc->interval &&
-           tmpTc->nextTime > (tc->nextTime - UA_SEC_TO_DATETIME))
+           tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC))
             tc->nextTime = tmpTc->nextTime;
     }
 
@@ -157,7 +161,7 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated callback */
-    tc->interval = (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME;
+    tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
     tc->id = callbackId;
     tc->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)tc->interval;
     tc->callback = (UA_TimerCallback)CHANGE_SENTINEL;

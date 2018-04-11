@@ -5,7 +5,7 @@ pyUANamespace is a collection of python 2 scripts that can parse OPC UA XML Name
 
 ### Documentation
 
-The pyUANamespace implementation has been contributed by a research project of the chair for Process Control Systems Engineering of the TU Dresden. It was not strictly speaking created as a C generator, but could be easily modified to fullfill this role for open62541.
+The pyUANamespace implementation has been contributed by a research project of the chair for Process Control Systems Engineering of the TU Dresden. It was not strictly speaking created as a C generator, but could be easily modified to fulfill this role for open62541.
 
 ## Functionality in open62541
 
@@ -56,7 +56,7 @@ $ python generate_open62541CCode.py -i ignorelist.txt /path/to/NodeSet.xml /path
 
 Given the blacklist example, the nodes `ns=1;id=2323` and `ns=0;id=11122` will not be part of the header, but other nodes may attempt to create references to them or use them as dataTypes.
 
-# Supressing attributes
+# Suppressing attributes
 
 Most of OPC UA Namespaces depend heavily on strings. These can bloat up memory usage in applications where memory is a critical resource. The compiler can be instructed to suppress allocation for certain attributes, which will be initialized to sensible defaults or NULL pointers where applicable.
 

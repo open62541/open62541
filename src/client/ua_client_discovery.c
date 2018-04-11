@@ -1,6 +1,11 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
@@ -58,7 +63,6 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
 
     /* Send the request */
     UA_FindServersResponse response;
-    UA_FindServersResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
 
@@ -109,7 +113,6 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
 
     /* Send the request */
     UA_FindServersOnNetworkResponse response;
-    UA_FindServersOnNetworkResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
 

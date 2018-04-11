@@ -1,9 +1,24 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015 (c) Nick Goossens
+ *    Copyright 2015 (c) Jörg Schüler-Maroldt
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016-2017 (c) Florian Palm
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2016 (c) Lorenz Haas
+ *    Copyright 2017 (c) Jonas Green
+ */
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+#include <valgrind/memcheck.h>
+#endif
 
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
@@ -32,15 +47,16 @@ struct UA_Worker {
                  sizeof(UA_UInt32) - sizeof(UA_Boolean)];
 };
 
-typedef struct {
-    struct cds_wfcq_node node;
+struct UA_WorkerCallback {
+    SIMPLEQ_ENTRY(UA_WorkerCallback) next;
     UA_ServerCallback callback;
     void *data;
 
     UA_Boolean delayed;         /* Is it a delayed callback? */
     UA_Boolean countersSampled; /* Have the worker counters been sampled? */
     UA_UInt32 workerCounters[]; /* Counter value for each worker */
-} WorkerCallback; 
+};
+typedef struct UA_WorkerCallback WorkerCallback;
 
 /* Forward Declaration */
 static void
@@ -57,16 +73,19 @@ workerLoop(UA_Worker *worker) {
     UA_random_seed((uintptr_t)worker);
 
     while(*running) {
-        UA_atomic_add(counter, 1);
-        WorkerCallback *dc = (WorkerCallback*)
-            cds_wfcq_dequeue_blocking(&server->dispatchQueue_head,
-                                      &server->dispatchQueue_tail);
+        UA_atomic_addUInt32(counter, 1);
+        pthread_mutex_lock(&server->dispatchQueue_accessMutex);
+        WorkerCallback *dc = SIMPLEQ_FIRST(&server->dispatchQueue);
+        if(dc) {
+            SIMPLEQ_REMOVE_HEAD(&server->dispatchQueue, next);
+        }
+        pthread_mutex_unlock(&server->dispatchQueue_accessMutex);
         if(!dc) {
             /* Nothing to do. Sleep until a callback is dispatched */
-            pthread_mutex_lock(&server->dispatchQueue_mutex);
+            pthread_mutex_lock(&server->dispatchQueue_conditionMutex);
             pthread_cond_wait(&server->dispatchQueue_condition,
-                              &server->dispatchQueue_mutex);
-            pthread_mutex_unlock(&server->dispatchQueue_mutex);
+                              &server->dispatchQueue_conditionMutex);
+            pthread_mutex_unlock(&server->dispatchQueue_conditionMutex);
             continue;
         }
 
@@ -74,7 +93,7 @@ workerLoop(UA_Worker *worker) {
             processDelayedCallback(server, dc);
             continue;
         }
-        
+
         dc->callback(server, dc->data);
         UA_free(dc);
     }
@@ -84,13 +103,16 @@ workerLoop(UA_Worker *worker) {
     return NULL;
 }
 
-static void
-emptyDispatchQueue(UA_Server *server) {
-    while(!cds_wfcq_empty(&server->dispatchQueue_head,
-                          &server->dispatchQueue_tail)) {
-        WorkerCallback *dc = (WorkerCallback*)
-            cds_wfcq_dequeue_blocking(&server->dispatchQueue_head,
-                                      &server->dispatchQueue_tail);
+void UA_Server_cleanupDispatchQueue(UA_Server *server) {
+    while(true) {
+        pthread_mutex_lock(&server->dispatchQueue_accessMutex);
+        WorkerCallback *dc = SIMPLEQ_FIRST(&server->dispatchQueue);
+        if(!dc) {
+            pthread_mutex_unlock(&server->dispatchQueue_accessMutex);
+            break;
+        }
+        SIMPLEQ_REMOVE_HEAD(&server->dispatchQueue, next);
+        pthread_mutex_unlock(&server->dispatchQueue_accessMutex);
         dc->callback(server, dc->data);
         UA_free(dc);
     }
@@ -123,9 +145,9 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback,
     dc->callback = callback;
     dc->data = data;
     dc->delayed = false;
-    cds_wfcq_node_init(&dc->node);
-    cds_wfcq_enqueue(&server->dispatchQueue_head,
-                     &server->dispatchQueue_tail, &dc->node);
+    pthread_mutex_lock(&server->dispatchQueue_accessMutex);
+    SIMPLEQ_INSERT_TAIL(&server->dispatchQueue, dc, next);
+    pthread_mutex_unlock(&server->dispatchQueue_accessMutex);
 
     /* Wake up sleeping workers */
     pthread_cond_broadcast(&server->dispatchQueue_condition);
@@ -150,6 +172,19 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback,
  * 3. Check regularly if the callback is ready by adding it back to the dispatch
  *    queue. */
 
+/* Delayed callback to free the subscription memory */
+static void
+freeCallback(UA_Server *server, void *data) {
+    UA_free(data);
+}
+
+/* TODO: Delayed free should never fail. This can be achieved by adding a prefix
+ * with the list pointers */
+UA_StatusCode
+UA_Server_delayedFree(UA_Server *server, void *data) {
+    return UA_Server_delayedCallback(server, freeCallback, data);
+}
+
 #ifndef UA_ENABLE_MULTITHREADING
 
 typedef struct UA_DelayedCallback {
@@ -172,8 +207,7 @@ UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback,
     return UA_STATUSCODE_GOOD;
 }
 
-static void
-processDelayedCallbacks(UA_Server *server) {
+void UA_Server_cleanupDelayedCallbacks(UA_Server *server) {
     UA_DelayedCallback *dc, *dc_tmp;
     SLIST_FOREACH_SAFE(dc, &server->delayedCallbacks, next, dc_tmp) {
         SLIST_REMOVE(&server->delayedCallbacks, dc, UA_DelayedCallback, next);
@@ -198,9 +232,9 @@ UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback,
     dc->data = data;
     dc->delayed = true;
     dc->countersSampled = false;
-    cds_wfcq_node_init(&dc->node);
-    cds_wfcq_enqueue(&server->dispatchQueue_head,
-                     &server->dispatchQueue_tail, &dc->node);
+    pthread_mutex_lock(&server->dispatchQueue_accessMutex);
+    SIMPLEQ_INSERT_TAIL(&server->dispatchQueue, dc, next);
+    pthread_mutex_unlock(&server->dispatchQueue_accessMutex);
 
     /* Wake up sleeping workers */
     pthread_cond_broadcast(&server->dispatchQueue_condition);
@@ -217,9 +251,9 @@ processDelayedCallback(UA_Server *server, WorkerCallback *dc) {
         dc->countersSampled = true;
 
         /* Re-add to the dispatch queue */
-        cds_wfcq_node_init(&dc->node);
-        cds_wfcq_enqueue(&server->dispatchQueue_head,
-                         &server->dispatchQueue_tail, &dc->node);
+        pthread_mutex_lock(&server->dispatchQueue_accessMutex);
+        SIMPLEQ_INSERT_TAIL(&server->dispatchQueue, dc, next);
+        pthread_mutex_unlock(&server->dispatchQueue_accessMutex);
 
         /* Wake up sleeping workers */
         pthread_cond_broadcast(&server->dispatchQueue_condition);
@@ -239,15 +273,15 @@ processDelayedCallback(UA_Server *server, WorkerCallback *dc) {
      * TODO: What is the impact of this loop?
      * Can we add a small delay here? */
     if(!ready) {
-        cds_wfcq_node_init(&dc->node);
-        cds_wfcq_enqueue(&server->dispatchQueue_head,
-                         &server->dispatchQueue_tail, &dc->node);
+        pthread_mutex_lock(&server->dispatchQueue_accessMutex);
+        SIMPLEQ_INSERT_TAIL(&server->dispatchQueue, dc, next);
+        pthread_mutex_unlock(&server->dispatchQueue_accessMutex);
 
         /* Wake up sleeping workers */
         pthread_cond_broadcast(&server->dispatchQueue_condition);
         return;
     }
-        
+
     /* Execute the callback */
     dc->callback(server, dc->data);
     UA_free(dc);
@@ -289,8 +323,9 @@ UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_MULTITHREADING
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Spinning up %u worker thread(s)", server->config.nThreads);
-    pthread_cond_init(&server->dispatchQueue_condition, 0);
-    pthread_mutex_init(&server->dispatchQueue_mutex, 0);
+    pthread_mutex_init(&server->dispatchQueue_accessMutex, NULL);
+    pthread_cond_init(&server->dispatchQueue_condition, NULL);
+    pthread_mutex_init(&server->dispatchQueue_conditionMutex, NULL);
     server->workers = (UA_Worker*)UA_malloc(server->config.nThreads * sizeof(UA_Worker));
     if(!server->workers)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -321,16 +356,16 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         UA_Timer_process(&server->timer, now,
                          (UA_TimerDispatchCallback)UA_Server_workerCallback,
                          server);
-    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_MSEC_TO_DATETIME);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
     if(nextRepeated > latest)
         nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
 
     /* round always to upper value to avoid timeout to be set to 0
-    * if (nextRepeated - now) < (UA_MSEC_TO_DATETIME/2) */
+    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
     if(waitInternal)
-        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_MSEC_TO_DATETIME - 1)) / UA_MSEC_TO_DATETIME);
+        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
     /* Listen on the networklayer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
@@ -339,9 +374,10 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 
 #ifndef UA_ENABLE_MULTITHREADING
-    /* Process delayed callbacks when all callbacks and
-     * network events are done */
-    processDelayedCallbacks(server);
+    /* Process delayed callbacks when all callbacks and network events are done.
+     * If multithreading is enabled, the cleanup of delayed values is attempted
+     * by a callback in the job queue. */
+    UA_Server_cleanupDelayedCallbacks(server);
 #endif
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
@@ -353,8 +389,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         // server->mdnsSocket (see example in mdnsd library) on higher level.
         UA_DateTime multicastNextRepeat = 0;
         UA_StatusCode hasNext =
-            iterateMulticastDiscoveryServer(server, &multicastNextRepeat,
-                                            UA_TRUE);
+            iterateMulticastDiscoveryServer(server, &multicastNextRepeat, UA_TRUE);
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
@@ -363,7 +398,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     now = UA_DateTime_nowMonotonic();
     timeout = 0;
     if(nextRepeated > now)
-        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+        timeout = (UA_UInt16)((nextRepeated - now) / UA_DATETIME_MSEC);
     return timeout;
 }
 
@@ -375,10 +410,7 @@ UA_Server_run_shutdown(UA_Server *server) {
         nl->stop(nl, server);
     }
 
-#ifndef UA_ENABLE_MULTITHREADING
-    /* Process remaining delayed callbacks */
-    processDelayedCallbacks(server);
-#else
+#ifdef UA_ENABLE_MULTITHREADING
     /* Shut down the workers */
     if(server->workers) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -393,14 +425,16 @@ UA_Server_run_shutdown(UA_Server *server) {
         server->workers = NULL;
     }
 
-    /* Execute the remaining callbacks in the dispatch queue.
-     * This also executes the delayed callbacks. */
-    emptyDispatchQueue(server);
-    
+    /* Execute the remaining callbacks in the dispatch queue. Also executes
+     * delayed callbacks. */
+    UA_Server_cleanupDispatchQueue(server);
+#else
+    /* Process remaining delayed callbacks */
+    UA_Server_cleanupDelayedCallbacks(server);
 #endif
 
-    /* Stop multicast discovery */
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    /* Stop multicast discovery */
     if(server->config.applicationDescription.applicationType ==
        UA_APPLICATIONTYPE_DISCOVERYSERVER)
         stopMulticastDiscoveryServer(server);
@@ -414,7 +448,18 @@ UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    while(*running)
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+    size_t loopCount = 0;
+#endif
+    while(*running) {
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+        if(loopCount == 0) {
+            VALGRIND_DO_LEAK_CHECK;
+        }
+        ++loopCount;
+        loopCount %= UA_VALGRIND_INTERACTIVE_INTERVAL;
+#endif
         UA_Server_run_iterate(server, true);
+    }
     return UA_Server_run_shutdown(server);
 }

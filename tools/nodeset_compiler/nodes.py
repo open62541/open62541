@@ -287,7 +287,7 @@ class VariableNode(Node):
             return False
 
         self.value = Value()
-        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode)
+        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self)
 
         # Array Dimensions must accurately represent the value and will be patched
         # reflect the exaxt dimensions attached binary stream.
@@ -434,7 +434,7 @@ class DataTypeNode(Node):
             of this DataType.
 
             The function will parse the XML <Definition> of the dataType and extract
-            "Name"-"Type" tuples. If successfull, buildEncoding will return a nested
+            "Name"-"Type" tuples. If successful, buildEncoding will return a nested
             list of the following format:
 
             [['Alias1', ['Alias2', ['BuiltinType']]], [Alias2, ['BuiltinType']], ...]

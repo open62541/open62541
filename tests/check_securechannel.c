@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <src_generated/ua_types_generated.h>
-#include <testing_networklayers.h>
 #include <ua_types_encoding_binary.h>
 #include <src_generated/ua_transport_generated_encoding_binary.h>
 #include <src_generated/ua_transport_generated.h>
@@ -14,6 +13,7 @@
 #include <ua_plugin_securitypolicy.h>
 #include <src_generated/ua_transport_generated_handling.h>
 
+#include "testing_networklayers.h"
 #include "testing_policy.h"
 #include "ua_securechannel.h"
 
@@ -29,6 +29,7 @@
 #define DEFAULT_ASYM_LOCAL_SIGNATURE_SIZE 11
 #define DEFAULT_SYM_SIGNATURE_SIZE 13
 #define DEFAULT_ASYM_REMOTE_PLAINTEXT_BLOCKSIZE 256
+#define DEFAULT_ASYM_REMOTE_BLOCKSIZE 256
 
 UA_SecureChannel testChannel;
 UA_ByteString dummyCertificate = UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
@@ -45,7 +46,7 @@ setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
     UA_SecureChannel_init(&testChannel, &dummyPolicy, &dummyCertificate);
 
-    testingConnection = createDummyConnection(&sentData);
+    testingConnection = createDummyConnection(65535, &sentData);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
     testChannel.connection = &testingConnection;
 }
@@ -54,8 +55,7 @@ static void
 teardown_secureChannel(void) {
     UA_SecureChannel_deleteMembersCleanup(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
-
-    memset(&testingConnection, 0, sizeof(UA_Connection));
+    testingConnection.close(&testingConnection);
 }
 
 static void
@@ -81,6 +81,7 @@ setup_key_sizes(void) {
     keySizes.asym_rmt_sig_size = DEFAULT_ASYM_REMOTE_SIGNATURE_SIZE;
 
     keySizes.asym_rmt_ptext_blocksize = DEFAULT_ASYM_REMOTE_PLAINTEXT_BLOCKSIZE;
+    keySizes.asym_rmt_blocksize = DEFAULT_ASYM_REMOTE_BLOCKSIZE;
     keySizes.asym_rmt_enc_key_size = 2048;
     keySizes.asym_lcl_enc_key_size = 1024;
 }
@@ -89,17 +90,6 @@ static void
 teardown_key_sizes(void) {
     memset(&keySizes, 0, sizeof(struct key_sizes));
 }
-
-/*
-static void
-setup_dummyPolicy(void) {
-    TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled);
-}
-
-static void
-teardown_dummyPolicy(void) {
-    dummyPolicy.deleteMembers(&dummyPolicy);
-}*/
 
 START_TEST(SecureChannel_initAndDelete)
     {
@@ -119,28 +109,7 @@ START_TEST(SecureChannel_initAndDelete)
         ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 
         dummyPolicy.deleteMembers(&dummyPolicy);
-    }
-END_TEST
-
-START_TEST(SecureChannel_initAndDelete_invalidParameters)
-    {
-        UA_StatusCode retval = UA_SecureChannel_init(NULL, NULL, NULL);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected init to fail");
-
-        UA_SecureChannel channel;
-        retval = UA_SecureChannel_init(&channel, &dummyPolicy, NULL);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected init to fail");
-
-        retval = UA_SecureChannel_init(&channel, NULL, &dummyCertificate);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected init to fail");
-
-        retval = UA_SecureChannel_init(NULL, &dummyPolicy, &dummyCertificate);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected init to fail");
-
-        UA_SecureChannel_deleteMembersCleanup(NULL);
-    }
-END_TEST
-
+    }END_TEST
 
 START_TEST(SecureChannel_generateNewKeys)
     {
@@ -154,11 +123,7 @@ START_TEST(SecureChannel_generateNewKeys)
         ck_assert_msg(fCalled.setRemoteSymEncryptingKey, "Expected setRemoteSymEncryptingKey to have been called");
         ck_assert_msg(fCalled.setRemoteSymSigningKey, "Expected setRemoteSymSigningKey to have been called");
         ck_assert_msg(fCalled.setRemoteSymIv, "Expected setRemoteSymIv to have been called");
-
-        retval = UA_SecureChannel_generateNewKeys(NULL);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure on NULL pointer");
-    }
-END_TEST
+    }END_TEST
 
 START_TEST(SecureChannel_revolveTokens)
     {
@@ -182,8 +147,7 @@ START_TEST(SecureChannel_revolveTokens)
         ck_assert_msg(memcmp(&testChannel.nextSecurityToken, &testToken, sizeof(UA_ChannelSecurityToken)) == 0,
                       "Expected the next securityToken to be freshly initialized");
         ck_assert_msg(testChannel.securityToken.tokenId == 10, "Expected token to have been copied");
-    }
-END_TEST
+    }END_TEST
 
 static void
 createDummyResponse(UA_OpenSecureChannelResponse *response) {
@@ -201,39 +165,25 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_withoutConnection)
         UA_Connection_detachSecureChannel(testChannel.connection);
         testChannel.connection = NULL;
 
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         42,
-                                                                         &dummyResponse,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
 
         ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure without a connection");
-    }
-END_TEST
+    }END_TEST
 
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_invalidParameters)
     {
         UA_OpenSecureChannelResponse dummyResponse;
         createDummyResponse(&dummyResponse);
 
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         42,
-                                                                         NULL,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, NULL,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
 
-        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                           42,
-                                                           &dummyResponse,
-                                                           NULL);
+        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse, NULL);
         ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
 
-        retval = UA_SecureChannel_sendAsymmetricOPNMessage(NULL,
-                                                           42,
-                                                           &dummyResponse,
-                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
-    }
-END_TEST
+    }END_TEST
 
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeInvalid)
     {
@@ -243,9 +193,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeInvalid)
 
         testChannel.securityMode = UA_MESSAGESECURITYMODE_INVALID;
 
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         42,
-                                                                         &dummyResponse,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_BADSECURITYMODEREJECTED, "Expected SecurityMode rejected error");
     }
@@ -258,9 +206,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeNone)
         createDummyResponse(&dummyResponse);
         testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         42,
-                                                                         &dummyResponse,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
         ck_assert_msg(!fCalled.asym_enc, "Message encryption was called but should not have been");
@@ -275,15 +221,12 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSign)
         createDummyResponse(&dummyResponse);
         testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGN;
 
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         42,
-                                                                         &dummyResponse,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
         ck_assert_msg(fCalled.asym_enc, "Expected message to have been encrypted but it was not");
         ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
-    }
-END_TEST
+    }END_TEST
 
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt)
     {
@@ -292,16 +235,12 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt)
         createDummyResponse(&dummyResponse);
 
         testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         42,
-                                                                         &dummyResponse,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
         ck_assert_msg(fCalled.asym_enc, "Expected message to have been encrypted but it was not");
         ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
-    }
-END_TEST
+    }END_TEST
 
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid)
     {
@@ -311,9 +250,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid)
         testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
         UA_UInt32 requestId = UA_UInt32_random();
 
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         requestId,
-                                                                         &dummyResponse,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, requestId, &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
@@ -334,7 +271,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid)
                       "Expected receiverCertificateThumbprint to be equal to the one set in the secureChannel");
 
         for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
-            sentData.data[i] = (UA_Byte) ((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
+            sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
         }
 
         UA_SequenceHeader sequenceHeader;
@@ -355,14 +292,12 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid)
                       "Expected the sent response to be equal to the one supplied to the send function");
 
         UA_Byte paddingByte = sentData.data[offset];
-        size_t paddingSize = (size_t) paddingByte;
+        size_t paddingSize = (size_t)paddingByte;
 
         for(size_t i = 0; i <= paddingSize; ++i) {
             ck_assert_msg(sentData.data[offset + i] == paddingByte,
                           "Expected padding byte %i to be %i but got value %i",
-                          i,
-                          paddingByte,
-                          sentData.data[offset + i]);
+                          i, paddingByte, sentData.data[offset + i]);
         }
 
         ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
@@ -377,6 +312,7 @@ END_TEST
 START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLargerThan2048Bits)
     {
         keySizes.asym_rmt_enc_key_size = 4096;
+        keySizes.asym_rmt_blocksize = 4096;
         keySizes.asym_rmt_ptext_blocksize = 4096;
 
         UA_OpenSecureChannelResponse dummyResponse;
@@ -385,9 +321,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
         testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
         UA_UInt32 requestId = UA_UInt32_random();
 
-        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                                         requestId,
-                                                                         &dummyResponse,
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, requestId, &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
 
@@ -408,7 +342,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                       "Expected receiverCertificateThumbprint to be equal to the one set in the secureChannel");
 
         for(size_t i = offset; i < header.messageHeader.messageSize; ++i) {
-            sentData.data[i] = (UA_Byte) ((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
+            sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
         }
 
         UA_SequenceHeader sequenceHeader;
@@ -430,7 +364,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
 
         UA_Byte paddingByte = sentData.data[offset];
         UA_Byte extraPaddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 1];
-        size_t paddingSize = (size_t) paddingByte;
+        size_t paddingSize = (size_t)paddingByte;
         paddingSize |= extraPaddingByte << 8;
 
         for(size_t i = 0; i <= paddingSize; ++i) {
@@ -441,53 +375,18 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
                           sentData.data[offset + i]);
         }
 
-        ck_assert_msg(sentData.data[offset + paddingSize + 1] == extraPaddingByte, "Expected extra padding byte to be "
-            "%i but got %i",
+        ck_assert_msg(sentData.data[offset + paddingSize + 1] == extraPaddingByte,
+                      "Expected extra padding byte to be %i but got %i",
                       extraPaddingByte, sentData.data[offset + paddingSize + 1]);
-        ck_assert_msg(sentData.data[offset + paddingSize + 2] == '*', "Expected first byte 42 of signature but got %i",
+        ck_assert_msg(sentData.data[offset + paddingSize + 2] == '*',
+                      "Expected first byte 42 of signature but got %i",
                       sentData.data[offset + paddingSize + 2]);
 
         UA_SecureConversationMessageHeader_deleteMembers(&header);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymSecurityHeader);
         UA_SequenceHeader_deleteMembers(&sequenceHeader);
         UA_OpenSecureChannelResponse_deleteMembers(&sentResponse);
-    }
-END_TEST
-
-START_TEST(SecureChannel_generateNonce)
-    {
-        UA_ByteString myNonce;
-        UA_ByteString_init(&myNonce);
-
-        for(size_t i = 0; i < 129; ++i) {
-            i = (i == 128) ? 65536 : i; // large edge case
-
-            UA_StatusCode retval = UA_SecureChannel_generateNonce(&testChannel, i, &myNonce);
-
-            ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be good");
-            ck_assert_msg(myNonce.length == i, "Expected nonce length to be %i but was %i", i, myNonce.length);
-            ck_assert_msg(fCalled.generateNonce, "Expected generateNonce to have been called");
-        }
-
-        UA_ByteString_deleteMembers(&myNonce);
-    }
-END_TEST
-
-START_TEST(SecureChannel_generateNonce_invalidParameters)
-    {
-        UA_ByteString myNonce;
-        UA_ByteString_init(&myNonce);
-
-        UA_StatusCode retval = UA_SecureChannel_generateNonce(NULL, 42, NULL);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
-
-        retval = UA_SecureChannel_generateNonce(NULL, 42, &myNonce);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
-
-        retval = UA_SecureChannel_generateNonce(&testChannel, 42, NULL);
-        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
-    }
-END_TEST
+    }END_TEST
 
 START_TEST(SecureChannel_sendSymmetricMessage)
     {
@@ -594,7 +493,6 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_initAndDelete, setup_funcs_called, teardown_funcs_called);
     tcase_add_checked_fixture(tc_initAndDelete, setup_key_sizes, teardown_key_sizes);
     tcase_add_test(tc_initAndDelete, SecureChannel_initAndDelete);
-    tcase_add_test(tc_initAndDelete, SecureChannel_initAndDelete_invalidParameters);
     suite_add_tcase(s, tc_initAndDelete);
 
     TCase *tc_generateNewKeys = tcase_create("Test generateNewKeys function");
@@ -625,14 +523,6 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_sendAsymmetricOPNMessage,
                    Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLargerThan2048Bits);
     suite_add_tcase(s, tc_sendAsymmetricOPNMessage);
-
-    TCase *tc_generateNonce = tcase_create("Test generateNonce function");
-    tcase_add_checked_fixture(tc_generateNonce, setup_funcs_called, teardown_funcs_called);
-    tcase_add_checked_fixture(tc_generateNonce, setup_key_sizes, teardown_key_sizes);
-    tcase_add_checked_fixture(tc_generateNonce, setup_secureChannel, teardown_secureChannel);
-    tcase_add_test(tc_generateNonce, SecureChannel_generateNonce);
-    tcase_add_test(tc_generateNonce, SecureChannel_generateNonce_invalidParameters);
-    suite_add_tcase(s, tc_generateNonce);
 
     TCase *tc_sendSymmetricMessage = tcase_create("Test sendSymmetricMessage function");
     tcase_add_checked_fixture(tc_sendSymmetricMessage, setup_funcs_called, teardown_funcs_called);

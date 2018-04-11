@@ -1,5 +1,10 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ */
 
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
@@ -40,6 +45,10 @@
 
 #include "ua_types.h"
 
+#if defined(UA_FREERTOS)
+#include <task.h>
+#endif
+
 UA_DateTime UA_DateTime_now(void) {
 #if defined(_WIN32)
     /* Windows filetime has the same definition as UA_DateTime */
@@ -54,8 +63,30 @@ UA_DateTime UA_DateTime_now(void) {
 #else
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
+    return (tv.tv_sec * UA_DATETIME_SEC) + (tv.tv_usec * UA_DATETIME_USEC) + UA_DATETIME_UNIX_EPOCH;
 #endif
+}
+
+/* Credit to https://stackoverflow.com/questions/13804095/get-the-time-zone-gmt-offset-in-c */
+UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
+    time_t gmt, rawtime = time(NULL);
+
+#ifdef _WIN32
+    struct tm ptm;
+    gmtime_s(&ptm, &rawtime);
+    // Request that mktime() looksup dst in timezone database
+    ptm.tm_isdst = -1;
+    gmt = mktime(&ptm);
+#else
+    struct tm *ptm;
+    struct tm gbuf;
+    ptm = gmtime_r(&rawtime, &gbuf);
+    // Request that mktime() looksup dst in timezone database
+    ptm->tm_isdst = -1;
+    gmt = mktime(ptm);
+#endif
+
+    return (UA_Int64) (difftime(rawtime, gmt) * UA_DATETIME_SEC);
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
@@ -63,7 +94,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     LARGE_INTEGER freq, ticks;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&ticks);
-    UA_Double ticks2dt = UA_SEC_TO_DATETIME / (UA_Double)freq.QuadPart;
+    UA_Double ticks2dt = UA_DATETIME_SEC / (UA_Double)freq.QuadPart;
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
 #elif defined(__APPLE__) || defined(__MACH__)
     /* OS X does not have clock_gettime, use clock_get_time */
@@ -72,14 +103,24 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
-    return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
+    return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100);
 #elif !defined(CLOCK_MONOTONIC_RAW)
+# if defined(UA_FREERTOS)
+    portTickType TaskTime = xTaskGetTickCount();
+    UA_DateTimeStruct UATime;
+    UATime.milliSec = (UA_UInt16) TaskTime;
+    struct timespec ts;
+    ts.tv_sec = UATime.milliSec/1000;
+    ts.tv_nsec = (UATime.milliSec % 1000)* 1000000;
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+# else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+# endif
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 #endif
 }

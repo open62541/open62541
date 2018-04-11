@@ -25,8 +25,8 @@ Building with CMake on Ubuntu or Debian
    sudo apt-get install git build-essential gcc pkg-config cmake python python-six
 
    # enable additional features
-   sudo apt-get install cmake-curses-gui # for ccmake
-   sudo apt-get install liburcu-dev # for multithreading
+   sudo apt-get install cmake-curses-gui # for the ccmake graphical interface
+   sudo apt-get install libmbedtls-dev # for encryption support
    sudo apt-get install check # for unit tests
    sudo apt-get install python-sphinx graphviz # for documentation generation
    sudo apt-get install python-sphinx-rtd-theme # documentation style
@@ -168,7 +168,7 @@ specified by the following options:
 **UA_BUILD_EXAMPLES_NODESET_COMPILER**
    Generate an OPC UA information model from a nodeset XML (experimental)
 
-**UA_BUILD_SELFIGNED_CERTIFICATE**
+**UA_BUILD_SELFSIGNED_CERTIFICATE**
    Generate a self-signed certificate for the server (openSSL required)
 
 UA_ENABLE_* group

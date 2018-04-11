@@ -1,6 +1,14 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2014-2015, 2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
@@ -19,11 +27,15 @@ typedef struct UA_ServerConfig UA_ServerConfig;
 struct UA_Server;
 typedef struct UA_Server UA_Server;
 
+struct UA_ClientConfig;
+
 /**
  * .. _server:
  *
  * Server
  * ======
+ *
+ * .. include:: server_config.rst
  *
  * .. _server-lifecycle:
  *
@@ -92,7 +104,7 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
  *
  * @param server The server object.
  * @param callbackId The id of the callback that shall be removed.
- * @return Upon sucess, UA_STATUSCODE_GOOD is returned.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned.
  *         An error code otherwise. */
 UA_StatusCode UA_EXPORT
 UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
@@ -123,7 +135,7 @@ UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
 UA_DataValue UA_EXPORT
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps);
-    
+
 /* Don't use this function. There are typed versions for every supported
  * attribute. */
 UA_StatusCode UA_EXPORT
@@ -639,6 +651,18 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 typedef struct {
     /* Copies the data from the source into the provided value.
      *
+     * !! ZERO-COPY OPERATIONS POSSIBLE !!
+     * It is not required to return a copy of the actual content data. You can
+     * return a pointer to memory owned by the user. Memory can be reused
+     * between read callbacks of a DataSource, as the result is already encoded
+     * on the network buffer between each read operation.
+     *
+     * To use zero-copy reads, set the value of the `value->value` Variant
+     * without copying, e.g. with `UA_Variant_setScalar`. Then, also set
+     * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
+     * memory being cleaned up. Don't forget to also set `value->hasValue` to
+     * true to indicate the presence of a value.
+     *
      * @param handle An optional pointer to user-defined data for the
      *        specific data source
      * @param nodeid Id of the read node
@@ -659,8 +683,8 @@ typedef struct {
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
                           const UA_NumericRange *range, UA_DataValue *value);
 
-    /* Write into a data source. The write member of UA_DataSource can be empty
-     * if the operation is unsupported.
+    /* Write into a data source. This method pointer can be NULL if the
+     * operation is unsupported.
      *
      * @param handle An optional pointer to user-defined data for the
      *        specific data source
@@ -764,7 +788,7 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
  * reference it later. When passing numeric NodeIds with a numeric identifier 0,
  * the stack evaluates this as "select a random unassigned numeric NodeId in
  * that namespace". To find out which NodeId was actually assigned to the new
- * node, you may pass a pointer `outNewNodeId`, which will (after a successfull
+ * node, you may pass a pointer `outNewNodeId`, which will (after a successful
  * node insertion) contain the nodeId of the new node. You may also pass a
  * ``NULL`` pointer if this result is not needed.
  *
@@ -926,14 +950,33 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
 
 UA_StatusCode UA_EXPORT
+UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                          const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName,
+                          const UA_MethodAttributes attr, UA_MethodCallback method,
+                          size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                          const UA_NodeId inputArgumentsRequestedNewNodeId,
+                          UA_NodeId *inputArgumentsOutNewNodeId,
+                          size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                          const UA_NodeId outputArgumentsRequestedNewNodeId,
+                          UA_NodeId *outputArgumentsOutNewNodeId,
+                          void *nodeContext, UA_NodeId *outNewNodeId);
+
+static UA_INLINE UA_StatusCode
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
-                        const UA_NodeId parentNodeId,
-                        const UA_NodeId referenceTypeId,
-                        const UA_QualifiedName browseName,
-                        const UA_MethodAttributes attr, UA_MethodCallback method,
-                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
-                        size_t outputArgumentsSize, const UA_Argument* outputArguments,
-                        void *nodeContext, UA_NodeId *outNewNodeId);
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
+                        UA_MethodCallback method,
+                        size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                        size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                        void *nodeContext, UA_NodeId *outNewNodeId) {
+    return UA_Server_addMethodNodeEx(server, requestedNewNodeId,  parentNodeId,
+                                     referenceTypeId, browseName, attr, method,
+                                     inputArgumentsSize, inputArguments, UA_NODEID_NULL, NULL,
+                                     outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
+                                     nodeContext, outNewNodeId);
+}
 
 
 /**
@@ -944,12 +987,26 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
  * pseudo-random unique NodeIds. Existing children are detected during the
  * _finish part via their matching BrowseName.
  *
- * The _begin method prepares the node and adds it to the nodestore. It may copy
- * some unassigned attributes from the TypeDefinition node internally. The
- * _finish method adds the references to the parent (and the TypeDefinition if
- * applicable), copies mandatory children, performs type-checking of variables
- * and calls the node constructor(s) at the end. The _finish method may remove
- * the node if it encounters an error. */
+ * The _begin method:
+ *  - prepares the node and adds it to the nodestore
+ *  - copies some unassigned attributes from the TypeDefinition node internally
+ *  - adds the references to the parent (and the TypeDefinition if applicable)
+ *  - performs type-checking of variables.
+ *
+ * You can add an object node without a parent if you set the parentNodeId and
+ * referenceTypeId to UA_NODE_ID_NULL. Then you need to add the parent reference
+ * and hasTypeDef reference yourself before calling the _finish method.
+ * Not that this is only allowed for object nodes.
+ *
+ * The _finish method:
+ *  - copies mandatory children
+ *  - calls the node constructor(s) at the end
+ *  - may remove the node if it encounters an error.
+ *
+ * The special UA_Server_addMethodNode_finish method needs to be used for
+ * method nodes, since there you need to explicitly specifiy the input
+ * and output arguments which are added in the finish step (if not yet already there)
+ **/
 
 /* The ``attr`` argument must have a type according to the NodeClass.
  * ``VariableAttributes`` for variables, ``ObjectAttributes`` for objects, and
@@ -958,16 +1015,21 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 UA_StatusCode UA_EXPORT
 UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
                         const UA_NodeId requestedNewNodeId,
+                        const UA_NodeId parentNodeId,
+                        const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName,
                         const UA_NodeId typeDefinition,
                         const void *attr, const UA_DataType *attributeType,
                         void *nodeContext, UA_NodeId *outNewNodeId);
 
 UA_StatusCode UA_EXPORT
-UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
-                         const UA_NodeId parentNodeId,
-                         const UA_NodeId referenceTypeId,
-                         const UA_NodeId typeDefinitionId);
+UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                         UA_MethodCallback method,
+                         size_t inputArgumentsSize, const UA_Argument* inputArguments,
+                         size_t outputArgumentsSize, const UA_Argument* outputArguments);
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT
@@ -1003,7 +1065,7 @@ UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
  *
  * UA_Job API
  * ^^^^^^^^^^
- * UA_Job was replaced since it unneccessarily exposed server internals to the
+ * UA_Job was replaced since it unnecessarily exposed server internals to the
  * end-user. Please use plain UA_ServerCallbacks instead. The following UA_Job
  * definition contains just the fraction of the original struct that was useful
  * to end-users. */

@@ -27,6 +27,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_MULTITHREADING
+#cmakedefine UA_ENABLE_ENCRYPTION
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
@@ -38,6 +39,8 @@ extern "C" {
 #cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 #cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
+#define UA_VALGRIND_INTERACTIVE_INTERVAL ${UA_VALGRIND_INTERACTIVE_INTERVAL}
 
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
@@ -90,6 +93,9 @@ extern "C" {
 #elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
 # define UA_CTASTR2(pre,post) pre ## post
 # define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
+# ifndef __COUNTER__ /* PPC GCC fix */
+#  define __COUNTER__ __LINE__
+# endif
 # define UA_STATIC_ASSERT(cond,msg)                             \
     typedef struct {                                            \
         int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
@@ -109,18 +115,36 @@ extern "C" {
 # include <malloc.h>
 #endif
 
-#define UA_free(ptr) free(ptr)
-#define UA_malloc(size) malloc(size)
-#define UA_calloc(num, size) calloc(num, size)
-#define UA_realloc(ptr, size) realloc(ptr, size)
+#if !defined(UA_FREERTOS)
 
+# define UA_free(ptr) free(ptr)
+# define UA_malloc(size) malloc(size)
+# define UA_calloc(num, size) calloc(num, size)
+# define UA_realloc(ptr, size) realloc(ptr, size)
+
+#else
+
+# include <FreeRTOS.h>
+
+# define UA_free(ptr) vPortFree(ptr)
+# define UA_malloc(size) pvPortMalloc(size)
+# define UA_calloc(num, size) pvPortCalloc(num, size)
+# define UA_realloc(ptr, size) pvPortRealloc(ptr, size)
+
+#endif
+
+/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
+ * Otherwise revert to alloca. Note that alloca is not supported on some
+ * plattforms. */
 #if defined(__GNUC__) || defined(__clang__)
-# define UA_alloca(size) __builtin_alloca (size)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
 #elif defined(_WIN32)
-# define UA_alloca(SIZE) _alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)_alloca(sizeof(TYPE) * SIZE)
 #else
 # include <alloca.h>
-# define UA_alloca(SIZE) alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)alloca(sizeof(TYPE) * SIZE)
 #endif
 
 /**
@@ -211,21 +235,15 @@ extern "C" {
  * ^^^^^^^^^^^^^^^^^^
  * The definition ``UA_BINARY_OVERLAYABLE_INTEGER`` is true when the integer
  * representation of the target architecture is little-endian. */
-#if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
-                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
+#if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_INTEGER 1
-#elif defined(__ANDROID__) /* Andoid */
+#elif (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+      (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
+# define UA_BINARY_OVERLAYABLE_INTEGER 1
+#elif defined(__linux__) /* Linux (including Android) */
 # include <endian.h>
 # if __BYTE_ORDER == __LITTLE_ENDIAN
 #  define UA_BINARY_OVERLAYABLE_INTEGER 1
-# endif
-#elif defined(__linux__) /* Linux */
-# include <endian.h>
-# if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER 1
-# endif
-# if __FLOAT_BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(__OpenBSD__) /* OpenBSD */
 # include <sys/endian.h>
@@ -259,7 +277,10 @@ extern "C" {
  * The definition ``UA_BINARY_OVERLAYABLE_FLOAT`` is true when the floating
  * point number representation of the target architecture is IEEE 754. Note that
  * this cannot be reliable detected with macros for the clang compiler
- * (beginning of 2017). Just override if necessary. */
+ * (beginning of 2017). ``UA_BINARY_OVERLAYABLE_FLOAT`` can be manually set if
+ * the target is known to be little endian with floats in the IEEE 754
+ * format. */
+
 #if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
@@ -268,6 +289,15 @@ extern "C" {
 #elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
     (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
+#elif defined(__linux__) /* Linux (including Android) */
+# include <endian.h>
+# if defined(__ANDROID__)
+#  if __BYTE_ORDER == __LITTLE_ENDIAN
+#   define UA_BINARY_OVERLAYABLE_INTEGER 1
+#  endif
+# elif __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_FLOAT 1
+# endif
 #elif defined(_WRS_KERNEL)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #endif

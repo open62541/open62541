@@ -63,9 +63,9 @@ open62541 Supported Features
 | SOAP-HTTP WS-SC UA XML-UA Binary        |      :new_moon:      |                      |
 | **Encryption**                          |                      |                      |
 | None                                    |  :white_check_mark:  |                      |
-| Basic128Rsa15                           |      :waning_gibbous_moon:      | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
-| Basic256                                |      :waning_gibbous_moon:      | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
-| Basic256Sha256                          |      :waning_gibbous_moon:      | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
+| Basic128Rsa15                           |  :white_check_mark:  | master, Release 0.3  |
+| Basic256                                | :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
+| Basic256Sha256                          |  :waning_gibbous_moon: | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
 | **Authentication**                      |                      |                      |
 | Anonymous                               |  :white_check_mark:  |                      |
 | User Name Password                      |  :white_check_mark:  |                      |

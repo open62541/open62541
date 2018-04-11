@@ -1,6 +1,14 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
@@ -11,7 +19,7 @@
 #define STARTTOKENID 1
 
 UA_StatusCode
-UA_SecureChannelManager_init(UA_SecureChannelManager* cm, UA_Server* server) {
+UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_Server *server) {
     LIST_INIT(&cm->channels);
     // TODO: use an ID that is likely to be unique after a restart
     cm->lastChannelId = STARTCHANNELID;
@@ -21,7 +29,8 @@ UA_SecureChannelManager_init(UA_SecureChannelManager* cm, UA_Server* server) {
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager* cm) {
+void
+UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     channel_list_entry *entry, *temp;
     LIST_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         LIST_REMOVE(entry, pointers);
@@ -32,7 +41,7 @@ void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager* cm) {
 
 static void
 removeSecureChannelCallback(UA_Server *server, void *entry) {
-    channel_list_entry *centry = (channel_list_entry*)entry;
+    channel_list_entry *centry = (channel_list_entry *)entry;
     UA_SecureChannel_deleteMembersCleanup(&centry->channel);
     UA_free(entry);
 }
@@ -51,7 +60,7 @@ removeSecureChannel(UA_SecureChannelManager *cm, channel_list_entry *entry) {
 
     /* Detach the channel and make the capacity available */
     LIST_REMOVE(entry, pointers);
-    UA_atomic_add(&cm->currentChannelCount, (UA_UInt32)-1);
+    UA_atomic_subUInt32(&cm->currentChannelCount, 1);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -61,7 +70,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime
     channel_list_entry *entry, *temp;
     LIST_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         UA_DateTime timeout = entry->channel.securityToken.createdAt +
-            (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
+                              (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
         if(timeout < nowMonotonic || !entry->channel.connection) {
             UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
@@ -73,8 +82,9 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime
 }
 
 /* remove the first channel that has no session attached */
-static UA_Boolean purgeFirstChannelWithoutSession(UA_SecureChannelManager* cm) {
-    channel_list_entry* entry;
+static UA_Boolean
+purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
+    channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(LIST_EMPTY(&(entry->channel.sessions))) {
             UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, &entry->channel,
@@ -106,7 +116,7 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
     UA_LOG_INFO(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                 "Creating a new SecureChannel");
 
-    channel_list_entry* entry = (channel_list_entry*)UA_malloc(sizeof(channel_list_entry));
+    channel_list_entry *entry = (channel_list_entry *)UA_malloc(sizeof(channel_list_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -126,15 +136,15 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
     entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
 
     LIST_INSERT_HEAD(&cm->channels, entry, pointers);
-    UA_atomic_add(&cm->currentChannelCount, 1);
+    UA_atomic_addUInt32(&cm->currentChannelCount, 1);
     UA_Connection_attachSecureChannel(connection, &entry->channel);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_SecureChannel *channel,
-                             const UA_OpenSecureChannelRequest* request,
-                             UA_OpenSecureChannelResponse* response) {
+UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
+                             const UA_OpenSecureChannelRequest *request,
+                             UA_OpenSecureChannelResponse *response) {
     if(channel->state != UA_SECURECHANNELSTATE_FRESH) {
         UA_LOG_ERROR_CHANNEL(cm->server->config.logger, channel,
                              "Called open on already open or closed channel");
@@ -146,40 +156,43 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_SecureChannel *chan
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
     }
 
+    channel->securityMode = request->securityMode;
+    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
     channel->securityToken.channelId = cm->lastChannelId++;
     channel->securityToken.createdAt = UA_DateTime_now();
+
+    /* Set the lifetime. Lifetime 0 -> set the maximum possible */
     channel->securityToken.revisedLifetime =
         (request->requestedLifetime > cm->server->config.maxSecurityTokenLifetime) ?
         cm->server->config.maxSecurityTokenLifetime : request->requestedLifetime;
-    if(channel->securityToken.revisedLifetime == 0) // lifetime 0 -> set the maximum possible
+    if(channel->securityToken.revisedLifetime == 0)
         channel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
-    UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
-    channel->securityMode = request->securityMode;
-    const size_t keyLength = channel->securityPolicy->symmetricModule.cryptoModule.
-        getLocalEncryptionKeyLength(channel->securityPolicy, channel->channelContext);
-    UA_SecureChannel_generateNonce(channel,
-                                   keyLength,
-                                   &channel->localNonce);
 
-    UA_SecureChannel_generateNewKeys(channel);
+    /* Set the nonces and generate the keys */
+    UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
+    retval |= UA_SecureChannel_generateLocalNonce(channel);
+    retval |= UA_SecureChannel_generateNewKeys(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    // Set the response
-    UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
-    UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
+    /* Set the response */
+    retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
+    retval |= UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
     response->responseHeader.timestamp = UA_DateTime_now();
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    // Now overwrite the creation date with the internal monotonic clock
-    channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
-
+    /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
+
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *channel,
-                              const UA_OpenSecureChannelRequest* request,
-                              UA_OpenSecureChannelResponse* response) {
+UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
+                              const UA_OpenSecureChannelRequest *request,
+                              UA_OpenSecureChannelResponse *response) {
     if(channel->state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_ERROR_CHANNEL(cm->server->config.logger, channel,
                              "Called renew on channel which is not open");
@@ -200,26 +213,26 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *cha
 
     /* Replace the nonces */
     UA_ByteString_deleteMembers(&channel->remoteNonce);
-    UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
-
-    const size_t keyLength = channel->securityPolicy->symmetricModule.cryptoModule.
-        getLocalEncryptionKeyLength(channel->securityPolicy, channel->channelContext);
-    UA_ByteString_deleteMembers(&channel->localNonce);
-    UA_SecureChannel_generateNonce(channel, keyLength, &channel->localNonce);
+    UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
+    retval |= UA_SecureChannel_generateLocalNonce(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Set the response */
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
-    UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
-    UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
+    retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
+    retval |= UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Reset the internal creation date to the monotonic clock */
     channel->nextSecurityToken.createdAt = UA_DateTime_nowMonotonic();
     return UA_STATUSCODE_GOOD;
 }
 
-UA_SecureChannel*
-UA_SecureChannelManager_get(UA_SecureChannelManager* cm, UA_UInt32 channelId) {
-    channel_list_entry* entry;
+UA_SecureChannel *
+UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+    channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
             return &entry->channel;
@@ -228,8 +241,8 @@ UA_SecureChannelManager_get(UA_SecureChannelManager* cm, UA_UInt32 channelId) {
 }
 
 UA_StatusCode
-UA_SecureChannelManager_close(UA_SecureChannelManager* cm, UA_UInt32 channelId) {
-    channel_list_entry* entry;
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+    channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
             break;

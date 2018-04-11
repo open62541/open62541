@@ -1,6 +1,12 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
@@ -12,9 +18,22 @@
 
 #define UA_MINMESSAGESIZE 8192
 
- /***********************/
- /* Open the Connection */
- /***********************/
+
+ /********************/
+ /* Set client state */
+ /********************/
+void
+setClientState(UA_Client *client, UA_ClientState state) {
+    if(client->state != state) {
+        client->state = state;
+        if(client->config.stateCallback)
+            client->config.stateCallback(client, client->state);
+    }
+}
+
+/***********************/
+/* Open the Connection */
+/***********************/
 
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
@@ -97,9 +116,13 @@ HelAckHandshake(UA_Client *client) {
     /* Loop until we have a complete chunk */
     retval = UA_Connection_receiveChunksBlocking(conn, client, processACKResponse,
                                                  client->config.timeout);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Receiving ACK message failed");
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            client->state = UA_CLIENTSTATE_DISCONNECTED;
+        UA_Client_close(client);
+    }
     return retval;
 }
 
@@ -108,12 +131,12 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
     /* Replace the token */
     UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
     client->channel.securityToken = response->securityToken;
-    UA_ChannelSecurityToken_deleteMembers(&response->securityToken);
+    UA_ChannelSecurityToken_init(&response->securityToken);
 
     /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
     client->channel.remoteNonce = response->serverNonce;
-    UA_ByteString_deleteMembers(&response->serverNonce);
+    UA_ByteString_init(&response->serverNonce);
 
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -127,7 +150,7 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
      * standard */
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
     client->nextChannelRenewal = UA_DateTime_nowMonotonic() + (UA_DateTime)
-        (response->securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
+        (client->channel.securityToken.revisedLifetime * (UA_Double)UA_DATETIME_MSEC * 0.75);
 }
 
 static UA_StatusCode
@@ -166,7 +189,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Sending OPN message failed with error %s", UA_StatusCode_name(retval));
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         return retval;
     }
 
@@ -178,11 +201,11 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     retval = receiveServiceResponse(client, &response,
                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE],
                                     UA_DateTime_nowMonotonic() +
-                                    ((UA_DateTime)client->config.timeout * UA_MSEC_TO_DATETIME),
+                                    ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC),
                                     &requestId);
-                                    
+
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         return retval;
     }
 
@@ -222,7 +245,7 @@ activateSession(UA_Client *client) {
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
 
-    if(response.responseHeader.serviceResult) {
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "ActivateSession failed with error code %s",
                      UA_StatusCode_name(response.responseHeader.serviceResult));
@@ -246,7 +269,6 @@ UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSi
     request.endpointUrl = client->endpointUrl;
 
     UA_GetEndpointsResponse response;
-    UA_GetEndpointsResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
 
@@ -347,7 +369,6 @@ createSession(UA_Client *client) {
     UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
     UA_CreateSessionResponse response;
-    UA_CreateSessionResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
 
@@ -364,14 +385,14 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
-
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
         client->config.connectionFunc(client->config.localConnectionConfig,
-                                      endpointUrl, client->config.timeout);
+                                      endpointUrl, client->config.timeout,
+                                      client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
@@ -389,49 +410,72 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     retval = HelAckHandshake(client);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    client->state = UA_CLIENTSTATE_CONNECTED;
+    setClientState(client, UA_CLIENTSTATE_CONNECTED);
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
     retval = openSecureChannel(client, false);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    client->state = UA_CLIENTSTATE_SECURECHANNEL;
+    setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 
-    /* There is no session to recover and we want to have a session */
-    if(createNewSession && UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
-        /* Get Endpoints */
-        if(endpointsHandshake) {
-            retval = getEndpoints(client);
+
+    /* Delete async service. TODO: Move this from connect to the disconnect/cleanup phase */
+    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    client->currentlyOutStandingPublishRequests = 0;
+#endif
+
+// TODO: actually, reactivate an existing session is working, but currently republish is not implemented
+// This option is disabled until we have a good implementation of the subscription recovery.
+
+#ifdef UA_SESSION_RECOVERY
+    /* Try to activate an existing Session for this SecureChannel */
+    if((!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) && (createNewSession)) {
+        retval = activateSession(client);
+        if(retval == UA_STATUSCODE_BADSESSIONIDINVALID) {
+            /* Could not recover an old session. Remove authenticationToken */
+            UA_NodeId_deleteMembers(&client->authenticationToken);
+        } else {
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
+            setClientState(client, UA_CLIENTSTATE_SESSION_RENEWED);
+            return retval;
         }
-        /* Create a Session */
+    } else {
+        UA_NodeId_deleteMembers(&client->authenticationToken);
+    }
+#else
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+#endif /* UA_SESSION_RECOVERY */
+
+    /* Get Endpoints */
+    if(endpointsHandshake) {
+        retval = getEndpoints(client);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Create the Session for this SecureChannel */
+    if(createNewSession) {
         retval = createSession(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-    }
-
-    /* Activate the Session for this SecureChannel */
-    if(!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        /* A new session has been created. We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
         retval = activateSession(client);
-
-        /* Could not recover an old session. Create a new one */
-        if(retval == UA_STATUSCODE_BADSESSIONIDINVALID) {
-            retval = createSession(client);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto cleanup;
-            retval = activateSession(client);
-        }
-
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-        client->state = UA_CLIENTSTATE_SESSION;
+        setClientState(client, UA_CLIENTSTATE_SESSION);
     }
+
     return retval;
 
 cleanup:
-    UA_Client_disconnect(client);
+    UA_Client_close(client);
     return retval;
 }
 
@@ -453,7 +497,8 @@ UA_StatusCode
 UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
     UA_StatusCode retval = openSecureChannel(client, true);
     if(retval != UA_STATUSCODE_GOOD)
-        client->state = UA_CLIENTSTATE_DISCONNECTED;
+        UA_Client_close(client);
+
     return retval;
 }
 
@@ -488,27 +533,57 @@ sendCloseSecureChannel(UA_Client *client) {
     UA_SecureChannel_sendSymmetricMessage(channel, ++client->requestId,
                                           UA_MESSAGETYPE_CLO, &request,
                                           &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
+    UA_CloseSecureChannelRequest_deleteMembers(&request);
     UA_SecureChannel_deleteMembersCleanup(&client->channel);
 }
 
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
     /* Is a session established? */
-    if(client->state == UA_CLIENTSTATE_SESSION){
-        client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
+    if(client->state >= UA_CLIENTSTATE_SESSION) {
+        client->state = UA_CLIENTSTATE_SECURECHANNEL;
         sendCloseSession(client);
     }
     UA_NodeId_deleteMembers(&client->authenticationToken);
     client->requestHandle = 0;
 
     /* Is a secure channel established? */
-    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
+    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL) {
+        client->state = UA_CLIENTSTATE_CONNECTED;
         sendCloseSecureChannel(client);
+    }
 
     /* Close the TCP connection */
-    if(client->state >= UA_CLIENTSTATE_CONNECTED)
+    if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
-    client->state = UA_CLIENTSTATE_DISCONNECTED;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+        /* We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
+
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Client_close(UA_Client *client) {
+    client->requestHandle = 0;
+
+    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
+        UA_SecureChannel_deleteMembersCleanup(&client->channel);
+
+    /* Close the TCP connection */
+    if(client->connection.state != UA_CONNECTION_CLOSED)
+        client->connection.close(&client->connection);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+        /* We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
+
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
 }

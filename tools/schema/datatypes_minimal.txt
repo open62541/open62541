@@ -136,6 +136,7 @@ QueryDataSet
 ParsingResult
 ContentFilterElementResult
 ContentFilterResult
+EventFilterResult
 QueryFirstResponse
 QueryNextRequest
 QueryNextResponse
@@ -171,9 +172,11 @@ FindServersOnNetworkResponse
 DataChangeTrigger
 DeadbandType
 DataChangeFilter
-MonitoringFilter
 EventFilter
 FilterOperand
+ElementOperand
+LiteralOperand
+AttributeOperand
 SimpleAttributeOperand
 EventNotificationList
 EventFieldList
@@ -194,3 +197,7 @@ EndpointUrlListDataType
 ModelChangeStructureDataType
 SemanticChangeStructureDataType
 TimeZoneDataType
+AggregateConfiguration
+AggregateFilter
+SetTriggeringRequest
+SetTriggeringResponse

@@ -1,6 +1,19 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Florian Palm
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015 (c) LEvertz
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2016 (c) Julian Grothoff
+ *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2016 (c) Lorenz Haas
+ *    Copyright 2017 (c) frax2222
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ */
 
 #include "ua_types.h"
 #include "ua_server_internal.h"
@@ -70,7 +83,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = parentCopy->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
-        for (size_t j = 0; j<ref->targetIdsSize; j++)
+        for(size_t j = 0; j<ref->targetIdsSize; j++)
             retval |= callback(ref->targetIds[j].nodeId, ref->isInverse,
                                ref->referenceTypeId, handle);
     }
@@ -132,8 +145,14 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
+    /* Process new delayed callbacks from the cleanup */
+    UA_Server_cleanupDispatchQueue(server);
+    pthread_mutex_destroy(&server->dispatchQueue_accessMutex);
     pthread_cond_destroy(&server->dispatchQueue_condition);
-    pthread_mutex_destroy(&server->dispatchQueue_mutex);
+    pthread_mutex_destroy(&server->dispatchQueue_conditionMutex);
+#else
+    /* Process new delayed callbacks from the cleanup */
+    UA_Server_cleanupDelayedCallbacks(server);
 #endif
 
     /* Delete the timed work */
@@ -160,18 +179,23 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 
 UA_Server *
 UA_Server_new(const UA_ServerConfig *config) {
+    /* A config is required */
+    if(!config)
+        return NULL;
+
+    /* At least one endpoint has to be configured */
+    if(config->endpointsSize == 0) {
+        UA_LOG_FATAL(config->logger, UA_LOGCATEGORY_SERVER,
+                     "There has to be at least one endpoint.");
+        return NULL;
+    }
+
+    /* Allocate the server */
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
 
-    if(config->endpointsSize == 0) {
-        UA_LOG_FATAL(config->logger,
-                     UA_LOGCATEGORY_SERVER,
-                     "There has to be at least one endpoint.");
-        UA_free(server);
-        return NULL;
-    }
-
+    /* Set the config */
     server->config = *config;
 
     /* Init start time to zero, the actual start time will be sampled in
@@ -193,7 +217,7 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     /* Initialized the dispatch queue for worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
-    cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
+    SIMPLEQ_INIT(&server->dispatchQueue);
 #endif
 
     /* Create Namespaces 0 and 1 */
@@ -244,10 +268,10 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     /* Initialize namespace 0*/
     UA_StatusCode retVal = UA_Server_initNS0(server);
-    if (retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(config->logger,
-                     UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 failed with %s. See previous outputs for any error messages.",
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logger, UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 failed with %s. "
+                     "See previous outputs for any error messages.",
                      UA_StatusCode_name(retVal));
         UA_Server_delete(server);
         return NULL;
