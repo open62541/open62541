@@ -79,28 +79,33 @@ higher_prime_index(UA_UInt32 n) {
     return low;
 }
 
-/* returns an empty slot or null if the nodeid exists */
+/* returns an empty slot or null if the nodeid exists or if no empty slot is found. */
 static UA_NodeMapEntry **
 findFreeSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
+    UA_NodeMapEntry **retval = NULL;
     UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    UA_UInt32 idx = mod(h, size);
+    UA_UInt64 idx = mod(h, size); // use 64 bit container to avoid overflow
+    UA_UInt32 startIdx = (UA_UInt32)idx;
     UA_UInt32 hash2 = mod2(h, size);
+    UA_NodeMapEntry *entry = NULL;
 
-    while(true) {
-        UA_NodeMapEntry *e = ns->entries[idx];
-        if(e > UA_NODEMAP_TOMBSTONE &&
-           UA_NodeId_equal(&e->node.nodeId, nodeid))
+    do {
+        entry = ns->entries[(UA_UInt32)idx];
+        if(entry > UA_NODEMAP_TOMBSTONE &&
+           UA_NodeId_equal(&entry->node.nodeId, nodeid))
             return NULL;
-        if(ns->entries[idx] <= UA_NODEMAP_TOMBSTONE)
-            return &ns->entries[idx];
+        if(!retval && entry <= UA_NODEMAP_TOMBSTONE)
+            retval = &ns->entries[(UA_UInt32)idx];
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    }
+    } while((UA_UInt32)idx != startIdx && entry);
 
-    /* NOTREACHED */
-    return NULL;
+    /* NULL is returned if there is no free slot (idx == startIdx).
+     * Otherwise the first free slot is returned after we are sure,
+     * that the node id cannot be found in the used hashmap (!entry). */
+    return retval;
 }
 
 /* The occupancy of the table after the call will be about 50% */
@@ -204,22 +209,24 @@ static UA_NodeMapEntry **
 findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
     UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    UA_UInt32 idx = mod(h, size);
+    UA_UInt64 idx = mod(h, size); // use 64 bit container to avoid overflow
     UA_UInt32 hash2 = mod2(h, size);
+    UA_UInt32 startIdx = (UA_UInt32)idx;
+    UA_NodeMapEntry *entry = NULL;
 
-    while(true) {
-        UA_NodeMapEntry *e = ns->entries[idx];
-        if(!e)
-            return NULL;
-        if(e > UA_NODEMAP_TOMBSTONE &&
-           UA_NodeId_equal(&e->node.nodeId, nodeid))
-            return &ns->entries[idx];
+    do {
+        entry = ns->entries[(UA_UInt32)idx];
+        if(entry > UA_NODEMAP_TOMBSTONE &&
+           UA_NodeId_equal(&entry->node.nodeId, nodeid))
+            return &ns->entries[(UA_UInt32)idx];
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    }
+    } while((UA_UInt32)idx != startIdx && entry);
 
-    /* NOTREACHED */
+    /* NULL is returned if there is no free slot (idx == startIdx)
+     * and the node id is not found or if the end of the used slots (!entry)
+     * is reached. */
     return NULL;
 }
 
@@ -335,19 +342,28 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
             node->nodeId.identifier.numeric == 0) {
         /* create a random nodeid */
         /* start at least with 50,000 to make sure we don not conflict with nodes from the spec */
+        /* if we find a conflict, we just try another identifier until we have tried all possible identifiers */
+        /* since the size is prime and we don't change the increase val, we will reach the starting id again */
         /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
-        /* Thus the node id's may collide */
-        UA_UInt32 identifier = 50000 + ns->count+1; // start value
+        /* Thus the node ids may collide */
         UA_UInt32 size = ns->size;
+        UA_UInt64 identifier = mod(50000 + size+1, size); // start value, use 64 bit container to avoid overflow
         UA_UInt32 increase = mod2(ns->count+1, size);
-        while(true) {
-            node->nodeId.identifier.numeric = identifier;
+        UA_UInt32 startId = (UA_UInt32)identifier; // mod ensures us that the id is a valid 32 bit
+
+        do {
+            node->nodeId.identifier.numeric = (UA_UInt32)identifier;
             slot = findFreeSlot(ns, &node->nodeId);
             if(slot)
                 break;
             identifier += increase;
             if(identifier >= size)
                 identifier -= size;
+        } while((UA_UInt32)identifier != startId);
+        
+        if (!slot) {
+            END_CRITSECT(ns);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         }
     } else {
         slot = findFreeSlot(ns, &node->nodeId);
