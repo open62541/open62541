@@ -936,46 +936,6 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  *
  *    types_generated */
 
-/**
- * Deprecated Data Types API
- * -------------------------
- * The following definitions are deprecated and will be removed in future
- * releases of open62541. */
-
-typedef struct {
-    UA_StatusCode code;      /* The numeric value of the StatusCode */
-    const char* name;        /* The symbolic name */
-    const char* explanation; /* Short message explaining the StatusCode */
-} UA_StatusCodeDescription;
-
-UA_EXPORT extern const UA_StatusCodeDescription statusCodeExplanation_default;
-
-UA_DEPRECATED static UA_INLINE const UA_StatusCodeDescription *
-UA_StatusCode_description(UA_StatusCode code) {
-    return &statusCodeExplanation_default;
-}
-
-UA_DEPRECATED static UA_INLINE const char *
-UA_StatusCode_explanation(UA_StatusCode code) {
-    return statusCodeExplanation_default.name;
-}
-
-UA_DEPRECATED UA_String
-UA_DateTime_toString(UA_DateTime t);
-
-/* The old DateTime conversion macros */
-UA_DEPRECATED static UA_INLINE double
-deprecatedDateTimeMultiple(double multiple) {
-    return multiple;
-}
-
-#define UA_USEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_USEC)
-#define UA_MSEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_MSEC)
-#define UA_SEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_SEC)
-#define UA_DATETIME_TO_USEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_USEC))
-#define UA_DATETIME_TO_MSEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_MSEC))
-#define UA_DATETIME_TO_SEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_SEC))
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

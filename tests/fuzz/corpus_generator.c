@@ -10,10 +10,6 @@
  * corpus to the repository.
  */
 
-#ifdef _MSC_VER
-#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_manuallySendPublishRequest': was declared deprecated
-#endif
-
 #ifndef UA_DEBUG_DUMP_PKGS_FILE
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
@@ -29,6 +25,7 @@
 #include <unistd.h>
 #include <ua_client_highlevel.h>
 #include <ua_client_subscriptions.h>
+#include <client/ua_client_internal.h>
 
 #include "ua_config_default.h"
 
@@ -425,7 +422,16 @@ subscriptionRequests(UA_Client *client) {
     monId = monResponse.monitoredItemId;
 
     // publishRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_manuallySendPublishRequest(client));
+    UA_PublishRequest publishRequest;
+    UA_PublishRequest_init(&publishRequest);
+    ASSERT_GOOD(UA_Client_preparePublishRequest(client, &publishRequest));
+    UA_PublishResponse publishResponse;
+    __UA_Client_Service(client, &publishRequest, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+                        &publishResponse, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
+    // ASSERT_GOOD(publishResponse.responseHeader.serviceResult);
+    UA_PublishRequest_deleteMembers(&publishRequest);
+    UA_PublishResponse_deleteMembers(&publishResponse);
 
     // republishRequest
     UA_RepublishRequest republishRequest;
