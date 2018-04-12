@@ -101,7 +101,7 @@ sym_getLocalSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
                                   const void *channelContext) {
     ck_assert(securityPolicy != NULL);
     ck_assert(channelContext != NULL);
-    return 0;
+    return keySizes->sym_sig_size;
 }
 
 static size_t
@@ -109,7 +109,7 @@ sym_getRemoteSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
                                    const void *channelContext) {
     ck_assert(securityPolicy != NULL);
     ck_assert(channelContext != NULL);
-    return 0;
+    return keySizes->sym_sig_size;
 }
 
 static size_t

@@ -43,6 +43,7 @@ typedef struct funcs_called {
 typedef struct key_sizes {
     size_t sym_enc_blockSize;
     size_t sym_sig_keyLen;
+    size_t sym_sig_size;
     size_t sym_enc_keyLen;
 
     size_t asym_rmt_sig_size;
