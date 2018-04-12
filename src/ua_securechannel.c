@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
@@ -631,6 +631,9 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    if(messageType != UA_MESSAGETYPE_MSG && messageType != UA_MESSAGETYPE_CLO)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Create the chunking info structure */
     mc->channel = channel;
     mc->requestId = requestId;
@@ -687,6 +690,9 @@ UA_StatusCode
 UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                       UA_MessageType messageType, void *payload,
                                       const UA_DataType *payloadType) {
+    if(!channel || !payload || !payloadType)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     if(channel->connection) {
         if(channel->connection->state == UA_CONNECTION_CLOSED)
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
