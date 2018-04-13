@@ -350,7 +350,10 @@ UA_Server_run_startup(UA_Server *server) {
         startMulticastDiscoveryServer(server);
 #endif
 
-    /* create the OverFlowEventType */
+    /* create the OverFlowEventType
+     * The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
+     * directly, but need to create a subtype. This is already posted on the OPC Foundation bug tracker under the
+     * following link for clarification: https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
 #ifdef UA_ENABLE_EVENTS
     UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
     overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");

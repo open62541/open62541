@@ -6,23 +6,25 @@
  */
 
 #include "ua_server_internal.h"
+#include "ua_subscription.h"
 #include "ua_subscription_events.h"
 
 #ifdef UA_ENABLE_EVENTS
 
-typedef struct node_iteration {
-    LIST_ENTRY(node_iteration) listEntry;
+typedef struct Events_nodeListElement {
+    LIST_ENTRY(Events_nodeListElement) listEntry;
     UA_NodeId *node;
-} node_iteration;
+} Events_nodeListElement;
 
-typedef LIST_HEAD(nodeList, node_iteration) nodeList;
+typedef LIST_HEAD(Events_nodeList, Events_nodeListElement) Events_nodeList;
 
 struct getNodesHandle {
     UA_Server *server;
-    nodeList *nodes;
+    Events_nodeList *nodes;
 };
 
-UA_StatusCode UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
+/* generates a unique event id */
+static UA_StatusCode UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
     /* EventId is a ByteString, which is basically just a string
      * We will use a 16-Byte ByteString as an identifier */
     generatedId->length = 16;
@@ -43,7 +45,8 @@ UA_StatusCode UA_Event_generateEventId(UA_Server *server, UA_ByteString *generat
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_getEventId(UA_Server *server, UA_NodeId *eventNodeId, UA_ByteString *outId) {
+/* returns the EventId of a node representation of an event */
+static UA_StatusCode UA_Server_getEventId(UA_Server *server, UA_NodeId *eventNodeId, UA_ByteString *outId) {
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
@@ -90,7 +93,7 @@ static UA_StatusCode findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_
         return UA_STATUSCODE_GOOD;
     }
 
-    node_iteration *entry = (node_iteration *) UA_malloc(sizeof(node_iteration));
+    Events_nodeListElement *entry = (Events_nodeListElement *) UA_malloc(sizeof(Events_nodeListElement));
     if (!entry) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -108,11 +111,14 @@ static UA_StatusCode findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t relativePathSize, UA_NodeId *event,
-                               UA_BrowsePathResult *out) {
+/* Searches for an attribute of an attribute of an event with the name 'name' and the depth form the event
+ * relativePathSize.
+ * Returns the browsePathResult of searching for that node */
+static void UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t relativePathSize, UA_NodeId *event,
+                                      UA_BrowsePathResult *out) {
     /* get a list with all subtypes of aggregates */
     struct getNodesHandle handle;
-    nodeList list;
+    Events_nodeList list;
     LIST_INIT(&list);
     handle.server = server;
     handle.nodes = &list;
@@ -124,7 +130,7 @@ void UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t
 
     /* check if you can find the node with any of the subtypes of aggregates */
     UA_Boolean nodeFound = UA_FALSE;
-    node_iteration *iter, *tmp_iter;
+    Events_nodeListElement *iter, *tmp_iter;
     LIST_FOREACH_SAFE(iter, &list, listEntry, tmp_iter) {
         if (!nodeFound) {
             UA_RelativePathElement rpe;
@@ -172,9 +178,10 @@ UA_StatusCode UA_Server_createEvent(UA_Server *server, UA_NodeId eventType, UA_N
     }
 
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName.locale = UA_STRING("en-US");
+    oAttr.displayName.locale = UA_STRING_NULL;
     oAttr.displayName.text = eventId;
-    oAttr.description = UA_LOCALIZEDTEXT("en-US", "An event in its most basic form.");
+    oAttr.description.locale = UA_STRING_NULL;
+    oAttr.description.text = UA_STRING_NULL;
 
     UA_QualifiedName name;
     UA_QualifiedName_init(&name);
@@ -257,8 +264,9 @@ static UA_StatusCode whereClausesApply(UA_Server *server, const UA_ContentFilter
     return UA_STATUSCODE_BADNOTSUPPORTED;
 }
 
-UA_StatusCode UA_Server_filterEvent(UA_Server *server, UA_NodeId *eventNode, UA_EventFilter *filter,
-                                    UA_EventNotification *notification) {
+/* filters the given event with the given filter and writes the results into a notification */
+static UA_StatusCode UA_Server_filterEvent(UA_Server *server, UA_NodeId *eventNode, UA_EventFilter *filter,
+                                           UA_EventNotification *notification) {
     if (filter->selectClausesSize == 0) {
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
     }
@@ -389,7 +397,7 @@ static UA_StatusCode getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boole
         return UA_STATUSCODE_GOOD;
     }
 
-    node_iteration *entry = (node_iteration *) UA_malloc(sizeof(node_iteration));
+    Events_nodeListElement *entry = (Events_nodeListElement *) UA_malloc(sizeof(Events_nodeListElement));
     if (!entry) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -406,7 +414,8 @@ static UA_StatusCode getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boole
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, UA_NodeId *event, UA_MonitoredItem *mon) {
+/* filters an event according to the filter specified by mon and then adds it to mons notification queue */
+static UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, UA_NodeId *event, UA_MonitoredItem *mon) {
     UA_Notification *notification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
     if (!notification) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -453,19 +462,19 @@ UA_StatusCode UA_Server_triggerEvent(UA_Server *server, UA_NodeId *event, UA_Nod
     }
 
     /* get an array with all parents */
-    struct getNodesHandle handle;
-    nodeList list;
-    LIST_INIT(&list);
-    handle.server = server;
-    handle.nodes = &list;
-    retval = getParentsNodeIteratorCallback(*origin, UA_TRUE, UA_NODEID_NULL, &handle);
+    struct getNodesHandle parentHandle;
+    Events_nodeList parentList;
+    LIST_INIT(&parentList);
+    parentHandle.server = server;
+    parentHandle.nodes = &parentList;
+    retval = getParentsNodeIteratorCallback(*origin, UA_TRUE, UA_NODEID_NULL, &parentHandle);
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
 
     /* add the event to each node's monitored items */
-    node_iteration *parentIter, *tmp_parentIter;
-    LIST_FOREACH_SAFE(parentIter, &list, listEntry, tmp_parentIter) {
+    Events_nodeListElement *parentIter, *tmp_parentIter;
+    LIST_FOREACH_SAFE(parentIter, &parentList, listEntry, tmp_parentIter) {
         UA_MonitoredItemQueueEntry *monIter;
         const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, parentIter->node);
         LIST_FOREACH(monIter, &node->monitoredItemQueue, listEntry) {
