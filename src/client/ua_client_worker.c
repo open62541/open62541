@@ -209,7 +209,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
             }
 #endif
             /* Check for new data */
-            retval = receiveServiceResponse_async(client, NULL, NULL);
+            retval = receiveServiceResponseAsync(client, NULL, NULL);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
             /* The inactivity check must be done after receiveServiceResponse*/
@@ -217,7 +217,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
 #endif
 
         } else {
-            retval = receivePacket_async(client);
+            retval = receivePacketAsync(client);
         }
 
 #ifndef UA_ENABLE_MULTITHREADING

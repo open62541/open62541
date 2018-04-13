@@ -515,7 +515,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
-receiveServiceResponse_async(UA_Client *client, void *response,
+receiveServiceResponseAsync(UA_Client *client, void *response,
                              const UA_DataType *responseType) {
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 
@@ -532,7 +532,7 @@ receiveServiceResponse_async(UA_Client *client, void *response,
 }
 
 UA_StatusCode
-receivePacket_async(UA_Client *client) {
+receivePacketAsync(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED ||
             UA_Client_getState(client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {

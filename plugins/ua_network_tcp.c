@@ -784,9 +784,10 @@ static void
 ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if (connection->handle){
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
+#ifndef _WIN32
         if(tcpConnection->server)
             freeaddrinfo(tcpConnection->server);
-
+#endif
         free(tcpConnection);
     }
 }

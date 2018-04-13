@@ -226,7 +226,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
  * @param  channel      current channel in which the client runs
  * @param  response     create session response from the server
  * @return Returns an error code or UA_STATUSCODE_GOOD. */
-static UA_StatusCode
+UA_StatusCode
 checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResponse *response) {
     if(channel == NULL || response == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -265,7 +265,7 @@ checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResp
  * @param  channel      current channel in which the client runs
  * @param  request      activate session request message to server
  * @return Returns an error or UA_STATUSCODE_GOOD */
-static UA_StatusCode
+UA_StatusCode
 signActivateSessionRequest(UA_SecureChannel *channel,
                            UA_ActivateSessionRequest *request) {
     if(channel == NULL || request == NULL)
