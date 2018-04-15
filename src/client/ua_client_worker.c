@@ -157,14 +157,15 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
  *       clean up */
 
 UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
-// TODO Remove duplicate code when all tests pass
-    if(timeout) {
+// TODO connectivity check & timeout features for the async implementation (timeout == 0)
+    UA_StatusCode retval;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-        UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-        if(retvalPublish != UA_STATUSCODE_GOOD)
-            return retvalPublish;
+    UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
+    if(client->state >= UA_CLIENTSTATE_SESSION && retvalPublish != UA_STATUSCODE_GOOD)
+        return retvalPublish;
 #endif
-        UA_StatusCode retval = UA_Client_manuallyRenewSecureChannel(client);
+    if(timeout){
+        retval = UA_Client_manuallyRenewSecureChannel(client);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
@@ -176,19 +177,9 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             retval = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        /* The inactivity check must be done after receiveServiceResponse */
-        UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
-#endif
-        asyncServiceTimeoutCheck(client);
-        return retval;
-    } else {
-        UA_StatusCode retval;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-        if(client->state >= UA_CLIENTSTATE_SESSION && retvalPublish != UA_STATUSCODE_GOOD)
-            return retvalPublish;
-#endif
+    }
+
+    else{
         UA_DateTime now = UA_DateTime_nowMonotonic();
         UA_Timer_process(&client->timer, now,
                          (UA_TimerDispatchCallback) UA_Client_workerCallback, client);
@@ -199,32 +190,24 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         /* Connection failed, drop the rest */
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-
         if((cs == UA_CLIENTSTATE_SECURECHANNEL) || (cs == UA_CLIENTSTATE_SESSION)) {
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-            if(cs >= UA_CLIENTSTATE_SESSION) {
-                retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-                if(retvalPublish != UA_STATUSCODE_GOOD)
-                    return retvalPublish;
-            }
-#endif
             /* Check for new data */
             retval = receiveServiceResponseAsync(client, NULL, NULL);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-            /* The inactivity check must be done after receiveServiceResponse*/
-            UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
-#endif
-
         } else {
             retval = receivePacketAsync(client);
         }
 
-#ifndef UA_ENABLE_MULTITHREADING
-    /* Process delayed callbacks when all callbacks and
-     * network events are done */
-        processDelayedClientCallbacks(client);
-#endif
-        return retval;
     }
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        /* The inactivity check must be done after receiveServiceResponse*/
+        UA_Client_Subscriptions_backgroundPublishInactivityCheck(client);
+#endif
+        asyncServiceTimeoutCheck(client);
+
+#ifndef UA_ENABLE_MULTITHREADING
+/* Process delayed callbacks when all callbacks and
+ * network events are done */
+    processDelayedClientCallbacks(client);
+#endif
+    return retval;
 }

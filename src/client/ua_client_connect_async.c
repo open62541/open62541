@@ -207,8 +207,8 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-processOPNResponse(void *application, UA_Connection *connection,
+static UA_StatusCode processOPNResponse
+    (void *application, UA_Connection *connection,
                     UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*) application;
     UA_StatusCode retval = UA_SecureChannel_processChunk (
@@ -219,6 +219,8 @@ processOPNResponse(void *application, UA_Connection *connection,
     }
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
     retval |= UA_SecureChannel_generateNewKeys(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     /* Following requests and responses */
     UA_UInt32 reqId;
     if(client->endpointsHandshake)
@@ -494,10 +496,14 @@ requestSession(UA_Client *client, UA_UInt32 *requestId) {
            UA_ByteString_deleteMembers(&client->channel.localNonce);
             retval = UA_ByteString_allocBuffer(&client->channel.localNonce,
                                                UA_SESSION_LOCALNONCELENGTH);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
         }
 
         retval = client->channel.securityPolicy->symmetricModule.
                  generateNonce(client->channel.securityPolicy, &client->channel.localNonce);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
     request.requestHeader.requestHandle = ++client->requestHandle;
