@@ -79,6 +79,16 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
+/**************/
+/* Encryption */
+/**************/
+
+UA_StatusCode
+checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResponse *response);
+
+UA_StatusCode
+signActivateSessionRequest(UA_SecureChannel *channel,
+                           UA_ActivateSessionRequest *request);
 /**********/
 /* Client */
 /**********/
@@ -195,7 +205,7 @@ UA_Client_getEndpointsInternal(UA_Client *client,
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
 UA_StatusCode
-receivePacket_async(UA_Client *client);
+receivePacketAsync(UA_Client *client);
 
 UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response,
@@ -203,7 +213,7 @@ receiveServiceResponse(UA_Client *client, void *response,
                        UA_UInt32 *synchronousRequestId);
 
 UA_StatusCode
-receiveServiceResponse_async(UA_Client *client, void *response,
+receiveServiceResponseAsync(UA_Client *client, void *response,
                              const UA_DataType *responseType);
 void
 UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,

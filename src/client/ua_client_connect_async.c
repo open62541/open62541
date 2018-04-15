@@ -317,7 +317,7 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
     }
     client->connection.state = UA_CONNECTION_ESTABLISHED;
     setClientState(client, UA_CLIENTSTATE_SESSION);
-     /* call onConnect (clientAsync.c) callback */
+     /* call onConnect (client_async.c) callback */
     AsyncServiceCall ac = client->asyncConnectCall;
 
     ac.callback(client, ac.userdata, requestId + 1,
