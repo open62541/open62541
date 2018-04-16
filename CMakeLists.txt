@@ -644,6 +644,10 @@ if(MSVC)
     set(NODESET_MAX_STR_LEN 65535)
 endif()
 
+if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
+    set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
+endif()
+
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
@@ -652,6 +656,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            --generate-ns0
                            --internal-headers
                            --max-string-length=${NODESET_MAX_STR_LEN}
+                           --encode-binary-size=${UA_NODESET_ENCODE_BINARY_SIZE}
                            --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            --xml ${UA_FILE_NS0}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
