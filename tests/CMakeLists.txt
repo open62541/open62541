@@ -31,7 +31,7 @@ endif()
 
 
 # Use different plugins for testing
-set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
+set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
@@ -51,7 +51,7 @@ if(UA_ENABLE_ENCRYPTION)
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
-add_library(open62541-testplugins OBJECT ${test_plugin_sources})
+add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 

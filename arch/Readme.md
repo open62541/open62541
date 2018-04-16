@@ -63,19 +63,12 @@
     * Define and include all that's needed for your architecture
     */
     
-    
-    
-    /*
-    * Implement int UA_sleep_ms(unsigned int miliSeconds);
-    */ 
-    
     /*
     * Define OPTVAL_TYPE for non windows systems. In doubt, use int //TODO: Is this really necessary
     */
     
-    
     /*
-    * Define the following network options for ipv4 and ipv6 if they are enabled or not
+    * Define the following network options
     */
     
     
@@ -94,47 +87,19 @@
     * Define the ua_getnameinfo if your architecture supports it
     */
     
-    
-    
     /*
-    * Implement the following socket functions (you can #define them): 
+    * Use #define for the functions defined in ua_architecture_functions.h
+    * or implement them in a ua_architecture_functions.c file and 
+    * put it in your new_arch folder and add it in the CMakeLists.txt file 
+    * using ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture_functions.c)
     */ 
     
-    #include "ua_types.h"
-    
-    /* ssize_t ua_send(UA_SOCKET sockfd, const void *buf, size_t len, int flags);
-    * int ua_select(UA_SOCKET nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
-    * ssize_t ua_recv(UA_SOCKET sockfd, void *buf, size_t len, int flags);
-    * int ua_shutdown(UA_SOCKET sockfd, int how);
-    * UA_SOCKET ua_socket(int domain, int type, int protocol);
-    * int ua_bind(UA_SOCKET sockfd, const struct sockaddr *addr, socklen_t addrlen);
-    * int ua_listen(UA_SOCKET sockfd, int backlog);
-    * int ua_accept(UA_SOCKET sockfd, struct sockaddr *addr, socklen_t *addrlen);
-    * int ua_close(UA_SOCKET sockfd);
-    * int ua_connect(UA_SOCKET sockfd, const struct sockaddr *addr, socklen_t addrlen);
-    * void UA_fd_set(UA_SOCKET fd, fd_set *set);
-    * int UA_fd_isset(UA_SOCKET fd, fd_set *set)
-    * const char* ua_translate_error(int errorCode)
-    * int ua_getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res);
-    * UA_StatusCode socket_set_blocking(UA_SOCKET sockfd); 
-    * UA_StatusCode socket_set_nonblocking(UA_SOCKET sockfd); 
-    * int ua_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen); //Only in non windows architectures
-    * int ua_setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
-    * void ua_freeaddrinfo(struct addrinfo *res);
-    */
-    
     /*
-    * Define int ua_snprintf(char* pa_stream, size_t pa_size, const char* pa_format, ...);
+    * Define UA_LOG_SOCKET_ERRNO_WRAP(LOG) which prints the string error given a char* errno_str variable
+    * Do the same for UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) for errors related to getaddrinfo
     */
     
-    
-    /*
-    * Define
-    * void ua_initialize_architecture_network(void);
-    * void ua_deinitialize_architecture_network(void);
-    */
-    
-    
+    #include "../ua_architecture_functions.h"
     
     #endif /* PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ */
     

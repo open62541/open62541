@@ -6,19 +6,6 @@
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include "ua_server_internal.h"
 #include "ua_mdns_internal.h"
 #include "ua_util.h"

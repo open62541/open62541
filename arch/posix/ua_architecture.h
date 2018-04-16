@@ -9,7 +9,7 @@
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
 /* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE)
+#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
 # define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE
@@ -30,7 +30,6 @@
 #define UA_sleep_ms(X) usleep(X * 1000)
 
 #define OPTVAL_TYPE int
-
 
 #include <fcntl.h>
 #include <unistd.h> // read, write, close
@@ -62,6 +61,8 @@
 # define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 #endif
 
+#define UA_access access
+
 #define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
@@ -72,48 +73,41 @@
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
-#include "ua_types.h"
+#define UA_getnameinfo getnameinfo
+#define UA_send send
+#define UA_recv recv
+#define UA_close close
+#define UA_select select
+#define UA_shutdown shutdown
+#define UA_socket socket
+#define UA_bind bind
+#define UA_listen listen
+#define UA_accept accept
+#define UA_connect connect
+#define UA_getaddrinfo getaddrinfo
+#define UA_getsockopt getsockopt
+#define UA_setsockopt setsockopt
+#define UA_freeaddrinfo freeaddrinfo
+#define UA_gethostname gethostname
 
-#define ua_getnameinfo getnameinfo
-#define ua_send send
-#define ua_recv recv
-#define ua_close close
-#define ua_select select
-#define ua_shutdown shutdown
-#define ua_socket socket
-#define ua_bind bind
-#define ua_listen listen
-#define ua_accept accept
-#define ua_connect connect
-#define ua_translate_error gai_strerror
-#define ua_getaddrinfo getaddrinfo
-#define ua_getsockopt getsockopt
-#define ua_setsockopt setsockopt
-#define ua_freeaddrinfo freeaddrinfo
-
-static UA_INLINE uint32_t socket_set_blocking(UA_SOCKET sockfd){
-  int opts = fcntl(sockfd, F_GETFL);
-  if(opts < 0 || fcntl(sockfd, F_SETFL, opts & (~O_NONBLOCK)) < 0)
-      return UA_STATUSCODE_BADINTERNALERROR;
-  return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE uint32_t socket_set_nonblocking(UA_SOCKET sockfd){
-  int opts = fcntl(sockfd, F_GETFL);
-  if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
-    return UA_STATUSCODE_BADINTERNALERROR;
-  return UA_STATUSCODE_GOOD;
-}
+#include <stdlib.h>
+#define UA_free free
+#define UA_malloc malloc
+#define UA_calloc calloc
+#define UA_realloc realloc
 
 #include <stdio.h>
-#define ua_snprintf snprintf
+#define UA_snprintf snprintf
 
-static UA_INLINE void ua_initialize_architecture_network(void){
-  return;
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
+    char *errno_str = strerror(errno); \
+    LOG; \
+}
+#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) { \
+    const char *errno_str = gai_strerror(errno); \
+    LOG; \
 }
 
-static UA_INLINE void ua_deinitialize_architecture_network(void){
-  return;
-}
+#include "../ua_architecture_functions.h"
 
 #endif /* PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_ */

@@ -10,6 +10,7 @@
 # define _BSD_SOURCE
 #endif
 
+#include "ua_types.h"
 #include <time.h>
 /* Backup definition of SLIST_ENTRY on mingw winnt.h */
 # ifdef SLIST_ENTRY
@@ -24,8 +25,6 @@
 #  undef POP_SLIST_ENTRY
 #  pragma pop_macro("SLIST_ENTRY")
 # endif
-
-#include "ua_types.h"
 
 UA_DateTime UA_DateTime_now(void) {
     /* Windows filetime has the same definition as UA_DateTime */

@@ -6,6 +6,7 @@ if("${UA_ARCHITECTURE}" STREQUAL "freertos")
 
     ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR})
     ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_clock.c)
+    ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture_functions.c)
     
     SET(UA_FREERTOS_INCLUDES "" CACHE STRING "Folders to include from the freeRTOS OS")
     ua_include_directories(${UA_FREERTOS_INCLUDES})

@@ -64,7 +64,7 @@ endif(${UA_ARCHITECTURE} STREQUAL "None")
 
 message(STATUS "The selected architecture is ${UA_ARCHITECTURE}")
 
-add_subdirectory(plugins)
+add_subdirectory(arch)
 
 GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
 list(SORT architectures)
@@ -76,6 +76,17 @@ include_directories(${ua_directories_to_include})
 GET_PROPERTY(ua_architecture_headers GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS)
 
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
+
+set(ua_architecture_sources ${ua_architecture_sources}
+            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
+)
+
+set(ua_architecture_headers ${ua_architecture_headers}
+            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.h
+            ${PROJECT_SOURCE_DIR}/arch/ua_architecture_functions.h
+)
+
+
 
 if(${UA_ARCHITECTURE} STREQUAL "None")
   message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
@@ -353,13 +364,13 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
 
-set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_types.h
+set(exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
-                     ${PROJECT_SOURCE_DIR}/plugins/arch/${UA_ARCHITECTURE}/ua_architecture.h
-                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
@@ -442,18 +453,15 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
 
-set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
+set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_socket_error.h
 )
 
-set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
+set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
@@ -485,7 +493,7 @@ if(UA_DEBUG_DUMP_PKGS)
 endif()
 
 if(UA_ENABLE_NONSTANDARD_UDP)
-    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/ua_network_udp.h)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
@@ -795,10 +803,14 @@ add_custom_target(cpplint cpplint
                   ${internal_headers}
                   ${default_plugin_headers}
                   ${default_plugin_sources}
+                  ${ua_architecture_headers}
+                  ${ua_architecture_sources}
                   DEPENDS ${lib_sources}
                           ${internal_headers}
                           ${default_plugin_headers}
                           ${default_plugin_sources}
+                          ${ua_architecture_headers}
+                          ${ua_architecture_sources}
 
                   COMMENT "Run cpplint code style checker on the library")
 

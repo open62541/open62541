@@ -13,8 +13,6 @@
 extern "C" {
 #endif
 
-#include "ua_architecture.h"
-
 #include "ua_server.h"
 #include "ua_plugin_log.h"
 

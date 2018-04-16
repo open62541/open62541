@@ -6,19 +6,7 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
+#include "ua_types.h"
 #include <time.h>
 #include <sys/time.h>
 
@@ -26,8 +14,6 @@
 # include <mach/clock.h>
 # include <mach/mach.h>
 #endif
-
-#include "ua_types.h"
 
 UA_DateTime UA_DateTime_now(void) {
     struct timeval tv;
