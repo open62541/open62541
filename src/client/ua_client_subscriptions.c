@@ -634,12 +634,16 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     sub->lastActivity = UA_DateTime_nowMonotonic();
 
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
-    if((sub->sequenceNumber != msg->sequenceNumber) && (msg->sequenceNumber != 0) &&
-        (UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber)) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Invalid subscritpion sequenceNumber");
-        UA_Client_close(client);
-        return;
+    if(UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
+        UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Invalid subscription sequence number: expected %u but got %u",
+                     UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber),
+                     msg->sequenceNumber);
+        /* This is an error. But we do not abort the connection. Some server
+         * SDKs misbehave from time to time and send out-of-order sequence
+         * numbers. (Probably some multi-threading synchronization issue.) */
+        /* UA_Client_close(client);
+           return; */
     }
     sub->sequenceNumber = msg->sequenceNumber;
 
