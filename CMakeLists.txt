@@ -59,9 +59,13 @@ mark_as_advanced(UA_AMALGAMATION_ARCHITECUTRES)
 set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
 
 if(UA_ENABLE_AMALGAMATION)
-    if("${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
-        # select some default architectures which should be included
-        set(UA_AMALGAMATION_ARCHITECUTRES "win32;posix")
+    if(NOT "${UA_ARCHITECTURE}" STREQUAL "None")
+        set(UA_AMALGAMATION_ARCHITECUTRES "${UA_ARCHITECTURE}")
+    else()
+        if("${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
+            # select some default architectures which should be included
+            set(UA_AMALGAMATION_ARCHITECUTRES "win32;posix")
+        endif()
     endif()
     message(STATUS "Architectures included in amalgamation: ${UA_AMALGAMATION_ARCHITECUTRES}")
 endif()
