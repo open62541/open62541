@@ -156,41 +156,6 @@ UA_DateTime_toStruct(UA_DateTime t) {
     return dateTimeStruct;
 }
 
-static void
-printNumber(u16 n, u8 *pos, size_t digits) {
-    for(size_t i = digits; i > 0; --i) {
-        pos[i-1] = (u8)((n % 10) + '0');
-        n = n / 10;
-    }
-}
-
-UA_String
-UA_DateTime_toString(UA_DateTime t) {
-    /* length of the string is 31 (plus \0 at the end) */
-    UA_String str = {31, (u8*)UA_malloc(32)};
-    if(!str.data)
-        return UA_STRING_NULL;
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
-    printNumber(tSt.month, str.data, 2);
-    str.data[2] = '/';
-    printNumber(tSt.day, &str.data[3], 2);
-    str.data[5] = '/';
-    printNumber(tSt.year, &str.data[6], 4);
-    str.data[10] = ' ';
-    printNumber(tSt.hour, &str.data[11], 2);
-    str.data[13] = ':';
-    printNumber(tSt.min, &str.data[14], 2);
-    str.data[16] = ':';
-    printNumber(tSt.sec, &str.data[17], 2);
-    str.data[19] = '.';
-    printNumber(tSt.milliSec, &str.data[20], 3);
-    str.data[23] = '.';
-    printNumber(tSt.microSec, &str.data[24], 3);
-    str.data[27] = '.';
-    printNumber(tSt.nanoSec, &str.data[28], 3);
-    return str;
-}
-
 /* Guid */
 UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {

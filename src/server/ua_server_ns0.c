@@ -495,6 +495,8 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_Session *session = UA_SessionManager_getSessionById(&server->sessionManager, sessionId);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if (inputSize == 0 || !input[0].data)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!subscription)

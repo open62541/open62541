@@ -30,7 +30,6 @@ int main(int argc, char* argv[]) {
     UA_Client*              client             = NULL;
     UA_ByteString*          remoteCertificate  = NULL;
     UA_StatusCode           retval             = UA_STATUSCODE_GOOD;
-    UA_ByteString*          trustList          = NULL;
     size_t                  trustListSize      = 0;
     UA_ByteString*          revocationList     = NULL;
     size_t                  revocationListSize = 0;
@@ -99,17 +98,12 @@ int main(int argc, char* argv[]) {
     UA_Client_delete(client); /* Disconnects the client internally */
 
     /* Load the trustList. Load revocationList is not supported now */
-    if(argc > MIN_ARGS) {
+    if(argc > MIN_ARGS)
         trustListSize = (size_t)argc-MIN_ARGS;
-        retval = UA_ByteString_allocBuffer(trustList, trustListSize);
-        if(retval != UA_STATUSCODE_GOOD) {
-            cleanupClient(client, remoteCertificate);
-            return (int)retval;
-        }
 
-        for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++) {
-            trustList[trustListCount] = loadFile(argv[trustListCount+3]);
-        }
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++) {
+        trustList[trustListCount] = loadFile(argv[trustListCount+3]);
     }
 
     /* Secure client initialization */
