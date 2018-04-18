@@ -42,12 +42,12 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
     if(client->config.stateCallback)
-        client->config.stateCallback (client, client->state);
-    //catch error during async connection
+        client->config.stateCallback(client, client->state);
+    /* Catch error during async connection */
     client->connectStatus = UA_STATUSCODE_GOOD;
 
-    /*needed by async client*/
-    UA_Timer_init (&client->timer);
+    /* Needed by async client */
+    UA_Timer_init(&client->timer);
 
 #ifndef UA_ENABLE_MULTITHREADING
     SLIST_INIT(&client->delayedClientCallbacks);
@@ -117,6 +117,15 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
 
+    /* Catch error during async connection */
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
+    /* Needed by async client */
+    UA_Timer_init(&client->timer);
+
+#ifndef UA_ENABLE_MULTITHREADING
+    SLIST_INIT(&client->delayedClientCallbacks);
+#endif
     /* Verify remote certificate if trust list given to the application */
     if(trustListSize > 0) {
         retval = client->channel.securityPolicy->certificateVerification->
