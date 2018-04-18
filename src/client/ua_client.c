@@ -223,6 +223,9 @@ UA_Client_deleteMembers(UA_Client* client) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_Subscriptions_clean(client);
 #endif
+
+    /* Delete the timed work */
+    UA_Timer_deleteMembers(&client->timer);
 }
 
 void
