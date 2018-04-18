@@ -319,6 +319,12 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
     }
     client->connection.state = UA_CONNECTION_ESTABLISHED;
     setClientState(client, UA_CLIENTSTATE_SESSION);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        /* A new session has been created. We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
+
      /* call onConnect (client_async.c) callback */
     AsyncServiceCall ac = client->asyncConnectCall;
 
@@ -526,9 +532,9 @@ requestSession(UA_Client *client, UA_UInt32 *requestId) {
 UA_StatusCode
 UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
                                UA_ClientAsyncServiceCallback callback,
-                               void *connected, UA_Boolean endpointsHandshake,
+                               void *userdata, UA_Boolean endpointsHandshake,
                                UA_Boolean createNewSession) {
-    if(client->state >= UA_CLIENTSTATE_CONNECTED)
+    if(client->state >= UA_CLIENTSTATE_WAITING_FOR_ACK)
         return UA_STATUSCODE_GOOD;
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
@@ -553,23 +559,34 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     }
 
-    AsyncServiceCall *ac = (AsyncServiceCall*) UA_malloc(
-            sizeof(AsyncServiceCall));
-    if(!ac){
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
+    client->asyncConnectCall.callback = callback;
+    client->asyncConnectCall.userdata = userdata;
+
+    if(!client->connection.connectCallbackID) {
+        retval = UA_Client_addRepeatedCallback(
+                     client, client->config.pollConnectionFunc, &client->connection, 100,
+                     &client->connection.connectCallbackID);
     }
-    ac->callback = callback;
-    ac->userdata = connected;
 
-    client->asyncConnectCall = *ac;
-
-    retval = UA_Client_addRepeatedCallback(
-                 client, client->config.pollConnectionFunc, &client->connection, 100,
-                 &client->connection.connectCallbackID);
-    /* Otherwise potential memory leak */
-    UA_free(ac);
     retval |= UA_SecureChannel_generateLocalNonce(&client->channel);
+
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Delete async service. TODO: Move this from connect to the disconnect/cleanup phase */
+    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    client->currentlyOutStandingPublishRequests = 0;
+#endif
+
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+
+    /* Generate new local and remote key */
+    retval = UA_SecureChannel_generateNewKeys(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     return retval;
 
     cleanup: UA_Client_close(client);
