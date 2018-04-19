@@ -201,6 +201,11 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
 
+    /* Increase nextChannelRenewal to avoid that we re-start renewal when
+     * publish responses are received before the OPN response arrives. */
+    client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
+        (2 * ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC));
+
     /* Receive / decrypt / decode the OPN response. Process async services in
      * the background until the OPN response arrives. */
     UA_OpenSecureChannelResponse response;
