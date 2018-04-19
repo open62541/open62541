@@ -301,6 +301,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                                       &request->requestedParameters, v.value.type);
     UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_SESSION(server->config.logger, session, "Could not create MonitoredItem "
+                            "with status code %s", UA_StatusCode_name(retval));
         result->statusCode = retval;
         MonitoredItem_delete(server, newMon);
         --cmc->sub->lastMonitoredItemId;
