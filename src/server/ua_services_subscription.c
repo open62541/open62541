@@ -298,7 +298,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     retval = setMonitoredItemSettings(server, newMon, request->monitoringMode,
-                             &request->requestedParameters, v.value.type);
+                                      &request->requestedParameters, v.value.type);
     UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = retval;
