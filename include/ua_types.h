@@ -564,6 +564,9 @@ UA_Variant_isEmpty(const UA_Variant *v) {
     return v->type == NULL;
 }
 
+UA_Boolean UA_EXPORT
+UA_Variant_isEqual(const UA_Variant *v1, const UA_Variant *v2);
+
 /* Returns true if the variant contains a scalar value. Note that empty variants
  * contain an array of length -1 (undefined).
  *
@@ -727,6 +730,20 @@ typedef struct {
     UA_DateTime   serverTimestamp;
     UA_UInt16     serverPicoseconds;
 } UA_DataValue;
+
+UA_Boolean UA_EXPORT
+UA_DataValue_isEqual(const UA_DataValue * v1, const UA_DataValue * v2);
+
+typedef enum {
+    UA_DATAVALUE_IGNORETYPE_NONE = 0x00,
+    UA_DATAVALUE_IGNORETYPE_SERVERTIMESTAMP = 0x01,
+    UA_DATAVALUE_IGNORETYPE_SOURCETIMESTAMP = 0x02,
+    UA_DATAVALUE_IGNORETYPE_VALUE = 0x04,
+    UA_DATAVALUE_IGNORETYPE_STATUS = 0x08
+} UA_DataValue_IgnoreType;
+
+UA_Boolean UA_EXPORT
+UA_DataValue_isEqualParameterized(const UA_DataValue * v1, const UA_DataValue * v2, UA_DataValue_IgnoreType ignoreType);
 
 /**
  * DiagnosticInfo

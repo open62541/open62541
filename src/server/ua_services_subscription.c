@@ -173,11 +173,11 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
         if (filter->deadbandType == UA_DEADBANDTYPE_PERCENT) {
             return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
         }
-        if (UA_Variant_isEmpty(&mon->lastValue)) {
+        if (UA_Variant_isEmpty(&mon->lastSampledValue.value)) {
             if (!dataType || !isDataTypeNumeric(dataType))
                 return UA_STATUSCODE_BADFILTERNOTALLOWED;
         } else
-        if (!isDataTypeNumeric(mon->lastValue.type)) {
+        if (!isDataTypeNumeric(mon->lastSampledValue.value.type)) {
             return UA_STATUSCODE_BADFILTERNOTALLOWED;
         }
         UA_DataChangeFilter_copy(filter, &(mon->filter));
@@ -462,8 +462,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         mon->queueSize = 0;
 
         /* Initialize lastSampledValue */
-        UA_ByteString_deleteMembers(&mon->lastSampledValue);
-        UA_Variant_deleteMembers(&mon->lastValue);
+        UA_DataValue_deleteMembers(&mon->lastSampledValue);
     }
 }
 

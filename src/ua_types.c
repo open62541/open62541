@@ -1088,3 +1088,52 @@ isDataTypeNumeric(const UA_DataType *type) {
             return true;
     return false;
 }
+
+UA_Boolean UA_Variant_isEqual(const UA_Variant *v1, const UA_Variant *v2)
+{
+    if (v1->type != v2->type
+            || UA_Variant_isEmpty(v1) != UA_Variant_isEmpty(v2)
+            || UA_Variant_isScalar(v1) != UA_Variant_isScalar(v2)
+            || (!UA_Variant_isScalar(v1) && v1->arrayLength != v2->arrayLength))
+        return false;
+    // both are empty ?
+    if (UA_Variant_isEmpty(v1))
+        return true;
+    size_t compareSize;
+    if (UA_Variant_isScalar(v1)) {
+        compareSize = v1->type->memSize;
+    } else {
+        compareSize = v1->type->memSize * v1->arrayLength;
+    }
+    return !memcmp(v1->data, v2->data, compareSize);
+}
+
+UA_Boolean UA_DataValue_isEqualParameterized(const UA_DataValue *v1, const UA_DataValue *v2, UA_DataValue_IgnoreType ignoreType)
+{
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_SERVERTIMESTAMP)
+        && (v1->hasServerPicoseconds != v2->hasServerPicoseconds
+            || v1->hasServerTimestamp != v2->hasServerTimestamp
+            || (v1->hasServerPicoseconds && v1->serverPicoseconds != v2->serverPicoseconds)
+            || (v1->hasServerTimestamp && v1->hasServerTimestamp != v2->serverTimestamp)))
+        return false;
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_SOURCETIMESTAMP)
+            && (v1->hasSourcePicoseconds != v2->hasSourcePicoseconds
+            || v1->hasSourceTimestamp != v2->hasSourceTimestamp
+            || (v1->hasSourceTimestamp && v1->sourceTimestamp != v2->sourceTimestamp)
+            || (v1->hasSourcePicoseconds && v1->sourcePicoseconds != v2->sourcePicoseconds)))
+        return false;
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_STATUS)
+        && (v1->hasStatus != v2->hasStatus
+            || (v1->hasStatus && v1->status != v2->status)))
+        return false;
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_VALUE)
+        && (v1->hasValue != v2->hasValue
+            || (v1->hasValue && !UA_Variant_isEqual(&v1->value, &v2->value))))
+        return false;
+    return true;
+}
+
+UA_Boolean UA_DataValue_isEqual(const UA_DataValue *v1, const UA_DataValue *v2)
+{
+    return UA_DataValue_isEqualParameterized(v1, v2, UA_DATAVALUE_IGNORETYPE_NONE);
+}

@@ -63,8 +63,7 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     /* Remove the monitored item */
     LIST_REMOVE(monitoredItem, listEntry);
     UA_String_deleteMembers(&monitoredItem->indexRange);
-    UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
-    UA_Variant_deleteMembers(&monitoredItem->lastValue);
+    UA_DataValue_deleteMembers(&monitoredItem->lastSampledValue);
     UA_NodeId_deleteMembers(&monitoredItem->monitoredNodeId);
     UA_Server_delayedFree(server, monitoredItem);
 }
@@ -215,13 +214,12 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
 
 /* Errors are returned as no change detected */
 static UA_Boolean
-detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value,
-                            UA_ByteString *encoding) {
+detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value) {
     if (isDataTypeNumeric(value->value.type)
             && (mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE
                 || mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
         if (mon->filter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
-            if (!updateNeededForFilteredValue(&value->value, &mon->lastValue, mon->filter.deadbandValue))
+            if (!updateNeededForFilteredValue(&value->value, &mon->lastSampledValue.value, mon->filter.deadbandValue))
                 return false;
         } /*else if (mon->filter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
             // TODO where do this EURange come from ?
@@ -231,75 +229,24 @@ detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value,
         }*/
     }
 
-    /* Encode the data for comparison */
-    size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    if(binsize == 0)
-        return false;
-
-    /* Allocate buffer on the heap if necessary */
-    if(binsize > UA_VALUENCODING_MAXSTACK &&
-       UA_ByteString_allocBuffer(encoding, binsize) != UA_STATUSCODE_GOOD)
-        return false;
-
-    /* Encode the value */
-    UA_Byte *bufPos = encoding->data;
-    const UA_Byte *bufEnd = &encoding->data[encoding->length];
-    UA_StatusCode retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                           &bufPos, &bufEnd, NULL, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        return false;
-
-    /* The value has changed */
-    encoding->length = (uintptr_t)bufPos - (uintptr_t)encoding->data;
-    return !mon->lastSampledValue.data || !UA_String_equal(encoding, &mon->lastSampledValue);
-}
-
-/* Has this sample changed from the last one? The method may allocate additional
- * space for the encoding buffer. Detect the change in encoding->data. */
-static UA_Boolean
-detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value, UA_ByteString *encoding) {
-    /* Apply Filter */
-    UA_Boolean hasValue = value->hasValue;
+    UA_DataValue_IgnoreType ignoreType = UA_DATAVALUE_IGNORETYPE_SERVERTIMESTAMP;
     if(mon->filter.trigger == UA_DATACHANGETRIGGER_STATUS)
-        value->hasValue = false;
+        ignoreType = (UA_DataValue_IgnoreType)(ignoreType | UA_DATAVALUE_IGNORETYPE_VALUE);
+    if(mon->filter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)
+        ignoreType = (UA_DataValue_IgnoreType)(ignoreType | UA_DATAVALUE_IGNORETYPE_SOURCETIMESTAMP);
 
-    UA_Boolean hasServerTimestamp = value->hasServerTimestamp;
-    UA_Boolean hasServerPicoseconds = value->hasServerPicoseconds;
-    value->hasServerTimestamp = false;
-    value->hasServerPicoseconds = false;
-
-    UA_Boolean hasSourceTimestamp = value->hasSourceTimestamp;
-    UA_Boolean hasSourcePicoseconds = value->hasSourcePicoseconds;
-    if(mon->filter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
-        value->hasSourceTimestamp = false;
-        value->hasSourcePicoseconds = false;
-    }
-
-    /* Detect the Value Change */
-    UA_Boolean res = detectValueChangeWithFilter(mon, value, encoding);
-
-    /* Reset the filter */
-    value->hasValue = hasValue;
-    value->hasServerTimestamp = hasServerTimestamp;
-    value->hasServerPicoseconds = hasServerPicoseconds;
-    value->hasSourceTimestamp = hasSourceTimestamp;
-    value->hasSourcePicoseconds = hasSourcePicoseconds;
-    return res;
+    return !UA_DataValue_isEqualParameterized(&mon->lastSampledValue, value, ignoreType);
 }
 
 /* Returns whether a new sample was created */
 static UA_Boolean
 sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
                         UA_MonitoredItem *monitoredItem,
-                        UA_DataValue *value,
-                        UA_ByteString *valueEncoding) {
+                        UA_DataValue *value) {
     UA_assert(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY);
-    /* Store the pointer to the stack-allocated bytestring to see if a heap-allocation
-     * was necessary */
-    UA_Byte *stackValueEncoding = valueEncoding->data;
 
     /* Has the value changed? */
-    UA_Boolean changed = detectValueChange(monitoredItem, value, valueEncoding);
+    UA_Boolean changed = detectValueChangeWithFilter(monitoredItem, value);
     if(!changed)
         return false;
 
@@ -314,22 +261,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
         return false;
     }
 
-    /* Copy valueEncoding on the heap for the next comparison (if not already done) */
-    if(valueEncoding->data == stackValueEncoding) {
-        UA_ByteString cbs;
-        if(UA_ByteString_copy(valueEncoding, &cbs) != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
-                                   "Subscription %u | MonitoredItem %i | "
-                                   "ByteString to compare values could not be created",
-                                   sub->subscriptionId, monitoredItem->monitoredItemId);
-            UA_free(newNotification);
-            return false;
-        }
-        *valueEncoding = cbs;
-    }
-
     /* Prepare the newQueueItem */
-    if(value->hasValue && value->value.storageType == UA_VARIANT_DATA_NODELETE) {
+    if(value->hasValue){
         /* Make a deep copy of the value */
         UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -340,8 +273,6 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
             UA_free(newNotification);
             return false;
         }
-    } else {
-        newNotification->data.value = *value; /* Just copy the value and do not release it */
     }
 
     /* <-- Point of no return --> */
@@ -352,11 +283,9 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
 
     newNotification->mon = monitoredItem;
 
-    /* Replace the encoding for comparison */
-    UA_Variant_deleteMembers(&monitoredItem->lastValue);
-    UA_Variant_copy(&value->value, &monitoredItem->lastValue);
-    UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
-    monitoredItem->lastSampledValue = *valueEncoding;
+    /* Replace the datavalue for comparison */
+    UA_DataValue_deleteMembers(&monitoredItem->lastSampledValue);
+    UA_DataValue_copy(value, &monitoredItem->lastSampledValue);
 
     /* Add the notification to the end of local and global queue */
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newNotification, listEntry);
@@ -392,24 +321,10 @@ UA_MonitoredItem_SampleCallback(UA_Server *server,
         UA_Server_readWithSession(server, sub->session,
                                   &rvid, monitoredItem->timestampsToReturn);
 
-    /* Stack-allocate some memory for the value encoding. We might heap-allocate
-     * more memory if needed. This is just enough for scalars and small
-     * structures. */
-    UA_STACKARRAY(UA_Byte, stackValueEncoding, UA_VALUENCODING_MAXSTACK);
-    UA_ByteString valueEncoding;
-    valueEncoding.data = stackValueEncoding;
-    valueEncoding.length = UA_VALUENCODING_MAXSTACK;
-
     /* Create a sample and compare with the last value */
-    UA_Boolean newNotification = sampleCallbackWithValue(server, sub, monitoredItem,
-                                                         &value, &valueEncoding);
+    sampleCallbackWithValue(server, sub, monitoredItem, &value);
 
-    /* Clean up */
-    if(!newNotification) {
-        if(valueEncoding.data != stackValueEncoding)
-            UA_ByteString_deleteMembers(&valueEncoding);
-        UA_DataValue_deleteMembers(&value);
-    }
+    UA_DataValue_deleteMembers(&value);
 }
 
 UA_StatusCode
