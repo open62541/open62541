@@ -23,9 +23,11 @@ typedef struct UA_PubSubManager{
     UA_PublishedDataSet *publishedDataSets;
 } UA_PubSubManager;
 
-void UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);
+void
+UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);
 
-void UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId);
+void
+UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId);
 
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(void);

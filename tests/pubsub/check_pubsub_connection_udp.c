@@ -174,7 +174,7 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-    retVal |= UA_PubSubConnection_getConfig(server, connection, &connectionConfig);
+    retVal |= UA_Server_getPubSubConnectionConfig(server, connection, &connectionConfig);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(connectionConfig.connectionPropertiesSize == connectionConf.connectionPropertiesSize);
     ck_assert(UA_String_equal(&connectionConfig.name, &connectionConf.name) == UA_TRUE);
