@@ -18,6 +18,10 @@ extern "C" {
 #include "ua_server.h"
 #include "ua_server_pubsub.h"
 
+//forward declarations
+struct UA_WriterGroup;
+typedef struct UA_WriterGroup UA_WriterGroup;
+
 /* The configuration structs (public part of PubSub entities) are defined in include/ua_plugin_pubsub.h */
 
 /**********************************************/
@@ -26,7 +30,7 @@ extern "C" {
 typedef struct{
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
-    LIST_HEAD(UA_ListOfPubSubDataSetField, UA_PubSubDataSetField) fields;
+    LIST_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
     UA_NodeId identifier;
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
@@ -37,7 +41,7 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src, UA_Publishe
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier);
 void
-UA_PublishedDataSet_delete(UA_PublishedDataSet *publishedDataSet);
+UA_PublishedDataSet_deleteMembers(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
 
 /**********************************************/
 /*               Connection                   */
@@ -48,6 +52,7 @@ typedef struct{
     //internal fields
     UA_PubSubChannel *channel;
     UA_NodeId identifier;
+    LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
 } UA_PubSubConnection;
 
 UA_StatusCode
@@ -57,7 +62,83 @@ UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionId
 void
 UA_PubSubConnectionConfig_deleteMembers(UA_PubSubConnectionConfig *connectionConfig);
 void
-UA_PubSubConnection_delete(UA_PubSubConnection *connection);
+UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connection);
+
+/**********************************************/
+/*              DataSetWriter                 */
+/**********************************************/
+
+typedef struct UA_DataSetWriterSample{
+    UA_Boolean valeChanged;
+    UA_DataValue *value;
+} UA_DataSetWriterSample;
+
+typedef struct UA_DataSetWriter{
+    UA_DataSetWriterConfig config;
+    //internal fields
+    LIST_ENTRY(UA_DataSetWriter) listEntry;
+    UA_NodeId identifier;
+    UA_NodeId linkedWriterGroup;
+    UA_NodeId connectedDataSet;
+    UA_ConfigurationVersionDataType connectedDataSetVersion;
+    UA_UInt16 deltaFrameCounter;            //actual count of sent deltaFrames
+    size_t lastSamplesCount;
+    UA_DataSetWriterSample *lastSamples;
+    UA_UInt16 actualDataSetMessageSequenceCount;
+} UA_DataSetWriter;
+
+UA_StatusCode
+UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src, UA_DataSetWriterConfig *dst);
+UA_DataSetWriter *
+UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
+void
+UA_DataSetWriter_deleteMembers(UA_Server *server, UA_DataSetWriter *dataSetWriter);
+
+/**********************************************/
+/*               WriterGroup                  */
+/**********************************************/
+
+struct UA_WriterGroup{
+    UA_WriterGroupConfig config;
+    //internal fields
+    LIST_ENTRY(UA_WriterGroup) listEntry;
+    UA_NodeId identifier;
+    UA_NodeId linkedConnection;
+    LIST_HEAD(UA_ListOfDataSetWriter, UA_DataSetWriter) writers;
+    UA_UInt32 writersCount;
+    UA_UInt64 publishCallbackId;
+    UA_Boolean publishCallbackIsRegistered;
+};
+
+UA_StatusCode
+UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src, UA_WriterGroupConfig *dst);
+UA_WriterGroup *
+UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
+void
+UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup);
+
+/**********************************************/
+/*               DataSetField                 */
+/**********************************************/
+
+typedef struct UA_DataSetField{
+    UA_DataSetFieldConfig config;
+    //internal fields
+    LIST_ENTRY(UA_DataSetField) listEntry;
+    UA_NodeId identifier;
+    UA_NodeId publishedDataSet;             //ref to parent pds
+    UA_FieldMetaData fieldMetaData;
+    UA_UInt64 sampleCallbackId;
+    UA_Boolean sampleCallbackIsRegistered;
+    UA_DataValue lastValue;
+} UA_DataSetField;
+
+UA_StatusCode
+UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConfig *dst);
+UA_DataSetField *
+UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
+void
+UA_DataSetField_deleteMembers(UA_DataSetField *field);
 
 #ifdef __cplusplus
 } // extern "C"
