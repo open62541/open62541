@@ -9,11 +9,8 @@
 
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
-
-#define UA_VALUENCODING_MAXSTACK 512
 
 UA_MonitoredItem *
 UA_MonitoredItem_new(UA_MonitoredItemType monType) {
@@ -212,6 +209,8 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
     return false;
 }
 
+#include <stdio.h>
+
 /* Errors are returned as no change detected */
 static UA_Boolean
 detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value) {
@@ -235,7 +234,7 @@ detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value) {
     if(mon->filter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)
         ignoreType = (UA_DataValue_IgnoreType)(ignoreType | UA_DATAVALUE_IGNORETYPE_SOURCETIMESTAMP);
 
-    return !UA_DataValue_isEqualParameterized(&mon->lastSampledValue, value, ignoreType);
+    return !UA_DataValue_equalParameterized(&mon->lastSampledValue, value, ignoreType);
 }
 
 /* Returns whether a new sample was created */
