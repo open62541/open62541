@@ -215,3 +215,10 @@ StructureType
 StructureField
 EnumField
 PublishedVariableDataType
+UadpDataSetWriterMessageDataType
+UadpWriterGroupMessageDataType
+DataSetOrderingType
+DataSetFieldContentMask
+UadpDataSetMessageContentMask
+UadpNetworkMessageContentMask
+SimpleTypeDescription
