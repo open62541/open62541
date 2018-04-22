@@ -273,3 +273,24 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
         UA_free(&server->config.pubsubTransportLayers[i]);
     }
 }
+
+/***********************************/
+/*      PubSub Jobs abstraction    */
+/***********************************/
+UA_StatusCode
+UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                                     void *data, UA_UInt32 interval, UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback(&server->timer, (UA_TimerCallback)callback,
+                                        data, interval, callbackId);
+}
+
+UA_StatusCode
+UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                                                UA_UInt32 interval) {
+    return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId, interval);
+}
+
+UA_StatusCode
+UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
+    return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
+}

@@ -13,3 +13,4 @@ Tutorials
    tutorial_server_object.rst
    tutorial_server_method.rst
    tutorial_client_firststeps.rst
+   tutorial_pubsub_publish.rst
