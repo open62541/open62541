@@ -44,6 +44,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_datasource.c ${DOC_S
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_object.c ${DOC_SRC_DIR}/tutorial_server_object.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_method.c ${DOC_SRC_DIR}/tutorial_server_method.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c ${DOC_SRC_DIR}/tutorial_client_firststeps.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub/tutorial_pubsub_publish.c ${DOC_SRC_DIR}/tutorial_pubsub_publish.rst)
 
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
@@ -64,6 +65,7 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
+          ${DOC_SRC_DIR}/tutorial_pubsub_publish.rst
           ${DOC_SRC_DIR}/plugin_pubsub_connection.rst
           ${DOC_SRC_DIR}/pubsub.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
@@ -96,6 +98,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
+          ${DOC_SRC_DIR}/tutorial_pubsub_publish.rst
           ${DOC_SRC_DIR}/plugin_pubsub_connection.rst
           ${DOC_SRC_DIR}/pubsub.rst
   COMMENT "Building HTML documentation with Sphinx")

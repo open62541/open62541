@@ -140,6 +140,15 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 void
 UA_DataSetField_deleteMembers(UA_DataSetField *field);
 
+/*********************************************************/
+/*               PublishValues handling                  */
+/*********************************************************/
+
+UA_StatusCode
+UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+void
+UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

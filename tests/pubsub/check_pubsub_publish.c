@@ -5,14 +5,17 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <ua_server_pubsub.h>
-#include <src_generated/ua_types_generated_encoding_binary.h>
 #include <ua_types.h>
-#include <ua_pubsub.h>
+#include <ua_server_pubsub.h>
+#include "ua_server_pubsub.h"
+#include "src_generated/ua_types_generated_encoding_binary.h"
+#include "ua_types.h"
+#include "ua_pubsub.h"
 #include "ua_config_default.h"
 #include "ua_network_pubsub_udp.h"
 #include "ua_server_internal.h"
 #include "check.h"
+#include "stdio.h"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
@@ -146,12 +149,15 @@ static void setupDataSetWriterTestEnvironment(void){
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     writerGroupConfig.name = UA_STRING("WriterGroup 2");
     writerGroupConfig.publishingInterval = 50;
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup2);
     writerGroupConfig.name = UA_STRING("WriterGroup 3");
     writerGroupConfig.publishingInterval = 100;
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -346,6 +352,45 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         UA_DataSetFieldConfig_deleteMembers(&fieldConfigCopy);
     } END_TEST
 
+
+START_TEST(SinglePublishDataSetField){
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+        writerGroupConfig.name = UA_STRING("WriterGroup 1");
+        writerGroupConfig.publishingInterval = 10;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+        writerGroupConfig.name = UA_STRING("WriterGroup 2");
+        writerGroupConfig.publishingInterval = 50;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup2);
+        writerGroupConfig.name = UA_STRING("WriterGroup 3");
+        writerGroupConfig.publishingInterval = 100;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
+        UA_PublishedDataSetConfig pdsConfig;
+        memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+        pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+        pdsConfig.name = UA_STRING("PublishedDataSet 1");
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet2);
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
+        UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+        dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+
+        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        UA_WriterGroup_publishCallback(server, wg);
+    } END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub WriterGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_writergroup, setup, teardown);
@@ -371,10 +416,15 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_datasetfields, AddDataSetFieldWithInvalidPDSId);
     tcase_add_test(tc_add_pubsub_datasetfields, GetDataSetFieldConfigurationAndCompareValues);
 
+    TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
+    tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
+    tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
+
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);
     suite_add_tcase(s, tc_add_pubsub_datasetwriter);
     suite_add_tcase(s, tc_add_pubsub_datasetfields);
+    suite_add_tcase(s, tc_pubsub_publish);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
