@@ -82,11 +82,10 @@ struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
     UA_DataChangeFilter filter;
-    UA_Variant lastValue;
 
     /* Sample Callback */
     UA_UInt64 sampleCallbackId;
-    UA_ByteString lastSampledValue;
+    UA_DataValue lastSampledValue;
     UA_Boolean sampleCallbackIsRegistered;
 
     /* Notification Queue */

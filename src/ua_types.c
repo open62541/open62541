@@ -18,6 +18,7 @@
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_types_encoding_binary.h"
 
 #include "pcg_basic.h"
 #include "libc_time.h"
@@ -1083,8 +1084,193 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 UA_Boolean
 isDataTypeNumeric(const UA_DataType *type) {
     // All data types ids between UA_TYPES_SBYTE and UA_TYPES_DOUBLE are numeric
-    for (int i = UA_TYPES_SBYTE; i <= UA_TYPES_DOUBLE; ++i)
-        if (&UA_TYPES[i] == type)
-            return true;
+
+    if (type->typeIndex >= UA_TYPES_SBYTE && type->typeIndex <= UA_TYPES_DOUBLE)
+        return true;
     return false;
+}
+
+static UA_Boolean
+UA_Variant_equalEncoded(const UA_Variant *v1, const UA_Variant *v2)
+{
+    // This is the fallback for complex types
+    size_t binsize1 = UA_calcSizeBinary(v1, &UA_TYPES[UA_TYPES_VARIANT]);
+    size_t binsize2 = UA_calcSizeBinary(v2, &UA_TYPES[UA_TYPES_VARIANT]);
+    if (binsize1 != binsize2)
+        return false;
+    if (binsize1 == 0)
+        return true;
+
+    UA_ByteString valueEncoding1;
+    UA_ByteString valueEncoding2;
+
+    if (binsize1 <= UA_VARIANTENCODING_MAXSTACK) {
+        UA_STACKARRAY(UA_Byte, stackValueEncoding1, UA_VARIANTENCODING_MAXSTACK);
+        valueEncoding1.data = stackValueEncoding1;
+        valueEncoding1.length = UA_VARIANTENCODING_MAXSTACK;
+
+        UA_STACKARRAY(UA_Byte, stackValueEncoding2, UA_VARIANTENCODING_MAXSTACK);
+        valueEncoding2.data = stackValueEncoding2;
+        valueEncoding2.length = UA_VARIANTENCODING_MAXSTACK;
+    } else {
+        UA_StatusCode result = UA_ByteString_allocBuffer(&valueEncoding1, binsize1);
+        if (result != UA_STATUSCODE_GOOD)
+            return false;
+        result = UA_ByteString_allocBuffer(&valueEncoding2, binsize2);
+        if (result != UA_STATUSCODE_GOOD) {
+            UA_ByteString_deleteMembers(&valueEncoding1);
+            return false;
+        }
+    }
+
+    /* Encode the values */
+    UA_Byte *bufPos = valueEncoding1.data;
+    const UA_Byte *bufEnd = &valueEncoding1.data[valueEncoding1.length];
+    UA_StatusCode retval = UA_encodeBinary(v1, &UA_TYPES[UA_TYPES_VARIANT],
+                                           &bufPos, &bufEnd, NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if (binsize1 > UA_VARIANTENCODING_MAXSTACK) {
+            UA_ByteString_deleteMembers(&valueEncoding1);
+            UA_ByteString_deleteMembers(&valueEncoding2);
+        }
+        return false;
+    }
+    valueEncoding1.length = (uintptr_t)bufPos - (uintptr_t)valueEncoding1.data;
+
+    bufPos = valueEncoding2.data;
+    bufEnd = &valueEncoding2.data[valueEncoding2.length];
+    retval = UA_encodeBinary(v2, &UA_TYPES[UA_TYPES_VARIANT],
+                                           &bufPos, &bufEnd, NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if (binsize1 > UA_VARIANTENCODING_MAXSTACK) {
+            UA_ByteString_deleteMembers(&valueEncoding1);
+            UA_ByteString_deleteMembers(&valueEncoding2);
+        }
+        return false;
+    }
+    valueEncoding2.length = (uintptr_t)bufPos - (uintptr_t)valueEncoding2.data;
+
+    UA_Boolean result = UA_String_equal(&valueEncoding1, &valueEncoding2);
+    if (binsize1 > UA_VARIANTENCODING_MAXSTACK) {
+        UA_ByteString_deleteMembers(&valueEncoding1);
+        UA_ByteString_deleteMembers(&valueEncoding2);
+    }
+    return result;
+}
+
+UA_Boolean
+UA_Variant_equal(const UA_Variant *v1, const UA_Variant *v2)
+{
+    if (v1->type != v2->type
+            || UA_Variant_isEmpty(v1) != UA_Variant_isEmpty(v2)
+            || UA_Variant_isScalar(v1) != UA_Variant_isScalar(v2)
+            || (!UA_Variant_isScalar(v1) && v1->arrayLength != v2->arrayLength))
+        return false;
+    // both are empty ?
+    if (UA_Variant_isEmpty(v1))
+        return true;
+    // all types that are overlayable can be byte compared
+    if (v1->type->overlayable) {
+        size_t compareSize = UA_Variant_isScalar(v1)
+                ? v1->type->memSize
+                : v1->type->memSize * v1->arrayLength;
+        return !memcmp(v1->data, v2->data, compareSize);
+    }
+    size_t length = UA_Variant_isScalar(v1) ? 1 : v1->arrayLength;
+    switch (v1->type->typeIndex) {
+    case UA_TYPES_NODEID:
+        for (size_t i = 0; i < length; ++i) {
+            UA_NodeId *n1 = &((UA_NodeId*)v1->data)[i];
+            UA_NodeId *n2 = &((UA_NodeId*)v2->data)[i];
+            if (!UA_NodeId_equal(n1, n2))
+                return false;
+        }
+        return true;
+    case UA_TYPES_EXPANDEDNODEID:
+        for (size_t i = 0; i < length; ++i) {
+            UA_ExpandedNodeId *e1 = &((UA_ExpandedNodeId*)v1->data)[i];
+            UA_ExpandedNodeId *e2 = &((UA_ExpandedNodeId*)v2->data)[i];
+            if (!UA_ExpandedNodeId_equal(e1, e2))
+                return false;
+        }
+        return true;
+    case UA_TYPES_LOCALIZEDTEXT:
+        for (size_t i = 0; i < length; ++i) {
+            UA_LocalizedText *l1 = &((UA_LocalizedText*)v1->data)[i];
+            UA_LocalizedText *l2 = &((UA_LocalizedText*)v2->data)[i];
+            if (!UA_String_equal(&l1->locale, &l2->locale)
+                    || !UA_String_equal(&l1->text, &l2->text))
+                return false;
+        }
+        return true;
+    case UA_TYPES_QUALIFIEDNAME:
+        for (size_t i = 0; i < length; ++i) {
+            UA_QualifiedName *q1 = &((UA_QualifiedName*)v1->data)[i];
+            UA_QualifiedName *q2 = &((UA_QualifiedName*)v2->data)[i];
+            if (!UA_QualifiedName_equal(q1, q2))
+                return false;
+        }
+        return true;
+    // These are all string based
+    case UA_TYPES_XMLELEMENT:
+    case UA_TYPES_BYTESTRING:
+    case UA_TYPES_LOCALEID:
+    case UA_TYPES_STRING:
+        for (size_t i = 0; i < length; ++i) {
+            UA_String *s1 = &((UA_String*)v1->data)[i];
+            UA_String *s2 = &((UA_String*)v2->data)[i];
+            if (!UA_String_equal(s1, s2))
+                return false;
+        }
+        return true;
+    case UA_TYPES_EXTENSIONOBJECT:
+        for (size_t i = 0; i < length; ++i) {
+            UA_ExtensionObject *e1 = &((UA_ExtensionObject*)v1->data)[i];
+            UA_ExtensionObject *e2 = &((UA_ExtensionObject*)v2->data)[i];
+            // if we have decoded object, then use encoding
+            if (e1->encoding != e2->encoding)
+                return false;
+            if (e1->encoding >= UA_EXTENSIONOBJECT_DECODED)
+                return UA_Variant_equalEncoded(v1, v2);
+            if (!UA_NodeId_equal(&e1->content.encoded.typeId, &e2->content.encoded.typeId)
+                    || !UA_ByteString_equal(&e1->content.encoded.body, &e2->content.encoded.body))
+                return false;
+        }
+        return true;
+    default:
+        break;
+    }
+    return UA_Variant_equalEncoded(v1, v2);
+}
+
+UA_Boolean
+UA_DataValue_equalParameterized(const UA_DataValue *v1, const UA_DataValue *v2, UA_DataValue_IgnoreType ignoreType)
+{
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_SERVERTIMESTAMP)
+        && (v1->hasServerPicoseconds != v2->hasServerPicoseconds
+            || v1->hasServerTimestamp != v2->hasServerTimestamp
+            || (v1->hasServerPicoseconds && v1->serverPicoseconds != v2->serverPicoseconds)
+            || (v1->hasServerTimestamp && v1->serverTimestamp != v2->serverTimestamp)))
+        return false;
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_SOURCETIMESTAMP)
+            && (v1->hasSourcePicoseconds != v2->hasSourcePicoseconds
+            || v1->hasSourceTimestamp != v2->hasSourceTimestamp
+            || (v1->hasSourceTimestamp && v1->sourceTimestamp != v2->sourceTimestamp)
+            || (v1->hasSourcePicoseconds && v1->sourcePicoseconds != v2->sourcePicoseconds)))
+        return false;
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_STATUS)
+        && (v1->hasStatus != v2->hasStatus
+            || (v1->hasStatus && v1->status != v2->status)))
+        return false;
+    if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_VALUE)
+        && (v1->hasValue != v2->hasValue
+            || (v1->hasValue && !UA_Variant_equal(&v1->value, &v2->value))))
+        return false;
+    return true;
+}
+
+UA_Boolean
+UA_DataValue_equal(const UA_DataValue *v1, const UA_DataValue *v2)
+{
+    return UA_DataValue_equalParameterized(v1, v2, UA_DATAVALUE_IGNORETYPE_NONE);
 }
