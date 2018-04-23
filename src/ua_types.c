@@ -1250,7 +1250,7 @@ UA_DataValue_equalParameterized(const UA_DataValue *v1, const UA_DataValue *v2, 
         && (v1->hasServerPicoseconds != v2->hasServerPicoseconds
             || v1->hasServerTimestamp != v2->hasServerTimestamp
             || (v1->hasServerPicoseconds && v1->serverPicoseconds != v2->serverPicoseconds)
-            || (v1->hasServerTimestamp && v1->hasServerTimestamp != v2->serverTimestamp)))
+            || (v1->hasServerTimestamp && v1->serverTimestamp != v2->serverTimestamp)))
         return false;
     if (!(ignoreType & UA_DATAVALUE_IGNORETYPE_SOURCETIMESTAMP)
             && (v1->hasSourcePicoseconds != v2->hasSourcePicoseconds
