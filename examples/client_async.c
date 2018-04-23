@@ -136,6 +136,9 @@ main (int argc, char *argv[]) {
     UA_Client_connect_async (client, "opc.tcp://localhost:4840", onConnect,
                              NULL);
 
+    /*Windows needs time to response*/
+    UA_sleep_ms(100);
+
     /* What happens if client tries to send request before connected? */
     UA_Client_sendAsyncBrowseRequest (client, &bReq, fileBrowsed, &userdata,
                                       &reqId);

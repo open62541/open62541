@@ -877,6 +877,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
             /* Windows does not have any getsockopt equivalent and it is not needed there */
 #ifdef _WIN32
             connection->sockfd = clientsockfd;
+            connection->state = UA_CONNECTION_ESTABLISHED;
             return UA_STATUSCODE_GOOD;
 #else
             OPTVAL_TYPE so_error;

@@ -71,6 +71,8 @@ START_TEST(Client_connect_async){
     UA_Boolean connected = false;
     UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
                             &connected);
+    /*Windows needs time to response*/
+    UA_sleep_ms(100);
     UA_UInt32 reqId = 0;
     UA_UInt16 asyncCounter = 0;
     UA_BrowseRequest bReq;
@@ -92,7 +94,7 @@ START_TEST(Client_connect_async){
         UA_comboSleep(20);
         retval = UA_Client_run_iterate(client, 0);
         /*fix infinite loop, but why is server occasionally shut down in Appveyor?!*/
-        if(retval == UA_STATUSCODE_BADSERVERNOTCONNECTED)
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             break;
     } while(reqId < 10);
 
@@ -109,15 +111,13 @@ END_TEST
 START_TEST(Client_no_connection) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Boolean connected = false;
+    UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
+            &connected);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;
     client->connection.recv = UA_Client_recvTesting;
-
-    UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-                            &connected);
     //simulating unconnected server
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
     retval = UA_Client_run_iterate(client, 0);
