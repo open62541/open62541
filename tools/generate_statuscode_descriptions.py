@@ -72,9 +72,6 @@ printc(u'''/**********************************************************
 count = 2 + len(rows)
 
 printc(u'''
-/* Definition for the deprecated StatusCode description API */
-const UA_StatusCodeDescription statusCodeExplanation_default = {0xffffffff, "", ""};
-
 typedef struct {
     UA_StatusCode code;
     const char *name;

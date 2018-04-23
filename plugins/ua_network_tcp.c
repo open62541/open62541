@@ -806,6 +806,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
     if (connection->state == UA_CONNECTION_ESTABLISHED) {
             UA_Client_removeRepeatedCallback(client, connection->connectCallbackID);
+            connection->connectCallbackID = 0;
             return UA_STATUSCODE_GOOD;
     }
     if ((UA_Double) (UA_DateTime_nowMonotonic() - tcpConnection->connStart)

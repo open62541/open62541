@@ -127,6 +127,14 @@ START_TEST(Client_no_connection) {
 }
 END_TEST
 
+START_TEST(Client_without_run_iterate) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Boolean connected = false;
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
+                            &connected);
+    UA_Client_delete(client);
+}
+END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
@@ -134,6 +142,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client_connect, setup, teardown);
     tcase_add_test(tc_client_connect, Client_connect_async);
     tcase_add_test(tc_client_connect, Client_no_connection);
+    tcase_add_test(tc_client_connect, Client_without_run_iterate);
     suite_add_tcase(s,tc_client_connect);
     return s;
 }

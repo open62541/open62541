@@ -54,6 +54,12 @@ class Reference(object):
     def __hash__(self):
         return hash(str(self))
 
+def RefOrAlias(s):
+    try:
+        return NodeId(s)
+    except Exception:
+        return s
+
 class Node(object):
     def __init__(self):
         self.id = NodeId()
@@ -79,7 +85,7 @@ class Node(object):
     def parseXML(self, xmlelement):
         for idname in ['NodeId', 'NodeID', 'nodeid']:
             if xmlelement.hasAttribute(idname):
-                self.id = NodeId(xmlelement.getAttribute(idname))
+                self.id = RefOrAlias(xmlelement.getAttribute(idname))
 
         for (at, av) in xmlelement.attributes.items():
             if at == "BrowseName":
@@ -118,21 +124,24 @@ class Node(object):
         for ref in xmlelement.childNodes:
             if ref.nodeType != ref.ELEMENT_NODE:
                 continue
-            source = NodeId(str(self.id))  # deep-copy of the nodeid
-            target = NodeId(ref.firstChild.data)
+            source = RefOrAlias(str(self.id))  # deep-copy of the nodeid
+            target = RefOrAlias(ref.firstChild.data)
+
             reftype = None
             forward = True
             for (at, av) in ref.attributes.items():
                 if at == "ReferenceType":
-                    if '=' in av:
-                        reftype = NodeId(av)
-                    else:
-                        reftype = av  # alias, such as "HasSubType"
+                    reftype = RefOrAlias(av)
                 elif at == "IsForward":
                     forward = not "false" in av.lower()
             self.references.add(Reference(source, reftype, target, forward))
 
     def popParentRef(self, parentreftypes):
+        # HasSubtype has precedence
+        for ref in self.references:
+            if ref.referenceType == NodeId("ns=0;i=45") and not ref.isForward:
+                self.references.remove(ref)
+                return ref
         for ref in self.references:
             if ref.referenceType in parentreftypes and not ref.isForward:
                 self.references.remove(ref)
@@ -149,6 +158,9 @@ class Node(object):
     def replaceAliases(self, aliases):
         if str(self.id) in aliases:
             self.id = NodeId(aliases[self.id])
+        if isinstance(self, VariableNode) or isinstance(self, VariableTypeNode):
+            if str(self.dataType) in aliases:
+                self.dataType = NodeId(aliases[self.dataType])
         new_refs = set()
         for ref in self.references:
             if str(ref.source) in aliases:
@@ -241,10 +253,7 @@ class VariableNode(Node):
             elif at == "MinimumSamplingInterval":
                 self.minimumSamplingInterval = float(av)
             elif at == "DataType":
-                if "=" in av:
-                    self.dataType = NodeId(av)
-                else:
-                    self.dataType = av
+                self.dataType = RefOrAlias(av)
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -252,7 +261,7 @@ class VariableNode(Node):
             if x.localName == "Value":
                 self.xmlValueDef = x
             elif x.localName == "DataType":
-                self.dataType = NodeId(str(x))
+                self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
             elif x.localName == "ArrayDimensions":
@@ -615,5 +624,5 @@ class ViewNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "ContainsNoLoops":
                 self.containsNoLoops = "false" not in av.lower()
-            if at == "eventNotifier":
+            if at == "EventNotifier":
                 self.eventNotifier = "false" not in av.lower()
