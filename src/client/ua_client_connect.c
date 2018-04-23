@@ -38,6 +38,9 @@ setClientState(UA_Client *client, UA_ClientState state) {
 /* Open the Connection */
 /***********************/
 
+#define UA_BITMASK_MESSAGETYPE 0x00ffffff
+#define UA_BITMASK_CHUNKTYPE 0xff000000
+
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*)application;
@@ -48,6 +51,30 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     UA_TcpMessageHeader messageHeader;
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Decoding ACK message failed");
+        return retval;
+    }
+
+    // check if we got an error response from the server
+    UA_MessageType messageType = (UA_MessageType)
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+    UA_ChunkType chunkType = (UA_ChunkType)
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+    if (messageType == UA_MESSAGETYPE_ERR) {
+        // Header + ErrorMessage (error + reasonLength_field + length)
+        UA_StatusCode error = *(UA_StatusCode*)(&chunk->data[offset]);
+        UA_UInt32 len = *((UA_UInt32*)&chunk->data[offset + 4]);
+        UA_Byte *data = (UA_Byte*)&chunk->data[offset + 4+4];
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Received ERR response. %s - %.*s", UA_StatusCode_name(error), len, data);
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+    if (chunkType != UA_CHUNKTYPE_FINAL) {
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+
     retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
