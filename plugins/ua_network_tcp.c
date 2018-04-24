@@ -784,10 +784,8 @@ static void
 ClientNetworkLayerTCP_free(UA_Connection *connection) {
     if (connection->handle){
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
-#ifndef _WIN32
         if(tcpConnection->server)
             freeaddrinfo(tcpConnection->server);
-#endif
         free(tcpConnection);
     }
 }
@@ -929,12 +927,6 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
 		const char *endpointUrl, const UA_UInt32 timeout,
                 UA_Logger logger) {
-#ifdef _WIN32
-    WORD wVersionRequested;
-    WSADATA wsaData;
-    wVersionRequested = MAKEWORD(2, 2);
-    WSAStartup(wVersionRequested, &wsaData);
-#endif
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
 
