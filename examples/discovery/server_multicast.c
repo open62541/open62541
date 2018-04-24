@@ -63,7 +63,6 @@ writeInteger(UA_Server *server, const UA_NodeId *sessionId,
 }
 
 char *discovery_url = NULL;
-UA_String *self_discovery_url = NULL;
 
 static void
 serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce,
@@ -74,11 +73,6 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
                      "serverOnNetworkCallback called, but discovery URL "
                      "already initialized or is not announcing. Ignoring.");
         return; // we already have everything we need or we only want server announces
-    }
-
-    if(self_discovery_url != NULL && UA_String_equal(&serverOnNetwork->discoveryUrl, self_discovery_url)) {
-        // skip self
-        return;
     }
 
     if(!isTxtReceived)
@@ -280,7 +274,6 @@ int main(int argc, char **argv) {
     //UA_String caps = UA_String_fromChars("LDS");
     //config.serverCapabilities = &caps;
     UA_Server *server = UA_Server_new(config);
-    self_discovery_url = &config->networkLayers[0].discoveryUrl;
 
     /* add a variable node to the address space */
     UA_Int32 myInteger = 42;

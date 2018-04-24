@@ -122,6 +122,264 @@ delayedFree(UA_Server *server, void *data) {
 }
 #endif
 
+
+
+static struct mdnsHostnameToIp_list_entry *
+mdns_hostname_add_or_get(UA_Server *server, const char *hostname, struct in_addr addr, UA_Boolean createNew) {
+    int hashIdx = mdns_hash_record(hostname) % MDNS_HOSTNAME_TO_IP_HASH_PRIME;
+    struct mdnsHostnameToIp_hash_entry *hash_entry = server->mdnsHostnameToIpHash[hashIdx];
+
+    size_t hostnameLen = strlen(hostname);
+    if (hostnameLen == 0)
+        return NULL;
+
+    if(hostname[hostnameLen - 1] == '.')
+        // cut off last dot
+        hostnameLen--;
+
+    while (hash_entry) {
+        if (hash_entry->entry->mdnsHostname.length == hostnameLen &&
+            strncmp((char *) hash_entry->entry->mdnsHostname.data, hostname, hostnameLen) == 0)
+            return hash_entry->entry;
+        hash_entry = hash_entry->next;
+    }
+
+    if(!createNew)
+        return NULL;
+
+    // not yet in list, create new one
+    struct mdnsHostnameToIp_list_entry *listEntry =
+        (mdnsHostnameToIp_list_entry*)UA_malloc(sizeof(struct mdnsHostnameToIp_list_entry));
+    if (!listEntry)
+        return NULL;
+    listEntry->mdnsHostname.data = (UA_Byte*)UA_malloc(hostnameLen);
+    if (!listEntry->mdnsHostname.data) {
+        UA_free(listEntry);
+        return NULL;
+    }
+    memcpy(listEntry->mdnsHostname.data, hostname, hostnameLen);
+    listEntry->mdnsHostname.length = hostnameLen;
+    listEntry->addr = addr;
+
+    // add to hash
+    struct mdnsHostnameToIp_hash_entry *newHashEntry =
+        (struct mdnsHostnameToIp_hash_entry*)UA_malloc(sizeof(struct mdnsHostnameToIp_hash_entry));
+    if (!newHashEntry) {
+        UA_String_deleteMembers(&listEntry->mdnsHostname);
+        UA_free(listEntry);
+        return NULL;
+    }
+    newHashEntry->next = server->mdnsHostnameToIpHash[hashIdx];
+    server->mdnsHostnameToIpHash[hashIdx] = newHashEntry;
+    newHashEntry->entry = listEntry;
+    LIST_INSERT_HEAD(&server->mdnsHostnameToIp, listEntry, pointers);
+    return listEntry;
+}
+
+/*static void
+mdns_hostname_remove(UA_Server *server, const char *record,
+                   struct mdnsHostnameToIp_list_entry *entry) {
+    // remove from hash
+    int hashIdx = mdns_hash_record(record) % MDNS_HOSTNAME_TO_IP_HASH_PRIME;
+    struct mdnsHostnameToIp_hash_entry *hash_entry = server->mdnsHostnameToIpHash[hashIdx];
+    struct mdnsHostnameToIp_hash_entry *prevEntry = hash_entry;
+    while(hash_entry) {
+        if(hash_entry->entry == entry) {
+            if(server->mdnsHostnameToIpHash[hashIdx] == hash_entry)
+                server->mdnsHostnameToIpHash[hashIdx] = hash_entry->next;
+            else if(prevEntry)
+                prevEntry->next = hash_entry->next;
+            break;
+        }
+        prevEntry = hash_entry;
+        hash_entry = hash_entry->next;
+    }
+    UA_free(hash_entry);
+
+    // remove from list
+    LIST_REMOVE(entry, pointers);
+    UA_String_deleteMembers(&entry->mdnsHostname);
+    UA_free(entry);
+}*/
+
+#ifdef _WIN32
+
+// see http://stackoverflow.com/a/10838854/869402
+static IP_ADAPTER_ADDRESSES *
+getInterfaces(UA_Server *server) {
+    IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
+
+    // Start with a 16 KB buffer and resize if needed - multiple attempts in
+    // case interfaces change while we are in the middle of querying them.
+    DWORD adapter_addresses_buffer_size = 16 * 1024;
+    for(size_t attempts = 0; attempts != 3; ++attempts) {
+        // todo: malloc may fail: return a statuscode
+        adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
+        if(!adapter_addresses) {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "GetAdaptersAddresses out of memory");
+            adapter_addresses = NULL;
+            break;
+        }
+        DWORD error = GetAdaptersAddresses(AF_UNSPEC,
+                                           GAA_FLAG_SKIP_ANYCAST |
+                                           GAA_FLAG_SKIP_DNS_SERVER |
+                                           GAA_FLAG_SKIP_FRIENDLY_NAME,
+                                           NULL, adapter_addresses,
+                                           &adapter_addresses_buffer_size);
+
+        if(ERROR_SUCCESS == error) {
+            break;
+        } else if (ERROR_BUFFER_OVERFLOW == error) {
+            // Try again with the new size
+            UA_free(adapter_addresses);
+            adapter_addresses = NULL;
+            continue;
+        }
+
+        /* Unexpected error */
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "GetAdaptersAddresses returned an unexpected error. "
+                     "Not setting mDNS A records.");
+        UA_free(adapter_addresses);
+        adapter_addresses = NULL;
+        break;
+    }
+    return adapter_addresses;
+}
+
+#endif /* _WIN32 */
+
+static UA_Boolean
+mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entry) {
+
+    for (size_t i=0; i<server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        if (UA_String_equal(&entry->serverOnNetwork.discoveryUrl, &nl->discoveryUrl)) {
+            return UA_TRUE;
+        }
+    }
+
+    // The discovery URL may also just contain the IP address, but in our discovery URL we are using hostname
+    // thus previous check may not detect the same URL.
+    // Therefore we also check if the name matches:
+
+    UA_String hostnameRemote = UA_STRING_NULL;
+    UA_UInt16 portRemote = 4840;
+    UA_String pathRemote = UA_STRING_NULL;
+    UA_StatusCode retval = UA_parseEndpointUrl(&entry->serverOnNetwork.discoveryUrl, &hostnameRemote,
+                                               &portRemote, &pathRemote);
+    if(retval != UA_STATUSCODE_GOOD) {
+        // skip invalid url
+        return UA_FALSE;
+    }
+
+#ifdef _WIN32
+    IP_ADAPTER_ADDRESSES* adapter_addresses = getInterfaces(server);
+    if(!adapter_addresses) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "getifaddrs returned an unexpected error. Not setting mDNS A records.");
+        return UA_FALSE;
+    }
+#else
+    struct ifaddrs *ifaddr, *ifa;
+    if(getifaddrs(&ifaddr) == -1) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "getifaddrs returned an unexpected error. Not setting mDNS A records.");
+        return UA_FALSE;
+    }
+#endif
+
+
+    UA_Boolean isSelf = UA_FALSE;
+
+    for (size_t i=0; i<server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+
+        UA_String hostnameSelf = UA_STRING_NULL;
+        UA_UInt16 portSelf = 4840;
+        UA_String pathSelf = UA_STRING_NULL;
+
+        retval = UA_parseEndpointUrl(&nl->discoveryUrl, &hostnameSelf,
+                                     &portSelf, &pathSelf);
+        if(retval != UA_STATUSCODE_GOOD) {
+            // skip invalid url
+            continue;
+        }
+        if (portRemote != portSelf)
+            continue;
+
+#ifdef _WIN32
+        /* Iterate through all of the adapters */
+        IP_ADAPTER_ADDRESSES* adapter = adapter_addresses->Next;
+        for(; adapter != NULL; adapter = adapter->Next) {
+            /* Skip loopback adapters */
+            if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
+                continue;
+
+            // Parse all IPv4 and IPv6 addresses
+            IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress;
+            for(; NULL != address; address = address->Next) {
+                int family = address->Address.lpSockaddr->sa_family;
+                if(AF_INET == family) {
+                    SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); // IPv4
+                    char *ipStr = inet_ntoa(ipv4->sin_addr);
+                    if (strncmp((const char*)hostnameRemote.data, ipStr, hostnameRemote.length) == 0) {
+                        isSelf = UA_TRUE;
+                        break;
+                    }
+                }
+                /*else if(AF_INET6 == family) {
+                // IPv6 not implemented yet
+                }*/
+            }
+            if (isSelf)
+                break;
+        }
+#else
+        /* Walk through linked list, maintaining head pointer so we can free list later */
+        int n;
+        for(ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+            if(!ifa->ifa_addr)
+                continue;
+
+            if((strcmp("lo", ifa->ifa_name) == 0) ||
+               !(ifa->ifa_flags & (IFF_RUNNING))||
+               !(ifa->ifa_flags & (IFF_MULTICAST)))
+                continue;
+
+            /* IPv4 */
+            if(ifa->ifa_addr->sa_family == AF_INET) {
+                struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
+
+                char *ipStr = inet_ntoa(sa->sin_addr);
+                if (strncmp((const char*)hostnameRemote.data, ipStr, hostnameRemote.length) == 0) {
+                    isSelf = UA_TRUE;
+                    break;
+                }
+            }
+
+            /* IPv6 not implemented yet */
+        }
+#endif
+        if (isSelf)
+            break;
+    }
+
+
+
+#ifdef _WIN32
+    /* Cleanup */
+    UA_free(adapter_addresses);
+    adapter_addresses = NULL;
+#else
+    /* Clean up */
+    freeifaddrs(ifaddr);
+    return isSelf;
+#endif
+
+}
+
 static void
 mdns_record_remove(UA_Server *server, const char *record,
                    struct serverOnNetwork_list_entry *entry) {
@@ -142,7 +400,8 @@ mdns_record_remove(UA_Server *server, const char *record,
     }
     UA_free(hash_entry);
 
-    if(server->serverOnNetworkCallback)
+    if(server->serverOnNetworkCallback &&
+       !mdns_is_self_announce(server, entry))
         server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE,
                                         entry->txtSet, server->serverOnNetworkCallbackData);
 
@@ -226,15 +485,62 @@ setSrv(UA_Server *server, const struct resource *r,
        struct serverOnNetwork_list_entry *entry) {
     entry->srvSet = UA_TRUE;
 
-    // opc.tcp://[servername]:[port][path]
-    size_t srvNameLen = strlen(r->known.srv.name);
-    if(srvNameLen > 0 && r->known.srv.name[srvNameLen - 1] == '.')
-        srvNameLen--;
 
-    // todo: malloc may fail: return a statuscode
-    char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
-    UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d/", (int) srvNameLen,
-             r->known.srv.name, r->known.srv.port);
+    // The specification Part 12 says:
+    // The hostname maps onto the SRV record target field.
+    // If the hostname is an IPAddress then it must be converted to a domain name.
+    // If this cannot be done then LDS shall report an error.
+
+
+    // The correct way would be:
+    // 1. Take the target field (known.srv.name), which is something like my-host.local.
+    // 2. Check additional mdns Answers, which resolve the target to an IP address
+    // 3. Use that IP address to get a hostname (as the spec says)
+
+    // just a dummy, not used
+    struct in_addr tmp = {0};
+
+    mdnsHostnameToIp_list_entry *hostnameEntry = mdns_hostname_add_or_get(server, r->known.srv.name, tmp, UA_FALSE);
+
+    char *newUrl;
+    if (hostnameEntry) {
+        char remote_name[NI_MAXHOST];
+        struct sockaddr_in sockaddr;
+        sockaddr.sin_family = AF_INET;
+        sockaddr.sin_addr = hostnameEntry->addr;
+        int res = getnameinfo((struct sockaddr*)&sockaddr,
+                              sizeof(struct sockaddr_storage),
+                              remote_name, sizeof(remote_name),
+                              NULL, 0, NI_NAMEREQD);
+        newUrl = (char*)UA_malloc(10 + NI_MAXHOST + 8);
+        if (!newUrl)
+            return; //TODO show error message
+        if(res == 0) {
+            UA_snprintf(newUrl, 10 + NI_MAXHOST + 8, "opc.tcp://%s:%d", remote_name, r->known.srv.port);
+        } else {
+            char ipinput[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &(hostnameEntry->addr), ipinput, INET_ADDRSTRLEN);
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Multicast: Can not resolve IP address to hostname: %s - %s. Using IP instead",ipinput, errno_str));
+
+            UA_snprintf(newUrl, 10 + INET_ADDRSTRLEN + 8, "opc.tcp://%s:%d", ipinput, r->known.srv.port);
+        }
+    } else {
+        // fallback to just using the given target name
+        size_t srvNameLen = strlen(r->known.srv.name);
+        if(srvNameLen > 0 && r->known.srv.name[srvNameLen - 1] == '.')
+            // cut off last dot
+            srvNameLen--;
+        // opc.tcp://[servername]:[port][path]
+        newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
+        if (!newUrl)
+            return; //TODO show error message
+        UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
+                 r->known.srv.name, r->known.srv.port);
+    }
+
+
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %s", newUrl);
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
@@ -247,14 +553,31 @@ setSrv(UA_Server *server, const struct resource *r,
 }
 
 
+// [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
+static void
+setAddress(UA_Server *server, const struct resource *r) {
+    if (r->type != QTYPE_A)
+        return;
+
+    if (!mdns_hostname_add_or_get(server, r->name, r->known.a.ip, UA_TRUE)) {
+        // should we log an error?
+    }
+}
+
+
 /* This will be called by the mDNS library on every record which is received */
 void mdns_record_received(const struct resource *r, void *data) {
     UA_Server *server = (UA_Server *) data;
     /* we only need SRV and TXT records */
     // TODO: remove magic number
     if((r->clazz != QCLASS_IN && r->clazz != QCLASS_IN + 32768) ||
-       (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
+       (r->type != QTYPE_SRV && r->type != QTYPE_TXT && r->type != QTYPE_A))
         return;
+
+    if (r->type == QTYPE_A) {
+        setAddress(server, r);
+        return;
+    }
 
     /* we only handle '_opcua-tcp._tcp.' records */
     char *opcStr = strstr(r->name, "_opcua-tcp._tcp.");
@@ -297,7 +620,8 @@ void mdns_record_received(const struct resource *r, void *data) {
         setSrv(server, r, entry);
 
     /* Call callback to announce a new server */
-    if(entry->srvSet && server->serverOnNetworkCallback)
+    if(entry->srvSet && server->serverOnNetworkCallback &&
+       !mdns_is_self_announce(server, entry))
         server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_TRUE,
                                         entry->txtSet, server->serverOnNetworkCallbackData);
 }
@@ -394,50 +718,6 @@ mdns_set_address_record_if(UA_Server *server, const char *fullServiceDomain,
 
 /* Loop over network interfaces and run set_address_record on each */
 #ifdef _WIN32
-
-// see http://stackoverflow.com/a/10838854/869402
-static IP_ADAPTER_ADDRESSES *
-getInterfaces(UA_Server *server) {
-    IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
-
-    // Start with a 16 KB buffer and resize if needed - multiple attempts in
-    // case interfaces change while we are in the middle of querying them.
-    DWORD adapter_addresses_buffer_size = 16 * 1024;
-    for(size_t attempts = 0; attempts != 3; ++attempts) {
-        // todo: malloc may fail: return a statuscode
-        adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
-        if(!adapter_addresses) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "GetAdaptersAddresses out of memory");
-            adapter_addresses = NULL;
-            break;
-        }
-        DWORD error = GetAdaptersAddresses(AF_UNSPEC,
-                                           GAA_FLAG_SKIP_ANYCAST |
-                                           GAA_FLAG_SKIP_DNS_SERVER |
-                                           GAA_FLAG_SKIP_FRIENDLY_NAME,
-                                           NULL, adapter_addresses,
-                                           &adapter_addresses_buffer_size);
-
-        if(ERROR_SUCCESS == error) {
-            break;
-        } else if (ERROR_BUFFER_OVERFLOW == error) {
-            // Try again with the new size
-            UA_free(adapter_addresses);
-            adapter_addresses = NULL;
-            continue;
-        }
-
-        /* Unexpected error */
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "GetAdaptersAddresses returned an unexpected error. "
-                     "Not setting mDNS A records.");
-        UA_free(adapter_addresses);
-        adapter_addresses = NULL;
-        break;
-    }
-    return adapter_addresses;
-}
 
 void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                              const char *localDomain) {
