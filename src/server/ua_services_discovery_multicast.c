@@ -39,7 +39,7 @@ multicastWorkerLoop(UA_Server *server) {
             break;
         } else if (retVal == 2) {
             UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Multicast error: Can not write to socket. %s", errno_str));
             break;
         }
@@ -552,12 +552,12 @@ iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
                                        processIn, true, &next_sleep);
     if(retval == 1) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+               UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not read from socket. %s", errno_str));
         return UA_STATUSCODE_BADNOCOMMUNICATION;
     } else if(retval == 2) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not write to socket. %s", errno_str));
         return UA_STATUSCODE_BADNOCOMMUNICATION;
     }

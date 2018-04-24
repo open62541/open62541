@@ -92,6 +92,18 @@ typedef struct serverOnNetwork_hash_entry {
     struct serverOnNetwork_hash_entry* next;
 } serverOnNetwork_hash_entry;
 
+typedef struct mdnsHostnameToIp_list_entry {
+    LIST_ENTRY(mdnsHostnameToIp_list_entry) pointers;
+    UA_String mdnsHostname;
+    struct in_addr addr;
+} mdnsHostnameToIp_list_entry;
+
+#define MDNS_HOSTNAME_TO_IP_HASH_PRIME 1009
+typedef struct mdnsHostnameToIp_hash_entry {
+    mdnsHostnameToIp_list_entry* entry;
+    struct mdnsHostnameToIp_hash_entry* next;
+} mdnsHostnameToIp_hash_entry;
+
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 #endif /* UA_ENABLE_DISCOVERY */
 
@@ -128,6 +140,11 @@ struct UA_Server {
 
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void* serverOnNetworkCallbackData;
+
+
+    LIST_HEAD(mdnsHostnameToIp_list, mdnsHostnameToIp_list_entry) mdnsHostnameToIp; // doubly-linked list of hostname to IP mapping (from mDNS)
+    // hash mapping hostname to ip
+    struct mdnsHostnameToIp_hash_entry* mdnsHostnameToIpHash[MDNS_HOSTNAME_TO_IP_HASH_PRIME];
 
 # endif
 #endif
