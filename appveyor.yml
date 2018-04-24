@@ -47,6 +47,7 @@ init:
   - git config --global core.autocrlf input # Attempt to ensure we don't try to convert line endings to Win32 CRLF as this will cause build to fail
 
 install:
+- set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
 - ps: '& "./tools/appveyor/install.ps1"'
 
 before_build:
