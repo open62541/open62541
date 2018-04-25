@@ -6,15 +6,10 @@
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-#ifdef UA_ARCHITECTURE_FREERTOS
+#ifdef UA_ARCHITECTURE_FREERTOSLWIP
 
 #ifndef PLUGINS_ARCH_FREERTOS_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_FREERTOS_UA_ARCHITECTURE_H_
-
-
-//------------------------------------------------------------------
-// NOT WORKING YET!!!!!!!!!!!!!!!!!!!!!
-//------------------------------------------------------------------
 
 #define AI_PASSIVE 0x01
 
@@ -24,13 +19,11 @@
 #include <string.h>
 
 #define LWIP_TIMEVAL_PRIVATE 0
-//#define LWIP_COMPAT_MUTEX 0
 #define LWIP_POSIX_SOCKETS_IO_NAMES 0
 #ifdef LWIP_COMPAT_SOCKETS
 #undef LWIP_COMPAT_SOCKETS
 #endif
 #define LWIP_COMPAT_SOCKETS 0
-//#define __USE_W32_SOCKETS 1 //needed to avoid redefining of select in sys/select.h
 
 #include <lwip/tcpip.h>
 #include <lwip/netdb.h>
@@ -44,8 +37,8 @@
 
 #include <unistd.h> // read, write, close
 
-#define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
-#define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
+#define UA_fd_set(fd, fds) FD_SET(fd, fds)
+#define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 
 #define UA_access access
 
@@ -98,4 +91,4 @@ int gethostname_freertos(char* name, size_t len);
 
 #endif /* PLUGINS_ARCH_FREERTOS_UA_ARCHITECTURE_H_ */
 
-#endif /* UA_ARCHITECTURE_FREERTOS */
+#endif /* UA_ARCHITECTURE_FREERTOSLWIP */

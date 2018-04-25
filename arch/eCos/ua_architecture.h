@@ -10,8 +10,6 @@
 
 #define UA_THREAD_LOCAL
 
-#define UA_ECOS_HOSTNAME "172.20.12.151"
-
 #include <pkgconf/system.h>
 #include <cyg/kernel/kapi.h>
 #include <cyg/io/io.h>

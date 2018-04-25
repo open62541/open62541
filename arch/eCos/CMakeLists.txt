@@ -21,6 +21,9 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "eCos")
         SET(UA_ECOS_INCLUDES "" CACHE STRING "Folders to include from the eCos OS")
 
         ua_include_directories(${UA_ECOS_INCLUDES}/include)
+        
+        set(UA_ECOS_HOSTNAME "eCos-host" CACHE STRING "Define a custom hostname/ip for the endpoint.")
+        ua_architecture_add_definitions(-DUA_ECOS_HOSTNAME="${UA_ECOS_HOSTNAME}")
     endif()
 
 endif()

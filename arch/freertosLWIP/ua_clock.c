@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Thomas Stalder
  */
 
-#ifdef UA_ARCHITECTURE_FREERTOS
+#ifdef UA_ARCHITECTURE_FREERTOSLWIP
 
 #include "ua_types.h"
 #include <time.h>
@@ -42,4 +42,4 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 }
 
-#endif /* UA_ARCHITECTURE_FREERTOS */
+#endif /* UA_ARCHITECTURE_FREERTOSLWIP */

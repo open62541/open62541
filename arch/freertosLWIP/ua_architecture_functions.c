@@ -4,7 +4,7 @@
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-#ifdef UA_ARCHITECTURE_FREERTOS
+#ifdef UA_ARCHITECTURE_FREERTOSLWIP
 
 #include "ua_types.h"
 
@@ -45,4 +45,4 @@ void UA_deinitialize_architecture_network(void){
   return;
 }
 
-#endif /* UA_ARCHITECTURE_FREERTOS */
+#endif /* UA_ARCHITECTURE_FREERTOSLWIP */
