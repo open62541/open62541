@@ -434,14 +434,15 @@ for builtin in builtin_types:
 for f in args.type_bsd:
     parseTypeDefinitions(outname, f, args.namespace)
 
-
 typedescriptions = {}
 for f in args.type_csv:
     typedescriptions = merge_dicts(typedescriptions, parseTypeDescriptions(f, args.namespace))
 
+# Read the selected data types
 selected_types = []
 for f in args.selected_types:
-    selected_types = list(filter(len, [line.strip() for line in f]))
+    selected_types += list(filter(len, [line.strip() for line in f]))
+# Use all types if none are selected
 if len(selected_types) == 0:
     selected_types = types.keys()
 
