@@ -421,6 +421,8 @@ UA_Client_AsyncService_write(UA_Client *client, const UA_WriteRequest *request,
                                     userdata, requestId);
 }
 
+#ifdef UA_ENABLE_METHODCALLS
+    
 static UA_INLINE UA_StatusCode
 UA_Client_AsyncService_call(UA_Client *client, const UA_CallRequest *request,
                             UA_ClientAsyncServiceCallback callback,
@@ -430,6 +432,8 @@ UA_Client_AsyncService_call(UA_Client *client, const UA_CallRequest *request,
                                     &UA_TYPES[UA_TYPES_CALLRESPONSE],
                                     userdata, requestId);
 }
+
+#endif
 
 static UA_INLINE UA_StatusCode
 UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request,
