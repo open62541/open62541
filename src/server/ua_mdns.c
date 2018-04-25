@@ -375,8 +375,8 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
 #else
     /* Clean up */
     freeifaddrs(ifaddr);
-    return isSelf;
 #endif
+    return isSelf;
 
 }
 
