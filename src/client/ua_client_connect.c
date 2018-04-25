@@ -69,7 +69,7 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
         UA_Byte *data = (UA_Byte*)&chunk->data[offset + 4+4];
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Received ERR response. %s - %.*s", UA_StatusCode_name(error), len, data);
-        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        return error;
     }
     if (chunkType != UA_CHUNKTYPE_FINAL) {
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
@@ -148,7 +148,7 @@ HelAckHandshake(UA_Client *client) {
                                                  client->config.timeout);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Receiving ACK message failed");
+                    "Receiving ACK message failed with %s", UA_StatusCode_name(retval));
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             client->state = UA_CLIENTSTATE_DISCONNECTED;
         UA_Client_close(client);
