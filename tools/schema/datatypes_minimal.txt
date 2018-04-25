@@ -121,11 +121,6 @@ UserIdentityToken
 UserNameIdentityToken
 AnonymousIdentityToken
 ServiceFault
-CallMethodRequest
-CallMethodResult
-CallResponse
-CallRequest
-Argument
 FilterOperator
 ContentFilterElement
 ContentFilter
