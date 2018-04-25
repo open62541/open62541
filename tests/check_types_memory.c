@@ -158,7 +158,10 @@ END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     //Skip test for void*
-    if (_i == UA_TYPES_DISCOVERYCONFIGURATION ||
+    if (
+#ifdef UA_ENABLE_DISCOVERY
+        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
+#endif
         _i == UA_TYPES_FILTEROPERAND ||
         _i == UA_TYPES_UNION ||
         _i == UA_TYPES_HISTORYREADDETAILS ||
@@ -281,7 +284,9 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
        _i == UA_TYPES_VARIABLEATTRIBUTES ||
        _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
        _i == UA_TYPES_FILTEROPERAND ||
+#ifdef UA_ENABLE_DISCOVERY
        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
+#endif
        _i == UA_TYPES_UNION ||
        _i == UA_TYPES_HISTORYREADDETAILS ||
        _i == UA_TYPES_NOTIFICATIONDATA ||

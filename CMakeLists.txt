@@ -519,6 +519,10 @@ else()
     if(UA_ENABLE_METHODCALLS)
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
     endif()
+
+    if(UA_ENABLE_DISCOVERY)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
+    endif()
 endif()
 
 if(NOT EXISTS "${UA_FILE_NS0}")
