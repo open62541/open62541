@@ -130,11 +130,12 @@ HelAckHandshake(UA_Client *client) {
 }
 
 static void
-processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response) {
+processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response, UA_Boolean renew) {
     /* Replace the token */
-    UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
-    client->channel.securityToken = response->securityToken;
-    UA_ChannelSecurityToken_init(&response->securityToken);
+    if (renew)
+        client->channel.nextSecurityToken = response->securityToken; // Set the next token
+    else
+        client->channel.securityToken = response->securityToken; // Set initial token
 
     /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
@@ -220,7 +221,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         return retval;
     }
 
-    processDecodedOPNResponse(client, &response);
+    processDecodedOPNResponse(client, &response, renew);
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     return retval;
 }
