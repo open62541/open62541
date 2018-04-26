@@ -645,7 +645,12 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         /* UA_Client_close(client);
            return; */
     }
-    sub->sequenceNumber = msg->sequenceNumber;
+    /* According to f), a keep-alive message contains no notifications and has the sequence number
+     * of the next NotificationMessage that is to be sent => More than one consecutive keep-alive
+     * message or a NotificationMessage following a keep-alive message will share the same sequence
+     * number. */
+    if (msg->notificationDataSize)
+        sub->sequenceNumber = msg->sequenceNumber;
 
     /* Process the notification messages */
     for(size_t k = 0; k < msg->notificationDataSize; ++k)
