@@ -114,7 +114,10 @@ class Type(object):
         size = len(self.members)
         for index, member in enumerate(self.members):
             i += 1
-            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member.name
+            membername = member.name
+            if len(membername) > 0:
+                membername = member.name[0].upper() + member.name[1:]
+            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % membername
             m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
             m += "    "
             if not before:
