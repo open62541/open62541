@@ -347,7 +347,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
         /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
         /* Thus the node ids may collide */
         UA_UInt32 size = ns->size;
-        UA_UInt64 identifier = mod(50000 + size+1, size); // start value, use 64 bit container to avoid overflow
+        UA_UInt64 identifier = mod(50000 + size+1, UA_UINT32_MAX); // start value, use 64 bit container to avoid overflow
         UA_UInt32 increase = mod2(ns->count+1, size);
         UA_UInt32 startId = (UA_UInt32)identifier; // mod ensures us that the id is a valid 32 bit
 
