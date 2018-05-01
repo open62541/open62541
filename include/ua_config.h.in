@@ -22,13 +22,20 @@ extern "C" {
  * Feature Options
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
+
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
-#cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_PUBSUB
 #cmakedefine UA_ENABLE_ENCRYPTION
+
+/* Multithreading */
+#cmakedefine UA_ENABLE_MULTITHREADING
+#cmakedefine UA_ENABLE_IMMUTABLE_NODES
+#if defined(UA_ENABLE_MULTITHREADING) && !defined(UA_ENABLE_IMMUTABLE_NODES)
+#error "The multithreading feature requires nodes to be immutable"
+#endif
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS

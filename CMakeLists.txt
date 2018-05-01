@@ -86,6 +86,12 @@ endif()
 option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
 
+option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
+mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
+if(UA_ENABLE_MULTITHREADING)
+    set(UA_ENABLE_IMMUTABLE_NODES ON)
+endif()
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
