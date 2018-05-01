@@ -8,6 +8,8 @@
 
 #include "ua_nodestore_default.h"
 
+#include "../src/ua_util.h" /* TOOO: Move atomic operations to arch definitions */
+
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
@@ -26,7 +28,15 @@
  *
  * - Tombstone or non-matching NodeId: continue searching
  * - Matching NodeId: Return the entry
- * - NULL: Abort the search */
+ * - NULL: Abort the search
+ *
+ * The nodestore uses atomic operations to set entries of the hash-map. If
+ * UA_ENABLE_IMMUTABLE_NODES is configured, the nodestore allows read-access
+ * from an interrupt without seeing corrupted nodes. For true multi-threaded
+ * access, a mutex is used.
+ *
+ * Multi-threading without a mutex could be realized with the Linux RCU mechanism.
+ * But this is not done for this implementation of the nodestore. */
 
 typedef struct UA_NodeMapEntry {
     struct UA_NodeMapEntry *orig; /* the version this is a copy from (or NULL) */
@@ -195,9 +205,11 @@ cleanupEntry(UA_NodeMapEntry *entry) {
 
 static UA_StatusCode
 clearSlot(UA_NodeMap *ns, UA_NodeMapEntry **slot) {
-    (*slot)->deleted = true;
-    cleanupEntry(*slot);
-    *slot = UA_NODEMAP_TOMBSTONE;
+    UA_NodeMapEntry *entry = *slot;
+    if(UA_atomic_cmpxchg((void**)slot, entry, UA_NODEMAP_TOMBSTONE) != entry)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    entry->deleted = true;
+    cleanupEntry(entry);
     --ns->count;
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
@@ -360,31 +372,38 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
             if(identifier >= size)
                 identifier -= size;
         } while((UA_UInt32)identifier != startId);
-        
-        if (!slot) {
-            END_CRITSECT(ns);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
     } else {
         slot = findFreeSlot(ns, &node->nodeId);
-        if(!slot) {
-            deleteEntry(container_of(node, UA_NodeMapEntry, node));
-            END_CRITSECT(ns);
-            return UA_STATUSCODE_BADNODEIDEXISTS;
-        }
     }
 
-    *slot = container_of(node, UA_NodeMapEntry, node);
-    ++ns->count;
-    UA_assert(&(*slot)->node == node);
+    if(!slot) {
+        deleteEntry(container_of(node, UA_NodeMapEntry, node));
+        END_CRITSECT(ns);
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    }
 
+    /* Copy the NodeId */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(addedNodeId) {
         retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
-        if(retval != UA_STATUSCODE_GOOD)
-            clearSlot(ns, slot);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteEntry(container_of(node, UA_NodeMapEntry, node));
+            END_CRITSECT(ns);
+            return retval;
+        }
     }
 
+    /* Insert the node */
+    UA_NodeMapEntry *oldEntry = *slot;
+    UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
+    if(oldEntry > UA_NODEMAP_TOMBSTONE ||
+       UA_atomic_cmpxchg((void**)slot, oldEntry,
+                         newEntry) != oldEntry) {
+        deleteEntry(container_of(node, UA_NodeMapEntry, node));
+        END_CRITSECT(ns);
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    }
+    ++ns->count;
     END_CRITSECT(ns);
     return retval;
 }
@@ -393,21 +412,33 @@ static UA_StatusCode
 UA_NodeMap_replaceNode(void *context, UA_Node *node) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
     BEGIN_CRITSECT(ns);
+
+    /* Find the node */
     UA_NodeMapEntry **slot = findOccupiedSlot(ns, &node->nodeId);
     if(!slot) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
     UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
-    if(*slot != newEntryContainer->orig) {
-        /* The node was updated since the copy was made */
+    UA_NodeMapEntry *oldEntryContainer = *slot;
+
+    /* The node was already updated since the copy was made? */
+    if(oldEntryContainer != newEntryContainer->orig) {
         deleteEntry(newEntryContainer);
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    (*slot)->deleted = true;
-    cleanupEntry(*slot);
-    *slot = newEntryContainer;
+
+    /* Replace the entry with an atomic operation */
+    if(UA_atomic_cmpxchg((void**)slot, oldEntryContainer,
+                         newEntryContainer) != oldEntryContainer) {
+        deleteEntry(newEntryContainer);
+        END_CRITSECT(ns);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    oldEntryContainer->deleted = true;
+    cleanupEntry(oldEntryContainer);
     END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }
