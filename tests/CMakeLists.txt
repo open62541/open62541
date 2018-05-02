@@ -141,6 +141,10 @@ add_executable(check_services_subscriptions server/check_services_subscriptions.
 target_link_libraries(check_services_subscriptions ${LIBS})
 add_test_valgrind(services_subscriptions ${TESTS_BINARY_DIR}/check_services_subscriptions)
 
+add_executable(check_monitoreditem_filter server/check_monitoreditem_filter.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_monitoreditem_filter ${LIBS})
+add_test_valgrind(monitoreditem_filter ${TESTS_BINARY_DIR}/check_monitoreditem_filter)
+
 add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_nodestore ${LIBS})
 add_test_valgrind(nodestore ${TESTS_BINARY_DIR}/check_nodestore)
