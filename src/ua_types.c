@@ -114,9 +114,30 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
     return (is == 0) ? true : false;
 }
 
+static UA_StatusCode
+String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
+    UA_StatusCode retval = UA_Array_copy(src->data, src->length, (void**)&dst->data,
+                                         &UA_TYPES[UA_TYPES_BYTE]);
+    if(retval == UA_STATUSCODE_GOOD)
+        dst->length = src->length;
+    return retval;
+}
+
 static void
 String_deleteMembers(UA_String *s, const UA_DataType *_) {
-    UA_free((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
+    UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+/* QualifiedName */
+static UA_StatusCode
+QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst, const UA_DataType *_) {
+    dst->namespaceIndex = src->namespaceIndex;
+    return String_copy(&src->name, &dst->name, NULL);
+}
+
+static void
+QualifiedName_deleteMembers(UA_QualifiedName *p, const UA_DataType *_) {
+    String_deleteMembers(&p->name, NULL);
 }
 
 UA_Boolean
@@ -548,9 +569,9 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
 /* Is the type string-like? */
 static bool
 isStringLike(const UA_DataType *type) {
-    if(type->membersSize == 1 && type->members[0].isArray &&
-       type->members[0].namespaceZero &&
-       type->members[0].memberTypeIndex == UA_TYPES_BYTE)
+    if(type == &UA_TYPES[UA_TYPES_STRING] ||
+       type == &UA_TYPES[UA_TYPES_BYTESTRING] ||
+       type == &UA_TYPES[UA_TYPES_XMLELEMENT])
         return true;
     return false;
 }
@@ -885,16 +906,16 @@ static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_copySignature)copy8Byte, // UInt64
     (UA_copySignature)copy4Byte, // Float
     (UA_copySignature)copy8Byte, // Double
-    (UA_copySignature)copy_noInit, // String
+    (UA_copySignature)String_copy,
     (UA_copySignature)copy8Byte, // DateTime
     (UA_copySignature)copyGuid, // Guid
-    (UA_copySignature)copy_noInit, // ByteString
-    (UA_copySignature)copy_noInit, // XmlElement
+    (UA_copySignature)String_copy, // ByteString
+    (UA_copySignature)String_copy, // XmlElement
     (UA_copySignature)NodeId_copy,
     (UA_copySignature)ExpandedNodeId_copy,
     (UA_copySignature)copy4Byte, // StatusCode
-    (UA_copySignature)copy_noInit, // QualifiedName
-    (UA_copySignature)LocalizedText_copy, // LocalizedText
+    (UA_copySignature)QualifiedName_copy,
+    (UA_copySignature)LocalizedText_copy,
     (UA_copySignature)ExtensionObject_copy,
     (UA_copySignature)DataValue_copy,
     (UA_copySignature)Variant_copy,
@@ -970,10 +991,10 @@ UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_deleteMembersSignature)String_deleteMembers, // ByteString
     (UA_deleteMembersSignature)String_deleteMembers, // XmlElement
     (UA_deleteMembersSignature)NodeId_deleteMembers,
-    (UA_deleteMembersSignature)ExpandedNodeId_deleteMembers, // ExpandedNodeId
+    (UA_deleteMembersSignature)ExpandedNodeId_deleteMembers,
     (UA_deleteMembersSignature)nopDeleteMembers, // StatusCode
-    (UA_deleteMembersSignature)deleteMembers_noInit, // QualifiedName
-    (UA_deleteMembersSignature)LocalizedText_deleteMembers, // LocalizedText
+    (UA_deleteMembersSignature)QualifiedName_deleteMembers,
+    (UA_deleteMembersSignature)LocalizedText_deleteMembers,
     (UA_deleteMembersSignature)ExtensionObject_deleteMembers,
     (UA_deleteMembersSignature)DataValue_deleteMembers,
     (UA_deleteMembersSignature)Variant_deletemembers,
