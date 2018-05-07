@@ -613,6 +613,15 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         return;
     }
 
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
+        if(client->state >= UA_CLIENTSTATE_SESSION) {
+            UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Received Publish Response with code %s",
+                            UA_StatusCode_name(response->responseHeader.serviceResult));
+        }
+        return;
+    }
+
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
         UA_Client_close(client); /* TODO: This should be handled before the process callback */
         UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
