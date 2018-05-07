@@ -33,21 +33,20 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-# If the type does not contain pointers, it can be copied with memcpy
-# (internally, not into the protocol message). This dict contains the sizes of
-# pointer-free types. Parsed types are added if they apply.
-builtin_pointerfree = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                       "Int64", "UInt64", "Float", "Double", "DateTime", "Guid", "StatusCode"]
-
 # Some types can be memcpy'd off the binary stream. That's especially important
 # for arrays. But we need to check if they contain padding and whether the
 # endianness is correct. This dict gives the C-statement that must be true for the
 # type to be overlayable. Parsed types are added if they apply.
-builtin_overlayable = {"Boolean": "true", "SByte": "true", "Byte": "true",
-                       "Int16": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt16": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Int32": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt32": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Int64": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Float": "UA_BINARY_OVERLAYABLE_FLOAT", "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
+builtin_overlayable = {"Boolean": "true",
+                       "SByte": "true", "Byte": "true",
+                       "Int16": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "UInt16": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Int32": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "UInt32": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Int64": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Float": "UA_BINARY_OVERLAYABLE_FLOAT",
+                       "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
                        "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " + \
@@ -170,7 +169,7 @@ class BuiltinType(Type):
         self.outname = "ua_types"
         self.description = ""
         self.pointerfree = "false"
-        if self.name in builtin_pointerfree:
+        if self.name in builtin_overlayable.keys():
             self.pointerfree = "true"
         self.overlayable = "false"
         if name in builtin_overlayable:
