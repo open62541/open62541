@@ -175,12 +175,7 @@ class BuiltinType(Type):
         if name in builtin_overlayable:
             self.overlayable = builtin_overlayable[name]
         self.builtin = "true"
-        if self.name == "QualifiedName":
-            self.members = [StructMember("namespaceIndex", types["Int16"], False), StructMember("name", types["String"], False)]
-        elif self.name in ["String", "ByteString", "XmlElement"]:
-            self.members = [StructMember("", types["Byte"], True)]
-        else:
-            self.members = [StructMember("", self, False)]
+        self.members = [StructMember("", self, False)] # builtin types contain only one member: themselves (drops into the jumptable during processing)
 
 class EnumerationType(Type):
     def __init__(self, outname, xml, namespace):
