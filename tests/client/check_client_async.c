@@ -85,20 +85,8 @@ START_TEST(Client_highlevel_async_readValue)
 
 		UA_UInt16 asyncCounter = 0;
 
-		UA_ReadRequest rr;
-		UA_ReadRequest_init(&rr);
-
-		UA_ReadValueId rvid;
-		UA_ReadValueId_init(&rvid);
-		rvid.attributeId = UA_ATTRIBUTEID_VALUE;
-		rvid.nodeId = UA_NODEID_NUMERIC(0,
-				UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-
-		rr.nodesToRead = &rvid;
-		rr.nodesToReadSize = 1;
-
 		UA_UInt32 reqId = 0;
-		UA_Client_readValueAttribute_async(client,
+		retval = UA_Client_readValueAttribute_async(client,
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
 				(UA_ClientAsyncReadValueAttributeCallback) asyncReadValueAtttributeCallback,
 				(void*)&asyncCounter, &reqId);
@@ -118,6 +106,8 @@ START_TEST(Client_highlevel_async_readValue)
 		UA_Client_delete(client);
 	}
 }
+
+
 
 START_TEST(Client_read_async)
 	{
@@ -261,6 +251,7 @@ static Suite* testSuite_Client(void) {
 	tcase_add_test(tc_client, Client_read_async_timed);
 	tcase_add_test(tc_client, Client_connectivity_check);
 	tcase_add_test(tc_client, Client_highlevel_async_readValue);
+
 	suite_add_tcase(s, tc_client);
 	return s;
 }
