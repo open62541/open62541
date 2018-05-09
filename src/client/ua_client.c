@@ -305,6 +305,9 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     UA_UInt32 rqId = ++client->requestId;
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Sending a request of type %i", requestType->typeId.identifier.numeric);
+
+    if (client->channel.nextSecurityToken.tokenId != 0) // Change to the new security token if the secure channel has been renewed.
+        UA_SecureChannel_revolveTokens(&client->channel);
     retval = UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId, UA_MESSAGETYPE_MSG,
                                                    rr, requestType);
     UA_NodeId_init(&rr->authenticationToken); /* Do not return the token to the user */

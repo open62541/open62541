@@ -506,7 +506,7 @@ if (UA_ENABLE_FULL_NS0)
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
     endif()
-    set(UA_FILE_DATATYPES "")
+
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
@@ -514,21 +514,28 @@ else()
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
     endif()
-    set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
+    set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
+
+    if(UA_ENABLE_METHODCALLS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
+    endif()
+
+    if(UA_ENABLE_DISCOVERY)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
+    endif()
 endif()
+
 if(NOT EXISTS "${UA_FILE_NS0}")
     message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
 endif()
 
-
-if (UA_FILE_DATATYPES STREQUAL "")
-    set(SELECTED_TYPES_TMP "")
-else()
-  set(SELECTED_TYPES_TMP "--selected-types=${UA_FILE_DATATYPES}")
-endif()
+set(SELECTED_TYPES_TMP "")
+foreach(f ${UA_FILE_DATATYPES})
+    set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
+endforeach()
 
 # standard-defined data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c

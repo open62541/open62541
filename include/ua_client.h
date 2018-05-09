@@ -189,6 +189,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
                       size_t *registeredServersSize,
                       UA_ApplicationDescription **registeredServers);
 
+#ifdef UA_ENABLE_DISCOVERY
 /* Get a list of all known server in the network. Only supported by LDS servers.
  *
  * @param client to use. Must be connected to the same endpoint given in
@@ -212,6 +213,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
                                UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
                                size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
                                size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
+#endif
 
 /**
  * .. _client-services:
@@ -419,6 +421,7 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
 const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
 
+
 UA_StatusCode UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout);
 
@@ -448,6 +451,7 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            const UA_DataType *responseType,
                            void *userdata, UA_UInt32 *requestId,
                            UA_UInt32 timeout);
+
 
 /**
  * .. toctree::

@@ -61,9 +61,9 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     }
 
     /* Remove the monitored item */
-    LIST_REMOVE(monitoredItem, listEntry);
     UA_String_deleteMembers(&monitoredItem->indexRange);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
+    UA_Variant_deleteMembers(&monitoredItem->lastValue);
     UA_NodeId_deleteMembers(&monitoredItem->monitoredNodeId);
     UA_Server_delayedFree(server, monitoredItem);
 }
@@ -146,10 +146,90 @@ void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
     /* TODO: Infobits for Events? */
 }
 
+#define ABS_SUBTRACT_TYPE_INDEPENDENT(a,b) ((a)>(b)?(a)-(b):(b)-(a))
+
+static UA_INLINE UA_Boolean
+outOfDeadBand(const void *data1, const void *data2, const size_t index, const UA_DataType *type, const UA_Double deadbandValue) {
+    if (type == &UA_TYPES[UA_TYPES_SBYTE]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_SByte*)data1)[index], ((const UA_SByte*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_BYTE]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Byte*)data1)[index], ((const UA_Byte*)data2)[index]) <= deadbandValue)
+                return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_INT16]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int16*)data1)[index], ((const UA_Int16*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_UINT16]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt16*)data1)[index], ((const UA_UInt16*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_INT32]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int32*)data1)[index], ((const UA_Int32*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_UINT32]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt32*)data1)[index], ((const UA_UInt32*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_INT64]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int64*)data1)[index], ((const UA_Int64*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_UINT64]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt64*)data1)[index], ((const UA_UInt64*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_FLOAT]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Float*)data1)[index], ((const UA_Float*)data2)[index]) <= deadbandValue)
+            return false;
+    } else
+    if (type == &UA_TYPES[UA_TYPES_DOUBLE]) {
+        if (ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Double*)data1)[index], ((const UA_Double*)data2)[index]) <= deadbandValue)
+            return false;
+    }
+    return true;
+}
+
+static UA_INLINE UA_Boolean
+updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue, const UA_Double deadbandValue) {
+    if (value->arrayLength != oldValue->arrayLength) {
+        return true;
+    }
+    if (value->type != oldValue->type) {
+        return true;
+    }
+    if (UA_Variant_isScalar(value)) {
+        return outOfDeadBand(value->data, oldValue->data, 0, value->type, deadbandValue);
+    } else {
+        for (size_t i = 0; i < value->arrayLength; ++i) {
+            if (outOfDeadBand(value->data, oldValue->data, i, value->type, deadbandValue))
+                return true;
+        }
+    }
+    return false;
+}
+
 /* Errors are returned as no change detected */
 static UA_Boolean
 detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value,
                             UA_ByteString *encoding) {
+    if (isDataTypeNumeric(value->value.type)
+            && (mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE
+                || mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
+        if (mon->filter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
+            if (!updateNeededForFilteredValue(&value->value, &mon->lastValue, mon->filter.deadbandValue))
+                return false;
+        } /*else if (mon->filter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
+            // TODO where do this EURange come from ?
+            UA_Double deadbandValue = fabs(mon->filter.deadbandValue * (EURange.high-EURange.low));
+            if (!updateNeededForFilteredValue(value->value, mon->lastValue, deadbandValue))
+                return false;
+        }*/
+    }
+
     /* Encode the data for comparison */
     size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(binsize == 0)
@@ -179,7 +259,7 @@ static UA_Boolean
 detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value, UA_ByteString *encoding) {
     /* Apply Filter */
     UA_Boolean hasValue = value->hasValue;
-    if(mon->trigger == UA_DATACHANGETRIGGER_STATUS)
+    if(mon->filter.trigger == UA_DATACHANGETRIGGER_STATUS)
         value->hasValue = false;
 
     UA_Boolean hasServerTimestamp = value->hasServerTimestamp;
@@ -189,7 +269,7 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value, UA_ByteString *enc
 
     UA_Boolean hasSourceTimestamp = value->hasSourceTimestamp;
     UA_Boolean hasSourcePicoseconds = value->hasSourcePicoseconds;
-    if(mon->trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+    if(mon->filter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
         value->hasSourceTimestamp = false;
         value->hasSourcePicoseconds = false;
     }
@@ -272,6 +352,8 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     newNotification->mon = monitoredItem;
 
     /* Replace the encoding for comparison */
+    UA_Variant_deleteMembers(&monitoredItem->lastValue);
+    UA_Variant_copy(&value->value, &monitoredItem->lastValue);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = *valueEncoding;
 

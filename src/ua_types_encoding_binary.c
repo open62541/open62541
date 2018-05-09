@@ -753,6 +753,18 @@ DECODE_BINARY(ExpandedNodeId) {
     return ret;
 }
 
+/* QualifiedName */
+
+ENCODE_BINARY(QualifiedName) {
+    return ENCODE_DIRECT(&src->namespaceIndex, UInt16) |
+           ENCODE_DIRECT(&src->name, String);
+}
+
+DECODE_BINARY(QualifiedName) {
+    return DECODE_DIRECT(&dst->namespaceIndex, UInt16) |
+        DECODE_DIRECT(&dst->name, String);
+}
+
 /* LocalizedText */
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE 0x01
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02
@@ -1350,7 +1362,7 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = 
     (encodeBinarySignature)NodeId_encodeBinary,
     (encodeBinarySignature)ExpandedNodeId_encodeBinary,
     (encodeBinarySignature)UInt32_encodeBinary, /* StatusCode */
-    (encodeBinarySignature)encodeBinaryInternal, /* QualifiedName */
+    (encodeBinarySignature)QualifiedName_encodeBinary,
     (encodeBinarySignature)LocalizedText_encodeBinary,
     (encodeBinarySignature)ExtensionObject_encodeBinary,
     (encodeBinarySignature)DataValue_encodeBinary,
@@ -1447,7 +1459,7 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = 
     (decodeBinarySignature)NodeId_decodeBinary,
     (decodeBinarySignature)ExpandedNodeId_decodeBinary,
     (decodeBinarySignature)UInt32_decodeBinary, /* StatusCode */
-    (decodeBinarySignature)decodeBinaryInternal, /* QualifiedName */
+    (decodeBinarySignature)QualifiedName_decodeBinary,
     (decodeBinarySignature)LocalizedText_decodeBinary,
     (decodeBinarySignature)ExtensionObject_decodeBinary,
     (decodeBinarySignature)DataValue_decodeBinary,
@@ -1586,6 +1598,10 @@ CALCSIZE_BINARY(ExpandedNodeId) {
     return s;
 }
 
+CALCSIZE_BINARY(QualifiedName) {
+    return 2 + String_calcSizeBinary(&src->name, NULL);
+}
+
 CALCSIZE_BINARY(LocalizedText) {
     size_t s = 1; /* encoding byte */
     if(src->locale.data)
@@ -1715,7 +1731,7 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1
     (calcSizeBinarySignature)NodeId_calcSizeBinary,
     (calcSizeBinarySignature)ExpandedNodeId_calcSizeBinary,
     (calcSizeBinarySignature)calcSizeBinaryMemSize, /* StatusCode */
-    (calcSizeBinarySignature)UA_calcSizeBinary, /* QualifiedName */
+    (calcSizeBinarySignature)QualifiedName_calcSizeBinary,
     (calcSizeBinarySignature)LocalizedText_calcSizeBinary,
     (calcSizeBinarySignature)ExtensionObject_calcSizeBinary,
     (calcSizeBinarySignature)DataValue_calcSizeBinary,

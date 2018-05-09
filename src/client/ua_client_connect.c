@@ -38,6 +38,9 @@ setClientState(UA_Client *client, UA_ClientState state) {
 /* Open the Connection */
 /***********************/
 
+#define UA_BITMASK_MESSAGETYPE 0x00ffffff
+#define UA_BITMASK_CHUNKTYPE 0xff000000
+
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*)application;
@@ -48,6 +51,30 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     UA_TcpMessageHeader messageHeader;
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Decoding ACK message failed");
+        return retval;
+    }
+
+    // check if we got an error response from the server
+    UA_MessageType messageType = (UA_MessageType)
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+    UA_ChunkType chunkType = (UA_ChunkType)
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+    if (messageType == UA_MESSAGETYPE_ERR) {
+        // Header + ErrorMessage (error + reasonLength_field + length)
+        UA_StatusCode error = *(UA_StatusCode*)(&chunk->data[offset]);
+        UA_UInt32 len = *((UA_UInt32*)&chunk->data[offset + 4]);
+        UA_Byte *data = (UA_Byte*)&chunk->data[offset + 4+4];
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Received ERR response. %s - %.*s", UA_StatusCode_name(error), len, data);
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+    if (chunkType != UA_CHUNKTYPE_FINAL) {
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+
     retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
@@ -130,11 +157,12 @@ HelAckHandshake(UA_Client *client) {
 }
 
 static void
-processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response) {
+processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response, UA_Boolean renew) {
     /* Replace the token */
-    UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
-    client->channel.securityToken = response->securityToken;
-    UA_ChannelSecurityToken_init(&response->securityToken);
+    if (renew)
+        client->channel.nextSecurityToken = response->securityToken; // Set the next token
+    else
+        client->channel.securityToken = response->securityToken; // Set initial token
 
     /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
@@ -201,6 +229,11 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
 
+    /* Increase nextChannelRenewal to avoid that we re-start renewal when
+     * publish responses are received before the OPN response arrives. */
+    client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
+        (2 * ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC));
+
     /* Receive / decrypt / decode the OPN response. Process async services in
      * the background until the OPN response arrives. */
     UA_OpenSecureChannelResponse response;
@@ -215,7 +248,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         return retval;
     }
 
-    processDecodedOPNResponse(client, &response);
+    processDecodedOPNResponse(client, &response, renew);
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     return retval;
 }

@@ -1,0 +1,10 @@
+ServerOnNetwork
+FindServersOnNetworkRequest
+FindServersOnNetworkResponse
+RegisteredServer
+RegisterServerRequest
+RegisterServerResponse
+DiscoveryConfiguration
+MdnsDiscoveryConfiguration
+RegisterServer2Request
+RegisterServer2Response

@@ -955,6 +955,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     const UA_DataSource dataSource,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId,
@@ -983,6 +985,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                      outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
                                      nodeContext, outNewNodeId);
 }
+
+#endif
 
 
 /**
@@ -1031,11 +1035,15 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
 UA_StatusCode UA_EXPORT
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          UA_MethodCallback method,
                          size_t inputArgumentsSize, const UA_Argument* inputArguments,
                          size_t outputArgumentsSize, const UA_Argument* outputArguments);
+
+#endif
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT

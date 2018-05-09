@@ -141,6 +141,10 @@ add_executable(check_services_subscriptions server/check_services_subscriptions.
 target_link_libraries(check_services_subscriptions ${LIBS})
 add_test_valgrind(services_subscriptions ${TESTS_BINARY_DIR}/check_services_subscriptions)
 
+add_executable(check_monitoreditem_filter server/check_monitoreditem_filter.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_monitoreditem_filter ${LIBS})
+add_test_valgrind(monitoreditem_filter ${TESTS_BINARY_DIR}/check_monitoreditem_filter)
+
 add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_nodestore ${LIBS})
 add_test_valgrind(nodestore ${TESTS_BINARY_DIR}/check_nodestore)
@@ -177,6 +181,9 @@ if(UA_ENABLE_PUBSUB)
     add_executable(check_pubsub_pds pubsub/check_pubsub_pds.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_pds ${LIBS})
     add_test(check_pubsub_pds ${TESTS_BINARY_DIR}/check_pubsub_pds)
+    add_executable(check_pubsub_publish pubsub/check_pubsub_publish.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_publish ${LIBS})
+    add_test(check_pubsub_publish ${TESTS_BINARY_DIR}/check_pubsub_publish)
 endif()
 
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
