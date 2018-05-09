@@ -413,6 +413,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
@@ -462,10 +465,6 @@ if(UA_ENABLE_ENCRYPTION)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
-            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
-            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c)
-
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
 endif()
