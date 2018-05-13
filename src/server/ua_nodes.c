@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015, 2017 (c) Florian Palm
@@ -595,14 +595,51 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
     return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
 }
 
-void UA_Node_deleteReferences(UA_Node *node) {
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &node->references[i];
+void
+UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
+                               UA_NodeId* referencesSkip) {
+    /* Nothing to do */
+    if(node->referencesSize == 0 || node->references == NULL)
+        return;
+
+    for(size_t i = node->referencesSize; i > 0; --i) {
+        UA_NodeReferenceKind *refs = &node->references[i-1];
+
+        /* Shall we keep the references of this type? */
+        UA_Boolean skip = false;
+        for(size_t j = 0; j < referencesSkipSize; j++) {
+            if(UA_NodeId_equal(&refs->referenceTypeId, &referencesSkip[j])) {
+                skip = true;
+                break;
+            }
+        }
+        if(skip)
+            continue;
+
+        /* Remove references */
         UA_Array_delete(refs->targetIds, refs->targetIdsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
         UA_NodeId_deleteMembers(&refs->referenceTypeId);
+        node->referencesSize--;
+
+        /* Move last references-kind entry to this position */
+        if(i-1 == node->referencesSize) /* Don't memcpy over the same position */
+            continue;
+        node->references[i-1] = node->references[node->referencesSize];
     }
-    if(node->references)
+
+    if(node->referencesSize == 0) {
+        /* The array is empty. Remove. */
         UA_free(node->references);
-    node->references = NULL;
-    node->referencesSize = 0;
+        node->references = NULL;
+    } else {
+        /* Realloc to save memory */
+        UA_NodeReferenceKind *refs = (UA_NodeReferenceKind*)
+            UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * node->referencesSize);
+        if(refs) /* Do nothing if realloc fails */
+            node->references = refs;
+    }
+}
+
+void UA_Node_deleteReferences(UA_Node *node) {
+    UA_Node_deleteReferencesSubset(node, 0, NULL);
 }
