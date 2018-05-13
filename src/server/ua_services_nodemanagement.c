@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -380,76 +380,6 @@ static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
 
-
-/*
- * This method only deletes references from the node which are not matching any type in the given array.
- * Could be used to e.g. delete all the references, except 'HASMODELINGRULE'
- */
-static void deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize, UA_NodeId* referencesSkip) {
-    if(referencesSkipSize == 0) {
-        UA_Node_deleteReferences(node);
-        return;
-    }
-
-    /* Let's count if there are references left. If not just delete all the references.
-     * It's faster */
-    size_t newSize = 0;
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        for(size_t j = 0; j < referencesSkipSize; j++) {
-            if(UA_NodeId_equal(&node->references[i].referenceTypeId, &referencesSkip[j])) {
-                newSize++;
-            }
-        }
-    }
-    if(newSize == 0) {
-        UA_Node_deleteReferences(node);
-        return;
-    }
-
-    /* Now copy the remaining references to a new array */
-    UA_NodeReferenceKind *newReferences = (UA_NodeReferenceKind *)UA_malloc(sizeof(UA_NodeReferenceKind) * (newSize));
-    size_t curr = 0;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; ++i) {
-        for(size_t j = 0; j < referencesSkipSize; j++) {
-            if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &referencesSkip[j]))
-                continue;
-
-            // copy the reference
-            UA_NodeReferenceKind *srefs = &node->references[i];
-            UA_NodeReferenceKind *drefs = &newReferences[curr++];
-            drefs->isInverse = srefs->isInverse;
-            retval = UA_NodeId_copy(&srefs->referenceTypeId, &drefs->referenceTypeId);
-            if(retval != UA_STATUSCODE_GOOD)
-                break;
-            retval = UA_Array_copy(srefs->targetIds, srefs->targetIdsSize,
-                                   (void**)&drefs->targetIds,
-                                   &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-            if(retval != UA_STATUSCODE_GOOD)
-                break;
-            drefs->targetIdsSize = srefs->targetIdsSize;
-            break;
-        }
-        if(retval != UA_STATUSCODE_GOOD) {
-            for(size_t k=0; k<i; k++) {
-                UA_NodeReferenceKind *refs = &newReferences[i];
-                for(size_t j = 0; j < refs->targetIdsSize; ++j)
-                    UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j]);
-                UA_Array_delete(refs->targetIds, refs->targetIdsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                UA_NodeId_deleteMembers(&refs->referenceTypeId);
-            }
-        }
-    }
-
-    UA_Node_deleteReferences(node);
-    if(retval == UA_STATUSCODE_GOOD) {
-        node->references = newReferences;
-        node->referencesSize = newSize;
-    } else {
-        UA_free(newReferences);
-    }
-}
-
 static UA_StatusCode
 copyChildNode(UA_Server *server, UA_Session *session,
               const UA_NodeId *destinationNodeId,
@@ -516,7 +446,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
          * manually added by the user during addnode_begin and addnode_finish. */
         /* For now we keep all the modelling rule references and delete all others */
         UA_NodeId modellingRuleReferenceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE);
-        deleteReferencesSubset(node, 1, &modellingRuleReferenceId);
+        UA_Node_deleteReferencesSubset(node, 1, &modellingRuleReferenceId);
 
         /* Add the node to the nodestore */
         UA_NodeId newNodeId;
