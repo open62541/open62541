@@ -736,6 +736,8 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server, UA_DataSetMe
                 //increase fieldCount for current delta message
                 dataSetMessage->data.deltaFrameData.fieldCount++;
                 dataSetWriter->lastSamples[counter].valeChanged = UA_TRUE;
+            } else {
+                dataSetWriter->lastSamples[counter].valeChanged = UA_FALSE;
             }
             //update last stored sample
             UA_DataValue_init(dataSetWriter->lastSamples[counter].value);
@@ -907,6 +909,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetMessage allocation failed");
         return;
     }
+    memset(dsmStore, 0, sizeof(UA_DataSetMessage) * writerGroup->writersCount);
     //The binary DataSetMessage sizes are part of the payload. Memory is allocated on the stack.
     UA_STACKARRAY(UA_UInt16, dsmSizes, writerGroup->writersCount);
     memset(dsmSizes, 0, writerGroup->writersCount * sizeof(UA_UInt16));
@@ -953,8 +956,10 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
     UA_UInt32 networkMessageCount = singleNetworkMessagesCount;
     if(combinedNetworkMessageCount != 0){
-        networkMessageCount += combinedNetworkMessageCount / writerGroup->config.maxEncapsulatedDataSetMessageCount +
-                               (combinedNetworkMessageCount % writerGroup->config.maxEncapsulatedDataSetMessageCount) == 0 ? 0 : 1;
+        combinedNetworkMessageCount = (UA_UInt16) (
+                combinedNetworkMessageCount / writerGroup->config.maxEncapsulatedDataSetMessageCount +
+                (combinedNetworkMessageCount % writerGroup->config.maxEncapsulatedDataSetMessageCount) == 0 ? 0 : 1);
+        networkMessageCount += combinedNetworkMessageCount;
     }
     //Alloc memory for the NetworkMessages on the stack
     UA_STACKARRAY(UA_NetworkMessage, nmStore, networkMessageCount);
@@ -965,9 +970,15 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         nmStore[i].networkMessageType = UA_NETWORKMESSAGE_DATASET;
         //create combined NetworkMessages
         if(i < (networkMessageCount-singleNetworkMessagesCount)){
-            if(combinedNetworkMessageCount - (i * writerGroup->config.maxEncapsulatedDataSetMessageCount) > 0){
-                currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
-                nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
+            if(combinedNetworkMessageCount - (i * writerGroup->config.maxEncapsulatedDataSetMessageCount)){
+                if(combinedNetworkMessageCount == 1){
+                    nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) ((writerGroup->writersCount) - singleNetworkMessagesCount);
+                    currentDSMPosition = 0;
+                } else {
+                    nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
+                    currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
+                }
+                //nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
                 nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
                 nmStore->payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
             } else {
@@ -1001,6 +1012,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             };
             connection->channel->send(connection->channel, NULL, &buf);
         }
+        nmStore[i].payloadHeaderEnabled = UA_TRUE;
+        //The stack allocated sizes field must be set to NULL to prevent invalid free.
+        nmStore[i].payload.dataSetPayload.sizes = NULL;
         UA_ByteString_deleteMembers(&buf);
         UA_NetworkMessage_deleteMembers(&nmStore[i]);
     }
