@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -229,37 +229,41 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 
 UA_Node *
 UA_Node_copy_alloc(const UA_Node *src) {
-    // use dstPtr to trick static code analysis in accepting dirty cast
-    void *dstPtr;
+    /* use dstPtr to trick static code analysis in accepting dirty cast */
+    size_t nodesize = 0;
     switch(src->nodeClass) {
         case UA_NODECLASS_OBJECT:
-            dstPtr = UA_malloc(sizeof(UA_ObjectNode));
+            nodesize = sizeof(UA_ObjectNode);
             break;
         case UA_NODECLASS_VARIABLE:
-            dstPtr =UA_malloc(sizeof(UA_VariableNode));
+            nodesize = sizeof(UA_VariableNode);
             break;
         case UA_NODECLASS_METHOD:
-            dstPtr = UA_malloc(sizeof(UA_MethodNode));
+            nodesize = sizeof(UA_MethodNode);
             break;
         case UA_NODECLASS_OBJECTTYPE:
-            dstPtr = UA_malloc(sizeof(UA_ObjectTypeNode));
+            nodesize = sizeof(UA_ObjectTypeNode);
             break;
         case UA_NODECLASS_VARIABLETYPE:
-            dstPtr = UA_malloc(sizeof(UA_VariableTypeNode));
+            nodesize = sizeof(UA_VariableTypeNode);
             break;
         case UA_NODECLASS_REFERENCETYPE:
-            dstPtr = UA_malloc(sizeof(UA_ReferenceTypeNode));
+            nodesize = sizeof(UA_ReferenceTypeNode);
             break;
         case UA_NODECLASS_DATATYPE:
-            dstPtr = UA_malloc(sizeof(UA_DataTypeNode));
+            nodesize = sizeof(UA_DataTypeNode);
             break;
         case UA_NODECLASS_VIEW:
-            dstPtr = UA_malloc(sizeof(UA_ViewNode));
+            nodesize = sizeof(UA_ViewNode);
             break;
         default:
             return NULL;
     }
-    UA_Node *dst = (UA_Node*)dstPtr;
+
+    UA_Node *dst = (UA_Node*)UA_calloc(1,nodesize);
+    if(!dst)
+        return NULL;
+
     dst->nodeClass = src->nodeClass;
 
     UA_StatusCode retval = UA_Node_copy(src, dst);
