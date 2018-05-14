@@ -13,6 +13,8 @@
 #include "ua_types_generated_handling.h"
 #include "ua_log_stdout.h"
 
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+
 const UA_Byte NM_VERSION_MASK = 15;
 const UA_Byte NM_PUBLISHER_ID_ENABLED_MASK = 16;
 const UA_Byte NM_GROUP_HEADER_ENABLED_MASK = 32;
@@ -1288,3 +1290,5 @@ void UA_DataSetMessage_free(const UA_DataSetMessage* p) {
         }
     }
 }
+
+#endif /* UA_ENABLE_PUBSUB */
