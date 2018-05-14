@@ -179,6 +179,9 @@ mark_as_advanced(UA_BUILD_OSS_FUZZ)
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
 mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
 
+option(APPEND_CMAKE_FOLDER "Install CMake config/development files in subfolder" OFF)
+mark_as_advanced(APPEND_CMAKE_FOLDER)
+
 # Building shared libs (dll, so). This option is written into ua_config.h.
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
@@ -811,7 +814,13 @@ add_custom_target(cpplint cpplint
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake)
+if(APPEND_CMAKE_FOLDER)
+   set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake/open62541)
+else()
+   set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake)
+endif()
+
+
 set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
 set(open62541_tools_dir share/open62541/tools)
 set(open62541_deps_dir include/open62541/deps)
