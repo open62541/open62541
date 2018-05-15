@@ -259,7 +259,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
  * @param  channel      current channel in which the client runs
  * @param  response     create session response from the server
  * @return Returns an error code or UA_STATUSCODE_GOOD. */
-static UA_StatusCode
+UA_StatusCode
 checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResponse *response) {
     if(channel == NULL || response == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -298,7 +298,7 @@ checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResp
  * @param  channel      current channel in which the client runs
  * @param  request      activate session request message to server
  * @return Returns an error or UA_STATUSCODE_GOOD */
-static UA_StatusCode
+UA_StatusCode
 signActivateSessionRequest(UA_SecureChannel *channel,
                            UA_ActivateSessionRequest *request) {
     if(channel == NULL || request == NULL)
@@ -748,13 +748,17 @@ UA_Client_disconnect(UA_Client *client) {
     }
 
     /* Close the TCP connection */
-    if(client->connection.state != UA_CONNECTION_CLOSED)
-        client->connection.close(&client->connection);
+    if(client->connection.state != UA_CONNECTION_CLOSED
+            && client->connection.state != UA_CONNECTION_OPENING)
+        /*UA_ClientConnectionTCP_init sets initial state to opening */
+        if(client->connection.close != NULL)
+            client->connection.close(&client->connection);
+
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
-        /* We need to clean up the subscriptions */
-        UA_Client_Subscriptions_clean(client);
+    /* We need to clean up the subscriptions */
+    UA_Client_Subscriptions_clean(client);
 #endif
 
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);

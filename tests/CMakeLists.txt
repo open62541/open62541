@@ -204,6 +204,10 @@ add_executable(check_client_async client/check_client_async.c $<TARGET_OBJECTS:o
 target_link_libraries(check_client_async ${LIBS})
 add_test_valgrind(client_async ${TESTS_BINARY_DIR}/check_client_async)
 
+add_executable(check_client_async_connect client/check_client_async_connect.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_async_connect ${LIBS})
+add_test_valgrind(client_async_connect ${TESTS_BINARY_DIR}/check_client_async_connect)
+
 add_executable(check_client_subscriptions client/check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_subscriptions ${LIBS})
 add_test_valgrind(client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)

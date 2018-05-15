@@ -130,7 +130,7 @@ static UA_StatusCode waitForNotification(UA_UInt32 notifications, UA_UInt32 maxT
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for (UA_UInt32 i = 0; i < maxTries; ++i) {
         UA_fakeSleep((UA_UInt32)publishingInterval + 100);
-        retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 100));
+        retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 100));
         if (retval != UA_STATUSCODE_GOOD)
             return retval;
         if (countNotificationReceived == notifications)

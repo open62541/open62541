@@ -90,7 +90,7 @@ START_TEST(Client_subscription) {
 
     notificationReceived = false;
 
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
 
@@ -169,13 +169,13 @@ START_TEST(Client_subscription_createDataChanges) {
 
     notificationReceived = false;
     countNotificationReceived = 0;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     notificationReceived = false;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
@@ -293,13 +293,13 @@ START_TEST(Client_subscription_connectionClose) {
 
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
 
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 60));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 60));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Simulate BADCONNECTIONCLOSE */
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 60));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 60));
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
     UA_Client_disconnect(client);
@@ -337,12 +337,12 @@ START_TEST(Client_subscription_without_notification) {
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
 
     notificationReceived = false;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
 
     notificationReceived = false;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
 
@@ -420,27 +420,27 @@ START_TEST(Client_subscription_async_sub) {
     countNotificationReceived = 0;
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 4);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 5);
 
@@ -449,14 +449,14 @@ START_TEST(Client_subscription_async_sub) {
     notificationReceived = false;
     /* Simulate network cable unplugged (no response from server) */
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
     /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_runAsync(client, (UA_UInt16)clientConfig.timeout);
+    UA_Client_run_iterate(client, (UA_UInt16)clientConfig.timeout);
     ck_assert_uint_eq(inactivityCallbackCalled, true);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
