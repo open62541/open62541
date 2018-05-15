@@ -12,6 +12,8 @@
 #include "ua_pubsub_manager.h"
 #include "ua_pubsub_networkmessage.h"
 
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+
 /**********************************************/
 /*               Connection                   */
 /**********************************************/
@@ -1038,3 +1040,5 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
     UA_WriterGroup_publishCallback(server, writerGroup);
     return retval;
 }
+
+#endif /* UA_ENABLE_PUBSUB */
