@@ -5,8 +5,9 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include "ua_pubsub_manager.h"
 #include "server/ua_server_internal.h"
+
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
@@ -294,3 +295,5 @@ UA_StatusCode
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
     return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
 }
+
+#endif /* UA_ENABLE_PUBSUB */

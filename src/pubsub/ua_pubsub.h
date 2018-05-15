@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#include <queue.h>
+#include "../deps/queue.h"
 #include "ua_plugin_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 #include "ua_server.h"
