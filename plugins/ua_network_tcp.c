@@ -823,10 +823,12 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     clientsockfd = socket(tcpConnection->server->ai_family,
                     tcpConnection->server->ai_socktype,
                     tcpConnection->server->ai_protocol);
+    connection->sockfd = (UA_Int32) clientsockfd; /* cast for win32 */
+
 #ifdef _WIN32
     if(clientsockfd == INVALID_SOCKET) {
 #else
-    if (connection->sockfd < 0) {
+    if (clientsockfd < 0) {
 #endif
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                             "Could not create client socket: %s", strerror(errno__));
@@ -900,7 +902,6 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
                  * timeout is somehow wrong */
 
         } else {
-                connection->sockfd = clientsockfd;
                 connection->state = UA_CONNECTION_ESTABLISHED;
                 return UA_STATUSCODE_GOOD;
             }
