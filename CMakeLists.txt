@@ -164,6 +164,13 @@ if(UA_BUILD_FUZZING)
     add_definitions(-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
 endif()
 
+option(UA_ENABLE_HISTORIZING "Build library with historizing support" ON)
+if(UA_ENABLE_HISTORIZING)
+    set(historizing_default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_historydatabackend_memory.h)
+    set(historizing_default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_historydatabackend_memory.c)
+    set(historizing_exported_headers ${PROJECT_SOURCE_DIR}/include/ua_plugin_history_data_backend.h)
+endif()
+
 option(UA_BUILD_FUZZING_CORPUS "Build the fuzzing corpus" OFF)
 mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
@@ -357,6 +364,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
+                     ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
@@ -442,6 +450,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
+                           ${historizing_default_plugin_headers}
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
@@ -454,6 +463,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+                           ${historizing_default_plugin_sources}
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c

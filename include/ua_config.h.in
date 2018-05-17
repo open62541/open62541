@@ -29,6 +29,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_PUBSUB
 #cmakedefine UA_ENABLE_ENCRYPTION
+#cmakedefine UA_ENABLE_HISTORIZING
 
 /* Multithreading */
 #cmakedefine UA_ENABLE_MULTITHREADING

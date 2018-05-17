@@ -1051,6 +1051,24 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                                               session->sessionHandle, &node->nodeId,
                                               node->context, rangeptr,
                                               &adjustedValue);
+#ifdef UA_ENABLE_HISTORIZING
+        if (node->historizing && !node->historizingSetting.historizingBackend.addHistoryData) {
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "No history data backend set");
+        } else if (node->historizing
+                   && node->historizingSetting.historizingUpdateStrategy & UA_HISTORIZINGUPDATESTRATEGY_VALUESET) {
+            UA_StatusCode result = node->historizingSetting.historizingBackend.addHistoryData(
+                        node->historizingSetting.historizingBackend.context,
+                        &adjustedValue,
+                        &node->nodeId);
+            if (result != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Inserting historizing value returned %s",
+                            UA_StatusCode_name(result));
+            }
+        }
+#endif
+
     } else {
         if(node->value.dataSource.write) {
             retval = node->value.dataSource.write(server, &session->sessionId,
@@ -1342,3 +1360,128 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     }
     return UA_Server_write(server, &wvalue);
 }
+
+#ifdef UA_ENABLE_HISTORIZING
+void
+Service_HistoryRead(UA_Server *server, UA_Session *session,
+                          const UA_HistoryReadRequest *request,
+                          UA_HistoryReadResponse *response) {
+    UA_HistoryReadResponse_init(response);
+    if (request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        return;
+    }
+    if (request->historyReadDetails.content.decoded.type == &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
+        UA_ReadRawModifiedDetails * details = (UA_ReadRawModifiedDetails*)request->historyReadDetails.content.decoded.data;
+        if (details->isReadModified) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+            return;
+        }
+        response->resultsSize = request->nodesToReadSize;
+        response->results = (UA_HistoryReadResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYREADRESPONSE]);
+        for (size_t i = 0; i < request->nodesToReadSize; ++i) {
+            const UA_Node * node = UA_Nodestore_get(server, &request->nodesToRead[i].nodeId);
+            if (!node) {
+                response->results[i].statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+                continue;
+            }
+            if (node->nodeClass != UA_NODECLASS_VARIABLE) {
+                response->results[i].statusCode = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+                UA_Nodestore_release(server, node);
+                continue;
+            }
+            const UA_VariableNode * variableNode = (const UA_VariableNode *)node;
+            if (!variableNode->historizingSetting.historizingBackend.getHistoryData) {
+                response->results[i].statusCode = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+                UA_Nodestore_release(server, node);
+                continue;
+            }
+            if (!(variableNode->accessLevel & UA_ACCESSLEVELMASK_HISTORYREAD)) {
+                response->results[i].statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+                UA_Nodestore_release(server, node);
+                continue;
+            }
+            size_t skip = 0;
+            if (request->nodesToRead[i].continuationPoint.length > 0) {
+                if (request->nodesToRead[i].continuationPoint.length == sizeof(size_t)) {
+                    skip = *((size_t*)(request->nodesToRead[i].continuationPoint.data));
+                } else {
+                    response->results[i].statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+                    UA_Nodestore_release(server, node);
+                    continue;
+                }
+            }
+            UA_Boolean hasMoreValues = false;
+            UA_HistoryData * data = UA_HistoryData_new();
+            response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
+            response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
+            response->results[i].historyData.content.decoded.data = data;
+            data->dataValues = (UA_DataValue*)UA_Array_new(data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            if (request->nodesToRead[i].indexRange.length > 0) {
+                UA_DataValue * allDataValues;
+                UA_StatusCode getHistoryDataStatusCode = variableNode->historizingSetting.historizingBackend.getHistoryData(
+                            variableNode->historizingSetting.historizingBackend.context,
+                            details->startTime,
+                            details->endTime,
+                            &request->nodesToRead[i].nodeId,
+                            skip,
+                            variableNode->historizingSetting.maxHistoryDataResponseSize,
+                            details->numValuesPerNode,
+                            details->returnBounds,
+                            &allDataValues,
+                            &data->dataValuesSize,
+                            &hasMoreValues);
+                if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
+                    response->results[i].statusCode = getHistoryDataStatusCode;
+                    UA_Nodestore_release(server, node);
+                    continue;
+                }
+                UA_NumericRange range;
+                UA_StatusCode rangeParseResult = UA_NumericRange_parseFromString(&range, &request->nodesToRead[i].indexRange);
+                if (rangeParseResult != UA_STATUSCODE_GOOD) {
+                    response->results[i].statusCode = rangeParseResult;
+                    UA_Array_delete(data->dataValues, data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+                    data->dataValues = allDataValues;
+                    UA_Nodestore_release(server, node);
+                    continue;
+                }
+                for (size_t j = 0; j < data->dataValuesSize; ++j) {
+                    UA_Variant_copyRange(&allDataValues[j].value, &data->dataValues[j].value, range);
+                }
+                UA_Array_delete(allDataValues, data->dataValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+            } else {
+                UA_StatusCode getHistoryDataStatusCode = variableNode->historizingSetting.historizingBackend.getHistoryData(
+                            variableNode->historizingSetting.historizingBackend.context,
+                            details->startTime,
+                            details->endTime,
+                            &request->nodesToRead[i].nodeId,
+                            skip,
+                            variableNode->historizingSetting.maxHistoryDataResponseSize,
+                            details->numValuesPerNode,
+                            details->returnBounds,
+                            &data->dataValues,
+                            &data->dataValuesSize,
+                            &hasMoreValues);
+                if (getHistoryDataStatusCode != UA_STATUSCODE_GOOD) {
+                    response->results[i].statusCode = getHistoryDataStatusCode;
+                    UA_Nodestore_release(server, node);
+                    continue;
+                }
+
+            }
+            if (hasMoreValues) {
+                response->results[i].continuationPoint.length = sizeof(size_t);
+                size_t t = sizeof(size_t);
+                response->results[i].continuationPoint.data = (UA_Byte*)UA_malloc(t);
+                *((size_t*)(response->results[i].continuationPoint.data)) = skip + data->dataValuesSize;
+            }
+            response->results[i].statusCode = UA_STATUSCODE_GOOD;
+            UA_Nodestore_release(server, node);
+        }
+        response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+        return;
+    }
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+    return;
+}
+#endif
