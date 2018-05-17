@@ -325,19 +325,25 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
 
-    // SecurityFooter
-    if(src->securityHeader.securityFooterEnabled) {
-        for (UA_Byte i = 0; i < src->securityHeader.securityFooterSize; i++) {
-            rv = UA_Byte_encodeBinary(&(src->securityFooter.data[i]), bufPos, bufEnd);
-            if(rv != UA_STATUSCODE_GOOD)
+    if (src->securityEnabled)
+    {
+        // SecurityFooter
+        if (src->securityHeader.securityFooterEnabled) {
+            for (UA_Byte i = 0; i < src->securityHeader.securityFooterSize; i++) {
+                rv = UA_Byte_encodeBinary(&(src->securityFooter.data[i]), bufPos, bufEnd);
+                if (rv != UA_STATUSCODE_GOOD)
+                    return rv;
+            }
+        }
+
+        // Signature
+        if (src->securityHeader.networkMessageSigned)
+        {
+            rv = UA_ByteString_encodeBinary(&(src->signature), bufPos, bufEnd);
+            if (rv != UA_STATUSCODE_GOOD)
                 return rv;
         }
     }
-
-    // Signature
-    rv = UA_ByteString_encodeBinary(&(src->signature), bufPos, bufEnd);
-    if(rv != UA_STATUSCODE_GOOD)
-        return rv;
 
     retval = UA_STATUSCODE_GOOD;
     return retval;
@@ -631,24 +637,30 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
 
-    // SecurityFooter
-    if(dst->securityHeader.securityFooterEnabled && (dst->securityHeader.securityFooterSize > 0)) {
-        rv = UA_ByteString_allocBuffer(&dst->securityFooter, dst->securityHeader.securityFooterSize);
-        if(rv != UA_STATUSCODE_GOOD)
-            return rv;
+    if (dst->securityEnabled)
+    {
+        // SecurityFooter
+        if (dst->securityHeader.securityFooterEnabled && (dst->securityHeader.securityFooterSize > 0)) {
+            rv = UA_ByteString_allocBuffer(&dst->securityFooter, dst->securityHeader.securityFooterSize);
+            if (rv != UA_STATUSCODE_GOOD)
+                return rv;
 
-        for (UA_Byte i = 0; i < dst->securityHeader.securityFooterSize; i++) {
-            rv = UA_Byte_decodeBinary(src, offset, &(dst->securityFooter.data[i]));
-            if(rv != UA_STATUSCODE_GOOD)
+            for (UA_Byte i = 0; i < dst->securityHeader.securityFooterSize; i++) {
+                rv = UA_Byte_decodeBinary(src, offset, &(dst->securityFooter.data[i]));
+                if (rv != UA_STATUSCODE_GOOD)
+                    return rv;
+            }
+        }
+
+        // Signature
+        if (dst->securityHeader.networkMessageSigned)
+        {
+            rv = UA_ByteString_decodeBinary(src, offset, &(dst->signature));
+            if (rv != UA_STATUSCODE_GOOD)
                 return rv;
         }
     }
 
-    // Signature.
-    rv = UA_ByteString_decodeBinary(src, offset, &(dst->signature));
-    if(rv != UA_STATUSCODE_GOOD)
-        return rv;
-    
     retval = UA_STATUSCODE_GOOD;
     return retval;
 }
@@ -766,10 +778,16 @@ size_t UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage* p) {
             size += UA_DataSetMessage_calcSizeBinary(&(p->payload.dataSetPayload.dataSetMessages[i]));
     }
 
-    if(p->securityHeader.securityFooterEnabled)
-        size += p->securityHeader.securityFooterSize;
+    if (p->securityEnabled)
+    {
+        if (p->securityHeader.securityFooterEnabled)
+            size += p->securityHeader.securityFooterSize;
 
-    size += UA_ByteString_calcSizeBinary(&p->signature);
+        if (p->securityHeader.networkMessageSigned)
+        {
+            size += UA_ByteString_calcSizeBinary(&p->signature);
+        }
+    }
 
     retval = size;
     return retval;
