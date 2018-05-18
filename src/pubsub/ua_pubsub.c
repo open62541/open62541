@@ -684,6 +684,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
     //prepare DataSetMessageContent
+    dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dataSetMessage->data.keyFrameData.fieldCount = currentDataSet->fieldSize;
     dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
@@ -726,6 +727,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server, UA_DataSetMe
         return UA_STATUSCODE_BADNOTFOUND;
     //prepare DataSetMessageContent
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
+    dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
     UA_DataSetField *tmpDataSetField;
     size_t counter = 0;
