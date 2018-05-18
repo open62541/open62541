@@ -38,24 +38,24 @@ def splitStringLiterals(value, splitLength=500, max_string_length=0):
 
 def generateStringCode(value, alloc=False, max_string_length=0):
     value = makeCLiteral(value)
-    return "UA_STRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
+    return u"UA_STRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
 
 def generateXmlElementCode(value, alloc=False, max_string_length=0):
     value = makeCLiteral(value)
-    return "UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
+    return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
 
 def generateByteStringCode(value, alloc=False, max_string_length=0):
     value = makeCLiteral(value)
-    return "UA_BYTESTRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
+    return u"UA_BYTESTRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
 
 def generateLocalizedTextCode(value, alloc=False, max_string_length=0):
     vt = makeCLiteral(value.text)
-    return "UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", value.locale,
+    return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", value.locale,
                                                    splitStringLiterals(vt, max_string_length=max_string_length))
 
 def generateQualifiedNameCode(value, alloc=False, max_string_length=0):
     vn = makeCLiteral(value.name)
-    return "UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
+    return u"UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
                                                      str(value.ns), splitStringLiterals(vn, max_string_length=max_string_length))
 
 def generateNodeIdCode(value):
@@ -65,7 +65,7 @@ def generateNodeIdCode(value):
         return "UA_NODEID_NUMERIC(ns[%s], %s)" % (value.ns, value.i)
     elif value.s != None:
         v = makeCLiteral(value.s)
-        return "UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
+        return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateExpandedNodeIdCode(value):
@@ -73,7 +73,7 @@ def generateExpandedNodeIdCode(value):
         return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
     elif value.s != None:
         vs = makeCLiteral(value.s)
-        return "UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
+        return u"UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateDateTimeCode(value):
