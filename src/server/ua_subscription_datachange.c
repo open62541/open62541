@@ -15,19 +15,14 @@
 
 #define UA_VALUENCODING_MAXSTACK 512
 
-UA_MonitoredItem *
-UA_MonitoredItem_new(UA_MonitoredItemType monType) {
-    /* Allocate the memory */
-    UA_MonitoredItem *newItem =
-            (UA_MonitoredItem *) UA_calloc(1, sizeof(UA_MonitoredItem));
-    if(!newItem)
+UA_MonitoredItem * UA_MonitoredItem_new(UA_Subscription *sub) {
+    UA_MonitoredItem *mon = (UA_MonitoredItem *)UA_calloc(1, sizeof(UA_MonitoredItem));
+    if(!mon)
         return NULL;
 
-    /* Remaining members are covered by calloc zeroing out the memory */
-    newItem->monitoredItemType = monType; /* currently hardcoded */
-    newItem->timestampsToReturn = UA_TIMESTAMPSTORETURN_SOURCE;
-    TAILQ_INIT(&newItem->queue);
-    return newItem;
+    mon->subscription = sub;
+    TAILQ_INIT(&mon->queue);
+    return mon;
 }
 
 void

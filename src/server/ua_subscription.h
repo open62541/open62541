@@ -94,7 +94,7 @@ struct UA_MonitoredItem {
     UA_UInt32 queueSize;
 };
 
-UA_MonitoredItem * UA_MonitoredItem_new(UA_MonitoredItemType);
+UA_MonitoredItem * UA_MonitoredItem_new(UA_Subscription *sub);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void UA_MonitoredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
