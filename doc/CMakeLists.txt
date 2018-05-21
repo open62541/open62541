@@ -41,6 +41,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_firststeps.c ${DOC_S
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_variable.c ${DOC_SRC_DIR}/tutorial_server_variable.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_variabletype.c ${DOC_SRC_DIR}/tutorial_server_variabletype.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_datasource.c ${DOC_SRC_DIR}/tutorial_server_datasource.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_monitoreditems.c ${DOC_SRC_DIR}/tutorial_server_monitoreditems.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_object.c ${DOC_SRC_DIR}/tutorial_server_object.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_method.c ${DOC_SRC_DIR}/tutorial_server_method.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c ${DOC_SRC_DIR}/tutorial_client_firststeps.rst)
@@ -63,6 +64,7 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_variable.rst
           ${DOC_SRC_DIR}/tutorial_server_variabletype.rst
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
+          ${DOC_SRC_DIR}/tutorial_server_monitoreditems.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
           ${DOC_SRC_DIR}/tutorial_pubsub_publish.rst
@@ -96,6 +98,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_variable.rst
           ${DOC_SRC_DIR}/tutorial_server_variabletype.rst
           ${DOC_SRC_DIR}/tutorial_server_datasource.rst
+          ${DOC_SRC_DIR}/tutorial_server_monitoreditems.rst
           ${DOC_SRC_DIR}/tutorial_server_object.rst
           ${DOC_SRC_DIR}/tutorial_server_method.rst
           ${DOC_SRC_DIR}/tutorial_pubsub_publish.rst
