@@ -162,6 +162,7 @@ struct UA_Server {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
+    UA_UInt32 lastLocalMonitoredItemId;
 #endif
 
 #ifdef UA_ENABLE_PUBSUB

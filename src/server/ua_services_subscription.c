@@ -229,6 +229,10 @@ static const UA_String binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte 
 struct createMonContext {
     UA_Subscription *sub;
     UA_TimestampsToReturn timestampsToReturn;
+
+    /* If sub is NULL, use local callbacks */
+    UA_Server_DataChangeNotificationCallback dataChangeCallback;
+    void *context;
 };
 
 static void
@@ -236,7 +240,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                               const UA_MonitoredItemCreateRequest *request,
                               UA_MonitoredItemCreateResult *result) {
     /* Check available capacity */
-    if(server->config.maxMonitoredItemsPerSubscription != 0 &&
+    if(server->config.maxMonitoredItemsPerSubscription != 0 && cmc->sub &&
        cmc->sub->monitoredItemsSize >= server->config.maxMonitoredItemsPerSubscription) {
         result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
@@ -276,41 +280,47 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         return;
     }
 
-    /* Create the monitoreditem */
-    UA_MonitoredItem *newMon = (UA_MonitoredItem*)UA_malloc(sizeof(UA_MonitoredItem));
+    /* Allocate the MonitoredItem */
+    size_t nmsize = sizeof(UA_MonitoredItem);
+    if(!cmc->sub)
+        nmsize = sizeof(UA_LocalMonitoredItem);
+    UA_MonitoredItem *newMon = (UA_MonitoredItem*)UA_malloc(nmsize);
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_DataValue_deleteMembers(&v);
         return;
     }
+
+    /* Initialize the MonitoredItem */
     UA_MonitoredItem_init(newMon, cmc->sub);
     newMon->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY;
-    UA_StatusCode retval = UA_NodeId_copy(&request->itemToMonitor.nodeId,
-                                          &newMon->monitoredNodeId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        result->statusCode = retval;
-        UA_MonitoredItem_delete(server, newMon);
-        UA_DataValue_deleteMembers(&v);
-        return;
-    }
-
     newMon->attributeId = request->itemToMonitor.attributeId;
-    UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
-    newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
-    retval = setMonitoredItemSettings(server, newMon, request->monitoringMode,
-                                      &request->requestedParameters, v.value.type);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= UA_NodeId_copy(&request->itemToMonitor.nodeId, &newMon->monitoredNodeId);
+    retval |= UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
+    retval |= setMonitoredItemSettings(server, newMon, request->monitoringMode,
+                                       &request->requestedParameters, v.value.type);
     UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session, "Could not create MonitoredItem "
                             "with status code %s", UA_StatusCode_name(retval));
         result->statusCode = retval;
         UA_MonitoredItem_delete(server, newMon);
-        --cmc->sub->lastMonitoredItemId;
         return;
     }
 
-    UA_Subscription_addMonitoredItem(cmc->sub, newMon);
+    /* Add to the subscriptions or the local MonitoredItems */
+    if(cmc->sub) {
+        newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
+        UA_Subscription_addMonitoredItem(cmc->sub, newMon);
+    } else {
+        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)newMon;
+        localMon->context = cmc->context;
+        localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
+        newMon->monitoredItemId = ++server->lastLocalMonitoredItemId;
+        LIST_INSERT_HEAD(&server->localMonitoredItems, newMon, listEntry);
+    }
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
@@ -356,6 +366,24 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CreateMonitoredItem, &cmc,
                                            &request->itemsToCreateSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
+}
+
+UA_MonitoredItemCreateResult
+UA_Server_createDataChangeMonitoredItem(UA_Server *server,
+                                        UA_TimestampsToReturn timestampsToReturn,
+                                        const UA_MonitoredItemCreateRequest item,
+                                        void *monitoredItemContext,
+                                        UA_Server_DataChangeNotificationCallback callback) {
+    struct createMonContext cmc;
+    cmc.sub = NULL;
+    cmc.context = monitoredItemContext;
+    cmc.dataChangeCallback = callback;
+    cmc.timestampsToReturn = timestampsToReturn;
+
+    UA_MonitoredItemCreateResult result;
+    UA_MonitoredItemCreateResult_init(&result);
+    Operation_CreateMonitoredItem(server, &adminSession, &cmc, &item, &result);
+    return result;
 }
 
 static void
@@ -703,6 +731,19 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                   (UA_ServiceOperation)Operation_DeleteMonitoredItem, sub,
                   &request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_UINT32],
                   &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+}
+
+UA_StatusCode
+UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &server->localMonitoredItems, listEntry) {
+        if(mon->monitoredItemId != monitoredItemId)
+            continue;
+        LIST_REMOVE(mon, listEntry);
+        UA_MonitoredItem_delete(server, mon);
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 
 void
