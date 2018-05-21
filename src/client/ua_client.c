@@ -405,6 +405,9 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
        < UA_DateTime_nowMonotonic())
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
 
+    /* Forward declaration for the goto */
+    UA_NodeId expectedNodeId = UA_NODEID_NULL;
+
     /* Decode the data type identifier of the response */
     size_t offset = 0;
     UA_NodeId responseId;
@@ -422,10 +425,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     /* Got the synchronous response */
     rd->received = true;
 
-    /* Forward declaration for the goto */
-    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
-
     /* Check that the response type matches */
+    expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
     if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
             UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
