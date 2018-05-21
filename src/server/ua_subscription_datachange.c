@@ -37,22 +37,24 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         /* Remove the sampling callback */
         MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
-        /* Clear the queued notifications */
-        UA_Notification *notification, *notification_tmp;
-        TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue, listEntry, notification_tmp) {
-            /* Remove the item from the queues */
-            TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
-            TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-            --sub->notificationQueueSize;
-
-            UA_Notification_delete(notification);
-        }
-        monitoredItem->queueSize = 0;
     } else {
         /* TODO: Access val data.event */
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "MonitoredItemTypes other than ChangeNotify are not supported yet");
     }
+
+    /* Remove the queued notifications */
+    UA_Notification *notification, *notification_tmp;
+    TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue,
+                       listEntry, notification_tmp) {
+        /* Remove the item from the queues */
+        TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
+        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+        --sub->notificationQueueSize;
+
+        UA_Notification_delete(notification);
+    }
+    monitoredItem->queueSize = 0;
 
     /* Remove the monitored item */
     UA_String_deleteMembers(&monitoredItem->indexRange);
