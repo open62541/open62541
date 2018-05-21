@@ -758,6 +758,57 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_ValueCallback callback);
 
 /**
+ * .. _local-monitoreditems:
+ *
+ * Local MonitoredItems
+ * ^^^^^^^^^^^^^^^^^^^^
+ *
+ * MonitoredItems are used with the Subscription mechanism of OPC UA to
+ * transported notifications for data changes and events. MonitoredItems can
+ * also be registered locally. Notifications are then forwarded to a
+ * user-defined callback instead of a remote client. */
+
+typedef void (*UA_Server_DataChangeNotificationCallback)
+    (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
+     const UA_NodeId *nodeId, void *nodeContext, UA_UInt32 attributeId,
+     const UA_DataValue *value);
+
+typedef void (*UA_Server_EventNotificationCallback)
+    (UA_Server *server, UA_UInt32 monId, void *monContext,
+     size_t nEventFields, const UA_Variant *eventFields);
+
+/* Create a local MonitoredItem with a sampling interval that detects data
+ * changes.
+ *
+ * @param server The server executing the MonitoredItem
+ * @timestampsToReturn Shall timestamps be added to the value for the callback?
+ * @item The parameters of the new MonitoredItem. Note that the attribute of the
+ *       ReadValueId (the node that is monitored) can not be
+ *       ``UA_ATTRIBUTEID_EVENTNOTIFIER``. A different callback type needs to be
+ *       registered for event notifications.
+ * @monitoredItemContext A pointer that is forwarded with the callback
+ * @callback The callback that is executed on detected data changes
+ *
+ * @return Returns a description of the created MonitoredItem. The structure
+ * also contains a StatusCode (in case of an error) and the identifier of the
+ * new MonitoredItem. */
+UA_MonitoredItemCreateResult UA_EXPORT
+UA_Server_createDataChangeMonitoredItem(UA_Server *server,
+          UA_TimestampsToReturn timestampsToReturn,
+          const UA_MonitoredItemCreateRequest item,
+          void *monitoredItemContext,
+          UA_Server_DataChangeNotificationCallback callback);
+
+/* UA_MonitoredItemCreateResult UA_EXPORT */
+/* UA_Server_createEventMonitoredItem(UA_Server *server, */
+/*           UA_TimestampsToReturn timestampsToReturn, */
+/*           const UA_MonitoredItemCreateRequest item, void *context, */
+/*           UA_Server_EventNotificationCallback callback); */
+
+UA_StatusCode UA_EXPORT
+UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
+
+/**
  * Method Callbacks
  * ^^^^^^^^^^^^^^^^
  * Method callbacks are set to `NULL` (not executable) when a method node is added
