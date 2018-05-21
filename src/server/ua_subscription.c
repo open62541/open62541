@@ -19,6 +19,16 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
+void UA_Notification_delete(UA_Notification *n) {
+    if(n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        UA_DataValue_deleteMembers(&n->data.value);
+    } else {
+        // TODO: Event-Handling
+    }
+
+    UA_free(n);
+}
+
 UA_Subscription *
 UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
     /* Allocate the memory */
