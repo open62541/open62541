@@ -278,7 +278,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     }
 
     /* Create the monitoreditem */
-    UA_MonitoredItem *newMon = UA_MonitoredItem_new(UA_MONITOREDITEMTYPE_CHANGENOTIFY);
+    UA_MonitoredItem *newMon = UA_MonitoredItem_new(cmc->sub);
+    newMon->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY;
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_DataValue_deleteMembers(&v);
@@ -292,7 +293,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         UA_DataValue_deleteMembers(&v);
         return;
     }
-    newMon->subscription = cmc->sub;
+
     newMon->attributeId = request->itemToMonitor.attributeId;
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
