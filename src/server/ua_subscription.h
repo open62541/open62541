@@ -97,11 +97,11 @@ struct UA_MonitoredItem {
     UA_UInt32 queueSize;
 };
 
-UA_MonitoredItem * UA_MonitoredItem_new(UA_Subscription *sub);
-void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
-void UA_MonitoredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
-UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
-UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);
+void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */

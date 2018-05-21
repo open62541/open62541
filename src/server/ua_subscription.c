@@ -57,7 +57,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
         LIST_REMOVE(mon, listEntry);
-        MonitoredItem_delete(server, mon);
+        UA_MonitoredItem_delete(server, mon);
     }
     sub->monitoredItemsSize = 0;
 
@@ -98,7 +98,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     sub->monitoredItemsSize--;
 
     /* Remove content and delayed free */
-    MonitoredItem_delete(server, mon);
+    UA_MonitoredItem_delete(server, mon);
 
     return UA_STATUSCODE_GOOD;
 }

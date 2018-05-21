@@ -113,7 +113,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
         LIST_REMOVE(mon, listEntry);
-        MonitoredItem_delete(server, mon);
+        UA_MonitoredItem_delete(server, mon);
     }
 #endif
 
