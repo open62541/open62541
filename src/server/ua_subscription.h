@@ -50,8 +50,8 @@ struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) listEntry;
-    TAILQ_ENTRY(UA_Notification) globalEntry;
+    TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
+    TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
 
     UA_MonitoredItem *mon;
 
