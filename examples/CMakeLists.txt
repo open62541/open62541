@@ -38,6 +38,10 @@ add_example(tutorial_server_variable tutorial_server_variable.c)
 
 add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
+endif()
+
 add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
 add_example(tutorial_server_object tutorial_server_object.c)
