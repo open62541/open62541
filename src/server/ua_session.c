@@ -8,8 +8,8 @@
 
 #include "ua_session.h"
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-#include "ua_subscription.h"
 #include "ua_server_internal.h"
+#include "ua_subscription.h"
 #endif
 
 #define UA_SESSION_NONCELENTH 32
