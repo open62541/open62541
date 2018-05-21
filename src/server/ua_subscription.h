@@ -62,6 +62,9 @@ typedef struct UA_Notification {
     } data;
 } UA_Notification;
 
+/* Clean up the notification. Must be removed from the lists first. */
+void UA_Notification_delete(UA_Notification *n);
+
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
 struct UA_MonitoredItem {

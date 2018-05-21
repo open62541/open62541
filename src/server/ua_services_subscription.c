@@ -458,9 +458,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
             TAILQ_REMOVE(&mon->queue, notification, listEntry);
             TAILQ_REMOVE(&smc->sub->notificationQueue, notification, globalEntry);
             --smc->sub->notificationQueueSize;
-
-            UA_DataValue_deleteMembers(&notification->data.value);
-            UA_free(notification);
+            UA_Notification_delete(notification);
         }
         mon->queueSize = 0;
 

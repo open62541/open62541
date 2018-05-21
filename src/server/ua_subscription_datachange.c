@@ -45,8 +45,7 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
             TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
             --sub->notificationQueueSize;
 
-            UA_DataValue_deleteMembers(&notification->data.value);
-            UA_free(notification);
+            UA_Notification_delete(notification);
         }
         monitoredItem->queueSize = 0;
     } else {
@@ -105,16 +104,7 @@ void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
         --sub->notificationQueueSize;
 
         /* Free the notification */
-        if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            UA_DataValue_deleteMembers(&del->data.value);
-        } else {
-            /* TODO: event implemantation */
-        }
-
-        /* Work around a false positive in clang analyzer */
-#ifndef __clang_analyzer__
-        UA_free(del);
-#endif
+        UA_Notification_delete(del);
     }
 
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
