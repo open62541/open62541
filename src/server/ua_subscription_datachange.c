@@ -15,18 +15,13 @@
 
 #define UA_VALUENCODING_MAXSTACK 512
 
-UA_MonitoredItem * UA_MonitoredItem_new(UA_Subscription *sub) {
-    UA_MonitoredItem *mon = (UA_MonitoredItem *)UA_calloc(1, sizeof(UA_MonitoredItem));
-    if(!mon)
-        return NULL;
-
+void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
+    memset(mon, 0, sizeof(UA_MonitoredItem));
     mon->subscription = sub;
     TAILQ_INIT(&mon->queue);
-    return mon;
 }
 
-void
-MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                         "Subscription %u | MonitoredItem %i | "
@@ -35,7 +30,7 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Remove the sampling callback */
-        MonitoredItem_unregisterSampleCallback(server, monitoredItem);
+        UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
     } else {
         /* TODO: Access val data.event */
@@ -357,7 +352,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
 }
 
 void
-UA_MonitoredItem_SampleCallback(UA_Server *server,
+UA_MonitoredItem_sampleCallback(UA_Server *server,
                                 UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
@@ -399,11 +394,11 @@ UA_MonitoredItem_SampleCallback(UA_Server *server,
 }
 
 UA_StatusCode
-MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     if(mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
     UA_StatusCode retval =
-        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_SampleCallback,
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_sampleCallback,
                                       mon, (UA_UInt32)mon->samplingInterval, &mon->sampleCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
         mon->sampleCallbackIsRegistered = true;
@@ -411,7 +406,7 @@ MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
 }
 
 UA_StatusCode
-MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     if(!mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
     mon->sampleCallbackIsRegistered = false;
