@@ -13,6 +13,9 @@
 #include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+#include "ua_pubsub_ns0.h"
+#endif
 
 /**********************************************/
 /*               Connection                   */
@@ -129,6 +132,9 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     newWriterGroup->config = tmpWriterGroupConfig;
     retVal |= UA_WriterGroup_addPublishCallback(server, newWriterGroup);
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addWriterGroupRepresentation(server, newWriterGroup);
+#endif
     return retVal;
 }
 
@@ -146,7 +152,9 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
     //unregister the publish callback
     if(UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    removeWriterGroupRepresentation(server, wg);
+#endif
     UA_WriterGroup_deleteMembers(server, wg);
     UA_free(wg);
     return UA_STATUSCODE_GOOD;
@@ -432,6 +440,27 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
     return retVal;
 }
 
+UA_StatusCode
+UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdentifier,
+                                  const UA_WriterGroupConfig *config){
+    if(!config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_WriterGroup *currentWriterGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
+    if(!currentWriterGroup)
+        return UA_STATUSCODE_BADNOTFOUND;
+    //The update functionality will be extended during the next PubSub batches.
+    //Currently is only a change of the publishing interval possible.
+    if(currentWriterGroup->config.publishingInterval != config->publishingInterval) {
+        UA_PubSubManager_removeRepeatedPubSubCallback(server, currentWriterGroup->publishCallbackId);
+        currentWriterGroup->config.publishingInterval = config->publishingInterval;
+        UA_WriterGroup_addPublishCallback(server, currentWriterGroup);
+    } else if (currentWriterGroup->config.priority != config->priority) {
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "No or unsupported WriterGroup update.");
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier){
     for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
@@ -526,6 +555,9 @@ UA_Server_addDataSetWriter(UA_Server *server,
     //add the new writer to the group
     LIST_INSERT_HEAD(&wg->writers, newDataSetWriter, listEntry);
     wg->writersCount++;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addDataSetWriterRepresentation(server, newDataSetWriter);
+#endif
     return retVal;
 }
 
@@ -540,6 +572,9 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
         return UA_STATUSCODE_BADNOTFOUND;
 
     linkedWriterGroup->writersCount--;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    removeDataSetWriterRepresentation(server, dataSetWriter);
+#endif
     //remove DataSetWriter from group
     UA_DataSetWriter_deleteMembers(server, dataSetWriter);
     UA_free(dataSetWriter);
