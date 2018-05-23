@@ -2,6 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <ua_log_stdout.h>
+#include <server/ua_subscription_events.h>
+#include "ua_client_subscriptions.h"
 #include "ua_server.h"
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
@@ -25,7 +28,9 @@ static UA_UInt32 subscriptionId;
 static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
 static size_t nSelectClauses = 1;
-static UA_SimpleAttributeOperand *ptr_filter = NULL;
+static UA_Boolean notificationReceived;
+
+UA_Double publishingInterval = 500.0;
 
 static void addNewEventType(void) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
@@ -42,22 +47,21 @@ static void addNewEventType(void) {
 }
 
 static UA_SimpleAttributeOperand *setupSelectClauses(void) {
-    // only creating 1 selectClause for now, if more things are to be checked it can be changed easily
-    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand*)
+    //only creating 1 selectClause for now, if more things are to be checked it can be changed easily
+    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand *)
             UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-    if(!selectClauses)
+    if (!selectClauses)
         return NULL;
 
-    ptr_filter = selectClauses;
-    for(size_t i =0; i<nSelectClauses; ++i) {
+    for (size_t i = 0; i < nSelectClauses; ++i) {
         UA_SimpleAttributeOperand_init(&selectClauses[i]);
     }
 
     selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     selectClauses[0].browsePathSize = 1;
-    selectClauses[0].browsePath = (UA_QualifiedName*)
+    selectClauses[0].browsePath = (UA_QualifiedName *)
             UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[0].browsePath) {
+    if (!selectClauses[0].browsePath) {
         UA_SimpleAttributeOperand_delete(selectClauses);
         return NULL;
     }
@@ -67,54 +71,26 @@ static UA_SimpleAttributeOperand *setupSelectClauses(void) {
     return selectClauses;
 }
 
-// create a subscription and add a monitored item to it
+static void
+handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
+                      UA_UInt32 monId, void *monContext,
+                      size_t nEventFields, UA_Variant *eventFields) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Event was found");
+    ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
+    ck_assert_uint_eq(nEventFields, 1);
+    ck_assert(UA_Variant_hasScalarType(&eventFields[0], &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[0].data)), 1000);
+    notificationReceived = true;
+}
+
+//create a subscription and add a monitored item to it
 static void setupSubscription(void) {
-    // Create subscription
-    UA_CreateSubscriptionRequest subRequest;
-    UA_CreateSubscriptionRequest_init(&subRequest);
-    subRequest.publishingEnabled = true;
+    //Create subscription
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
+    subscriptionId = response.subscriptionId;
 
-    UA_CreateSubscriptionResponse subResponse;
-    UA_CreateSubscriptionResponse_init(&subResponse);
-
-    Service_CreateSubscription(server, &adminSession, &subRequest, &subResponse);
-    subscriptionId = subResponse.subscriptionId;
-
-    UA_CreateSubscriptionResponse_deleteMembers(&subResponse);
-
-    // Create monitored item
-    UA_CreateMonitoredItemsRequest monRequest;
-    UA_CreateMonitoredItemsRequest_init(&monRequest);
-    monRequest.subscriptionId = subscriptionId;
-    monRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_SERVER;
-    UA_MonitoredItemCreateRequest item;
-    UA_MonitoredItemCreateRequest_init(&item);
-    UA_ReadValueId rvi;
-    UA_ReadValueId_init(&rvi);
-    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    rvi.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
-    rvi.indexRange = UA_STRING_NULL;
-    item.itemToMonitor = rvi;
-    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
-
-    UA_EventFilter filter;
-    UA_EventFilter_init(&filter);
-    filter.selectClauses = setupSelectClauses();
-    filter.selectClausesSize = nSelectClauses;
-    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-    item.requestedParameters.filter.content.decoded.data = &filter;
-    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
-
-    monRequest.itemsToCreateSize = 1;
-    monRequest.itemsToCreate = &item;
-
-    UA_CreateMonitoredItemsResponse monResponse;
-    UA_CreateMonitoredItemsResponse_init(&monResponse);
-
-    Service_CreateMonitoredItems(server, &adminSession, &monRequest, &monResponse);
-    monitoredItemId = monResponse.results[0].monitoredItemId;
-
-    UA_CreateMonitoredItemsResponse_deleteMembers(&monResponse);
 }
 
 static void removeSubscription(void) {
@@ -134,7 +110,7 @@ static void removeSubscription(void) {
 }
 
 THREAD_CALLBACK(serverloop) {
-    while(*running)
+    while (*running)
         UA_Server_run_iterate(server, true);
     return 0;
 }
@@ -147,12 +123,12 @@ static void setup(void) {
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     addNewEventType();
-    setupSubscription();
     THREAD_CREATE(server_thread, serverloop);
 
     client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    setupSubscription();
 }
 
 static void teardown(void) {
@@ -163,19 +139,17 @@ static void teardown(void) {
     UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    UA_Array_delete(ptr_filter, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+//    UA_Array_delete(ptr_filter, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
 
-// ensure events are received with proper values
-START_TEST(generateEvents) {
+static UA_StatusCode eventSetup(UA_NodeId *eventNodeId) {
     UA_StatusCode retval;
-    UA_NodeId eventNodeId;
-    retval = UA_Server_createEvent(server, eventType, &eventNodeId);
+    retval = UA_Server_createEvent(server, eventType, eventNodeId, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    // add a severity to the event
+    //add a severity to the event
     UA_Variant value;
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
@@ -184,41 +158,189 @@ START_TEST(generateEvents) {
     rpe.includeSubtypes = false;
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
-    bp.startingNode = eventNodeId;
+    bp.startingNode = *eventNodeId;
     bp.relativePath.elementsSize = 1;
     bp.relativePath.elements = &rpe;
     rpe.targetName = UA_QUALIFIEDNAME(0, "Severity");
     UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    // number with no special meaning
+    //number with no special meaning
     UA_UInt16 eventSeverity = 1000;
     UA_Variant_setScalar(&value, &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
-    // trigger the event
-    retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    return retval;
+}
 
-    // get the monitored item to check whether the event is in the queue
+static UA_MonitoredItemCreateResult addMonitoredItem(UA_Client_EventNotificationCallback handler) {
+    /* Add a MonitoredItem */
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
+    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
 
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClauses = setupSelectClauses();
+    filter.selectClausesSize = nSelectClauses;
+
+    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    item.requestedParameters.filter.content.decoded.data = &filter;
+    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    item.requestedParameters.queueSize = 1;
+    item.requestedParameters.discardOldest = true;
+
+    return UA_Client_MonitoredItems_createEvent(client, subscriptionId,
+                                                UA_TIMESTAMPSTORETURN_BOTH, item,
+                                                &monitoredItemId, handler, NULL);
+}
+
+// ensure events are received with proper values
+START_TEST(generateEvents)
+    {
+        UA_NodeId eventNodeId;
+        UA_StatusCode retval = eventSetup(&eventNodeId);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        //add a monitored item
+        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple);
+        ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+        //trigger the event
+        retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        //let the client fetch the event and check if the correct values were received
+        notificationReceived = false;
+        UA_fakeSleep((UA_UInt32) publishingInterval + 100);
+//        retval = UA_Client_runAsync(client, (UA_UInt16) (publishingInterval + 100));
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+//        ck_assert_uint_eq(notificationReceived, true);
+        ck_assert_uint_eq(createResult.revisedQueueSize, 1);
+
+        //delete the monitoredItem
+        UA_DeleteMonitoredItemsRequest deleteRequest;
+        UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+        deleteRequest.subscriptionId = subscriptionId;
+        deleteRequest.monitoredItemIds = &monitoredItemId;
+        deleteRequest.monitoredItemIdsSize = 1;
+
+        UA_DeleteMonitoredItemsResponse deleteResponse =
+                UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+        ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+
+        UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    }
+END_TEST
+
+START_TEST(uppropagation) {
+        //trigger first event
+        UA_NodeId eventNodeId;
+        UA_StatusCode retval = eventSetup(&eventNodeId);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        //add a monitored item
+        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple);
+        ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+        //trigger the event on a child of server, using namespaces in this case (no reason in particular)
+        retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES));
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        //let the client fetch the event and check if the correct values were received
+        notificationReceived = false;
+        UA_fakeSleep((UA_UInt32) publishingInterval + 100);
+//        retval = UA_Client_runAsync(client, (UA_UInt16) (publishingInterval + 100));
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+//        ck_assert_uint_eq(notificationReceived, true);
+        ck_assert_uint_eq(createResult.revisedQueueSize, 1);
+
+        //delete the monitoredItem
+        UA_DeleteMonitoredItemsRequest deleteRequest;
+        UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+        deleteRequest.subscriptionId = subscriptionId;
+        deleteRequest.monitoredItemIds = &monitoredItemId;
+        deleteRequest.monitoredItemIdsSize = 1;
+
+        UA_DeleteMonitoredItemsResponse deleteResponse =
+                UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+        ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+
+        UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    return;
 }
 END_TEST
 
-// ensures an eventQueueOverflowEvent is published when appropriate
-START_TEST(eventOverflow) {
-    return;
+static void
+handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
+                        UA_UInt32 monId, void *monContext,
+                        size_t nEventFields, UA_Variant *eventFields) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Event overflow was found");
+    ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
+    ck_assert_uint_eq(nEventFields, 1);
+    ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
+    UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+    ck_assert((UA_NodeId_equal((UA_NodeId *)eventFields->data, &comp)));
+    notificationReceived = true;
 }
+
+//ensures an eventQueueOverflowEvent is published when appropriate
+START_TEST(eventOverflow)
+    {
+        //add a monitored item
+        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow);
+        ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+
+        //trigger first event
+        UA_NodeId eventNodeId;
+        UA_StatusCode retval = UA_STATUSCODE_GOOD;
+        for (int i = 0; i < 3; i++) {
+            retval = eventSetup(&eventNodeId);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+            retval = UA_Server_triggerEvent(server, &eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+
+
+        //fetch the events
+        notificationReceived = false;
+        UA_fakeSleep((UA_UInt32) publishingInterval + 100);
+//        retval = UA_Client_runAsync(client, (UA_UInt16) (publishingInterval + 100));
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+//        ck_assert_uint_eq(notificationReceived, true);
+        ck_assert_uint_eq(createResult.revisedQueueSize, 1);
+
+        //delete the monitoredItem
+        UA_DeleteMonitoredItemsRequest deleteRequest;
+        UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+        deleteRequest.subscriptionId = subscriptionId;
+        deleteRequest.monitoredItemIds = &monitoredItemId;
+        deleteRequest.monitoredItemIdsSize = 1;
+
+        UA_DeleteMonitoredItemsResponse deleteResponse =
+                UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+        ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+
+        UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+        return;
+    }
 END_TEST
 
 #endif //UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 //assumes subscriptions work fine with data change because of other unit test
-static Suite* testSuite_Client(void) {
+static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Events");
     TCase *tc_server = tcase_create("Server Subscription Events");
     tcase_add_checked_fixture(tc_server, setup, teardown);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     tcase_add_test(tc_server, generateEvents);
+    tcase_add_test(tc_server, uppropagation);
     tcase_add_test(tc_server, eventOverflow);
 #endif //UA_ENABLE_SUBSCRIPTIONS_EVENTS
     suite_add_tcase(s, tc_server);
@@ -230,7 +352,7 @@ int main(void) {
     Suite *s = testSuite_Client();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
-    srunner_run_all(sr,CK_NORMAL);
+    srunner_run_all(sr, CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
