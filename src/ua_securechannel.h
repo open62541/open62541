@@ -44,12 +44,16 @@ typedef struct UA_SessionHeader {
 } UA_SessionHeader;
 
 /* For chunked requests */
+struct ChunkData {
+    SIMPLEQ_ENTRY(ChunkData) pointers;
+    UA_ByteString bytes;
+};
+
 struct ChunkEntry {
     LIST_ENTRY(ChunkEntry) pointers;
     UA_UInt32 requestId;
-    UA_Byte* bytes;
-    size_t size;
-    size_t count;
+    SIMPLEQ_HEAD(chunkdata_pointerlist, ChunkData) chunkData;
+    size_t chunkDataSize;
 };
 
 typedef enum {
