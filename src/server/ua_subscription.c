@@ -11,13 +11,25 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
  */
 
-#include "ua_subscription.h"
 #include "ua_server_internal.h"
+#include "ua_subscription_events.h"
+#include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+
+void UA_Notification_delete(UA_Notification *n) {
+    if(n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        UA_DataValue_deleteMembers(&n->data.value);
+    } else if (n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        UA_Array_delete(n->data.event.fields.eventFields, n->data.event.fields.eventFieldsSize,
+                        &UA_TYPES[UA_TYPES_VARIANT]);
+    }
+    UA_free(n);
+}
 
 UA_Subscription *
 UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
@@ -46,7 +58,8 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        MonitoredItem_delete(server, mon);
+        LIST_REMOVE(mon, listEntry);
+        UA_MonitoredItem_delete(server, mon);
     }
     sub->monitoredItemsSize = 0;
 
@@ -83,8 +96,12 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     /* Remove the MonitoredItem */
-    MonitoredItem_delete(server, mon);
+    LIST_REMOVE(mon, listEntry);
     sub->monitoredItemsSize--;
+
+    /* Remove content and delayed free */
+    UA_MonitoredItem_delete(server, mon);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -132,11 +149,58 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
     return UA_STATUSCODE_GOOD;
 }
 
-/* Iterate over the monitoreditems of the subscription, starting at mon, and
- * move notifications into the response. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* EventChange: Iterate over the monitoredItems of the subscription, starting at mon, and
+ *              move notifications into the response. */
 static void
-moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotification *mins,
-                                    size_t minsSize) {
+Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *sub, UA_EventFieldList *efls,
+                                           size_t eflsSize) {
+    UA_StatusCode retval;
+    size_t pos = 0;
+    UA_Notification *notification, *notification_tmp;
+    TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
+        if (pos >= eflsSize) {
+            return;
+        }
+        UA_MonitoredItem *mon = notification->mon;
+
+        /* Remove the notification from the queues */
+        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+        TAILQ_REMOVE(&mon->queue, notification, listEntry);
+
+        /* removing an overflowEvent should not reduce the queueSize */
+        UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        if (!(notification->data.event.fields.eventFieldsSize == 1
+                && notification->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID]
+                && UA_NodeId_equal((UA_NodeId *)notification->data.event.fields.eventFields->data, &overflowId))) {
+            --mon->queueSize;
+            --sub->notificationQueueSize;
+        }
+
+        /* Move the content to the response */
+        UA_EventFieldList *efl = &efls[pos];
+        efl->clientHandle = mon->clientHandle;
+        efl->eventFieldsSize = notification->data.event.fields.eventFieldsSize;
+        retval = UA_Array_copy(notification->data.event.fields.eventFields,
+                               notification->data.event.fields.eventFieldsSize,
+                               (void **) &efl->eventFields, &UA_TYPES[UA_TYPES_VARIANT]);
+        if (retval != UA_STATUSCODE_GOOD) {
+            return;
+        }
+
+        /* EventFilterResult currently isn't being used
+        UA_EventFilterResult_deleteMembers(&notification->data.event.result); */
+        UA_EventFieldList_deleteMembers(&notification->data.event.fields);
+        UA_free(notification);
+    }
+}
+#endif
+
+/* DataChange: Iterate over the monitoreditems of the subscription, starting at mon, and
+ *             move notifications into the response. */
+static void
+DataChange_moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotification *mins,
+                                               size_t minsSize) {
     size_t pos = 0;
     UA_Notification *notification, *notification_tmp;
     TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
@@ -154,18 +218,14 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotifi
         /* Move the content to the response */
         UA_MonitoredItemNotification *min = &mins[pos];
         min->clientHandle = mon->clientHandle;
-        if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            min->value = notification->data.value;
-        } else {
-            /* TODO implementation for events */
-        }
+        min->value = notification->data.value;
         UA_free(notification);
         ++pos;
     }
 }
 
 static UA_StatusCode
-prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message,
+prepareNotificationMessage(UA_Server *server, UA_Subscription *sub, UA_NotificationMessage *message,
                            size_t notifications) {
     /* Array of ExtensionObject to hold different kinds of notifications
      * (currently only DataChangeNotifications) */
@@ -174,31 +234,60 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
         return UA_STATUSCODE_BADOUTOFMEMORY;
     message->notificationDataSize = 1;
 
-    /* Allocate Notification */
-    UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
-    if(!dcn) {
-        UA_NotificationMessage_deleteMembers(message);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
     UA_ExtensionObject *data = message->notificationData;
     data->encoding = UA_EXTENSIONOBJECT_DECODED;
-    data->content.decoded.data = dcn;
-    data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
+    /* TODO: basing type of notificationtype off of first monitoredItem in subscription which isnt very good */
+    /* Allocate Notification */
+    if (LIST_FIRST(&sub->monitoredItems)->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
+        if (!dcn) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        data->content.decoded.data = dcn;
+        data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
 
-    /* Allocate array of notifications */
-    dcn->monitoredItems = (UA_MonitoredItemNotification *)
-        UA_Array_new(notifications,
-                     &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
-    if(!dcn->monitoredItems) {
-        UA_NotificationMessage_deleteMembers(message);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        /* Allocate array of notifications */
+        dcn->monitoredItems = (UA_MonitoredItemNotification *)
+                UA_Array_new(notifications,
+                             &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
+        if(!dcn->monitoredItems) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        dcn->monitoredItemsSize = notifications;
+
+        /* Move notifications into the response .. the point of no return */
+        DataChange_moveNotificationsFromMonitoredItems(sub, dcn->monitoredItems, notifications);
     }
-    dcn->monitoredItemsSize = notifications;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    else if (LIST_FIRST(&sub->monitoredItems)->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
 
-    /* Move notifications into the response .. the point of no return */
+        UA_EventNotificationList *enl = UA_EventNotificationList_new();
+        if (!enl) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        UA_EventNotificationList_init(enl);
 
-    moveNotificationsFromMonitoredItems(sub, dcn->monitoredItems, notifications);
+        data->content.decoded.data = enl;
+        data->content.decoded.type = &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST];
 
+        /* Allocate array of notifications */
+        enl->events = (UA_EventFieldList *) UA_Array_new(notifications, &UA_TYPES[UA_TYPES_EVENTFIELDLIST]);
+        if (!enl->events) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        enl->eventsSize = notifications;
+
+        /* Move the list into the response .. the point of no return */
+        Events_moveNotificationsFromMonitoredItems(server, sub, enl->events, notifications);
+    }
+#endif
+    else {
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -298,7 +387,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
 
         /* Prepare the response */
-        UA_StatusCode retval = prepareNotificationMessage(sub, message, notifications);
+        UA_StatusCode retval = prepareNotificationMessage(server, sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the notification message. "

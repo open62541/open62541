@@ -63,7 +63,7 @@ static UA_StatusCode
 multicastListenStop(UA_Server* server) {
     mdnsd_shutdown(server->mdnsDaemon);
     // wake up select
-    write(server->mdnsSocket, "\0", 1); //TODO: move to arch?
+    if(write(server->mdnsSocket, "\0", 1)){}; //TODO: move to arch?
     if(pthread_join(server->mdnsThread, NULL)) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not stop thread.");
@@ -152,7 +152,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     if(request->startingRecordId < server->serverOnNetworkRecordIdCounter)
         recordCount = server->serverOnNetworkRecordIdCounter - request->startingRecordId;
     if(request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn)
-        recordCount = MIN(recordCount, request->maxRecordsToReturn);
+        recordCount = UA_MIN(recordCount, request->maxRecordsToReturn);
     if(recordCount == 0) {
         response->serversSize = 0;
         return;
@@ -456,7 +456,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     }
 
     /* The first 63 characters of the hostname (or less) */
-    size_t maxHostnameLen = MIN(hostnameLen, 63);
+    size_t maxHostnameLen = UA_MIN(hostnameLen, 63);
     char localDomain[65];
     memcpy(localDomain, hostname->data, maxHostnameLen);
     localDomain[maxHostnameLen] = '.';

@@ -758,6 +758,57 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_ValueCallback callback);
 
 /**
+ * .. _local-monitoreditems:
+ *
+ * Local MonitoredItems
+ * ^^^^^^^^^^^^^^^^^^^^
+ *
+ * MonitoredItems are used with the Subscription mechanism of OPC UA to
+ * transported notifications for data changes and events. MonitoredItems can
+ * also be registered locally. Notifications are then forwarded to a
+ * user-defined callback instead of a remote client. */
+
+typedef void (*UA_Server_DataChangeNotificationCallback)
+    (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
+     const UA_NodeId *nodeId, void *nodeContext, UA_UInt32 attributeId,
+     const UA_DataValue *value);
+
+typedef void (*UA_Server_EventNotificationCallback)
+    (UA_Server *server, UA_UInt32 monId, void *monContext,
+     size_t nEventFields, const UA_Variant *eventFields);
+
+/* Create a local MonitoredItem with a sampling interval that detects data
+ * changes.
+ *
+ * @param server The server executing the MonitoredItem
+ * @timestampsToReturn Shall timestamps be added to the value for the callback?
+ * @item The parameters of the new MonitoredItem. Note that the attribute of the
+ *       ReadValueId (the node that is monitored) can not be
+ *       ``UA_ATTRIBUTEID_EVENTNOTIFIER``. A different callback type needs to be
+ *       registered for event notifications.
+ * @monitoredItemContext A pointer that is forwarded with the callback
+ * @callback The callback that is executed on detected data changes
+ *
+ * @return Returns a description of the created MonitoredItem. The structure
+ * also contains a StatusCode (in case of an error) and the identifier of the
+ * new MonitoredItem. */
+UA_MonitoredItemCreateResult UA_EXPORT
+UA_Server_createDataChangeMonitoredItem(UA_Server *server,
+          UA_TimestampsToReturn timestampsToReturn,
+          const UA_MonitoredItemCreateRequest item,
+          void *monitoredItemContext,
+          UA_Server_DataChangeNotificationCallback callback);
+
+/* UA_MonitoredItemCreateResult UA_EXPORT */
+/* UA_Server_createEventMonitoredItem(UA_Server *server, */
+/*           UA_TimestampsToReturn timestampsToReturn, */
+/*           const UA_MonitoredItemCreateRequest item, void *context, */
+/*           UA_Server_EventNotificationCallback callback); */
+
+UA_StatusCode UA_EXPORT
+UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
+
+/**
  * Method Callbacks
  * ^^^^^^^^^^^^^^^^
  * Method callbacks are set to `NULL` (not executable) when a method node is added
@@ -955,6 +1006,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     const UA_DataSource dataSource,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId,
@@ -983,6 +1036,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                      outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
                                      nodeContext, outNewNodeId);
 }
+
+#endif
 
 
 /**
@@ -1031,11 +1086,15 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
 UA_StatusCode UA_EXPORT
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          UA_MethodCallback method,
                          size_t inputArgumentsSize, const UA_Argument* inputArguments,
                          size_t outputArgumentsSize, const UA_Argument* outputArguments);
+
+#endif
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT
@@ -1055,6 +1114,55 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
                           const UA_NodeId referenceTypeId, UA_Boolean isForward,
                           const UA_ExpandedNodeId targetNodeId,
                           UA_Boolean deleteBidirectional);
+
+/**
+ * .. _events:
+ *
+ * Events
+ * ------
+ * The method ``UA_Server_createEvent`` creates an event and represents it as node. The node receives a unique `EventId`
+ * which is automatically added to the node.
+ * The method returns a `NodeId` to the object node which represents the event through ``outNodeId``. The `NodeId` can
+ * be used to set the attributes of the event. The generated `NodeId` is always numeric. ``outNodeId`` cannot be 
+ * ``NULL``.
+ *
+ * The method ``UA_Server_triggerEvent`` "triggers" an event by adding it to all monitored items of the specified
+ * origin node and those of all its parents. Any filters specified by the monitored items are automatically applied.
+ * Using this method deletes the node generated by ``UA_Server_createEvent``. The `EventId` for the new event is
+ * generated automatically and is returned through ``outEventId``.``NULL`` can be passed if the `EventId` is not
+ * needed. ``deleteEventNode`` specifies whether the node representation of the event should be deleted after invoking
+ * the method. This can be useful if events with the similar attributes are triggered frequently. ``UA_TRUE`` would
+ * cause the node to be deleted. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
+ * directly, but need to create a subtype. The following is an arbitrary number which shall refer to our internal
+ * overflow type.
+ * This is already posted on the OPC Foundation bug tracker under the following link for clarification:
+ * https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
+# define UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE 4035
+
+/* Creates a node representation of an event
+ *
+ * @param server The server object
+ * @param eventType The type of the event for which a node should be created
+ * @param outNodeId The NodeId of the newly created node for the event
+ * @return The StatusCode of the UA_Server_createEvent method */
+UA_StatusCode UA_EXPORT
+UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
+                      UA_NodeId *outNodeId);
+
+/* Triggers a node representation of an event by applying EventFilters and adding the event to the appropriate queues.
+ * @param server The server object
+ * @param eventNodeId The NodeId of the node representation of the event which should be triggered
+ * @param outEvent the EventId of the new event
+ * @param deleteEventNode Specifies whether the node representation of the event should be deleted
+ * @return The StatusCode of the UA_Server_triggerEvent method */
+UA_StatusCode UA_EXPORT
+UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId originId,
+                       UA_ByteString *outEventId, const UA_Boolean deleteEventNode);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /**
  * Utility Functions

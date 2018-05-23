@@ -90,7 +90,7 @@ START_TEST(Client_subscription) {
 
     notificationReceived = false;
 
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
 
@@ -169,13 +169,13 @@ START_TEST(Client_subscription_createDataChanges) {
 
     notificationReceived = false;
     countNotificationReceived = 0;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     notificationReceived = false;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
@@ -293,13 +293,13 @@ START_TEST(Client_subscription_connectionClose) {
 
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
 
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 60));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 60));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Simulate BADCONNECTIONCLOSE */
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 60));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 60));
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
     UA_Client_disconnect(client);
@@ -337,12 +337,12 @@ START_TEST(Client_subscription_without_notification) {
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
 
     notificationReceived = false;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
 
     notificationReceived = false;
-    retval = UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
 
@@ -420,27 +420,27 @@ START_TEST(Client_subscription_async_sub) {
     countNotificationReceived = 0;
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 4);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 5);
 
@@ -449,14 +449,14 @@ START_TEST(Client_subscription_async_sub) {
     notificationReceived = false;
     /* Simulate network cable unplugged (no response from server) */
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_runAsync(client, (UA_UInt16)(publishingInterval + 1));
+    UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
     /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_runAsync(client, (UA_UInt16)clientConfig.timeout);
+    UA_Client_run_iterate(client, (UA_UInt16)clientConfig.timeout);
     ck_assert_uint_eq(inactivityCallbackCalled, true);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
@@ -464,6 +464,7 @@ START_TEST(Client_subscription_async_sub) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_METHODCALLS
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -521,30 +522,32 @@ START_TEST(Client_methodcall) {
     UA_Client_delete(client);
 }
 END_TEST
+#endif /* UA_ENABLE_METHODCALLS */
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
+    Suite *s = suite_create("Client Subscription");
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     TCase *tc_client = tcase_create("Client Subscription Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client, Client_subscription);
     tcase_add_test(tc_client, Client_subscription_connectionClose);
     tcase_add_test(tc_client, Client_subscription_createDataChanges);
     tcase_add_test(tc_client, Client_subscription_keepAlive);
     tcase_add_test(tc_client, Client_subscription_without_notification);
     tcase_add_test(tc_client, Client_subscription_async_sub);
+    suite_add_tcase(s,tc_client);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
+#if defined(UA_ENABLE_SUBSCRIPTIONS) && defined(UA_ENABLE_METHODCALLS)
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
     tcase_add_checked_fixture(tc_client2, setup, teardown);
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client2, Client_methodcall);
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
-
-    Suite *s = suite_create("Client Subscription");
-    suite_add_tcase(s,tc_client);
     suite_add_tcase(s,tc_client2);
+#endif
+
     return s;
 }
 

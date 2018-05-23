@@ -7,7 +7,7 @@
  *
  * This tutorial shows how to work with data types and how to add variable nodes
  * to a server. First, we add a new variable to the server. Take a look at the
- * definition of the ``UA_VariableAttrbitues`` structure to see the list of all
+ * definition of the ``UA_VariableAttributes`` structure to see the list of all
  * attributes defined for VariableNodes.
  *
  * Note that the default settings have the AccessLevel of the variable value as

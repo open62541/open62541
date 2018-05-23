@@ -268,6 +268,9 @@ createDefaultConfig(void) {
     conf->keepAliveCountLimits = UA_UINT32RANGE(1, 100);
     conf->maxNotificationsPerPublish = 1000;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    conf->maxEventsPerNode = 0; /* unlimited */
+#endif
 
     /* Limits for MonitoredItems */
     conf->samplingIntervalLimits = UA_DURATIONRANGE(50.0, 24.0 * 3600.0 * 1000.0);
@@ -645,19 +648,20 @@ const UA_ClientConfig UA_ClientConfig_default = {
         0, /* .maxMessageSize, 0 -> unlimited */
         0 /* .maxChunkCount, 0 -> unlimited */
     },
-    UA_ClientConnectionTCP, /* .connectionFunc */
-
+    UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
+    UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
+    UA_ClientConnectionTCP_poll, /* .pollConnectionFunc (for async connection) */
     0, /* .customDataTypesSize */
-    NULL, /*.customDataTypes */
+    NULL, /* .customDataTypes */
 
-    NULL, /*.stateCallback */
+    NULL, /* .stateCallback */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    NULL, /*.subscriptionInactivityCallback */
+    NULL, /* .subscriptionInactivityCallback */
 #endif
-
-    NULL,  /*.clientContext */
-
+    NULL, /* .inactivityCallback */
+    NULL, /* .clientContext */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    10 /* .outStandingPublishRequests */
+    10, /* .outStandingPublishRequests */
 #endif
+    0 /* .connectivityCheckInterval */
 };

@@ -105,7 +105,7 @@ START_TEST(GetPDSConfigurationAndCompareValues){
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PublishedDataSetConfig pdsConfigCopy;
     memset(&pdsConfigCopy, 0, sizeof(UA_PublishedDataSetConfig));
-        UA_PublishedDataSet_getConfig(server, pdsIdentifier, &pdsConfigCopy);
+        UA_Server_getPublishedDataSetConfig(server, pdsIdentifier, &pdsConfigCopy);
     ck_assert_int_eq(UA_String_equal(&pdsConfig.name, &pdsConfigCopy.name), UA_TRUE);
     UA_PublishedDataSetConfig_deleteMembers(&pdsConfigCopy);
 } END_TEST

@@ -178,6 +178,8 @@ This group contains build options related to the supported OPC UA features.
 
 **UA_ENABLE_SUBSCRIPTIONS**
    Enable subscriptions
+**UA_ENABLE_SUBSCRIPTIONS_EVENTS**
+    Enable the use of events for subscriptions
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
 **UA_ENABLE_NODEMANAGEMENT**
@@ -186,6 +188,8 @@ This group contains build options related to the supported OPC UA features.
    Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`
 **UA_ENABLE_MULTITHREADING**
    Enable multi-threading support
+**UA_ENABLE_IMMUTABLE_NODES**
+   Nodes in the information model are not edited but copied and replaced. The replacement is done with atomic operations so that the information model is always consistent and can be accessed from an interrupt or parallel thread (depends on the node storage plugin implementation). This feature is a prerequisite for ``UA_ENABLE_MULTITHREADING``.
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
 

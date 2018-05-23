@@ -350,9 +350,11 @@ void Service_Write(UA_Server *server, UA_Session *session,
  * Used to call (invoke) a methods. Each method call is invoked within the
  * context of an existing Session. If the Session is terminated, the results of
  * the method's execution cannot be returned to the Client and are discarded. */
+#ifdef UA_ENABLE_METHODCALLS
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response);
+#endif
 
 /**
  * MonitoredItem Service Set

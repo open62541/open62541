@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     monId = result.monitoredItemId;
 
     while(running)
-        UA_Client_runAsync(client, 100);
+        UA_Client_run_iterate(client, 100);
 
     /* Delete the subscription */
  cleanup:

@@ -38,6 +38,10 @@ add_example(tutorial_server_variable tutorial_server_variable.c)
 
 add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
+endif()
+
 add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
 add_example(tutorial_server_object tutorial_server_object.c)
@@ -49,6 +53,10 @@ endif()
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 
 add_example(tutorial_client_events tutorial_client_events.c)
+
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+  add_example(tutorial_server_events tutorial_server_events.c)
+endif()
 
 ##################
 # Example Server #
@@ -62,7 +70,11 @@ add_example(server_ctt server_ctt.c)
 
 add_example(client client.c)
 
+add_example(client_async client_async.c)
+
 add_example(client_connect_loop client_connect_loop.c)
+
+add_example(client_connectivitycheck_loop client_connectivitycheck_loop.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
 add_example(client_subscription_loop client_subscription_loop.c)

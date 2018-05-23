@@ -115,10 +115,16 @@ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events." OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+
+# It should not be possible to enable events without enabling subscriptions and full ns0
+if ((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_ENABLE_FULL_NS0)))
+    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and UA_ENABLE_FULL_NS0")
+endif()
 
 # Encryption Options
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
@@ -145,6 +151,12 @@ endif()
 # Advanced options
 option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
+
+option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
+mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
+if(UA_ENABLE_MULTITHREADING)
+    set(UA_ENABLE_IMMUTABLE_NODES ON)
+endif()
 
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
@@ -387,7 +399,8 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/ua_client_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel_async.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
@@ -405,10 +418,14 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
-                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.h)
 
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
@@ -433,6 +450,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
@@ -446,9 +467,11 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_async.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_worker.c
 
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
@@ -478,12 +501,6 @@ if(UA_ENABLE_ENCRYPTION)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
-            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
-            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
-            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c)
-
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
 endif()
@@ -522,7 +539,7 @@ if (UA_ENABLE_FULL_NS0)
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
     endif()
-    set(UA_FILE_DATATYPES "")
+
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
@@ -530,21 +547,28 @@ else()
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
     endif()
-    set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
+    set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
     set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
+
+    if(UA_ENABLE_METHODCALLS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
+    endif()
+
+    if(UA_ENABLE_DISCOVERY)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
+    endif()
 endif()
+
 if(NOT EXISTS "${UA_FILE_NS0}")
     message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
 endif()
 
-
-if (UA_FILE_DATATYPES STREQUAL "")
-    set(SELECTED_TYPES_TMP "")
-else()
-  set(SELECTED_TYPES_TMP "--selected-types=${UA_FILE_DATATYPES}")
-endif()
+set(SELECTED_TYPES_TMP "")
+foreach(f ${UA_FILE_DATATYPES})
+    set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
+endforeach()
 
 # standard-defined data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c

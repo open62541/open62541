@@ -10,7 +10,7 @@
  *    Copyright 2015 (c) Nick Goossens
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2017 (c) Thomas Stalder
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #ifndef UA_TYPES_H_
@@ -813,6 +813,8 @@ struct UA_DataType {
     //UA_UInt16  xmlEncodingId;  /* NodeId of datatype when encoded as XML */
     UA_DataTypeMember *members;
 };
+
+UA_Boolean isDataTypeNumeric(const UA_DataType *type);
 
 /* The following is used to exclude type names in the definition of UA_DataType
  * structures if the feature is disabled. */

@@ -254,6 +254,8 @@ class VariableNode(Node):
                 self.minimumSamplingInterval = float(av)
             elif at == "DataType":
                 self.dataType = RefOrAlias(av)
+            elif  at == "ArrayDimensions":
+                self.arrayDimensions = av.split(",")
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -264,8 +266,11 @@ class VariableNode(Node):
                 self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
-            elif x.localName == "ArrayDimensions":
-                self.arrayDimensions = int(unicode(x.firstChild.data))
+            elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
+                elements = x.getElementsByTagName("ListOfUInt32");
+                if len(elements):
+                    for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
+                        self.arrayDimensions.append(v.firstChild.data)
             elif x.localName == "AccessLevel":
                 self.accessLevel = int(unicode(x.firstChild.data))
             elif x.localName == "UserAccessLevel":
@@ -292,9 +297,6 @@ class VariableNode(Node):
         # reflect the exaxt dimensions attached binary stream.
         if not isinstance(self.value, Value) or len(self.value.value) == 0:
             self.arrayDimensions = []
-        else:
-            # Parser only permits 1-d arrays, which means we do not have to check further dimensions
-            self.arrayDimensions = [len(self.value.value)]
         return True
 
 

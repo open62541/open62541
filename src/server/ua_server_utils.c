@@ -354,27 +354,32 @@ UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
                    void *data) {
-#ifndef UA_ENABLE_MULTITHREADING
+#ifndef UA_ENABLE_IMMUTABLE_NODES
+    /* Get the node and process it in-situ */
     const UA_Node *node = UA_Nodestore_get(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    UA_StatusCode retval = callback(server, session,
-                                    (UA_Node*)(uintptr_t)node, data);
+    UA_StatusCode retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
     UA_Nodestore_release(server, node);
     return retval;
 #else
     UA_StatusCode retval;
     do {
+        /* Get an editable copy of the node */
         UA_Node *node;
-        retval = server->config.nodestore.getNodeCopy(server->config.nodestore.context,
-                                                      nodeId, &node);
+        retval = server->config.nodestore.
+            getNodeCopy(server->config.nodestore.context, nodeId, &node);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
+
+        /* Run the operation on the copy */
         retval = callback(server, session, node, data);
         if(retval != UA_STATUSCODE_GOOD) {
             server->config.nodestore.deleteNode(server->config.nodestore.context, node);
             return retval;
         }
+
+        /* Replace the node */
         retval = server->config.nodestore.replaceNode(server->config.nodestore.context, node);
     } while(retval != UA_STATUSCODE_GOOD);
     return retval;

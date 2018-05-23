@@ -23,12 +23,26 @@ typedef struct UA_PubSubManager{
     UA_PublishedDataSet *publishedDataSets;
 } UA_PubSubManager;
 
-void UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);
+void
+UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);
 
-void UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId);
+void
+UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId);
 
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(void);
+
+/***********************************/
+/*      PubSub Jobs abstraction    */
+/***********************************/
+UA_StatusCode
+UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                                     void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
+UA_StatusCode
+UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                                                UA_UInt32 interval);
+UA_StatusCode
+UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #ifdef __cplusplus
 } // extern "C"

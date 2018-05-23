@@ -90,8 +90,12 @@ def generateVariableNodeCode(node, nodeset, max_string_length, encode_binary_siz
         code.append("attr.arrayDimensionsSize = %d;" % node.valueRank)
         code.append("attr.arrayDimensions = (UA_UInt32 *)UA_Array_new({}, &UA_TYPES[UA_TYPES_UINT32]);".format(node.valueRank))
         codeCleanup.append("UA_Array_delete(attr.arrayDimensions, {}, &UA_TYPES[UA_TYPES_UINT32]);".format(node.valueRank))
-        for dim in range(0, node.valueRank):
-            code.append("attr.arrayDimensions[{}] = 0;".format(dim))
+        if len(node.arrayDimensions) == node.valueRank:
+            for idx, v in enumerate(node.arrayDimensions):
+                code.append("attr.arrayDimensions[{}] = {};".format(idx, int(unicode(v))))
+        else:
+            for dim in range(0, node.valueRank):
+                code.append("attr.arrayDimensions[{}] = 0;".format(dim))
 
     if node.dataType is not None:
         if isinstance(node.dataType, NodeId) and node.dataType.ns == 0 and node.dataType.i == 0:
@@ -110,6 +114,9 @@ def generateVariableNodeCode(node, nodeset, max_string_length, encode_binary_siz
                     [code1, codeCleanup1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, max_string_length=max_string_length, encode_binary_size=encode_binary_size)
                     code += code1
                     codeCleanup += codeCleanup1
+                    if node.valueRank > 0 and len(node.arrayDimensions) == node.valueRank:
+                        code.append("attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;")
+                        code.append("attr.value.arrayDimensions = attr.arrayDimensions;")
                 else:
                     code += generateValueCodeDummy(dataTypeNode, nodeset.nodes[node.id], nodeset)
     return [code, codeCleanup]

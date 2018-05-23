@@ -152,12 +152,12 @@ UA_atomic_subSize(volatile size_t *addr, size_t decrease) {
  * up to that point. */
 size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 
-#ifndef MIN
-#define MIN(A,B) (A > B ? B : A)
+#ifndef UA_MIN
+#define UA_MIN(A,B) (A > B ? B : A)
 #endif
 
-#ifndef MAX
-#define MAX(A,B) (A > B ? A : B)
+#ifndef UA_MAX
+#define UA_MAX(A,B) (A > B ? A : B)
 #endif
 
 #ifdef UA_DEBUG_DUMP_PKGS
