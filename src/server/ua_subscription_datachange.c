@@ -4,12 +4,14 @@
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 #include "ua_types_encoding_binary.h"
+#include "ua_subscription_events.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
@@ -21,14 +23,39 @@ void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
     TAILQ_INIT(&mon->queue);
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_StatusCode removeMonitoredItemFromNodeCallback(UA_Server *server, UA_Session *session, UA_Node *node,
+                                                         void *data) {
+    /* data is the monitoredItemID */
+    /* catch edge case that it's the first element */
+    if (data == ((UA_ObjectNode *) node)->monitoredItemQueue) {
+        ((UA_ObjectNode *)node)->monitoredItemQueue = ((UA_MonitoredItem *)data)->next;
+        return UA_STATUSCODE_GOOD;
+    }
+    /* SLIST_FOREACH */
+    for (UA_MonitoredItem *entry = ((UA_ObjectNode *) node)->monitoredItemQueue->next;
+         entry != NULL; entry=entry->next) {
+        if (entry == (UA_MonitoredItem *)data) {
+            /* SLIST_REMOVE */
+            UA_MonitoredItem *iter = ((UA_ObjectNode *) node)->monitoredItemQueue;
+            for (; iter->next != entry; iter=iter->next) {}
+            iter->next = entry->next;
+            UA_free(entry);
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Remove the sampling callback */
         UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
-    } else {
+    } else if (monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         /* TODO: Access val data.event */
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "MonitoredItemTypes other than ChangeNotify are not supported yet");
+                     "MonitoredItemTypes other than ChangeNotify or EventNotify are not supported yet");
     }
 
     /* Remove the queued notifications if attached to a subscription */
@@ -41,11 +68,25 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
             TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
             TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
             --sub->notificationQueueSize;
+            /*
+            if (monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+                 EventFilterResult currently isn't being used
+                UA_EventFilterResult_delete(notification->data.event->result);
+            }
+            */
             UA_Notification_delete(notification);
         }
         monitoredItem->queueSize = 0;
     }
-
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if (monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        /* Remove the monitored item from the node queue */
+        UA_Server_editNode(server, NULL, &monitoredItem->monitoredNodeId, removeMonitoredItemFromNodeCallback,
+                           monitoredItem);
+        /* Delete the event filter */
+        UA_EventFilter_deleteMembers(&monitoredItem->filter.eventFilter);
+    }
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     /* Remove the monitored item */
     UA_String_deleteMembers(&monitoredItem->indexRange);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
@@ -54,9 +95,9 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
     UA_Server_delayedFree(server, monitoredItem);
 }
 
-void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
+UA_StatusCode MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     if(mon->queueSize <= mon->maxQueueSize)
-        return;
+        return UA_STATUSCODE_GOOD;
 
     /* Remove notifications until the queue size is reached */
     UA_Subscription *sub = mon->subscription;
@@ -92,10 +133,61 @@ void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
         /* Remove the notification from the queues */
         TAILQ_REMOVE(&mon->queue, del, listEntry);
         TAILQ_REMOVE(&sub->notificationQueue, del, globalEntry);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+        /* TODO: provide additional protection for overflowEvents according to specification */
+        /* removing an overflowEvent should not reduce the queueSize */
+        UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        if (!(del->data.event.fields.eventFieldsSize == 1
+              && del->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID]
+              && UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields->data, &overflowId))) {
+            --mon->queueSize;
+            --sub->notificationQueueSize;
+        }
+#else
         --mon->queueSize;
         --sub->notificationQueueSize;
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
         /* Free the notification */
+        if (mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+            /* EventFilterResult currently isn't being used
+            UA_EventFilterResult_deleteMembers(&del->data.event->result); */
+            UA_EventFieldList_deleteMembers(&del->data.event.fields);
+
+            /* cause an overflowEvent */
+            /* an overflowEvent does not care about event filters and as such will not be "triggered" correctly.
+             * Instead, a notification will be inserted into the queue which includes only the nodeId of the
+             * overflowEventType. It is up to the client to check for possible overflows.
+             */
+            UA_Notification *overflowNotification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
+            if (!overflowNotification) {
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+
+            UA_EventFieldList_init(&overflowNotification->data.event.fields);
+
+            overflowNotification->data.event.fields.eventFields = UA_Variant_new();
+            if (!overflowNotification->data.event.fields.eventFields) {
+                UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
+                UA_free(overflowNotification);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            UA_Variant_init(overflowNotification->data.event.fields.eventFields);
+
+            overflowNotification->data.event.fields.eventFieldsSize = 1;
+            UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
+                                              &overflowId, &UA_TYPES[UA_TYPES_NODEID]);
+            overflowNotification->mon = mon;
+            if (mon->discardOldest) {
+                TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry);
+                TAILQ_INSERT_HEAD(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
+            } else {
+                TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry);
+                TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
+            }
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+        }
         UA_Notification_delete(del);
     }
 
@@ -121,6 +213,7 @@ void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon) {
     }
 
     /* TODO: Infobits for Events? */
+    return UA_STATUSCODE_GOOD;
 }
 
 #define ABS_SUBTRACT_TYPE_INDEPENDENT(a,b) ((a)>(b)?(a)-(b):(b)-(a))
@@ -202,10 +295,10 @@ detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataVal
     }
 
     if(isDataTypeNumeric(value->value.type) &&
-       (mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
-        mon->filter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
-        if(mon->filter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
-            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue, mon->filter.deadbandValue))
+       (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+        mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
+        if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {
+            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue, mon->filter.dataChangeFilter.deadbandValue))
                 return false;
         }
         /* else if (mon->filter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
@@ -285,12 +378,12 @@ static UA_Boolean
 detectValueChange(UA_Server *server, UA_MonitoredItem *mon,
                   UA_DataValue value, UA_ByteString *encoding) {
     /* Apply Filter */
-    if(mon->filter.trigger == UA_DATACHANGETRIGGER_STATUS)
+    if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS)
         value.hasValue = false;
 
     value.hasServerTimestamp = false;
     value.hasServerPicoseconds = false;
-    if(mon->filter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+    if(mon->filter.dataChangeFilter.trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
         value.hasSourceTimestamp = false;
         value.hasSourcePicoseconds = false;
     }
@@ -341,7 +434,7 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
         ++sub->notificationQueueSize;
 
         /* Remove some notifications if the queue is beyond maximum capacity */
-        MonitoredItem_ensureQueueSpace(monitoredItem);
+        MonitoredItem_ensureQueueSpace(server, monitoredItem);
     } else {
         /* Call the local callback if not attached to a subscription */
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) monitoredItem;

@@ -54,11 +54,17 @@ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events." OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+
+# It should not be possible to enable events without enabling subscriptions and full ns0
+if ((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_ENABLE_FULL_NS0)))
+    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and UA_ENABLE_FULL_NS0")
+endif()
 
 # Encryption Options
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
@@ -395,7 +401,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
-                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.h)
 
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
@@ -420,6 +427,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c

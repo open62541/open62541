@@ -178,6 +178,8 @@ This group contains build options related to the supported OPC UA features.
 
 **UA_ENABLE_SUBSCRIPTIONS**
    Enable subscriptions
+**UA_ENABLE_SUBSCRIPTIONS_EVENTS**
+    Enable the use of events for subscriptions
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
 **UA_ENABLE_NODEMANAGEMENT**

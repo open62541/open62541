@@ -16,6 +16,7 @@
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
+
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
 #include <valgrind/memcheck.h>
 #endif
