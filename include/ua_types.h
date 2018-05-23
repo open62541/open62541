@@ -813,6 +813,8 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+UA_Boolean isDataTypeNumeric(const UA_DataType *type);
+
 /* The following is used to exclude type names in the definition of UA_DataType
  * structures if the feature is disabled. */
 #ifdef UA_ENABLE_TYPENAMES

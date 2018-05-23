@@ -609,6 +609,15 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         return;
     }
 
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
+        if(client->state >= UA_CLIENTSTATE_SESSION) {
+            UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Received Publish Response with code %s",
+                            UA_StatusCode_name(response->responseHeader.serviceResult));
+        }
+        return;
+    }
+
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
         UA_Client_close(client); /* TODO: This should be handled before the process callback */
         UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -634,14 +643,23 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     sub->lastActivity = UA_DateTime_nowMonotonic();
 
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
-    if((sub->sequenceNumber != msg->sequenceNumber) && (msg->sequenceNumber != 0) &&
-        (UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber)) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Invalid subscritpion sequenceNumber");
-        UA_Client_close(client);
-        return;
+    if(UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
+        UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Invalid subscription sequence number: expected %u but got %u",
+                     UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber),
+                     msg->sequenceNumber);
+        /* This is an error. But we do not abort the connection. Some server
+         * SDKs misbehave from time to time and send out-of-order sequence
+         * numbers. (Probably some multi-threading synchronization issue.) */
+        /* UA_Client_close(client);
+           return; */
     }
-    sub->sequenceNumber = msg->sequenceNumber;
+    /* According to f), a keep-alive message contains no notifications and has the sequence number
+     * of the next NotificationMessage that is to be sent => More than one consecutive keep-alive
+     * message or a NotificationMessage following a keep-alive message will share the same sequence
+     * number. */
+    if (msg->notificationDataSize)
+        sub->sequenceNumber = msg->sequenceNumber;
 
     /* Process the notification messages */
     for(size_t k = 0; k < msg->notificationDataSize; ++k)

@@ -85,9 +85,11 @@ typedef struct UA_ClientConfig {
 
     void *clientContext;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* number of PublishResponse standing in the sever */
     /* 0 = background task disabled                    */
     UA_UInt16 outStandingPublishRequests;
+#endif
 } UA_ClientConfig;
 
 

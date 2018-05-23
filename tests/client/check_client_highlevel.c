@@ -539,7 +539,9 @@ static void checkNodeClass(UA_Client *clientNc, const UA_NodeId nodeId, const UA
 START_TEST(Node_ReadWrite_Class) {
     checkNodeClass(client, nodeReadWriteInt, UA_NODECLASS_VARIABLE);
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
+#ifdef UA_ENABLE_METHODCALLS
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
+#endif
 
     UA_NodeClass newClass = UA_NODECLASS_METHOD;
     UA_StatusCode retval = UA_Client_writeNodeClassAttribute(client, nodeReadWriteInt, &newClass);
