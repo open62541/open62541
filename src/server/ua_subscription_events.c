@@ -12,7 +12,7 @@
 
 typedef struct Events_nodeListElement {
     LIST_ENTRY(Events_nodeListElement) listEntry;
-    UA_NodeId *node;
+    UA_NodeId nodeId;
 } Events_nodeListElement;
 
 typedef LIST_HEAD(Events_nodeList, Events_nodeListElement) Events_nodeList;
@@ -55,15 +55,15 @@ findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
         return UA_STATUSCODE_GOOD;
 
     Events_nodeListElement *entry = (Events_nodeListElement *) UA_malloc(sizeof(Events_nodeListElement));
-    if (!entry) {
+    if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    entry->node = UA_NodeId_new();
-    if (!entry->node) {
+
+    UA_StatusCode retval = UA_NodeId_copy(&parentId, &entry->nodeId);
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_free(entry);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return retval;
     }
-    UA_NodeId_copy(&parentId, entry->node);
+
     LIST_INSERT_HEAD(((struct getNodesHandle *) handle)->nodes, entry, listEntry);
 
     /* recursion */
@@ -96,7 +96,7 @@ UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t rela
         if (!nodeFound) {
             UA_RelativePathElement rpe;
             UA_RelativePathElement_init(&rpe);
-            rpe.referenceTypeId = *iter->node;
+            rpe.referenceTypeId = iter->nodeId;
             rpe.isInverse = false;
             rpe.includeSubtypes = false;
             rpe.targetName = *name;
@@ -111,8 +111,9 @@ UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t rela
             if(out->statusCode == UA_STATUSCODE_GOOD)
                 nodeFound = UA_TRUE;
         }
+
         LIST_REMOVE(iter, listEntry);
-        UA_NodeId_delete(iter->node);
+        UA_NodeId_deleteMembers(&iter->nodeId);
         UA_free(iter);
     }
 }
@@ -370,11 +371,13 @@ getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
     if (!entry) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    entry->node = UA_NodeId_new();
-    if (!entry->node) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval = UA_NodeId_copy(&parentId, &entry->nodeId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(entry);
+        return retval;
     }
-    UA_NodeId_copy(&parentId, entry->node);
+
     LIST_INSERT_HEAD(((struct getNodesHandle *) handle)->nodes, entry, listEntry);
 
     /* recursion */
@@ -443,7 +446,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     /* add the event to each node's monitored items */
     Events_nodeListElement *parentIter, *tmp_parentIter;
     LIST_FOREACH_SAFE(parentIter, &parentList, listEntry, tmp_parentIter) {
-        const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, parentIter->node);
+        const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, &parentIter->nodeId);
         /* SLIST_FOREACH */
         for (UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
             retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
@@ -453,8 +456,9 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
             }
         }
         UA_Nodestore_release(server, (const UA_Node *) node);
+
         LIST_REMOVE(parentIter, listEntry);
-        UA_NodeId_delete(parentIter->node);
+        UA_NodeId_delete(&parentIter->nodeId);
         UA_free(parentIter);
     }
 
