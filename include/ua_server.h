@@ -1135,10 +1135,11 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  * cause the node to be deleted. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-/* The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
- * directly, but need to create a subtype. The following is an arbitrary number which shall refer to our internal
- * overflow type.
- * This is already posted on the OPC Foundation bug tracker under the following link for clarification:
+/* The EventQueueOverflowEventType is defined as abstract, therefore we can not
+ * create an instance of that type directly, but need to create a subtype. The
+ * following is an arbitrary number which shall refer to our internal overflow
+ * type. This is already posted on the OPC Foundation bug tracker under the
+ * following link for clarification:
  * https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
 # define UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE 4035
 
@@ -1152,7 +1153,8 @@ UA_StatusCode UA_EXPORT
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId);
 
-/* Triggers a node representation of an event by applying EventFilters and adding the event to the appropriate queues.
+/* Triggers a node representation of an event by applying EventFilters and
+   adding the event to the appropriate queues.
  * @param server The server object
  * @param eventNodeId The NodeId of the node representation of the event which should be triggered
  * @param outEvent the EventId of the new event
