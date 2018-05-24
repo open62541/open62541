@@ -68,12 +68,6 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
             TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
             TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
             --sub->notificationQueueSize;
-            /*
-            if (monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-                 EventFilterResult currently isn't being used
-                UA_EventFilterResult_delete(notification->data.event->result);
-            }
-            */
             UA_Notification_delete(notification);
         }
         monitoredItem->queueSize = 0;
