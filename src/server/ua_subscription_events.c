@@ -15,11 +15,9 @@ typedef struct Events_nodeListElement {
     UA_NodeId nodeId;
 } Events_nodeListElement;
 
-typedef LIST_HEAD(Events_nodeList, Events_nodeListElement) Events_nodeList;
-
 struct getNodesHandle {
     UA_Server *server;
-    Events_nodeList *nodes;
+    LIST_HEAD(Events_nodeList, Events_nodeListElement) nodes;
 };
 
 /* generates a unique event id */
@@ -64,7 +62,7 @@ findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
         return retval;
     }
 
-    LIST_INSERT_HEAD(((struct getNodesHandle *) handle)->nodes, entry, listEntry);
+    LIST_INSERT_HEAD(&((struct getNodesHandle *) handle)->nodes, entry, listEntry);
 
     /* recursion */
     UA_Server_forEachChildNodeCall(((struct getNodesHandle *) handle)->server,
@@ -79,10 +77,8 @@ UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t rela
                           const UA_NodeId *event, UA_BrowsePathResult *out) {
     /* get a list with all subtypes of aggregates */
     struct getNodesHandle handle;
-    Events_nodeList list;
-    LIST_INIT(&list);
     handle.server = server;
-    handle.nodes = &list;
+    LIST_INIT(&handle.nodes);
     UA_StatusCode retval =
         UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES),
                                        findAllSubtypesNodeIteratorCallback, &handle);
@@ -92,7 +88,7 @@ UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t rela
     /* check if you can find the node with any of the subtypes of aggregates */
     UA_Boolean nodeFound = UA_FALSE;
     Events_nodeListElement *iter, *tmp_iter;
-    LIST_FOREACH_SAFE(iter, &list, listEntry, tmp_iter) {
+    LIST_FOREACH_SAFE(iter, &handle.nodes, listEntry, tmp_iter) {
         if (!nodeFound) {
             UA_RelativePathElement rpe;
             UA_RelativePathElement_init(&rpe);
@@ -378,7 +374,7 @@ getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
         return retval;
     }
 
-    LIST_INSERT_HEAD(((struct getNodesHandle *) handle)->nodes, entry, listEntry);
+    LIST_INSERT_HEAD(&((struct getNodesHandle *) handle)->nodes, entry, listEntry);
 
     /* recursion */
     UA_Server_forEachChildNodeCall(((struct getNodesHandle *) handle)->server,
@@ -435,17 +431,15 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
 
     /* get an array with all parents */
     struct getNodesHandle parentHandle;
-    Events_nodeList parentList;
-    LIST_INIT(&parentList);
     parentHandle.server = server;
-    parentHandle.nodes = &parentList;
+    LIST_INIT(&parentHandle.nodes);
     retval = getParentsNodeIteratorCallback(origin, UA_TRUE, UA_NODEID_NULL, &parentHandle);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* add the event to each node's monitored items */
     Events_nodeListElement *parentIter, *tmp_parentIter;
-    LIST_FOREACH_SAFE(parentIter, &parentList, listEntry, tmp_parentIter) {
+    LIST_FOREACH_SAFE(parentIter, &parentHandle.nodes, listEntry, tmp_parentIter) {
         const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, &parentIter->nodeId);
         /* SLIST_FOREACH */
         for (UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
