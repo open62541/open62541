@@ -1,6 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#include <signal.h>
+#include "open62541.h"
+
 /**
  * Generating events
  * -----------------
@@ -12,49 +15,37 @@
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * The following example will be based on the server method tutorial. We will be
  * creating a method node which generates an event from the server node.
- */
-
-#include <signal.h>
-#include "open62541.h"
-
-UA_Boolean running = true;
-static void stopHandler(int sig) {
-    running = false;
-}
-
-/** The event we want to generate should be very simple. Since the `BaseEventType` is abstract,
+ *
+ * The event we want to generate should be very simple. Since the `BaseEventType` is abstract,
  * we will have to create our own event type. `EventTypes` are saved internally as `ObjectTypes`,
- * so add the type as you would a new `ObjectType`.
- */
+ * so add the type as you would a new `ObjectType`. */
 
 static UA_NodeId eventType;
 
-static UA_StatusCode addNewEventType(UA_Server *server) {
+static UA_StatusCode
+addNewEventType(UA_Server *server) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "SimpleEventType");
-    attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The simple event type we created");
-
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                UA_QUALIFIEDNAME(0, "SimpleEventType"),
-                                attr, NULL, &eventType);
-    UA_LocalizedText_deleteMembers(&attr.displayName);
-    UA_LocalizedText_deleteMembers(&attr.description);
-    return UA_STATUSCODE_GOOD;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleEventType");
+    attr.description = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
+    return UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       UA_QUALIFIEDNAME(0, "SimpleEventType"),
+                                       attr, NULL, &eventType);
 }
 
-/** Setting up an event
- * ^^^^^^^^^^^^^^^^^^^^^^
+/**
+ * Setting up an event
+ * ^^^^^^^^^^^^^^^^^^^
  * In order to set up the event, we can first use ``UA_Server_createEvent`` to give us a node representation of the event.
  * All we need for this is our `EventType`. Once we have our event node, which is saved internally as an `ObjectNode`,
  * we can define the attributes the event has the same way we would define the attributes of an object node. It is not
  * necessary to define the attributes `EventId`, `ReceiveTime`, `SourceNode` or `EventType` since these are set
  * automatically by the server. In this example, we will only be setting `Severity` and `Message`.
  */
-static UA_StatusCode setUpEvent(UA_Server *server, UA_NodeId *outId) {
-    UA_StatusCode retval;
-    retval = UA_Server_createEvent(server, eventType, outId);
+static UA_StatusCode
+setUpEvent(UA_Server *server, UA_NodeId *outId) {
+    UA_StatusCode retval = UA_Server_createEvent(server, eventType, outId);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                        "createEvent failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -103,8 +94,9 @@ static UA_StatusCode setUpEvent(UA_Server *server, UA_NodeId *outId) {
     return UA_STATUSCODE_GOOD;
 }
 
-/** Triggering an event
- * ^^^^^^^^^^^^^^^^^^^^
+/**
+ * Triggering an event
+ * ^^^^^^^^^^^^^^^^^^^
  * First a node representing an event is generated using ``setUpEvent``. Once our event is good to go, we specify
  * a node which emits the event - in this case the server node. We can use ``UA_Server_triggerEvent`` to trigger our
  * event onto said node. Passing ``NULL`` as the second-last argument means we will not receive the `EventId`.
@@ -119,23 +111,24 @@ generateEventMethodCallback(UA_Server *server,
     /* set up event */
     UA_NodeId eventNodeId;
     UA_StatusCode retval = setUpEvent(server, &eventNodeId);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Creating event failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
 
-    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
-    if (retval != UA_STATUSCODE_GOOD) {
+    retval = UA_Server_triggerEvent(server, eventNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                    NULL, UA_TRUE);
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
                        "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
-        return retval;
-    }
 
     return retval;
 }
 
-/** Now, all that is left to do is to create a method node which uses our callback. We do not
+/**
+ * Now, all that is left to do is to create a method node which uses our callback. We do not
  * require any input and as output we will be using the `EventId` we receive from ``triggerEvent``. The `EventId` is
  * generated by the server internally and is a random unique ID which identifies that specific event.
  *
@@ -155,6 +148,13 @@ addGenerateEventMethod(UA_Server *server) {
                             UA_QUALIFIEDNAME(1, "Generate Event"),
                             generateAttr, &generateEventMethodCallback,
                             0, NULL, 0, NULL, NULL, NULL);
+}
+
+/** It follows the main server code, making use of the above definitions. */
+
+UA_Boolean running = true;
+static void stopHandler(int sig) {
+    running = false;
 }
 
 int main (void) {
