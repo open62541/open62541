@@ -52,44 +52,14 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
         return retval;
     }
 
-    UA_Variant value;
-    UA_RelativePathElement rpe;
-    UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
-
-    UA_BrowsePath bp;
-    UA_BrowsePath_init(&bp);
-    bp.startingNode = *outId;
-    bp.relativePath.elementsSize = 1;
-    bp.relativePath.elements = &rpe;
-
-    /* severity */
-    rpe.targetName = UA_QUALIFIEDNAME(0, "Severity");
-    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Event is missing severity attribute.\n");
-        return bpr.statusCode;
-    }
+    /* Set the Event Attributes */
     UA_UInt16 eventSeverity = 100;
-    UA_Variant_setScalar(&value, &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
-
-    /* message */
-    rpe.targetName = UA_QUALIFIEDNAME(0, "Message");
-    bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Event is missing message attribute.\n");
-        return bpr.statusCode;
-    }
     UA_LocalizedText eventMessage = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
-    UA_Variant_setScalar(&value, &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "Message"),
+                                         &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -108,6 +78,9 @@ generateEventMethodCallback(UA_Server *server,
                          const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
+
     /* set up event */
     UA_NodeId eventNodeId;
     UA_StatusCode retval = setUpEvent(server, &eventNodeId);
