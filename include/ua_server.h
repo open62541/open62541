@@ -811,10 +811,11 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 /**
  * Method Callbacks
  * ^^^^^^^^^^^^^^^^
- * Method callbacks are set to `NULL` (not executable) when a method node is added
- * over the network. In theory, it is possible to add a callback via
- * ``UA_Server_setMethodNode_callback`` within the global constructor when adding
- * methods over the network is really wanted. */
+ * Method callbacks are set to `NULL` (not executable) when a method node is
+ * added over the network. In theory, it is possible to add a callback via
+ * ``UA_Server_setMethodNode_callback`` within the global constructor when
+ * adding methods over the network is really wanted. See the Section
+ * :ref:`object-interaction` for calling methods on an object. */
 
 typedef UA_StatusCode
 (*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
@@ -825,14 +826,57 @@ typedef UA_StatusCode
                      UA_Variant *output);
 
 #ifdef UA_ENABLE_METHODCALLS
-
 UA_StatusCode UA_EXPORT
 UA_Server_setMethodNode_callback(UA_Server *server,
                                  const UA_NodeId methodNodeId,
                                  UA_MethodCallback methodCallback);
+#endif
+
+/**
+ * .. _object-interaction:
+ *
+ * Interacting with Objects
+ * ------------------------
+ * Objects in the information model are represented as ObjectNodes. Some
+ * convenience functions are provided to simplify the interaction with objects.
+ */
+
+/* Write an object property. The property is represented as a VariableNode with
+ * a ``HasProperty`` reference from the ObjectNode. The VariableNode is
+ * identified by its BrowseName. Writing the property sets the value attribute
+ * of the VariableNode.
+ *
+ * @param server The server object
+ * @param objectId The identifier of the object (node)
+ * @param propertyName The name of the property
+ * @param value The value to be set for the event attribute
+ * @return The StatusCode for setting the event attribute */
+UA_StatusCode UA_EXPORT
+UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                              const UA_QualifiedName propertyName,
+                              const UA_Variant value);
+
+/* Directly point to the scalar value instead of a variant */
+UA_StatusCode UA_EXPORT
+UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
+                                     const UA_QualifiedName propertyName,
+                                     const void *value, const UA_DataType *type);
+
+/* Read an object property.
+ *
+ * @param server The server object
+ * @param objectId The identifier of the object (node)
+ * @param propertyName The name of the property
+ * @param value Contains the property value after reading. Must not be NULL.
+ * @return The StatusCode for setting the event attribute */
+UA_StatusCode UA_EXPORT
+UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                             const UA_QualifiedName propertyName,
+                             UA_Variant *value);
+
+#ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-
 #endif
 
 /**
