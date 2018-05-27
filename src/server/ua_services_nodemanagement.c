@@ -174,7 +174,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Check valueRank against array dimensions */
-    if(!(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
+    if(arrayDims != 0 &&
+       !(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
          ((const UA_VariableTypeNode*)node)->isAbstract && node->valueRank == 0) &&
        !compatibleValueRankArrayDimensions(node->valueRank, arrayDims)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
