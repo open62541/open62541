@@ -11,7 +11,6 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
-#include "ua_log_stdout.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -215,7 +214,6 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
                 }
             } else {
                 rv = UA_STATUSCODE_BADENCODINGERROR;
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "no dataSetWriterIds given!");
             }
         } else {
             rv = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -739,7 +737,7 @@ size_t UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage* p) {
                 size += UA_UInt16_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]) *
                     p->payloadHeader.dataSetPayloadHeader.count;
             } else {
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "no dataSetWriterIds given!");
+                return 0; /* no dataSetWriterIds given! */
             }
         } else {
             // not implemented
