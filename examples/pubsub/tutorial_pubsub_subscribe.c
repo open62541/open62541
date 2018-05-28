@@ -64,7 +64,10 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
                 }
             }
         }
+        UA_NetworkMessage_deleteMembers(actualNetworkMessage);
+        UA_free(actualNetworkMessage);
     }
+    UA_ByteString_deleteMembers(&buffer);
 }
 
 int main(void) {
