@@ -35,28 +35,25 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
     connection->channel->receive(connection->channel, &buffer, NULL, 300000);
     if (buffer.length > 0) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message received:");
-        UA_NetworkMessage *actualNetworkMessage = (UA_NetworkMessage *) UA_calloc(1, sizeof(UA_NetworkMessage));
+        UA_NetworkMessage actualNetworkMessage;
+        memset(&actualNetworkMessage, 0, sizeof(UA_NetworkMessage));
+
         size_t currentPosition = 0;
-        if (!actualNetworkMessage) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Networkmessage allocation failed!");
-            UA_ByteString_deleteMembers(&buffer);
-            return;
-        }
-        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, actualNetworkMessage);
+        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &actualNetworkMessage);
         printf("Message length: %zu\n", buffer.length);
-        if (actualNetworkMessage->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
-            if ((actualNetworkMessage->payloadHeaderEnabled && (actualNetworkMessage->payloadHeader.dataSetPayloadHeader.count >= 1)) ||
-                (!actualNetworkMessage->payloadHeaderEnabled)) {
-                if (actualNetworkMessage->payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageType ==
+        if (actualNetworkMessage.networkMessageType == UA_NETWORKMESSAGE_DATASET) {
+            if ((actualNetworkMessage.payloadHeaderEnabled && (actualNetworkMessage.payloadHeader.dataSetPayloadHeader.count >= 1)) ||
+                (!actualNetworkMessage.payloadHeaderEnabled)) {
+                if (actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageType ==
                     UA_DATASETMESSAGE_DATAKEYFRAME) {
-                    for (int i = 0; i < actualNetworkMessage->payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount; i++) {
-                        const UA_DataType *currentType = actualNetworkMessage->payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.type;
+                    for (int i = 0; i < actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount; i++) {
+                        const UA_DataType *currentType = actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.type;
                         if (currentType == &UA_TYPES[UA_TYPES_BYTE]) {
                             printf("Message content: [Byte] \n\tReceived data: %i\n",
-                                   *((UA_Byte *) actualNetworkMessage->payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
+                                   *((UA_Byte *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
                         } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
                             UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(
-                                    *((UA_DateTime *) actualNetworkMessage->payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
+                                    *((UA_DateTime *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
                             printf("Message content: [DateTime] \n\tReceived date: %02i-%02i-%02i Received time: %02i:%02i:%02i\n", receivedTime.year, receivedTime.month,
                                    receivedTime.day, receivedTime.hour, receivedTime.min, receivedTime.sec);
                         }
@@ -64,8 +61,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
                 }
             }
         }
-        UA_NetworkMessage_deleteMembers(actualNetworkMessage);
-        UA_free(actualNetworkMessage);
+        UA_NetworkMessage_deleteMembers(&actualNetworkMessage);
     }
     UA_ByteString_deleteMembers(&buffer);
 }
