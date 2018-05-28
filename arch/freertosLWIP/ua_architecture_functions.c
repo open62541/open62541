@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
+ *    Copyright 2018 (c) Stefan Profanter, fortiss GmbH
  */
 
 #ifdef UA_ARCHITECTURE_FREERTOSLWIP
@@ -22,19 +23,9 @@ unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd){
   return UA_STATUSCODE_GOOD;
 }
 
-int gethostname_freertos(char* name, size_t len){
-  if(strlen(UA_FREERTOS_HOSTNAME) > (len))
-    return -1;
-  strcpy(name, UA_FREERTOS_HOSTNAME);
-  return 0;
-}
-
-int UA_getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res){
-  if(NULL == node){
-    return lwip_getaddrinfo(UA_FREERTOS_HOSTNAME, service, hints, res);
-  }else{
-    return lwip_getaddrinfo(node, service, hints, res);
-  }
+int gethostname_lwip(char* name, size_t len){
+  // use UA_ServerConfig_set_customHostname to set your hostname as the IP
+  return -1;
 }
 
 void UA_initialize_architecture_network(void){

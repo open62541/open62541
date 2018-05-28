@@ -1,45 +1,27 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
- *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-#ifdef UA_ARCHITECTURE_ARDUINO
-
-#ifndef PLUGINS_ARCH_ARDUINO_UA_ARCHITECTURE_H_
-#define PLUGINS_ARCH_ARDUINO_UA_ARCHITECTURE_H_
-
-#define UA_THREAD_LOCAL
-
-#include <stdlib.h>
-#include <string.h>
+#ifndef ARCH_COMMON_LWIP62541_H_
+#define ARCH_COMMON_LWIP62541_H_
 
 #define LWIP_TIMEVAL_PRIVATE 0
-//#define LWIP_COMPAT_MUTEX 0
 #define LWIP_POSIX_SOCKETS_IO_NAMES 0
 #ifdef LWIP_COMPAT_SOCKETS
 #undef LWIP_COMPAT_SOCKETS
 #endif
 #define LWIP_COMPAT_SOCKETS 0
-//#define __USE_W32_SOCKETS 1 //needed to avoid redefining of select in sys/select.h
 
 #include <lwip/tcpip.h>
 #include <lwip/netdb.h>
 #define sockaddr_storage sockaddr
-#ifdef BYTE_ORDER
-# undef BYTE_ORDER
-#endif
-#define UA_sleep_ms(X) vTaskDelay(pdMS_TO_TICKS(X))
 
 #define OPTVAL_TYPE int
 
-#include <unistd.h> // read, write, close
-
 #define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
-
-#define UA_access access
 
 #define UA_IPV6 0
 #define UA_SOCKET int
@@ -50,9 +32,6 @@
 #define UA_EAGAIN EAGAIN
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
-
-// No log colors on Arduino
-// #define UA_ENABLE_LOG_COLORS
 
 #define UA_send lwip_send
 #define UA_recv lwip_recv
@@ -67,28 +46,9 @@
 #define UA_getsockopt lwip_getsockopt
 #define UA_setsockopt lwip_setsockopt
 #define UA_freeaddrinfo lwip_freeaddrinfo
-#define UA_gethostname gethostname_freertos
+#define UA_gethostname gethostname_lwip
 #define UA_getaddrinfo lwip_getaddrinfo
 
-#define UA_free free
-#define UA_malloc malloc
-#define UA_calloc calloc
-#define UA_realloc realloc
+int gethostname_lwip(char* name, size_t len);
 
-#include <stdio.h>
-#define UA_snprintf snprintf
-
-int gethostname_freertos(char* name, size_t len);
-
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
-    char *errno_str = ""; \
-    LOG; \
-}
-
-#define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
-
-#include "../ua_architecture_functions.h"
-
-#endif /* PLUGINS_ARCH_ARDUINO_UA_ARCHITECTURE_H_ */
-
-#endif /* UA_ARCHITECTURE_ARDUINO */
+#endif /* ARCH_COMMON_LWIP62541_H_ */
