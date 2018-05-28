@@ -10,7 +10,6 @@
  * PubSub subscriber API.
 */
 #include <signal.h>
-#include <stdio.h>
 #include "ua_pubsub_networkmessage.h"
 #include "ua_log_stdout.h"
 #include "ua_server.h"
@@ -51,9 +50,10 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
     memset(&actualNetworkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
     UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &actualNetworkMessage);
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message length: %zu", buffer.length);
     UA_ByteString_deleteMembers(&buffer);
 
-    printf("Message length: %zu\n", buffer.length);
     if (actualNetworkMessage.networkMessageType == UA_NETWORKMESSAGE_DATASET) {
         if ((actualNetworkMessage.payloadHeaderEnabled && (actualNetworkMessage.payloadHeader.dataSetPayloadHeader.count >= 1)) ||
             (!actualNetworkMessage.payloadHeaderEnabled)) {
@@ -62,13 +62,13 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
                 for (int i = 0; i < actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount; i++) {
                     const UA_DataType *currentType = actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.type;
                     if (currentType == &UA_TYPES[UA_TYPES_BYTE]) {
-                        printf("Message content: [Byte] \n\tReceived data: %i\n",
-                               *((UA_Byte *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
+                        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message content: [Byte] \tReceived data: %i",
+                                    *((UA_Byte *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
                     } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
-                        UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(
-                                                                              *((UA_DateTime *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
-                        printf("Message content: [DateTime] \n\tReceived date: %02i-%02i-%02i Received time: %02i:%02i:%02i\n", receivedTime.year, receivedTime.month,
-                               receivedTime.day, receivedTime.hour, receivedTime.min, receivedTime.sec);
+                        UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(*((UA_DateTime *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
+                        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                    "Message content: [DateTime] \tReceived date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
+                                    receivedTime.year, receivedTime.month, receivedTime.day, receivedTime.hour, receivedTime.min, receivedTime.sec);
                     }
                 }
             }
