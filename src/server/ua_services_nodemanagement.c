@@ -470,24 +470,11 @@ copyChildNode(UA_Server *server, UA_Session *session,
     if(!isMandatoryChild(server, session, &rd->nodeId.nodeId))
         return UA_STATUSCODE_GOOD;
 
-    /* No existing child with that browsename. Create it. */
-    if(rd->nodeClass == UA_NODECLASS_METHOD) {
-        /* Add a reference to the method in the objecttype */
-        UA_AddReferencesItem newItem;
-        UA_AddReferencesItem_init(&newItem);
-        newItem.sourceNodeId = *destinationNodeId;
-        newItem.referenceTypeId = rd->referenceTypeId;
-        newItem.isForward = true;
-        newItem.targetNodeId = rd->nodeId;
-        newItem.targetNodeClass = UA_NODECLASS_METHOD;
-        Operation_addReference(server, session, NULL, &newItem, &retval);
-        return retval;
-    }
-
-    /* Node exists and is a variable or object. Instantiate missing mandatory
+    /* Node exists and is a variable, object or method. Instantiate missing mandatory
      * children */
     if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
-       rd->nodeClass == UA_NODECLASS_OBJECT) {
+       rd->nodeClass == UA_NODECLASS_OBJECT ||
+       rd->nodeClass == UA_NODECLASS_METHOD) {
         /* Get the node */
         UA_Node *node;
         retval = UA_Nodestore_getCopy(server, &rd->nodeId.nodeId, &node);
