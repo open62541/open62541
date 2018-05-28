@@ -32,8 +32,8 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
         return;
     }
 
+    /* Receive the message */
     UA_StatusCode retval = connection->channel->receive(connection->channel, &buffer, NULL, 300000);
-
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         /* Workaround!! Reset buffer length. Receive can set the length to zero.
          * Then the buffer is not deleted because no memory allocation is
@@ -45,36 +45,45 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
         return;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message received:");
-    UA_NetworkMessage actualNetworkMessage;
-    memset(&actualNetworkMessage, 0, sizeof(UA_NetworkMessage));
-    size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &actualNetworkMessage);
-
+    /* Decode the message */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message length: %zu", buffer.length);
+    UA_NetworkMessage networkMessage;
+    memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
+    size_t currentPosition = 0;
+    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &networkMessage);
     UA_ByteString_deleteMembers(&buffer);
 
-    if (actualNetworkMessage.networkMessageType == UA_NETWORKMESSAGE_DATASET) {
-        if ((actualNetworkMessage.payloadHeaderEnabled && (actualNetworkMessage.payloadHeader.dataSetPayloadHeader.count >= 1)) ||
-            (!actualNetworkMessage.payloadHeaderEnabled)) {
-            if (actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageType ==
-                UA_DATASETMESSAGE_DATAKEYFRAME) {
-                for (int i = 0; i < actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount; i++) {
-                    const UA_DataType *currentType = actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.type;
-                    if (currentType == &UA_TYPES[UA_TYPES_BYTE]) {
-                        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message content: [Byte] \tReceived data: %i",
-                                    *((UA_Byte *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
-                    } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
-                        UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(*((UA_DateTime *) actualNetworkMessage.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[i].value.data));
-                        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                    "Message content: [DateTime] \tReceived date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
-                                    receivedTime.year, receivedTime.month, receivedTime.day, receivedTime.hour, receivedTime.min, receivedTime.sec);
-                    }
-                }
-            }
+    /* Is this the correct message type? */
+    if(networkMessage.networkMessageType != UA_NETWORKMESSAGE_DATASET)
+        goto cleanup;
+
+    /* At least one DataSetMessage in the NetworkMessage? */
+    if(networkMessage.payloadHeaderEnabled &&
+       networkMessage.payloadHeader.dataSetPayloadHeader.count < 1)
+        goto cleanup;
+
+    /* Is this a KeyFrame-DataSetMessage? */
+    UA_DataSetMessage *dsm = &networkMessage.payload.dataSetPayload.dataSetMessages[0];
+    if(dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
+        goto cleanup;
+
+    /* Loop over the fields and print well-known content types */
+    for(int i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
+        const UA_DataType *currentType = dsm->data.keyFrameData.dataSetFields[i].value.type;
+        if(currentType == &UA_TYPES[UA_TYPES_BYTE]) {
+            UA_Byte value = *(UA_Byte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Message content: [Byte] \tReceived data: %i", value);
+        } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
+            UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+            UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(value);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Message content: [DateTime] \tReceived date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
+                        receivedTime.year, receivedTime.month, receivedTime.day, receivedTime.hour, receivedTime.min, receivedTime.sec);
         }
     }
-    UA_NetworkMessage_deleteMembers(&actualNetworkMessage);
+
+ cleanup:
+    UA_NetworkMessage_deleteMembers(&networkMessage);
 }
 
 int main(void) {
