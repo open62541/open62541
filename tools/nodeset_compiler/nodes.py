@@ -231,8 +231,8 @@ class ObjectNode(Node):
 class VariableNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.dataType = NodeId()
-        self.valueRank = -2
+        self.dataType = None
+        self.valueRank = None
         self.arrayDimensions = []
         # Set access levels to read by default
         self.accessLevel = 1
@@ -295,11 +295,6 @@ class VariableNode(Node):
 
         self.value = Value()
         self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self, nodeset.namespaceMapping[self.modelUri])
-
-        # Array Dimensions must accurately represent the value and will be patched
-        # reflect the exaxt dimensions attached binary stream.
-        if not isinstance(self.value, Value) or len(self.value.value) == 0:
-            self.arrayDimensions = []
         return True
 
 
@@ -311,9 +306,15 @@ class VariableTypeNode(VariableNode):
             VariableTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
+        VariableNode.parseXML(self, xmlelement)
         for (at, av) in xmlelement.attributes.items():
             if at == "IsAbstract":
+                self.isAbstract = "false" not in av.lower()
+
+        for x in xmlelement.childNodes:
+            if x.nodeType != x.ELEMENT_NODE:
+                continue
+            if x.localName == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
 
 class MethodNode(Node):
