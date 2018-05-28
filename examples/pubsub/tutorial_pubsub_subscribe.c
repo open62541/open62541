@@ -32,8 +32,8 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
         return;
     }
 
-    /* Receive the message */
-    UA_StatusCode retval = connection->channel->receive(connection->channel, &buffer, NULL, 300000);
+    /* Receive the message. Blocks for 5ms */
+    UA_StatusCode retval = connection->channel->receive(connection->channel, &buffer, NULL, 5);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         /* Workaround!! Reset buffer length. Receive can set the length to zero.
          * Then the buffer is not deleted because no memory allocation is
@@ -121,7 +121,7 @@ int main(void) {
         UA_StatusCode rv = connection->channel->regist(connection->channel, NULL);
         if (rv == UA_STATUSCODE_GOOD) {
             UA_UInt64 subscriptionCallbackId;
-            UA_Server_addRepeatedCallback(server, (UA_ServerCallback)subscriptionPollingCallback, connection, 5, &subscriptionCallbackId);
+            UA_Server_addRepeatedCallback(server, (UA_ServerCallback)subscriptionPollingCallback, connection, 100, &subscriptionCallbackId);
         } else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "register channel failed: 0x%x!", rv);
         }
