@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -357,6 +357,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
     }
 
+    /* If there are several late publish responses... */
     if(sub->readyNotifications > sub->notificationQueueSize)
         sub->readyNotifications = sub->notificationQueueSize;
 
