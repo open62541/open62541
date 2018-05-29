@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -174,7 +174,12 @@ struct UA_Subscription {
     UA_UInt32 dataChangeNotifications;
     UA_UInt32 eventNotifications;
     UA_UInt32 statusChangeNotifications;
-    UA_UInt32 readyNotifications; /* Notifications to be sent out now (already late) */
+
+    /* Notifications to be sent out now (already late). In a regular publish
+     * callback, all queued notifications are sent out. In a late publish
+     * response, only the notifications left from the last regular publish
+     * callback are sent. */
+    UA_UInt32 readyNotifications;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
