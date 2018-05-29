@@ -234,8 +234,8 @@ UA_Server_filterEvent(UA_Server *server, const UA_NodeId *eventNode, UA_EventFil
     }
     /* EventFilterResult currently isn't being used
     notification->result.selectClauseResultsSize = filter->selectClausesSize;
-    notification->result.selectClauseResults = (UA_StatusCode *) UA_Array_new(filter->selectClausesSize,
-                                                                               &UA_TYPES[UA_TYPES_VARIANT]);
+    notification->result.selectClauseResults = (UA_StatusCode *)
+        UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     if (!notification->result->selectClauseResults) {
         UA_EventFieldList_deleteMembers(&notification->fields);
         UA_EventFilterResult_deleteMembers(&notification->result);
