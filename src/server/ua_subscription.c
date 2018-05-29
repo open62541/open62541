@@ -194,6 +194,8 @@ Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *s
         UA_EventFilterResult_deleteMembers(&notification->data.event.result); */
         UA_EventFieldList_deleteMembers(&notification->data.event.fields);
         UA_free(notification);
+
+        pos++; /* Increase the index */
     }
 }
 #endif
