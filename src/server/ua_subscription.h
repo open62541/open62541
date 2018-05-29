@@ -41,7 +41,6 @@ typedef enum {
     UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
 } UA_MonitoredItemType;
 
-
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
@@ -64,8 +63,14 @@ typedef struct UA_Notification {
     } data;
 } UA_Notification;
 
-/* Clean up the notification. Must be removed from the lists first. */
-void UA_Notification_delete(UA_Notification *n);
+/* Ensure enough space is available; Add notification to the linked lists;
+ * Increase the counters */
+void UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
+                             UA_MonitoredItem *mon, UA_Notification *n);
+
+/* Delete the notification. Also removes it from the linked lists. */
+void UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
+                            UA_Notification *n);
 
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
@@ -165,7 +170,10 @@ struct UA_Subscription {
 
     /* Global list of notifications from the MonitoredItems */
     NotificationQueue notificationQueue;
-    UA_UInt32 notificationQueueSize;
+    UA_UInt32 notificationQueueSize; /* Total queue size */
+    UA_UInt32 dataChangeNotifications;
+    UA_UInt32 eventNotifications;
+    UA_UInt32 statusChangeNotifications;
     UA_UInt32 readyNotifications; /* Notifications to be sent out now (already late) */
 
     /* Retransmission Queue */

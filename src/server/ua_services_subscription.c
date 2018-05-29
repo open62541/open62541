@@ -510,12 +510,8 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
-            TAILQ_REMOVE(&mon->queue, notification, listEntry);
-            TAILQ_REMOVE(&smc->sub->notificationQueue, notification, globalEntry);
-            --smc->sub->notificationQueueSize;
-            UA_Notification_delete(notification);
+            UA_Notification_delete(smc->sub, mon, notification);
         }
-        mon->queueSize = 0;
 
         /* Initialize lastSampledValue */
         UA_ByteString_deleteMembers(&mon->lastSampledValue);

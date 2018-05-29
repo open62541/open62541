@@ -20,16 +20,50 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-void UA_Notification_delete(UA_Notification *n) {
-    if(n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_DataValue_deleteMembers(&n->data.value);
-    } else if (n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-        UA_Array_delete(n->data.event.fields.eventFields, n->data.event.fields.eventFieldsSize,
-                        &UA_TYPES[UA_TYPES_VARIANT]);
-        /* EventFilterResult currently isn't being used
-         * UA_EventFilterResult_delete(notification->data.event->result);
-         */
+void
+UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *mon, UA_Notification *n) {
+    /* Add to the MonitoredItem */
+    TAILQ_INSERT_TAIL(&mon->queue, n, listEntry);
+    ++mon->queueSize;
+
+    /* Add to the subscription */
+    TAILQ_INSERT_TAIL(&sub->notificationQueue, n, globalEntry);
+    ++mon->subscription->notificationQueueSize;
+    if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        ++sub->dataChangeNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        ++sub->eventNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
+        ++sub->statusChangeNotifications;
     }
+
+    /* Ensure enough space is available in the MonitoredItem. Do this only after
+     * adding the new Notification. */
+    MonitoredItem_ensureQueueSpace(server, mon);
+}
+
+void
+UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
+                       UA_Notification *n) {
+    if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        UA_DataValue_deleteMembers(&n->data.value);
+        --sub->dataChangeNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        UA_EventFieldList_deleteMembers(&n->data.event.fields);
+        /* EventFilterResult currently isn't being used
+         * UA_EventFilterResult_delete(notification->data.event->result); */
+        --sub->eventNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
+        --sub->statusChangeNotifications;
+    }
+
+    TAILQ_REMOVE(&mon->queue, n, listEntry);
+    --mon->queueSize;
+
+    TAILQ_REMOVE(&sub->notificationQueue, n, globalEntry);
+    --sub->notificationQueueSize;
+
     UA_free(n);
 }
 
@@ -155,7 +189,7 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
 /* EventChange: Iterate over the monitoredItems of the subscription, starting at mon, and
  *              move notifications into the response. */
 static void
-Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *sub, UA_EventFieldList *efls,
+Events_moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_EventFieldList *efls,
                                            size_t eflsSize) {
     size_t pos = 0;
     UA_Notification *notification, *notification_tmp;
@@ -164,10 +198,6 @@ Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *s
             break;
 
         UA_MonitoredItem *mon = notification->mon;
-
-        /* Remove the notification from the queues */
-        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-        TAILQ_REMOVE(&mon->queue, notification, listEntry);
 
         /* removing an overflowEvent should not reduce the queueSize */
         UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
@@ -180,11 +210,14 @@ Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *s
 
         /* Move the content to the response */
         efls[pos] = notification->data.event.fields;
+        UA_EventFieldList_init(&notification->data.event.fields);
         efls[pos].clientHandle = mon->clientHandle;
 
         /* EventFilterResult currently isn't being used
         UA_EventFilterResult_deleteMembers(&notification->data.event.result); */
-        UA_free(notification);
+
+        /* Remove the notification from the queues */
+        UA_Notification_delete(sub, mon, notification);
 
         pos++; /* Increase the index */
     }
@@ -204,18 +237,16 @@ DataChange_moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_Monitore
 
         UA_MonitoredItem *mon = notification->mon;
 
-        /* Remove the notification from the queues */
-        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-        TAILQ_REMOVE(&mon->queue, notification, listEntry);
-        --mon->queueSize;
-        --sub->notificationQueueSize;
-
         /* Move the content to the response */
         UA_MonitoredItemNotification *min = &mins[pos];
         min->clientHandle = mon->clientHandle;
         min->value = notification->data.value;
-        UA_free(notification);
-        ++pos;
+        UA_DataValue_init(&notification->data.value); /* Reset after the value has been moved */
+
+        /* Remove the notification from the queues */
+        UA_Notification_delete(sub, mon, notification);
+
+        ++pos; /* Increase the index */
     }
 }
 
@@ -277,7 +308,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub, UA_Notificat
         enl->eventsSize = notifications;
 
         /* Move the list into the response .. the point of no return */
-        Events_moveNotificationsFromMonitoredItems(server, sub, enl->events, notifications);
+        Events_moveNotificationsFromMonitoredItems(sub, enl->events, notifications);
     }
 #endif
     else {
@@ -326,7 +357,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
     }
 
-    if (sub->readyNotifications > sub->notificationQueueSize)
+    if(sub->readyNotifications > sub->notificationQueueSize)
         sub->readyNotifications = sub->notificationQueueSize;
 
     /* Count the available notifications */
