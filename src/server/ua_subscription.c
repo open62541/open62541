@@ -157,13 +157,12 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
 static void
 Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *sub, UA_EventFieldList *efls,
                                            size_t eflsSize) {
-    UA_StatusCode retval;
     size_t pos = 0;
     UA_Notification *notification, *notification_tmp;
     TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
-        if (pos >= eflsSize) {
-            return;
-        }
+        if(pos >= eflsSize)
+            break;
+
         UA_MonitoredItem *mon = notification->mon;
 
         /* Remove the notification from the queues */
@@ -180,19 +179,11 @@ Events_moveNotificationsFromMonitoredItems(UA_Server *server, UA_Subscription *s
         }
 
         /* Move the content to the response */
-        UA_EventFieldList *efl = &efls[pos];
-        efl->clientHandle = mon->clientHandle;
-        efl->eventFieldsSize = notification->data.event.fields.eventFieldsSize;
-        retval = UA_Array_copy(notification->data.event.fields.eventFields,
-                               notification->data.event.fields.eventFieldsSize,
-                               (void **) &efl->eventFields, &UA_TYPES[UA_TYPES_VARIANT]);
-        if (retval != UA_STATUSCODE_GOOD) {
-            return;
-        }
+        efls[pos] = notification->data.event.fields;
+        efls[pos].clientHandle = mon->clientHandle;
 
         /* EventFilterResult currently isn't being used
         UA_EventFilterResult_deleteMembers(&notification->data.event.result); */
-        UA_EventFieldList_deleteMembers(&notification->data.event.fields);
         UA_free(notification);
 
         pos++; /* Increase the index */
