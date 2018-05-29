@@ -65,13 +65,9 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue,
                            listEntry, notification_tmp) {
-            /* Remove the item from the queues */
-            TAILQ_REMOVE(&monitoredItem->queue, notification, listEntry);
-            TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-            --sub->notificationQueueSize;
-            UA_Notification_delete(notification);
+            /* Remove the item from the queues and free the memory */
+            UA_Notification_delete(sub, monitoredItem, notification);
         }
-        monitoredItem->queueSize = 0;
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -128,27 +124,18 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         TAILQ_REMOVE(&sub->notificationQueue, after_del, globalEntry);
         TAILQ_INSERT_AFTER(&sub->notificationQueue, del, after_del, globalEntry);
 
-        /* Remove the notification from the queues */
-        TAILQ_REMOVE(&mon->queue, del, listEntry);
-        TAILQ_REMOVE(&sub->notificationQueue, del, globalEntry);
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         /* TODO: provide additional protection for overflowEvents according to specification */
         /* removing an overflowEvent should not reduce the queueSize */
         UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
-        if(!(del->data.event.fields.eventFieldsSize == 1 &&
-             del->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID] &&
-             UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields->data, &overflowId))) {
-            --mon->queueSize;
-            --sub->notificationQueueSize;
+        if(del->data.event.fields.eventFieldsSize == 1 &&
+           del->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID] &&
+           UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields->data, &overflowId)) {
+            ++mon->queueSize;
+            ++sub->notificationQueueSize;
         }
-#else
-        --mon->queueSize;
-        --sub->notificationQueueSize;
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
         /* Create an overflow notification */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
             /* EventFilterResult currently isn't being used
             UA_EventFilterResult_deleteMembers(&del->data.event->result); */
@@ -187,8 +174,9 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         }
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
-        /* Free the notification */
-        UA_Notification_delete(del);
+        /* Delete the notification. This also removes the notification from the
+         * linked lists. */
+        UA_Notification_delete(sub, mon, del);
     }
 
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
@@ -432,14 +420,8 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
         newNotification->data.value = *value; /* Move the value to the notification */
         storedValue = true;
 
-        /* Add the notification to the end of local and global queue */
-        TAILQ_INSERT_TAIL(&monitoredItem->queue, newNotification, listEntry);
-        TAILQ_INSERT_TAIL(&sub->notificationQueue, newNotification, globalEntry);
-        ++monitoredItem->queueSize;
-        ++sub->notificationQueueSize;
-
-        /* Remove some notifications if the queue is beyond maximum capacity */
-        MonitoredItem_ensureQueueSpace(server, monitoredItem);
+        /* Enqueue the new notification */
+        UA_Notification_enqueue(server, sub, monitoredItem, newNotification);
     } else {
         /* Call the local callback if not attached to a subscription */
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) monitoredItem;

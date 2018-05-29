@@ -399,13 +399,7 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     }
     notification->mon = mon;
 
-    /* add to the monitored item queue */
-    MonitoredItem_ensureQueueSpace(server, mon);
-    TAILQ_INSERT_TAIL(&mon->queue, notification, listEntry);
-    ++mon->queueSize;
-    /* add to the subscription queue */
-    TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, notification, globalEntry);
-    ++mon->subscription->notificationQueueSize;
+    UA_Notification_enqueue(server, mon->subscription, mon, notification);
     return UA_STATUSCODE_GOOD;
 }
 
