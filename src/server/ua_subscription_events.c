@@ -452,7 +452,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
         UA_Nodestore_release(server, (const UA_Node *) node);
 
         LIST_REMOVE(parentIter, listEntry);
-        UA_NodeId_delete(&parentIter->nodeId);
+        UA_NodeId_deleteMembers(&parentIter->nodeId);
         UA_free(parentIter);
     }
 
