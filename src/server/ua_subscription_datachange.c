@@ -125,53 +125,47 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         TAILQ_INSERT_AFTER(&sub->notificationQueue, del, after_del, globalEntry);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        /* TODO: provide additional protection for overflowEvents according to specification */
-        /* removing an overflowEvent should not reduce the queueSize */
-        UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
-        if(del->data.event.fields.eventFieldsSize == 1 &&
-           del->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID] &&
-           UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields->data, &overflowId)) {
-            ++mon->queueSize;
-            ++sub->notificationQueueSize;
-        }
-
         /* Create an overflow notification */
-        if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-            /* EventFilterResult currently isn't being used
-            UA_EventFilterResult_deleteMembers(&del->data.event->result); */
-            UA_EventFieldList_deleteMembers(&del->data.event.fields);
+        /* if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) { */
+        /*     /\* EventFilterResult currently isn't being used */
+        /*     UA_EventFilterResult_deleteMembers(&del->data.event->result); *\/ */
+        /*     UA_EventFieldList_deleteMembers(&del->data.event.fields); */
 
-            /* cause an overflowEvent */
-            /* an overflowEvent does not care about event filters and as such
-             * will not be "triggered" correctly. Instead, a notification will
-             * be inserted into the queue which includes only the nodeId of the
-             * overflowEventType. It is up to the client to check for possible
-             * overflows. */
-            UA_Notification *overflowNotification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
-            if(!overflowNotification)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
+        /*     /\* cause an overflowEvent *\/ */
+        /*     /\* an overflowEvent does not care about event filters and as such */
+        /*      * will not be "triggered" correctly. Instead, a notification will */
+        /*      * be inserted into the queue which includes only the nodeId of the */
+        /*      * overflowEventType. It is up to the client to check for possible */
+        /*      * overflows. *\/ */
+        /*     UA_Notification *overflowNotification = (UA_Notification *) UA_malloc(sizeof(UA_Notification)); */
+        /*     if(!overflowNotification) */
+        /*         return UA_STATUSCODE_BADOUTOFMEMORY; */
 
-            UA_EventFieldList_init(&overflowNotification->data.event.fields);
-            overflowNotification->data.event.fields.eventFields = UA_Variant_new();
-            if(!overflowNotification->data.event.fields.eventFields) {
-                UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
-                UA_free(overflowNotification);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
+        /*     UA_EventFieldList_init(&overflowNotification->data.event.fields); */
+        /*     overflowNotification->data.event.fields.eventFields = UA_Variant_new(); */
+        /*     if(!overflowNotification->data.event.fields.eventFields) { */
+        /*         UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields); */
+        /*         UA_free(overflowNotification); */
+        /*         return UA_STATUSCODE_BADOUTOFMEMORY; */
+        /*     } */
 
-            UA_Variant_init(overflowNotification->data.event.fields.eventFields);
-            overflowNotification->data.event.fields.eventFieldsSize = 1;
-            UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
-                                     &overflowId, &UA_TYPES[UA_TYPES_NODEID]);
-            overflowNotification->mon = mon;
-            if(mon->discardOldest) {
-                TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry);
-                TAILQ_INSERT_HEAD(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
-            } else {
-                TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry);
-                TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
-            }
-        }
+        /*     UA_Variant_init(overflowNotification->data.event.fields.eventFields); */
+        /*     overflowNotification->data.event.fields.eventFieldsSize = 1; */
+        /*     UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE); */
+        /*     UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields, */
+        /*                              &overflowId, &UA_TYPES[UA_TYPES_NODEID]); */
+        /*     overflowNotification->mon = mon; */
+        /*     if(mon->discardOldest) { */
+        /*         TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry); */
+        /*         TAILQ_INSERT_HEAD(&mon->subscription->notificationQueue, overflowNotification, globalEntry); */
+        /*     } else { */
+        /*         TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry); */
+        /*         TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, overflowNotification, globalEntry); */
+        /*     } */
+        /*     ++mon->queueSize; */
+        /*     ++sub->notificationQueueSize; */
+        /*     ++sub->eventNotifications; */
+        /* } */
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
         /* Delete the notification. This also removes the notification from the
