@@ -70,50 +70,6 @@ findAllSubtypesNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Searches for an attribute of an event with the name 'name' and the depth from the event relativePathSize.
- * Returns the browsePathResult of searching for that node */
-static void
-UA_Event_findVariableNode(UA_Server *server, UA_QualifiedName *name, size_t relativePathSize,
-                          const UA_NodeId *event, UA_BrowsePathResult *out) {
-    /* get a list with all subtypes of aggregates */
-    struct getNodesHandle handle;
-    handle.server = server;
-    LIST_INIT(&handle.nodes);
-    UA_StatusCode retval =
-        UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES),
-                                       findAllSubtypesNodeIteratorCallback, &handle);
-    if(retval != UA_STATUSCODE_GOOD)
-        out->statusCode = retval;
-
-    /* check if you can find the node with any of the subtypes of aggregates */
-    UA_Boolean nodeFound = UA_FALSE;
-    Events_nodeListElement *iter, *tmp_iter;
-    LIST_FOREACH_SAFE(iter, &handle.nodes, listEntry, tmp_iter) {
-        if (!nodeFound) {
-            UA_RelativePathElement rpe;
-            UA_RelativePathElement_init(&rpe);
-            rpe.referenceTypeId = iter->nodeId;
-            rpe.isInverse = false;
-            rpe.includeSubtypes = false;
-            rpe.targetName = *name;
-            /* TODO: test larger browsepath perhaps put browsepath in a loop */
-            UA_BrowsePath bp;
-            UA_BrowsePath_init(&bp);
-            bp.relativePath.elementsSize = relativePathSize;
-            bp.startingNode = *event;
-            bp.relativePath.elements = &rpe;
-
-            *out = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-            if(out->statusCode == UA_STATUSCODE_GOOD)
-                nodeFound = UA_TRUE;
-        }
-
-        LIST_REMOVE(iter, listEntry);
-        UA_NodeId_deleteMembers(&iter->nodeId);
-        UA_free(iter);
-    }
-}
-
 UA_StatusCode UA_EXPORT
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
     if (!outNodeId) {
@@ -158,9 +114,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
 
     /* find the eventType variableNode */
     name = UA_QUALIFIEDNAME(0, "EventType");
-    UA_BrowsePathResult bpr;
-    UA_BrowsePathResult_init(&bpr);
-    UA_Event_findVariableNode(server, &name, 1, outNodeId, &bpr);
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *outNodeId, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_BrowsePathResult_deleteMembers(&bpr);
         return bpr.statusCode;
@@ -179,10 +133,8 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
 static UA_Boolean
 isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_NodeId *eventId) {
     /* find the eventType variableNode */
-    UA_BrowsePathResult bpr;
-    UA_BrowsePathResult_init(&bpr);
     UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventType");
-    UA_Event_findVariableNode(server, &findName, 1, eventId, &bpr);
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_BrowsePathResult_deleteMembers(&bpr);
         return UA_FALSE;
@@ -194,26 +146,69 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
     return tmp;
 }
 
+/* static UA_StatusCode */
+/* whereClausesApply(UA_Server *server, const UA_ContentFilter whereClause, */
+/*                   UA_EventFieldList *efl, UA_Boolean *result) { */
+/*     /\* if the where clauses aren't specified leave everything as is *\/ */
+/*     if(whereClause.elementsSize == 0) { */
+/*         *result = UA_TRUE; */
+/*         return UA_STATUSCODE_GOOD; */
+/*     } */
 
+/*     /\* where clauses were specified *\/ */
+/*     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND, */
+/*                    "Where clauses are not supported by the server."); */
+/*     *result = UA_TRUE; */
+/*     return UA_STATUSCODE_BADNOTSUPPORTED; */
+/* } */
+
+/* Part 4: 7.4.4.5 SimpleAttributeOperand
+ * The clause can point to any attribute of nodes. Either a child of the event
+ * node and also the event type. */
 static UA_StatusCode
-whereClausesApply(UA_Server *server, const UA_ContentFilter whereClause,
-                  UA_EventFieldList *efl, UA_Boolean *result) {
-    /* if the where clauses aren't specified leave everything as is */
-    if(whereClause.elementsSize == 0) {
-        *result = UA_TRUE;
-        return UA_STATUSCODE_GOOD;
+resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_NodeId *origin,
+                              const UA_SimpleAttributeOperand *sao, UA_Variant *value) {
+    /* Prepare the ReadValueId */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.indexRange = sao->indexRange;
+    rvi.attributeId = sao->attributeId;
+
+    /* If this list (browsePath) is empty the Node is the instance of the
+     * TypeDefinition. */
+    if(sao->browsePathSize == 0) {
+        rvi.nodeId = sao->typeDefinitionId;
+        UA_DataValue v = UA_Server_readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
+            *value = v.value;
+        return v.status;
     }
 
-    /* where clauses were specified */
-    UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND,
-                   "Where clauses are not supported by the server.");
-    *result = UA_TRUE;
-    return UA_STATUSCODE_BADNOTSUPPORTED;
+    /* Resolve the browse path */
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server, *origin, sao->browsePathSize, sao->browsePath);
+    if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
+        bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
+    if(bpr.statusCode != UA_STATUSCODE_GOOD) {
+        UA_StatusCode retval = bpr.statusCode;
+        UA_BrowsePathResult_deleteMembers(&bpr);
+        return retval;
+    }
+
+    /* Read the first matching element. Move the value to the output. */
+    rvi.nodeId = bpr.targets[0].targetId.nodeId;
+    UA_DataValue v = UA_Server_readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
+        *value = v.value;
+
+    UA_BrowsePathResult_deleteMembers(&bpr);
+    return v.status;
 }
 
 /* filters the given event with the given filter and writes the results into a notification */
 static UA_StatusCode
-UA_Server_filterEvent(UA_Server *server, const UA_NodeId *eventNode, UA_EventFilter *filter,
+UA_Server_filterEvent(UA_Server *server, UA_Session *session,
+                      const UA_NodeId *eventNode, UA_EventFilter *filter,
                       UA_EventNotification *notification) {
     if (filter->selectClausesSize == 0)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
@@ -256,52 +251,22 @@ UA_Server_filterEvent(UA_Server *server, const UA_NodeId *eventNode, UA_EventFil
             continue;
         }
 
-        /* type is correct */
-        /* find the variable node with the data being looked for */
-        UA_BrowsePathResult bpr;
-        UA_BrowsePathResult_init(&bpr);
-        UA_Event_findVariableNode(server, filter->selectClauses[i].browsePath,
-                                  filter->selectClauses[i].browsePathSize, eventNode, &bpr);
-        if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-            UA_Variant_init(&notification->fields.eventFields[i]);
-            continue;
-        }
-
-        /* copy the value */
-        UA_Boolean whereClauseResult = UA_TRUE;
-        UA_Boolean whereClausesUsed = UA_FALSE;     /* placeholder until whereClauses are implemented */
-        UA_StatusCode retval = whereClausesApply(server, filter->whereClause,
-                                                 &notification->fields, &whereClauseResult);
-        if (retval == UA_STATUSCODE_BADNOTSUPPORTED)
-            whereClausesUsed = UA_TRUE;
-
-        if(whereClauseResult) {
-            retval = UA_Server_readValue(server, bpr.targets[0].targetId.nodeId,
-                                         &notification->fields.eventFields[i]);
-            if(retval != UA_STATUSCODE_GOOD)
-                UA_Variant_init(&notification->fields.eventFields[i]);
-
-            if(whereClausesUsed)
-                return UA_STATUSCODE_BADNOTSUPPORTED;
-        } else {
-            UA_Variant_init(&notification->fields.eventFields[i]);
-            /* TODO: better statuscode for failing at where clauses */
-            /* EventFilterResult currently isn't being used
-            notification->result.selectClauseResults[i] = UA_STATUSCODE_BADDATAUNAVAILABLE; */
-        }
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        /* TODO: Put the result into the selectClausResults */
+        resolveSimpleAttributeOperand(server, session, eventNode,
+                                      &filter->selectClauses[i],
+                                      &notification->fields.eventFields[i]);
     }
+    /* UA_Boolean whereClauseResult = UA_TRUE; */
+    /* return whereClausesApply(server, filter->whereClause, &notification->fields, &whereClauseResult); */
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 eventSetConstants(UA_Server *server, const UA_NodeId *event,
                   const UA_NodeId *origin, UA_ByteString *outEventId) {
-    UA_BrowsePathResult bpr;
-    UA_BrowsePathResult_init(&bpr);
     /* set the source */
     UA_QualifiedName name = UA_QUALIFIEDNAME(0, "SourceNode");
-    UA_Event_findVariableNode(server, &name, 1, event, &bpr);
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
     if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_StatusCode tmp = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
@@ -316,7 +281,7 @@ eventSetConstants(UA_Server *server, const UA_NodeId *event,
 
     /* set the receive time */
     name = UA_QUALIFIEDNAME(0, "ReceiveTime");
-    UA_Event_findVariableNode(server, &name, 1, event, &bpr);
+    bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
     if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_StatusCode tmp = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
@@ -338,8 +303,9 @@ eventSetConstants(UA_Server *server, const UA_NodeId *event,
     if (outEventId) {
         UA_ByteString_copy(&eventId, outEventId);
     }
+
     name = UA_QUALIFIEDNAME(0, "EventId");
-    UA_Event_findVariableNode(server, &name, 1, event, &bpr);
+    bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
     if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_StatusCode tmp = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
@@ -390,15 +356,21 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* apply the filter */
-    UA_StatusCode retval = UA_Server_filterEvent(server, event, &mon->filter.eventFilter,
+    /* Get the session */
+    UA_Subscription *sub = mon->subscription;
+    UA_Session *session = sub->session;
+
+    /* Apply the filter */
+    UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
+                                                 &mon->filter.eventFilter,
                                                  &notification->data.event);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_free(notification);
         return retval;
     }
-    notification->mon = mon;
 
+    /* Enqueue the notification */
+    notification->mon = mon;
     UA_Notification_enqueue(server, mon->subscription, mon, notification);
     return UA_STATUSCODE_GOOD;
 }
