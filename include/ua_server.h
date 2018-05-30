@@ -8,6 +8,7 @@
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #ifndef UA_SERVER_H_

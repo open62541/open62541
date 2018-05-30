@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_server_internal.h"

@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_subscription.h"
