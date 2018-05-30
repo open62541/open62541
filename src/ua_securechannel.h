@@ -44,10 +44,16 @@ typedef struct UA_SessionHeader {
 } UA_SessionHeader;
 
 /* For chunked requests */
-struct ChunkEntry {
-    LIST_ENTRY(ChunkEntry) pointers;
-    UA_UInt32 requestId;
+struct ChunkPayload {
+    SIMPLEQ_ENTRY(ChunkPayload) pointers;
     UA_ByteString bytes;
+};
+
+struct MessageEntry {
+    LIST_ENTRY(MessageEntry) pointers;
+    UA_UInt32 requestId;
+    SIMPLEQ_HEAD(chunkpayload_pointerlist, ChunkPayload) chunkPayload;
+    size_t chunkPayloadSize;
 };
 
 typedef enum {
@@ -79,7 +85,7 @@ struct UA_SecureChannel {
     UA_UInt32 sendSequenceNumber;
 
     LIST_HEAD(session_pointerlist, UA_SessionHeader) sessions;
-    LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
+    LIST_HEAD(chunk_pointerlist, MessageEntry) chunks;
 };
 
 UA_StatusCode
