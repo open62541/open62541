@@ -226,13 +226,13 @@ extern UA_StatusCode %s(UA_Server *server);
         # Print node
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {\n")
             code = generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentrefs)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
                 continue
             else:
+                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {\n")
                 writec(code)
 
         # Print inverse references leading to this node

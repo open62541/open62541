@@ -12,6 +12,8 @@
 #include "ua_server_internal.h"
 #endif
 
+#define UA_SESSION_NONCELENTH 32
+
 UA_Session adminSession = {
     {{NULL, NULL}, /* .pointers */
      {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
@@ -64,13 +66,13 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
         UA_BrowseDescription_deleteMembers(&cp->browseDescription);
         UA_free(cp);
     }
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Subscription *currents, *temps;
-    LIST_FOREACH_SAFE(currents, &session->serverSubscriptions, listEntry, temps) {
-        LIST_REMOVE(currents, listEntry);
-        UA_Subscription_deleteMembers(currents, server);
-        UA_free(currents);
+    UA_Subscription *sub, *tempsub;
+    LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, tempsub) {
+        UA_Session_deleteSubscription(server, session, sub->subscriptionId);
     }
+
     UA_PublishResponseEntry *entry;
     while((entry = UA_Session_getPublishReq(session))) {
         UA_Session_removePublishReq(session,entry);
@@ -92,6 +94,25 @@ void UA_Session_detachFromSecureChannel(UA_Session *session) {
     LIST_REMOVE(&session->header, pointers);
 }
 
+UA_StatusCode
+UA_Session_generateNonce(UA_Session *session) {
+    UA_SecureChannel *channel = session->header.channel;
+    if(!channel || !channel->securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Is the length of the previous nonce correct? */
+    if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
+        UA_ByteString_deleteMembers(&session->serverNonce);
+        UA_StatusCode retval =
+            UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    return channel->securityPolicy->symmetricModule.
+        generateNonce(channel->securityPolicy, &session->serverNonce);
+}
+
 void UA_Session_updateLifetime(UA_Session *session) {
     session->validTill = UA_DateTime_nowMonotonic() +
         (UA_DateTime)(session->timeout * UA_DATETIME_MSEC);
@@ -104,14 +125,6 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
     LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
 }
 
-/* Delayed callback to free the subscription memory */
-static void
-removeSubscriptionCallback(UA_Server *server, void *data) {
-    UA_Subscription *sub = (UA_Subscription*)data;
-    UA_Subscription_deleteMembers(sub, server);
-    UA_free(sub);
-}
-
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
                               UA_UInt32 subscriptionId) {
@@ -119,9 +132,11 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
+    UA_Subscription_deleteMembers(server, sub);
+
     /* Add a delayed callback to remove the subscription when the currently
      * scheduled jobs have completed */
-    UA_StatusCode retval = UA_Server_delayedCallback(server, removeSubscriptionCallback, sub);
+    UA_StatusCode retval = UA_Server_delayedFree(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logger, session,
                        "Could not remove subscription with error code %s",
@@ -129,15 +144,10 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
         return retval; /* Try again next time */
     }
 
+    /* Remove from the session */
     LIST_REMOVE(sub, listEntry);
-
-    if(session->numSubscriptions > 0) {
-        session->numSubscriptions--;
-    }
-    else {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
+    UA_assert(session->numSubscriptions > 0);
+    session->numSubscriptions--;
     return UA_STATUSCODE_GOOD;
 }
 

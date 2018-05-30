@@ -287,7 +287,7 @@ class VariableNode(Node):
             return False
 
         self.value = Value()
-        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode)
+        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self)
 
         # Array Dimensions must accurately represent the value and will be patched
         # reflect the exaxt dimensions attached binary stream.
