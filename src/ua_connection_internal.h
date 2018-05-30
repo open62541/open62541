@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Florian Palm
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
@@ -44,6 +44,21 @@ UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
                             UA_Connection_processChunk processCallback,
                             const UA_ByteString *packet);
+/*
+ * @param connection The connection
+ * @param message The received message. The content may be overwritten when a
+ *        previsouly received buffer is completed.
+ * @param realloced The Boolean value is set to true if the outgoing message has
+ *        been reallocated from the network layer.
+ * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs,
+ *         the ingoing message and the current buffer in the connection are
+ *         freed. */
+UA_StatusCode
+UA_Connection_completeMessages(UA_Connection *connection,
+                               UA_ByteString * UA_RESTRICT message,
+                               UA_Boolean * UA_RESTRICT realloced);
+
+
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
  * current thread up to the given timeout.
@@ -58,6 +73,10 @@ UA_StatusCode
 UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application,
                                     UA_Connection_processChunk processCallback,
                                     UA_UInt32 timeout);
+
+UA_StatusCode
+UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *application,
+                                    UA_Connection_processChunk processCallback);
 
 /* When a fatal error occurs the Server shall send an Error Message to the
  * Client and close the socket. When a Client encounters one of these errors, it

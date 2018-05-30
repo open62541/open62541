@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2015 (c) Sten Grüner
  *    Copyright 2014 (c) LEvertz
@@ -350,9 +350,11 @@ void Service_Write(UA_Server *server, UA_Session *session,
  * Used to call (invoke) a methods. Each method call is invoked within the
  * context of an existing Session. If the Session is terminated, the results of
  * the method's execution cannot be returned to the Client and are discarded. */
+#ifdef UA_ENABLE_METHODCALLS
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response);
+#endif
 
 /**
  * MonitoredItem Service Set

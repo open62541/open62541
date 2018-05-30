@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016 (c) Lorenz Haas
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Florian Palm
@@ -353,28 +353,33 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
 UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
-                   const void *data) {
-#ifndef UA_ENABLE_MULTITHREADING
+                   void *data) {
+#ifndef UA_ENABLE_IMMUTABLE_NODES
+    /* Get the node and process it in-situ */
     const UA_Node *node = UA_Nodestore_get(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    UA_StatusCode retval = callback(server, session,
-                                    (UA_Node*)(uintptr_t)node, data);
+    UA_StatusCode retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
     UA_Nodestore_release(server, node);
     return retval;
 #else
     UA_StatusCode retval;
     do {
+        /* Get an editable copy of the node */
         UA_Node *node;
-        retval = server->config.nodestore.getNodeCopy(server->config.nodestore.context,
-                                                      nodeId, &node);
+        retval = server->config.nodestore.
+            getNodeCopy(server->config.nodestore.context, nodeId, &node);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
+
+        /* Run the operation on the copy */
         retval = callback(server, session, node, data);
         if(retval != UA_STATUSCODE_GOOD) {
             server->config.nodestore.deleteNode(server->config.nodestore.context, node);
             return retval;
         }
+
+        /* Replace the node */
         retval = server->config.nodestore.replaceNode(server->config.nodestore.context, node);
     } while(retval != UA_STATUSCODE_GOOD);
     return retval;
@@ -384,8 +389,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   void *context,
-                                   const size_t *requestOperations,
+                                   void *context, const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType) {

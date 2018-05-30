@@ -1,11 +1,14 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
 #include "ua_nodestore_default.h"
+
+#include "../src/ua_util.h" /* TOOO: Move atomic operations to arch definitions */
 
 /* container_of */
 #define container_of(ptr, type, member) \
@@ -25,7 +28,15 @@
  *
  * - Tombstone or non-matching NodeId: continue searching
  * - Matching NodeId: Return the entry
- * - NULL: Abort the search */
+ * - NULL: Abort the search
+ *
+ * The nodestore uses atomic operations to set entries of the hash-map. If
+ * UA_ENABLE_IMMUTABLE_NODES is configured, the nodestore allows read-access
+ * from an interrupt without seeing corrupted nodes. For true multi-threaded
+ * access, a mutex is used.
+ *
+ * Multi-threading without a mutex could be realized with the Linux RCU mechanism.
+ * But this is not done for this implementation of the nodestore. */
 
 typedef struct UA_NodeMapEntry {
     struct UA_NodeMapEntry *orig; /* the version this is a copy from (or NULL) */
@@ -78,28 +89,33 @@ higher_prime_index(UA_UInt32 n) {
     return low;
 }
 
-/* returns an empty slot or null if the nodeid exists */
+/* returns an empty slot or null if the nodeid exists or if no empty slot is found. */
 static UA_NodeMapEntry **
 findFreeSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
+    UA_NodeMapEntry **retval = NULL;
     UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    UA_UInt32 idx = mod(h, size);
+    UA_UInt64 idx = mod(h, size); // use 64 bit container to avoid overflow
+    UA_UInt32 startIdx = (UA_UInt32)idx;
     UA_UInt32 hash2 = mod2(h, size);
+    UA_NodeMapEntry *entry = NULL;
 
-    while(true) {
-        UA_NodeMapEntry *e = ns->entries[idx];
-        if(e > UA_NODEMAP_TOMBSTONE &&
-           UA_NodeId_equal(&e->node.nodeId, nodeid))
+    do {
+        entry = ns->entries[(UA_UInt32)idx];
+        if(entry > UA_NODEMAP_TOMBSTONE &&
+           UA_NodeId_equal(&entry->node.nodeId, nodeid))
             return NULL;
-        if(ns->entries[idx] <= UA_NODEMAP_TOMBSTONE)
-            return &ns->entries[idx];
+        if(!retval && entry <= UA_NODEMAP_TOMBSTONE)
+            retval = &ns->entries[(UA_UInt32)idx];
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    }
+    } while((UA_UInt32)idx != startIdx && entry);
 
-    /* NOTREACHED */
-    return NULL;
+    /* NULL is returned if there is no free slot (idx == startIdx).
+     * Otherwise the first free slot is returned after we are sure,
+     * that the node id cannot be found in the used hashmap (!entry). */
+    return retval;
 }
 
 /* The occupancy of the table after the call will be about 50% */
@@ -189,9 +205,11 @@ cleanupEntry(UA_NodeMapEntry *entry) {
 
 static UA_StatusCode
 clearSlot(UA_NodeMap *ns, UA_NodeMapEntry **slot) {
-    (*slot)->deleted = true;
-    cleanupEntry(*slot);
-    *slot = UA_NODEMAP_TOMBSTONE;
+    UA_NodeMapEntry *entry = *slot;
+    if(UA_atomic_cmpxchg((void**)slot, entry, UA_NODEMAP_TOMBSTONE) != entry)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    entry->deleted = true;
+    cleanupEntry(entry);
     --ns->count;
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
@@ -203,22 +221,24 @@ static UA_NodeMapEntry **
 findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
     UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    UA_UInt32 idx = mod(h, size);
+    UA_UInt64 idx = mod(h, size); // use 64 bit container to avoid overflow
     UA_UInt32 hash2 = mod2(h, size);
+    UA_UInt32 startIdx = (UA_UInt32)idx;
+    UA_NodeMapEntry *entry = NULL;
 
-    while(true) {
-        UA_NodeMapEntry *e = ns->entries[idx];
-        if(!e)
-            return NULL;
-        if(e > UA_NODEMAP_TOMBSTONE &&
-           UA_NodeId_equal(&e->node.nodeId, nodeid))
-            return &ns->entries[idx];
+    do {
+        entry = ns->entries[(UA_UInt32)idx];
+        if(entry > UA_NODEMAP_TOMBSTONE &&
+           UA_NodeId_equal(&entry->node.nodeId, nodeid))
+            return &ns->entries[(UA_UInt32)idx];
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    }
+    } while((UA_UInt32)idx != startIdx && entry);
 
-    /* NOTREACHED */
+    /* NULL is returned if there is no free slot (idx == startIdx)
+     * and the node id is not found or if the end of the used slots (!entry)
+     * is reached. */
     return NULL;
 }
 
@@ -334,40 +354,56 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
             node->nodeId.identifier.numeric == 0) {
         /* create a random nodeid */
         /* start at least with 50,000 to make sure we don not conflict with nodes from the spec */
+        /* if we find a conflict, we just try another identifier until we have tried all possible identifiers */
+        /* since the size is prime and we don't change the increase val, we will reach the starting id again */
         /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
-        /* Thus the node id's may collide */
-        UA_UInt32 identifier = 50000 + ns->count+1; // start value
+        /* Thus the node ids may collide */
         UA_UInt32 size = ns->size;
+        UA_UInt64 identifier = mod(50000 + size+1, UA_UINT32_MAX); // start value, use 64 bit container to avoid overflow
         UA_UInt32 increase = mod2(ns->count+1, size);
-        while(true) {
-            node->nodeId.identifier.numeric = identifier;
+        UA_UInt32 startId = (UA_UInt32)identifier; // mod ensures us that the id is a valid 32 bit
+
+        do {
+            node->nodeId.identifier.numeric = (UA_UInt32)identifier;
             slot = findFreeSlot(ns, &node->nodeId);
             if(slot)
                 break;
             identifier += increase;
             if(identifier >= size)
                 identifier -= size;
-        }
+        } while((UA_UInt32)identifier != startId);
     } else {
         slot = findFreeSlot(ns, &node->nodeId);
-        if(!slot) {
-            deleteEntry(container_of(node, UA_NodeMapEntry, node));
-            END_CRITSECT(ns);
-            return UA_STATUSCODE_BADNODEIDEXISTS;
-        }
     }
 
-    *slot = container_of(node, UA_NodeMapEntry, node);
-    ++ns->count;
-    UA_assert(&(*slot)->node == node);
+    if(!slot) {
+        deleteEntry(container_of(node, UA_NodeMapEntry, node));
+        END_CRITSECT(ns);
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    }
 
+    /* Copy the NodeId */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(addedNodeId) {
         retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
-        if(retval != UA_STATUSCODE_GOOD)
-            clearSlot(ns, slot);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteEntry(container_of(node, UA_NodeMapEntry, node));
+            END_CRITSECT(ns);
+            return retval;
+        }
     }
 
+    /* Insert the node */
+    UA_NodeMapEntry *oldEntry = *slot;
+    UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
+    if(oldEntry > UA_NODEMAP_TOMBSTONE ||
+       UA_atomic_cmpxchg((void**)slot, oldEntry,
+                         newEntry) != oldEntry) {
+        deleteEntry(container_of(node, UA_NodeMapEntry, node));
+        END_CRITSECT(ns);
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    }
+    ++ns->count;
     END_CRITSECT(ns);
     return retval;
 }
@@ -376,21 +412,33 @@ static UA_StatusCode
 UA_NodeMap_replaceNode(void *context, UA_Node *node) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
     BEGIN_CRITSECT(ns);
+
+    /* Find the node */
     UA_NodeMapEntry **slot = findOccupiedSlot(ns, &node->nodeId);
     if(!slot) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
     UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
-    if(*slot != newEntryContainer->orig) {
-        /* The node was updated since the copy was made */
+    UA_NodeMapEntry *oldEntryContainer = *slot;
+
+    /* The node was already updated since the copy was made? */
+    if(oldEntryContainer != newEntryContainer->orig) {
         deleteEntry(newEntryContainer);
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    (*slot)->deleted = true;
-    cleanupEntry(*slot);
-    *slot = newEntryContainer;
+
+    /* Replace the entry with an atomic operation */
+    if(UA_atomic_cmpxchg((void**)slot, oldEntryContainer,
+                         newEntryContainer) != oldEntryContainer) {
+        deleteEntry(newEntryContainer);
+        END_CRITSECT(ns);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    oldEntryContainer->deleted = true;
+    cleanupEntry(oldEntryContainer);
     END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) LEvertz
@@ -250,7 +250,7 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
-    ContinuationPointEntry *cp = (ContinuationPointEntry*)UA_alloca(sizeof(ContinuationPointEntry));
+    UA_STACKARRAY(ContinuationPointEntry, cp, 1);
     memset(cp, 0, sizeof(ContinuationPointEntry));
     cp->maxReferences = *maxrefs;
     cp->browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
@@ -309,8 +309,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
 
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing BrowseRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing BrowseRequest");
 
     /* No views supported at the moment */
     if(!UA_NodeId_isNull(&request->view.viewId)) {
@@ -319,10 +318,11 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     }
 
     UA_UInt32 requestedMaxReferencesPerNode = request->requestedMaxReferencesPerNode;
-    UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Browse,
-                                       &requestedMaxReferencesPerNode,
-                                       &request->nodesToBrowseSize, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
-                                       &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Browse,
+                                           &requestedMaxReferencesPerNode,
+                                           &request->nodesToBrowseSize, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
@@ -708,7 +708,8 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
                                            NULL, &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
 }

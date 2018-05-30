@@ -22,13 +22,22 @@ extern "C" {
  * Feature Options
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
+
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
-#cmakedefine UA_ENABLE_MULTITHREADING
+#cmakedefine UA_ENABLE_PUBSUB
+#cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #cmakedefine UA_ENABLE_ENCRYPTION
-#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
+#cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* Multithreading */
+#cmakedefine UA_ENABLE_MULTITHREADING
+#cmakedefine UA_ENABLE_IMMUTABLE_NODES
+#if defined(UA_ENABLE_MULTITHREADING) && !defined(UA_ENABLE_IMMUTABLE_NODES)
+#error "The multithreading feature requires nodes to be immutable"
+#endif
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
@@ -40,6 +49,8 @@ extern "C" {
 #cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 #cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+#cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
+#define UA_VALGRIND_INTERACTIVE_INTERVAL ${UA_VALGRIND_INTERACTIVE_INTERVAL}
 
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
@@ -92,6 +103,9 @@ extern "C" {
 #elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
 # define UA_CTASTR2(pre,post) pre ## post
 # define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
+# ifndef __COUNTER__ /* PPC GCC fix */
+#  define __COUNTER__ __LINE__
+# endif
 # define UA_STATIC_ASSERT(cond,msg)                             \
     typedef struct {                                            \
         int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
@@ -129,13 +143,18 @@ extern "C" {
 
 #endif
 
+/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
+ * Otherwise revert to alloca. Note that alloca is not supported on some
+ * plattforms. */
 #if defined(__GNUC__) || defined(__clang__)
-# define UA_alloca(size) __builtin_alloca (size)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
 #elif defined(_WIN32)
-# define UA_alloca(SIZE) _alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)_alloca(sizeof(TYPE) * SIZE)
 #else
 # include <alloca.h>
-# define UA_alloca(SIZE) alloca(SIZE)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
+    TYPE *NAME = (TYPE*)alloca(sizeof(TYPE) * SIZE)
 #endif
 
 /**

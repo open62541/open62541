@@ -10,35 +10,10 @@
 #include <errno.h> // errno, EINTR
 #include <stdlib.h>
 #include "open62541.h"
+#include "common.h"
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
-
-static UA_ByteString loadCertificate(void) {
-    UA_ByteString certificate = UA_STRING_NULL;
-    //FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
-    FILE *fp = fopen("server_cert.der", "rb");
-    if(!fp) {
-        errno = 0; // we read errno also from the tcp layer...
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not open certificate file");
-        return certificate;
-    }
-
-    fseek(fp, 0, SEEK_END);
-    certificate.length = (size_t)ftell(fp);
-    certificate.data = (UA_Byte *)UA_malloc(certificate.length*sizeof(UA_Byte));
-    if(!certificate.data) {
-        fclose(fp);
-        return UA_STRING_NULL;
-    }
-
-    fseek(fp, 0, SEEK_SET);
-    if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)
-        UA_ByteString_deleteMembers(&certificate); // error reading the cert
-    fclose(fp);
-
-    return certificate;
-}
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -51,7 +26,7 @@ int main(int argc, char** argv) {
     UA_ServerConfig *config = UA_ServerConfig_new_default();
 
     /* load certificate */
-    config->serverCertificate = loadCertificate();
+    config->serverCertificate = loadFile("server_cert.der");
     if(config->serverCertificate.length > 0)
         UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Certificate loaded");
 

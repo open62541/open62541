@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2014 (c) Leon Urbas
@@ -131,7 +131,7 @@ encodeWithExchangeBuffer(const void *ptr, encodeBinarySignature encodeFunc, Ctx 
 
 #if !UA_BINARY_OVERLAYABLE_INTEGER
 
-#pragma message Integer endianness could not be detected to be little endian. Use slow generic encoding.
+#pragma message "Integer endianness could not be detected to be little endian. Use slow generic encoding."
 
 /* These en/decoding functions are only used when the architecture isn't little-endian. */
 static void
@@ -753,6 +753,18 @@ DECODE_BINARY(ExpandedNodeId) {
     return ret;
 }
 
+/* QualifiedName */
+
+ENCODE_BINARY(QualifiedName) {
+    return ENCODE_DIRECT(&src->namespaceIndex, UInt16) |
+           ENCODE_DIRECT(&src->name, String);
+}
+
+DECODE_BINARY(QualifiedName) {
+    return DECODE_DIRECT(&dst->namespaceIndex, UInt16) |
+        DECODE_DIRECT(&dst->name, String);
+}
+
 /* LocalizedText */
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE 0x01
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02
@@ -1350,7 +1362,7 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = 
     (encodeBinarySignature)NodeId_encodeBinary,
     (encodeBinarySignature)ExpandedNodeId_encodeBinary,
     (encodeBinarySignature)UInt32_encodeBinary, /* StatusCode */
-    (encodeBinarySignature)encodeBinaryInternal, /* QualifiedName */
+    (encodeBinarySignature)QualifiedName_encodeBinary,
     (encodeBinarySignature)LocalizedText_encodeBinary,
     (encodeBinarySignature)ExtensionObject_encodeBinary,
     (encodeBinarySignature)DataValue_encodeBinary,
@@ -1447,7 +1459,7 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = 
     (decodeBinarySignature)NodeId_decodeBinary,
     (decodeBinarySignature)ExpandedNodeId_decodeBinary,
     (decodeBinarySignature)UInt32_decodeBinary, /* StatusCode */
-    (decodeBinarySignature)decodeBinaryInternal, /* QualifiedName */
+    (decodeBinarySignature)QualifiedName_decodeBinary,
     (decodeBinarySignature)LocalizedText_decodeBinary,
     (decodeBinarySignature)ExtensionObject_decodeBinary,
     (decodeBinarySignature)DataValue_decodeBinary,
@@ -1586,6 +1598,10 @@ CALCSIZE_BINARY(ExpandedNodeId) {
     return s;
 }
 
+CALCSIZE_BINARY(QualifiedName) {
+    return 2 + String_calcSizeBinary(&src->name, NULL);
+}
+
 CALCSIZE_BINARY(LocalizedText) {
     size_t s = 1; /* encoding byte */
     if(src->locale.data)
@@ -1632,32 +1648,25 @@ CALCSIZE_BINARY(Variant) {
     bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
     bool isBuiltin = src->type->builtin;
 
-    UA_NodeId typeId;
-    UA_NodeId_init(&typeId);
+
     size_t encode_index = src->type->typeIndex;
     if(!isBuiltin) {
         encode_index = UA_BUILTIN_TYPES_COUNT;
-        typeId = src->type->typeId;
-        if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+        if(src->type->typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
             return 0;
     }
 
-    size_t length = src->arrayLength;
-    if(isArray)
-        s += 4;
-    else
-        length = 1;
-
     uintptr_t ptr = (uintptr_t)src->data;
-    size_t memSize = src->type->memSize;
-    for(size_t i = 0; i < length; ++i) {
-        if(!isBuiltin) {
-            /* The type is wrapped inside an extensionobject */
-            s += NodeId_calcSizeBinary(&typeId, NULL);
-            s += 1 + 4; /* encoding byte + length */
-        }
+    size_t length = isArray ? src->arrayLength : 1;
+    if (isArray)
+        s += Array_calcSizeBinary((const void*)ptr, length, src->type);
+    else
         s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, src->type);
-        ptr += memSize;
+
+    if (!isBuiltin) {
+        /* The type is wrapped inside an extensionobject */
+        /* (NodeId + encoding byte + extension object length) * array length */
+        s += (NodeId_calcSizeBinary(&src->type->typeId, NULL) + 1 + 4) * length;
     }
 
     if(hasDimensions)
@@ -1722,7 +1731,7 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1
     (calcSizeBinarySignature)NodeId_calcSizeBinary,
     (calcSizeBinarySignature)ExpandedNodeId_calcSizeBinary,
     (calcSizeBinarySignature)calcSizeBinaryMemSize, /* StatusCode */
-    (calcSizeBinarySignature)UA_calcSizeBinary, /* QualifiedName */
+    (calcSizeBinarySignature)QualifiedName_calcSizeBinary,
     (calcSizeBinarySignature)LocalizedText_calcSizeBinary,
     (calcSizeBinarySignature)ExtensionObject_calcSizeBinary,
     (calcSizeBinarySignature)DataValue_calcSizeBinary,
@@ -1732,7 +1741,7 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1
 };
 
 size_t
-UA_calcSizeBinary(void *p, const UA_DataType *type) {
+UA_calcSizeBinary(const void *p, const UA_DataType *type) {
     size_t s = 0;
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;

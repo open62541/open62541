@@ -11,9 +11,12 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/src/server)
+include_directories(${PROJECT_SOURCE_DIR}/src/pubsub)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
+
+add_definitions(-DUA_sleep_ms=UA_comboSleep)
 
 #############################
 # Compiled binaries folders #
@@ -21,9 +24,9 @@ include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 if (MSVC)
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
 else()
-	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
+    set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
 
@@ -44,6 +47,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 if(UA_ENABLE_ENCRYPTION)
     set(test_plugin_sources ${test_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+    set(test_plugin_sources ${test_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
@@ -136,6 +141,10 @@ add_executable(check_services_subscriptions server/check_services_subscriptions.
 target_link_libraries(check_services_subscriptions ${LIBS})
 add_test_valgrind(services_subscriptions ${TESTS_BINARY_DIR}/check_services_subscriptions)
 
+add_executable(check_monitoreditem_filter server/check_monitoreditem_filter.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_monitoreditem_filter ${LIBS})
+add_test_valgrind(monitoreditem_filter ${TESTS_BINARY_DIR}/check_monitoreditem_filter)
+
 add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_nodestore ${LIBS})
 add_test_valgrind(nodestore ${TESTS_BINARY_DIR}/check_nodestore)
@@ -162,6 +171,26 @@ if(UA_ENABLE_DISCOVERY)
     add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
 endif()
 
+if(UA_ENABLE_PUBSUB)
+    add_executable(check_pubsub_encoding pubsub/check_pubsub_encoding.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_pubsub_encoding ${LIBS})
+    add_test_valgrind(pubsub_encoding ${TESTS_BINARY_DIR}/check_pubsub_encoding)
+    add_executable(check_pubsub_connection_udp pubsub/check_pubsub_connection_udp.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_connection_udp ${LIBS})
+    add_test(NAME check_pubsub_connection_udp COMMAND check_pubsub_connection_udp)
+    add_executable(check_pubsub_pds pubsub/check_pubsub_pds.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_pds ${LIBS})
+    add_test(check_pubsub_pds ${TESTS_BINARY_DIR}/check_pubsub_pds)
+    add_executable(check_pubsub_publish pubsub/check_pubsub_publish.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_publish ${LIBS})
+    add_test(check_pubsub_publish ${TESTS_BINARY_DIR}/check_pubsub_publish)
+    if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+        add_executable(check_pubsub_informationmodel pubsub/check_pubsub_informationmodel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_pubsub_informationmodel ${LIBS})
+        add_test(check_pubsub_informationmodel ${TESTS_BINARY_DIR}/check_pubsub_informationmodel)
+    endif()
+endif()
+
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})
 add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
@@ -180,17 +209,29 @@ add_executable(check_client_async client/check_client_async.c $<TARGET_OBJECTS:o
 target_link_libraries(check_client_async ${LIBS})
 add_test_valgrind(client_async ${TESTS_BINARY_DIR}/check_client_async)
 
+add_executable(check_client_async_connect client/check_client_async_connect.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_async_connect ${LIBS})
+add_test_valgrind(client_async_connect ${TESTS_BINARY_DIR}/check_client_async_connect)
+
 add_executable(check_client_subscriptions client/check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_subscriptions ${LIBS})
 add_test_valgrind(client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
 
-add_executable(check_client_subscriptions_deprecated client/check_client_subscriptions_deprecated.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-target_link_libraries(check_client_subscriptions_deprecated ${LIBS})
-add_test_valgrind(client_subscriptions_deprecated ${TESTS_BINARY_DIR}/check_client_subscriptions_deprecated)
-
 add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})
 add_test_valgrind(client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
+
+# Test Encryption
+
+if(UA_ENABLE_ENCRYPTION)
+    add_executable(check_encryption_basic128rsa15 encryption/check_encryption_basic128rsa15.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic128rsa15 ${LIBS})
+    add_test_valgrind(encryption_basic128rsa15 ${TESTS_BINARY_DIR}/check_encryption_basic128rsa15)
+
+    add_executable(check_encryption_basic256sha256 encryption/check_encryption_basic256sha256.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_encryption_basic256sha256 ${LIBS})
+    add_test_valgrind(encryption_basic256sha256 ${TESTS_BINARY_DIR}/check_encryption_basic256sha256)
+endif()
 
 #############################
 #                           #

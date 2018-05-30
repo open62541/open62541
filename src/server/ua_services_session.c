@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
@@ -36,18 +36,23 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Sign the signature */
+    /* Allocate a temp buffer */
     size_t dataToSignSize = request->clientCertificate.length + request->clientNonce.length;
-    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
-    if(dataToSignSize > 4096)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_ByteString dataToSign;
+    retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval; /* signatureData->signature is cleaned up with the response */
 
-    UA_ByteString dataToSign = {dataToSignSize, (UA_Byte*)UA_alloca(dataToSignSize)};
+    /* Sign the signature */
     memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
-    return securityPolicy->certificateSigningAlgorithm.
+    retval = securityPolicy->certificateSigningAlgorithm.
         sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
+
+    /* Clean up */
+    UA_ByteString_deleteMembers(&dataToSign);
+    return retval;
 }
 
 void
@@ -239,8 +244,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
-        server->config.accessControl.activateSession(&session->sessionId,
-                                                     &request->userIdentityToken,
+        server->config.accessControl.activateSession(server, &server->config.accessControl,
+                                                     &session->sessionId, &request->userIdentityToken,
                                                      &session->sessionHandle);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -283,8 +288,8 @@ Service_CloseSession(UA_Server *server, UA_Session *session,
     UA_LOG_INFO_SESSION(server->config.logger, session, "CloseSession");
 
     /* Callback into userland access control */
-    server->config.accessControl.closeSession(&session->sessionId,
-                                              session->sessionHandle);
+    server->config.accessControl.closeSession(server, &server->config.accessControl,
+                                              &session->sessionId, session->sessionHandle);
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken);

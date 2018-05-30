@@ -1,11 +1,12 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
 #include "ua_client.h"
@@ -16,8 +17,10 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 
-#define UA_MINMESSAGESIZE 8192
-
+/* Size are refered in bytes */
+#define UA_MINMESSAGESIZE                8192
+#define UA_SESSION_LOCALNONCELENGTH      32
+#define MAX_DATA_SIZE                    4096
 
  /********************/
  /* Set client state */
@@ -35,6 +38,9 @@ setClientState(UA_Client *client, UA_ClientState state) {
 /* Open the Connection */
 /***********************/
 
+#define UA_BITMASK_MESSAGETYPE 0x00ffffff
+#define UA_BITMASK_CHUNKTYPE 0xff000000
+
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*)application;
@@ -45,6 +51,30 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     UA_TcpMessageHeader messageHeader;
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Decoding ACK message failed");
+        return retval;
+    }
+
+    // check if we got an error response from the server
+    UA_MessageType messageType = (UA_MessageType)
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+    UA_ChunkType chunkType = (UA_ChunkType)
+        (messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+    if (messageType == UA_MESSAGETYPE_ERR) {
+        // Header + ErrorMessage (error + reasonLength_field + length)
+        UA_StatusCode error = *(UA_StatusCode*)(&chunk->data[offset]);
+        UA_UInt32 len = *((UA_UInt32*)&chunk->data[offset + 4]);
+        UA_Byte *data = (UA_Byte*)&chunk->data[offset + 4+4];
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Received ERR response. %s - %.*s", UA_StatusCode_name(error), len, data);
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+    if (chunkType != UA_CHUNKTYPE_FINAL) {
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+
     retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
@@ -88,7 +118,7 @@ HelAckHandshake(UA_Client *client) {
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
-    retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, &bufEnd);
+    retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
     UA_TcpHelloMessage_deleteMembers(&hello);
 
     /* Encode the message header at offset 0 */
@@ -96,7 +126,7 @@ HelAckHandshake(UA_Client *client) {
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32)((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, &bufEnd);
+    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
         return retval;
@@ -127,11 +157,12 @@ HelAckHandshake(UA_Client *client) {
 }
 
 static void
-processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response) {
+processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response, UA_Boolean renew) {
     /* Replace the token */
-    UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
-    client->channel.securityToken = response->securityToken;
-    UA_ChannelSecurityToken_init(&response->securityToken);
+    if (renew)
+        client->channel.nextSecurityToken = response->securityToken; // Set the next token
+    else
+        client->channel.securityToken = response->securityToken; // Set initial token
 
     /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
@@ -177,7 +208,10 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to open a SecureChannel");
     }
-    opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+    /* Set the securityMode to input securityMode from client data */
+    opnSecRq.securityMode = client->channel.securityMode;
+
     opnSecRq.clientNonce = client->channel.localNonce;
     opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
 
@@ -195,6 +229,11 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
 
+    /* Increase nextChannelRenewal to avoid that we re-start renewal when
+     * publish responses are received before the OPN response arrives. */
+    client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
+        (2 * ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC));
+
     /* Receive / decrypt / decode the OPN response. Process async services in
      * the background until the OPN response arrives. */
     UA_OpenSecureChannelResponse response;
@@ -209,8 +248,102 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         return retval;
     }
 
-    processDecodedOPNResponse(client, &response);
+    processDecodedOPNResponse(client, &response, renew);
     UA_OpenSecureChannelResponse_deleteMembers(&response);
+    return retval;
+}
+
+/* Function to verify the signature corresponds to ClientNonce
+ * using the local certificate.
+ *
+ * @param  channel      current channel in which the client runs
+ * @param  response     create session response from the server
+ * @return Returns an error code or UA_STATUSCODE_GOOD. */
+UA_StatusCode
+checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResponse *response) {
+    if(channel == NULL || response == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_GOOD;
+
+    if(!channel->securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    const UA_SecurityPolicy* securityPolicy   = channel->securityPolicy;
+    const UA_ByteString*     localCertificate = &securityPolicy->localCertificate;
+
+    size_t dataToVerifySize = localCertificate->length + channel->localNonce.length;
+    UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
+    memcpy(dataToVerify.data + localCertificate->length,
+           channel->localNonce.data, channel->localNonce.length);
+
+    retval = securityPolicy->
+             certificateSigningAlgorithm.verify(securityPolicy,
+                                                channel->channelContext,
+                                                &dataToVerify,
+                                                &response->serverSignature.signature);
+    UA_ByteString_deleteMembers(&dataToVerify);
+    return retval;
+}
+
+/* Function to create a signature using remote certificate and nonce
+ *
+ * @param  channel      current channel in which the client runs
+ * @param  request      activate session request message to server
+ * @return Returns an error or UA_STATUSCODE_GOOD */
+UA_StatusCode
+signActivateSessionRequest(UA_SecureChannel *channel,
+                           UA_ActivateSessionRequest *request) {
+    if(channel == NULL || request == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_GOOD;
+
+    const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
+    UA_SignatureData *signatureData = &request->clientSignature;
+
+    /* Prepare the signature */
+    size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
+                           getLocalSignatureSize(securityPolicy, channel->channelContext);
+    UA_StatusCode retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
+                                          &signatureData->algorithm);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Allocate a temporary buffer */
+    size_t dataToSignSize = channel->remoteCertificate.length + channel->remoteNonce.length;
+    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
+    if(dataToSignSize > MAX_DATA_SIZE)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ByteString dataToSign;
+    retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval; /* signatureData->signature is cleaned up with the response */
+
+    /* Sign the signature */
+    memcpy(dataToSign.data, channel->remoteCertificate.data, channel->remoteCertificate.length);
+    memcpy(dataToSign.data + channel->remoteCertificate.length,
+           channel->remoteNonce.data, channel->remoteNonce.length);
+    retval = securityPolicy->certificateSigningAlgorithm.
+             sign(securityPolicy, channel->channelContext, &dataToSign,
+                  &signatureData->signature);
+
+    /* Clean up */
+    UA_ByteString_deleteMembers(&dataToSign);
     return retval;
 }
 
@@ -239,6 +372,12 @@ activateSession(UA_Client *client) {
         request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
         request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
         request.userIdentityToken.content.decoded.data = identityToken;
+    }
+
+    /* This function call is to prepare a client signature */
+    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        signActivateSessionRequest(&client->channel, &request);
     }
 
     UA_ActivateSessionResponse response;
@@ -311,11 +450,11 @@ getEndpoints(UA_Client *client) {
         if(endpoint->transportProfileUri.length != 0 &&
            !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
             continue;
-        /* look out for an endpoint without security */
-        if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
+
+        /* look for an endpoint corresponding to the client security policy */
+        if(!UA_String_equal(&endpoint->securityPolicyUri, &client->securityPolicy.policyUri))
             continue;
 
-        /* endpoint with no security found */
         endpointFound = true;
 
         /* look for a user token policy with an anonymous token */
@@ -360,6 +499,23 @@ static UA_StatusCode
 createSession(UA_Client *client) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(client->channel.localNonce.length != UA_SESSION_LOCALNONCELENGTH) {
+           UA_ByteString_deleteMembers(&client->channel.localNonce);
+            retval = UA_ByteString_allocBuffer(&client->channel.localNonce,
+                                               UA_SESSION_LOCALNONCELENGTH);
+            if(retval != UA_STATUSCODE_GOOD)
+               return retval;
+        }
+
+        retval = client->channel.securityPolicy->symmetricModule.
+                 generateNonce(client->channel.securityPolicy, &client->channel.localNonce);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
@@ -368,13 +524,36 @@ createSession(UA_Client *client) {
     request.maxResponseMessageSize = UA_INT32_MAX;
     UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
+    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        UA_ByteString_copy(&client->channel.securityPolicy->localCertificate,
+                           &request.clientCertificate);
+    }
+
     UA_CreateSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
 
+    if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+        (client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+         client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)) {
+        UA_ByteString_deleteMembers(&client->channel.remoteNonce);
+        UA_ByteString_copy(&response.serverNonce, &client->channel.remoteNonce);
+
+        if(!UA_ByteString_equal(&response.serverCertificate,
+                                &client->channel.remoteCertificate)) {
+            return UA_STATUSCODE_BADCERTIFICATEINVALID;
+        }
+
+        /* Verify the client signature */
+        retval = checkClientSignature(&client->channel, &response);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
     UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
 
-    UA_StatusCode retval = response.responseHeader.serviceResult;
+    retval = response.responseHeader.serviceResult;
     UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
     return retval;
@@ -405,6 +584,12 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     }
 
+    /* Local nonce set and generate sym keys */
+    retval |= UA_SecureChannel_generateLocalNonce(&client->channel);
+
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     /* Open a TCP connection */
     client->connection.localConf = client->config.localConnectionConfig;
     retval = HelAckHandshake(client);
@@ -418,7 +603,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
-
 
     /* Delete async service. TODO: Move this from connect to the disconnect/cleanup phase */
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
@@ -449,6 +633,11 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
 #else
     UA_NodeId_deleteMembers(&client->authenticationToken);
 #endif /* UA_SESSION_RECOVERY */
+
+    /* Generate new local and remote key */
+    retval |= UA_SecureChannel_generateNewKeys(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Get Endpoints */
     if(endpointsHandshake) {
@@ -482,6 +671,11 @@ cleanup:
 UA_StatusCode
 UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_TRUE);
+}
+
+UA_StatusCode
+UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
+    return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_FALSE);
 }
 
 UA_StatusCode
@@ -554,13 +748,17 @@ UA_Client_disconnect(UA_Client *client) {
     }
 
     /* Close the TCP connection */
-    if(client->connection.state != UA_CONNECTION_CLOSED)
-        client->connection.close(&client->connection);
+    if(client->connection.state != UA_CONNECTION_CLOSED
+            && client->connection.state != UA_CONNECTION_OPENING)
+        /*UA_ClientConnectionTCP_init sets initial state to opening */
+        if(client->connection.close != NULL)
+            client->connection.close(&client->connection);
+
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
-        /* We need to clean up the subscriptions */
-        UA_Client_Subscriptions_clean(client);
+    /* We need to clean up the subscriptions */
+    UA_Client_Subscriptions_clean(client);
 #endif
 
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);

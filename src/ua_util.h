@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015 (c) LEvertz
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -170,8 +170,8 @@ UA_atomic_subSize(volatile size_t *addr, size_t decrease) {
  * up to that point. */
 size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 
-#define MIN(A,B) (A > B ? B : A)
-#define MAX(A,B) (A > B ? A : B)
+#define UA_MIN(A,B) (A > B ? B : A)
+#define UA_MAX(A,B) (A > B ? A : B)
 
 #ifdef UA_DEBUG_DUMP_PKGS
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);

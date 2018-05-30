@@ -4,7 +4,7 @@ set -ev
 # This script is run by travis-ci and pushes the first commit
 # of the day to the coverity scan service
 
-echo "=== Pushing master to coverity_scan branch ==="
+echo "=== Pushing ${TRAVIS_BRANCH} to coverity_scan branch ==="
 
 COMMITS=`git log --oneline --since=today.midnight | wc -l`
 if [ "$COMMITS" -le 1 ]; then

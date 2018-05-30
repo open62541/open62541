@@ -13,6 +13,10 @@ The library is [available](https://github.com/open62541/open62541/releases) in s
 [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
+[![Quality Gate](https://sonarcloud.io/api/badges/gate?key=open62541-main)](https://sonarcloud.io/dashboard/index/open62541-main)
+[![SonarCloud Lines of Code (excl comments)](https://sonarcloud.io/api/badges/measure?key=open62541-main&metric=ncloc)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main)
+[![SonarCloud Duplicated lines](https://sonarcloud.io/api/badges/measure?key=open62541-main&metric=duplicated_lines_density)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main)
+[![SonarCloud Percentage of comments](https://sonarcloud.io/api/badges/measure?key=open62541-main&metric=comment_lines_density)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main)
 
 ### Features
 
@@ -40,7 +44,7 @@ Features currently being implemented:
   - Access control for individual nodes (Done)
   - Asynchronous service requests in the client (Done)
 - Target 0.4 release:
-  - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
+  - Events (notifications emitted by objects, data change notifications are implemented), (Done)
   - Event-loop (background tasks) in the client
   - Publish/Subscribe based on UDP (Specification Part 14), WIP @ Fraunhofer IOSB
 
@@ -69,24 +73,33 @@ A general introduction to OPC UA and the open62541 documentation can be found at
 Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
 To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/open62541/open62541/build/artifacts).
 
-For individual discussion and support, use the following channels
+For individual discussion and support, use the following channels:
 
 - the [mailing list](https://groups.google.com/d/forum/open62541)
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/open62541/open62541/issues)
 
-or contact a member of the core development group (see below).
+We want to foster an open and welcoming community. Please take our [code of conduct](CODE_OF_CONDUCT.md) into regard.
 
-### Development
-
-Besides the general open62541 community, a group of core maintainers jointly steers the long-term development. The current core maintainers are (as of Mai 2017, in alphabetical order):
+Jointly with the overall open62541 community, the core maintainers steer the long-term development. The current core maintainers are (as of April 2018, in alphabetical order):
 
 - Chris-Paul Iatrou (Dresden University of Technology, Chair for Process Control Systems Engineering)
 - Florian Palm (RWTH Aachen University, Chair of Process Control Engineering)
 - Julius Pfrommer (Fraunhofer IOSB, Karlsruhe)
 - Stefan Profanter (fortiss, Munich)
 
-As an open source project, we encourage new contributors to help improve open62541. The following are good starting points for new contributors:
+### Commercial Support
+
+The open62541 community handles support requests for the open source library and its development. Custom development and individual support is provided by commercial partners that are affiliated with open62541:
+
+- [Kalycito Infotech](https://www.kalycito.com) for embedded and realtime IIoT applications (Contact: enterprise.services@kalycito.com)
+
+For custom development that shall eventually become part of the open62541 library, please keep one of the core maintainers in the loop. Again, please note that all changes to files that are already licensed under the MPLv2 automatically become MPLv2 as well. Static linking of the open62541 library with code under a different license is possible. All architecture-specific code is implemented in the form of exchangeable plugins under a very permissible CC0 license.
+
+### Development
+
+As an open source project, new contributors are encouraged to help improve open62541. The following are good starting points for new contributors:
+
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"

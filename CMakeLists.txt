@@ -15,17 +15,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib CACHE PATH "Installation path of libraries")
-
 ###########
 # Version #
 ###########
 
 set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 3)
+set(OPEN62541_VER_MINOR 4)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "-dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
+#  If a relative path is specified, it is treated as relative to the $<INSTALL_PREFIX>
 set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 
 # Set OPEN62541_VER_COMMIT
@@ -55,11 +54,17 @@ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events." OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+
+# It should not be possible to enable events without enabling subscriptions and full ns0
+if ((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_ENABLE_FULL_NS0)))
+    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and UA_ENABLE_FULL_NS0")
+endif()
 
 # Encryption Options
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
@@ -87,6 +92,22 @@ endif()
 option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
 
+option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
+mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
+if(UA_ENABLE_MULTITHREADING)
+    set(UA_ENABLE_IMMUTABLE_NODES ON)
+endif()
+
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+    if(NOT UA_ENABLE_PUBSUB)
+    message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
+    endif()
+endif()
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -98,6 +119,9 @@ mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
 option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
+
+option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
+mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
 
 option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
 if (MSVC AND UA_ENABLE_FULL_NS0)
@@ -130,6 +154,9 @@ mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
 set(UA_FREERTOS OFF CACHE BOOL "Enable if you want to compile for freeRTOS")
 mark_as_advanced(UA_FREERTOS)
 
+set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
+mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
+
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
 mark_as_advanced(UA_DEBUG)
@@ -155,6 +182,7 @@ mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
     add_definitions(-DUA_DEBUG_DUMP_PKGS_FILE)
     set(UA_ENABLE_TYPENAMES ON CACHE STRING "" FORCE)
+    set(UA_DEBUG_DUMP_PKGS ON CACHE STRING "" FORCE)
 endif()
 
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
@@ -211,7 +239,7 @@ if(NOT WIN32)
   endif()
 else()
   list(APPEND open62541_LIBRARIES ws2_32)
-    if(UA_ENABLE_DISCOVERY_MULTICAST)
+    if(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_PUBSUB)
         list(APPEND open62541_LIBRARIES iphlpapi)
     endif()
 endif()
@@ -300,7 +328,7 @@ endif()
 if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
 
-  if(NOT BUILD_SHARED_LIB)
+  if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
     set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
         CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
     foreach(CompilerFlag ${CompilerFlags})
@@ -322,9 +350,14 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
 
+if(UA_ENABLE_DISCOVERY)
+    include_directories(${PROJECT_SOURCE_DIR}/src/client)
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/include
-                    ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the default config
+                    ${PROJECT_SOURCE_DIR}/plugins
                     ${PROJECT_SOURCE_DIR}/deps
+                    ${PROJECT_SOURCE_DIR}/src/pubsub
                     ${PROJECT_BINARY_DIR}
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
@@ -332,6 +365,8 @@ include_directories(${PROJECT_SOURCE_DIR}/include
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
@@ -341,11 +376,15 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_pki.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel_async.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
@@ -363,6 +402,10 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
@@ -373,7 +416,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
@@ -391,6 +434,11 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
@@ -404,10 +452,11 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_async.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions_deprecated.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_worker.c
 
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
@@ -434,11 +483,17 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
-    set(default_plugin_headers ${default_plugin_headers}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h)
-    set(default_plugin_sources ${default_plugin_sources}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h
+                                       ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c
+                                       ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
+
+if(UA_ENABLE_PUBSUB)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
+endif()
+
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
@@ -473,27 +528,40 @@ if (UA_ENABLE_FULL_NS0)
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
     endif()
-    set(UA_FILE_DATATYPES "")
+
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
 else()
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
     endif()
-    set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
+    set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
     set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
     set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
+
+    if(UA_ENABLE_METHODCALLS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
+    endif()
+
+    if(UA_ENABLE_DISCOVERY)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
+    endif()
+
+    if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+        set(UA_FILE_NSPUBSUB --xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+    endif()
 endif()
+
 if(NOT EXISTS "${UA_FILE_NS0}")
     message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
 endif()
 
-
-if (UA_FILE_DATATYPES STREQUAL "")
-    set(SELECTED_TYPES_TMP "")
-else()
-  set(SELECTED_TYPES_TMP "--selected-types=${UA_FILE_DATATYPES}")
-endif()
+set(SELECTED_TYPES_TMP "")
+foreach(f ${UA_FILE_DATATYPES})
+    set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
+endforeach()
 
 # standard-defined data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -543,15 +611,28 @@ add_custom_target(open62541-generator-transport DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
 
 # statuscode explanation
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
         PRE_BUILD
         COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions
+        ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv)
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
+                ${UA_FILE_STATUSCODES})
+
+# nodeid explanation
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
+        ${UA_FILE_NODEIDS}  ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
+        ${UA_FILE_NODEIDS})
+
+# we need a custom target to avoid that the generator is called concurrently and
+# thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-statuscode DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c)
+        ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
 
 # single-file release
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
@@ -594,6 +675,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            --max-string-length=${NODESET_MAX_STR_LEN}
                            --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            --xml ${UA_FILE_NS0}
+                           ${UA_FILE_NSPUBSUB}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
                    DEPENDS ${UA_FILE_NS0}
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py

@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
@@ -377,6 +377,13 @@ size_t
 UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityPolicy *securityPolicy,
                                                               const void *channelContext,
                                                               size_t maxEncryptionLength);
+
+
+typedef UA_StatusCode (*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,
+                                                UA_CertificateVerification *certificateVerification,
+                                                const UA_ByteString localCertificate,
+                                                const UA_ByteString localPrivateKey,
+                                                UA_Logger logger);
 
 #ifdef __cplusplus
 }

@@ -1,33 +1,29 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  */
 
 #include "ua_plugin_securitypolicy.h"
 #include "ua_config_default.h"
+#include "ua_client_config.h"
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
 #include "ua_pki_certificate.h"
 #include "ua_nodestore_default.h"
-#include "ua_types_generated.h"
 #include "ua_securitypolicy_none.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
 #include "ua_securitypolicy_basic128rsa15.h"
+#include "ua_securitypolicy_basic256sha256.h"
 #endif
 
-#include "ua_types.h"
-#include "ua_types_generated_handling.h"
-#include "ua_client_subscriptions.h"
-
-#define ANONYMOUS_POLICY "open62541-anonymous-policy"
-#define USERNAME_POLICY "open62541-username-policy"
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
@@ -82,26 +78,17 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
     endpoint->endpointDescription.transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-    /* enable anonymous and username/password */
-    size_t policies = 2;
-    endpoint->endpointDescription.userIdentityTokens = (UA_UserTokenPolicy *)
-        UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(!endpoint->endpointDescription.userIdentityTokens)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    endpoint->endpointDescription.userIdentityTokensSize = policies;
-
-    endpoint->endpointDescription.userIdentityTokens[0].tokenType =
-        UA_USERTOKENTYPE_ANONYMOUS;
-    endpoint->endpointDescription.userIdentityTokens[0].policyId =
-        UA_STRING_ALLOC(ANONYMOUS_POLICY);
-
-    endpoint->endpointDescription.userIdentityTokens[1].tokenType =
-        UA_USERTOKENTYPE_USERNAME;
-    endpoint->endpointDescription.userIdentityTokens[1].policyId =
-        UA_STRING_ALLOC(USERNAME_POLICY);
+    /* Enable all login mechanisms from the access control plugin  */
+    UA_StatusCode retval = UA_Array_copy(conf->accessControl.userTokenPolicies,
+                                         conf->accessControl.userTokenPoliciesSize,
+                                         (void **)&endpoint->endpointDescription.userIdentityTokens,
+                                         &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    endpoint->endpointDescription.userIdentityTokensSize =
+        conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
-
     UA_ApplicationDescription_copy(&conf->applicationDescription,
                                    &endpoint->endpointDescription.server);
 
@@ -127,8 +114,8 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
     UA_StatusCode retval =
-        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, &conf->certificateVerification, localCertificate,
-                                        localPrivateKey, conf->logger);
+        UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, &conf->certificateVerification,
+                                        localCertificate, localPrivateKey, conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);
         return retval;
@@ -140,26 +127,56 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
     endpoint->endpointDescription.transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-    /* enable anonymous and username/password */
-    size_t policies = 1;
-    endpoint->endpointDescription.userIdentityTokens = (UA_UserTokenPolicy *)
-        UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(!endpoint->endpointDescription.userIdentityTokens)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    endpoint->endpointDescription.userIdentityTokensSize = policies;
-
-    endpoint->endpointDescription.userIdentityTokens[0].tokenType =
-        UA_USERTOKENTYPE_ANONYMOUS;
-    endpoint->endpointDescription.userIdentityTokens[0].policyId =
-        UA_STRING_ALLOC(ANONYMOUS_POLICY);
-    /*
-    endpoint->endpointDescription.userIdentityTokens[1].tokenType =
-        UA_USERTOKENTYPE_USERNAME;
-    endpoint->endpointDescription.userIdentityTokens[1].policyId =
-        UA_STRING_ALLOC(USERNAME_POLICY);*/
+    /* Enable all login mechanisms from the access control plugin  */
+    retval = UA_Array_copy(conf->accessControl.userTokenPolicies,
+                           conf->accessControl.userTokenPoliciesSize,
+                           (void **)&endpoint->endpointDescription.userIdentityTokens,
+                           &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    endpoint->endpointDescription.userIdentityTokensSize =
+        conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
+    UA_ApplicationDescription_copy(&conf->applicationDescription,
+                                   &endpoint->endpointDescription.server);
 
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+createSecurityPolicyBasic256Sha256Endpoint(UA_ServerConfig *const conf,
+                                           UA_Endpoint *endpoint,
+                                           UA_MessageSecurityMode securityMode,
+                                           const UA_ByteString localCertificate,
+                                           const UA_ByteString localPrivateKey) {
+    UA_EndpointDescription_init(&endpoint->endpointDescription);
+
+    UA_StatusCode retval =
+        UA_SecurityPolicy_Basic256Sha256(&endpoint->securityPolicy, &conf->certificateVerification, localCertificate,
+                                         localPrivateKey, conf->logger);
+    if(retval != UA_STATUSCODE_GOOD) {
+        endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);
+        return retval;
+    }
+
+    endpoint->endpointDescription.securityMode = securityMode;
+    endpoint->endpointDescription.securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    endpoint->endpointDescription.transportProfileUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+    /* Enable all login mechanisms from the access control plugin  */
+    retval = UA_Array_copy(conf->accessControl.userTokenPolicies,
+                           conf->accessControl.userTokenPoliciesSize,
+                           (void **)&endpoint->endpointDescription.userIdentityTokens,
+                           &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    endpoint->endpointDescription.userIdentityTokensSize =
+        conf->accessControl.userTokenPoliciesSize;
+
+    UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
     UA_ApplicationDescription_copy(&conf->applicationDescription,
                                    &endpoint->endpointDescription.server);
 
@@ -168,9 +185,14 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
 
 #endif
 
+const size_t usernamePasswordsSize = 2;
+UA_UsernamePasswordLogin usernamePasswords[2] = {
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
+
 static UA_ServerConfig *
 createDefaultConfig(void) {
-    UA_ServerConfig *conf = (UA_ServerConfig *) UA_malloc(sizeof(UA_ServerConfig));
+    UA_ServerConfig *conf = (UA_ServerConfig *)UA_malloc(sizeof(UA_ServerConfig));
     if(!conf)
         return NULL;
 
@@ -188,7 +210,9 @@ createDefaultConfig(void) {
     conf->buildInfo.softwareVersion =
         UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
                                 UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
-    conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
+    conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__
+                                                      " "
+                                                      __TIME__);
     conf->buildInfo.buildDate = 0;
 
     conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
@@ -227,19 +251,8 @@ createDefaultConfig(void) {
     conf->nodeLifecycle.constructor = NULL;
     conf->nodeLifecycle.destructor = NULL;
 
-    /* Access Control */
-    conf->accessControl.enableAnonymousLogin = true;
-    conf->accessControl.enableUsernamePasswordLogin = true;
-    conf->accessControl.activateSession = activateSession_default;
-    conf->accessControl.closeSession = closeSession_default;
-    conf->accessControl.getUserRightsMask = getUserRightsMask_default;
-    conf->accessControl.getUserAccessLevel = getUserAccessLevel_default;
-    conf->accessControl.getUserExecutable = getUserExecutable_default;
-    conf->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_default;
-    conf->accessControl.allowAddNode = allowAddNode_default;
-    conf->accessControl.allowAddReference = allowAddReference_default;
-    conf->accessControl.allowDeleteNode = allowDeleteNode_default;
-    conf->accessControl.allowDeleteReference = allowDeleteReference_default;
+    /* Access Control. Anonymous Login only. */
+    conf->accessControl = UA_AccessControl_default(true, usernamePasswordsSize, usernamePasswords);
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
@@ -255,6 +268,9 @@ createDefaultConfig(void) {
     conf->keepAliveCountLimits = UA_UINT32RANGE(1, 100);
     conf->maxNotificationsPerPublish = 1000;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    conf->maxEventsPerNode = 0; /* unlimited */
+#endif
 
     /* Limits for MonitoredItems */
     conf->samplingIntervalLimits = UA_DURATIONRANGE(50.0, 24.0 * 3600.0 * 1000.0);
@@ -302,7 +318,7 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
 
     /* Allocate the endpoint */
     conf->endpointsSize = 1;
-    conf->endpoints = (UA_Endpoint *) UA_malloc(sizeof(UA_Endpoint));
+    conf->endpoints = (UA_Endpoint *)UA_malloc(sizeof(UA_Endpoint));
     if(!conf->endpoints) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -359,7 +375,7 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
 
     /* Allocate the endpoints */
     conf->endpointsSize = 0;
-    conf->endpoints = (UA_Endpoint *) UA_malloc(sizeof(UA_Endpoint) * 3);
+    conf->endpoints = (UA_Endpoint *)UA_malloc(sizeof(UA_Endpoint) * 3);
     if(!conf->endpoints) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -393,6 +409,165 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
 
     return conf;
 }
+
+UA_ServerConfig *
+UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
+                                   const UA_ByteString *certificate,
+                                   const UA_ByteString *privateKey,
+                                   const UA_ByteString *trustList,
+                                   size_t trustListSize,
+                                   const UA_ByteString *revocationList,
+                                   size_t revocationListSize) {
+    UA_ServerConfig *conf = createDefaultConfig();
+
+    UA_StatusCode retval = UA_CertificateVerification_Trustlist(&conf->certificateVerification,
+                                                                trustList, trustListSize,
+                                                                revocationList, revocationListSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = UA_Nodestore_default_new(&conf->nodestore);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    if(addDefaultNetworkLayers(conf, portNumber) != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    if(trustListSize == 0)
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "No CA trust-list provided. Any remote certificate will be accepted.");
+
+    /* Allocate the endpoints */
+    conf->endpointsSize = 0;
+    conf->endpoints = (UA_Endpoint *)UA_malloc(sizeof(UA_Endpoint) * 3);
+    if(!conf->endpoints) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    /* Populate the endpoints */
+    ++conf->endpointsSize;
+    retval = createSecurityPolicyNoneEndpoint(conf, &conf->endpoints[0], *certificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    ++conf->endpointsSize;
+    retval = createSecurityPolicyBasic256Sha256Endpoint(conf, &conf->endpoints[1],
+                                                        UA_MESSAGESECURITYMODE_SIGN, *certificate,
+                                                        *privateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    ++conf->endpointsSize;
+    retval = createSecurityPolicyBasic256Sha256Endpoint(conf, &conf->endpoints[2],
+                                                        UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, *certificate,
+                                                        *privateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    return conf;
+}
+
+UA_ServerConfig *
+UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
+                                        const UA_ByteString *certificate,
+                                        const UA_ByteString *privateKey,
+                                        const UA_ByteString *trustList,
+                                        size_t trustListSize,
+                                        const UA_ByteString *revocationList,
+                                        size_t revocationListSize) {
+    UA_ServerConfig *conf = createDefaultConfig();
+
+    UA_StatusCode retval = UA_CertificateVerification_Trustlist(&conf->certificateVerification,
+                                                                trustList, trustListSize,
+                                                                revocationList, revocationListSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = UA_Nodestore_default_new(&conf->nodestore);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    if(addDefaultNetworkLayers(conf, portNumber) != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    if(trustListSize == 0)
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "No CA trust-list provided. Any remote certificate will be accepted.");
+
+    /* Allocate the endpoints */
+    conf->endpointsSize = 0;
+    conf->endpoints = (UA_Endpoint *)UA_malloc(sizeof(UA_Endpoint) * 5);
+    if(!conf->endpoints) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    /* Populate the endpoints */
+    retval = createSecurityPolicyNoneEndpoint(conf, &conf->endpoints[conf->endpointsSize], *certificate);
+    ++conf->endpointsSize;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = createSecurityPolicyBasic128Rsa15Endpoint(conf, &conf->endpoints[conf->endpointsSize],
+                                                       UA_MESSAGESECURITYMODE_SIGN, *certificate,
+                                                       *privateKey);
+    ++conf->endpointsSize;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = createSecurityPolicyBasic128Rsa15Endpoint(conf, &conf->endpoints[conf->endpointsSize],
+                                                       UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, *certificate,
+                                                       *privateKey);
+    ++conf->endpointsSize;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = createSecurityPolicyBasic256Sha256Endpoint(conf, &conf->endpoints[conf->endpointsSize],
+                                                        UA_MESSAGESECURITYMODE_SIGN, *certificate,
+                                                        *privateKey);
+    ++conf->endpointsSize;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = createSecurityPolicyBasic256Sha256Endpoint(conf, &conf->endpoints[conf->endpointsSize],
+                                                        UA_MESSAGESECURITYMODE_SIGNANDENCRYPT, *certificate,
+                                                        *privateKey);
+    ++conf->endpointsSize;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    return conf;
+}
+
 
 #endif
 
@@ -444,6 +619,9 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     /* Certificate Validation */
     config->certificateVerification.deleteMembers(&config->certificateVerification);
 
+    /* Access Control */
+    config->accessControl.deleteMembers(&config->accessControl);
+
     UA_free(config);
 }
 
@@ -462,15 +640,20 @@ const UA_ClientConfig UA_ClientConfig_default = {
         0, /* .maxMessageSize, 0 -> unlimited */
         0 /* .maxChunkCount, 0 -> unlimited */
     },
-    UA_ClientConnectionTCP, /* .connectionFunc */
-
+    UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
+    UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
+    UA_ClientConnectionTCP_poll, /* .pollConnectionFunc (for async connection) */
     0, /* .customDataTypesSize */
-    NULL, /*.customDataTypes */
+    NULL, /* .customDataTypes */
 
-    NULL, /*.stateCallback */
-    NULL, /*.subscriptionInactivityCallback */
-
-    NULL,  /*.clientContext */
-
-    10 /* .outStandingPublishRequests */
+    NULL, /* .stateCallback */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    NULL, /* .subscriptionInactivityCallback */
+#endif
+    NULL, /* .inactivityCallback */
+    NULL, /* .clientContext */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    10, /* .outStandingPublishRequests */
+#endif
+    0 /* .connectivityCheckInterval */
 };

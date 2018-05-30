@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
@@ -25,6 +25,24 @@ extern "C" {
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
+
+#ifdef UA_ENABLE_PUBSUB
+#include "ua_pubsub_manager.h"
+#endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "ua_subscription.h"
+
+typedef struct {
+    UA_MonitoredItem monitoredItem;
+    void *context;
+    union {
+        UA_Server_DataChangeNotificationCallback dataChangeCallback;
+        /* UA_Server_EventNotificationCallback eventCallback; */
+    } callback;
+} UA_LocalMonitoredItem;
+
+#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
 
@@ -141,6 +159,17 @@ struct UA_Server {
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* To be cast to UA_LocalMonitoredItem to get the callback and context */
+    LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
+    UA_UInt32 lastLocalMonitoredItemId;
+#endif
+
+#ifdef UA_ENABLE_PUBSUB
+    /* Publish/Subscribe toplevel container */
+    UA_PubSubManager pubSubManager;
+#endif
+
     /* Config */
     UA_ServerConfig config;
 };
@@ -180,11 +209,11 @@ struct UA_Server {
  * stack. Either a copy or the original node for in-situ editing. Depends on
  * multithreading and the nodestore.*/
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
-                                             UA_Node *node, const void*);
+                                             UA_Node *node, void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
                                  const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback,
-                                 const void *data);
+                                 void *data);
 
 /*************/
 /* Callbacks */
@@ -258,7 +287,8 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
-                                   const UA_DataType *responseOperationsType);
+                                   const UA_DataType *responseOperationsType)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /***************************************/
 /* Check Information Model Consistency */

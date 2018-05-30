@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -72,7 +72,9 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
             continue;
         UA_LOG_INFO_SESSION(sm->server->config.logger, &sentry->session,
                             "Session has timed out");
-        sm->server->config.accessControl.closeSession(&sentry->session.sessionId,
+        sm->server->config.accessControl.closeSession(sm->server,
+                                                      &sm->server->config.accessControl,
+                                                      &sentry->session.sessionId,
                                                       sentry->session.sessionHandle);
         removeSession(sm, sentry);
     }

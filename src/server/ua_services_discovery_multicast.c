@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
@@ -97,7 +97,7 @@ static UA_StatusCode
 multicastListenStop(UA_Server* server) {
     mdnsd_shutdown(server->mdnsDaemon);
     // wake up select
-    write(server->mdnsSocket, "\0", 1);
+    if(write(server->mdnsSocket, "\0", 1)){};
     if(pthread_join(server->mdnsThread, NULL)) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not stop thread.");
@@ -186,7 +186,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     if(request->startingRecordId < server->serverOnNetworkRecordIdCounter)
         recordCount = server->serverOnNetworkRecordIdCounter - request->startingRecordId;
     if(request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn)
-        recordCount = MIN(recordCount, request->maxRecordsToReturn);
+        recordCount = UA_MIN(recordCount, request->maxRecordsToReturn);
     if(recordCount == 0) {
         response->serversSize = 0;
         return;
@@ -194,8 +194,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     /* Iterate over all records and add to filtered list */
     UA_UInt32 filteredCount = 0;
-    UA_ServerOnNetwork** filtered =
-        (UA_ServerOnNetwork**)UA_alloca(sizeof(UA_ServerOnNetwork*) * recordCount);
+    UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
     serverOnNetwork_list_entry* current;
     LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
         if(filteredCount >= recordCount)
@@ -536,7 +535,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     }
 
     /* The first 63 characters of the hostname (or less) */
-    size_t maxHostnameLen = MIN(hostnameLen, 63);
+    size_t maxHostnameLen = UA_MIN(hostnameLen, 63);
     char localDomain[65];
     memcpy(localDomain, hostname->data, maxHostnameLen);
     localDomain[maxHostnameLen] = '.';
@@ -553,8 +552,8 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     mdns_set_address_record(server, fullServiceDomain, localDomain);
 
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
+    UA_STACKARRAY(char, pathChars, path->length + 1);
     if(createTxt) {
-        char *pathChars = (char *)UA_alloca(path->length + 1);
         memcpy(pathChars, path->data, path->length);
         pathChars[path->length] = 0;
         mdns_create_txt(server, fullServiceDomain, pathChars, capabilites,

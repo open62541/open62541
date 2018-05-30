@@ -1,8 +1,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Sten Grüner
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -71,7 +71,7 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
  * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since
  * it does not access global (thread-local) variables. */
 size_t
-UA_calcSizeBinary(void *p, const UA_DataType *type);
+UA_calcSizeBinary(const void *p, const UA_DataType *type);
 
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId);

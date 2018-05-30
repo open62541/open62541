@@ -1,8 +1,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015-2017 (c) Florian Palm
@@ -10,7 +10,8 @@
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
- *    Copyright 2018 (c) Thomas Stalder
+ *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
 #ifndef UA_CLIENT_H_
@@ -23,8 +24,11 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_log.h"
+#include "ua_client_config.h"
+#include "ua_nodeids.h"
 
 /**
  * .. _client:
@@ -43,67 +47,35 @@ extern "C" {
  * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
  * <client-subscriptions>`.
  *
+ *
+ * .. include:: client_config.rst
+ *
  * Client Lifecycle
  * ---------------- */
-
-typedef enum {
-    UA_CLIENTSTATE_DISCONNECTED,        /* The client is disconnected */
-    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
-    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
-    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
-    UA_CLIENTSTATE_SESSION_RENEWED      /* A session with the server is open (renewed) */
-} UA_ClientState;
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/**
- * Client Lifecycle callback
- * ------------------------- */
-
-typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
-
-/**
- * Subscription Inactivity callback
- * ------------------------- */
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-typedef void (*UA_SubscriptionInactivityCallback)(UA_Client *client, UA_UInt32 subscriptionId, void *subContext);
-#endif
-
-/**
- * Client Configuration
- * -------------------- */
-
-typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout in ms */
-    UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
-                                        to be renewed) */
-    UA_Logger logger;
-    UA_ConnectionConfig localConnectionConfig;
-    UA_ConnectClientConnection connectionFunc;
-
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
-
-    /* Callback function */
-    UA_ClientStateCallback stateCallback;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_SubscriptionInactivityCallback subscriptionInactivityCallback;
-#endif
-
-    void *clientContext;
-
-    /* number of PublishResponse standing in the sever */
-    /* 0 = background task disabled                    */
-    UA_UInt16 outStandingPublishRequests;
-} UA_ClientConfig;
-
 
 /* Create a new client */
 UA_Client UA_EXPORT *
 UA_Client_new(UA_ClientConfig config);
+
+/* Creates a new secure client with the required configuration, certificate
+ * privatekey, trustlist and revocation list.
+ *
+ * @param  config                   new secure configuration for client
+ * @param  certificate              client certificate
+ * @param  privateKey               client's private key
+ * @param  remoteCertificate        server certificate form the endpoints
+ * @param  trustList                list of trustable certificate
+ * @param  trustListSize            count of trustList
+ * @param  revocationList           list of revoked digital certificate
+ * @param  revocationListSize       count of revocationList
+ * @param  securityPolicyFunction   securityPolicy function
+ * @return Returns a client configuration for secure channel */
+UA_Client UA_EXPORT *
+UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
+                     UA_ByteString privateKey, const UA_ByteString *remoteCertificate,
+                     const UA_ByteString *trustList, size_t trustListSize,
+                     const UA_ByteString *revocationList, size_t revocationListSize,
+                     UA_SecurityPolicy_Func securityPolicyFunction);
 
 /* Get the client connection status */
 UA_ClientState UA_EXPORT
@@ -133,6 +105,19 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
+UA_StatusCode UA_EXPORT
+UA_Client_connect_async (UA_Client *client, const char *endpointUrl,
+                         UA_ClientAsyncServiceCallback callback,
+                         void *connected);
+
+/* Connect to the server without creating a session
+ *
+ * @param client to use
+ * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl);
+
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
@@ -147,6 +132,9 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
 /* Disconnect and close a connection to the selected server */
 UA_StatusCode UA_EXPORT
 UA_Client_disconnect(UA_Client *client);
+
+UA_StatusCode UA_EXPORT
+UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId);
 
 /* Close a connection to the selected server */
 UA_StatusCode UA_EXPORT
@@ -201,6 +189,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
                       size_t *registeredServersSize,
                       UA_ApplicationDescription **registeredServers);
 
+#ifdef UA_ENABLE_DISCOVERY
 /* Get a list of all known server in the network. Only supported by LDS servers.
  *
  * @param client to use. Must be connected to the same endpoint given in
@@ -224,12 +213,14 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
                                UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
                                size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
                                size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
+#endif
 
 /**
  * .. _client-services:
  *
  * Services
  * --------
+ *
  * The raw OPC UA services are exposed to the client. But most of them time, it
  * is better to use the convenience functions from ``ua_client_highlevel.h``
  * that wrap the raw services. */
@@ -239,7 +230,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
                     const UA_DataType *responseType);
 
-/**
+/*
  * Attribute Service Set
  * ^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_ReadResponse
@@ -258,7 +249,7 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
-/**
+/*
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
 #ifdef UA_ENABLE_METHODCALLS
@@ -271,7 +262,7 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
 }
 #endif
 
-/**
+/*
  * NodeManagement Service Set
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_AddNodesResponse
@@ -309,7 +300,7 @@ UA_Client_Service_deleteReferences(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * View Service Set
  * ^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_BrowseResponse
@@ -359,7 +350,7 @@ UA_Client_Service_unregisterNodes(UA_Client *client,
     return response;
 }
 
-/**
+/*
  * Query Service Set
  * ^^^^^^^^^^^^^^^^^ */
 static UA_INLINE UA_QueryFirstResponse
@@ -392,13 +383,9 @@ UA_Client_Service_queryNext(UA_Client *client,
 /* Listen on the network and process arriving asynchronous responses in the
  * background. Internal housekeeping and subscription management is done as
  * well. */
-UA_StatusCode UA_EXPORT
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 
-typedef void
-(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, void *response,
-                                 const UA_DataType *responseType);
+/*UA_StatusCode UA_EXPORT
+UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);*/
 
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
@@ -412,6 +399,13 @@ typedef void
  * The statusCode received when the client is shutting down is
  * UA_STATUSCODE_BADSHUTDOWN.
  *
+ * The statusCode received when the client don't receive response
+ * after specified config->timeout (in ms) is
+ * UA_STATUSCODE_BADTIMEOUT.
+ *
+ * Instead, you can use __UA_Client_AsyncServiceEx to specify
+ * a custom timeout
+ *
  * The userdata and requestId arguments can be NULL. */
 UA_StatusCode UA_EXPORT
 __UA_Client_AsyncService(UA_Client *client, const void *request,
@@ -420,45 +414,44 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
 
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_read(UA_Client *client, const UA_ReadRequest *request,
-                            UA_ClientAsyncServiceCallback callback,
-                            void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_READREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_READRESPONSE],
-                                    userdata, requestId);
-}
+/* For async connecting
+ * */
+UA_StatusCode UA_EXPORT
+UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
+        const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
+const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
 
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_write(UA_Client *client, const UA_WriteRequest *request,
-                             UA_ClientAsyncServiceCallback callback,
-                             void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_WRITEREQUEST], callback, 
-                                    &UA_TYPES[UA_TYPES_WRITERESPONSE],
-                                    userdata, requestId);
-}
 
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_call(UA_Client *client, const UA_CallRequest *request,
-                            UA_ClientAsyncServiceCallback callback,
-                            void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_CALLRESPONSE],
-                                    userdata, requestId);
-}
+UA_StatusCode UA_EXPORT
+UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout);
 
-static UA_INLINE UA_StatusCode
-UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request,
-                              UA_ClientAsyncServiceCallback callback,
-                              void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, (const void*)request,
-                                    &UA_TYPES[UA_TYPES_BROWSEREQUEST], callback,
-                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE],
-                                    userdata, requestId);
-}
+/* Use the type versions of this method. See below. However, the general
+ * mechanism of async service calls is explained here.
+ *
+ * We say that an async service call has been dispatched once this method
+ * returns UA_STATUSCODE_GOOD. If there is an error after an async service has
+ * been dispatched, the callback is called with an "empty" response where the
+ * statusCode has been set accordingly. This is also done if the client is
+ * shutting down and the list of dispatched async services is emptied.
+ *
+ * The statusCode received when the client is shutting down is
+ * UA_STATUSCODE_BADSHUTDOWN.
+ *
+ * The statusCode received when the client don't receive response
+ * after specified timeout (in ms) is
+ * UA_STATUSCODE_BADTIMEOUT.
+ *
+ * The timeout can be disabled by setting timeout to 0
+ *
+ * The userdata and requestId arguments can be NULL. */
+UA_StatusCode UA_EXPORT
+__UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
+                           const UA_DataType *requestType,
+                           UA_ClientAsyncServiceCallback callback,
+                           const UA_DataType *responseType,
+                           void *userdata, UA_UInt32 *requestId,
+                           UA_UInt32 timeout);
+
 
 /**
  * .. toctree::

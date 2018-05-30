@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
@@ -13,6 +13,7 @@
 #include "ua_namespace0.h"
 #include "ua_subscription.h"
 #include "ua_session.h"
+
 
 /*****************/
 /* Node Creation */
@@ -108,14 +109,18 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
     attr.dataType = UA_NODEID_NUMERIC(0, dataType);
     attr.isAbstract = isAbstract;
     attr.valueRank = valueRank;
+
     if(type) {
-        void *val = UA_alloca(type->memSize);
-        UA_init(val, type);
-        UA_Variant_setScalar(&attr.value, val, type);
+        UA_STACKARRAY(UA_Byte, tempVal, type->memSize);
+        UA_init(tempVal, type);
+        UA_Variant_setScalar(&attr.value, tempVal, type);
+        return UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
+                                             UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
+                                             UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
     }
     return UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
-                                  UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
-                                  UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
+                                         UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
+                                         UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
 }
 
 /**********************/
@@ -236,7 +241,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addDataTypeNode(server, "LocalizedText", UA_NS0ID_LOCALIZEDTEXT, false, UA_NS0ID_BASEDATATYPE);
     ret |= addDataTypeNode(server, "StatusCode", UA_NS0ID_STATUSCODE, false, UA_NS0ID_BASEDATATYPE);
     ret |= addDataTypeNode(server, "Structure", UA_NS0ID_STRUCTURE, true, UA_NS0ID_BASEDATATYPE);
-    ret |= addDataTypeNode(server, "Decimal128", UA_NS0ID_DECIMAL128, false, UA_NS0ID_NUMBER);
+    ret |= addDataTypeNode(server, "Decimal", UA_NS0ID_DECIMAL, false, UA_NS0ID_NUMBER);
 
     ret |= addDataTypeNode(server, "Duration", UA_NS0ID_DURATION, false, UA_NS0ID_DOUBLE);
     ret |= addDataTypeNode(server, "UtcTime", UA_NS0ID_UTCTIME, false, UA_NS0ID_DATETIME);
@@ -491,6 +496,8 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_Session *session = UA_SessionManager_getSessionById(&server->sessionManager, sessionId);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if (inputSize == 0 || !input[0].data)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!subscription)
@@ -509,7 +516,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_UInt32 i = 0;
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry_store) {
         clientHandles[i] = monitoredItem->clientHandle;
-        serverHandles[i] = monitoredItem->itemId;
+        serverHandles[i] = monitoredItem->monitoredItemId;
         ++i;
     }
     UA_Variant_setArray(&output[0], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
@@ -553,8 +560,6 @@ UA_Server_initNS0(UA_Server *server) {
     server->bootstrapNS0 = true;
     retVal = ua_namespace0(server);
     server->bootstrapNS0 = false;
-    if(retVal != UA_STATUSCODE_GOOD)
-        return retVal;
 
     /* NamespaceArray */
     UA_DataSource namespaceDataSource = {readNamespaces, NULL, NULL};
@@ -736,5 +741,27 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_setMethodNode_callback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);
 #endif
-    return retVal;
+
+
+    /* create the OverFlowEventType
+     * The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
+     * directly, but need to create a subtype. This is already posted on the OPC Foundation bug tracker under the
+     * following link for clarification: https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
+    overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
+    overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
+    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
+                                overflowAttr, NULL, NULL);
+#endif
+
+    if(retVal != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 (after bootstrapping) "
+                     "failed with %s. See previous outputs for any error messages.",
+                     UA_StatusCode_name(retVal));
+    return UA_STATUSCODE_GOOD;
 }

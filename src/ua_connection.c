@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -55,8 +55,8 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     /* Encode and send the response */
     UA_Byte *bufPos = msg.data;
     const UA_Byte *bufEnd = &msg.data[msg.length];
-    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, &bufEnd);
-    UA_TcpErrorMessage_encodeBinary(error, &bufPos, &bufEnd);
+    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, bufEnd);
+    UA_TcpErrorMessage_encodeBinary(error, &bufPos, bufEnd);
     msg.length = header.messageSize;
     connection->send(connection, &msg);
 }
@@ -80,8 +80,8 @@ prependIncompleteChunk(UA_Connection *connection, UA_ByteString *message) {
 }
 
 static UA_StatusCode
-bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos, const UA_Byte *end) {
-    size_t length = (uintptr_t)end - (uintptr_t)pos;
+bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos, size_t length) {
+    UA_assert(length > 0);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, length);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -94,18 +94,19 @@ processChunk(UA_Connection *connection, void *application,
              UA_Connection_processChunk processCallback,
              const UA_Byte **posp, const UA_Byte *end, UA_Boolean *done) {
     const UA_Byte *pos = *posp;
-    size_t length = (uintptr_t)end - (uintptr_t)pos;
+    const size_t length = (uintptr_t)end - (uintptr_t)pos;
 
     /* At least 8 byte needed for the header. Wait for the next chunk. */
     if(length < 8) {
-        bufferIncompleteChunk(connection, pos, end);
+        if(length > 0)
+            bufferIncompleteChunk(connection, pos, length);
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
 
     /* Check the message type */
-    UA_MessageType msgtype = (UA_MessageType)((UA_UInt32)pos[0] + ((UA_UInt32)pos[1] << 8) +
-        ((UA_UInt32)pos[2] << 16));
+    UA_MessageType msgtype = (UA_MessageType)
+        ((UA_UInt32)pos[0] + ((UA_UInt32)pos[1] << 8) + ((UA_UInt32)pos[2] << 16));
     if(msgtype != UA_MESSAGETYPE_MSG && msgtype != UA_MESSAGETYPE_ERR &&
        msgtype != UA_MESSAGETYPE_OPN && msgtype != UA_MESSAGETYPE_HEL &&
        msgtype != UA_MESSAGETYPE_ACK && msgtype != UA_MESSAGETYPE_CLO) {
@@ -131,7 +132,7 @@ processChunk(UA_Connection *connection, void *application,
 
     /* Wait for the next packet to process the complete chunk */
     if(chunk_length > length) {
-        bufferIncompleteChunk(connection, pos, end);
+        bufferIncompleteChunk(connection, pos, length);
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
@@ -174,7 +175,7 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
     return retval;
 }
 
-/* In order to know whether a chunk was processed, we insert an indirection into
+/* In order to know whether a chunk was processed, we insert an redirection into
  * the callback. */
 struct completeChunkTrampolineData {
     UA_Boolean called;
@@ -230,6 +231,28 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
          * if(maxDate - now) < (UA_DATETIME_MSEC/2) */
         timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
     }
+    return retval;
+}
+
+UA_StatusCode
+UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *application,
+                                    UA_Connection_processChunk processCallback) {
+    struct completeChunkTrampolineData data;
+    data.called = false;
+    data.application = application;
+    data.processCallback = processCallback;
+
+    /* Listen for messages to arrive */
+    UA_ByteString packet = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = connection->recv(connection, &packet, 1);
+
+    if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT))
+        return retval;
+
+    /* Try to process one complete chunk */
+    retval = UA_Connection_processChunks(connection, &data, completeChunkTrampoline, &packet);
+    connection->releaseRecvBuffer(connection, &packet);
+
     return retval;
 }
 

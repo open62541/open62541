@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015-2016 (c) Chris Iatrou
@@ -20,6 +20,13 @@
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
+#endif
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+#include "ua_pubsub_ns0.h"
+#endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "ua_subscription.h"
 #endif
 
 /**********************/
@@ -104,6 +111,18 @@ void UA_Server_delete(UA_Server *server) {
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_MonitoredItem *mon, *mon_tmp;
+    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry_store, mon_tmp) {
+        LIST_REMOVE(mon, listEntry_store);
+        UA_MonitoredItem_delete(server, mon);
+    }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB
+    UA_PubSubManager_delete(server, &server->pubSubManager);
+#endif
 
 #ifdef UA_ENABLE_DISCOVERY
     registeredServer_list_entry *rs, *rs_tmp;
@@ -270,12 +289,16 @@ UA_Server_new(const UA_ServerConfig *config) {
     UA_StatusCode retVal = UA_Server_initNS0(server);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(config->logger, UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 failed with %s. "
-                     "See previous outputs for any error messages.",
+                     "Namespace 0 could not be bootstrapped with error %s. "
+                     "Shutting down the server.",
                      UA_StatusCode_name(retVal));
         UA_Server_delete(server);
         return NULL;
     }
+    /* Build PubSub information model */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    UA_Server_initPubSubNS0(server);
+#endif
 
     return server;
 }

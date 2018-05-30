@@ -1,6 +1,12 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/examples)
+
+set(examples_headers
+    ${examples_headers}
+    ${PROJECT_SOURCE_DIR}/examples/common.h
+    )
 
 #############################
 # Compiled binaries folders #
@@ -9,7 +15,7 @@ include_directories(${PROJECT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
 
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
-  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN})
+  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN} ${examples_headers})
   target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
   assign_source_group(${EXAMPLE_SOURCE})
   add_dependencies(${EXAMPLE_NAME} open62541-amalgamation-header open62541-amalgamation-source)
@@ -32,6 +38,10 @@ add_example(tutorial_server_variable tutorial_server_variable.c)
 
 add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
+endif()
+
 add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
 add_example(tutorial_server_object tutorial_server_object.c)
@@ -44,11 +54,15 @@ add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 
 add_example(tutorial_client_events tutorial_client_events.c)
 
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+  add_example(tutorial_server_events tutorial_server_events.c)
+endif()
+
 ##################
 # Example Server #
 ##################
 
-add_example(server server.c)
+add_example(server_ctt server_ctt.c)
 
 ##################
 # Example Client #
@@ -56,7 +70,11 @@ add_example(server server.c)
 
 add_example(client client.c)
 
+add_example(client_async client_async.c)
+
 add_example(client_connect_loop client_connect_loop.c)
+
+add_example(client_connectivitycheck_loop client_connectivitycheck_loop.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
 add_example(client_subscription_loop client_subscription_loop.c)
@@ -76,6 +94,10 @@ add_example(server_inheritance server_inheritance.c)
 
 if(UA_ENABLE_ENCRYPTION)
     add_example(server_basic128rsa15 encryption/server_basic128rsa15.c)
+    add_example(server_basic256sha256 encryption/server_basic256sha256.c)
+    # Add secure client example application
+    add_example(client_basic128rsa15 encryption/client_basic128rsa15.c)
+    add_example(client_basic256sha256 encryption/client_basic256sha256.c)
 endif()
 
 add_example(custom_datatype_client custom_datatype/client_types_custom.c)
@@ -109,3 +131,17 @@ if(UA_ENABLE_DISCOVERY)
 endif()
 
 add_subdirectory(nodeset)
+
+####################
+#  Example PubSub  #
+####################
+
+if(UA_ENABLE_PUBSUB)
+    add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
+    add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
+    if(UA_ENABLE_AMALGAMATION)
+        message(WARNING "PubSub subscriber tutorial (preview) can not be used with AMALGAMATION. Skipping tutorial_pubsub_subscribe.")
+    else(NOT UA_ENABLE_AMALGAMATION)
+        add_example(tutorial_pubsub_subscribe pubsub/tutorial_pubsub_subscribe.c)
+    endif()
+endif()

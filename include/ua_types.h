@@ -4,13 +4,13 @@
  *
  *    Copyright 2014 (c) Leon Urbas
  *    Copyright 2014, 2016-2017 (c) Florian Palm
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015 (c) Nick Goossens
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
- *    Copyright 2017 (c) Thomas Stalder
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
 #ifndef UA_TYPES_H_
@@ -22,6 +22,7 @@ extern "C" {
 
 #include "ua_config.h"
 #include "ua_constants.h"
+#include "ua_statuscodes.h"
 
 #define UA_BUILTIN_TYPES_COUNT 25U
 
@@ -173,6 +174,9 @@ UA_STRING(char *chars) {
 }
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
+
+/* Define strings at compile time (in ROM) */
+#define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
 
 /**
  * .. _datetime:
@@ -810,6 +814,8 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+UA_Boolean isDataTypeNumeric(const UA_DataType *type);
+
 /* The following is used to exclude type names in the definition of UA_DataType
  * structures if the feature is disabled. */
 #ifdef UA_ENABLE_TYPENAMES
@@ -931,46 +937,6 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  * .. toctree::
  *
  *    types_generated */
-
-/**
- * Deprecated Data Types API
- * -------------------------
- * The following definitions are deprecated and will be removed in future
- * releases of open62541. */
-
-typedef struct {
-    UA_StatusCode code;      /* The numeric value of the StatusCode */
-    const char* name;        /* The symbolic name */
-    const char* explanation; /* Short message explaining the StatusCode */
-} UA_StatusCodeDescription;
-
-UA_EXPORT extern const UA_StatusCodeDescription statusCodeExplanation_default;
-
-UA_DEPRECATED static UA_INLINE const UA_StatusCodeDescription *
-UA_StatusCode_description(UA_StatusCode code) {
-    return &statusCodeExplanation_default;
-}
-
-UA_DEPRECATED static UA_INLINE const char *
-UA_StatusCode_explanation(UA_StatusCode code) {
-    return statusCodeExplanation_default.name;
-}
-
-UA_DEPRECATED UA_String
-UA_DateTime_toString(UA_DateTime t);
-
-/* The old DateTime conversion macros */
-UA_DEPRECATED static UA_INLINE double
-deprecatedDateTimeMultiple(double multiple) {
-    return multiple;
-}
-
-#define UA_USEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_USEC)
-#define UA_MSEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_MSEC)
-#define UA_SEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_SEC)
-#define UA_DATETIME_TO_USEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_USEC))
-#define UA_DATETIME_TO_MSEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_MSEC))
-#define UA_DATETIME_TO_SEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_SEC))
 
 #ifdef __cplusplus
 } // extern "C"

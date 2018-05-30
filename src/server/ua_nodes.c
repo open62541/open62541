@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015, 2017 (c) Florian Palm
@@ -153,6 +153,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
     retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
     retval |= UA_LocalizedText_copy(&src->description, &dst->description);
+    dst->monCounter = src->monCounter;
     dst->writeMask = src->writeMask;
     dst->context = src->context;
     if(retval != UA_STATUSCODE_GOOD) {
@@ -170,7 +171,6 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dst->referencesSize = src->referencesSize;
-        dst->monCounter = src->monCounter;
 
         for(size_t i = 0; i < src->referencesSize; ++i) {
             UA_NodeReferenceKind *srefs = &src->references[i];

@@ -33,23 +33,24 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
-# If the type does not contain pointers, it can be copied with memcpy
-# (internally, not into the protocol message). This dict contains the sizes of
-# pointer-free types. Parsed types are added if they apply.
-builtin_pointerfree = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                       "Int64", "UInt64", "Float", "Double", "DateTime", "Guid", "StatusCode"]
-
 # Some types can be memcpy'd off the binary stream. That's especially important
 # for arrays. But we need to check if they contain padding and whether the
 # endianness is correct. This dict gives the C-statement that must be true for the
 # type to be overlayable. Parsed types are added if they apply.
-builtin_overlayable = {"Boolean": "true", "SByte": "true", "Byte": "true",
-                       "Int16": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt16": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Int32": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt32": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Int64": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Float": "UA_BINARY_OVERLAYABLE_FLOAT", "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
-                       "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER", "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
+builtin_overlayable = {"Boolean": "true",
+                       "SByte": "true", "Byte": "true",
+                       "Int16": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "UInt16": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Int32": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "UInt32": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Int64": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Float": "UA_BINARY_OVERLAYABLE_FLOAT",
+                       "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
+                       "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " + \
+                       "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
                        "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " + \
                        "offsetof(UA_Guid, data4) == (2*sizeof(UA_UInt32)))"}
 
@@ -112,7 +113,10 @@ class Type(object):
         size = len(self.members)
         for index, member in enumerate(self.members):
             i += 1
-            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member.name
+            membername = member.name
+            if len(membername) > 0:
+                membername = member.name[0].upper() + member.name[1:]
+            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % membername
             m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
             m += "    "
             if not before:
@@ -152,9 +156,10 @@ class Type(object):
         return funcs
 
     def encoding_h(self):
-        enc = "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte **bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, bufEnd, NULL, NULL);\n}\n"
+        enc = "static UA_INLINE size_t\nUA_%s_calcSizeBinary(const UA_%s *src) {\n    return UA_calcSizeBinary(src, %s);\n}\n"
+        enc += "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, 0, NULL);\n}"
-        return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 2))))
+        return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 3))))
 
 class BuiltinType(Type):
     def __init__(self, name):
@@ -164,18 +169,13 @@ class BuiltinType(Type):
         self.outname = "ua_types"
         self.description = ""
         self.pointerfree = "false"
-        if self.name in builtin_pointerfree:
+        if self.name in builtin_overlayable.keys():
             self.pointerfree = "true"
         self.overlayable = "false"
         if name in builtin_overlayable:
             self.overlayable = builtin_overlayable[name]
         self.builtin = "true"
-        if self.name == "QualifiedName":
-            self.members = [StructMember("namespaceIndex", types["Int16"], False), StructMember("name", types["String"], False)]
-        elif self.name in ["String", "ByteString", "XmlElement"]:
-            self.members = [StructMember("", types["Byte"], True)]
-        else:
-            self.members = [StructMember("", self, False)]
+        self.members = [StructMember("", self, False)] # builtin types contain only one member: themselves (drops into the jumptable during processing)
 
 class EnumerationType(Type):
     def __init__(self, outname, xml, namespace):
@@ -431,14 +431,15 @@ for builtin in builtin_types:
 for f in args.type_bsd:
     parseTypeDefinitions(outname, f, args.namespace)
 
-
 typedescriptions = {}
 for f in args.type_csv:
     typedescriptions = merge_dicts(typedescriptions, parseTypeDescriptions(f, args.namespace))
 
+# Read the selected data types
 selected_types = []
 for f in args.selected_types:
-    selected_types = list(filter(len, [line.strip() for line in f]))
+    selected_types += list(filter(len, [line.strip() for line in f]))
+# Use all types if none are selected
 if len(selected_types) == 0:
     selected_types = types.keys()
 
@@ -459,7 +460,7 @@ def printe(string):
 def printc(string):
     print(string, end='\n', file=fc)
 
-def iter_types(v, opaqueType):
+def iter_types(v):
     l = None
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
@@ -469,13 +470,8 @@ def iter_types(v, opaqueType):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
-    if opaqueType:
-        # only opaque type
-        l = list(filter(lambda t: t.name in opaque_type_mapping, l))
-    else:
-        # remove opaque type
-        l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
     return l
+
 ################
 # Print Header #
 ################
@@ -491,11 +487,16 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 extern "C" {
 #endif
 
+#ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
-''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+#else
+#include "open62541.h"
+#endif
 
-filtered_types = iter_types(types, False)
-filtered_opaque_types = iter_types(types, True)
+''')
+
+filtered_types = iter_types(types)
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
@@ -506,9 +507,7 @@ printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.u
 
 i = 0
 for t in filtered_types:
-    if i != 0:
-        printh("\n")
-    printh("/**\n * " +  t.name)
+    printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
         printh(" */")
@@ -517,22 +516,6 @@ for t in filtered_types:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
-    i += 1
-
-i = 0
-# Generate alias for opaque types
-for t in filtered_opaque_types:
-    if i != 0:
-        printh("\n")
-    printh("/**\n * " +  t.name)
-    printh(" * " + "^" * len(t.name))
-    if t.description == "":
-        printh(" */")
-    else:
-        printh(" * " + t.description + " */")
-    if type(t) != BuiltinType:
-        printh(t.typedef_h() + "\n")
-    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
     i += 1
 
 printh('''

@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  */
@@ -40,6 +40,7 @@ UA_EXPORT UA_ServerConfig *
 UA_ServerConfig_new_minimal(UA_UInt16 portNumber, const UA_ByteString *certificate);
 
 #ifdef UA_ENABLE_ENCRYPTION
+
 UA_EXPORT UA_ServerConfig *
 UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
                                   const UA_ByteString *certificate,
@@ -48,6 +49,25 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
                                   size_t trustListSize,
                                   const UA_ByteString *revocationList,
                                   size_t revocationListSize);
+
+UA_EXPORT UA_ServerConfig *
+UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
+                                   const UA_ByteString *certificate,
+                                   const UA_ByteString *privateKey,
+                                   const UA_ByteString *trustList,
+                                   size_t trustListSize,
+                                   const UA_ByteString *revocationList,
+                                   size_t revocationListSize);
+
+UA_EXPORT UA_ServerConfig *
+UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
+                                        const UA_ByteString *certificate,
+                                        const UA_ByteString *privateKey,
+                                        const UA_ByteString *trustList,
+                                        size_t trustListSize,
+                                        const UA_ByteString *revocationList,
+                                        size_t revocationListSize);
+
 #endif
 
 /* Creates a server config on the default port 4840 with no server

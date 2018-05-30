@@ -2,43 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
 #include "ua_server_internal.h"
 #include "ua_client.h"
-#include "ua_config_default.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server,
-                                      const char* discoveryServerUrl,
+                                      UA_Client *client,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
-    if(!discoveryServerUrl) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "No discovery server url provided");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Create the client */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-    if(!client)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Connect the client */
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Connecting to the discovery server failed with statuscode %s",
-                     UA_StatusCode_name(retval));
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return retval;
-    }
-
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
@@ -70,12 +47,8 @@ register_server_with_discovery_server(UA_Server *server,
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
     size_t total_discurls = config_discurls + nl_discurls;
-    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * total_discurls);
-    if(!request.server.discoveryUrls) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    UA_STACKARRAY(UA_String, urlsBuf, total_discurls);
+    request.server.discoveryUrls = urlsBuf;
     request.server.discoveryUrlsSize = total_discurls;
 
     for(size_t i = 0; i < config_discurls; ++i)
@@ -136,21 +109,19 @@ register_server_with_discovery_server(UA_Server *server,
                      UA_StatusCode_name(serviceResult));
     }
 
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
     return serviceResult;
 }
 
 UA_StatusCode
-UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
+    return register_server_with_discovery_server(server, client,
                                                  UA_FALSE, semaphoreFilePath);
 }
 
 UA_StatusCode
-UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
+UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
+    return register_server_with_discovery_server(server, client,
                                                  UA_TRUE, NULL);
 }
 

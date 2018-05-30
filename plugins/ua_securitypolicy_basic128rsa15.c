@@ -7,12 +7,13 @@
 
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
-#include <mbedtls/sha1.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
+#include <mbedtls/version.h>
+#include <mbedtls/sha1.h>
 
 #include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"
@@ -77,15 +78,6 @@ typedef struct {
     mbedtls_x509_crt remoteCertificate;
 } Basic128Rsa15_ChannelContext;
 
-static void
-sha1(const unsigned char *input, size_t ilen, unsigned char output[20] ) {
-    mbedtls_sha1_context sha1Context;
-    mbedtls_sha1_init(&sha1Context);
-    mbedtls_sha1_starts(&sha1Context);
-    mbedtls_sha1_update(&sha1Context, input, ilen);
-    mbedtls_sha1_finish(&sha1Context, output);
-    mbedtls_sha1_free(&sha1Context);
-}
 
 /********************/
 /* AsymmetricModule */
@@ -101,10 +93,16 @@ asym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
     /* Compute the sha1 hash */
     unsigned char hash[UA_SHA1_LENGTH];
-    sha1(message->data, message->length, hash);
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    mbedtls_sha1_ret(message->data, message->length, hash);
+#else
+    mbedtls_sha1(message->data, message->length, hash);
+#endif
 
     /* Set the RSA settings */
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
+    if (!rsaContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     /* Verify */
@@ -124,7 +122,11 @@ asym_sign_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA1_LENGTH];
-    sha1(message->data, message->length, hash);
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    mbedtls_sha1_ret(message->data, message->length, hash);
+#else
+    mbedtls_sha1(message->data, message->length, hash);
+#endif
 
     Basic128Rsa15_PolicyContext *pc = cc->policyContext;
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
@@ -258,8 +260,8 @@ asym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
-asym_getRemoteEncryptionKeyLength(const UA_SecurityPolicy *securityPolicy,
-                                  const Basic128Rsa15_ChannelContext *cc) {
+asym_getRemoteEncryptionKeyLength_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
+                                                   const Basic128Rsa15_ChannelContext *cc) {
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
 }
 
@@ -271,8 +273,8 @@ asym_getRemoteBlockSize_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy
 }
 
 static size_t
-asym_getRemotePlainTextBlockSize(const UA_SecurityPolicy *securityPolicy,
-                                 const Basic128Rsa15_ChannelContext *cc) {
+asym_getRemotePlainTextBlockSize_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
+                                                  const Basic128Rsa15_ChannelContext *cc) {
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len - UA_SECURITYPOLICY_BASIC128RSA15_RSAPADDING_LEN;
 }
@@ -290,7 +292,11 @@ asym_makeThumbprint_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(thumbprint->length != UA_SHA1_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    sha1(certificate->data, certificate->length, thumbprint->data);
+#if MBEDTLS_VERSION_NUMBER >= 0x02070000
+    mbedtls_sha1_ret(certificate->data, certificate->length, thumbprint->data);
+#else
+    mbedtls_sha1(certificate->data, certificate->length, thumbprint->data);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -878,13 +884,13 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
             asym_decrypt_sp_basic128rsa15;
     asym_encryptionAlgorithm->getLocalKeyLength = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemoteKeyLength =
-        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength;
+        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemoteEncryptionKeyLength_sp_basic128rsa15;
     asym_encryptionAlgorithm->getLocalBlockSize = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemoteBlockSize = (size_t (*)(const UA_SecurityPolicy *,
                                                                const void *))asym_getRemoteBlockSize_sp_basic128rsa15;
     asym_encryptionAlgorithm->getLocalPlainTextBlockSize = NULL; // TODO: Write function
     asym_encryptionAlgorithm->getRemotePlainTextBlockSize =
-        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemotePlainTextBlockSize;
+        (size_t (*)(const UA_SecurityPolicy *, const void *))asym_getRemotePlainTextBlockSize_sp_basic128rsa15;
 
     asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_basic128rsa15;
     asymmetricModule->compareCertificateThumbprint =

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2014-2015, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Chris Iatrou
@@ -21,12 +21,16 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_nodeids.h"
 
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;
+
+struct UA_ClientConfig;
+struct UA_Client;
 
 /**
  * .. _server:
@@ -453,20 +457,20 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  * When the server shuts down you need to call unregister.
  *
  * @param server
- * @param discoveryServerUrl if set to NULL, the default value
- *        'opc.tcp://localhost:4840' will be used
+ * @param client the client which is used to call the RegisterServer. It must
+ *        already be connected to the correct endpoint
  * @param semaphoreFilePath optional parameter pointing to semaphore file. */
 UA_StatusCode UA_EXPORT
-UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+UA_Server_register_discovery(UA_Server *server, struct UA_Client *client,
                              const char* semaphoreFilePath);
 
 /* Unregister the given server instance from the discovery server.
  * This should only be called when the server is shutting down.
  * @param server
- * @param discoveryServerUrl if set to NULL, the default value
- *        'opc.tcp://localhost:4840' will be used */
+ * @param client the client which is used to call the RegisterServer. It must
+ *        already be connected to the correct endpoint */
 UA_StatusCode UA_EXPORT
-UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
+UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
 
  /* Adds a periodic callback to register the server with the LDS (local discovery server)
   * periodically. The interval between each register call is given as second parameter.
@@ -483,13 +487,17 @@ UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl
   * periodic callback will be removed.
   *
   * @param server
+  * @param client the client which is used to call the RegisterServer.
+  * 		It must not yet be connected and will be connected for every register call
+  * 		to the given discoveryServerUrl.
   * @param discoveryServerUrl if set to NULL, the default value
   *        'opc.tcp://localhost:4840' will be used
   * @param intervalMs
   * @param delayFirstRegisterMs
   * @param periodicCallbackId */
 UA_StatusCode UA_EXPORT
-UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, const char* discoveryServerUrl,
+UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, struct UA_Client *client,
+                                            const char* discoveryServerUrl,
                                             UA_UInt32 intervalMs,
                                             UA_UInt32 delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId);
@@ -770,12 +778,64 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_ValueCallback callback);
 
 /**
+ * .. _local-monitoreditems:
+ *
+ * Local MonitoredItems
+ * ^^^^^^^^^^^^^^^^^^^^
+ *
+ * MonitoredItems are used with the Subscription mechanism of OPC UA to
+ * transported notifications for data changes and events. MonitoredItems can
+ * also be registered locally. Notifications are then forwarded to a
+ * user-defined callback instead of a remote client. */
+
+typedef void (*UA_Server_DataChangeNotificationCallback)
+    (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
+     const UA_NodeId *nodeId, void *nodeContext, UA_UInt32 attributeId,
+     const UA_DataValue *value);
+
+typedef void (*UA_Server_EventNotificationCallback)
+    (UA_Server *server, UA_UInt32 monId, void *monContext,
+     size_t nEventFields, const UA_Variant *eventFields);
+
+/* Create a local MonitoredItem with a sampling interval that detects data
+ * changes.
+ *
+ * @param server The server executing the MonitoredItem
+ * @timestampsToReturn Shall timestamps be added to the value for the callback?
+ * @item The parameters of the new MonitoredItem. Note that the attribute of the
+ *       ReadValueId (the node that is monitored) can not be
+ *       ``UA_ATTRIBUTEID_EVENTNOTIFIER``. A different callback type needs to be
+ *       registered for event notifications.
+ * @monitoredItemContext A pointer that is forwarded with the callback
+ * @callback The callback that is executed on detected data changes
+ *
+ * @return Returns a description of the created MonitoredItem. The structure
+ * also contains a StatusCode (in case of an error) and the identifier of the
+ * new MonitoredItem. */
+UA_MonitoredItemCreateResult UA_EXPORT
+UA_Server_createDataChangeMonitoredItem(UA_Server *server,
+          UA_TimestampsToReturn timestampsToReturn,
+          const UA_MonitoredItemCreateRequest item,
+          void *monitoredItemContext,
+          UA_Server_DataChangeNotificationCallback callback);
+
+/* UA_MonitoredItemCreateResult UA_EXPORT */
+/* UA_Server_createEventMonitoredItem(UA_Server *server, */
+/*           UA_TimestampsToReturn timestampsToReturn, */
+/*           const UA_MonitoredItemCreateRequest item, void *context, */
+/*           UA_Server_EventNotificationCallback callback); */
+
+UA_StatusCode UA_EXPORT
+UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
+
+/**
  * Method Callbacks
  * ^^^^^^^^^^^^^^^^
- * Method callbacks are set to `NULL` (not executable) when a method node is added
- * over the network. In theory, it is possible to add a callback via
- * ``UA_Server_setMethodNode_callback`` within the global constructor when adding
- * methods over the network is really wanted. */
+ * Method callbacks are set to `NULL` (not executable) when a method node is
+ * added over the network. In theory, it is possible to add a callback via
+ * ``UA_Server_setMethodNode_callback`` within the global constructor when
+ * adding methods over the network is really wanted. See the Section
+ * :ref:`object-interaction` for calling methods on an object. */
 
 typedef UA_StatusCode
 (*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
@@ -786,14 +846,57 @@ typedef UA_StatusCode
                      UA_Variant *output);
 
 #ifdef UA_ENABLE_METHODCALLS
-
 UA_StatusCode UA_EXPORT
 UA_Server_setMethodNode_callback(UA_Server *server,
                                  const UA_NodeId methodNodeId,
                                  UA_MethodCallback methodCallback);
+#endif
+
+/**
+ * .. _object-interaction:
+ *
+ * Interacting with Objects
+ * ------------------------
+ * Objects in the information model are represented as ObjectNodes. Some
+ * convenience functions are provided to simplify the interaction with objects.
+ */
+
+/* Write an object property. The property is represented as a VariableNode with
+ * a ``HasProperty`` reference from the ObjectNode. The VariableNode is
+ * identified by its BrowseName. Writing the property sets the value attribute
+ * of the VariableNode.
+ *
+ * @param server The server object
+ * @param objectId The identifier of the object (node)
+ * @param propertyName The name of the property
+ * @param value The value to be set for the event attribute
+ * @return The StatusCode for setting the event attribute */
+UA_StatusCode UA_EXPORT
+UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                              const UA_QualifiedName propertyName,
+                              const UA_Variant value);
+
+/* Directly point to the scalar value instead of a variant */
+UA_StatusCode UA_EXPORT
+UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
+                                     const UA_QualifiedName propertyName,
+                                     const void *value, const UA_DataType *type);
+
+/* Read an object property.
+ *
+ * @param server The server object
+ * @param objectId The identifier of the object (node)
+ * @param propertyName The name of the property
+ * @param value Contains the property value after reading. Must not be NULL.
+ * @return The StatusCode for setting the event attribute */
+UA_StatusCode UA_EXPORT
+UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                             const UA_QualifiedName propertyName,
+                             UA_Variant *value);
+
+#ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-
 #endif
 
 /**
@@ -967,6 +1070,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     const UA_DataSource dataSource,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId,
@@ -995,6 +1100,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                      outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
                                      nodeContext, outNewNodeId);
 }
+
+#endif
 
 
 /**
@@ -1043,11 +1150,15 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
 UA_StatusCode UA_EXPORT
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          UA_MethodCallback method,
                          size_t inputArgumentsSize, const UA_Argument* inputArguments,
                          size_t outputArgumentsSize, const UA_Argument* outputArguments);
+
+#endif
 
 /* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT
@@ -1069,52 +1180,61 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
                           UA_Boolean deleteBidirectional);
 
 /**
+ * .. _events:
+ *
+ * Events
+ * ------
+ * The method ``UA_Server_createEvent`` creates an event and represents it as node. The node receives a unique `EventId`
+ * which is automatically added to the node.
+ * The method returns a `NodeId` to the object node which represents the event through ``outNodeId``. The `NodeId` can
+ * be used to set the attributes of the event. The generated `NodeId` is always numeric. ``outNodeId`` cannot be 
+ * ``NULL``.
+ *
+ * The method ``UA_Server_triggerEvent`` "triggers" an event by adding it to all monitored items of the specified
+ * origin node and those of all its parents. Any filters specified by the monitored items are automatically applied.
+ * Using this method deletes the node generated by ``UA_Server_createEvent``. The `EventId` for the new event is
+ * generated automatically and is returned through ``outEventId``.``NULL`` can be passed if the `EventId` is not
+ * needed. ``deleteEventNode`` specifies whether the node representation of the event should be deleted after invoking
+ * the method. This can be useful if events with the similar attributes are triggered frequently. ``UA_TRUE`` would
+ * cause the node to be deleted. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* The EventQueueOverflowEventType is defined as abstract, therefore we can not
+ * create an instance of that type directly, but need to create a subtype. The
+ * following is an arbitrary number which shall refer to our internal overflow
+ * type. This is already posted on the OPC Foundation bug tracker under the
+ * following link for clarification:
+ * https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
+# define UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE 4035
+
+/* Creates a node representation of an event
+ *
+ * @param server The server object
+ * @param eventType The type of the event for which a node should be created
+ * @param outNodeId The NodeId of the newly created node for the event
+ * @return The StatusCode of the UA_Server_createEvent method */
+UA_StatusCode UA_EXPORT
+UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
+                      UA_NodeId *outNodeId);
+
+/* Triggers a node representation of an event by applying EventFilters and
+   adding the event to the appropriate queues.
+ * @param server The server object
+ * @param eventNodeId The NodeId of the node representation of the event which should be triggered
+ * @param outEvent the EventId of the new event
+ * @param deleteEventNode Specifies whether the node representation of the event should be deleted
+ * @return The StatusCode of the UA_Server_triggerEvent method */
+UA_StatusCode UA_EXPORT
+UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId originId,
+                       UA_ByteString *outEventId, const UA_Boolean deleteEventNode);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+/**
  * Utility Functions
  * ----------------- */
 /* Add a new namespace to the server. Returns the index of the new namespace */
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
-
-/**
- * Deprecated Server API
- * ---------------------
- * This file contains outdated API definitions that are kept for backwards
- * compatibility. Please switch to the new API, as the following definitions
- * will be removed eventually.
- *
- * UA_Job API
- * ^^^^^^^^^^
- * UA_Job was replaced since it unnecessarily exposed server internals to the
- * end-user. Please use plain UA_ServerCallbacks instead. The following UA_Job
- * definition contains just the fraction of the original struct that was useful
- * to end-users. */
-
-typedef enum {
-    UA_JOBTYPE_METHODCALL
-} UA_JobType;
-
-typedef struct {
-    UA_JobType type;
-    union {
-        struct {
-            void *data;
-            UA_ServerCallback method;
-        } methodCall;
-    } job;
-} UA_Job;
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
-                         UA_UInt32 interval, UA_Guid *jobId) {
-    return UA_Server_addRepeatedCallback(server, job.job.methodCall.method,
-                                         job.job.methodCall.data, interval,
-                                         (UA_UInt64*)(uintptr_t)jobId);
-}
-
-UA_DEPRECATED static UA_INLINE UA_StatusCode
-UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
-    return UA_Server_removeRepeatedCallback(server,
-                                            *(UA_UInt64*)(uintptr_t)&jobId);
-}
 
 #ifdef __cplusplus
 }

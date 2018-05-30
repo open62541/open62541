@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015 (c) Nick Goossens
@@ -16,6 +16,7 @@
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
+
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
 #include <valgrind/memcheck.h>
 #endif
@@ -448,9 +449,16 @@ UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+    size_t loopCount = 0;
+#endif
     while(*running) {
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
-        VALGRIND_DO_LEAK_CHECK;
+        if(loopCount == 0) {
+            VALGRIND_DO_LEAK_CHECK;
+        }
+        ++loopCount;
+        loopCount %= UA_VALGRIND_INTERACTIVE_INTERVAL;
 #endif
         UA_Server_run_iterate(server, true);
     }

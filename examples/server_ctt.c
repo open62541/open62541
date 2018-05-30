@@ -12,6 +12,7 @@
 #include <string.h>
 #include <open62541.h>
 #include "open62541.h"
+#include "common.h"
 
 /* This server is configured to the Compliance Testing Tools (CTT) against. The
  * corresponding CTT configuration is available at
@@ -20,33 +21,7 @@
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
 
-static UA_ByteString
-loadFile(const char *const path) {
-    UA_ByteString fileContents = UA_STRING_NULL;
-
-    /* Open the file */
-    FILE *fp = fopen(path, "rb");
-    if(!fp) {
-        errno = 0; /* We read errno also from the tcp layer... */
-        return fileContents;
-    }
-
-    /* Get the file length, allocate the data and read */
-    fseek(fp, 0, SEEK_END);
-    fileContents.length = (size_t)ftell(fp);
-    fileContents.data = (UA_Byte*)UA_malloc(fileContents.length * sizeof(UA_Byte));
-    if(fileContents.data) {
-        fseek(fp, 0, SEEK_SET);
-        size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
-        if(read != fileContents.length)
-            UA_ByteString_deleteMembers(&fileContents);
-    } else {
-        fileContents.length = 0;
-    }
-    fclose(fp);
-
-    return fileContents;
-}
+static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
 
 static void
 stopHandler(int sign) {
@@ -87,11 +62,11 @@ helloWorld(UA_Server *server,
            size_t inputSize, const UA_Variant *input,
            size_t outputSize, UA_Variant *output) {
     /* input is a scalar string (checked by the server) */
-    UA_String *name = (UA_String *) input[0].data;
+    UA_String *name = (UA_String *)input[0].data;
     UA_String hello = UA_STRING("Hello ");
     UA_String greet;
     greet.length = hello.length + name->length;
-    greet.data = (UA_Byte *) UA_malloc(greet.length);
+    greet.data = (UA_Byte *)UA_malloc(greet.length);
     memcpy(greet.data, hello.data, hello.length);
     memcpy(greet.data + hello.length, name->data, name->length);
     UA_Variant_setScalarCopy(output, &greet, &UA_TYPES[UA_TYPES_STRING]);
@@ -148,8 +123,8 @@ main(int argc, char **argv) {
     if(argc < 3) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Missing arguments for encryption support. "
-                     "Arguments are <server-certificate.der> "
-                     "<private-key.der> [<trustlist1.crl>, ...]");
+                         "Arguments are <server-certificate.der> "
+                         "<private-key.der> [<trustlist1.crl>, ...]");
         return 1;
     }
 
@@ -158,24 +133,21 @@ main(int argc, char **argv) {
     UA_ByteString privateKey = loadFile(argv[2]);
 
     /* Load the trustlist */
-    UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
-    if(argc > 3) {
+    if(argc > 3)
         trustListSize = (size_t)argc-3;
-        trustList = (UA_ByteString*)
-            UA_alloca(sizeof(UA_ByteString) * trustListSize);
-        for(size_t i = 0; i < trustListSize; i++)
-            trustList[i] = loadFile(argv[i+3]);
-    }
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    for(size_t i = 0; i < trustListSize; i++)
+        trustList[i] = loadFile(argv[i+3]);
 
-    /* Loading of a revocation list currentlu unsupported */
+    /* Loading of a revocation list currently unsupported */
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
     UA_ServerConfig *config =
-        UA_ServerConfig_new_basic128rsa15(4840, &certificate, &privateKey,
-                                          trustList, trustListSize,
-                                          revocationList, revocationListSize);
+        UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
+                                                trustList, trustListSize,
+                                                revocationList, revocationListSize);
     UA_ByteString_deleteMembers(&certificate);
     UA_ByteString_deleteMembers(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
@@ -218,7 +190,21 @@ main(int argc, char **argv) {
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
-                              myIntegerName, UA_NODEID_NULL, myVar, NULL, NULL);
+                              myIntegerName, baseDataVariableType, myVar, NULL, NULL);
+    UA_Variant_deleteMembers(&myVar.value);
+
+    /* add a static variable that is readable but not writable*/
+    myVar = UA_VariableAttributes_default;
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer - not readable");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer - not readable");
+    myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
+    myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    myVar.valueRank = -1;
+    UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    const UA_QualifiedName myInteger2Name = UA_QUALIFIEDNAME(1, "the answer - not readable");
+    const UA_NodeId myInteger2NodeId = UA_NODEID_STRING(1, "the.answer.no.read");
+    UA_Server_addVariableNode(server, myInteger2NodeId, parentNodeId, parentReferenceNodeId,
+                              myInteger2Name, baseDataVariableType, myVar, NULL, NULL);
     UA_Variant_deleteMembers(&myVar.value);
 
     /* add a variable with the datetime data source */
@@ -235,7 +221,7 @@ main(int argc, char **argv) {
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
-                                        UA_NODEID_NULL, v_attr, dateDataSource, NULL, NULL);
+                                        baseDataVariableType, v_attr, dateDataSource, NULL, NULL);
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
@@ -334,19 +320,19 @@ main(int argc, char **argv) {
         UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                  qualifiedName, UA_NODEID_NULL, attr, NULL, NULL);
+                                  qualifiedName, baseDataVariableType, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an array node for every built-in type */
         UA_Variant_setArray(&attr.value, UA_Array_new(10, &UA_TYPES[type]), 10, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, ARRAYID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
-                                  UA_NODEID_NULL, attr, NULL, NULL);
+                                  baseDataVariableType, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an matrix node for every built-in type */
         void *myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
-        attr.value.arrayDimensions = (UA_UInt32 *) UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
+        attr.value.arrayDimensions = (UA_UInt32 *)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
         attr.value.arrayDimensions[0] = 3;
         attr.value.arrayDimensions[1] = 3;
         attr.value.arrayDimensionsSize = 2;
@@ -355,7 +341,7 @@ main(int argc, char **argv) {
         attr.value.type = &UA_TYPES[type];
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, MATRIXID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
-                                  UA_NODEID_NULL, attr, NULL, NULL);
+                                  baseDataVariableType, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
 #ifdef UA_ENABLE_TYPENAMES
         UA_LocalizedText_deleteMembers(&attr.displayName);
@@ -368,8 +354,7 @@ main(int argc, char **argv) {
        Test->NodeIds->Paths->Starting Node 1 */
     object_attr.description = UA_LOCALIZEDTEXT("en-US", "DepthDemo");
     object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "DepthDemo");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID),
-                            UA_NODEID_NUMERIC(1, DEMOID),
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID), UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "DepthDemo"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
@@ -475,5 +460,5 @@ main(int argc, char **argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int) retval;
+    return (int)retval;
 }

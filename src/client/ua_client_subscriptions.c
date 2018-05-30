@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2018 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) Sten Grüner
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -113,8 +113,7 @@ UA_Client_Subscription_deleteInternal(UA_Client *client, UA_Client_Subscription 
 
 UA_DeleteSubscriptionsResponse UA_EXPORT
 UA_Client_Subscriptions_delete(UA_Client *client, const UA_DeleteSubscriptionsRequest request) {
-    UA_Client_Subscription **subs = (UA_Client_Subscription**)
-        UA_alloca(sizeof(void*) * request.subscriptionIdsSize);
+    UA_STACKARRAY(UA_Client_Subscription*, subs, request.subscriptionIdsSize);
     memset(subs, 0, sizeof(void*) * request.subscriptionIdsSize);
 
     /* temporary remove the subscriptions from the list */
@@ -227,8 +226,7 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
     UA_Client_Subscription *sub = NULL;
     
     /* Allocate the memory for internal representations */
-    UA_Client_MonitoredItem **mis = (UA_Client_MonitoredItem**)
-        UA_alloca(sizeof(void*) * itemsToCreateSize);
+    UA_STACKARRAY(UA_Client_MonitoredItem*, mis, itemsToCreateSize);
     memset(mis, 0, sizeof(void*) * itemsToCreateSize);
     for(size_t i = 0; i < itemsToCreateSize; i++) {
         mis[i] = (UA_Client_MonitoredItem*)UA_malloc(sizeof(UA_Client_MonitoredItem));
@@ -280,6 +278,10 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
         newMon->isEventMonitoredItem =
             (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
         LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Subscription %u | Added a MonitoredItem with handle %u",
+                     sub->subscriptionId, newMon->clientHandle);
     }
 
     return;
@@ -611,6 +613,15 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         return;
     }
 
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
+        if(client->state >= UA_CLIENTSTATE_SESSION) {
+            UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Received Publish Response with code %s",
+                            UA_StatusCode_name(response->responseHeader.serviceResult));
+        }
+        return;
+    }
+
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
         UA_Client_close(client); /* TODO: This should be handled before the process callback */
         UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -636,14 +647,23 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     sub->lastActivity = UA_DateTime_nowMonotonic();
 
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
-    if((sub->sequenceNumber != msg->sequenceNumber) && (msg->sequenceNumber != 0) &&
-        (UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber)) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Invalid subscritpion sequenceNumber");
-        UA_Client_close(client);
-        return;
+    if(UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
+        UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Invalid subscription sequence number: expected %u but got %u",
+                     UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber),
+                     msg->sequenceNumber);
+        /* This is an error. But we do not abort the connection. Some server
+         * SDKs misbehave from time to time and send out-of-order sequence
+         * numbers. (Probably some multi-threading synchronization issue.) */
+        /* UA_Client_close(client);
+           return; */
     }
-    sub->sequenceNumber = msg->sequenceNumber;
+    /* According to f), a keep-alive message contains no notifications and has the sequence number
+     * of the next NotificationMessage that is to be sent => More than one consecutive keep-alive
+     * message or a NotificationMessage following a keep-alive message will share the same sequence
+     * number. */
+    if (msg->notificationDataSize)
+        sub->sequenceNumber = msg->sequenceNumber;
 
     /* Process the notification messages */
     for(size_t k = 0; k < msg->notificationDataSize; ++k)
@@ -670,7 +690,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
 
 static void
 processPublishResponseAsync(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                            void *response, const UA_DataType *responseType) {
+                            void *response) {
     UA_PublishRequest *req = (UA_PublishRequest*)userdata;
     UA_PublishResponse *res = (UA_PublishResponse*)response;
 
@@ -717,10 +737,10 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
             /* Reset activity */
             sub->lastActivity = UA_DateTime_nowMonotonic();
 
-            if (client->config.subscriptionInactivityCallback)
+            if(client->config.subscriptionInactivityCallback)
                 client->config.subscriptionInactivityCallback(client, sub->subscriptionId, sub->context);
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Inactivity for Subscription %d.", sub->subscriptionId);
+                         "Inactivity for Subscription %u.", sub->subscriptionId);
         }
     }
 }
@@ -747,10 +767,12 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
     
         UA_UInt32 requestId;
         client->currentlyOutStandingPublishRequests++;
-        retval = __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
-                                          processPublishResponseAsync,
-                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
-                                          (void*)request, &requestId);
+
+        /* Disable the timeout, it is treat in UA_Client_Subscriptions_backgroundPublishInactivityCheck */
+        retval = __UA_Client_AsyncServiceEx(client, request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+                                            processPublishResponseAsync,
+                                            &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+                                            (void*)request, &requestId, 0);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
             return retval;
