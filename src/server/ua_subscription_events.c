@@ -348,7 +348,8 @@ getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
     return UA_STATUSCODE_GOOD;
 }
 
-/* filters an event according to the filter specified by mon and then adds it to mons notification queue */
+/* Filters an event according to the filter specified by mon and then adds it to
+ * mons notification queue */
 static UA_StatusCode
 UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
                                  UA_MonitoredItem *mon) {
@@ -375,16 +376,15 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     return UA_STATUSCODE_GOOD;
 }
 
+/* make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
+static const UA_NodeId objectsFolderId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
+static const UA_NodeId references[2] =
+    {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
+     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
+
 UA_StatusCode UA_EXPORT
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
-    /* make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    UA_NodeId objectsFolderId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId references[2] = {
-            {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
-            {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}
-    };
-
     if(!isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, references, 2)) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
