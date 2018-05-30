@@ -98,16 +98,17 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
-    /* Find the Node, to decrease its monitored counter */
-    const UA_Node *target = UA_Nodestore_get(server, &mon->monitoredNodeId);
-    
     /* Triggering monitored callback on the server config */
-    // FIXME: Should the returned StatusCode be used as return value?
-    if (server->config.monitoredItemCallback)
+    if (server->config.monitoredItemCallback) {
+        const UA_Node *target = UA_Nodestore_get(server, &mon->monitoredNodeId);
+        
+        // FIXME: Should the returned StatusCode be used as return value?
         server->config.monitoredItemCallback(server, &sub->session->sessionId,
                                              sub->session->sessionHandle, &target->nodeId,
                                              target->context, mon->attributeId, true);
-
+        UA_Nodestore_release(server, target);
+    }
+    
     /* Remove the MonitoredItem */
     LIST_REMOVE(mon, listEntry_store);
     sub->monitoredItemsSize--;

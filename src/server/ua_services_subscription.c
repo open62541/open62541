@@ -357,15 +357,18 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     result->revisedSamplingInterval = newMon->samplingInterval;
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->monitoredItemId;
-
-    const UA_Node *target = UA_Nodestore_get(server, &request->itemToMonitor.nodeId);
-
+    
     /* Triggering monitored callback on the server config */
-    // FIXME: Should the returned StatusCode be used as return value?
-    if (server->config.monitoredItemCallback)
+    if (server->config.monitoredItemCallback) {
+        const UA_Node *target = UA_Nodestore_get(server, &request->itemToMonitor.nodeId);
+        
+        // FIXME: Should the returned StatusCode be used as return value?
         server->config.monitoredItemCallback(server, &session->sessionId,
                                              session->sessionHandle, &target->nodeId,
                                              target->context, newMon->attributeId, false);
+        UA_Nodestore_release(server, target);
+    }
+
 }
 
 void
