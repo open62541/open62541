@@ -270,7 +270,7 @@ And the output of the command:
 
 The first argument ``--types-array=UA_TYPES`` defines the name of the global array in open62541 which contains the corresponding types used within the nodeset in ``NodeSet2.xml``. If you do not define your own datatypes, you can always use the ``UA_TYPES`` value. More on that later in this tutorial.
 The next argument ``--existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml`` points to the XML definition of the standard-defined namespace 0 (NS0). Namespace 0 is assumed to be loaded beforehand and provides definitions for data type, reference types, and so. Since we reference nodes from NS0 in our myNS.xml we need to tell the nodeset compiler that it should also load that nodeset, but not compile it into the output.
-Note that you may need to initialize the git submodule to get the ``deps/ua-nodeset`` folder (``git submodule --init --update``) or download the full ``NodeSet2.xml`` manually.
+Note that you may need to initialize the git submodule to get the ``deps/ua-nodeset`` folder (``git submodule update --init``) or download the full ``NodeSet2.xml`` manually.
 The argument ``--xml myNS.xml`` points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then create the files ``myNS.c`` and ``myNS.h`` (indicated by the last argument ``myNS``) containing the C code necessary to instantiate those namespaces.
 
 Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (examples/nodeset/CMakeLists.txt), you will find out that the file ``server_nodeset.xml`` is compiled with the command::

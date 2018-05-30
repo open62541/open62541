@@ -5,9 +5,9 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <ua_server_pubsub.h>
-#include <src_generated/ua_types_generated_encoding_binary.h>
-#include <ua_types.h>
+#include "ua_server_pubsub.h"
+#include "src_generated/ua_types_generated_encoding_binary.h"
+#include "ua_types.h"
 #include "ua_config_default.h"
 #include "ua_network_pubsub_udp.h"
 #include "ua_server_internal.h"

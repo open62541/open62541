@@ -16,7 +16,6 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_subscription_events.h"
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
@@ -27,6 +26,9 @@ void UA_Notification_delete(UA_Notification *n) {
     } else if (n->mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         UA_Array_delete(n->data.event.fields.eventFields, n->data.event.fields.eventFieldsSize,
                         &UA_TYPES[UA_TYPES_VARIANT]);
+        /* EventFilterResult currently isn't being used
+         * UA_EventFilterResult_delete(notification->data.event->result);
+         */
     }
     UA_free(n);
 }

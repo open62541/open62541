@@ -13,7 +13,6 @@
 #include "ua_namespace0.h"
 #include "ua_subscription.h"
 #include "ua_session.h"
-#include "ua_subscription_events.h"
 
 
 /*****************/
