@@ -670,25 +670,26 @@ typedef struct {
      * memory being cleaned up. Don't forget to also set `value->hasValue` to
      * true to indicate the presence of a value.
      *
-     * @param server Allows the access to the server object
+     * @param server The server executing the callback
      * @param sessionId The session id, represented as an node id
-     * @param sessionContext An optional pointer to user-defined data for the
-     *        specific data source
-     * @param nodeid Id of the read node
-     * @param nodeidContext An optional pointer to user-defined data, associated
-     *        with the node in the nodestore
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being read from
+     * @param nodeContext An optional pointer to user-defined data, associated
+     *        with the node, stored in the nodestore
      * @param includeSourceTimeStamp If true, then the datasource is expected to
      *        set the source timestamp in the returned value
      * @param range If not null, then the datasource shall return only a
      *        selection of the (nonscalar) data. Set
      *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
-     *        apply.
+     *        apply
      * @param value The (non-null) DataValue that is returned to the client. The
      *        data source sets the read data, the result status and optionally a
      *        sourcetimestamp.
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
+     *         then no releasing of the value is done
+     */
     UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
@@ -697,17 +698,24 @@ typedef struct {
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
      *
-     * @param server Allows the access to the server object
+     * @param server The server executing the callback
      * @param sessionId The session id, represented as an node id
-     * @param sessionContext An optional pointer to user-defined data for the
-     *        specific data source
-     * @param nodeid Id of the node being written to
-     * @param nodeidContext An optional pointer to user-defined data, associated
-     *        with the node in the nodestore
-     * @param data The data to be written into the data source
-     * @param range An optional data range. If the data source is scalar or does
-     *        not support writing of ranges, then an error code is returned.
-     * @return Returns a status code that is returned to the user */
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being written to
+     * @param nodeContext An optional pointer to user-defined data, associated
+     *        with the node, stored in the nodestore
+     * @param range If not NULL, then the datasource shall return only a
+     *        selection of the (nonscalar) data. Set
+     *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
+     *        apply
+     * @param value The (non-NULL) DataValue that has been written by the client.
+     *        The data source contains the written data, the result status and
+     *        optionally a sourcetimestamp
+     * @return Returns a status code for logging. Error codes intended for the
+     *         original caller are set in the value. If an error is returned,
+     *         then no releasing of the value is done
+     */
     UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
