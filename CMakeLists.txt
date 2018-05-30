@@ -93,6 +93,8 @@ include_directories(${ua_directories_to_include})
 
 GET_PROPERTY(ua_architecture_headers GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS)
 
+GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS_BEGINNING)
+
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
@@ -385,6 +387,7 @@ else()
 endif()
 
 set(exported_headers ${exported_headers}
+                     ${ua_architecture_headers_beginning}
                      ${PROJECT_BINARY_DIR}/src_generated/ua_config.h 
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h

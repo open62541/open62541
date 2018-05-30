@@ -51,4 +51,6 @@
 
 int gethostname_lwip(char* name, size_t len);
 
+#define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
+
 #endif /* ARCH_COMMON_LWIP62541_H_ */

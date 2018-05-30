@@ -19,6 +19,13 @@ FUNCTION(ua_add_architecture_header)
     ENDFOREACH(ARG)
 ENDFUNCTION(ua_add_architecture_header)
 
+#Add a new header file to the architecture group at the beginning of it
+FUNCTION(ua_add_architecture_header_beginning)
+    FOREACH(ARG ${ARGV})
+        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURE_HEADERS_BEGINNING ${ARG})
+    ENDFOREACH(ARG)
+ENDFUNCTION(ua_add_architecture_header_beginning)
+
 #Add a new source file to the architecture group
 FUNCTION(ua_add_architecture_file)
     FOREACH(ARG ${ARGV})
