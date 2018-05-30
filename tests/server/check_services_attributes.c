@@ -66,7 +66,6 @@ static void setup(void) {
     UA_DataSource temperatureDataSource;
     temperatureDataSource.read = readCPUTemperature;
     temperatureDataSource.write = NULL;
-    temperatureDataSource.monitored = NULL;
     vattr.description = UA_LOCALIZEDTEXT("en-US","temperature");
     vattr.displayName = UA_LOCALIZEDTEXT("en-US","temperature");
     retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),

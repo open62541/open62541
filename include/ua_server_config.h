@@ -183,7 +183,7 @@ struct UA_ServerConfig {
     UA_StatusCode(*monitoredItemCallback)(UA_Server *server,
                                           const UA_NodeId *sessionId, void *sessionContext,
                                           const UA_NodeId *nodeId, void *nodeContext,
-                                          const UA_AttributeId attibuteId, const UA_Boolean removed);
+                                          const UA_UInt32 attibuteId, const UA_Boolean removed);
 #endif
 };
 

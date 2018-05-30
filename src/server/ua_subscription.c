@@ -99,32 +99,14 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     /* Find the Node, to decrease its monitored counter */
-    UA_Node *target;
-    UA_StatusCode retval = UA_Nodestore_getCopy(server, &mon->monitoredNodeId, &target);
-    if (retval != UA_STATUSCODE_GOOD)
-        return retval;
-
+    const UA_Node *target = UA_Nodestore_get(server, &mon->monitoredNodeId);
+    
     /* Triggering monitored callback on the server config */
+    // FIXME: Should the returned StatusCode be used as return value?
     if (server->config.monitoredItemCallback)
         server->config.monitoredItemCallback(server, &sub->session->sessionId,
                                              sub->session->sessionHandle, &target->nodeId,
                                              target->context, mon->attributeId, true);
-
-    /* Triggering monitored callback on DataSource nodes, if not monitored anymore */
-    if (target->nodeClass == UA_NODECLASS_VARIABLE && --target->monCounter == 0) {
-        const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
-
-        if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE) {
-            const UA_DataSource *dataSource = &varTarget->value.dataSource;
-
-            // FIXME: Should the returned StatusCode be used as return value?
-            if (dataSource->monitored != NULL)
-                dataSource->monitored(server, &sub->session->sessionId,
-                                      sub->session->sessionHandle, &target->nodeId,
-                                      target->context, mon->attributeId, true);
-        }
-    }
-    UA_Nodestore_replace(server, target);
 
     /* Remove the MonitoredItem */
     LIST_REMOVE(mon, listEntry_store);

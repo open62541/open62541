@@ -562,7 +562,7 @@ UA_Server_initNS0(UA_Server *server) {
     server->bootstrapNS0 = false;
 
     /* NamespaceArray */
-    UA_DataSource namespaceDataSource = {readNamespaces, NULL, NULL};
+    UA_DataSource namespaceDataSource = {readNamespaces, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                                    namespaceDataSource);
@@ -630,14 +630,14 @@ UA_Server_initNS0(UA_Server *server) {
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {readStatus, NULL, NULL};
+    UA_DataSource serverStatus = {readStatus, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 
     /* StartTime will be sampled in UA_Server_run_startup()*/
 
     /* CurrentTime */
-    UA_DataSource currentTime = {readCurrentTime, NULL, NULL};
+    UA_DataSource currentTime = {readCurrentTime, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
 
@@ -686,17 +686,17 @@ UA_Server_initNS0(UA_Server *server) {
                                &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     /* ServiceLevel */
-    UA_DataSource serviceLevel = {readServiceLevel, NULL, NULL};
+    UA_DataSource serviceLevel = {readServiceLevel, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
     /* Auditing */
-    UA_DataSource auditing = {readAuditing, NULL, NULL};
+    UA_DataSource auditing = {readAuditing, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), auditing);
 
     /* NamespaceArray */
-    UA_DataSource nsarray_datasource =  {readNamespaces, writeNamespaces, NULL};
+    UA_DataSource nsarray_datasource =  {readNamespaces, writeNamespaces};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), nsarray_datasource);
 

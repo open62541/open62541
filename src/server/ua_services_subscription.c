@@ -358,34 +358,14 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->monitoredItemId;
 
-    UA_Node *target;
-    retval = UA_Nodestore_getCopy(server, &request->itemToMonitor.nodeId, &target);
-    if (retval != UA_STATUSCODE_GOOD) {
-        result->statusCode = retval;
-        return;
-    }
+    const UA_Node *target = UA_Nodestore_get(server, &request->itemToMonitor.nodeId);
 
     /* Triggering monitored callback on the server config */
+    // FIXME: Should the returned StatusCode be used as return value?
     if (server->config.monitoredItemCallback)
         server->config.monitoredItemCallback(server, &session->sessionId,
                                              session->sessionHandle, &target->nodeId,
                                              target->context, newMon->attributeId, false);
-
-    /*Triggering monitored callback on DataSource nodes, if first time monitored */
-    if (target->nodeClass == UA_NODECLASS_VARIABLE && ++target->monCounter == 1) {
-        const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
-
-        if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE) {
-            const UA_DataSource *dataSource = &varTarget->value.dataSource;
-
-            // FIXME: Should the returned StatusCode be used as result->statusCode?
-            if (dataSource->monitored != NULL)
-                dataSource->monitored(server, &session->sessionId,
-                                      session->sessionHandle, &target->nodeId,
-                                      target->context, newMon->attributeId, false);
-        }
-    }
-    UA_Nodestore_replace(server, target);
 }
 
 void

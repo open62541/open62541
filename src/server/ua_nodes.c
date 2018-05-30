@@ -153,7 +153,6 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
     retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
     retval |= UA_LocalizedText_copy(&src->description, &dst->description);
-    dst->monCounter = src->monCounter;
     dst->writeMask = src->writeMask;
     dst->context = src->context;
     if(retval != UA_STATUSCODE_GOOD) {

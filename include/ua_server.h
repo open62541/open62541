@@ -712,23 +712,6 @@ typedef struct {
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
                            const UA_DataValue *value);
-
-    /* Triggered, if the the node gets (un)monitored by a subscription.
-     *
-     * @param server Allows the access to the server object
-     * @param sessionId The session id, represented as an node id
-     * @param sessionContext An optional pointer to user-defined data for the specific data source
-     * @param nodeid Id of the node in question
-     * @param nodeidContext An optional pointer to user-defined data, associated
-     *        with the node in the nodestore
-     * @param attributeId Identifies which attribute (value, data type etc.) is monitored
-     * @param removed Determines, if the monitoring on the node was removed or created.
-     * @return Returns a status code for logging. It could be used to determine,
-     *         if the subscription was successfull and might be returned to the user. */
-    UA_StatusCode (*monitored)(UA_Server *server, const UA_NodeId *sessionId,
-                               void *sessionContext, const UA_NodeId *nodeId,
-                               void *nodeContext, const UA_AttributeId attibuteId,
-                               const UA_Boolean removed);
 } UA_DataSource;
 
 UA_StatusCode UA_EXPORT
