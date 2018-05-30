@@ -110,7 +110,11 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     /* Remove the buffered chunks */
     struct ChunkEntry *ch, *temp_ch;
     LIST_FOREACH_SAFE(ch, &channel->chunks, pointers, temp_ch) {
-        UA_ByteString_deleteMembers(&ch->bytes);
+        struct ChunkData *cd, *temp_cd;
+        SIMPLEQ_FOREACH_SAFE(cd, &ch->chunkData, pointers, temp_cd) {
+            UA_ByteString_deleteMembers(&cd->bytes);
+            UA_free(cd);
+        }
         LIST_REMOVE(ch, pointers);
         UA_free(ch);
     }
@@ -728,7 +732,11 @@ UA_SecureChannel_removeChunks(UA_SecureChannel *channel, UA_UInt32 requestId) {
     struct ChunkEntry *ch;
     LIST_FOREACH(ch, &channel->chunks, pointers) {
         if(ch->requestId == requestId) {
-            UA_ByteString_deleteMembers(&ch->bytes);
+            struct ChunkData *cd, *temp_cd;
+            SIMPLEQ_FOREACH_SAFE(cd, &ch->chunkData, pointers, temp_cd) {
+                UA_ByteString_deleteMembers(&cd->bytes);
+                UA_free(cd);
+            }
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
             return;
@@ -738,15 +746,14 @@ UA_SecureChannel_removeChunks(UA_SecureChannel *channel, UA_UInt32 requestId) {
 
 static UA_StatusCode
 appendChunk(struct ChunkEntry *chunkEntry, const UA_ByteString *chunkBody) {
-    UA_Byte *new_bytes = (UA_Byte *)
-        UA_realloc(chunkEntry->bytes.data, chunkEntry->bytes.length + chunkBody->length);
-    if(!new_bytes) {
-        UA_ByteString_deleteMembers(&chunkEntry->bytes);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    chunkEntry->bytes.data = new_bytes;
-    memcpy(&chunkEntry->bytes.data[chunkEntry->bytes.length], chunkBody->data, chunkBody->length);
-    chunkEntry->bytes.length += chunkBody->length;
+    
+    struct ChunkData* cd = (struct ChunkData*)UA_malloc(sizeof(struct ChunkData));
+    UA_StatusCode retval = UA_ByteString_copy(chunkBody, &cd->bytes);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
+    
+    SIMPLEQ_INSERT_TAIL(&chunkEntry->chunkData, cd, pointers);
+    chunkEntry->chunkDataSize += chunkBody->length;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -764,8 +771,9 @@ UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
         ch = (struct ChunkEntry *)UA_malloc(sizeof(struct ChunkEntry));
         if(!ch)
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        memset(ch, 0, sizeof(struct ChunkEntry));
         ch->requestId = requestId;
-        UA_ByteString_init(&ch->bytes);
+        SIMPLEQ_INIT(&ch->chunkData);
         LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
     }
 
@@ -789,7 +797,24 @@ UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
         UA_StatusCode retval = appendChunk(chunkEntry, chunkBody);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        bytes = chunkEntry->bytes;
+        
+        UA_ByteString_init(&bytes);
+
+        bytes.data = (UA_Byte*) UA_malloc(chunkEntry->chunkDataSize);
+        if (!bytes.data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        struct ChunkData *cd, *temp_cd;
+        size_t curPos = 0;
+        SIMPLEQ_FOREACH_SAFE(cd, &chunkEntry->chunkData, pointers, temp_cd) {
+            memcpy(&bytes.data[curPos], cd->bytes.data, cd->bytes.length);
+            curPos += cd->bytes.length;
+            UA_ByteString_deleteMembers(&cd->bytes);
+            UA_free(cd);
+        }
+
+        bytes.length = chunkEntry->chunkDataSize;
+
         LIST_REMOVE(chunkEntry, pointers);
         UA_free(chunkEntry);
     }
