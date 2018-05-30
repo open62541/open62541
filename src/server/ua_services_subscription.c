@@ -365,6 +365,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         return;
     }
 
+    /* Triggering monitored callback on the server config */
+    if (server->config.monitoredItemCallback)
+        server->config.monitoredItemCallback(server, &session->sessionId,
+                                             session->sessionHandle, &target->nodeId,
+                                             target->context, newMon->attributeId, false);
+
     /*Triggering monitored callback on DataSource nodes, if first time monitored */
     if (target->nodeClass == UA_NODECLASS_VARIABLE && ++target->monCounter == 1) {
         const UA_VariableNode *varTarget = (const UA_VariableNode*)target;

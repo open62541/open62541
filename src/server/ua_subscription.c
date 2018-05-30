@@ -104,6 +104,12 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* Triggering monitored callback on the server config */
+    if (server->config.monitoredItemCallback)
+        server->config.monitoredItemCallback(server, &sub->session->sessionId,
+                                             sub->session->sessionHandle, &target->nodeId,
+                                             target->context, mon->attributeId, true);
+
     /* Triggering monitored callback on DataSource nodes, if not monitored anymore */
     if (target->nodeClass == UA_NODECLASS_VARIABLE && --target->monCounter == 0) {
         const UA_VariableNode *varTarget = (const UA_VariableNode*)target;

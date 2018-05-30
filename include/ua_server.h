@@ -675,6 +675,8 @@ typedef struct {
      * @param sessionContext An optional pointer to user-defined data for the
      *        specific data source
      * @param nodeid Id of the read node
+     * @param nodeidContext An optional pointer to user-defined data, associated
+     *        with the node in the nodestore
      * @param includeSourceTimeStamp If true, then the datasource is expected to
      *        set the source timestamp in the returned value
      * @param range If not null, then the datasource shall return only a
@@ -700,6 +702,8 @@ typedef struct {
      * @param sessionContext An optional pointer to user-defined data for the
      *        specific data source
      * @param nodeid Id of the node being written to
+     * @param nodeidContext An optional pointer to user-defined data, associated
+     *        with the node in the nodestore
      * @param data The data to be written into the data source
      * @param range An optional data range. If the data source is scalar or does
      *        not support writing of ranges, then an error code is returned.
@@ -715,6 +719,8 @@ typedef struct {
      * @param sessionId The session id, represented as an node id
      * @param sessionContext An optional pointer to user-defined data for the specific data source
      * @param nodeid Id of the node in question
+     * @param nodeidContext An optional pointer to user-defined data, associated
+     *        with the node in the nodestore
      * @param attributeId Identifies which attribute (value, data type etc.) is monitored
      * @param removed Determines, if the monitoring on the node was removed or created.
      * @return Returns a status code for logging. It could be used to determine,
