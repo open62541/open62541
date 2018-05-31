@@ -30,7 +30,6 @@ UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
     if(!generatedId->data) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Server unable to allocate memory for EventId data.");
-        UA_free(generatedId);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -296,10 +295,9 @@ eventSetConstants(UA_Server *server, const UA_NodeId *event,
     UA_ByteString eventId;
     UA_ByteString_init(&eventId);
     UA_StatusCode retval = UA_Event_generateEventId(server, &eventId);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&eventId);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
+
     if (outEventId) {
         UA_ByteString_copy(&eventId, outEventId);
     }
