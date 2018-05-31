@@ -428,6 +428,19 @@ UA_BrowsePathResult UA_EXPORT
 UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath);
 
+/* A simplified TranslateBrowsePathsToNodeIds based on the
+ * SimpleAttributeOperand type (Part 4, 7.4.4.5).
+ *
+ * This specifies a relative path using a list of BrowseNames instead of the
+ * RelativePath structure. The list of BrowseNames is equivalent to a
+ * RelativePath that specifies forward references which are subtypes of the
+ * HierarchicalReferences ReferenceType. All Nodes followed by the browsePath
+ * shall be of the NodeClass Object or Variable. */
+UA_BrowsePathResult UA_EXPORT
+UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
+                                     size_t browsePathSize,
+                                     const UA_QualifiedName *browsePath);
+
 #ifndef HAVE_NODEITER_CALLBACK
 #define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
