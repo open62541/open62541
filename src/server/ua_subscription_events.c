@@ -304,8 +304,9 @@ eventSetConstants(UA_Server *server, const UA_NodeId *event,
 
     name = UA_QUALIFIEDNAME(0, "EventId");
     bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
-    if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_StatusCode tmp = bpr.statusCode;
+        UA_ByteString_deleteMembers(&eventId);
         UA_BrowsePathResult_deleteMembers(&bpr);
         return tmp;
     }
