@@ -856,25 +856,33 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 static UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *dataSetMessage,
                                         UA_DataSetWriter *dataSetWriter) {
-    UA_PublishedDataSet *currentDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    UA_PublishedDataSet *currentDataSet =
+        UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
-    //currently is only UADP supported. The configuration Flags are included inside the std. defined UA_UadpDataSetWriterMessageDataType
+
+    /* Currently is only UADP supported. The configuration Flags are included
+     * inside the std. defined UA_UadpDataSetWriterMessageDataType */
+    UA_UadpDataSetWriterMessageDataType defaultUadpConfiguration;
     UA_UadpDataSetWriterMessageDataType *dataSetWriterMessageDataType = NULL;
     if((dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
         dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
        (dataSetWriter->config.messageSettings.content.decoded.type == &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
-        dataSetWriterMessageDataType = (UA_UadpDataSetWriterMessageDataType *) dataSetWriter->config.messageSettings.content.decoded.data;
+        dataSetWriterMessageDataType = (UA_UadpDataSetWriterMessageDataType *)
+            dataSetWriter->config.messageSettings.content.decoded.data;
     } else {
-        //create default flag configuration if no UadpDataSetWriterMessageDataType was passed in
-        UA_UadpDataSetWriterMessageDataType defaultUadpConfiguration;
+        /* create default flag configuration if no
+         * UadpDataSetWriterMessageDataType was passed in */
         memset(&defaultUadpConfiguration, 0, sizeof(UA_UadpDataSetWriterMessageDataType));
-        defaultUadpConfiguration.dataSetMessageContentMask = (UA_UadpDataSetMessageContentMask) ((unsigned int) UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP |
-                                                                                                 (unsigned int) UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION |
-                                                                                                 (unsigned int) UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION);
+        defaultUadpConfiguration.dataSetMessageContentMask = (UA_UadpDataSetMessageContentMask)
+            (UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP | UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION |
+             UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION);
         dataSetWriterMessageDataType = &defaultUadpConfiguration;
     }
+
     if(dataSetWriterMessageDataType->networkMessageNumber != 0 || dataSetWriterMessageDataType->dataSetOffset != 0 ||
        dataSetWriterMessageDataType->configuredSize !=0 ){
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Static DSM configuration not supported. Using defaults");
