@@ -134,7 +134,6 @@ typedef struct UA_DataSetField{
     UA_FieldMetaData fieldMetaData;
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
-    UA_DataValue lastValue;
 } UA_DataSetField;
 
 UA_StatusCode

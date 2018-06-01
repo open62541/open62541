@@ -639,7 +639,6 @@ void UA_DataSetField_deleteMembers(UA_DataSetField *field) {
     UA_NodeId_deleteMembers(&field->identifier);
     UA_NodeId_deleteMembers(&field->publishedDataSet);
     UA_FieldMetaData_deleteMembers(&field->fieldMetaData);
-    UA_DataValue_deleteMembers(&field->lastValue);
     LIST_REMOVE(field, listEntry);
 }
 
@@ -699,18 +698,16 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue){
  * Obtain the latest value for a specific DataSetField. This method is currently
  * called inside the DataSetMessage generation process.
  */
-static UA_StatusCode
-UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field) {
+static void
+UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
+                                  UA_DataValue *value) {
     /* Read the value */
     UA_ReadValueId rvid;
     UA_ReadValueId_init(&rvid);
     rvid.nodeId = field->config.field.variable.publishParameters.publishedVariable;
     rvid.attributeId = field->config.field.variable.publishParameters.attributeId;
     rvid.indexRange = field->config.field.variable.publishParameters.indexRange;
-    UA_DataValue value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
-    UA_DataValue_deleteMembers(&field->lastValue);
-    field->lastValue = value;
-    return UA_STATUSCODE_GOOD;
+    *value = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
 }
 
 static UA_StatusCode
@@ -734,16 +731,9 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
     size_t counter = 0;
     UA_DataSetField *dsf;
     LIST_FOREACH(dsf, &currentDataSet->fields, listEntry) {
-        /* Sample the value and store it in the DataSetField */
-        UA_StatusCode retval = UA_PubSubDataSetField_sampleValue(server, dsf);
-        if(retval != UA_STATUSCODE_GOOD) {
-            counter++;
-            continue;
-        }
-
-        /* Include field into DSM */
+        /* Sample the value */
         UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
-        UA_DataValue_copy(&dsf->lastValue, dfv);
+        UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
 
         /* Deactivate statuscode? */
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
@@ -762,8 +752,9 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
         /* Update lastValue store */
         UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[counter].value);
-        UA_DataValue_copy(&dsf->lastValue, &dataSetWriter->lastSamples[counter].value);
+        UA_DataValue_copy(dfv, &dataSetWriter->lastSamples[counter].value);
 #endif
+
         counter++;
     }
     return UA_STATUSCODE_GOOD;
@@ -787,26 +778,25 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
     UA_DataSetField *dsf;
     size_t counter = 0;
     LIST_FOREACH(dsf, &currentDataSet->fields, listEntry) {
-        /* Sample the value and store it in the DataSetField */
-        UA_StatusCode retval = UA_PubSubDataSetField_sampleValue(server, dsf);
-        if(retval != UA_STATUSCODE_GOOD) {
-            counter++;
-            continue;
-        }
+        /* Sample the value */
+        UA_DataValue value;
+        UA_DataValue_init(&value);
+        UA_PubSubDataSetField_sampleValue(server, dsf, &value);
 
         /* Check if the value has changed */
-        if(valueChangedVariant(&dataSetWriter->lastSamples[counter].value.value,
-                               &dsf->lastValue.value)){
+        if(valueChangedVariant(&dataSetWriter->lastSamples[counter].value.value, &value.value)) {
             /* increase fieldCount for current delta message */
             dataSetMessage->data.deltaFrameData.fieldCount++;
             dataSetWriter->lastSamples[counter].valueChanged = UA_TRUE;
+
+            /* Update last stored sample */
+            UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[counter].value);
+            dataSetWriter->lastSamples[counter].value = value;
         } else {
+            UA_DataValue_deleteMembers(&value);
             dataSetWriter->lastSamples[counter].valueChanged = UA_FALSE;
         }
 
-        /* Update last stored sample */
-        UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[counter].value);
-        UA_DataValue_copy(&dsf->lastValue, &dataSetWriter->lastSamples[counter].value);
         counter++;
     }
 
