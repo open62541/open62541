@@ -717,10 +717,12 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field) {
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMessage *dataSetMessage,
                                                UA_DataSetWriter *dataSetWriter) {
-    UA_PublishedDataSet *currentDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    UA_PublishedDataSet *currentDataSet =
+        UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
-    //prepare DataSetMessageContent
+
+    /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dataSetMessage->data.keyFrameData.fieldCount = currentDataSet->fieldSize;
@@ -729,87 +731,118 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
     if(!dataSetMessage->data.keyFrameData.dataSetFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_DataSetField *tmpDataSetField;
+    /* Loop over the fields */
     size_t counter = 0;
-    LIST_FOREACH(tmpDataSetField, &currentDataSet->fields, listEntry){
-        if(UA_PubSubDataSetField_sampleValue(server, tmpDataSetField) == UA_STATUSCODE_GOOD){
-            //include field into DSM
-            UA_DataValue_init(&dataSetMessage->data.keyFrameData.dataSetFields[counter]);
-            UA_DataValue_copy(&tmpDataSetField->lastValue, &dataSetMessage->data.keyFrameData.dataSetFields[counter]);
-            if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0){
-                dataSetMessage->data.keyFrameData.dataSetFields[counter].hasStatus = UA_FALSE;
-            }
-            if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0){
-                dataSetMessage->data.keyFrameData.dataSetFields[counter].hasSourceTimestamp = UA_FALSE;
-                if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0){
-                    dataSetMessage->data.keyFrameData.dataSetFields[counter].hasServerPicoseconds = UA_FALSE;
-                }
-            }
-            if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0){
-                dataSetMessage->data.keyFrameData.dataSetFields[counter].hasServerTimestamp = UA_FALSE;
-            }
-            //Update lastValue store
-            UA_DataValue_deleteMembers(dataSetWriter->lastSamples[counter].value);
-            UA_DataValue_copy(&tmpDataSetField->lastValue, dataSetWriter->lastSamples[counter++].value);
+    UA_DataSetField *dsf;
+    LIST_FOREACH(dsf, &currentDataSet->fields, listEntry) {
+        /* Sample the value and store it in the DataSetField */
+        UA_StatusCode retval = UA_PubSubDataSetField_sampleValue(server, dsf);
+        if(retval != UA_STATUSCODE_GOOD) {
+            counter++;
+            continue;
         }
+
+        UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
+
+        /* Include field into DSM */
+        UA_DataValue_init(dfv);
+        UA_DataValue_copy(&dsf->lastValue, dfv);
+
+        /* Deactivate statuscode? */
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
+            dfv->hasStatus = false;
+
+        /* Deactivate timestamps */
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
+            dfv->hasSourceTimestamp = false;
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
+            dfv->hasSourcePicoseconds = false;
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
+            dfv->hasServerTimestamp = false;
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
+            dfv->hasServerPicoseconds = false;
+
+        /* Update lastValue store */
+        UA_DataValue_deleteMembers(dataSetWriter->lastSamples[counter].value);
+        UA_DataValue_copy(&dsf->lastValue, dataSetWriter->lastSamples[counter].value);
+        counter++;
     }
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server, UA_DataSetMessage *dataSetMessage,
+UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
+                                                 UA_DataSetMessage *dataSetMessage,
                                                  UA_DataSetWriter *dataSetWriter) {
-    UA_PublishedDataSet *currentDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    UA_PublishedDataSet *currentDataSet =
+        UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
-    //prepare DataSetMessageContent
+
+    /* Prepare DataSetMessageContent */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
     dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
-    UA_DataSetField *tmpDataSetField;
+
+    UA_DataSetField *dsf;
     size_t counter = 0;
-    LIST_FOREACH(tmpDataSetField, &currentDataSet->fields, listEntry) {
-        if(UA_PubSubDataSetField_sampleValue(server, tmpDataSetField) == UA_STATUSCODE_GOOD) {
-            //check if the value has changed
-            if(valueChangedVariant(&dataSetWriter->lastSamples[counter].value->value, &tmpDataSetField->lastValue.value)){
-                //increase fieldCount for current delta message
-                dataSetMessage->data.deltaFrameData.fieldCount++;
-                dataSetWriter->lastSamples[counter].valeChanged = UA_TRUE;
-            } else {
-                dataSetWriter->lastSamples[counter].valeChanged = UA_FALSE;
-            }
-            //update last stored sample
-            UA_DataValue_init(dataSetWriter->lastSamples[counter].value);
-            UA_DataValue_copy(&tmpDataSetField->lastValue, dataSetWriter->lastSamples[counter++].value);
+    LIST_FOREACH(dsf, &currentDataSet->fields, listEntry) {
+        /* Sample the value and store it in the DataSetField */
+        UA_StatusCode retval = UA_PubSubDataSetField_sampleValue(server, dsf);
+        if(retval != UA_STATUSCODE_GOOD) {
+            counter++;
+            continue;
         }
+
+        /* Check if the value has changed */
+        if(valueChangedVariant(&dataSetWriter->lastSamples[counter].value->value,
+                               &dsf->lastValue.value)){
+            /* increase fieldCount for current delta message */
+            dataSetMessage->data.deltaFrameData.fieldCount++;
+            dataSetWriter->lastSamples[counter].valueChanged = UA_TRUE;
+        } else {
+            dataSetWriter->lastSamples[counter].valueChanged = UA_FALSE;
+        }
+
+        /* Update last stored sample */
+        UA_DataValue_init(dataSetWriter->lastSamples[counter].value);
+        UA_DataValue_copy(&dsf->lastValue, dataSetWriter->lastSamples[counter].value);
+        counter++;
     }
-    //allocate DeltaFrameFields
-    UA_DataSetMessage_DeltaFrameField * deltaFields = (UA_DataSetMessage_DeltaFrameField *)
+
+    /* Allocate DeltaFrameFields */
+    UA_DataSetMessage_DeltaFrameField *deltaFields = (UA_DataSetMessage_DeltaFrameField *)
             UA_calloc(dataSetMessage->data.deltaFrameData.fieldCount, sizeof(UA_DataSetMessage_DeltaFrameField));
     if(!deltaFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     dataSetMessage->data.deltaFrameData.deltaFrameFields = deltaFields;
     size_t currentDeltaField = 0;
-    for(size_t i = 0; i < currentDataSet->fieldSize; i++){
-        if(dataSetWriter->lastSamples[i].valeChanged){
-            deltaFields[currentDeltaField].fieldIndex = (UA_UInt16) i;
-            UA_DataValue_copy(dataSetWriter->lastSamples[i].value, &deltaFields[currentDeltaField].fieldValue);
-            dataSetWriter->lastSamples[i].valeChanged = false;
-            if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0){
-                dataSetMessage->data.deltaFrameData.deltaFrameFields[currentDeltaField].fieldValue.hasStatus = UA_FALSE;
-            }
-            if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0){
-                dataSetMessage->data.deltaFrameData.deltaFrameFields[currentDeltaField].fieldValue.hasSourceTimestamp = UA_FALSE;
-                if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0){
-                    dataSetMessage->data.deltaFrameData.deltaFrameFields[currentDeltaField].fieldValue.hasServerPicoseconds = UA_FALSE;
-                }
-            }
-            if((dataSetWriter->config.dataSetFieldContentMask & (unsigned int) UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0){
-                dataSetMessage->data.deltaFrameData.deltaFrameFields[currentDeltaField].fieldValue.hasServerTimestamp = UA_FALSE;
-            }
-            currentDeltaField++;
-        }
+    for(size_t i = 0; i < currentDataSet->fieldSize; i++) {
+        if(!dataSetWriter->lastSamples[i].valueChanged)
+            continue;
+
+        UA_DataSetMessage_DeltaFrameField *dff = &deltaFields[currentDeltaField];
+        
+        dff->fieldIndex = (UA_UInt16) i;
+        UA_DataValue_copy(dataSetWriter->lastSamples[i].value, &dff->fieldValue);
+        dataSetWriter->lastSamples[i].valueChanged = false;
+
+        /* Deactivate statuscode? */
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
+            dff->fieldValue.hasStatus = UA_FALSE;
+
+        /* Deactivate timestamps? */
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
+            dff->fieldValue.hasSourceTimestamp = UA_FALSE;
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
+            dff->fieldValue.hasServerPicoseconds = UA_FALSE;
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
+            dff->fieldValue.hasServerTimestamp = UA_FALSE;
+        if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
+            dff->fieldValue.hasServerPicoseconds = UA_FALSE;
+
+        currentDeltaField++;
     }
     return UA_STATUSCODE_GOOD;
 }

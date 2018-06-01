@@ -69,7 +69,7 @@ UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connec
 /**********************************************/
 
 typedef struct UA_DataSetWriterSample{
-    UA_Boolean valeChanged;
+    UA_Boolean valueChanged;
     UA_DataValue *value;
 } UA_DataSetWriterSample;
 
