@@ -23,7 +23,6 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 import xml.dom.minidom as dom
 
-from constants import *
 from base64 import *
 
 import six
