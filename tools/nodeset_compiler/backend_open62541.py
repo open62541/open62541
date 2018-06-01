@@ -30,7 +30,6 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from constants import *
 from nodes import *
 from nodeset import *
 from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode
