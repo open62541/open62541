@@ -320,21 +320,21 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                                        or (len(node.value) > 1
                                            and (parentNode.valueRank != -2 or parentNode.valueRank != -3))):
         # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
-        if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_GUID:
+        if isinstance(node.value[0], Guid):
             logger.warn("Don't know how to print array of GUID in node " + str(parentNode.id))
-        elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
+        elif isinstance(node.value[0], DiagnosticInfo):
             logger.warn("Don't know how to print array of DiagnosticInfo in node " + str(parentNode.id))
-        elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_STATUSCODE:
+        elif isinstance(node.value[0], StatusCode):
             logger.warn("Don't know how to print array of StatusCode in node " + str(parentNode.id))
         else:
-            if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+            if isinstance(node.value[0], ExtensionObject):
                 for idx, v in enumerate(node.value):
                     logger.debug("Building extObj array index " + str(idx))
                     [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(v, parent=parentNode, nodeset=nodeset, arrayIndex=idx, max_string_length=max_string_length)
                     code = code + code1
                     codeCleanup = codeCleanup + codeCleanup1
             code.append("UA_" + node.value[0].__class__.__name__ + " " + valueName + "[" + str(len(node.value)) + "];")
-            if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+            if isinstance(node.value[0], ExtensionObject):
                 for idx, v in enumerate(node.value):
                     logger.debug("Printing extObj array index " + str(idx))
                     instanceName = generateNodeValueInstanceName(v, parentNode, 0, idx)
@@ -352,20 +352,20 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
     else:
         # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
-        if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_GUID:
+        if isinstance(node.value[0], Guid):
             logger.warn("Don't know how to print scalar GUID in node " + str(parentNode.id))
-        elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
+        elif isinstance(node.value[0], DiagnosticInfo):
             logger.warn("Don't know how to print scalar DiagnosticInfo in node " + str(parentNode.id))
-        elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_STATUSCODE:
+        elif isinstance(node.value[0], StatusCode):
             logger.warn("Don't know how to print scalar StatusCode in node " + str(parentNode.id))
         else:
             # The following strategy applies to all other types, in particular strings and numerics.
-            if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+            if isinstance(node.value[0], ExtensionObject):
                 [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(node.value[0], parent=parentNode, nodeset=nodeset, max_string_length=max_string_length)
                 code = code + code1
                 codeCleanup = codeCleanup + codeCleanup1
             instanceName = generateNodeValueInstanceName(node.value[0], parentNode, 0, 0)
-            if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
+            if isinstance(node.value[0], ExtensionObject):
                 code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " +
                             generateNodeValueCode(node.value[0], instanceName, max_string_length=max_string_length) + ";")
                 code.append(
