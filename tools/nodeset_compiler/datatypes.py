@@ -474,7 +474,7 @@ class ExtensionObject(Value):
         pass
 
     def __str__(self):
-        return "'" + self.alias() + "':" + self.stringRepresentation + "(" + str(self.value) + ")"
+        return "'ExtensionObject'"
 
 class LocalizedText(Value):
     def __init__(self, xmlvalue=None):
@@ -555,18 +555,9 @@ class NodeId(Value):
         #           </Identifier>
         #        </NodeId> or </Alias>
         if not isinstance(xmlvalue, dom.Element):
-            self.text = xmlvalue
+            self.text = xmlvalue # Alias
             return
         self.checkXML(xmlvalue)
-
-        if self.alias != None:
-            if not self.alias == xmlvalue.localName:
-                logger.warn(
-                    "Expected an aliased XML field called " + self.alias + " but got " + xmlvalue.localName + " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
-        else:
-            if not self.stringRepresentation == xmlvalue.localName:
-                logger.warn(
-                    "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.localName + " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
 
         # Catch XML <NodeId />
         if xmlvalue.firstChild == None:
