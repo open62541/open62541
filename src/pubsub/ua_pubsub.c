@@ -393,6 +393,7 @@ UA_DataSetWriter_deleteMembers(UA_Server *server, UA_DataSetWriter *dataSetWrite
     UA_NodeId_deleteMembers(&dataSetWriter->linkedWriterGroup);
     UA_NodeId_deleteMembers(&dataSetWriter->connectedDataSet);
     LIST_REMOVE(dataSetWriter, listEntry);
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     //delete lastSamples store
     for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++){
         UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[i].value);
@@ -400,6 +401,7 @@ UA_DataSetWriter_deleteMembers(UA_Server *server, UA_DataSetWriter *dataSetWrite
     UA_free(dataSetWriter->lastSamples);
     dataSetWriter->lastSamples = NULL;
     dataSetWriter->lastSamplesCount = 0;
+#endif
 }
 
 /**********************************************/
@@ -529,8 +531,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
     //save the current version of the connected PublishedDataSet
     newDataSetWriter->connectedDataSetVersion = currentDataSetContext->dataSetMetaData.configurationVersion;
 
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     //initialize the queue for the last values
-    newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
     newDataSetWriter->lastSamples = (UA_DataSetWriterSample * )
         UA_calloc(newDataSetWriter->lastSamplesCount, sizeof(UA_DataSetWriterSample));
     if(!newDataSetWriter->lastSamples) {
@@ -538,6 +540,8 @@ UA_Server_addDataSetWriter(UA_Server *server,
         UA_free(newDataSetWriter);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
+#endif
 
     //connect PublishedDataSet with DataSetWriter
     newDataSetWriter->connectedDataSet = currentDataSetContext->identifier;
@@ -648,6 +652,7 @@ void UA_DataSetField_deleteMembers(UA_DataSetField *field) {
  *
  * @return UA_TRUE if the value has changed
  */
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 static UA_Boolean
 valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue){
     if(! (oldValue && newValue))
@@ -688,6 +693,7 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue){
     UA_ByteString_delete(newValueEncoding);
     return compareResult;
 }
+#endif
 
 /**
  * Obtain the latest value for a specific DataSetField. This method is currently
@@ -753,14 +759,17 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
             dfv->hasServerPicoseconds = false;
 
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
         /* Update lastValue store */
         UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[counter].value);
         UA_DataValue_copy(&dsf->lastValue, &dataSetWriter->lastSamples[counter].value);
+#endif
         counter++;
     }
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
                                                  UA_DataSetMessage *dataSetMessage,
@@ -837,6 +846,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
     }
     return UA_STATUSCODE_GOOD;
 }
+#endif
 
 /**
  * Generate a DataSetMessage for the given writer.
@@ -932,6 +942,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     /* Set the sequence count. Automatically rolls over to zero */
     dataSetWriter->actualDataSetMessageSequenceCount++;
 
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     /* Check if the PublishedDataSet version has changed -> if yes flush the lastValue store and send a KeyFrame */
     if(dataSetWriter->connectedDataSetVersion.majorVersion != currentDataSet->dataSetMetaData.configurationVersion.majorVersion ||
        dataSetWriter->connectedDataSetVersion.minorVersion != currentDataSet->dataSetMetaData.configurationVersion.minorVersion) {
@@ -964,8 +975,10 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage, dataSetWriter);
     dataSetWriter->deltaFrameCounter = 1;
+#endif
+
+    UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage, dataSetWriter);
     return UA_STATUSCODE_GOOD;
 }
 
