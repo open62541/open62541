@@ -68,10 +68,12 @@ UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connec
 /*              DataSetWriter                 */
 /**********************************************/
 
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 typedef struct UA_DataSetWriterSample{
     UA_Boolean valueChanged;
     UA_DataValue value;
 } UA_DataSetWriterSample;
+#endif
 
 typedef struct UA_DataSetWriter{
     UA_DataSetWriterConfig config;
@@ -81,9 +83,11 @@ typedef struct UA_DataSetWriter{
     UA_NodeId linkedWriterGroup;
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     UA_UInt16 deltaFrameCounter;            //actual count of sent deltaFrames
     size_t lastSamplesCount;
     UA_DataSetWriterSample *lastSamples;
+#endif
     UA_UInt16 actualDataSetMessageSequenceCount;
 } UA_DataSetWriter;
 
