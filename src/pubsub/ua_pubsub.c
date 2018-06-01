@@ -398,7 +398,6 @@ UA_DataSetWriter_deleteMembers(UA_Server *server, UA_DataSetWriter *dataSetWrite
         UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[i].value);
     }
     UA_free(dataSetWriter->lastSamples);
-    LIST_REMOVE(dataSetWriter, listEntry);
 }
 
 /**********************************************/
