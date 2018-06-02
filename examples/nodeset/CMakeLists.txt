@@ -25,7 +25,17 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c
                    ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
                    ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml)
 
-add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c)
+
+# The .csv file can be created from within UaModeler or manually
+
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
+                   ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.csv  ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids EXAMPLE_NS
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
+                   ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.csv)
+
+add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids.h)
 if(UA_COMPILE_AS_CXX)
     set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c PROPERTIES LANGUAGE CXX)
 endif()
