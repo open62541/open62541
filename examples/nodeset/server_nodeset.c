@@ -7,6 +7,7 @@
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
 #include "example_nodeset.h"
+#include "example_nodeset_ids.h"
 
 UA_Boolean running = true;
 
@@ -29,8 +30,20 @@ int main(int argc, char** argv) {
         "Check previous output for any error.");
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     } else {
+
+        // Do some additional stuff with the nodes
+
+        // this will just get the namespace index, since it is already added to the server
+        UA_UInt16 nsIdx = UA_Server_addNamespace(server, "http://yourorganisation.org/test/");
+
+        UA_NodeId testInstanceId = UA_NODEID_NUMERIC(nsIdx, UA_EXAMPLE_NSID_TESTINSTANCE);
+
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The testInstance has ns=%d;id=%d",
+                    testInstanceId.namespaceIndex, testInstanceId.identifier.numeric);
+
         retval = UA_Server_run(server, &running);
     }
+
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     return (int)retval;
