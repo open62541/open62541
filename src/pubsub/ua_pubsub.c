@@ -534,7 +534,7 @@ UA_Server_addDataSetWriter(UA_Server *server,
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     //initialize the queue for the last values
     newDataSetWriter->lastSamples = (UA_DataSetWriterSample * )
-        UA_calloc(newDataSetWriter->lastSamplesCount, sizeof(UA_DataSetWriterSample));
+        UA_calloc(currentDataSetContext->fieldSize, sizeof(UA_DataSetWriterSample));
     if(!newDataSetWriter->lastSamples) {
         UA_DataSetWriterConfig_deleteMembers(&newDataSetWriter->config);
         UA_free(newDataSetWriter);
