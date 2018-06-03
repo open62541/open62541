@@ -780,7 +780,7 @@
     <DisplayName>Address</DisplayName>
     <References>
       <Reference ReferenceType="HasComponent">i=17202</Reference>
-      <Reference ReferenceType="HasTypeDefinition">i=21147</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=21145</Reference>
       <Reference ReferenceType="HasModellingRule">i=78</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=14209</Reference>
     </References>

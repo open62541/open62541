@@ -68,6 +68,15 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
+        scan-build-6.0 cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON ..
+        scan-build-6.0 -enable-checker security.FloatLoopCounter \
+          -enable-checker security.insecureAPI.UncheckedReturn \
+          --status-bugs -v \
+          make -j
+        cd .. && rm build -rf
+
+        mkdir -p build
+        cd build
         scan-build-6.0 cmake -DUA_ENABLE_AMALGAMATION=ON ..
         scan-build-6.0 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
@@ -239,9 +248,9 @@ else
     mkdir -p build && cd build
     # Valgrind cannot handle the full NS0 because the generated file is too big. Thus run NS0 full without valgrind
     cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_NAMESPACE_ZERO=FULL \
-    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
+    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
     -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=OFF \
-    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON ..
+    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF -DUA_ENABLE_SUBSCRIPTIONS=ON -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON ..
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -251,7 +260,7 @@ else
         echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
         mkdir -p build && cd build
         cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-        -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
+        -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
         make -j && make test ARGS="-V"
