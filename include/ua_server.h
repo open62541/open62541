@@ -1070,6 +1070,9 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
 /* Add a new namespace to the server. Returns the index of the new namespace */
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 
+/* Get namespace by name from the server. */
+UA_StatusCode UA_EXPORT UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri, UA_UInt16* foundIndex);
+
 #ifdef __cplusplus
 }
 #endif

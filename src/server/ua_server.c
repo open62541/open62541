@@ -58,6 +58,20 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     return addNamespace(server, nameString);
 }
 
+UA_StatusCode UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri, UA_UInt16* foundIndex) {
+
+  for(size_t idx = 0; idx < server->namespacesSize; idx++)
+  {
+    if(0 == strncmp((char*)server->namespaces[idx].data, (char*)namespaceUri.data, MAX(server->namespaces->length, namespaceUri.length)))
+    {
+      (*foundIndex) = idx;
+      return UA_STATUSCODE_GOOD;
+    }
+  }
+
+  return UA_STATUSCODE_BADNOTFOUND;
+}
+
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
