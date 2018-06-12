@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* TODO add event based testing */
-
 #include "ua_server.h"
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
@@ -334,21 +332,21 @@ START_TEST(Server_overflow) {
     ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
-    UA_MonitoredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 2); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
-    UA_MonitoredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
     ck_assert_uint_eq(notification->data.value.hasStatus, false);
 
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
-    UA_MonitoredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 3); 
     ck_assert_uint_eq(mon->maxQueueSize, 3); 
     notification = TAILQ_FIRST(&mon->queue);
@@ -446,7 +444,7 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_deleteMembers(&itemToModify);
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyMonitoredItemsResponse);
 
-    UA_MonitoredItem_SampleCallback(server, mon);
+    UA_MonitoredItem_sampleCallback(server, mon);
     ck_assert_uint_eq(mon->queueSize, 1); 
     ck_assert_uint_eq(mon->maxQueueSize, 1); 
     notification = TAILQ_FIRST(&mon->queue);

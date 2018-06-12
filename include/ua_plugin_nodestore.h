@@ -22,9 +22,17 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
+
 #ifdef UA_ENABLE_HISTORIZING
 #include "ua_plugin_history_data_backend.h"
 #endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* forward declaration */
+struct UA_MonitoredItem;
+#endif
+
+#include "ua_types.h"
 
 /**
  * .. _information-modelling:
@@ -247,6 +255,14 @@ typedef struct {
     UA_MethodCallback method;
 } UA_MethodNode;
 
+
+/** Attributes for nodes which are capable of generating events */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* Store active monitoredItems on this node */
+# define UA_EVENT_ATTRIBUTES                                         \
+    struct UA_MonitoredItem *monitoredItemQueue;
+#endif
+
 /**
  * ObjectNode
  * ----------
@@ -258,6 +274,9 @@ typedef struct {
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_EVENT_ATTRIBUTES
+#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 

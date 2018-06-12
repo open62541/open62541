@@ -5,8 +5,10 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include "ua_pubsub_manager.h"
 #include "server/ua_server_internal.h"
+#include "ua_pubsub_ns0.h"
+
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
@@ -77,6 +79,9 @@ UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig
                 UA_NodeId_copy(&newConnection->identifier, connectionIdentifier);
             }
             server->pubSubManager.connectionsSize++;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+        addPubSubConnectionRepresentation(server, newConnection);
+#endif
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -99,6 +104,9 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
     if(!currentConnection)
         return UA_STATUSCODE_BADNOTFOUND;
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    removePubSubConnectionRepresentation(server, currentConnection);
+#endif
     UA_PubSubConnection_deleteMembers(server, currentConnection);
     server->pubSubManager.connectionsSize--;
     //remove the connection from the pubSubManager, move the last connection
@@ -182,6 +190,9 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     UA_AddPublishedDataSetResult result = {UA_STATUSCODE_GOOD, 0, NULL,
                                                  {UA_PubSubConfigurationVersionTimeDifference(),
                                                   UA_PubSubConfigurationVersionTimeDifference()}};
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addPublishedDataItemsRepresentation(server, newPubSubDataSet);
+#endif
     return result;
 }
 
@@ -211,6 +222,9 @@ UA_Server_removePublishedDataSet(UA_Server *server, UA_NodeId pds) {
             }
         }
     }
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    removePublishedDataSetRepresentation(server, publishedDataSet);
+#endif
     UA_PublishedDataSet_deleteMembers(server, publishedDataSet);
     server->pubSubManager.publishedDataSetsSize--;
     //copy the last PDS to the removed PDS inside the allocated memory block
@@ -294,3 +308,5 @@ UA_StatusCode
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
     return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
 }
+
+#endif /* UA_ENABLE_PUBSUB */

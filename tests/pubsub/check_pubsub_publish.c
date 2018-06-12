@@ -5,8 +5,6 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <ua_types.h>
-#include <ua_server_pubsub.h>
 #include "ua_server_pubsub.h"
 #include "src_generated/ua_types_generated_encoding_binary.h"
 #include "ua_types.h"
@@ -391,6 +389,30 @@ START_TEST(SinglePublishDataSetField){
         UA_WriterGroup_publishCallback(server, wg);
     } END_TEST
 
+START_TEST(PublishDataSetFieldAsDeltaFrame){
+            setupDataSetFieldTestEnvironment();
+            UA_DataSetFieldConfig dataSetFieldConfig;
+            memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+            dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+            dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+            dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+            dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+            dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+            UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+            UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+
+            UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+            wg->config.maxEncapsulatedDataSetMessageCount = 3;
+            UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+            dsw->config.keyFrameCount = 3;
+
+            UA_WriterGroup_publishCallback(server, wg);
+            UA_WriterGroup_publishCallback(server, wg);
+            UA_WriterGroup_publishCallback(server, wg);
+            UA_WriterGroup_publishCallback(server, wg);
+            UA_WriterGroup_publishCallback(server, wg);
+        } END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub WriterGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_writergroup, setup, teardown);
@@ -419,6 +441,7 @@ int main(void) {
     TCase *tc_pubsub_publish = tcase_create("PubSub publish DataSetFields");
     tcase_add_checked_fixture(tc_pubsub_publish, setup, teardown);
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetField);
+    tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
 
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);

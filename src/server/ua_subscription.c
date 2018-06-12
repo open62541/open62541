@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -11,13 +11,61 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
  */
 
-#include "ua_subscription.h"
 #include "ua_server_internal.h"
+#include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+
+void
+UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *mon, UA_Notification *n) {
+    /* Add to the MonitoredItem */
+    TAILQ_INSERT_TAIL(&mon->queue, n, listEntry);
+    ++mon->queueSize;
+
+    /* Add to the subscription */
+    TAILQ_INSERT_TAIL(&sub->notificationQueue, n, globalEntry);
+    ++sub->notificationQueueSize;
+    if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        ++sub->dataChangeNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        ++sub->eventNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
+        ++sub->statusChangeNotifications;
+    }
+
+    /* Ensure enough space is available in the MonitoredItem. Do this only after
+     * adding the new Notification. */
+    MonitoredItem_ensureQueueSpace(server, mon);
+}
+
+void
+UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
+                       UA_Notification *n) {
+    if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        UA_DataValue_deleteMembers(&n->data.value);
+        --sub->dataChangeNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        UA_EventFieldList_deleteMembers(&n->data.event.fields);
+        /* EventFilterResult currently isn't being used
+         * UA_EventFilterResult_delete(notification->data.event->result); */
+        --sub->eventNotifications;
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
+        --sub->statusChangeNotifications;
+    }
+
+    TAILQ_REMOVE(&mon->queue, n, listEntry);
+    --mon->queueSize;
+
+    TAILQ_REMOVE(&sub->notificationQueue, n, globalEntry);
+    --sub->notificationQueueSize;
+
+    UA_free(n);
+}
 
 UA_Subscription *
 UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
@@ -47,7 +95,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
         LIST_REMOVE(mon, listEntry);
-        MonitoredItem_delete(server, mon);
+        UA_MonitoredItem_delete(server, mon);
     }
     sub->monitoredItemsSize = 0;
 
@@ -88,7 +136,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     sub->monitoredItemsSize--;
 
     /* Remove content and delayed free */
-    MonitoredItem_delete(server, mon);
+    UA_MonitoredItem_delete(server, mon);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -137,72 +185,163 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
     return UA_STATUSCODE_GOOD;
 }
 
-/* Iterate over the monitoreditems of the subscription, starting at mon, and
- * move notifications into the response. */
-static void
-moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItemNotification *mins,
-                                    size_t minsSize) {
-    size_t pos = 0;
-    UA_Notification *notification, *notification_tmp;
-    TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
-        if(pos >= minsSize)
-            return;
-
-        UA_MonitoredItem *mon = notification->mon;
-
-        /* Remove the notification from the queues */
-        TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
-        TAILQ_REMOVE(&mon->queue, notification, listEntry);
-        --mon->queueSize;
-        --sub->notificationQueueSize;
-
-        /* Move the content to the response */
-        UA_MonitoredItemNotification *min = &mins[pos];
-        min->clientHandle = mon->clientHandle;
-        if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            min->value = notification->data.value;
-        } else {
-            /* TODO implementation for events */
-        }
-        UA_free(notification);
-        ++pos;
-    }
-}
-
 static UA_StatusCode
-prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message,
-                           size_t notifications) {
-    /* Array of ExtensionObject to hold different kinds of notifications
-     * (currently only DataChangeNotifications) */
-    message->notificationData = UA_ExtensionObject_new();
+prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
+                           UA_NotificationMessage *message, size_t notifications) {
+    UA_assert(notifications > 0);
+
+    /* Allocate an ExtensionObject for events and data */
+    message->notificationData = (UA_ExtensionObject*)
+        UA_Array_new(2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     if(!message->notificationData)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    message->notificationDataSize = 1;
+    message->notificationDataSize = 2;
 
-    /* Allocate Notification */
-    UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
-    if(!dcn) {
-        UA_NotificationMessage_deleteMembers(message);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    /* Pre-allocate DataChangeNotifications */
+    size_t notificationDataIdx = 0;
+    UA_DataChangeNotification *dcn = NULL;
+    if(sub->dataChangeNotifications > 0) {
+        dcn = UA_DataChangeNotification_new();
+        if(!dcn) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        message->notificationData->encoding = UA_EXTENSIONOBJECT_DECODED;
+        message->notificationData->content.decoded.data = dcn;
+        message->notificationData->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
+
+        size_t dcnSize = sub->dataChangeNotifications;
+        if(dcnSize > notifications)
+            dcnSize = notifications;
+        dcn->monitoredItems = (UA_MonitoredItemNotification*)
+            UA_Array_new(dcnSize, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
+        if(!dcn->monitoredItems) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        dcn->monitoredItemsSize = dcnSize;
+        notificationDataIdx++;
     }
-    UA_ExtensionObject *data = message->notificationData;
-    data->encoding = UA_EXTENSIONOBJECT_DECODED;
-    data->content.decoded.data = dcn;
-    data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
 
-    /* Allocate array of notifications */
-    dcn->monitoredItems = (UA_MonitoredItemNotification *)
-        UA_Array_new(notifications,
-                     &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
-    if(!dcn->monitoredItems) {
-        UA_NotificationMessage_deleteMembers(message);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_EventNotificationList *enl = NULL;
+    UA_StatusChangeNotification *scn = NULL;
+    /* Pre-allocate either StatusChange or EventNotifications. Sending a
+     * (single) StatusChangeNotification has priority. */
+    if(sub->statusChangeNotifications > 0) {
+        scn = UA_StatusChangeNotification_new();
+        if(!scn) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        message->notificationData[notificationDataIdx].encoding = UA_EXTENSIONOBJECT_DECODED;
+        message->notificationData[notificationDataIdx].content.decoded.data = scn;
+        message->notificationData[notificationDataIdx].content.decoded.type = &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION];
+        notificationDataIdx++;
+    } else if(sub->eventNotifications > 0) {
+        enl = UA_EventNotificationList_new();
+        if(!enl) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        message->notificationData[notificationDataIdx].encoding = UA_EXTENSIONOBJECT_DECODED;
+        message->notificationData[notificationDataIdx].content.decoded.data = enl;
+        message->notificationData[notificationDataIdx].content.decoded.type = &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST];
+
+        size_t enlSize = sub->eventNotifications;
+        if(enlSize > notifications)
+            enlSize = notifications;
+        enl->events = (UA_EventFieldList*) UA_Array_new(enlSize, &UA_TYPES[UA_TYPES_EVENTFIELDLIST]);
+        if(!enl->events) {
+            UA_NotificationMessage_deleteMembers(message);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        enl->eventsSize = enlSize;
+        notificationDataIdx++;
     }
-    dcn->monitoredItemsSize = notifications;
+#endif
 
-    /* Move notifications into the response .. the point of no return */
+    UA_assert(notificationDataIdx > 0);
+    message->notificationDataSize = notificationDataIdx;
 
-    moveNotificationsFromMonitoredItems(sub, dcn->monitoredItems, notifications);
+    /* <-- The point of no return --> */
+
+    size_t totalNotifications = 0; /* How many notifications were moved to the response overall? */
+    size_t dcnPos = 0; /* How many DataChangeNotifications were put into the list? */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    size_t enlPos = 0; /* How many EventNotifications were moved into the list */
+#endif
+    UA_Notification *notification, *notification_tmp;
+    TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
+        if(totalNotifications >= notifications)
+            break;
+        
+        UA_MonitoredItem *mon = notification->mon;
+
+        /* Move the content to the response */
+        if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+            UA_assert(dcn != NULL); /* Have at least one change notification */
+            /* Move the content to the response */
+            UA_MonitoredItemNotification *min = &dcn->monitoredItems[dcnPos];
+            min->clientHandle = mon->clientHandle;
+            min->value = notification->data.value;
+            UA_DataValue_init(&notification->data.value); /* Reset after the value has been moved */
+            dcnPos++;
+        }
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+        else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY && scn) {
+            // TODO: Handling of StatusChangeNotifications
+            scn = NULL; /* At most one per PublishReponse */
+        } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY && enl) {
+            UA_assert(enl != NULL); /* Have at least one event notification */
+
+            /* TODO: The following lead to crashes when we assumed notifications to be ready... */
+            /* /\* removing an overflowEvent should not reduce the queueSize *\/ */
+            /* UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE); */
+            /* if (!(notification->data.event.fields.eventFieldsSize == 1 */
+            /*       && notification->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID] */
+            /*       && UA_NodeId_equal((UA_NodeId *)notification->data.event.fields.eventFields->data, &overflowId))) { */
+            /*     --mon->queueSize; */
+            /*     --sub->notificationQueueSize; */
+            /* } */
+
+            /* Move the content to the response */
+            UA_EventFieldList *efl = &enl->events[enlPos];
+            *efl = notification->data.event.fields;
+            UA_EventFieldList_init(&notification->data.event.fields);
+            efl->clientHandle = mon->clientHandle;
+            /* EventFilterResult currently isn't being used
+               UA_EventFilterResult_deleteMembers(&notification->data.event.result); */
+            enlPos++;
+        }
+#endif
+        else {
+            continue; /* Nothing to do */
+        }
+
+        /* Remove the notification from the queues */
+        UA_Notification_delete(sub, mon, notification);
+        totalNotifications++;
+    }
+
+    /* Set sizes */
+    if(dcn) {
+        dcn->monitoredItemsSize = dcnPos;
+        if(dcnPos == 0) {
+            UA_free(dcn->monitoredItems);
+            dcn->monitoredItems = NULL;
+        }
+    }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(enl) {
+        enl->eventsSize = enlPos;
+        if(enlPos == 0) {
+            UA_free(enl->events);
+            enl->events = NULL;
+        }
+    }
+#endif
 
     return UA_STATUSCODE_GOOD;
 }
@@ -247,7 +386,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
     }
 
-    if (sub->readyNotifications > sub->notificationQueueSize)
+    /* If there are several late publish responses... */
+    if(sub->readyNotifications > sub->notificationQueueSize)
         sub->readyNotifications = sub->notificationQueueSize;
 
     /* Count the available notifications */
@@ -274,7 +414,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                              sub->subscriptionId);
     }
 
-    /* We want to send a response. Is it possible? */
+    /* We want to send a response. Is the channel open? */
     UA_SecureChannel *channel = sub->session->header.channel;
     if(!channel || !pre) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
@@ -303,7 +443,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         }
 
         /* Prepare the response */
-        UA_StatusCode retval = prepareNotificationMessage(sub, message, notifications);
+        UA_StatusCode retval = prepareNotificationMessage(server, sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the notification message. "
@@ -331,7 +471,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
      * no notifications (and this is a keepalive message). */
     message->sequenceNumber = UA_Subscription_nextSequenceNumber(sub->sequenceNumber);
 
-    if(notifications != 0) {
+    if(notifications > 0) {
         /* There are notifications. So we can't reuse the sequence number. */
         sub->sequenceNumber = message->sequenceNumber;
 

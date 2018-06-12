@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -41,26 +41,36 @@ typedef enum {
     UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
 } UA_MonitoredItemType;
 
-/* Not used yet. Placeholder for a future event implementation. */
-typedef struct UA_Event {
-   UA_Int32 eventId;
-} UA_Event;
-
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
+typedef struct UA_EventNotification {
+    UA_EventFieldList fields;
+    /* EventFilterResult currently isn't being used
+    UA_EventFilterResult result; */
+} UA_EventNotification;
+
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) listEntry;
-    TAILQ_ENTRY(UA_Notification) globalEntry;
+    TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
+    TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
 
     UA_MonitoredItem *mon;
 
     /* See the monitoredItemType of the MonitoredItem */
     union {
-        UA_Event event;
+        UA_EventNotification event;
         UA_DataValue value;
     } data;
 } UA_Notification;
+
+/* Ensure enough space is available; Add notification to the linked lists;
+ * Increase the counters */
+void UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
+                             UA_MonitoredItem *mon, UA_Notification *n);
+
+/* Delete the notification. Also removes it from the linked lists. */
+void UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
+                            UA_Notification *n);
 
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
@@ -81,7 +91,10 @@ struct UA_MonitoredItem {
     UA_UInt32 maxQueueSize;
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
-    UA_DataChangeFilter filter;
+    union {
+        UA_EventFilter eventFilter;
+        UA_DataChangeFilter dataChangeFilter;
+    } filter;
     UA_Variant lastValue;
 
     /* Sample Callback */
@@ -92,17 +105,20 @@ struct UA_MonitoredItem {
     /* Notification Queue */
     NotificationQueue queue;
     UA_UInt32 queueSize;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_MonitoredItem *next;
+#endif
 };
 
-UA_MonitoredItem * UA_MonitoredItem_new(UA_MonitoredItemType);
-void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
-void UA_MonitoredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
-UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
-UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);
+void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
-void MonitoredItem_ensureQueueSpace(UA_MonitoredItem *mon);
+UA_StatusCode MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
@@ -154,8 +170,16 @@ struct UA_Subscription {
 
     /* Global list of notifications from the MonitoredItems */
     NotificationQueue notificationQueue;
-    UA_UInt32 notificationQueueSize;
-    UA_UInt32 readyNotifications; /* Notifications to be sent out now (already late) */
+    UA_UInt32 notificationQueueSize; /* Total queue size */
+    UA_UInt32 dataChangeNotifications;
+    UA_UInt32 eventNotifications;
+    UA_UInt32 statusChangeNotifications;
+
+    /* Notifications to be sent out now (already late). In a regular publish
+     * callback, all queued notifications are sent out. In a late publish
+     * response, only the notifications left from the last regular publish
+     * callback are sent. */
+    UA_UInt32 readyNotifications;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;

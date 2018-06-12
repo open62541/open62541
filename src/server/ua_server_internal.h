@@ -30,6 +30,20 @@ extern "C" {
 #include "ua_pubsub_manager.h"
 #endif
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "ua_subscription.h"
+
+typedef struct {
+    UA_MonitoredItem monitoredItem;
+    void *context;
+    union {
+        UA_Server_DataChangeNotificationCallback dataChangeCallback;
+        /* UA_Server_EventNotificationCallback eventCallback; */
+    } callback;
+} UA_LocalMonitoredItem;
+
+#endif
+
 #ifdef UA_ENABLE_MULTITHREADING
 
 #include <pthread.h>
@@ -144,6 +158,12 @@ struct UA_Server {
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* To be cast to UA_LocalMonitoredItem to get the callback and context */
+    LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
+    UA_UInt32 lastLocalMonitoredItemId;
+#endif
 
 #ifdef UA_ENABLE_PUBSUB
     /* Publish/Subscribe toplevel container */

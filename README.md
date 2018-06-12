@@ -44,7 +44,7 @@ Features currently being implemented:
   - Access control for individual nodes (Done)
   - Asynchronous service requests in the client (Done)
 - Target 0.4 release:
-  - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
+  - Events (notifications emitted by objects, data change notifications are implemented), (Done)
   - Event-loop (background tasks) in the client
   - Publish/Subscribe based on UDP (Specification Part 14), WIP @ Fraunhofer IOSB
 

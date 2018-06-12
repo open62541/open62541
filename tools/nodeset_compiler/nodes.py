@@ -19,7 +19,6 @@
 import sys
 import logging
 from datatypes import *
-from constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,6 @@ def RefOrAlias(s):
 class Node(object):
     def __init__(self):
         self.id = NodeId()
-        self.nodeClass = NODE_CLASS_GENERERIC
         self.browseName = QualifiedName()
         self.displayName = LocalizedText()
         self.description = LocalizedText()
@@ -188,7 +186,6 @@ class Node(object):
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_REFERENCETYPE
         self.isAbstract = False
         self.symmetric = False
         self.inverseName = ""
@@ -213,7 +210,6 @@ class ReferenceTypeNode(Node):
 class ObjectNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_OBJECT
         self.eventNotifier = 0
         if xmlelement:
             self.parseXML(xmlelement)
@@ -227,7 +223,6 @@ class ObjectNode(Node):
 class VariableNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_VARIABLE
         self.dataType = NodeId()
         self.valueRank = -2
         self.arrayDimensions = []
@@ -254,6 +249,8 @@ class VariableNode(Node):
                 self.minimumSamplingInterval = float(av)
             elif at == "DataType":
                 self.dataType = RefOrAlias(av)
+            elif  at == "ArrayDimensions":
+                self.arrayDimensions = av.split(",")
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -264,8 +261,11 @@ class VariableNode(Node):
                 self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
-            elif x.localName == "ArrayDimensions":
-                self.arrayDimensions = int(unicode(x.firstChild.data))
+            elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
+                elements = x.getElementsByTagName("ListOfUInt32");
+                if len(elements):
+                    for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
+                        self.arrayDimensions.append(v.firstChild.data)
             elif x.localName == "AccessLevel":
                 self.accessLevel = int(unicode(x.firstChild.data))
             elif x.localName == "UserAccessLevel":
@@ -292,16 +292,12 @@ class VariableNode(Node):
         # reflect the exaxt dimensions attached binary stream.
         if not isinstance(self.value, Value) or len(self.value.value) == 0:
             self.arrayDimensions = []
-        else:
-            # Parser only permits 1-d arrays, which means we do not have to check further dimensions
-            self.arrayDimensions = [len(self.value.value)]
         return True
 
 
 class VariableTypeNode(VariableNode):
     def __init__(self, xmlelement=None):
         VariableNode.__init__(self)
-        self.nodeClass = NODE_CLASS_VARIABLETYPE
         self.isAbstract = False
         if xmlelement:
             self.parseXML(xmlelement)
@@ -315,7 +311,6 @@ class VariableTypeNode(VariableNode):
 class MethodNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_METHOD
         self.executable = True
         self.userExecutable = True
         self.methodDecalaration = None
@@ -335,7 +330,6 @@ class MethodNode(Node):
 class ObjectTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_OBJECTTYPE
         self.isAbstract = False
         if xmlelement:
             self.parseXML(xmlelement)
@@ -380,7 +374,6 @@ class DataTypeNode(Node):
 
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_DATATYPE
         self.isAbstract = False
         self.__xmlDefinition__ = None
         self.__baseTypeEncoding__ = []
@@ -613,7 +606,6 @@ class DataTypeNode(Node):
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_VIEW
         self.containsNoLoops == False
         self.eventNotifier == False
         if xmlelement:

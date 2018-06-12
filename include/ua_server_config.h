@@ -143,6 +143,9 @@ struct UA_ServerConfig {
     UA_UInt32Range keepAliveCountLimits;
     UA_UInt32 maxNotificationsPerPublish;
     UA_UInt32 maxRetransmissionQueueSize; /* 0 -> unlimited size */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_UInt32 maxEventsPerNode; /* 0 -> unlimited size */
+#endif
 
     /* Limits for MonitoredItems */
     UA_UInt32 maxMonitoredItemsPerSubscription;

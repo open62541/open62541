@@ -38,6 +38,10 @@ add_example(tutorial_server_variable tutorial_server_variable.c)
 
 add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
+endif()
+
 add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
 add_example(tutorial_server_object tutorial_server_object.c)
@@ -49,6 +53,10 @@ endif()
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 
 add_example(tutorial_client_events tutorial_client_events.c)
+
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+  add_example(tutorial_server_events tutorial_server_events.c)
+endif()
 
 ##################
 # Example Server #
@@ -131,4 +139,9 @@ add_subdirectory(nodeset)
 if(UA_ENABLE_PUBSUB)
     add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
     add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
+    if(UA_ENABLE_AMALGAMATION)
+        message(WARNING "PubSub subscriber tutorial (preview) can not be used with AMALGAMATION. Skipping tutorial_pubsub_subscribe.")
+    else(NOT UA_ENABLE_AMALGAMATION)
+        add_example(tutorial_pubsub_subscribe pubsub/tutorial_pubsub_subscribe.c)
+    endif()
 endif()

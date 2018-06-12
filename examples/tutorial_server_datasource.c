@@ -175,18 +175,3 @@ int main(void) {
     UA_ServerConfig_delete(config);
     return (int)retval;
 }
-
-/**
- * DataChange Notifications
- * ^^^^^^^^^^^^^^^^^^^^^^^^
- * A client that is interested in the current value of a variable does not need
- * to regularly poll the variable. Instead, he can use the Subscription
- * mechanism to be notified about changes.
- *
- * Within a Subscription, the client adds so-called MonitoredItems. A DataChange
- * MonitoredItem defines a node attribute (usually the value attribute) that is
- * monitored for changes. The server internally reads the value in the defined
- * interval and generates the appropriate notifications. The three ways of
- * updating node values discussed above are all usable in combination with
- * notifications. That is because notifications use the standard *Read* service
- * to look for value changes. */

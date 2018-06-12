@@ -14,6 +14,7 @@
 #include "ua_subscription.h"
 #include "ua_session.h"
 
+
 /*****************/
 /* Node Creation */
 /*****************/
@@ -739,6 +740,22 @@ UA_Server_initNS0(UA_Server *server) {
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     retVal |= UA_Server_setMethodNode_callback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);
+#endif
+
+
+    /* create the OverFlowEventType
+     * The EventQueueOverflowEventType is defined as abstract, therefore we can not create an instance of that type
+     * directly, but need to create a subtype. This is already posted on the OPC Foundation bug tracker under the
+     * following link for clarification: https://opcfoundation-onlineapplications.org/mantis/view.php?id=4206 */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
+    overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
+    overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
+    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
+                                overflowAttr, NULL, NULL);
 #endif
 
     if(retVal != UA_STATUSCODE_GOOD)
