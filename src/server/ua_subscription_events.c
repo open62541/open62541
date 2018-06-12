@@ -377,27 +377,36 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     }
 
     UA_StatusCode retval = eventSetStandardFields(server, &eventNodeId, &origin, outEventId);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Events: Could not set the standard event fields with StatusCode %s",
+                       UA_StatusCode_name(retval));
         return retval;
+    }
 
-    /* get an array with all parents */
+    /* Get an array with all parents */
     struct getNodesHandle parentHandle;
     parentHandle.server = server;
     LIST_INIT(&parentHandle.nodes);
     retval = getParentsNodeIteratorCallback(origin, UA_TRUE, UA_NODEID_NULL, &parentHandle);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Events: Could not create the list of nodes listening on the event with StatusCode %s",
+                       UA_StatusCode_name(retval));
         return retval;
+    }
 
-    /* add the event to each node's monitored items */
+    /* Add the event to each node's monitored items */
     Events_nodeListElement *parentIter, *tmp_parentIter;
     LIST_FOREACH_SAFE(parentIter, &parentHandle.nodes, listEntry, tmp_parentIter) {
         const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, &parentIter->nodeId);
         /* SLIST_FOREACH */
-        for (UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
+        for(UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
             retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
-            if (retval != UA_STATUSCODE_GOOD) {
-                UA_Nodestore_release(server, (const UA_Node *) node);
-                return retval;
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Events: Could not add the event to a listening node with StatusCode %s",
+                               UA_StatusCode_name(retval));
             }
         }
         UA_Nodestore_release(server, (const UA_Node *) node);
@@ -407,12 +416,11 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
         UA_free(parentIter);
     }
 
-    /* delete the node representation of the event */
-    if (deleteEventNode) {
+    /* Delete the node representation of the event */
+    if(deleteEventNode) {
         retval = UA_Server_deleteNode(server, eventNodeId, UA_TRUE);
         if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(server->config.logger,
-                           UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Attempt to remove event using deleteNode failed. StatusCode %s",
                            UA_StatusCode_name(retval));
             return retval;
