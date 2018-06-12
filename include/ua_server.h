@@ -1073,7 +1073,7 @@ UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 /* Get namespace by name from the server. */
 UA_StatusCode UA_EXPORT
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
-                             UA_UInt16* foundIndex);
+                             size_t* foundIndex);
 
 #ifdef __cplusplus
 }
