@@ -306,18 +306,22 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     return UA_STATUSCODE_GOOD;
 }
 
-/* insert each node into the list (passed as handle) */
+/* Insert each node into the list (passed as handle) */
 static UA_StatusCode
 getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
-                               UA_NodeId referenceTypeId, void *handle) {
-    /* parents have an inverse reference */
+                               UA_NodeId referenceTypeId, struct getNodesHandle *handle) {
+    /* Parents have an inverse reference */
     if(!isInverse)
         return UA_STATUSCODE_GOOD;
 
+    /* Is this a hierarchical reference? */
+    if(!isNodeInTree(&handle->server->config.nodestore, &referenceTypeId,
+                     &hierarchicalReferences, &subtypeId, 1))
+        return UA_STATUSCODE_GOOD;
+
     Events_nodeListElement *entry = (Events_nodeListElement *) UA_malloc(sizeof(Events_nodeListElement));
-    if (!entry) {
+    if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
 
     UA_StatusCode retval = UA_NodeId_copy(&parentId, &entry->nodeId);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -325,11 +329,10 @@ getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
         return retval;
     }
 
-    LIST_INSERT_HEAD(&((struct getNodesHandle *) handle)->nodes, entry, listEntry);
+    LIST_INSERT_HEAD(&handle->nodes, entry, listEntry);
 
-    /* recursion */
-    UA_Server_forEachChildNodeCall(((struct getNodesHandle *) handle)->server,
-                                   parentId, getParentsNodeIteratorCallback, handle);
+    /* Recursion */
+    UA_Server_forEachChildNodeCall(handle->server, parentId, (UA_NodeIteratorCallback)getParentsNodeIteratorCallback, handle);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -361,16 +364,16 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     return UA_STATUSCODE_GOOD;
 }
 
-/* make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
 static const UA_NodeId objectsFolderId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
-static const UA_NodeId references[2] =
+static const UA_NodeId parentReferences[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
-    if(!isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, references, 2)) {
+    /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
+    if(!isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentReferences, 2)) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -384,11 +387,12 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
         return retval;
     }
 
-    /* Get an array with all parents */
+    /* Get an array with all parents. The first call to
+     * getParentsNodeIteratorCallback adds the emitting node itself. */
     struct getNodesHandle parentHandle;
     parentHandle.server = server;
     LIST_INIT(&parentHandle.nodes);
-    retval = getParentsNodeIteratorCallback(origin, UA_TRUE, UA_NODEID_NULL, &parentHandle);
+    retval = getParentsNodeIteratorCallback(origin, UA_TRUE, parentReferences[1], &parentHandle);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of nodes listening on the event with StatusCode %s",
@@ -400,13 +404,14 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     Events_nodeListElement *parentIter, *tmp_parentIter;
     LIST_FOREACH_SAFE(parentIter, &parentHandle.nodes, listEntry, tmp_parentIter) {
         const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, &parentIter->nodeId);
-        /* SLIST_FOREACH */
-        for(UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
-            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                               "Events: Could not add the event to a listening node with StatusCode %s",
-                               UA_StatusCode_name(retval));
+        if(node->nodeClass == UA_NODECLASS_OBJECT) {
+            for(UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
+                retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Events: Could not add the event to a listening node with StatusCode %s",
+                                   UA_StatusCode_name(retval));
+                }
             }
         }
         UA_Nodestore_release(server, (const UA_Node *) node);
