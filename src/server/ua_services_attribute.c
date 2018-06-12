@@ -570,7 +570,6 @@ typeEquivalence(const UA_DataType *t) {
     return TYPE_EQUIVALENCE_NONE;
 }
 
-const UA_NodeId subtypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
 static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERATION}};
 
 UA_Boolean

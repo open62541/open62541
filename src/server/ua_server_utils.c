@@ -415,6 +415,10 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+/* A few global NodeId definitions */
+const UA_NodeId subtypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
+const UA_NodeId hierarchicalReferences = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
+
 /*********************************/
 /* Default attribute definitions */
 /*********************************/
