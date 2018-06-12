@@ -240,6 +240,7 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *da
 
 /* A few global NodeId definitions */
 extern const UA_NodeId subtypeId;
+extern const UA_NodeId hierarchicalReferences;
 
 UA_StatusCode
 UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
