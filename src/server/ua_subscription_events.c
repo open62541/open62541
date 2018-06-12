@@ -240,64 +240,71 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-eventSetConstants(UA_Server *server, const UA_NodeId *event,
-                  const UA_NodeId *origin, UA_ByteString *outEventId) {
-    /* set the source */
+eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
+                       const UA_NodeId *origin, UA_ByteString *outEventId) {
+    /* Set the SourceNode */
+    UA_StatusCode retval;
     UA_QualifiedName name = UA_QUALIFIEDNAME(0, "SourceNode");
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
-    if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_StatusCode tmp = bpr.statusCode;
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+        retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return tmp;
+        return retval;
     }
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalarCopy(&value, origin, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_Variant_deleteMembers(&value);
     UA_BrowsePathResult_deleteMembers(&bpr);
-
-    /* set the receive time */
-    name = UA_QUALIFIEDNAME(0, "ReceiveTime");
-    bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
-    if (bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_StatusCode tmp = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
-        return tmp;
-    }
-    UA_DateTime time = UA_DateTime_now();
-    UA_Variant_setScalar(&value, &time, &UA_TYPES[UA_TYPES_DATETIME]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
-
-    /* set the eventId attribute */
-    UA_ByteString eventId;
-    UA_ByteString_init(&eventId);
-    UA_StatusCode retval = UA_Event_generateEventId(server, &eventId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if (outEventId) {
-        UA_ByteString_copy(&eventId, outEventId);
+    /* Set the ReceiveTime */
+    name = UA_QUALIFIEDNAME(0, "ReceiveTime");
+    bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+        retval = bpr.statusCode;
+        UA_BrowsePathResult_deleteMembers(&bpr);
+        return retval;
     }
+    UA_DateTime time = UA_DateTime_now();
+    UA_Variant_setScalar(&value, &time, &UA_TYPES[UA_TYPES_DATETIME]);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    UA_BrowsePathResult_deleteMembers(&bpr);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
+    /* Set the EventId */
+    UA_ByteString eventId = UA_BYTESTRING_NULL;
+    retval = UA_Event_generateEventId(server, &eventId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     name = UA_QUALIFIEDNAME(0, "EventId");
     bpr = UA_Server_browseSimplifiedBrowsePath(server, *event, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_StatusCode tmp = bpr.statusCode;
+        retval = bpr.statusCode;
         UA_ByteString_deleteMembers(&eventId);
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return tmp;
+        return retval;
     }
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_ByteString_deleteMembers(&eventId);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_deleteMembers(&eventId);
+        return retval;
+    }
+
+    /* Return the EventId */
+    if(outEventId)
+        *outEventId = eventId;
+    else
+        UA_ByteString_deleteMembers(&eventId);
 
     return UA_STATUSCODE_GOOD;
 }
-
 
 /* insert each node into the list (passed as handle) */
 static UA_StatusCode
@@ -360,7 +367,7 @@ static const UA_NodeId references[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
     if(!isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, references, 2)) {
@@ -369,7 +376,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = eventSetConstants(server, &eventNodeId, &origin, outEventId);
+    UA_StatusCode retval = eventSetStandardFields(server, &eventNodeId, &origin, outEventId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
