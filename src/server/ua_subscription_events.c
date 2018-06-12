@@ -43,64 +43,69 @@ UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
-    if (!outNodeId) {
+    if(!outNodeId) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* make sure the eventType is a subtype of BaseEventType */
+    /* Make sure the eventType is a subtype of BaseEventType */
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if (!isNodeInTree(&server->config.nodestore, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND, "Event type must be a subtype of BaseEventType!");
+    if(!isNodeInTree(&server->config.nodestore, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "Event type must be a subtype of BaseEventType!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName.locale = UA_STRING_NULL;
-    oAttr.displayName.text = UA_STRING_NULL;
-    oAttr.description.locale = UA_STRING_NULL;
-    oAttr.description.text = UA_STRING_NULL;
-
+    /* Create an ObjectNode which represents the event */
     UA_QualifiedName name;
     UA_QualifiedName_init(&name);
-
-    /* create an ObjectNode which represents the event */
+    UA_NodeId newNodeId = UA_NODEID_NULL;
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     UA_StatusCode retval =
         UA_Server_addObjectNode(server,
-                                UA_NODEID_NULL, /* the user may not have control over the nodeId */
-                                UA_NODEID_NULL, /* an event does not have a parent */
-                                UA_NODEID_NULL, /* an event does not have any references */
+                                UA_NODEID_NULL, /* Set a random unused NodeId */
+                                UA_NODEID_NULL, /* No parent */
+                                UA_NODEID_NULL, /* No parent reference */
                                 name,           /* an event does not have a name */
                                 eventType,      /* the type of the event */
                                 oAttr,          /* default attributes are fine */
                                 NULL,           /* no node context */
-                                outNodeId);
+                                &newNodeId);
 
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Adding event failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
 
-    /* find the eventType variableNode */
+    /* Find the eventType variable */
     name = UA_QUALIFIEDNAME(0, "EventType");
-    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *outNodeId, 1, &name);
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, newNodeId, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+        retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return bpr.statusCode;
+        UA_Server_deleteNode(server, newNodeId, true);
+        UA_NodeId_deleteMembers(&newNodeId);
+        return retval;
     }
+
+    /* Set the EventType */
     UA_Variant value;
     UA_Variant_init(&value);
-    UA_Variant_setScalarCopy(&value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_Variant_deleteMembers(&value);
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)&eventType, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Server_deleteNode(server, newNodeId, true);
+        UA_NodeId_deleteMembers(&newNodeId);
+        return retval;
+    }
 
-    /* the object is not put in any queues until it is triggered */
-    return retval;
+    *outNodeId = newNodeId;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_Boolean
