@@ -1,3 +1,4 @@
+
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
@@ -13,6 +14,7 @@
  *    Copyright 2016 (c) Lorenz Haas
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  */
 
 #include "ua_types.h"
@@ -63,6 +65,21 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     nameString.length = strlen(name);
     nameString.data = (UA_Byte*)(uintptr_t)name;
     return addNamespace(server, nameString);
+}
+
+UA_StatusCode 
+UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                             size_t* foundIndex) {
+  for(size_t idx = 0; idx < server->namespacesSize; idx++)
+  {
+    if(UA_String_equal(&server->namespaces[idx], &namespaceUri) == true)
+    {
+      (*foundIndex) = idx;
+      return UA_STATUSCODE_GOOD;
+    }
+  }
+
+  return UA_STATUSCODE_BADNOTFOUND;
 }
 
 UA_StatusCode
