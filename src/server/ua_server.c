@@ -14,10 +14,10 @@
  *    Copyright 2016 (c) Lorenz Haas
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  */
 
 #include "ua_types.h"
-#include "ua_util.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
@@ -62,11 +62,10 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 
 UA_StatusCode 
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
-                             UA_UInt16* foundIndex) {
+                             size_t* foundIndex) {
   for(size_t idx = 0; idx < server->namespacesSize; idx++)
   {
-    if(0 == strncmp((char*)server->namespaces[idx].data, (char*)namespaceUri.data, 
-                    MAX(server->namespaces->length, namespaceUri.length)))
+    if(UA_String_equal(&server->namespaces[idx], &namespaceUri) == true)
     {
       (*foundIndex) = idx;
       return UA_STATUSCODE_GOOD;
