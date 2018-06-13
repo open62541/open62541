@@ -207,3 +207,9 @@ DataSetFieldContentMask
 UadpDataSetMessageContentMask
 UadpNetworkMessageContentMask
 SimpleTypeDescription
+ReadRawModifiedDetails
+HistoryReadValueId
+HistoryReadRequest
+HistoryData
+HistoryReadResult
+HistoryReadResponse
