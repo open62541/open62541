@@ -8,6 +8,8 @@
 
 #include <ctype.h>
 #include <stdio.h>
+
+#ifdef UA_DEBUG_DUMP_PKGS
 void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen) {
     printf("--------------- HEX Package Start ---------------\n");
     char ascii[17];
@@ -37,3 +39,4 @@ void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen) {
     printf(" |%s|\n%08zx\n", ascii, bufferLen);
     printf("--------------- HEX Package END ---------------\n");
 }
+#endif
