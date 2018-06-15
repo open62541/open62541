@@ -19,6 +19,8 @@
 #include "ua_types_generated.h"
 #include "ua_session.h"
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
 /**
  * MonitoredItems create Notifications. Subscriptions collect Notifications from
  * (several) MonitoredItems and publish them to the client.
@@ -201,5 +203,7 @@ void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
 void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 #endif /* UA_SUBSCRIPTION_H_ */

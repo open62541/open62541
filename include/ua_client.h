@@ -353,6 +353,8 @@ UA_Client_Service_unregisterNodes(UA_Client *client,
 /*
  * Query Service Set
  * ^^^^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_QUERY
+
 static UA_INLINE UA_QueryFirstResponse
 UA_Client_Service_queryFirst(UA_Client *client,
                              const UA_QueryFirstRequest request) {
@@ -370,6 +372,8 @@ UA_Client_Service_queryNext(UA_Client *client,
                         &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
     return response;
 }
+
+#endif
 
 /**
  * .. _client-async-services:
