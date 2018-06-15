@@ -70,9 +70,10 @@ attrWritten (UA_Client *client, void *userdata, UA_UInt32 requestId,
 }
 
 #ifdef NODES_EXIST
+#ifdef UA_ENABLE_METHODCALLS
 static void
-methodCalled (UA_Client *client, void *userdata, UA_UInt32 requestId,
-              UA_CallResponse *response) {
+methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
+             UA_CallResponse *response) {
 
     printf ("%-50s%i\n", "Called method for request ", requestId);
     size_t outputSize;
@@ -116,6 +117,7 @@ translateCalled (UA_Client *client, void *userdata, UA_UInt32 requestId,
     }
     UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers (response);
 }
+#endif /* UA_ENABLE_METHODCALLS */
 #endif
 
 int
@@ -188,6 +190,7 @@ main (int argc, char *argv[]) {
 
 //TODO: check the existance of the nodes inside these functions (otherwise seg faults)
 #ifdef NODES_EXIST
+#ifdef UA_ENABLE_METHODCALLS
             UA_String stringValue = UA_String_fromChars ("World");
             UA_Variant_setScalar (&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -206,6 +209,7 @@ main (int argc, char *argv[]) {
                                                           pathSize,
                                                           translateCalled, NULL,
                                                           &reqId);
+#endif /* UA_ENABLE_METHODCALLS */
 #endif
             /* How often UA_Client_run_iterate is called depends on the number of request sent */
             UA_Client_run_iterate(client, 0);

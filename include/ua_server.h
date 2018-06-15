@@ -795,6 +795,8 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
  * also be registered locally. Notifications are then forwarded to a
  * user-defined callback instead of a remote client. */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
 typedef void (*UA_Server_DataChangeNotificationCallback)
     (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
      const UA_NodeId *nodeId, void *nodeContext, UA_UInt32 attributeId,
@@ -834,6 +836,8 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
 
 UA_StatusCode UA_EXPORT
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
+
+#endif
 
 /**
  * Method Callbacks

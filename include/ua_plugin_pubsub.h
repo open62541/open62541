@@ -14,6 +14,8 @@ extern "C" {
 
 #include "ua_server_pubsub.h"
 
+#ifdef UA_ENABLE_PUBSUB
+
 /**
  * .. _pubsub_connection:
  *
@@ -85,6 +87,8 @@ typedef struct UA_PubSubTransportLayer{
     UA_String transportProfileUri;
     UA_PubSubChannel * (*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
 } UA_PubSubTransportLayer;
+
+#endif /* UA_ENABLE_PUBSUB */
 
 #ifdef __cplusplus
 } // extern "C"
