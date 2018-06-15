@@ -61,15 +61,13 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_QUERY "Enable query support." OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
+option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
 # It should not be possible to enable events without enabling subscriptions and full ns0
 if ((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_ENABLE_FULL_NS0)))
     message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and UA_ENABLE_FULL_NS0")
 endif()
-
-# Encryption Options
-option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
