@@ -1353,12 +1353,10 @@ UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
-    UA_StatusCode retval =
-        UA_Server_editNode(server, &adminSession, &value->nodeId,
-                  (UA_EditNodeCallback)copyAttributeIntoNode,
-                   /* casting away const qualifier because callback uses const anyway */
-                   (UA_WriteValue *)(uintptr_t)value);
-    return retval;
+    return UA_Server_editNode(server, &adminSession, &value->nodeId,
+                              (UA_EditNodeCallback)copyAttributeIntoNode,
+                              /* casting away const qualifier because callback uses const anyway */
+                              (UA_WriteValue *)(uintptr_t)value);
 }
 
 /* Convenience function to be wrapped into inline functions */
