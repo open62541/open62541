@@ -49,11 +49,13 @@ UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         UA_DataValue_deleteMembers(&n->data.value);
         --sub->dataChangeNotifications;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         UA_EventFieldList_deleteMembers(&n->data.event.fields);
         /* EventFilterResult currently isn't being used
          * UA_EventFilterResult_delete(notification->data.event->result); */
         --sub->eventNotifications;
+#endif
     } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
         --sub->statusChangeNotifications;
     }
