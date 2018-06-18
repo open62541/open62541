@@ -265,6 +265,12 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
  * on the stack and returned. */
 const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
 
+/* Write a node attribute with a defined session */
+UA_StatusCode
+UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
+                           const UA_WriteValue *value);
+
+
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
