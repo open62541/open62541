@@ -46,11 +46,13 @@ typedef enum {
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 typedef struct UA_EventNotification {
     UA_EventFieldList fields;
     /* EventFilterResult currently isn't being used
     UA_EventFilterResult result; */
 } UA_EventNotification;
+#endif
 
 typedef struct UA_Notification {
     TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
@@ -60,7 +62,9 @@ typedef struct UA_Notification {
 
     /* See the monitoredItemType of the MonitoredItem */
     union {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_EventNotification event;
+#endif
         UA_DataValue value;
     } data;
 } UA_Notification;
@@ -94,7 +98,9 @@ struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
     union {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_EventFilter eventFilter;
+#endif
         UA_DataChangeFilter dataChangeFilter;
     } filter;
     UA_Variant lastValue;
