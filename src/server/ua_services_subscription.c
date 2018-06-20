@@ -71,7 +71,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            UA_CreateSubscriptionResponse *response) {
     /* Check limits for the number of subscriptions */
     if((server->config.maxSubscriptionsPerSession != 0) &&
-       (session->numPublishReq >= server->config.maxSubscriptionsPerSession)) {
+       (session->numSubscriptions >= server->config.maxSubscriptionsPerSession)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
