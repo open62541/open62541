@@ -7,6 +7,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_plugin_securitypolicy.h"

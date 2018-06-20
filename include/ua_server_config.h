@@ -5,6 +5,7 @@
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #ifndef UA_SERVER_CONFIG_H_

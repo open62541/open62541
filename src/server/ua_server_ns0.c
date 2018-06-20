@@ -7,6 +7,7 @@
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_server_internal.h"
