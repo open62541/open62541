@@ -92,12 +92,12 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 
 UA_StatusCode
 MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
-    if(mon->queueSize <= mon->maxQueueSize)
+    if(mon->queueSize - mon->eventOverflows <= mon->maxQueueSize)
         return UA_STATUSCODE_GOOD;
 
     /* Remove notifications until the queue size is reached */
     UA_Subscription *sub = mon->subscription;
-    while(mon->queueSize > mon->maxQueueSize) {
+    while(mon->queueSize - mon->eventOverflows > mon->maxQueueSize) {
         UA_assert(mon->queueSize >= 2); /* At least two Notifications in the queue */
 
         /* Make sure that the MonitoredItem does not lose its place in the
@@ -132,10 +132,14 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
              /* check if an overflowEvent is being deleted
               * TODO: make sure overflowEvents are never deleted */
              UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
-             UA_Boolean deletingOverflowEvent =
-                     del->data.event.fields.eventFieldsSize == 1 &&
-                     del->data.event.fields.eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
-                     UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields[0].data, &overflowId);
+
+             /* Check if an OverflowEvent is being deleted */
+             if (del->data.event.fields.eventFieldsSize == 1
+                   &&  del->data.event.fields.eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID]
+                   &&  UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields[0].data, &overflowId)) {
+                 /* Don't do anything, since adding and removing an overflow will not change anything */
+                 return UA_STATUSCODE_GOOD;
+             }
 
              /* cause an overflowEvent */
              /* an overflowEvent does not care about event filters and as such
@@ -155,10 +159,15 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
                  return UA_STATUSCODE_BADOUTOFMEMORY;
              }
 
-             UA_Variant_init(overflowNotification->data.event.fields.eventFields);
              overflowNotification->data.event.fields.eventFieldsSize = 1;
-             UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
+             UA_StatusCode retval = UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
                                       &overflowId, &UA_TYPES[UA_TYPES_NODEID]);
+             if (retval != UA_STATUSCODE_GOOD) {
+                 UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
+                 UA_free(overflowNotification);
+                 return retval;
+             }
+
              overflowNotification->mon = mon;
              if(mon->discardOldest) {
                  TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry);
@@ -168,12 +177,6 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
                  TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue, overflowNotification, globalEntry);
              }
 
-             /* removing an OverflowEvent and adding an OverflowEvent causes the amount
-              * of overflows to remain the same */
-             if (!deletingOverflowEvent) {
-                 ++mon->eventOverflows;
-                 /* mon->queueSize will be reduced in Notification_delete */
-             }
 
              /* The amount of notifications in the subscription don't change. The specification
               * only states that the queue size in each MonitoredItem isn't affected by OverflowEvents.

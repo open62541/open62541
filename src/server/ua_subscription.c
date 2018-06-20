@@ -303,14 +303,6 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             UA_EventFieldList_init(&notification->data.event.fields);
             efl->clientHandle = mon->clientHandle;
             enlPos++;
-
-            /* increase the monitoredItem queueSize if an eventOverflow was moved,
-             * so it remains the same when the size is reduced in UA_Notification_delete */
-            UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
-            if (efl->eventFieldsSize == 1 && efl->eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID]
-                    && UA_NodeId_equal((UA_NodeId *)efl->eventFields[0].data, &overflowId)) {
-                mon->queueSize++;
-            }
         }
 #endif
         else {
