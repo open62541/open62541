@@ -1,3 +1,4 @@
+
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
  *
@@ -8,6 +9,8 @@
 
 #include <ctype.h>
 #include <stdio.h>
+
+#ifdef UA_DEBUG_DUMP_PKGS
 void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen) {
     printf("--------------- HEX Package Start ---------------\n");
     char ascii[17];
@@ -37,3 +40,4 @@ void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen) {
     printf(" |%s|\n%08zx\n", ascii, bufferLen);
     printf("--------------- HEX Package END ---------------\n");
 }
+#endif
