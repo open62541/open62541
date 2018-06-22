@@ -51,6 +51,7 @@ endif()
 
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
+option(UA_ENABLE_HISTORIZING "Enable server to provide historical access." ON)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)

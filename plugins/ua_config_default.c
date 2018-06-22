@@ -7,6 +7,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_plugin_securitypolicy.h"
@@ -278,6 +279,28 @@ createDefaultConfig(void) {
 
 #ifdef UA_ENABLE_DISCOVERY
     conf->discoveryCleanupTimeout = 60 * 60;
+#endif
+
+#ifdef UA_ENABLE_HISTORIZING
+    /* conf->accessHistoryDataCapability = UA_FALSE; */
+    /* conf->maxReturnDataValues = 0; */
+
+    /* conf->accessHistoryEventsCapability = UA_FALSE; */
+    /* conf->maxReturnEventValues = 0; */
+
+    /* conf->insertDataCapability = UA_FALSE; */
+    /* conf->insertEventCapability = UA_FALSE; */
+    /* conf->insertAnnotationsCapability = UA_FALSE; */
+
+    /* conf->replaceDataCapability = UA_FALSE; */
+    /* conf->replaceEventCapability = UA_FALSE; */
+
+    /* conf->updateDataCapability = UA_FALSE; */
+    /* conf->updateEventCapability = UA_FALSE; */
+
+    /* conf->deleteRawCapability = UA_FALSE; */
+    /* conf->deleteEventCapability = UA_FALSE; */
+    /* conf->deleteAtTimeDataCapability = UA_FALSE; */
 #endif
 
     /* --> Finish setting the default static config <-- */
