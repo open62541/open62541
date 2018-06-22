@@ -365,7 +365,7 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
 }
 
 static const UA_NodeId objectsFolderId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
-static const UA_NodeId parentReferences[2] =
+static const UA_NodeId parentReferences_events[2] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
 
@@ -373,7 +373,7 @@ UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    if(!isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentReferences, 2)) {
+    if(!isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentReferences_events, 2)) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -392,7 +392,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     struct getNodesHandle parentHandle;
     parentHandle.server = server;
     LIST_INIT(&parentHandle.nodes);
-    retval = getParentsNodeIteratorCallback(origin, UA_TRUE, parentReferences[1], &parentHandle);
+    retval = getParentsNodeIteratorCallback(origin, UA_TRUE, parentReferences_events[1], &parentHandle);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of nodes listening on the event with StatusCode %s",
