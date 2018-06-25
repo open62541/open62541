@@ -13,31 +13,31 @@ extern "C" {
 #include "ua_plugin_log.h"
 
 typedef struct funcs_called {
-    bool asym_enc;
-    bool asym_dec;
+    UA_Boolean asym_enc;
+    UA_Boolean asym_dec;
 
-    bool sym_enc;
-    bool sym_dec;
+    UA_Boolean sym_enc;
+    UA_Boolean sym_dec;
 
-    bool asym_sign;
-    bool asym_verify;
+    UA_Boolean asym_sign;
+    UA_Boolean asym_verify;
 
-    bool sym_sign;
-    bool sym_verify;
+    UA_Boolean sym_sign;
+    UA_Boolean sym_verify;
 
-    bool newContext;
-    bool deleteContext;
+    UA_Boolean newContext;
+    UA_Boolean deleteContext;
 
-    bool makeCertificateThumbprint;
-    bool generateKey;
-    bool generateNonce;
+    UA_Boolean makeCertificateThumbprint;
+    UA_Boolean generateKey;
+    UA_Boolean generateNonce;
 
-    bool setLocalSymEncryptingKey;
-    bool setLocalSymSigningKey;
-    bool setLocalSymIv;
-    bool setRemoteSymEncryptingKey;
-    bool setRemoteSymSigningKey;
-    bool setRemoteSymIv;
+    UA_Boolean setLocalSymEncryptingKey;
+    UA_Boolean setLocalSymSigningKey;
+    UA_Boolean setLocalSymIv;
+    UA_Boolean setRemoteSymEncryptingKey;
+    UA_Boolean setRemoteSymSigningKey;
+    UA_Boolean setRemoteSymIv;
 } funcs_called;
 
 typedef struct key_sizes {

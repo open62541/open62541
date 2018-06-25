@@ -550,7 +550,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     *stride = v->arrayLength; /* So it can be copied as a contiguous block.   */
     *first = 0;
     size_t running_dimssize = 1;
-    bool found_contiguous = false;
+    UA_Boolean found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
         --k;
         size_t dimrange = 1 + realmax[k] - range.dimensions[k].min;
@@ -567,7 +567,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
 }
 
 /* Is the type string-like? */
-static bool
+static UA_Boolean
 isStringLike(const UA_DataType *type) {
     if(type == &UA_TYPES[UA_TYPES_STRING] ||
        type == &UA_TYPES[UA_TYPES_BYTESTRING] ||
@@ -604,8 +604,8 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range) {
     if(!src->type)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    bool isScalar = UA_Variant_isScalar(src);
-    bool stringLike = isStringLike(src->type);
+    UA_Boolean isScalar = UA_Variant_isScalar(src);
+    UA_Boolean stringLike = isStringLike(src->type);
     UA_Variant arraySrc;
 
     /* Extract the range for copying at this level. The remaining range is dealt
@@ -733,7 +733,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
  * variant and strings. This is already possible for reading... */
 static UA_StatusCode
 Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
-                 const UA_NumericRange range, bool copy) {
+                 const UA_NumericRange range, UA_Boolean copy) {
     /* Compute the strides */
     size_t count, block, stride, first;
     UA_StatusCode retval = computeStrides(v, range, &count,

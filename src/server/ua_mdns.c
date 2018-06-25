@@ -490,8 +490,8 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
             std::string ipv6_str(str_buffer);
 
             // Detect and skip non-external addresses
-            bool is_link_local(false);
-            bool is_special_use(false);
+            UA_Boolean is_link_local(false);
+            UA_Boolean is_special_use(false);
 
             if(0 == ipv6_str.find("fe")) {
             char c = ipv6_str[2];

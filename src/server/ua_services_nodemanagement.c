@@ -640,7 +640,7 @@ static UA_StatusCode callConstructors(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
        const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
-       bool forward) {
+       UA_Boolean forward) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddReferencesItem ref_item;
     UA_AddReferencesItem_init(&ref_item);
