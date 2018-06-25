@@ -33,6 +33,7 @@
 # endif
 #else
 # include <unistd.h> //access
+# include <sys/time.h> // struct timeval
 #endif
 
 #include <fcntl.h>
