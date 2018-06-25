@@ -2,7 +2,7 @@
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
 include_directories(${CHECK_INCLUDE_DIRS})
-find_package(Threads REQUIRED)
+#find_package(Threads REQUIRED)
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
 endif()

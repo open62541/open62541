@@ -5,27 +5,36 @@ set -ev
 if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	# Only on non-docker builds required
 
-	echo "=== Installing from external package sources ===" && echo -en 'travis_fold:start:before_install.external\\r'
+ 	echo "=== Installing from external package sources in $LOCAL_PKG ===" && echo -en 'travis_fold:start:before_install.external\\r'
 
-	if [ "$CC" = "clang" ]; then
-		# the ubuntu repo has a somehow broken clang-3.9 compiler. We want to use the one from the llvm repo
-		# See https://github.com/openssl/openssl/commit/404c76f4ee1dc51c0d200e2b60a6340aadb44e38
-		sudo cp .travis-apt-pin.preferences /etc/apt/preferences.d/no-ubuntu-clang
-		curl -sSL "http://apt.llvm.org/llvm-snapshot.gpg.key" | sudo -E apt-key add -
-		echo "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.9 main" | sudo tee -a /etc/apt/sources.list > /dev/null
-		sudo -E apt-add-repository -y "ppa:ubuntu-toolchain-r/test"
-		sudo -E apt-get -yq update
-		sudo -E apt-get -yq --no-install-suggests --no-install-recommends --force-yes install clang-3.9 clang-tidy-3.9 libfuzzer-3.9-dev
-	fi
+   # Increase the environment version to force a rebuild of the packages
+    # The version is writen to the cache file after every build of the dependencies
+    ENV_VERSION="1"
+    ENV_INSTALLED=""
+    if [ -e $LOCAL_PKG/.build_env ]; then
+        echo "=== No cached build environment ==="
+        read -r ENV_INSTALLED < $LOCAL_PKG/.build_env
+    fi
+
+    # travis caches the $LOCAL_PKG dir. If it is loaded, we don't need to reinstall the packages
+    if [ "$ENV_VERSION" = "$ENV_INSTALLED" ]; then
+        echo "=== The build environment is current ==="
+        exit 0
+    fi
+
+    echo "=== The build environment is outdated ==="
+
+    # Clean up
+    rm -rf $LOCAL_PKG/*
 
 	if [ "$CC" = "tcc" ]; then
 		mkdir tcc_install && cd tcc_install
 		wget https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2
 		tar xf tcc-0.9.27.tar.bz2
 		cd tcc-0.9.27
-		./configure
+		./configure --prefix=$LOCAL_PKG
 		make
-		sudo make install
+		make install
 		cd ../..
 		rm -rf tcc_install
 	fi
@@ -33,9 +42,9 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	wget https://github.com/ARMmbed/mbedtls/archive/mbedtls-2.7.1.tar.gz
 	tar xf mbedtls-2.7.1.tar.gz
 	cd mbedtls-mbedtls-2.7.1
-	cmake -DENABLE_TESTING=Off .
+	cmake -DENABLE_TESTING=Off -DCMAKE_INSTALL_PREFIX=$LOCAL_PKG .
 	make -j
-	sudo make install
+	make install
 
 	echo -en 'travis_fold:end:script.before_install.external\\r'
 
@@ -45,12 +54,5 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	pip install --user sphinx_rtd_theme
 	pip install --user cpplint
 	echo -en 'travis_fold:end:script.before_install.python\\r'
-
-	echo "=== Installed versions are ===" && echo -en 'travis_fold:start:before_install.versions\\r'
-	clang --version
-	g++ --version
-	cppcheck --version
-	valgrind --version
-	echo -en 'travis_fold:end:script.before_install.versions\\r'
 
 fi
