@@ -18,10 +18,6 @@
 #include "ua_types.h"
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_GENERATE_NAMESPACE0
-#include "ua_namespaceinit_generated.h"
-#endif
-
 /**********************/
 /* Namespace Handling */
 /**********************/

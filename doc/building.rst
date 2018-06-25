@@ -188,6 +188,12 @@ This group contains build options related to the supported OPC UA features.
    Enable multi-threading support
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
+**UA_ENABLE_DISCOVERY**
+   Enable Discovery Service (LDS)
+**UA_ENABLE_DISCOVERY_MULTICAST**
+   Enable Discovery Service with multicast support (LDS-ME)
+**UA_ENABLE_DISCOVERY_SEMAPHORE**
+   Enable Discovery Semaphore support
 
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
@@ -196,9 +202,9 @@ be visible in the cmake GUIs.
    Add the type and member names to the UA_DataType structure. Enabled by default.
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
    Compile the human-readable name of the StatusCodes into the binary. Enabled by default.
-**UA_ENABLE_GENERATE_NAMESPACE0**
-   Generate and load UA XML Namespace 0 definition
-   ``UA_GENERATE_NAMESPACE0_FILE`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
+**UA_ENABLE_FULL_NS0**
+   Use the full NS0 instead of a minimal Namespace 0 nodeset
+   ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
 **UA_ENABLE_NONSTANDARD_UDP**
    Enable udp extension
 
