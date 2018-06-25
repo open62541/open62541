@@ -183,7 +183,7 @@ UA_decode64(const u8 buf[8], u64 *v) {
 
 /* Boolean */
 ENCODE_BINARY(Boolean) {
-    if(ctx->pos + sizeof(bool) > ctx->end)
+    if(ctx->pos + sizeof(UA_Boolean) > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     *ctx->pos = *(const u8*)src;
     ++ctx->pos;
@@ -191,7 +191,7 @@ ENCODE_BINARY(Boolean) {
 }
 
 DECODE_BINARY(Boolean) {
-    if(ctx->pos + sizeof(bool) > ctx->end)
+    if(ctx->pos + sizeof(UA_Boolean) > ctx->end)
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (*ctx->pos > 0) ? true : false;
     ++ctx->pos;
@@ -968,7 +968,7 @@ DECODE_BINARY(ExtensionObject) {
 
 /* Never returns UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED */
 static status
-Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const bool isArray, Ctx *ctx) {
+Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const UA_Boolean isArray, Ctx *ctx) {
     /* Default to 1 for a scalar. */
     size_t length = 1;
 
@@ -1016,8 +1016,8 @@ ENCODE_BINARY(Variant) {
         return ENCODE_DIRECT(&encoding, Byte);
 
     /* Set the content type in the encoding mask */
-    const bool isBuiltin = src->type->builtin;
-    const bool isAlias = src->type->membersSize == 1
+    const UA_Boolean isBuiltin = src->type->builtin;
+    const UA_Boolean isAlias = src->type->membersSize == 1
                          && UA_TYPES[src->type->members[0].memberTypeIndex].builtin;
     if(isBuiltin)
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeIndex + 1);
@@ -1027,8 +1027,8 @@ ENCODE_BINARY(Variant) {
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1);
 
     /* Set the array type in the encoding mask */
-    const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
-    const bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
+    const UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
+    const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     if(isArray) {
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
         if(hasDimensions)
@@ -1111,7 +1111,7 @@ DECODE_BINARY(Variant) {
         return UA_STATUSCODE_GOOD;
 
     /* Does the variant contain an array? */
-    const bool isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
+    const UA_Boolean isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
 
     /* Get the datatype of the content. The type must be a builtin data type.
      * All not-builtin types are wrapped in an ExtensionObject. */
@@ -1644,9 +1644,9 @@ CALCSIZE_BINARY(Variant) {
     if(!src->type)
         return s;
 
-    bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
-    bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
-    bool isBuiltin = src->type->builtin;
+    UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
+    UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
+    UA_Boolean isBuiltin = src->type->builtin;
 
 
     size_t encode_index = src->type->typeIndex;
