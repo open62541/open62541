@@ -27,6 +27,8 @@ const UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
 
 static UA_StatusCode
 activateSession_default(UA_Server *server, UA_AccessControl *ac,
+                        const UA_EndpointDescription *endpointDescription,
+                        const UA_ByteString *secureChannelRemoteCertificate,
                         const UA_NodeId *sessionId,
                         const UA_ExtensionObject *userIdentityToken,
                         void **sessionContext) {

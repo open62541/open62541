@@ -34,9 +34,13 @@ struct UA_AccessControl {
     size_t userTokenPoliciesSize;
     UA_UserTokenPolicy *userTokenPolicies;
     
-    /* Authenticate a session. The session context is attached to the session and
-     * later passed into the node-based access control callbacks. */
+    /* Authenticate a session. The session context is attached to the session
+     * and later passed into the node-based access control callbacks. The new
+     * session is rejected if a StatusCode other than UA_STATUSCODE_GOOD is
+     * returned. */
     UA_StatusCode (*activateSession)(UA_Server *server, UA_AccessControl *ac,
+                                     const UA_EndpointDescription *endpointDescription,
+                                     const UA_ByteString *secureChannelRemoteCertificate,
                                      const UA_NodeId *sessionId,
                                      const UA_ExtensionObject *userIdentityToken,
                                      void **sessionContext);
