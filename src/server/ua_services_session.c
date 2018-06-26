@@ -242,10 +242,59 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    /* Find the matching endpoint */
+    const UA_EndpointDescription *ed = NULL;
+    for(size_t i = 0; ed == NULL && i < server->config.endpointsSize; ++i) {
+        const UA_Endpoint *e = &server->config.endpoints[i];
+
+        /* Match the Security Mode */
+        if(e->endpointDescription.securityMode != channel->securityMode)
+            continue;
+
+        /* Match the SecurityPolicy */
+        if(!UA_String_equal(&e->securityPolicy.policyUri,
+                            &channel->securityPolicy->policyUri))
+            continue;
+
+        /* Match the UserTokenType */
+        for(size_t j = 0; j < e->endpointDescription.userIdentityTokensSize; j++) {
+            const UA_UserTokenPolicy *u = &e->endpointDescription.userIdentityTokens[j];
+            if(u->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
+                if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
+                    continue;
+            } else if(u->tokenType == UA_USERTOKENTYPE_USERNAME) {
+                if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
+                    continue;
+            } else if(u->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+                if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN])
+                    continue;
+            } else if(u->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN) {
+                if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN])
+                    continue;
+            } else {
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+                return;
+            }
+
+            /* Match found */
+            ed = &e->endpointDescription;
+            break;
+        }
+
+    }
+
+    /* No matching endpoint found */
+    if(!ed) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
+        return;
+    }
+
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
         server->config.accessControl.activateSession(server, &server->config.accessControl,
-                                                     &session->sessionId, &request->userIdentityToken,
+                                                     ed, &channel->remoteCertificate,
+                                                     &session->sessionId,
+                                                     &request->userIdentityToken,
                                                      &session->sessionHandle);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
