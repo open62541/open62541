@@ -76,7 +76,7 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
 
     // ExtendedFlags1
     if(UA_NetworkMessage_ExtendedFlags1Enabled(src)) {
-        v = src->publisherIdType;
+        v = (UA_Byte)src->publisherIdType;
 
         if(src->dataSetClassIdEnabled)
             v |= NM_DATASET_CLASSID_ENABLED_MASK;
@@ -99,7 +99,7 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
 
         // ExtendedFlags2
         if(UA_NetworkMessage_ExtendedFlags2Enabled(src)) { 
-            v = src->networkMessageType;
+            v = (UA_Byte)src->networkMessageType;
             // shift left 2 bit
             v = (UA_Byte) (v << NM_SHIFT_LEN);
 
@@ -856,7 +856,7 @@ UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte
 
     UA_Byte v;
     // DataSetFlags1 
-    v = src->fieldEncoding;
+    v = (UA_Byte)src->fieldEncoding;
     // shift left 1 bit
     v = (UA_Byte)(v << DS_MH_SHIFT_LEN);
 
@@ -884,7 +884,7 @@ UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte
     
     // DataSetFlags2
     if(UA_DataSetMessageHeader_DataSetFlags2Enabled(src)) {
-        v = src->dataSetMessageType;
+        v = (UA_Byte)src->dataSetMessageType;
 
         if(src->timestampEnabled)
             v |= DS_MESSAGEHEADER_TIMESTAMP_ENABLED_MASK;
