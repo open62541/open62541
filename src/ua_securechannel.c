@@ -33,9 +33,9 @@ const UA_ByteString
     UA_SECURITY_POLICY_NONE_URI = {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
 
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
-UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
-UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
+UA_StatusCode decrypt_verifySignatureFailure;
+UA_StatusCode sendAsym_sendFailure;
+UA_StatusCode processSym_seqNumberFailure;
 #endif
 
 UA_StatusCode

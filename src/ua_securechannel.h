@@ -27,9 +27,9 @@ extern "C" {
 
 /* Thread-local variables to force failure modes during testing */
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-extern UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
-extern UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
-extern UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
+extern UA_StatusCode decrypt_verifySignatureFailure;
+extern UA_StatusCode sendAsym_sendFailure;
+extern UA_StatusCode processSym_seqNumberFailure;
 #endif
 
 /* The Session implementation differs between client and server. Still, it is
