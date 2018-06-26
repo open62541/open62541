@@ -284,6 +284,12 @@ extern "C" {
 # define UA_BINARY_OVERLAYABLE_INTEGER 0
 #endif
 
+/* Some platforms (e.g. QNX) have sizeof(bool) > 1. Disable overlayed integer
+ * encoding if that is the case. */
+#if UA_BINARY_OVERLAYABLE_INTEGER == 1
+UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
+#endif
+
 /**
  * Float Endianness
  * ^^^^^^^^^^^^^^^^

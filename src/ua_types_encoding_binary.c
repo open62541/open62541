@@ -182,8 +182,10 @@ UA_decode64(const u8 buf[8], u64 *v) {
 #endif /* !UA_BINARY_OVERLAYABLE_INTEGER */
 
 /* Boolean */
+/* Note that sizeof(bool) != 1 on some platforms. Overlayable integer encoding
+ * is disabled in those cases. */
 ENCODE_BINARY(Boolean) {
-    if(ctx->pos + sizeof(UA_Boolean) > ctx->end)
+    if(ctx->pos + 1 > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     *ctx->pos = *(const u8*)src;
     ++ctx->pos;
@@ -191,7 +193,7 @@ ENCODE_BINARY(Boolean) {
 }
 
 DECODE_BINARY(Boolean) {
-    if(ctx->pos + sizeof(UA_Boolean) > ctx->end)
+    if(ctx->pos + 1 > ctx->end)
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (*ctx->pos > 0) ? true : false;
     ++ctx->pos;
@@ -1550,10 +1552,10 @@ Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *type) {
     return s;
 }
 
-static size_t
-calcSizeBinaryMemSize(const void *UA_RESTRICT p, const UA_DataType *type) {
-    return type->memSize;
-}
+static size_t calcSizeBinary1(const void *_, const UA_DataType *__) { return 1; }
+static size_t calcSizeBinary2(const void *_, const UA_DataType *__) { return 2; }
+static size_t calcSizeBinary4(const void *_, const UA_DataType *__) { return 4; }
+static size_t calcSizeBinary8(const void *_, const UA_DataType *__) { return 8; }
 
 CALCSIZE_BINARY(String) {
     return 4 + src->length;
@@ -1712,25 +1714,25 @@ CALCSIZE_BINARY(DiagnosticInfo) {
 }
 
 const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Boolean */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Byte */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Int16 */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Int32 */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Int64 */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Float */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Double */
+    (calcSizeBinarySignature)calcSizeBinary1, /* Boolean */
+    (calcSizeBinarySignature)calcSizeBinary1, /* SByte */
+    (calcSizeBinarySignature)calcSizeBinary1, /* Byte */
+    (calcSizeBinarySignature)calcSizeBinary2, /* Int16 */
+    (calcSizeBinarySignature)calcSizeBinary2, /* UInt16 */
+    (calcSizeBinarySignature)calcSizeBinary4, /* Int32 */
+    (calcSizeBinarySignature)calcSizeBinary4, /* UInt32 */
+    (calcSizeBinarySignature)calcSizeBinary8, /* Int64 */
+    (calcSizeBinarySignature)calcSizeBinary8, /* UInt64 */
+    (calcSizeBinarySignature)calcSizeBinary4, /* Float */
+    (calcSizeBinarySignature)calcSizeBinary8, /* Double */
     (calcSizeBinarySignature)String_calcSizeBinary,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* DateTime */
+    (calcSizeBinarySignature)calcSizeBinary8, /* DateTime */
     (calcSizeBinarySignature)Guid_calcSizeBinary,
     (calcSizeBinarySignature)String_calcSizeBinary, /* ByteString */
     (calcSizeBinarySignature)String_calcSizeBinary, /* XmlElement */
     (calcSizeBinarySignature)NodeId_calcSizeBinary,
     (calcSizeBinarySignature)ExpandedNodeId_calcSizeBinary,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* StatusCode */
+    (calcSizeBinarySignature)calcSizeBinary4, /* StatusCode */
     (calcSizeBinarySignature)QualifiedName_calcSizeBinary,
     (calcSizeBinarySignature)LocalizedText_calcSizeBinary,
     (calcSizeBinarySignature)ExtensionObject_calcSizeBinary,
