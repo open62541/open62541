@@ -45,11 +45,18 @@ extern "C" {
  * the request and response structures. Possible error codes are returned as
  * part of the response. */
 
-typedef void (*UA_Service)(UA_Server*, UA_Session*,
+typedef void (*UA_Service)(UA_Server *, UA_Session *,
                            const void *request, void *response);
 
-typedef UA_StatusCode (*UA_InSituService)(UA_Server*, UA_Session*, UA_MessageContext *mc,
+typedef UA_StatusCode (*UA_InSituService)(UA_Server *, UA_Session *, UA_MessageContext *mc,
                                           const void *request, UA_ResponseHeader *rh);
+
+typedef void (*UA_SessionService)(UA_Server *server, UA_SecureChannel *channel,
+                                  UA_Session *session,
+                                  const void *request, void *response);
+
+typedef void (*UA_PublishService)(UA_Server *server, UA_Session *session,
+                                  const UA_PublishRequest *request, UA_UInt32 requestId);
 
 /**
  * Discovery Service Set
@@ -61,18 +68,20 @@ typedef UA_StatusCode (*UA_InSituService)(UA_Server*, UA_Session*, UA_MessageCon
  * ^^^^^^^^^^^^^^^^^^^
  * Returns the Servers known to a Server or Discovery Server. The Client may
  * reduce the number of results returned by specifying filter criteria */
-void Service_FindServers(UA_Server *server, UA_Session *session,
-                         const UA_FindServersRequest *request,
-                         UA_FindServersResponse *response);
+void
+Service_FindServers(UA_Server *server, UA_Session *session,
+                    const UA_FindServersRequest *request,
+                    UA_FindServersResponse *response);
 
 /**
  * GetEndpoints Service
  * ^^^^^^^^^^^^^^^^^^^^
  * Returns the Endpoints supported by a Server and all of the configuration
  * information required to establish a SecureChannel and a Session. */
-void Service_GetEndpoints(UA_Server *server, UA_Session *session,
-                          const UA_GetEndpointsRequest *request,
-                          UA_GetEndpointsResponse *response);
+void
+Service_GetEndpoints(UA_Server *server, UA_Session *session,
+                     const UA_GetEndpointsRequest *request,
+                     UA_GetEndpointsResponse *response);
 
 #ifdef UA_ENABLE_DISCOVERY
 
@@ -84,9 +93,10 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
  * Returns the Servers known to a Discovery Server. Unlike FindServer,
  * this Service is only implemented by Discovery Servers. It additionally
  * Returns servery which may have been detected trough Multicast */
-void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
-                                  const UA_FindServersOnNetworkRequest *request,
-                                  UA_FindServersOnNetworkResponse *response);
+void
+Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
+                             const UA_FindServersOnNetworkRequest *request,
+                             UA_FindServersOnNetworkResponse *response);
 
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
@@ -94,9 +104,10 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
  * RegisterServer
  * ^^^^^^^^^^^^^^
  * Registers a remote server in the local discovery service. */
-void Service_RegisterServer(UA_Server *server, UA_Session *session,
-                            const UA_RegisterServerRequest *request,
-                            UA_RegisterServerResponse *response);
+void
+Service_RegisterServer(UA_Server *server, UA_Session *session,
+                       const UA_RegisterServerRequest *request,
+                       UA_RegisterServerResponse *response);
 
 /**
  * RegisterServer2
@@ -104,9 +115,10 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
  * This Service allows a Server to register its DiscoveryUrls and capabilities
  * with a Discovery Server. It extends the registration information from
  * RegisterServer with information necessary for FindServersOnNetwork. */
-void Service_RegisterServer2(UA_Server *server, UA_Session *session,
-                            const UA_RegisterServer2Request *request,
-                            UA_RegisterServer2Response *response);
+void
+Service_RegisterServer2(UA_Server *server, UA_Session *session,
+                        const UA_RegisterServer2Request *request,
+                        UA_RegisterServer2Response *response);
 
 #endif /* UA_ENABLE_DISCOVERY */
 
@@ -121,15 +133,17 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
  * ^^^^^^^^^^^^^^^^^^^^^^^^^
  * Open or renew a SecureChannel that can be used to ensure Confidentiality and
  * Integrity for Message exchange during a Session. */
-void Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel* channel,
-                               const UA_OpenSecureChannelRequest *request,
-                               UA_OpenSecureChannelResponse *response);
+void
+Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                          const UA_OpenSecureChannelRequest *request,
+                          UA_OpenSecureChannelResponse *response);
 
 /**
  * CloseSecureChannel Service
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Used to terminate a SecureChannel. */
-void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel);
+void
+Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 /**
  * Session Service Set
@@ -144,9 +158,11 @@ void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel);
  * which is used to identify the Session in the audit logs and in the Server's
  * address space. The second is the authenticationToken which is used to
  * associate an incoming request with a Session. */
-void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                           const UA_CreateSessionRequest *request,
-                           UA_CreateSessionResponse *response);
+void
+Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                      UA_Session *,
+                      const UA_CreateSessionRequest *request,
+                      UA_CreateSessionResponse *response);
 
 /**
  * ActivateSession
@@ -156,18 +172,20 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
  * Session. This Service request shall be issued by the Client before it issues
  * any other Service request after CreateSession. Failure to do so shall cause
  * the Server to close the Session. */
-void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                             UA_Session *session,
-                             const UA_ActivateSessionRequest *request,
-                             UA_ActivateSessionResponse *response);
+void
+Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+                        UA_Session *session,
+                        const UA_ActivateSessionRequest *request,
+                        UA_ActivateSessionResponse *response);
 
 /**
  * CloseSession
  * ^^^^^^^^^^^^
  * Used to terminate a Session. */
-void Service_CloseSession(UA_Server *server, UA_Session *session,
-                          const UA_CloseSessionRequest *request,
-                          UA_CloseSessionResponse *response);
+void
+Service_CloseSession(UA_Server *server, UA_Session *session,
+                     const UA_CloseSessionRequest *request,
+                     UA_CloseSessionResponse *response);
 
 /**
  * Cancel Service
@@ -187,33 +205,37 @@ void Service_CloseSession(UA_Server *server, UA_Session *session,
  * AddNodes Service
  * ^^^^^^^^^^^^^^^^
  * Used to add one or more Nodes into the AddressSpace hierarchy. */
-void Service_AddNodes(UA_Server *server, UA_Session *session,
-                      const UA_AddNodesRequest *request,
-                      UA_AddNodesResponse *response);
+void
+Service_AddNodes(UA_Server *server, UA_Session *session,
+                 const UA_AddNodesRequest *request,
+                 UA_AddNodesResponse *response);
 
 /**
  * AddReferences Service
  * ^^^^^^^^^^^^^^^^^^^^^
  * Used to add one or more References to one or more Nodes. */
-void Service_AddReferences(UA_Server *server, UA_Session *session,
-                           const UA_AddReferencesRequest *request,
-                           UA_AddReferencesResponse *response);
+void
+Service_AddReferences(UA_Server *server, UA_Session *session,
+                      const UA_AddReferencesRequest *request,
+                      UA_AddReferencesResponse *response);
 
 /**
  * DeleteNodes Service
  * ^^^^^^^^^^^^^^^^^^^
  * Used to delete one or more Nodes from the AddressSpace. */
-void Service_DeleteNodes(UA_Server *server, UA_Session *session,
-                         const UA_DeleteNodesRequest *request,
-                         UA_DeleteNodesResponse *response);
+void
+Service_DeleteNodes(UA_Server *server, UA_Session *session,
+                    const UA_DeleteNodesRequest *request,
+                    UA_DeleteNodesResponse *response);
 
 /**
  * DeleteReferences
  * ^^^^^^^^^^^^^^^^
  * Used to delete one or more References of a Node. */
-void Service_DeleteReferences(UA_Server *server, UA_Session *session,
-                              const UA_DeleteReferencesRequest *request,
-                              UA_DeleteReferencesResponse *response);
+void
+Service_DeleteReferences(UA_Server *server, UA_Session *session,
+                         const UA_DeleteReferencesRequest *request,
+                         UA_DeleteReferencesResponse *response);
 
 /**
  * .. _view-services:
@@ -228,9 +250,10 @@ void Service_DeleteReferences(UA_Server *server, UA_Session *session,
  * Used to discover the References of a specified Node. The browse can be
  * further limited by the use of a View. This Browse Service also supports a
  * primitive filtering capability. */
-void Service_Browse(UA_Server *server, UA_Session *session,
-                    const UA_BrowseRequest *request,
-                    UA_BrowseResponse *response);
+void
+Service_Browse(UA_Server *server, UA_Session *session,
+               const UA_BrowseRequest *request,
+               UA_BrowseResponse *response);
 
 /**
  * BrowseNext Service
@@ -240,17 +263,19 @@ void Service_Browse(UA_Server *server, UA_Session *session,
  * context means that the Server is not able to return a larger response or that
  * the number of results to return exceeds the maximum number of results to
  * return that was specified by the Client in the original Browse request. */
-void Service_BrowseNext(UA_Server *server, UA_Session *session,
-                        const UA_BrowseNextRequest *request,
-                        UA_BrowseNextResponse *response);
+void
+Service_BrowseNext(UA_Server *server, UA_Session *session,
+                   const UA_BrowseNextRequest *request,
+                   UA_BrowseNextResponse *response);
 
 /**
  * TranslateBrowsePathsToNodeIds Service
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Used to translate textual node paths to their respective ids. */
-void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
-             const UA_TranslateBrowsePathsToNodeIdsRequest *request,
-             UA_TranslateBrowsePathsToNodeIdsResponse *response);
+void
+Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
+                                      const UA_TranslateBrowsePathsToNodeIdsRequest *request,
+                                      UA_TranslateBrowsePathsToNodeIdsResponse *response);
 
 /**
  * RegisterNodes Service
@@ -258,18 +283,20 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
  * Used by Clients to register the Nodes that they know they will access
  * repeatedly (e.g. Write, Call). It allows Servers to set up anything needed so
  * that the access operations will be more efficient. */
-void Service_RegisterNodes(UA_Server *server, UA_Session *session,
-                           const UA_RegisterNodesRequest *request,
-                           UA_RegisterNodesResponse *response);
+void
+Service_RegisterNodes(UA_Server *server, UA_Session *session,
+                      const UA_RegisterNodesRequest *request,
+                      UA_RegisterNodesResponse *response);
 
 /**
  * UnregisterNodes Service
  * ^^^^^^^^^^^^^^^^^^^^^^^
  * This Service is used to unregister NodeIds that have been obtained via the
  * RegisterNodes service. */
-void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
-                             const UA_UnregisterNodesRequest *request,
-                             UA_UnregisterNodesResponse *response);
+void
+Service_UnregisterNodes(UA_Server *server, UA_Session *session,
+                        const UA_UnregisterNodesRequest *request,
+                        UA_UnregisterNodesResponse *response);
 
 /**
  * Query Service Set
@@ -306,8 +333,9 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * elements are indexed, such as an array, this Service allows Clients to read
  * the entire set of indexed values as a composite, to read individual elements
  * or to read ranges of elements of the composite. */
-UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
-                           const UA_ReadRequest *request, UA_ResponseHeader *responseHeader);
+UA_StatusCode
+Service_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
+             const UA_ReadRequest *request, UA_ResponseHeader *responseHeader);
 
 /**
  * Write Service
@@ -316,9 +344,10 @@ UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageCon
  * elements are indexed, such as an array, this Service allows Clients to write
  * the entire set of indexed values as a composite, to write individual elements
  * or to write ranges of elements of the composite. */
-void Service_Write(UA_Server *server, UA_Session *session,
-                   const UA_WriteRequest *request,
-                   UA_WriteResponse *response);
+void
+Service_Write(UA_Server *server, UA_Session *session,
+              const UA_WriteRequest *request,
+              UA_WriteResponse *response);
 
 /**
  * HistoryRead Service
@@ -351,9 +380,12 @@ void Service_Write(UA_Server *server, UA_Session *session,
  * context of an existing Session. If the Session is terminated, the results of
  * the method's execution cannot be returned to the Client and are discarded. */
 #ifdef UA_ENABLE_METHODCALLS
-void Service_Call(UA_Server *server, UA_Session *session,
-                  const UA_CallRequest *request,
-                  UA_CallResponse *response);
+
+void
+Service_Call(UA_Server *server, UA_Session *session,
+             const UA_CallRequest *request,
+             UA_CallResponse *response);
+
 #endif
 
 /**
@@ -370,18 +402,20 @@ void Service_Call(UA_Server *server, UA_Session *session,
  * deleted. Deleting a MonitoredItem causes its entire set of triggered item
  * links to be deleted, but has no effect on the MonitoredItems referenced by
  * the triggered items. */
-void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                                  const UA_CreateMonitoredItemsRequest *request,
-                                  UA_CreateMonitoredItemsResponse *response);
+void
+Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
+                             const UA_CreateMonitoredItemsRequest *request,
+                             UA_CreateMonitoredItemsResponse *response);
 
 /**
  * DeleteMonitoredItems Service
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Used to remove one or more MonitoredItems of a Subscription. When a
  * MonitoredItem is deleted, its triggered item links are also deleted. */
-void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
-                                  const UA_DeleteMonitoredItemsRequest *request,
-                                  UA_DeleteMonitoredItemsResponse *response);
+void
+Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
+                             const UA_DeleteMonitoredItemsRequest *request,
+                             UA_DeleteMonitoredItemsResponse *response);
 
 /**
  * ModifyMonitoredItems Service
@@ -393,18 +427,20 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
  * Illegal request values for parameters that can be revised do not generate
  * errors. Instead the server will choose default values and indicate them in
  * the corresponding revised parameter. */
-void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
-                                  const UA_ModifyMonitoredItemsRequest *request,
-                                  UA_ModifyMonitoredItemsResponse *response);
+void
+Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
+                             const UA_ModifyMonitoredItemsRequest *request,
+                             UA_ModifyMonitoredItemsResponse *response);
 
 /**
  * SetMonitoringMode Service
  * ^^^^^^^^^^^^^^^^^^^^^^^^^
  * Used to set the monitoring mode for one or more MonitoredItems of a
  * Subscription. */
-void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
-                               const UA_SetMonitoringModeRequest *request,
-                               UA_SetMonitoringModeResponse *response);
+void
+Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
+                          const UA_SetMonitoringModeRequest *request,
+                          UA_SetMonitoringModeResponse *response);
 
 /**
  * SetTriggering Service
@@ -422,25 +458,28 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
  * Used to create a Subscription. Subscriptions monitor a set of MonitoredItems
  * for Notifications and return them to the Client in response to Publish
  * requests. */
-void Service_CreateSubscription(UA_Server *server, UA_Session *session,
-                                const UA_CreateSubscriptionRequest *request,
-                                UA_CreateSubscriptionResponse *response);
+void
+Service_CreateSubscription(UA_Server *server, UA_Session *session,
+                           const UA_CreateSubscriptionRequest *request,
+                           UA_CreateSubscriptionResponse *response);
 
 /**
  * ModifySubscription Service
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Used to modify a Subscription. */
-void Service_ModifySubscription(UA_Server *server, UA_Session *session,
-                                const UA_ModifySubscriptionRequest *request,
-                                UA_ModifySubscriptionResponse *response);
+void
+Service_ModifySubscription(UA_Server *server, UA_Session *session,
+                           const UA_ModifySubscriptionRequest *request,
+                           UA_ModifySubscriptionResponse *response);
 
 /**
  * SetPublishingMode Service
  * ^^^^^^^^^^^^^^^^^^^^^^^^^
  * Used to enable sending of Notifications on one or more Subscriptions. */
-void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
-                               const UA_SetPublishingModeRequest *request,
-                               UA_SetPublishingModeResponse *response);
+void
+Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+                          const UA_SetPublishingModeRequest *request,
+                          UA_SetPublishingModeResponse *response);
 
 /**
  * Publish Service
@@ -453,26 +492,29 @@ void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
  * Note that the service signature is an exception and does not contain a
  * pointer to a PublishResponse. That is because the service queues up publish
  * requests internally and sends responses asynchronously based on timeouts. */
-void Service_Publish(UA_Server *server, UA_Session *session,
-                     const UA_PublishRequest *request, UA_UInt32 requestId);
+void
+Service_Publish(UA_Server *server, UA_Session *session,
+                const UA_PublishRequest *request, UA_UInt32 requestId);
 
 /**
  * Republish Service
  * ^^^^^^^^^^^^^^^^^
  * Requests the Subscription to republish a NotificationMessage from its
  * retransmission queue. */
-void Service_Republish(UA_Server *server, UA_Session *session,
-                       const UA_RepublishRequest *request,
-                       UA_RepublishResponse *response);
+void
+Service_Republish(UA_Server *server, UA_Session *session,
+                  const UA_RepublishRequest *request,
+                  UA_RepublishResponse *response);
 
 /**
  * DeleteSubscriptions Service
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Invoked to delete one or more Subscriptions that belong to the Client's
  * Session. */
-void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
-                                 const UA_DeleteSubscriptionsRequest *request,
-                                 UA_DeleteSubscriptionsResponse *response);
+void
+Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
+                            const UA_DeleteSubscriptionsRequest *request,
+                            UA_DeleteSubscriptionsResponse *response);
 
 /**
  * TransferSubscription Service
