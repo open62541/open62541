@@ -652,6 +652,11 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
 /* Default Client Settings */
 /***************************/
 
+static UA_INLINE void UA_ClientConnectionTCP_poll_callback(UA_Client *client, void *data) {
+    UA_ClientConnectionTCP_poll(client, data);
+}
+
+
 const UA_ClientConfig UA_ClientConfig_default = {
     5000, /* .timeout, 5 seconds */
     10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
@@ -665,7 +670,7 @@ const UA_ClientConfig UA_ClientConfig_default = {
     },
     UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
     UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
-    UA_ClientConnectionTCP_poll, /* .pollConnectionFunc (for async connection) */
+    UA_ClientConnectionTCP_poll_callback, /* .pollConnectionFunc (for async connection) */
     0, /* .customDataTypesSize */
     NULL, /* .customDataTypes */
 

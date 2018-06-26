@@ -133,16 +133,6 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
 
     UA_String hostname, path;
     UA_UInt16 networkPort;
-    //TODO replace fallback to use the existing parseEndpointUrl function. Extend parseEndpointUrl for UDP or create own parseEndpointUrl function for PubSub.
-    if(strncmp((char*)&address.url.data, "opc.udp://", 10) != 0){
-        strncpy((char*)address.url.data, "opc.tcp://", 10);
-    } else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Invalid URL.");
-        UA_free(channelDataUDPMC);
-        UA_free(newChannel);
-        return NULL;
-    }
     if(UA_parseEndpointUrl(&address.url, &hostname, &networkPort, &path) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Invalid URL.");
