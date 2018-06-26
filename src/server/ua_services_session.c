@@ -57,8 +57,11 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
 void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                      UA_Session *session,
                       const UA_CreateSessionRequest *request,
                       UA_CreateSessionResponse *response) {
+    (void)session; // unused
+
     if(!channel) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -160,7 +163,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Sign the signature */
     response->responseHeader.serviceResult |=
-       signCreateSessionResponse(server, channel, request, response);
+        signCreateSessionResponse(server, channel, request, response);
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -170,7 +173,9 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                         "Session " UA_PRINTF_GUID_FORMAT " created",
+                         "Session "
+                             UA_PRINTF_GUID_FORMAT
+                             " created",
                          UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
 
@@ -218,8 +223,8 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
 
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                        UA_Session *session, const UA_ActivateSessionRequest *request,
-                        UA_ActivateSessionResponse *response) {
+                        UA_Session *session,
+                        const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Execute ActivateSession");
 
     if(session->validTill < UA_DateTime_nowMonotonic()) {

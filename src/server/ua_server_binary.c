@@ -42,7 +42,7 @@ void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const co
 /* Helper Functions */
 /********************/
 
- /* This is not an ERR message, the connection is not closed afterwards */
+/* This is not an ERR message, the connection is not closed afterwards */
 static UA_StatusCode
 sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
                  size_t offset, const UA_DataType *responseType,
@@ -53,7 +53,7 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
         return retval;
     UA_STACKARRAY(UA_Byte, response, responseType->memSize);
     UA_init(response, responseType);
-    UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)response;
+    UA_ResponseHeader *responseHeader = (UA_ResponseHeader *)response;
     responseHeader->requestHandle = requestHeader.requestHandle;
     responseHeader->timestamp = UA_DateTime_now();
     responseHeader->serviceResult = error;
@@ -71,13 +71,19 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
 typedef enum {
     UA_SERVICETYPE_NORMAL,
     UA_SERVICETYPE_INSITU,
-    UA_SERVICETYPE_CUSTOM
+    UA_SERVICETYPE_SESSION,
 } UA_ServiceType;
 
-static void
-getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
-                   const UA_DataType **responseType, UA_Service *service,
+static UA_StatusCode
+getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType, const UA_DataType **responseType,
+                   UA_Service *service, UA_InSituService *inSituService,
+                   UA_SessionService *sessionService, UA_PublishService *publishService,
                    UA_Boolean *requiresSession, UA_ServiceType *serviceType) {
+    *service = NULL;
+    *inSituService = NULL;
+    *sessionService = NULL;
+    *publishService = NULL;
+
     switch(requestTypeId) {
     case UA_NS0ID_GETENDPOINTSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_GetEndpoints;
@@ -114,17 +120,17 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_CreateSession;
+        *sessionService = (UA_SessionService)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
         *requiresSession = false;
-        *serviceType = UA_SERVICETYPE_CUSTOM;
+        *serviceType = UA_SERVICETYPE_SESSION;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_ActivateSession;
+        *sessionService = (UA_SessionService)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
-        *serviceType = UA_SERVICETYPE_CUSTOM;
+        *serviceType = UA_SERVICETYPE_SESSION;
         break;
     case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_CloseSession;
@@ -132,7 +138,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *responseType = &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE];
         break;
     case UA_NS0ID_READREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_Read;
+        *inSituService = (UA_InSituService)Service_Read;
         *requestType = &UA_TYPES[UA_TYPES_READREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_READRESPONSE];
         *serviceType = UA_SERVICETYPE_INSITU;
@@ -175,6 +181,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *responseType = &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE];
         break;
     case UA_NS0ID_PUBLISHREQUEST_ENCODING_DEFAULTBINARY:
+        *publishService = (UA_PublishService)Service_Publish;
         *requestType = &UA_TYPES[UA_TYPES_PUBLISHREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_PUBLISHRESPONSE];
         break;
@@ -254,6 +261,12 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
     default:
         break;
     }
+
+    if(*service == NULL && *inSituService == NULL && *sessionService == NULL && *publishService == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 /*************************/
@@ -360,7 +373,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
     if(openScResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not open a SecureChannel. "
-                            "Closing the connection.");
+                                                            "Closing the connection.");
         UA_SecureChannelManager_close(&server->secureChannelManager,
                                       channel->securityToken.channelId);
         return openScResponse.responseHeader.serviceResult;
@@ -400,13 +413,18 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Get the service pointers */
     UA_Service service = NULL;
+    UA_InSituService inSituService = NULL;
+    UA_SessionService sessionService = NULL;
+    UA_PublishService publishService = NULL;
     const UA_DataType *requestType = NULL;
     const UA_DataType *responseType = NULL;
     UA_Boolean sessionRequired = true;
     UA_ServiceType serviceType = UA_SERVICETYPE_NORMAL;
-    getServicePointers(requestTypeId.identifier.numeric, &requestType,
-                       &responseType, &service, &sessionRequired, &serviceType);
-    if(!requestType) {
+    retval = getServicePointers(requestTypeId.identifier.numeric, &requestType, &responseType,
+                                &service, &inSituService, &sessionService, &publishService,
+                                &sessionRequired, &serviceType);
+
+    if(!requestType || retval != UA_STATUSCODE_GOOD) {
         if(requestTypeId.identifier.numeric == 787) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Client requested a subscription, " \
@@ -423,7 +441,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Decode the request */
     UA_STACKARRAY(UA_Byte, request, requestType->memSize);
-    UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
+    UA_RequestHeader *requestHeader = (UA_RequestHeader *)request;
     retval = UA_decodeBinary(msg, &offset, request, requestType,
                              server->config.customDataTypesSize,
                              server->config.customDataTypes);
@@ -435,33 +453,34 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Prepare the respone */
     UA_STACKARRAY(UA_Byte, responseBuf, responseType->memSize);
-    void *response = (void*)(uintptr_t)&responseBuf[0]; /* Get around aliasing rules */
+    void *response = (void *)(uintptr_t)&responseBuf[0]; /* Get around aliasing rules */
     UA_init(response, responseType);
     UA_Session *session = NULL; /* must be initialized before goto send_response */
 
     /* CreateSession doesn't need a session */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
-        Service_CreateSession(server, channel,
-            (const UA_CreateSessionRequest *)request,
-                              (UA_CreateSessionResponse *)response);
-        #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+        sessionService(server, channel,
+                       NULL,
+                       (const UA_CreateSessionRequest *)request,
+                       (UA_CreateSessionResponse *)response);
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         // store the authentication token and session ID so we can help fuzzing by setting
         // these values in the next request automatically
         UA_CreateSessionResponse *res = (UA_CreateSessionResponse *)response;
         UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
-        #endif
+#endif
         goto send_response;
     }
 
-    #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     // set the authenticationToken from the create session request to help fuzzing cover more lines
     UA_NodeId_deleteMembers(&requestHeader->authenticationToken);
     if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
-    #endif
+#endif
 
     /* Find the matching session */
-    session = (UA_Session*)UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
+    session = (UA_Session *)UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
     if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken))
         session = UA_SessionManager_getSessionByToken(&server->sessionManager,
                                                       &requestHeader->authenticationToken);
@@ -475,9 +494,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             return sendServiceFault(channel, msg, requestPos, responseType,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         }
-        Service_ActivateSession(server, channel, session,
-            (const UA_ActivateSessionRequest*)request,
-                                (UA_ActivateSessionResponse*)response);
+        sessionService(server, channel, session,
+                       (const UA_ActivateSessionRequest *)request,
+                       (UA_ActivateSessionResponse *)response);
         goto send_response;
     }
 
@@ -527,18 +546,18 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        Service_Publish(server, session,
-            (const UA_PublishRequest*)request, requestId);
+        publishService(server, session,
+                       (const UA_PublishRequest *)request, requestId);
         UA_deleteMembers(request, requestType);
         return UA_STATUSCODE_GOOD;
     }
 #endif
 
-    send_response:
+send_response:
 
     /* Prepare the ResponseHeader */
-    ((UA_ResponseHeader*)response)->requestHandle = requestHeader->requestHandle;
-    ((UA_ResponseHeader*)response)->timestamp = UA_DateTime_now();
+    ((UA_ResponseHeader *)response)->requestHandle = requestHeader->requestHandle;
+    ((UA_ResponseHeader *)response)->timestamp = UA_DateTime_now();
 
     /* Start the message */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, responseType->binaryEncodingId);
@@ -556,16 +575,18 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         goto cleanup;
 
     switch(serviceType) {
-    case UA_SERVICETYPE_CUSTOM:
+    case UA_SERVICETYPE_SESSION:
         /* Was processed before...*/
         retval = UA_MessageContext_encode(&mc, response, responseType);
         break;
     case UA_SERVICETYPE_INSITU:
-        retval = ((UA_InSituService)service)
-            (server, session, &mc, request, (UA_ResponseHeader*)response);
+        UA_assert(inSituService)
+        retval = (inSituService)
+            (server, session, &mc, request, (UA_ResponseHeader *)response);
         break;
     case UA_SERVICETYPE_NORMAL:
     default:
+        UA_assert(service)
         service(server, session, request, response);
         retval = UA_MessageContext_encode(&mc, response, responseType);
         break;
@@ -579,7 +600,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     retval = UA_MessageContext_finish(&mc);
 
- cleanup:
+cleanup:
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                             "Could not send the message over the SecureChannel "
@@ -595,7 +616,7 @@ static UA_StatusCode
 processSecureChannelMessage(void *application, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             const UA_ByteString *message) {
-    UA_Server *server = (UA_Server*)application;
+    UA_Server *server = (UA_Server *)application;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(messagetype) {
     case UA_MESSAGETYPE_OPN:
@@ -622,7 +643,7 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
 static UA_StatusCode
 createSecureChannel(void *application, UA_Connection *connection,
                     UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
-    UA_Server *server = (UA_Server*)application;
+    UA_Server *server = (UA_Server *)application;
 
     /* Iterate over available endpoints and choose the correct one */
     UA_Endpoint *endpoint = NULL;
@@ -672,8 +693,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
     case UA_MESSAGETYPE_HEL:
         retval = processHEL(server, connection, message, &offset);
         break;
-    case UA_MESSAGETYPE_OPN:
-    {
+    case UA_MESSAGETYPE_OPN: {
         UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Connection %i | Process OPN message", connection->sockfd);
 
@@ -720,7 +740,7 @@ static UA_StatusCode
 processCompleteChunk(void *const application,
                      UA_Connection *const connection,
                      UA_ByteString *const chunk) {
-    UA_Server *const server = (UA_Server*)application;
+    UA_Server *const server = (UA_Server *)application;
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
     UA_debug_dumpCompleteChunk(server, connection, chunk);
 #endif
