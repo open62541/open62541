@@ -29,6 +29,8 @@
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
+#include <sys/types.h>
+#include <net/if.h>
 #ifndef UA_sleep_ms
 #define UA_sleep_ms(X) usleep(X * 1000)
 #else /* UA_sleep_ms */
@@ -55,7 +57,6 @@ void UA_sleep_ms(size_t ms);
 # include <netinet/tcp.h>
 #endif
 
-
 /* Thread-Local Storage
  * --------------------
  * Thread-local storage is not required by the main library functionality. It is
@@ -71,6 +72,7 @@ void UA_sleep_ms(size_t ms);
 #else
 # define UA_THREAD_LOCAL
 #endif
+
 
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using
@@ -103,6 +105,10 @@ void UA_sleep_ms(size_t ms);
 #define UA_getnameinfo getnameinfo
 #define UA_send send
 #define UA_recv recv
+#define UA_sendto sendto
+#define UA_recvfrom recvfrom
+#define UA_htonl htonl
+#define UA_ntohl ntohl
 #define UA_close close
 #define UA_select select
 #define UA_shutdown shutdown
@@ -116,6 +122,10 @@ void UA_sleep_ms(size_t ms);
 #define UA_setsockopt setsockopt
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
+#define UA_inet_pton inet_pton
+#if UA_IPV6
+# define UA_if_nametoindex if_nametoindex
+#endif
 
 #include <stdlib.h>
 #define UA_free free

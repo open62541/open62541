@@ -52,6 +52,11 @@
 # define UA_THREAD_LOCAL
 #endif
 
+#ifdef _WIN32_WINNT
+#undef _WIN32_WINNT
+#endif
+#define _WIN32_WINNT 0x0600 //windows vista version, which included InepPton
+
 #include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
 # include <malloc.h>
@@ -60,8 +65,8 @@
 #include <stdio.h>
 #include <errno.h>
 #include <winsock2.h>
-#include <ws2tcpip.h>
 #include <windows.h>
+#include <ws2tcpip.h>
 
 #ifdef _MSC_VER
 # ifndef UNDER_CE
@@ -72,8 +77,6 @@
 # include <unistd.h> //access and tests
 # define UA_access access
 #endif
-
-
 
 #ifdef POP_SLIST_ENTRY
 # undef SLIST_ENTRY
@@ -91,19 +94,19 @@ E.g. see unit tests. */
 void UA_sleep_ms(size_t ms);
 #endif
 
-#define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
-#define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
-
-#ifdef UNDER_CE
-# define errno
-#endif
 
 // Windows does not support ansi colors
 // #define UA_ENABLE_LOG_COLORS
 
 #define UA_IPV6 1
-#define UA_SOCKET int
-#define UA_INVALID_SOCKET -1
+
+#if defined(__MINGW32__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
+# define UA_SOCKET int
+# define UA_INVALID_SOCKET -1
+#else
+# define UA_SOCKET SOCKET
+# define UA_INVALID_SOCKET INVALID_SOCKET
+#endif
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
 #define UA_AGAIN WSAEWOULDBLOCK
@@ -111,22 +114,43 @@ void UA_sleep_ms(size_t ms);
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
 
+#define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
+#define UA_fd_isset(fd, fds) FD_ISSET((UA_SOCKET)fd, fds)
+
+#ifdef UNDER_CE
+# define errno
+#endif
+
 #define UA_getnameinfo getnameinfo
-#define UA_send send
+#define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv recv
+#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
+#define UA_recvfrom(sockfd, buf, len, flags, src_addr, addrlen) recvfrom(sockfd, (char*)(buf), (int)(len), flags, src_addr, addrlen)
+#define UA_htonl htonl
+#define UA_ntohl ntohl
 #define UA_close closesocket
-#define UA_select select
+#define UA_select(nfds, readfds, writefds, exceptfds, timeout) select((int)(nfds), readfds, writefds, exceptfds, timeout)
 #define UA_shutdown shutdown
 #define UA_socket socket
 #define UA_bind bind
 #define UA_listen listen
 #define UA_accept accept
-#define UA_connect connect
+#define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
 #define UA_getaddrinfo getaddrinfo
 #define UA_getsockopt getsockopt
-#define UA_setsockopt setsockopt
+#define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
+#define UA_inet_pton InetPton
+
+#if UA_IPV6
+# include <Iphlpapi.h>
+# define UA_if_nametoindex if_nametoindex
+#endif
+
+#ifdef maxStringLength //defined in mingw32
+# undef maxStringLength
+#endif
 
 #define UA_free free
 #define UA_malloc malloc

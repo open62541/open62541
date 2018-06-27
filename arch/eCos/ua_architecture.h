@@ -43,6 +43,10 @@
 #define UA_getnameinfo getnameinfo
 #define UA_send send
 #define UA_recv recv
+#define UA_sendto sendto
+#define UA_recvfrom recvfrom
+#define UA_htonl htonl
+#define UA_ntohl ntohl
 #define UA_close close
 #define UA_select select
 #define UA_shutdown shutdown
@@ -56,6 +60,10 @@
 #define UA_setsockopt setsockopt
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname_ecos
+#define UA_inet_pton(af,src,dst) inet_pton(af, src, (char*) dst)
+#if UA_IPV6
+# define UA_if_nametoindex if_nametoindex
+#endif
 
 int gethostname_ecos(char* name, size_t len);
 

@@ -24,8 +24,7 @@ unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd){
 
 void UA_initialize_architecture_network(void){
   WSADATA wsaData;
-  WORD wVersionRequested = MAKEWORD(2, 2);
-  WSAStartup(wVersionRequested, &wsaData);
+  WSAStartup(MAKEWORD(2, 2), &wsaData);
 }
 
 void UA_deinitialize_architecture_network(void){

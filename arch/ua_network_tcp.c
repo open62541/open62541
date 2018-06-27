@@ -374,14 +374,14 @@ setFDSet(ServerNetworkLayerTCP *layer, fd_set *fdset) {
     for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
         UA_fd_set(layer->serverSockets[i], fdset);
         if(layer->serverSockets[i] > highestfd)
-            highestfd = layer->serverSockets[i];
+            highestfd = (UA_Int32)layer->serverSockets[i];
     }
 
     ConnectionEntry *e;
     LIST_FOREACH(e, &layer->connections, pointers) {
         UA_fd_set(e->connection.sockfd, fdset);
         if(e->connection.sockfd > highestfd)
-            highestfd = e->connection.sockfd;
+            highestfd = (UA_Int32)e->connection.sockfd;
     }
 
     return highestfd;

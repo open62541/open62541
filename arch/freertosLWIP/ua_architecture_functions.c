@@ -36,4 +36,12 @@ void UA_deinitialize_architecture_network(void){
   return;
 }
 
+#if UA_IPV6
+# if LWIP_VERSION_IS_RELEASE //lwip_if_nametoindex is not yet released
+unsigned int lwip_if_nametoindex(const char *ifname){
+  return 1; //TODO: assume for now that it only has one interface
+}
+# endif //LWIP_VERSION_IS_RELEASE
+#endif //UA_IPV6
+
 #endif /* UA_ARCHITECTURE_FREERTOSLWIP */

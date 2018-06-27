@@ -77,12 +77,20 @@ int UA_sleep_ms(unsigned int miliSeconds); //suspend the thread for a certain am
 ssize_t UA_send(UA_SOCKET sockfd, const void *buf, size_t len, int flags); //equivalent to posix send implementation
 #endif
 
+#ifndef UA_sendto
+ssize_t sendto(UA_SOCKET sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen); //equivalent to posix sendto implementation
+#endif
+
 #ifndef UA_select
 int UA_select(UA_SOCKET nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout); //equivalent to posix select implementation
 #endif
 
 #ifndef UA_recv
 ssize_t UA_recv(UA_SOCKET sockfd, void *buf, size_t len, int flags); //equivalent to posix recv implementation
+#endif
+
+#ifndef UA_recvfrom
+ssize_t recvfrom(UA_SOCKET sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 #endif
 
 #ifndef UA_shutdown
@@ -123,6 +131,24 @@ int UA_fd_isset(UA_SOCKET fd, fd_set *set);//equivalent to posix FD_ISSET implem
 
 #ifndef UA_getaddrinfo
 int UA_getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res);//equivalent to posix getaddrinfo implementation
+#endif
+
+#ifndef UA_htonl
+uint32_t UA_htonl(uint32_t hostlong);//equivalent to posix UA_htonl implementation
+#endif
+
+#ifndef UA_ntohl
+uint32_t UA_ntohl(uint32_t netlong);//equivalent to posix ntohl implementation
+#endif
+
+#ifndef UA_inet_pton
+int UA_inet_pton(int af, const char *src, void *dst);//equivalent to ANSI inet_pton implementation
+#endif
+
+#if UA_IPV6
+# ifndef UA_if_nametoindex
+unsigned int UA_if_nametoindex(const char *ifname);//equivalent to posix if_nametoindex implementation
+# endif
 #endif
 
 #ifndef UA_socket_set_blocking

@@ -47,7 +47,7 @@ struct UA_PubSubChannel{
     UA_UInt32 publisherId;                                  // unique identifier
     UA_PubSubChannelState state;
     UA_PubSubConnectionConfig *connectionConfig;            //link to parent connection config
-    UA_Int32 sockfd;
+    UA_SOCKET sockfd;
     void *handle;                                           //implementation specific data
     /*@info for handle: each network implementation should provide an structure
     * UA_PubSubChannelData[ImplementationName] This structure can be used by the

@@ -41,7 +41,6 @@
 #endif
 #define UA_BINARY_OVERLAYABLE_FLOAT 1
 
-
 /* Thread-Local Storage
  * --------------------
  * Thread-local storage is not required by the main library functionality. It is
@@ -85,6 +84,10 @@
 #define UA_getnameinfo getnameinfo
 #define UA_send send
 #define UA_recv recv
+#define UA_sendto sendto
+#define UA_recvfrom recvfrom
+#define UA_htonl htonl
+#define UA_ntohl ntohl
 #define UA_close close
 #define UA_select select
 #define UA_shutdown shutdown
@@ -98,6 +101,10 @@
 #define UA_setsockopt setsockopt
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
+#define UA_inet_pton inet_pton
+#if UA_IPV6
+# define UA_if_nametoindex if_nametoindex
+#endif
 
 #include <stdlib.h>
 #define UA_free free
