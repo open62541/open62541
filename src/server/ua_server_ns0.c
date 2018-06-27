@@ -7,6 +7,7 @@
  *    Copyright 2017 (c) Thomas Bender
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_server_internal.h"
@@ -583,7 +584,7 @@ UA_Server_initNS0(UA_Server *server) {
                                &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerProfileArray */
-    UA_String profileArray[4];
+    UA_String profileArray[5];
     UA_UInt16 profileArraySize = 0;
 #define ADDPROFILEARRAY(x) profileArray[profileArraySize++] = UA_STRING_ALLOC(x)
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NanoEmbeddedDevice");
@@ -595,6 +596,9 @@ UA_Server_initNS0(UA_Server *server) {
 #endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/EmbeddedDataChangeSubscription");
+#endif
+#ifdef UA_ENABLE_HISTORIZING
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/HistoricalRawData");
 #endif
 
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
@@ -736,6 +740,64 @@ UA_Server_initNS0(UA_Server *server) {
     /* ServerCapabilities - OperationLimits - MaxMonitoredItemsPerCall */
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL,
                                &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
+
+#ifdef UA_ENABLE_HISTORIZING
+    /* ServerCapabilities - HistoryServerCapabilities - AccessHistoryDataCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_ACCESSHISTORYDATACAPABILITY,
+                               &server->config.accessHistoryDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - MaxReturnDataValues */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_MAXRETURNDATAVALUES,
+                               &server->config.maxReturnDataValues, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - AccessHistoryEventsCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_ACCESSHISTORYEVENTSCAPABILITY,
+                               &server->config.accessHistoryEventsCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - MaxReturnEventValues */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_MAXRETURNEVENTVALUES,
+                               &server->config.maxReturnEventValues, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - InsertDataCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_INSERTDATACAPABILITY,
+                               &server->config.insertDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - InsertEventCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_INSERTEVENTCAPABILITY,
+                               &server->config.insertEventCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - InsertAnnotationsCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_INSERTANNOTATIONCAPABILITY,
+                               &server->config.insertAnnotationsCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - ReplaceDataCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_REPLACEDATACAPABILITY,
+                               &server->config.replaceDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - ReplaceEventCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_REPLACEEVENTCAPABILITY,
+                               &server->config.replaceEventCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - UpdateDataCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_UPDATEDATACAPABILITY,
+                               &server->config.updateDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - UpdateEventCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_UPDATEEVENTCAPABILITY,
+                               &server->config.updateEventCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - DeleteRawCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_DELETERAWCAPABILITY,
+                               &server->config.deleteRawCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - DeleteEventCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_DELETEEVENTCAPABILITY,
+                               &server->config.deleteEventCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* ServerCapabilities - HistoryServerCapabilities - DeleteAtTimeDataCapability */
+    retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_DELETEATTIMECAPABILITY,
+                               &server->config.deleteAtTimeDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+#endif
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     retVal |= UA_Server_setMethodNode_callback(server,

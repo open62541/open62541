@@ -55,7 +55,7 @@ typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
 /*
  * Repeated Callbacks
  * ------------------ */
-typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client, void *data);
+typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
 
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *Client, UA_ClientCallback callback,

@@ -236,9 +236,7 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *da
 
 /* A few global NodeId definitions */
 extern const UA_NodeId subtypeId;
-
-UA_StatusCode
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
+extern const UA_NodeId hierarchicalReferences;
 
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 

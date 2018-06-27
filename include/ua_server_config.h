@@ -5,6 +5,7 @@
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #ifndef UA_SERVER_CONFIG_H_
@@ -164,6 +165,29 @@ struct UA_ServerConfig {
      * ervery 10 seconds. The server will still be removed depending on the
      * state of the semaphore file. */
     UA_UInt32 discoveryCleanupTimeout;
+#endif
+
+    /* Historical Access */
+#ifdef UA_ENABLE_HISTORIZING
+    UA_Boolean accessHistoryDataCapability;
+    UA_UInt32  maxReturnDataValues; /* 0 -> unlimited size */
+    
+    UA_Boolean accessHistoryEventsCapability;
+    UA_UInt32  maxReturnEventValues; /* 0 -> unlimited size */
+
+    UA_Boolean insertDataCapability;
+    UA_Boolean insertEventCapability;
+    UA_Boolean insertAnnotationsCapability;
+
+    UA_Boolean replaceDataCapability;
+    UA_Boolean replaceEventCapability;
+    
+    UA_Boolean updateDataCapability;
+    UA_Boolean updateEventCapability;
+    
+    UA_Boolean deleteRawCapability;
+    UA_Boolean deleteEventCapability;
+    UA_Boolean deleteAtTimeDataCapability;
 #endif
 };
 

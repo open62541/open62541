@@ -63,7 +63,6 @@ const UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}
 };
 
-
 /* Check if the requested parent node exists, has the right node class and is
  * referenced with an allowed (hierarchical) reference type. For "type" nodes,
  * only hasSubType references are allowed. */
@@ -137,10 +136,8 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     }
 
     /* Test if the referencetype is hierarchical */
-    const UA_NodeId hierarchicalReference =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
     if(!isNodeInTree(&server->config.nodestore, referenceTypeId,
-                     &hierarchicalReference, &subtypeId, 1)) {
+                     &hierarchicalReferences, &subtypeId, 1)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Reference type to the parent is not hierarchical");
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
@@ -643,7 +640,7 @@ static UA_StatusCode callConstructors(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 addRef(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
        const UA_NodeId *referenceTypeId, const UA_NodeId *parentNodeId,
-       bool forward) {
+       UA_Boolean forward) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddReferencesItem ref_item;
     UA_AddReferencesItem_init(&ref_item);

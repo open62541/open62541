@@ -41,7 +41,7 @@
 /* Open the Connection */
 /***********************/
 static UA_StatusCode
-openSecureChannelAsync(UA_Client *client, UA_Boolean renew);
+openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/);
 
 static UA_StatusCode
 requestSession(UA_Client *client, UA_UInt32 *requestId);
@@ -92,7 +92,7 @@ processACKResponseAsync(void *application, UA_Connection *connection,
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
-    client->connectStatus = openSecureChannelAsync(client, false);
+    client->connectStatus = openSecureChannelAsync(client/*, false*/);
     return client->connectStatus;
 }
 
@@ -235,10 +235,10 @@ static UA_StatusCode processOPNResponse
 
 /* OPN messges to renew the channel are sent asynchronous */
 static UA_StatusCode
-openSecureChannelAsync(UA_Client *client, UA_Boolean renew) {
+openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
     /* Check if sc is still valid */
-    if(renew && client->nextChannelRenewal - UA_DateTime_nowMonotonic () > 0)
-        return UA_STATUSCODE_GOOD;
+    /*if(renew && client->nextChannelRenewal - UA_DateTime_nowMonotonic () > 0)
+        return UA_STATUSCODE_GOOD;*/
 
     UA_Connection *conn = &client->connection;
     if(conn->state != UA_CONNECTION_ESTABLISHED)
@@ -249,15 +249,15 @@ openSecureChannelAsync(UA_Client *client, UA_Boolean renew) {
     UA_OpenSecureChannelRequest_init(&opnSecRq);
     opnSecRq.requestHeader.timestamp = UA_DateTime_now();
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
-    if(renew) {
+    /*if(renew) {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to renew the SecureChannel");
-    } else {
+    } else {*/
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to open a SecureChannel");
-    }
+    //}
     opnSecRq.securityMode = client->channel.securityMode;
 
     opnSecRq.clientNonce = client->channel.localNonce;
@@ -265,7 +265,7 @@ openSecureChannelAsync(UA_Client *client, UA_Boolean renew) {
 
     /* Prepare the entry for the linked list */
     UA_UInt32 requestId = ++client->requestId;
-    AsyncServiceCall *ac = NULL;
+    /*AsyncServiceCall *ac = NULL;
     if(renew) {
         ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
         if (!ac)
@@ -275,7 +275,7 @@ openSecureChannelAsync(UA_Client *client, UA_Boolean renew) {
         ac->responseType = &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE];
         ac->requestId = requestId;
         ac->userdata = NULL;
-    }
+    }*/
 
     /* Send the OPN message */
     UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage (
@@ -289,8 +289,8 @@ openSecureChannelAsync(UA_Client *client, UA_Boolean renew) {
                       "Sending OPN message failed with error %s",
                       UA_StatusCode_name(retval));
         UA_Client_close(client);
-        if(renew)
-            UA_free(ac);
+        //if(renew)
+        //    UA_free(ac);
         return retval;
     }
 
@@ -298,10 +298,10 @@ openSecureChannelAsync(UA_Client *client, UA_Boolean renew) {
                   "OPN message sent");
 
     /* Store the entry for async processing and return */
-    if(renew) {
+    /*if(renew) {
         LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
         return retval;
-    }
+    }*/
     return retval;
 }
 

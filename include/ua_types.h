@@ -497,6 +497,10 @@ typedef struct  {
     UA_NumericRangeDimension *dimensions;
 } UA_NumericRange;
 
+UA_StatusCode UA_EXPORT
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
+
+
 /**
  * .. _variant:
  *

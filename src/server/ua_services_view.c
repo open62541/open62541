@@ -19,6 +19,10 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+/**********/
+/* Browse */
+/**********/
+
 /* Target node on top of the stack */
 static UA_StatusCode
 fillReferenceDescription(UA_Server *server, const UA_Node *curr,
@@ -66,6 +70,14 @@ relevantReference(UA_Server *server, UA_Boolean includeSubtypes,
 
     const UA_NodeId hasSubType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     return isNodeInTree(&server->config.nodestore, testRef, rootRef, &hasSubType, 1);
+}
+
+static UA_Boolean
+matchClassMask(const UA_Node *node, UA_UInt32 nodeClassMask) {
+    if(nodeClassMask != UA_NODECLASS_UNSPECIFIED &&
+       (node->nodeClass & nodeClassMask) == 0)
+        return false;
+    return true;
 }
 
 /* Returns whether the node / continuationpoint is done */
@@ -133,7 +145,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
                 continue;
 
             /* Test if the node class matches */
-            if(descr->nodeClassMask != 0 && (target->nodeClass & descr->nodeClassMask) == 0) {
+            if(!matchClassMask(target, descr->nodeClassMask)) {
                 UA_Nodestore_release(server, target);
                 continue;
             }
@@ -445,7 +457,7 @@ walkBrowsePathElementReferenceTargets(UA_BrowsePathResult *result, size_t *targe
 }
 
 static void
-walkBrowsePathElement(UA_Server *server, UA_Session *session,
+walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClassMask,
                       UA_BrowsePathResult *result, size_t *targetsSize,
                       const UA_RelativePathElement *elem, UA_UInt32 elemDepth,
                       const UA_QualifiedName *targetName,
@@ -474,8 +486,14 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             continue;
         }
 
-        /* Test whether the current node has the target name required in the
-         * previous path element */
+        /* Test whether the node fits the class mask */
+        if(!matchClassMask(node, nodeClassMask)) {
+            UA_Nodestore_release(server, node);
+            continue;
+        }
+
+        /* Test whether the node has the target name required in the previous
+         * path element */
         if(targetName && (targetName->namespaceIndex != node->browseName.namespaceIndex ||
                           !UA_String_equal(&targetName->name, &node->browseName.name))) {
             UA_Nodestore_release(server, node);
@@ -507,7 +525,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
 
 /* This assumes that result->targets has enough room for all currentCount elements */
 static void
-addBrowsePathTargets(UA_Server *server, UA_Session *session,
+addBrowsePathTargets(UA_Server *server, UA_Session *session, UA_UInt32 nodeClassMask,
                      UA_BrowsePathResult *result, const UA_QualifiedName *targetName,
                      UA_NodeId *current, size_t currentCount) {
     for(size_t i = 0; i < currentCount; i++) {
@@ -517,14 +535,18 @@ addBrowsePathTargets(UA_Server *server, UA_Session *session,
             continue;
         }
 
-        /* Test whether the current node has the target name required in the
+        /* Test whether the node fits the class mask */
+        UA_Boolean skip = !matchClassMask(node, nodeClassMask);
+
+        /* Test whether the node has the target name required in the
          * previous path element */
-        UA_Boolean valid = targetName->namespaceIndex == node->browseName.namespaceIndex &&
-            UA_String_equal(&targetName->name, &node->browseName.name);
+        if(targetName->namespaceIndex != node->browseName.namespaceIndex ||
+           !UA_String_equal(&targetName->name, &node->browseName.name))
+            skip = true;
 
         UA_Nodestore_release(server, node);
 
-        if(!valid) {
+        if(skip) {
             UA_NodeId_deleteMembers(&current[i]);
             continue;
         }
@@ -539,7 +561,7 @@ addBrowsePathTargets(UA_Server *server, UA_Session *session,
 
 static void
 walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path,
-               UA_BrowsePathResult *result, size_t targetsSize,
+               UA_UInt32 nodeClassMask, UA_BrowsePathResult *result, size_t targetsSize,
                UA_NodeId **current, size_t *currentSize, size_t *currentCount,
                UA_NodeId **next, size_t *nextSize, size_t *nextCount) {
     UA_assert(*currentCount == 1);
@@ -551,7 +573,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
     /* Iterate over path elements */
     UA_assert(path->relativePath.elementsSize > 0);
     for(UA_UInt32 i = 0; i < path->relativePath.elementsSize; ++i) {
-        walkBrowsePathElement(server, session, result, &targetsSize,
+        walkBrowsePathElement(server, session, nodeClassMask, result, &targetsSize,
                               &path->relativePath.elements[i], i, targetName,
                               *current, *currentCount, next, nextSize, nextCount);
 
@@ -599,13 +621,13 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
     }
 
     /* Move the elements of current to the targets */
-    addBrowsePathTargets(server, session, result, targetName, *current, *currentCount);
+    addBrowsePathTargets(server, session, nodeClassMask, result, targetName, *current, *currentCount);
     *currentCount = 0;
 }
 
 static void
 Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
-                                       void *context, const UA_BrowsePath *path,
+                                       UA_UInt32 *nodeClassMask, const UA_BrowsePath *path,
                                        UA_BrowsePathResult *result) {
     if(path->relativePath.elementsSize <= 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
@@ -662,7 +684,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     currentCount = 1;
 
     /* Walk the path elements */
-    walkBrowsePath(server, session, path, result, targetsSize,
+    walkBrowsePath(server, session, path, *nodeClassMask, result, targetsSize,
                    &current, &currentSize, &currentCount,
                    &next, &nextSize, &nextCount);
 
@@ -690,7 +712,9 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath) {
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
-    Operation_TranslateBrowsePathToNodeIds(server, &adminSession, NULL, browsePath, &result);
+    UA_UInt32 nodeClassMask = 0; /* All node classes */
+    Operation_TranslateBrowsePathToNodeIds(server, &adminSession, &nodeClassMask,
+                                           browsePath, &result);
     return result;
 }
 
@@ -707,12 +731,43 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
         return;
     }
 
+    UA_UInt32 nodeClassMask = 0; /* All node classes */
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
-                                           NULL, &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
+                                           &nodeClassMask,
+                                           &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
 }
+
+UA_BrowsePathResult
+UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
+                                     size_t browsePathSize, const UA_QualifiedName *browsePath) {
+    /* Construct the BrowsePath */
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = origin;
+    UA_STACKARRAY(UA_RelativePathElement, rpe, browsePathSize);
+    memset(rpe, 0, sizeof(UA_RelativePathElement) * browsePathSize);
+    for(size_t j = 0; j < browsePathSize; j++) {
+        rpe[j].referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+        rpe[j].includeSubtypes = true;
+        rpe[j].targetName = browsePath[j];
+    }
+    bp.relativePath.elements = rpe;
+    bp.relativePath.elementsSize = browsePathSize;
+
+    /* Browse */
+    UA_BrowsePathResult bpr;
+    UA_BrowsePathResult_init(&bpr);
+    UA_UInt32 nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE;
+    Operation_TranslateBrowsePathToNodeIds(server, &adminSession, &nodeClassMask, &bp, &bpr);
+    return bpr;
+}
+
+/************/
+/* Register */
+/************/
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                            const UA_RegisterNodesRequest *request,

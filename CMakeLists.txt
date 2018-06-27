@@ -114,10 +114,11 @@ endif(${UA_ARCHITECTURE} STREQUAL "None")
 
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
+option(UA_ENABLE_HISTORIZING "Enable server to provide historical access." ON)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
-option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events." OFF)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events. (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
@@ -162,6 +163,8 @@ endif()
 
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
+option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" ON)
+mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
@@ -641,12 +644,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
                 ${UA_FILE_STATUSCODES})
 
-# nodeid explanation
+# Header containing defines for all NodeIds
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
-        ${UA_FILE_NODEIDS}  ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeid_descriptions.py
+        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
+        ${UA_FILE_NODEIDS}  ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids NS0
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeid_header.py
         ${UA_FILE_NODEIDS})
 
 # we need a custom target to avoid that the generator is called concurrently and

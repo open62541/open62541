@@ -428,6 +428,19 @@ UA_BrowsePathResult UA_EXPORT
 UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath);
 
+/* A simplified TranslateBrowsePathsToNodeIds based on the
+ * SimpleAttributeOperand type (Part 4, 7.4.4.5).
+ *
+ * This specifies a relative path using a list of BrowseNames instead of the
+ * RelativePath structure. The list of BrowseNames is equivalent to a
+ * RelativePath that specifies forward references which are subtypes of the
+ * HierarchicalReferences ReferenceType. All Nodes followed by the browsePath
+ * shall be of the NodeClass Object or Variable. */
+UA_BrowsePathResult UA_EXPORT
+UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
+                                     size_t browsePathSize,
+                                     const UA_QualifiedName *browsePath);
+
 #ifndef HAVE_NODEITER_CALLBACK
 #define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
@@ -668,22 +681,26 @@ typedef struct {
      * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
      * memory being cleaned up. Don't forget to also set `value->hasValue` to
      * true to indicate the presence of a value.
-     *
-     * @param handle An optional pointer to user-defined data for the
-     *        specific data source
-     * @param nodeid Id of the read node
+     * 
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being read from
+     * @param nodeContext Additional data attached to the node by the user
      * @param includeSourceTimeStamp If true, then the datasource is expected to
      *        set the source timestamp in the returned value
      * @param range If not null, then the datasource shall return only a
      *        selection of the (nonscalar) data. Set
      *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
-     *        apply.
+     *        apply
      * @param value The (non-null) DataValue that is returned to the client. The
      *        data source sets the read data, the result status and optionally a
      *        sourcetimestamp.
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
+     *         then no releasing of the value is done
+     */
     UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
@@ -691,14 +708,24 @@ typedef struct {
 
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
-     *
-     * @param handle An optional pointer to user-defined data for the
-     *        specific data source
-     * @param nodeid Id of the node being written to
-     * @param data The data to be written into the data source
-     * @param range An optional data range. If the data source is scalar or does
-     *        not support writing of ranges, then an error code is returned.
-     * @return Returns a status code that is returned to the user */
+     * 
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being written to
+     * @param nodeContext Additional data attached to the node by the user
+     * @param range If not NULL, then the datasource shall return only a
+     *        selection of the (nonscalar) data. Set
+     *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
+     *        apply
+     * @param value The (non-NULL) DataValue that has been written by the client.
+     *        The data source contains the written data, the result status and
+     *        optionally a sourcetimestamp
+     * @return Returns a status code for logging. Error codes intended for the
+     *         original caller are set in the value. If an error is returned,
+     *         then no releasing of the value is done
+     */
     UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
@@ -1215,6 +1242,11 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
  * ----------------- */
 /* Add a new namespace to the server. Returns the index of the new namespace */
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+
+/* Get namespace by name from the server. */
+UA_StatusCode UA_EXPORT
+UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
+                             size_t* foundIndex);
 
 #ifdef __cplusplus
 }
