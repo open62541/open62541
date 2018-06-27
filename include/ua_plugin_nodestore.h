@@ -22,6 +22,11 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
+
+#ifdef UA_ENABLE_HISTORIZING
+#include "ua_plugin_history_data_backend.h"
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 /* forward declaration */
 struct UA_MonitoredItem;
@@ -183,12 +188,23 @@ typedef enum {
         UA_DataSource dataSource;                                       \
     } value;
 
+#ifdef UA_ENABLE_HISTORIZING
+typedef struct {
+    UA_UInt64 historizingCallbackId;
+    UA_NodeId * nodeId;
+} UA_HistorizingInternal;
+#endif
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
-    UA_Boolean historizing; /* currently unsupported */
+    UA_Boolean historizing;
+#ifdef UA_ENABLE_HISTORIZING
+    UA_HistorizingSetting historizingSetting;
+    UA_HistorizingInternal historizingInternal;
+#endif
 } UA_VariableNode;
 
 /**

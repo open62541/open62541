@@ -21,6 +21,9 @@ extern "C" {
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_nodeids.h"
+#ifdef UA_ENABLE_HISTORIZING
+#include "ua_plugin_history_data_backend.h"
+#endif
 
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
@@ -291,8 +294,7 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - UserWriteMask
  * - UserAccessLevel
  * - UserExecutable
- *
- * Historizing is currently unsupported */
+ */
 
 /* Overwrite an attribute of a node. The specialized functions below provide a
  * more concise syntax.
@@ -1107,9 +1109,21 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                      outputArgumentsSize, outputArguments, UA_NODEID_NULL, NULL,
                                      nodeContext, outNewNodeId);
 }
-
 #endif
 
+#ifdef UA_ENABLE_HISTORIZING
+UA_StatusCode UA_EXPORT
+UA_Server_setHistorizingSettingToVariableNode(UA_Server *server, UA_NodeId *nodeId, UA_HistorizingSetting setting);
+
+UA_StatusCode UA_EXPORT
+UA_Server_historizingPollingStart(UA_Server *server, UA_NodeId *nodeId, UA_UInt32 interval);
+
+UA_StatusCode UA_EXPORT
+UA_Server_historizingPollingStop(UA_Server *server, UA_NodeId *nodeId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_historizingPollingChangeInterval(UA_Server *server, UA_NodeId *nodeId, UA_UInt32 interval);
+#endif
 
 /**
  * The method pair UA_Server_addNode_begin and _finish splits the AddNodes

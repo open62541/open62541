@@ -342,3 +342,150 @@ UA_StatusCode
 UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId) {
     return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
 }
+
+#ifdef UA_ENABLE_HISTORIZING
+static const UA_VariableNode * UA_Server_getVariableNodeForNode(const UA_Node * node) {
+    if (!node || node->nodeClass != UA_NODECLASS_VARIABLE) {
+        return NULL;
+    }
+    return (const UA_VariableNode *)node;
+}
+static UA_VariableNode * UA_Server_getVariableNodeForNodeNonConst(UA_Node * node) {
+    if (!node || node->nodeClass != UA_NODECLASS_VARIABLE) {
+        return NULL;
+    }
+    return (UA_VariableNode *)node;
+}
+
+static const UA_VariableNode * UA_Server_getVariableNodeForNodeId(UA_Server * server, const UA_NodeId * nodeId) {
+    const UA_Node *node = UA_Nodestore_get(server, nodeId);
+    return UA_Server_getVariableNodeForNode(node);
+}
+
+static UA_StatusCode
+__UA_HistorizingSettingCallback(UA_Server *server, UA_Session *session,
+                                              UA_Node *node, UA_HistorizingSetting* historizingSetting) {
+    UA_VariableNode * variableNode = UA_Server_getVariableNodeForNodeNonConst(node);
+    if (!variableNode) {
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    }
+    if (!variableNode->historizing) {
+        return UA_STATUSCODE_BADHISTORYOPERATIONINVALID;
+    }
+    memcpy(&variableNode->historizingSetting, historizingSetting, sizeof(UA_HistorizingSetting));
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setHistorizingSettingToVariableNode(UA_Server *server, UA_NodeId *node, UA_HistorizingSetting setting)
+{
+    return UA_Server_editNode(server, NULL, node, (UA_EditNodeCallback)__UA_HistorizingSettingCallback, &setting);
+}
+
+static void
+__UA_HistorizingPollingCallback(UA_Server *server, UA_NodeId *nodeId)
+{
+    const UA_VariableNode * variableNode = UA_Server_getVariableNodeForNodeId(server, nodeId);
+    if (!variableNode)
+        return;
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = *nodeId;
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue value =
+        UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
+
+    if (variableNode->historizingSetting.historizingBackend.addHistoryData)
+        variableNode->historizingSetting.historizingBackend.addHistoryData(
+                    variableNode->historizingSetting.historizingBackend.context,
+                    &value, nodeId);
+
+    UA_DataValue_deleteMembers(&value);
+    UA_Nodestore_release(server, (const UA_Node*)variableNode);
+
+}
+
+static UA_StatusCode
+__UA_HistorizingUpdateInternal(UA_Server *server, UA_Session *session,
+                                UA_Node *node, UA_HistorizingInternal* data)
+{
+    UA_VariableNode * variableNode = UA_Server_getVariableNodeForNodeNonConst(node);
+    if (!variableNode) {
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    }
+    if (!variableNode->historizing) {
+        return UA_STATUSCODE_BADHISTORYOPERATIONINVALID;
+    }
+    if (variableNode->historizingInternal.nodeId
+            && variableNode->historizingInternal.nodeId != data->nodeId)
+        UA_NodeId_delete(variableNode->historizingInternal.nodeId);
+    variableNode->historizingInternal = *data;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_historizingPollingStart(UA_Server *server, UA_NodeId *nodeId, UA_UInt32 interval)
+{
+    const UA_VariableNode * variableNode = UA_Server_getVariableNodeForNodeId(server, nodeId);
+    if (!variableNode) {
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    }
+    if (variableNode->historizingInternal.nodeId) {
+        UA_Nodestore_release(server, (const UA_Node*)variableNode);
+        return UA_STATUSCODE_BADALREADYEXISTS;
+    }
+    if (!(variableNode->historizingSetting.historizingUpdateStrategy & UA_HISTORIZINGUPDATESTRATEGY_POLL)) {
+        UA_Nodestore_release(server, (const UA_Node*)variableNode);
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+    UA_HistorizingInternal internalData;
+    internalData.nodeId = UA_NodeId_new();
+    UA_NodeId_copy(&variableNode->nodeId, internalData.nodeId);
+    UA_StatusCode result = UA_Server_addRepeatedCallback(server, (UA_ServerCallback)__UA_HistorizingPollingCallback, internalData.nodeId, interval, &internalData.historizingCallbackId);
+    if (result != UA_STATUSCODE_GOOD) {
+        UA_NodeId_delete(internalData.nodeId);
+        UA_Nodestore_release(server, (const UA_Node*)variableNode);
+        return result;
+    }
+    UA_Nodestore_release(server, (const UA_Node*)variableNode);
+    return UA_Server_editNode(server, NULL, internalData.nodeId, (UA_EditNodeCallback)__UA_HistorizingUpdateInternal, &internalData);
+}
+
+UA_StatusCode
+UA_Server_historizingPollingStop(UA_Server *server, UA_NodeId *nodeId)
+{
+    const UA_VariableNode * variableNode = UA_Server_getVariableNodeForNodeId(server, nodeId);
+    if (!variableNode) {
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    }
+    UA_StatusCode result = UA_Server_removeRepeatedCallback(server, variableNode->historizingInternal.historizingCallbackId);
+    if (result != UA_STATUSCODE_GOOD) {
+        UA_Nodestore_release(server, (const UA_Node*)variableNode);
+        return result;
+    }
+    UA_HistorizingInternal internalData;
+    internalData.historizingCallbackId = 0;
+    internalData.nodeId = NULL;
+    UA_Nodestore_release(server, (const UA_Node*)variableNode);
+    return UA_Server_editNode(server, NULL, nodeId, (UA_EditNodeCallback)__UA_HistorizingUpdateInternal, &internalData);
+}
+
+UA_StatusCode
+UA_Server_historizingPollingChangeInterval(UA_Server *server, UA_NodeId *nodeId, UA_UInt32 interval)
+{
+    const UA_VariableNode * variableNode = UA_Server_getVariableNodeForNodeId(server, nodeId);
+    if (!variableNode)
+        return UA_STATUSCODE_BADNODEIDINVALID;
+
+    if (!variableNode->historizingInternal.nodeId) {
+        UA_Nodestore_release(server, (const UA_Node*)variableNode);
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    }
+    UA_StatusCode ret = UA_Server_changeRepeatedCallbackInterval(server, variableNode->historizingInternal.historizingCallbackId, interval);
+    UA_Nodestore_release(server, (const UA_Node*)variableNode);
+    return ret;
+}
+#endif
