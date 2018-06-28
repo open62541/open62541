@@ -128,7 +128,6 @@ addTimerCallbackEntry(UA_Timer *t, UA_TimerCallbackEntry * UA_RESTRICT tc) {
     SLIST_FOREACH(tmpTc, &t->repeatedCallbacks, next) {
         if(tmpTc->nextTime >= tc->nextTime)
             break;
-        afterTc = tmpTc;
 
         /* The goal is to have many repeated callbacks with the same repetition
          * interval in a "block" in order to reduce linear search for re-entry
@@ -136,8 +135,12 @@ addTimerCallbackEntry(UA_Timer *t, UA_TimerCallbackEntry * UA_RESTRICT tc) {
          * between "nextTime - 1s" and "nextTime" if this adjustment groups
          * callbacks with the same repetition interval. */
         if(tmpTc->interval == tc->interval &&
-           tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC))
+            tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC)) {
             tc->nextTime = tmpTc->nextTime;
+            break;
+        } else {
+            afterTc = tmpTc;
+        }
     }
 
     /* Add the repeated callback */
@@ -324,10 +327,10 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                     break;
                 prev_tc = n;
             }
-
-            /* Update last_dispatched */
-            last_dispatched = tc;
         }
+
+        /* Update last_dispatched */
+        last_dispatched = tc;
 
         /* Add entry to the new position in the sorted list */
         SLIST_INSERT_AFTER(prev_tc, tc, next);
