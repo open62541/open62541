@@ -14,13 +14,12 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#include "ua_types.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* BSD Queue Macros */
+#include "ua_types.h"
 #include "../deps/queue.h"
 
 /* Macro-Expand for MSVC workarounds */

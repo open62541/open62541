@@ -66,22 +66,15 @@
 # define UA_access access
 #endif
 
-/*#ifdef POP_SLIST_ENTRY
-# undef SLIST_ENTRY
-# undef POP_SLIST_ENTRY
-# pragma pop_macro("SLIST_ENTRY")
-#endif*/
-
 #define ssize_t int
 #define OPTVAL_TYPE char
 #ifndef UA_sleep_ms
-#define UA_sleep_ms(X) Sleep(X)
+# define UA_sleep_ms(X) Sleep(X)
 #else /* UA_sleep_ms */
 /* With this one can define its own UA_sleep_ms using a preprocessor define.
 E.g. see unit tests. */
 void UA_sleep_ms(size_t ms);
 #endif
-
 
 // Windows does not support ansi colors
 // #define UA_ENABLE_LOG_COLORS

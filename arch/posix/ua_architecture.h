@@ -23,6 +23,8 @@
 # define _BSD_SOURCE
 #endif
 
+#include <../deps/queue.h>  //in some compilers there's already a _SYS_QUEUE_H_ who is included first and doesn't have all functions
+
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -32,7 +34,7 @@
 #include <sys/types.h>
 #include <net/if.h>
 #ifndef UA_sleep_ms
-#define UA_sleep_ms(X) usleep(X * 1000)
+# define UA_sleep_ms(X) usleep(X * 1000)
 #else /* UA_sleep_ms */
 /* With this one can define its own UA_sleep_ms using a preprocessor define.
 E.g. see unit tests. */
