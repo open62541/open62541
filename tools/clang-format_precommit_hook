@@ -9,7 +9,7 @@
 # and make sure that `clang-format` is installed on your system
 
 maj_min=1
-maj_max=3
+maj_max=8
 
 base=clang-format
 format=""
