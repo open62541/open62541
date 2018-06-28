@@ -356,6 +356,8 @@ void Service_Call(UA_Server *server, UA_Session *session,
                   UA_CallResponse *response);
 #endif
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
 /**
  * MonitoredItem Service Set
  * -------------------------
@@ -483,6 +485,8 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
  * over a Subscription from another Client by transferring the Subscription to
  * its Session. */
 /* Not Implemented */
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 #ifdef __cplusplus
 } // extern "C"

@@ -6,13 +6,14 @@
  */
 
 #include "ua_types.h"
-#include "ua_pubsub_networkmessage.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+
+#include "ua_pubsub_networkmessage.h"
 
 const UA_Byte NM_VERSION_MASK = 15;
 const UA_Byte NM_PUBLISHER_ID_ENABLED_MASK = 16;

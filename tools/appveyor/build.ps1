@@ -70,7 +70,7 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    & cmake -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_FULL_NS0:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME"  ..
+    & cmake -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_NAMESPACE_ZERO:STRING=FULL -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME"  ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"

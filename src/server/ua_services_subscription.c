@@ -180,8 +180,11 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
             return UA_STATUSCODE_BADFILTERNOTALLOWED;
         }
         UA_DataChangeFilter_copy(filter, &(mon->filter.dataChangeFilter));
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     } else if (params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTER]) {
-        UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data, &(mon->filter.eventFilter));
+        UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data,
+                            &mon->filter.eventFilter);
+#endif
     } else {
         return UA_STATUSCODE_BADMONITOREDITEMFILTERINVALID;
     }

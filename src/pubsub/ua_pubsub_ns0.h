@@ -15,25 +15,36 @@ extern "C" {
 #include "server/ua_server_internal.h"
 #include "ua_pubsub.h"
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
+
 UA_StatusCode
 UA_Server_initPubSubNS0(UA_Server *server);
 
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
+
 UA_StatusCode
 removePubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
+
 UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
+
 UA_StatusCode
 removeWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
+
 UA_StatusCode
 addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
+
 UA_StatusCode
 removeDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
+
 UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+
 UA_StatusCode
 removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+
+#endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 
 #ifdef __cplusplus
 } // extern "C"
