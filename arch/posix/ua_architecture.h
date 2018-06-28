@@ -11,7 +11,7 @@
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
 /* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
+#if !defined(_XOPEN_SOURCE)
 # define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE

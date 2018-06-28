@@ -24,16 +24,9 @@
 # undef WINVER
 # undef _WIN32_WINDOWS
 # undef _WIN32_WINNT
-# define WINVER 0x0501
-# define _WIN32_WINDOWS 0x0501
-# define _WIN32_WINNT 0x0501
-#endif
-
-/* Backup definition of SLIST_ENTRY on mingw winnt.h */
-#ifdef SLIST_ENTRY
-# pragma push_macro("SLIST_ENTRY")
-# undef SLIST_ENTRY
-# define POP_SLIST_ENTRY
+# define WINVER 0x0600
+# define _WIN32_WINDOWS 0x0600
+# define _WIN32_WINNT 0x0600 //windows vista version, which included InepPton
 #endif
 
 /* Thread-Local Storage
@@ -51,11 +44,6 @@
 #else
 # define UA_THREAD_LOCAL
 #endif
-
-#ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
-#endif
-#define _WIN32_WINNT 0x0600 //windows vista version, which included InepPton
 
 #include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
@@ -78,11 +66,11 @@
 # define UA_access access
 #endif
 
-#ifdef POP_SLIST_ENTRY
+/*#ifdef POP_SLIST_ENTRY
 # undef SLIST_ENTRY
 # undef POP_SLIST_ENTRY
 # pragma pop_macro("SLIST_ENTRY")
-#endif
+#endif*/
 
 #define ssize_t int
 #define OPTVAL_TYPE char
@@ -144,11 +132,11 @@ void UA_sleep_ms(size_t ms);
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
-# include <Iphlpapi.h>
+# include <iphlpapi.h>
 # define UA_if_nametoindex if_nametoindex
 #endif
 
-#ifdef maxStringLength //defined in mingw32
+#ifdef maxStringLength //defined in mingw64
 # undef maxStringLength
 #endif
 
