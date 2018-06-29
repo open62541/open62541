@@ -15,12 +15,12 @@
 extern "C" {
 #endif
 
-#include "../deps/queue.h"
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
+#include "../deps/queue.h"
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24

@@ -153,6 +153,11 @@ void UA_sleep_ms(size_t ms);
 
 #include "../ua_architecture_functions.h"
 
+/* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+#ifdef SLIST_ENTRY
+# undef SLIST_ENTRY
+#endif
+
 #endif /* PLUGINS_ARCH_WIN32_UA_ARCHITECTURE_H_ */
 
 #endif /* UA_ARCHITECTURE_WIN32 */
