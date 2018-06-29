@@ -198,6 +198,12 @@ Detailed SDK Features
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
+**UA_ENABLE_DISCOVERY**
+   Enable Discovery Service (LDS)
+**UA_ENABLE_DISCOVERY_MULTICAST**
+   Enable Discovery Service with multicast support (LDS-ME)
+**UA_ENABLE_DISCOVERY_SEMAPHORE**
+   Enable Discovery Semaphore support
 
 **UA_NAMESPACE_ZERO**
 
@@ -221,7 +227,9 @@ be visible in the cmake GUIs.
 
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
    Compile the human-readable name of the StatusCodes into the binary. Enabled by default.
-
+**UA_ENABLE_FULL_NS0**
+   Use the full NS0 instead of a minimal Namespace 0 nodeset
+   ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
 **UA_ENABLE_NONSTANDARD_UDP**
    Enable udp extension
 

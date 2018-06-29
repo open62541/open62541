@@ -162,6 +162,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          // Then numeric type will be detected from this value. Set null as defaut.
                          const UA_DataType* dataType) {
 
+
     /* Filter */
     if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED) {
         UA_DataChangeFilter_init(&(mon->filter.dataChangeFilter));

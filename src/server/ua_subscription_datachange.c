@@ -81,6 +81,8 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
     /* Remove the monitored item */
+    if(monitoredItem->listEntry.le_prev != NULL)
+        LIST_REMOVE(monitoredItem, listEntry);
     UA_String_deleteMembers(&monitoredItem->indexRange);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     UA_Variant_deleteMembers(&monitoredItem->lastValue);
@@ -266,6 +268,7 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
     }
     return false;
 }
+
 
 /* When a change is detected, encoding contains the heap-allocated binary encoded value */
 static UA_Boolean
