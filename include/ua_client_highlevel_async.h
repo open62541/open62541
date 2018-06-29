@@ -8,6 +8,10 @@
 #define UA_CLIENT_HIGHLEVEL_ASYNC_H_
 #include "ua_client.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * Raw Services
  * ^^^^^^^^^^^^ */
@@ -627,5 +631,8 @@ static UA_INLINE UA_StatusCode UA_Cient_translateBrowsePathsToNodeIds_async(
 			pathSize, (UA_ClientAsyncServiceCallback) callback, userdata, reqId);
 }
 
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_CLIENT_HIGHLEVEL_ASYNC_H_ */
