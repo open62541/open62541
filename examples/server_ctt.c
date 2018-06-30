@@ -19,6 +19,17 @@
  * https://github.com/open62541/open62541-ctt */
 
 static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
+static const UA_NodeId accessDenied = {1, UA_NODEIDTYPE_NUMERIC, {1337}};
+
+/* Custom AccessControl policy that disallows access to one specific node */
+static UA_Byte
+getUserAccessLevel_disallowSpecific(UA_Server *server, UA_AccessControl *ac,
+                                    const UA_NodeId *sessionId, void *sessionContext,
+                                    const UA_NodeId *nodeId, void *nodeContext) {
+    if(UA_NodeId_equal(nodeId, &accessDenied))
+        return 0x00;
+    return 0xFF;
+}
 
 /* Datasource Example */
 static UA_StatusCode
@@ -119,6 +130,19 @@ setInformationModel(UA_Server *server) {
     const UA_NodeId myInteger2NodeId = UA_NODEID_STRING(1, "the.answer.no.read");
     UA_Server_addVariableNode(server, myInteger2NodeId, parentNodeId, parentReferenceNodeId,
                               myInteger2Name, baseDataVariableType, myVar, NULL, NULL);
+
+    /* add a variable that is not readable or writable for the current user */
+    myVar = UA_VariableAttributes_default;
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer - not current user");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer - not current user");
+    myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
+    myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    myVar.valueRank = -1;
+    myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    const UA_QualifiedName accessDeniedName = UA_QUALIFIEDNAME(1, "the answer - not current user");
+    UA_Server_addVariableNode(server, accessDenied, parentNodeId, parentReferenceNodeId,
+                              accessDeniedName, baseDataVariableType, myVar, NULL, NULL);
 
     /* add a variable with the datetime data source */
     UA_DataSource dateDataSource;
@@ -445,6 +469,9 @@ int main(int argc, char **argv) {
     UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, &certificate);
     UA_ByteString_deleteMembers(&certificate);
 #endif
+
+    /* Override with a custom access control policy */
+    config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
 
     /* uncomment next line to add a custom hostname */
     // UA_ServerConfig_set_customHostname(config, UA_STRING("custom"));
