@@ -18,16 +18,7 @@
  * corresponding CTT configuration is available at
  * https://github.com/open62541/open62541-ctt */
 
-UA_Boolean running = true;
-UA_Logger logger = UA_Log_Stdout;
-
 static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
-
-static void
-stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
-    running = 0;
-}
 
 /* Datasource Example */
 static UA_StatusCode
@@ -98,68 +89,8 @@ outargMethod(UA_Server *server,
 
 #endif
 
-int
-main(int argc, char **argv) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
-    signal(SIGTERM, stopHandler);
-
-#ifdef UA_ENABLE_ENCRYPTION
-    if(argc < 3) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing arguments for encryption support. "
-                         "Arguments are <server-certificate.der> "
-                         "<private-key.der> [<trustlist1.crl>, ...]");
-        return 1;
-    }
-
-    /* Load certificate and private key */
-    UA_ByteString certificate = loadFile(argv[1]);
-    UA_ByteString privateKey = loadFile(argv[2]);
-
-    /* Load the trustlist */
-    size_t trustListSize = 0;
-    if(argc > 3)
-        trustListSize = (size_t)argc-3;
-    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
-    for(size_t i = 0; i < trustListSize; i++)
-        trustList[i] = loadFile(argv[i+3]);
-
-    /* Loading of a revocation list currently unsupported */
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
-    UA_ServerConfig *config =
-        UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
-                                                trustList, trustListSize,
-                                                revocationList, revocationListSize);
-    UA_ByteString_deleteMembers(&certificate);
-    UA_ByteString_deleteMembers(&privateKey);
-    for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_deleteMembers(&trustList[i]);
-
-    if(!config) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Could not create the server config");
-        return 1;
-    }
-#else
-    if(argc < 2) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing argument for the server certificate");
-        return 1;
-    }
-    UA_ByteString certificate = loadFile(argv[1]);
-    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, &certificate);
-    UA_ByteString_deleteMembers(&certificate);
-#endif
-
-    /* uncomment next line to add a custom hostname */
-    // UA_ServerConfig_set_customHostname(config, UA_STRING("custom"));
-
-    UA_Server *server = UA_Server_new(config);
-    if(server == NULL)
-        return 1;
-
+static void
+setInformationModel(UA_Server *server) {
     /* add a static variable node to the server */
     UA_VariableAttributes myVar = UA_VariableAttributes_default;
     myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer");
@@ -168,14 +99,13 @@ main(int argc, char **argv) {
     myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     myVar.valueRank = -1;
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
                               myIntegerName, baseDataVariableType, myVar, NULL, NULL);
-    UA_Variant_deleteMembers(&myVar.value);
 
     /* add a static variable that is readable but not writable*/
     myVar = UA_VariableAttributes_default;
@@ -184,12 +114,11 @@ main(int argc, char **argv) {
     myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
     myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     myVar.valueRank = -1;
-    UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myInteger2Name = UA_QUALIFIEDNAME(1, "the answer - not readable");
     const UA_NodeId myInteger2NodeId = UA_NODEID_STRING(1, "the.answer.no.read");
     UA_Server_addVariableNode(server, myInteger2NodeId, parentNodeId, parentReferenceNodeId,
                               myInteger2Name, baseDataVariableType, myVar, NULL, NULL);
-    UA_Variant_deleteMembers(&myVar.value);
 
     /* add a variable with the datetime data source */
     UA_DataSource dateDataSource;
@@ -453,6 +382,78 @@ main(int argc, char **argv) {
                             &outargMethod, /* callback of the method node */
                             1, &inputArguments, 1, &outputArguments, NULL, NULL);
 #endif
+}
+
+UA_Boolean running = true;
+
+static void
+stopHandler(int sign) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
+    running = 0;
+}
+
+int main(int argc, char **argv) {
+    signal(SIGINT, stopHandler); /* catches ctrl-c */
+    signal(SIGTERM, stopHandler);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    if(argc < 3) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Missing arguments for encryption support. "
+                         "Arguments are <server-certificate.der> "
+                         "<private-key.der> [<trustlist1.crl>, ...]");
+        return 1;
+    }
+
+    /* Load certificate and private key */
+    UA_ByteString certificate = loadFile(argv[1]);
+    UA_ByteString privateKey = loadFile(argv[2]);
+
+    /* Load the trustlist */
+    size_t trustListSize = 0;
+    if(argc > 3)
+        trustListSize = (size_t)argc-3;
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    for(size_t i = 0; i < trustListSize; i++)
+        trustList[i] = loadFile(argv[i+3]);
+
+    /* Loading of a revocation list currently unsupported */
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
+
+    UA_ServerConfig *config =
+        UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
+                                                trustList, trustListSize,
+                                                revocationList, revocationListSize);
+    UA_ByteString_deleteMembers(&certificate);
+    UA_ByteString_deleteMembers(&privateKey);
+    for(size_t i = 0; i < trustListSize; i++)
+        UA_ByteString_deleteMembers(&trustList[i]);
+
+    if(!config) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Could not create the server config");
+        return 1;
+    }
+#else
+    if(argc < 2) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Missing argument for the server certificate");
+        return 1;
+    }
+    UA_ByteString certificate = loadFile(argv[1]);
+    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, &certificate);
+    UA_ByteString_deleteMembers(&certificate);
+#endif
+
+    /* uncomment next line to add a custom hostname */
+    // UA_ServerConfig_set_customHostname(config, UA_STRING("custom"));
+
+    UA_Server *server = UA_Server_new(config);
+    if(server == NULL)
+        return 1;
+
+    setInformationModel(server);
 
     /* run server */
     UA_StatusCode retval = UA_Server_run(server, &running);
