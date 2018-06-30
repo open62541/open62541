@@ -292,7 +292,6 @@ main(int argc, char **argv) {
             continue;
 
         UA_VariableAttributes attr = UA_VariableAttributes_default;
-        attr.valueRank = -2;
         attr.dataType = UA_TYPES[type].typeId;
 #ifndef UA_ENABLE_TYPENAMES
         char name[15];
@@ -312,6 +311,7 @@ main(int argc, char **argv) {
         attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
 
         /* add a scalar node for every built-in type */
+        attr.valueRank = -1;
         void *value = UA_new(&UA_TYPES[type]);
         UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
@@ -320,6 +320,7 @@ main(int argc, char **argv) {
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an array node for every built-in type */
+        attr.valueRank = 1;
         UA_Variant_setArray(&attr.value, UA_Array_new(10, &UA_TYPES[type]), 10, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, ARRAYID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
@@ -327,6 +328,7 @@ main(int argc, char **argv) {
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an matrix node for every built-in type */
+        attr.valueRank = 2;
         void *myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
         attr.value.arrayDimensions = (UA_UInt32 *)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
         attr.value.arrayDimensions[0] = 3;
