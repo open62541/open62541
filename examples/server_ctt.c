@@ -206,6 +206,21 @@ main(int argc, char **argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
                                         baseDataVariableType, v_attr, dateDataSource, NULL, NULL);
 
+    /* add a bytestring variable with some content */
+    myVar = UA_VariableAttributes_default;
+    myVar.description = UA_LOCALIZEDTEXT("", "");
+    myVar.displayName = UA_LOCALIZEDTEXT("", "example bytestring");
+    myVar.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    myVar.valueRank = -1;
+    myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_ByteString myByteString = UA_BYTESTRING("test123\0test123");
+    UA_Variant_setScalar(&myVar.value, &myByteString, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_QualifiedName byteStringName = UA_QUALIFIEDNAME(1, "example bytestring");
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "myByteString"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), byteStringName,
+                              baseDataVariableType, myVar, NULL, NULL);
+
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
     /* Method with IO Arguments */
