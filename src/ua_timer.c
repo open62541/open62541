@@ -133,14 +133,20 @@ addTimerCallbackEntry(UA_Timer *t, UA_TimerCallbackEntry * UA_RESTRICT tc) {
          * interval in a "block" in order to reduce linear search for re-entry
          * to the sorted list after processing. Allow the first execution to lie
          * between "nextTime - 1s" and "nextTime" if this adjustment groups
-         * callbacks with the same repetition interval. */
+         * callbacks with the same repetition interval.
+         * Callbacks of a block are added in reversed order. This design allows
+         * the monitored items of a subscription (if created in a sequence with the
+         * same publish/sample interval) to be executed before the subscription
+         * publish the notifications */
         if(tmpTc->interval == tc->interval &&
-            tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC)) {
+           tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC)) {
             tc->nextTime = tmpTc->nextTime;
             break;
-        } else {
-            afterTc = tmpTc;
         }
+
+        /* tc is neither in the same interval nor supposed to be executed sooner
+         * than tmpTc. Update afterTc to push tc further back in the timer list. */
+        afterTc = tmpTc;
     }
 
     /* Add the repeated callback */
@@ -329,7 +335,9 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
             }
         }
 
-        /* Update last_dispatched */
+        /* Update last_dispatched to make sure batched callbacks are added in the
+         * same sequence as before they were executed and to save some iterations
+         * of the linear search for callbacks to be added further back in the list. */
         last_dispatched = tc;
 
         /* Add entry to the new position in the sorted list */
