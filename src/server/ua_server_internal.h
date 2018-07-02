@@ -304,7 +304,7 @@ readValueAttribute(UA_Server *server, UA_Session *session,
  * byte array to bytestring or uint32 to some enum. If editableValue is non-NULL,
  * we try to create a matching variant that points to the original data. */
 UA_Boolean
-compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
+compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetDataTypeId,
                 UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range);
@@ -320,7 +320,8 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
                                const UA_UInt32 *targetArrayDimensions);
 
 UA_Boolean
-compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
+compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
+                                   UA_Int32 valueRank, size_t arrayDimensionsSize);
 
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,

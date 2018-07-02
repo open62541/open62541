@@ -50,9 +50,9 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 
 /* inputArgumentResults has the length request->inputArgumentsSize */
 static UA_StatusCode
-typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
-                   size_t argsSize, UA_Variant *args,
-                   UA_StatusCode *inputArgumentResults) {
+typeCheckArguments(UA_Server *server, UA_Session *session,
+                   const UA_VariableNode *argRequirements, size_t argsSize,
+                   UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
     if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
@@ -76,7 +76,7 @@ typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
     for(size_t i = 0; i < argReqsSize; ++i) {
-        if(!compatibleValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
+        if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
                             &args[i], NULL)) {
             inputArgumentResults[i] = UA_STATUSCODE_BADTYPEMISMATCH;
@@ -88,7 +88,7 @@ typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
 
 /* inputArgumentResults has the length request->inputArgumentsSize */
 static UA_StatusCode
-validMethodArguments(UA_Server *server, const UA_MethodNode *method,
+validMethodArguments(UA_Server *server, UA_Session *session, const UA_MethodNode *method,
                      const UA_CallMethodRequest *request,
                      UA_StatusCode *inputArgumentResults) {
     /* Get the input arguments node */
@@ -101,7 +101,7 @@ validMethodArguments(UA_Server *server, const UA_MethodNode *method,
     }
 
     /* Verify the request */
-    UA_StatusCode retval = typeCheckArguments(server, inputArguments,
+    UA_StatusCode retval = typeCheckArguments(server, session, inputArguments,
                                               request->inputArgumentsSize,
                                               request->inputArguments,
                                               inputArgumentResults);
@@ -185,7 +185,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     result->inputArgumentResultsSize = request->inputArgumentsSize;
 
     /* Verify Input Arguments */
-    result->statusCode = validMethodArguments(server, method, request, result->inputArgumentResults);
+    result->statusCode = validMethodArguments(server, session, method, request, result->inputArgumentResults);
 
     /* Return inputArgumentResults only for BADINVALIDARGUMENT */
     if(result->statusCode != UA_STATUSCODE_BADINVALIDARGUMENT) {
