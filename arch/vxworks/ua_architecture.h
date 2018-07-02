@@ -41,23 +41,6 @@
 #endif
 #define UA_BINARY_OVERLAYABLE_FLOAT 1
 
-/* Thread-Local Storage
- * --------------------
- * Thread-local storage is not required by the main library functionality. It is
- * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
- * feature is not available. */
-
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-# define UA_THREAD_LOCAL _Thread_local /* C11 */
-#elif defined(__cplusplus) && __cplusplus > 199711L
-# define UA_THREAD_LOCAL thread_local /* C++11 */
-#elif defined(__GNUC__)
-# define UA_THREAD_LOCAL __thread /* GNU extension */
-#else
-# define UA_THREAD_LOCAL
-#endif
-
-
 #define OPTVAL_TYPE int
 
 #include <fcntl.h>

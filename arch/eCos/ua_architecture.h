@@ -8,8 +8,6 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-#define UA_THREAD_LOCAL
-
 #include <../deps/queue.h>  //TODO: in some compilers there's already a _SYS_QUEUE_H_ who is included first and doesn't have all functions
 
 #include <pkgconf/system.h>

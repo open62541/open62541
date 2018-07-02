@@ -7,8 +7,6 @@
 #ifndef ARCH_COMMON_FREERTOS62541_H_
 #define ARCH_COMMON_FREERTOS62541_H_
 
-#define UA_THREAD_LOCAL
-
 #include <stdlib.h>
 #include <string.h>
 

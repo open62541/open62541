@@ -5,11 +5,11 @@
 # the staged changes.
 #
 # To install, copy this script to `.git/hooks/pre-commit`:
-# ln -s ../../tools/clang-format_precommit_hook .git/hooks/pre-commit
+# cd .git/hooks && ln -s ../../tools/clang-format_precommit_hook pre-commit
 # and make sure that `clang-format` is installed on your system
 
 maj_min=1
-maj_max=3
+maj_max=8
 
 base=clang-format
 format=""
@@ -52,5 +52,12 @@ fi
 # do the formatting
 for file in `git diff-index --cached --name-only $against`
 do
-    "$format" -i "$file"
+    case "$file" in
+    *.h | *.hpp | *.c | *.cpp )
+            "$format" -i "$file"
+            ;;
+    *)
+            # do nothing with file
+            ;;
+    esac
 done
