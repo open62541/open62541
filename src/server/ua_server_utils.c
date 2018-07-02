@@ -168,12 +168,14 @@ static const UA_NodeId hasSubtypeNodeId =
 
 static UA_StatusCode
 getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
-                         size_t *results_size, const UA_Node *node) {
+                         size_t *results_size, const UA_Node *node,
+                         UA_Boolean walkDownwards) {
     UA_NodeId *results = *results_ptr;
     for(size_t i = 0; i < node->referencesSize; ++i) {
         /* Is the reference kind relevant? */
         UA_NodeReferenceKind *refs = &node->references[i];
-        if(!refs->isInverse)
+        // if downwards, we do not want inverse, if upwards we want inverse
+        if (walkDownwards == refs->isInverse)
             continue;
         if(!UA_NodeId_equal(&hasSubtypeNodeId, &refs->referenceTypeId))
             continue;
@@ -219,7 +221,8 @@ getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
 
 UA_StatusCode
 getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
+                 UA_Boolean walkDownwards) {
     /* Allocate the results array. Probably too big, but saves mallocs. */
     size_t results_size = 20;
     UA_NodeId *results = (UA_NodeId*)UA_malloc(sizeof(UA_NodeId) * results_size);
@@ -249,7 +252,7 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
 
         /* Add references from the current node to the end of the array */
         retval = getTypeHierarchyFromNode(&results, &results_count,
-                                          &results_size, node);
+                                          &results_size, node, walkDownwards);
 
         /* Release the node */
         ns->releaseNode(ns->context, node);
@@ -266,6 +269,40 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
         results = NULL;
     }
 
+    *typeHierarchy = results;
+    *typeHierarchySize = results_count;
+    return UA_STATUSCODE_GOOD;
+}
+
+
+UA_StatusCode
+getTypesHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType, size_t leafTypeSize,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
+                 UA_Boolean walkDownwards) {
+    UA_NodeId *results = NULL;
+    size_t results_count = 0;
+    for (size_t i=0; i<leafTypeSize; i++) {
+        UA_NodeId *tmpResults = NULL;
+        size_t tmpResults_size = 0;
+        UA_StatusCode retval = getTypeHierarchy(ns, &leafType[i], &tmpResults, &tmpResults_size, walkDownwards);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
+            return retval;
+        }
+        if (tmpResults_size == 0 || tmpResults == NULL )
+            continue;
+        size_t new_size = sizeof(UA_NodeId) * (results_count + tmpResults_size);
+        UA_NodeId *new_results = (UA_NodeId*)UA_realloc(results, new_size);
+        if(!new_results) {
+            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        results = new_results;
+        memcpy(&results[results_count],tmpResults, sizeof(UA_NodeId)*tmpResults_size);
+        /* do not use UA_Array_delete since we still need the content of the nodes */
+        UA_free(tmpResults);
+        results_count = results_count + tmpResults_size;
+    }
     *typeHierarchy = results;
     *typeHierarchySize = results_count;
     return UA_STATUSCODE_GOOD;

@@ -774,9 +774,12 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
         }
 
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Only Variables with data type BaseDataType may contain "
+                    "Only Variables with data type BaseDataType should contain "
                     "a null (empty) value");
-        return false;
+        /* we allow addition of the node anyways since existing information models may have
+           variables with no value, e.g. OldValues - ns=0;i=3024.
+           See also #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
+        return true;
     }
 
     /* Has the value a subtype of the required type? BaseDataType (Variant) can
