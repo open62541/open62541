@@ -1069,21 +1069,15 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
          * uses extension objects to write variable values. If value is an
          * extension object we check if the current node value is also an
          * extension object. */
-        UA_Boolean compatible;
+        const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+        const UA_NodeId *nodeDataTypePtr = &node->dataType;
         if(value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {
-            const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
-            compatible = compatibleValue(server, session, &nodeDataType, node->valueRank,
-                                    node->arrayDimensionsSize, node->arrayDimensions,
-                                    &adjustedValue.value, rangeptr);
-        } else {
-            compatible = compatibleValue(server, session, &node->dataType, node->valueRank,
-                                     node->arrayDimensionsSize, node->arrayDimensions,
-                                     &adjustedValue.value, rangeptr);
-        }
+           value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE)
+            nodeDataTypePtr = &nodeDataType;
 
-
-        if(!compatible) {
+        if(!compatibleValue(server, session, nodeDataTypePtr, node->valueRank,
+                            node->arrayDimensionsSize, node->arrayDimensions,
+                            &adjustedValue.value, rangeptr)) {
             if(rangeptr)
                 UA_free(range.dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
