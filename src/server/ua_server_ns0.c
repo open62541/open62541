@@ -569,8 +569,16 @@ UA_Server_initNS0(UA_Server *server) {
     retVal = ua_namespace0(server);
 #else
     /* Create a minimal server object */
-    UA_Server_minimalServerObject(server);
+    retVal = UA_Server_minimalServerObject(server);
 #endif
+
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 (before bootstrapping) "
+                     "failed with %s. See previous outputs for any error messages.",
+                     UA_StatusCode_name(retVal));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* NamespaceArray */
     UA_DataSource namespaceDataSource = {readNamespaces, writeNamespaces};
@@ -582,10 +590,6 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
                                     &server->config.applicationDescription.applicationUri,
                                     1, &UA_TYPES[UA_TYPES_STRING]);
-
-    /* MinSupportedSampleRate */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
-                               &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_DURATION]);
 
     /* ServerStatus */
     UA_DataSource serverStatus = {readStatus, NULL};
@@ -633,6 +637,10 @@ UA_Server_initNS0(UA_Server *server) {
                                &server->config.buildInfo.buildDate, &UA_TYPES[UA_TYPES_DATETIME]);
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
+
+    /* MinSupportedSampleRate */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
+                               &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_DURATION]);
 
     /* SecondsTillShutdown */
     UA_UInt32 secondsTillShutdown = 0;
@@ -828,10 +836,12 @@ UA_Server_initNS0(UA_Server *server) {
                                 overflowAttr, NULL, NULL);
 #endif
 
-    if(retVal != UA_STATUSCODE_GOOD)
+    if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Initialization of Namespace 0 (after bootstrapping) "
                      "failed with %s. See previous outputs for any error messages.",
                      UA_StatusCode_name(retVal));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     return UA_STATUSCODE_GOOD;
 }
