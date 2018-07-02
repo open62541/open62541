@@ -172,17 +172,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(!compatibleDataType(server, &node->dataType, &vt->dataType, false))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
-    /* Get the array dimensions */
-    size_t arrayDims = node->arrayDimensionsSize;
-    if(arrayDims == 0 && value.hasValue && value.value.type &&
-       !UA_Variant_isScalar(&value.value)) {
-        arrayDims = 1; /* No array dimensions on an array implies one dimension */
-    }
-
     /* Check valueRank against array dimensions */
-    if(!(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
-         ((const UA_VariableTypeNode*)node)->isAbstract && node->valueRank == 0) &&
-        !compatibleValueRankArrayDimensions(node->valueRank, arrayDims))
+    if(!compatibleValueRankArrayDimensions(server, session, node->valueRank, node->arrayDimensionsSize))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* If variable node is created below BaseObjectType and has its default valueRank of -2,
@@ -208,7 +199,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(!server->bootstrapNS0 && value.hasValue) {
         /* If the type-check failed write the same value again. The
          * write-service tries to convert to the correct type... */
-        if(!compatibleValue(server, &node->dataType, node->valueRank,
+        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &value.value, NULL))
             retval = UA_Server_writeValue(server, node->nodeId, value.value);
@@ -1667,6 +1658,9 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         attr.displayName = UA_LOCALIZEDTEXT("", name);
         attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
         attr.valueRank = 1;
+        UA_UInt32 inputArgsSize32 = (UA_UInt32)inputArgumentsSize;
+        attr.arrayDimensions = &inputArgsSize32;
+        attr.arrayDimensionsSize = 1;
         UA_Variant_setArray(&attr.value, (void*)(uintptr_t) inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
         retval |= UA_Server_addVariableNode(server, inputArgumentsRequestedNewNodeId, nodeId,
@@ -1681,6 +1675,9 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         attr.displayName = UA_LOCALIZEDTEXT("", name);
         attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
         attr.valueRank = 1;
+        UA_UInt32 outputArgsSize32 = (UA_UInt32)outputArgumentsSize;
+        attr.arrayDimensions = &outputArgsSize32;
+        attr.arrayDimensionsSize = 1;
         UA_Variant_setArray(&attr.value, (void*)(uintptr_t) outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
         retval |= UA_Server_addVariableNode(server, outputArgumentsRequestedNewNodeId, nodeId,
