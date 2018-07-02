@@ -49,8 +49,9 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 }
 
 static UA_StatusCode
-typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
-                   size_t argsSize, UA_Variant *args) {
+typeCheckArguments(UA_Server *server, UA_Session *session,
+                   const UA_VariableNode *argRequirements, size_t argsSize,
+                   UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
     if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
@@ -73,7 +74,7 @@ typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
     /* Type-check every argument against the definition */
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
     for(size_t i = 0; i < argReqsSize; ++i) {
-        if(!compatibleValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
+        if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
                             &args[i], NULL))
             return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -82,8 +83,9 @@ typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
 }
 
 static UA_StatusCode
-validMethodArguments(UA_Server *server, const UA_MethodNode *method,
-                     const UA_CallMethodRequest *request) {
+validMethodArguments(UA_Server *server, UA_Session *session, const UA_MethodNode *method,
+                     const UA_CallMethodRequest *request,
+                     UA_StatusCode *inputArgumentResults) {
     /* Get the input arguments node */
     const UA_VariableNode *inputArguments =
         getArgumentsVariableNode(server, method, UA_STRING("InputArguments"));
@@ -95,9 +97,10 @@ validMethodArguments(UA_Server *server, const UA_MethodNode *method,
     }
 
     /* Verify the request */
-    retval = typeCheckArguments(server, inputArguments,
-                                request->inputArgumentsSize,
-                                request->inputArguments);
+    retval = typeCheckArguments(server, session, inputArguments,
+                                              request->inputArgumentsSize,
+                                              request->inputArguments,
+                                              inputArgumentResults);
 
     /* Release the input arguments node */
     server->config.nodestore.releaseNode(server->config.nodestore.context,
@@ -169,7 +172,17 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     }
 
     /* Verify Input Arguments */
-    result->statusCode = validMethodArguments(server, method, request);
+    result->statusCode = validMethodArguments(server, session, method, request, result->inputArgumentResults);
+
+    /* Return inputArgumentResults only for BADINVALIDARGUMENT */
+    if(result->statusCode != UA_STATUSCODE_BADINVALIDARGUMENT) {
+        UA_Array_delete(result->inputArgumentResults, result->inputArgumentResultsSize,
+                        &UA_TYPES[UA_TYPES_STATUSCODE]);
+        result->inputArgumentResults = NULL;
+        result->inputArgumentResultsSize = 0;
+    }
+
+    /* Error during type-checking? */
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
