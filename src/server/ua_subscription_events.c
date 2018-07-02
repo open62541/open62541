@@ -373,7 +373,13 @@ UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    if(!isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentReferences_events, 2)) {
+    UA_NodeId *parentTypeHierachy = NULL;
+    size_t parentTypeHierachySize = 0;
+    getTypesHierarchy(&server->config.nodestore, parentReferences_events, 2,
+                      &parentTypeHierachy, &parentTypeHierachySize, UA_TRUE);
+    UA_Boolean isInObjectsFolder = isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentTypeHierachy, parentTypeHierachySize);
+    UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
+    if (!isInObjectsFolder) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
