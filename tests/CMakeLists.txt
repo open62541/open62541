@@ -169,6 +169,10 @@ add_executable(check_node_inheritance server/check_node_inheritance.c $<TARGET_O
 target_link_libraries(check_node_inheritance ${LIBS})
 add_test_valgrind(node_inheritance ${TESTS_BINARY_DIR}/check_node_inheritance)
 
+add_executable(check_local_monitored_item server/check_local_monitored_item.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_local_monitored_item ${LIBS})
+add_test_valgrind(local_monitored_item ${TESTS_BINARY_DIR}/check_local_monitored_item)
+
 if(UA_ENABLE_DISCOVERY)
     add_executable(check_discovery server/check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_discovery ${LIBS})
