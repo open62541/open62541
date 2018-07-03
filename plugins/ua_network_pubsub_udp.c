@@ -57,6 +57,7 @@
 #include <stdio.h>
 #include "ua_plugin_network.h"
 #include "ua_network_pubsub_udp.h"
+#include "ua_util.h"
 #include "ua_log_stdout.h"
 
 //UDP multicast network layer specific internal data

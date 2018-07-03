@@ -14,7 +14,7 @@
  *    Copyright 2016 (c) Lorenz Haas
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"

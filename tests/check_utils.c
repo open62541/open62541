@@ -7,6 +7,7 @@
 #include "ua_types.h"
 #include "ua_client.h"
 #include "ua_util.h"
+#include "ua_util_internal.h"
 #include "check.h"
 
 START_TEST(EndpointUrl_split) {
@@ -191,11 +192,11 @@ START_TEST(idToStringString) {
 
     n = UA_NODEID_STRING(0,"");
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=0;i=");
+    assertNodeIdString(&str, "ns=0;s=");
 
     n = UA_NODEID_STRING(54321,"Some String");
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=54321;i=Some String");
+    assertNodeIdString(&str, "ns=54321;s=Some String");
 
     UA_String_deleteMembers(&str);
 } END_TEST
@@ -208,7 +209,7 @@ START_TEST(idToStringGuid) {
 
     n = UA_NODEID_GUID(0,UA_GUID_NULL);
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=0;i=00000000-0000-0000-0000-000000000000");
+    assertNodeIdString(&str, "ns=0;g=00000000-0000-0000-0000-000000000000");
 
     g.data1 = 0xA123456C;
     g.data2 = 0x0ABC;
@@ -224,7 +225,7 @@ START_TEST(idToStringGuid) {
 
     n = UA_NODEID_GUID(65535,g);
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=65535;i=a123456c-0abc-1a2b-815f-687212aaee1b");
+    assertNodeIdString(&str, "ns=65535;g=a123456c-0abc-1a2b-815f-687212aaee1b");
 
     g.data1 = 0xFFFFFFFF;
     g.data2 = 0xFFFF;
@@ -240,7 +241,7 @@ START_TEST(idToStringGuid) {
 
     n = UA_NODEID_GUID(65535,g);
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=65535;i=ffffffff-ffff-ffff-ffff-ffffffffffff");
+    assertNodeIdString(&str, "ns=65535;g=ffffffff-ffff-ffff-ffff-ffffffffffff");
 
     UA_String_deleteMembers(&str);
 } END_TEST
@@ -254,9 +255,18 @@ START_TEST(idToStringByte) {
     n.identifier.byteString.data = NULL;
     n.identifier.byteString.length = 0;
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=0;i=");
+    assertNodeIdString(&str, "ns=0;b=");
 
     UA_ByteString bs = UA_BYTESTRING_NULL;
+
+    bs.length = 1;
+    bs.data = (UA_Byte*)UA_malloc(bs.length);
+    bs.data[0] = 0x00;
+    n.identifier.byteString = bs;
+    n.namespaceIndex = 123;
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=123;b=AA==");
+    UA_free(bs.data);
 
     bs.length = 1;
     bs.data = (UA_Byte*)UA_malloc(bs.length);
@@ -264,7 +274,7 @@ START_TEST(idToStringByte) {
     n.identifier.byteString = bs;
     n.namespaceIndex = 123;
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=123;i=2c");
+    assertNodeIdString(&str, "ns=123;b=LA==");
     UA_free(bs.data);
 
     bs.length = 5;
@@ -277,7 +287,7 @@ START_TEST(idToStringByte) {
     n.identifier.byteString = bs;
     n.namespaceIndex = 599;
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=599;i=2183e05478");
+    assertNodeIdString(&str, "ns=599;b=IYPgVHg=");
     UA_free(bs.data);
 
     UA_String_deleteMembers(&str);

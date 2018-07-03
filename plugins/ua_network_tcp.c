@@ -39,6 +39,7 @@
 #include "ua_network_tcp.h"
 #include "ua_log_stdout.h"
 #include "../deps/queue.h"
+#include "ua_util.h"
 
 #include <stdio.h> // snprintf
 #include <string.h> // memset

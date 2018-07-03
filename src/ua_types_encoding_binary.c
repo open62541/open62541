@@ -15,7 +15,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"

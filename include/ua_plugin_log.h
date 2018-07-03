@@ -18,6 +18,7 @@ extern "C" {
 
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
+#include "base64.h"
 
 /**
  * Logging Plugin API
@@ -108,105 +109,6 @@ UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
     logger(UA_LOGLEVEL_FATAL, category, msg, args);
     va_end(args);
 #endif
-}
-
-/**
- * Convenience macros for complex types
- * ------------------------------------ */
-#define UA_PRINTF_GUID_FORMAT "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"
-#define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
-        (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
-        (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]
-
-#define UA_PRINTF_STRING_FORMAT "\"%.*s\""
-#define UA_PRINTF_STRING_DATA(STRING) (int)(STRING).length, (STRING).data
-
-//TODO remove when we merge architectures pull request
-#ifndef UA_snprintf
-# include <stdio.h>
-# if defined(_WIN32)
-#  define UA_snprintf(source, size, string, ...) _snprintf_s(source, size, _TRUNCATE, string, __VA_ARGS__)
-# else
-#  define UA_snprintf snprintf
-# endif
-#endif
-
-static UA_INLINE UA_StatusCode
-UA_ByteString_toString(const UA_ByteString *byteString, UA_String *str) {
-    if (str->length != 0) {
-        UA_free(str->data);
-        str->data = NULL;
-        str->length = 0;
-    }
-    if (byteString == NULL || byteString->data == NULL)
-        return UA_STATUSCODE_GOOD;
-    if (byteString == str)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    str->length = byteString->length*2;
-    str->data = (UA_Byte*)UA_malloc(str->length+1);
-    if (str->data == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    for (size_t i=0; i<byteString->length; i++)
-        UA_snprintf((char*)&str->data[i*2], 2+1, "%02x", byteString->data[i]);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_StatusCode
-UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
-    if (nodeIdStr->length != 0) {
-        UA_free(nodeIdStr->data);
-        nodeIdStr->data = NULL;
-        nodeIdStr->length = 0;
-    }
-    if (nodeId == NULL)
-        return UA_STATUSCODE_GOOD;
-
-
-    UA_ByteString byteStr = UA_BYTESTRING_NULL;
-    switch (nodeId->identifierType) {
-        /* for all the lengths below we add the constant for: */
-        /* strlen("ns=XXXXXX;i=")=11 */
-        case UA_NODEIDTYPE_NUMERIC:
-            /* ns (2 byte, 65535) = 5 chars, numeric (4 byte, 4294967295) = 10 chars, delim = 1 , nullbyte = 1-> 17 chars */
-            nodeIdStr->length = 11 + 10 + 1;
-            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;i=%lu",
-                        nodeId->namespaceIndex, (unsigned long )nodeId->identifier.numeric);
-            break;
-        case UA_NODEIDTYPE_STRING:
-            /* ns (16bit) = 5 chars, strlen + nullbyte */
-            nodeIdStr->length = 11 + nodeId->identifier.string.length + 1;
-            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;i=%.*s", nodeId->namespaceIndex,
-                        (int)nodeId->identifier.string.length, nodeId->identifier.string.data);
-            break;
-        case UA_NODEIDTYPE_GUID:
-            /* ns (16bit) = 5 chars + strlen(A123456C-0ABC-1A2B-815F-687212AAEE1B)=36 + nullbyte */
-            nodeIdStr->length = 11 + 36 + 1;
-            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;i=" UA_PRINTF_GUID_FORMAT,
-                        nodeId->namespaceIndex, UA_PRINTF_GUID_DATA(nodeId->identifier.guid));
-            break;
-        case UA_NODEIDTYPE_BYTESTRING:
-            UA_ByteString_toString(&nodeId->identifier.byteString, &byteStr);
-            /* ns (16bit) = 5 chars + LEN + nullbyte */
-            nodeIdStr->length = 11 + byteStr.length + 1;
-            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;i=%.*s", nodeId->namespaceIndex, (int)byteStr.length, byteStr.data);
-            UA_String_deleteMembers(&byteStr);
-            break;
-    }
-    return UA_STATUSCODE_GOOD;
 }
 
 
