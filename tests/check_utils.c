@@ -173,7 +173,7 @@ START_TEST(idToStringNumeric) {
 
     n = UA_NODEID_NUMERIC(0,0);
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=0;i=0");
+    assertNodeIdString(&str, "i=0");
 
     n = UA_NODEID_NUMERIC(12345,1234567890);
     UA_NodeId_toString(&n, &str);
@@ -192,11 +192,15 @@ START_TEST(idToStringString) {
 
     n = UA_NODEID_STRING(0,"");
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=0;s=");
+    assertNodeIdString(&str, "s=");
 
     n = UA_NODEID_STRING(54321,"Some String");
     UA_NodeId_toString(&n, &str);
     assertNodeIdString(&str, "ns=54321;s=Some String");
+
+    n = UA_NODEID_STRING(0,"Some String");
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "s=Some String");
 
     UA_String_deleteMembers(&str);
 } END_TEST
@@ -209,7 +213,7 @@ START_TEST(idToStringGuid) {
 
     n = UA_NODEID_GUID(0,UA_GUID_NULL);
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=0;g=00000000-0000-0000-0000-000000000000");
+    assertNodeIdString(&str, "g=00000000-0000-0000-0000-000000000000");
 
     g.data1 = 0xA123456C;
     g.data2 = 0x0ABC;
@@ -255,7 +259,7 @@ START_TEST(idToStringByte) {
     n.identifier.byteString.data = NULL;
     n.identifier.byteString.length = 0;
     UA_NodeId_toString(&n, &str);
-    assertNodeIdString(&str, "ns=0;b=");
+    assertNodeIdString(&str, "b=");
 
     UA_ByteString bs = UA_BYTESTRING_NULL;
 

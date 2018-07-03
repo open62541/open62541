@@ -133,49 +133,69 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
     if (nodeId == NULL)
         return UA_STATUSCODE_GOOD;
 
+    char *nsStr = NULL;
+    size_t nsLen = 0;
+    if (nodeId->namespaceIndex != 0) {
+        nsStr = (char*)UA_malloc(9+1); // strlen("ns=XXXXX;") = 9 + Nullbyte
+        UA_snprintf(nsStr, 10, "ns=%d;", nodeId->namespaceIndex);
+        nsLen = strlen(nsStr);
+    }
+
 
     UA_ByteString byteStr = UA_BYTESTRING_NULL;
     switch (nodeId->identifierType) {
-        /* for all the lengths below we add the constant for: */
-        /* strlen("ns=XXXXXX;i=")=11 */
         case UA_NODEIDTYPE_NUMERIC:
             /* ns (2 byte, 65535) = 5 chars, numeric (4 byte, 4294967295) = 10 chars, delim = 1 , nullbyte = 1-> 17 chars */
-            nodeIdStr->length = 11 + 10 + 1;
+            nodeIdStr->length = nsLen + 2 + 10 + 1;
             nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
+            if (nodeIdStr->data == NULL) {
+                UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;i=%lu",
-                        nodeId->namespaceIndex, (unsigned long )nodeId->identifier.numeric);
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%si=%lu",
+                        nsLen > 0 ? nsStr : "",
+                        (unsigned long )nodeId->identifier.numeric);
             break;
         case UA_NODEIDTYPE_STRING:
             /* ns (16bit) = 5 chars, strlen + nullbyte */
-            nodeIdStr->length = 11 + nodeId->identifier.string.length + 1;
+            nodeIdStr->length = nsLen + 2 + nodeId->identifier.string.length + 1;
             nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
+            if (nodeIdStr->data == NULL) {
+                UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;s=%.*s", nodeId->namespaceIndex,
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%ss=%.*s",
+                        nsLen > 0 ? nsStr : "",
                         (int)nodeId->identifier.string.length, nodeId->identifier.string.data);
             break;
         case UA_NODEIDTYPE_GUID:
             /* ns (16bit) = 5 chars + strlen(A123456C-0ABC-1A2B-815F-687212AAEE1B)=36 + nullbyte */
-            nodeIdStr->length = 11 + 36 + 1;
+            nodeIdStr->length = nsLen + 2 + 36 + 1;
             nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
+            if (nodeIdStr->data == NULL) {
+                UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;g=" UA_PRINTF_GUID_FORMAT,
-        nodeId->namespaceIndex, UA_PRINTF_GUID_DATA(nodeId->identifier.guid));
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sg=" UA_PRINTF_GUID_FORMAT,
+                        nsLen > 0 ? nsStr : "",
+                        UA_PRINTF_GUID_DATA(nodeId->identifier.guid));
             break;
         case UA_NODEIDTYPE_BYTESTRING:
             UA_ByteString_toBase64String(&nodeId->identifier.byteString, &byteStr);
             /* ns (16bit) = 5 chars + LEN + nullbyte */
-            nodeIdStr->length = 11 + byteStr.length + 1;
+            nodeIdStr->length = nsLen + 2 + byteStr.length + 1;
             nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
-            if (nodeIdStr->data == NULL)
+            if (nodeIdStr->data == NULL) {
+                UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "ns=%d;b=%.*s", nodeId->namespaceIndex, (int)byteStr.length, byteStr.data);
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sb=%.*s",
+                        nsLen > 0 ? nsStr : "",
+                        (int)byteStr.length, byteStr.data);
             UA_String_deleteMembers(&byteStr);
             break;
     }
+    UA_free(nsStr);
     return UA_STATUSCODE_GOOD;
 }
 
