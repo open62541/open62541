@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_timer.h"
 
 /* Only one thread operates on the repeated jobs. This is usually the "main"

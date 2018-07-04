@@ -5,7 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 
 #include <ctype.h>
 #include <stdio.h>
