@@ -13,12 +13,19 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 
 /* An (event) timer triggers callbacks with a recurring interval. Adding,
  * removing and changing repeated callbacks can be done from independent
  * threads. Processing the changes and dispatching callbacks must be done by a
- * single "mainloop" process. */
+ * single "mainloop" process.
+ * Timer callbacks with the same recurring interval are batched into blocks in
+ * order to reduce linear search for re-entry to the sorted list after processing.
+ * Callbacks are inserted in reversed order (last callback are put first in the block)
+ * to allow the monitored items of a subscription (if created in a sequence with the
+ * same publish/sample interval) to be executed before the subscription publish the
+ * notifications. When callbacks are entered to the timer list after execution they
+ * are added in the same order as before execution. */
 
 /* Forward declaration */
 struct UA_TimerCallbackEntry;

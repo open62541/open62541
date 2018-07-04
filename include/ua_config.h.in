@@ -74,7 +74,7 @@ extern "C" {
 #else
 # include "ms_stdint.h"
 # if !defined(__bool_true_false_are_defined)
-#  define bool short
+#  define bool unsigned char
 #  define true 1
 #  define false 0
 #  define __bool_true_false_are_defined
@@ -238,6 +238,12 @@ extern "C" {
 
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
 # define UA_BINARY_OVERLAYABLE_INTEGER 0
+#endif
+
+/* Some platforms (e.g. QNX) have sizeof(bool) > 1. Disable overlayed integer
+ * encoding if that is the case. */
+#if UA_BINARY_OVERLAYABLE_INTEGER == 1
+UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #endif
 
 /**

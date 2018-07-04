@@ -8,7 +8,7 @@
 
 #include "ua_nodestore_default.h"
 
-#include "../src/ua_util.h" /* TOOO: Move atomic operations to arch definitions */
+#include "../src/ua_util_internal.h" /* TOOO: Move atomic operations to arch definitions */
 
 /* container_of */
 #define container_of(ptr, type, member) \

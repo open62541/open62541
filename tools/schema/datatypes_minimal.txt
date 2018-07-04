@@ -45,6 +45,8 @@ ServiceFault
 UserIdentityToken
 UserNameIdentityToken
 AnonymousIdentityToken
+X509IdentityToken
+IssuedIdentityToken
 CreateSessionResponse
 CreateSessionRequest
 EndpointDescription

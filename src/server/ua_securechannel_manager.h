@@ -15,18 +15,18 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_server.h"
 #include "ua_securechannel.h"
 #include "../../deps/queue.h"
 
-typedef struct channel_list_entry {
+typedef struct channel_entry {
     UA_SecureChannel channel;
-    LIST_ENTRY(channel_list_entry) pointers;
-} channel_list_entry;
+    TAILQ_ENTRY(channel_entry) pointers;
+} channel_entry;
 
-typedef struct UA_SecureChannelManager {
-    LIST_HEAD(channel_list, channel_list_entry) channels; // doubly-linked list of channels
+typedef struct {
+    TAILQ_HEAD(, channel_entry) channels; // doubly-linked list of channels
     UA_UInt32 currentChannelCount;
     UA_UInt32 lastChannelId;
     UA_UInt32 lastTokenId;

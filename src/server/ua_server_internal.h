@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_server.h"
 #include "ua_server_config.h"
 #include "ua_timer.h"
