@@ -131,7 +131,7 @@ encodeWithExchangeBuffer(const void *ptr, encodeBinarySignature encodeFunc, Ctx 
 
 #if !UA_BINARY_OVERLAYABLE_INTEGER
 
-#pragma message "Integer endianness could not be detected to be little endian. Use slow generic encoding."
+#warning "Integer endianness could not be detected to be little endian. Use slow generic encoding."
 
 /* These en/decoding functions are only used when the architecture isn't little-endian. */
 static void
@@ -296,7 +296,9 @@ DECODE_BINARY(UInt64) {
 /* Floating Point Types */
 /************************/
 
-#if UA_BINARY_OVERLAYABLE_FLOAT
+/* Can we reuse the integer encoding mechanism by casting floating point
+ * values? */
+#if (UA_FLOAT_IEEE754 == 1) && (UA_LITTLE_ENDIAN == UA_FLOAT_LITTLE_ENDIAN)
 # define Float_encodeBinary UInt32_encodeBinary
 # define Float_decodeBinary UInt32_decodeBinary
 # define Double_encodeBinary UInt64_encodeBinary
@@ -305,7 +307,7 @@ DECODE_BINARY(UInt64) {
 
 #include <math.h>
 
-#pragma message "No native IEEE 754 format detected. Use slow generic encoding."
+#warning "No native IEEE 754 format detected. Use slow generic encoding."
 
 /* Handling of IEEE754 floating point values was taken from Beej's Guide to
  * Network Programming (http://beej.us/guide/bgnet/) and enhanced to cover the
