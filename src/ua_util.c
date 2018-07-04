@@ -186,6 +186,7 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
             nodeIdStr->length = nsLen + 2 + byteStr.length + 1;
             nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
             if (nodeIdStr->data == NULL) {
+                UA_String_deleteMembers(&byteStr);
                 UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
