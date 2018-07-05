@@ -521,7 +521,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                "bound to this SecureChannel");
         UA_deleteMembers(request, requestType);
         return sendServiceFault(channel, msg, requestPos, responseType,
-                                requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+                                requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
     }
 
     /* Update the session lifetime */
