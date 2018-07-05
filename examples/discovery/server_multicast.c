@@ -121,7 +121,7 @@ UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServe
         return NULL;
     }
 
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SERVER, "Server has %ld endpoints", endpointArraySize);
+    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SERVER, "Server has %zu endpoints", endpointArraySize);
     UA_EndpointDescription *foundEndpoint = NULL;
     for (size_t i = 0; i < endpointArraySize; i++) {
         UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SERVER, "\tURL = %.*s, SecurityMode = %s",
