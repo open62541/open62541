@@ -310,6 +310,9 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__linux__) /* Linux (including Android) */
 # include <endian.h>
+# if defined(__clang__) && !defined(__FLOAT_WORD_ORDER)
+#  define __FLOAT_WORD_ORDER __BYTE_ORDER
+# endif
 # if defined(__ANDROID__)
 #  if __BYTE_ORDER == __LITTLE_ENDIAN
 #   define UA_BINARY_OVERLAYABLE_INTEGER 1
@@ -318,6 +321,8 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(_WRS_KERNEL)
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
+#elif defined(_OS9000) && defined(_LIL_END)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #endif
 
