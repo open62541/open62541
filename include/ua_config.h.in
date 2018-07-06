@@ -281,6 +281,10 @@ extern "C" {
 # if defined(__LITTLEENDIAN__)
 #  define UA_LITTLE_ENDIAN 1
 # endif
+#elif defined(_OS9000) /* OS-9 */
+# if defined(_LIL_END)
+#  define UA_LITTLE_ENDIAN 1
+# endif
 #endif
 #ifndef UA_LITTLE_ENDIAN
 # define UA_LITTLE_ENDIAN 0
