@@ -251,6 +251,8 @@ extern "C" {
  * of the target architecture is little-endian. */
 #if defined(_WIN32)
 # define UA_LITTLE_ENDIAN 1
+#elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__)
+# define UA_LITTLE_ENDIAN 1
 #elif (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
       (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 # define UA_LITTLE_ENDIAN 1
