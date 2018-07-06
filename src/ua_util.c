@@ -8,7 +8,9 @@
  */
 
 #include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_plugin_network.h"
+#include "base64.h"
 
 size_t
 UA_readNumber(u8 *buf, size_t buflen, u32 *number) {
@@ -31,9 +33,18 @@ UA_readNumber(u8 *buf, size_t buflen, u32 *number) {
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     u16 *outPort, UA_String *outPath) {
-    /* Url must begin with "opc.tcp://" */
-    if(endpointUrl->length < 11 || strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0)
+    /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
+    if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    } else if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
+#ifdef UA_ENABLE_PUBSUB
+        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0) {
+            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+        }
+#else
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+#endif
+    }
 
     /* Where does the hostname end? */
     size_t curr = 10;
@@ -91,3 +102,101 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
 
     return UA_STATUSCODE_GOOD;
 }
+
+UA_StatusCode UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str) {
+    if (str->length != 0) {
+        UA_free(str->data);
+        str->data = NULL;
+        str->length = 0;
+    }
+    if (byteString == NULL || byteString->data == NULL)
+        return UA_STATUSCODE_GOOD;
+    if (byteString == str)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    int resSize = 0;
+    str->data = (UA_Byte*)UA_base64(byteString->data, (int)byteString->length, &resSize);
+    str->length = (size_t) resSize;
+    if (str->data == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
+    if (nodeIdStr->length != 0) {
+        UA_free(nodeIdStr->data);
+        nodeIdStr->data = NULL;
+        nodeIdStr->length = 0;
+    }
+    if (nodeId == NULL)
+        return UA_STATUSCODE_GOOD;
+
+    char *nsStr = NULL;
+    size_t nsLen = 0;
+    if (nodeId->namespaceIndex != 0) {
+        nsStr = (char*)UA_malloc(9+1); // strlen("ns=XXXXX;") = 9 + Nullbyte
+        UA_snprintf(nsStr, 10, "ns=%d;", nodeId->namespaceIndex);
+        nsLen = strlen(nsStr);
+    }
+
+
+    UA_ByteString byteStr = UA_BYTESTRING_NULL;
+    switch (nodeId->identifierType) {
+        case UA_NODEIDTYPE_NUMERIC:
+            /* ns (2 byte, 65535) = 5 chars, numeric (4 byte, 4294967295) = 10 chars, delim = 1 , nullbyte = 1-> 17 chars */
+            nodeIdStr->length = nsLen + 2 + 10 + 1;
+            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
+            if (nodeIdStr->data == NULL) {
+                UA_free(nsStr);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%si=%lu",
+                        nsLen > 0 ? nsStr : "",
+                        (unsigned long )nodeId->identifier.numeric);
+            break;
+        case UA_NODEIDTYPE_STRING:
+            /* ns (16bit) = 5 chars, strlen + nullbyte */
+            nodeIdStr->length = nsLen + 2 + nodeId->identifier.string.length + 1;
+            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
+            if (nodeIdStr->data == NULL) {
+                UA_free(nsStr);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%ss=%.*s",
+                        nsLen > 0 ? nsStr : "",
+                        (int)nodeId->identifier.string.length, nodeId->identifier.string.data);
+            break;
+        case UA_NODEIDTYPE_GUID:
+            /* ns (16bit) = 5 chars + strlen(A123456C-0ABC-1A2B-815F-687212AAEE1B)=36 + nullbyte */
+            nodeIdStr->length = nsLen + 2 + 36 + 1;
+            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
+            if (nodeIdStr->data == NULL) {
+                UA_free(nsStr);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sg=" UA_PRINTF_GUID_FORMAT,
+                        nsLen > 0 ? nsStr : "",
+                        UA_PRINTF_GUID_DATA(nodeId->identifier.guid));
+            break;
+        case UA_NODEIDTYPE_BYTESTRING:
+            UA_ByteString_toBase64String(&nodeId->identifier.byteString, &byteStr);
+            /* ns (16bit) = 5 chars + LEN + nullbyte */
+            nodeIdStr->length = nsLen + 2 + byteStr.length + 1;
+            nodeIdStr->data = (UA_Byte*)UA_malloc(nodeIdStr->length);
+            if (nodeIdStr->data == NULL) {
+                UA_String_deleteMembers(&byteStr);
+                UA_free(nsStr);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sb=%.*s",
+                        nsLen > 0 ? nsStr : "",
+                        (int)byteStr.length, byteStr.data);
+            UA_String_deleteMembers(&byteStr);
+            break;
+    }
+    UA_free(nsStr);
+    return UA_STATUSCODE_GOOD;
+}
+

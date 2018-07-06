@@ -20,9 +20,6 @@
 #include "ua_types.h"
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_GENERATE_NAMESPACE0
-#include "ua_namespaceinit_generated.h"
-#endif
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
 #endif
@@ -67,7 +64,7 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     return addNamespace(server, nameString);
 }
 
-UA_StatusCode 
+UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
   for(size_t idx = 0; idx < server->namespacesSize; idx++)

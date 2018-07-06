@@ -51,23 +51,38 @@ endif()
 
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
+option(UA_ENABLE_HISTORIZING "Enable server to provide historical access." ON)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
-option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events." OFF)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events. (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+option(UA_ENABLE_QUERY "Enable query support." OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
+option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
-# It should not be possible to enable events without enabling subscriptions and full ns0
-if ((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_ENABLE_FULL_NS0)))
-    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and UA_ENABLE_FULL_NS0")
+# Namespace Zero
+set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
+SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL")
+if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
+    set(UA_GENERATED_NAMESPACE_ZERO OFF)
+else()
+    set(UA_GENERATED_NAMESPACE_ZERO ON)
 endif()
 
-# Encryption Options
-option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
+if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+    # For the full NS0 we need a stack size of 8MB (as it is default on linux)
+    # See https://github.com/open62541/open62541/issues/1326
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
+endif()
+
+# It should not be possible to enable events without enabling subscriptions and full ns0
+if((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_NAMESPACE_ZERO STREQUAL "FULL")))
+    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
+endif()
 
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
@@ -125,14 +140,7 @@ mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
 option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
 mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
 
-option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
-if (MSVC AND UA_ENABLE_FULL_NS0)
-    # For the full NS0 we need a stack size of 8MB (as it is default on linux)
-    # See https://github.com/open62541/open62541/issues/1326
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
-endif()
-
-option(UA_FILE_NS0 "Custom NodeSet file containing NS0")
+option(UA_FILE_NS0 "Override the NodeSet xml file used to generate namespace zero")
 mark_as_advanced(UA_FILE_NS0)
 
 # Semaphores/file system may not be available on embedded devices. It can be
@@ -230,6 +238,10 @@ if(NOT WIN32)
     list(APPEND open62541_LIBRARIES socket)
     list(APPEND open62541_LIBRARIES c)
     list(APPEND open62541_LIBRARIES stdc++)
+  elseif(OS9)
+    list(APPEND open62541_LIBRARIES netdb)
+    list(APPEND open62541_LIBRARIES ndblib)
+    list(APPEND open62541_LIBRARIES socket)
   else()
     list(APPEND open62541_LIBRARIES m)
     if(UA_ENABLE_MULTITHREADING OR UA_BUILD_UNIT_TESTS)
@@ -306,8 +318,10 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
         add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
                         -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
+        if(NOT OS9)
+            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
+            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
+        endif()
         if(APPLE)
             set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
             set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
@@ -372,6 +386,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_util.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
@@ -391,7 +406,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_util.h
+                     ${PROJECT_SOURCE_DIR}/deps/base64.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
@@ -462,7 +478,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
-                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
+                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
+                ${PROJECT_SOURCE_DIR}/deps/base64.c)
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
@@ -515,18 +532,18 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
                          ${internal_headers} )
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_mdns_internal.h)
     set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c
-                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
-                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
-                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
-                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
-                    ${lib_sources})
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
+        ${lib_sources})
 endif()
 
 #########################
 # Generate source files #
 #########################
 
-if (UA_ENABLE_FULL_NS0)
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
     endif()
@@ -547,12 +564,23 @@ else()
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
     endif()
 
+    if(UA_ENABLE_SUBSCRIPTIONS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_subscriptions.txt)
+    endif()
+
     if(UA_ENABLE_DISCOVERY)
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
     endif()
 
-    if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-        set(UA_FILE_NSPUBSUB --xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+    if(UA_ENABLE_QUERY)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_query.txt)
+    endif()
+
+    if(UA_ENABLE_PUBSUB)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_pubsub.txt)
+        if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+            set(UA_FILE_NSPUBSUB --xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+        endif()
     endif()
 endif()
 

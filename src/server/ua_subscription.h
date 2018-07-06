@@ -14,10 +14,12 @@
 #ifndef UA_SUBSCRIPTION_H_
 #define UA_SUBSCRIPTION_H_
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_session.h"
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 
 /**
  * MonitoredItems create Notifications. Subscriptions collect Notifications from
@@ -44,11 +46,13 @@ typedef enum {
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 typedef struct UA_EventNotification {
     UA_EventFieldList fields;
     /* EventFilterResult currently isn't being used
     UA_EventFilterResult result; */
 } UA_EventNotification;
+#endif
 
 typedef struct UA_Notification {
     TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
@@ -58,7 +62,9 @@ typedef struct UA_Notification {
 
     /* See the monitoredItemType of the MonitoredItem */
     union {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_EventNotification event;
+#endif
         UA_DataValue value;
     } data;
 } UA_Notification;
@@ -92,7 +98,9 @@ struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
     union {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_EventFilter eventFilter;
+#endif
         UA_DataChangeFilter dataChangeFilter;
     } filter;
     UA_Variant lastValue;
@@ -201,5 +209,7 @@ void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
 void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 #endif /* UA_SUBSCRIPTION_H_ */

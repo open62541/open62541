@@ -18,6 +18,8 @@ extern "C" {
 #include "ua_server.h"
 #include "ua_server_pubsub.h"
 
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+
 //forward declarations
 struct UA_WriterGroup;
 typedef struct UA_WriterGroup UA_WriterGroup;
@@ -151,6 +153,8 @@ UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+
+#endif /* UA_ENABLE_PUBSUB */
 
 #ifdef __cplusplus
 } // extern "C"

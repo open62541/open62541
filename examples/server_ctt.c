@@ -18,15 +18,17 @@
  * corresponding CTT configuration is available at
  * https://github.com/open62541/open62541-ctt */
 
-UA_Boolean running = true;
-UA_Logger logger = UA_Log_Stdout;
-
 static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
+static const UA_NodeId accessDenied = {1, UA_NODEIDTYPE_NUMERIC, {1337}};
 
-static void
-stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
-    running = 0;
+/* Custom AccessControl policy that disallows access to one specific node */
+static UA_Byte
+getUserAccessLevel_disallowSpecific(UA_Server *server, UA_AccessControl *ac,
+                                    const UA_NodeId *sessionId, void *sessionContext,
+                                    const UA_NodeId *nodeId, void *nodeContext) {
+    if(UA_NodeId_equal(nodeId, &accessDenied))
+        return 0x00;
+    return 0xFF;
 }
 
 /* Datasource Example */
@@ -98,68 +100,8 @@ outargMethod(UA_Server *server,
 
 #endif
 
-int
-main(int argc, char **argv) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
-    signal(SIGTERM, stopHandler);
-
-#ifdef UA_ENABLE_ENCRYPTION
-    if(argc < 3) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing arguments for encryption support. "
-                         "Arguments are <server-certificate.der> "
-                         "<private-key.der> [<trustlist1.crl>, ...]");
-        return 1;
-    }
-
-    /* Load certificate and private key */
-    UA_ByteString certificate = loadFile(argv[1]);
-    UA_ByteString privateKey = loadFile(argv[2]);
-
-    /* Load the trustlist */
-    size_t trustListSize = 0;
-    if(argc > 3)
-        trustListSize = (size_t)argc-3;
-    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
-    for(size_t i = 0; i < trustListSize; i++)
-        trustList[i] = loadFile(argv[i+3]);
-
-    /* Loading of a revocation list currently unsupported */
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
-    UA_ServerConfig *config =
-        UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
-                                                trustList, trustListSize,
-                                                revocationList, revocationListSize);
-    UA_ByteString_deleteMembers(&certificate);
-    UA_ByteString_deleteMembers(&privateKey);
-    for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_deleteMembers(&trustList[i]);
-
-    if(!config) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Could not create the server config");
-        return 1;
-    }
-#else
-    if(argc < 2) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing argument for the server certificate");
-        return 1;
-    }
-    UA_ByteString certificate = loadFile(argv[1]);
-    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, &certificate);
-    UA_ByteString_deleteMembers(&certificate);
-#endif
-
-    /* uncomment next line to add a custom hostname */
-    // UA_ServerConfig_set_customHostname(config, UA_STRING("custom"));
-
-    UA_Server *server = UA_Server_new(config);
-    if(server == NULL)
-        return 1;
-
+static void
+setInformationModel(UA_Server *server) {
     /* add a static variable node to the server */
     UA_VariableAttributes myVar = UA_VariableAttributes_default;
     myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer");
@@ -168,14 +110,13 @@ main(int argc, char **argv) {
     myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     myVar.valueRank = -1;
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
                               myIntegerName, baseDataVariableType, myVar, NULL, NULL);
-    UA_Variant_deleteMembers(&myVar.value);
 
     /* add a static variable that is readable but not writable*/
     myVar = UA_VariableAttributes_default;
@@ -184,12 +125,24 @@ main(int argc, char **argv) {
     myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
     myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     myVar.valueRank = -1;
-    UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myInteger2Name = UA_QUALIFIEDNAME(1, "the answer - not readable");
     const UA_NodeId myInteger2NodeId = UA_NODEID_STRING(1, "the.answer.no.read");
     UA_Server_addVariableNode(server, myInteger2NodeId, parentNodeId, parentReferenceNodeId,
                               myInteger2Name, baseDataVariableType, myVar, NULL, NULL);
-    UA_Variant_deleteMembers(&myVar.value);
+
+    /* add a variable that is not readable or writable for the current user */
+    myVar = UA_VariableAttributes_default;
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer - not current user");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer - not current user");
+    myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
+    myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    myVar.valueRank = -1;
+    myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    const UA_QualifiedName accessDeniedName = UA_QUALIFIEDNAME(1, "the answer - not current user");
+    UA_Server_addVariableNode(server, accessDenied, parentNodeId, parentReferenceNodeId,
+                              accessDeniedName, baseDataVariableType, myVar, NULL, NULL);
 
     /* add a variable with the datetime data source */
     UA_DataSource dateDataSource;
@@ -205,6 +158,21 @@ main(int argc, char **argv) {
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
                                         baseDataVariableType, v_attr, dateDataSource, NULL, NULL);
+
+    /* add a bytestring variable with some content */
+    myVar = UA_VariableAttributes_default;
+    myVar.description = UA_LOCALIZEDTEXT("", "");
+    myVar.displayName = UA_LOCALIZEDTEXT("", "example bytestring");
+    myVar.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
+    myVar.valueRank = -1;
+    myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_ByteString myByteString = UA_BYTESTRING("test123\0test123");
+    UA_Variant_setScalar(&myVar.value, &myByteString, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    const UA_QualifiedName byteStringName = UA_QUALIFIEDNAME(1, "example bytestring");
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "myByteString"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), byteStringName,
+                              baseDataVariableType, myVar, NULL, NULL);
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
@@ -279,7 +247,6 @@ main(int argc, char **argv) {
             continue;
 
         UA_VariableAttributes attr = UA_VariableAttributes_default;
-        attr.valueRank = -2;
         attr.dataType = UA_TYPES[type].typeId;
 #ifndef UA_ENABLE_TYPENAMES
         char name[15];
@@ -299,6 +266,7 @@ main(int argc, char **argv) {
         attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
 
         /* add a scalar node for every built-in type */
+        attr.valueRank = -1;
         void *value = UA_new(&UA_TYPES[type]);
         UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
@@ -307,6 +275,7 @@ main(int argc, char **argv) {
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an array node for every built-in type */
+        attr.valueRank = 1;
         UA_Variant_setArray(&attr.value, UA_Array_new(10, &UA_TYPES[type]), 10, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, ARRAYID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
@@ -314,6 +283,7 @@ main(int argc, char **argv) {
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an matrix node for every built-in type */
+        attr.valueRank = 2;
         void *myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
         attr.value.arrayDimensions = (UA_UInt32 *)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
         attr.value.arrayDimensions[0] = 3;
@@ -438,6 +408,81 @@ main(int argc, char **argv) {
                             &outargMethod, /* callback of the method node */
                             1, &inputArguments, 1, &outputArguments, NULL, NULL);
 #endif
+}
+
+UA_Boolean running = true;
+
+static void
+stopHandler(int sign) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
+    running = 0;
+}
+
+int main(int argc, char **argv) {
+    signal(SIGINT, stopHandler); /* catches ctrl-c */
+    signal(SIGTERM, stopHandler);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    if(argc < 3) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Missing arguments for encryption support. "
+                         "Arguments are <server-certificate.der> "
+                         "<private-key.der> [<trustlist1.crl>, ...]");
+        return 1;
+    }
+
+    /* Load certificate and private key */
+    UA_ByteString certificate = loadFile(argv[1]);
+    UA_ByteString privateKey = loadFile(argv[2]);
+
+    /* Load the trustlist */
+    size_t trustListSize = 0;
+    if(argc > 3)
+        trustListSize = (size_t)argc-3;
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    for(size_t i = 0; i < trustListSize; i++)
+        trustList[i] = loadFile(argv[i+3]);
+
+    /* Loading of a revocation list currently unsupported */
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
+
+    UA_ServerConfig *config =
+        UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
+                                                trustList, trustListSize,
+                                                revocationList, revocationListSize);
+    UA_ByteString_deleteMembers(&certificate);
+    UA_ByteString_deleteMembers(&privateKey);
+    for(size_t i = 0; i < trustListSize; i++)
+        UA_ByteString_deleteMembers(&trustList[i]);
+
+    if(!config) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Could not create the server config");
+        return 1;
+    }
+#else
+    if(argc < 2) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Missing argument for the server certificate");
+        return 1;
+    }
+    UA_ByteString certificate = loadFile(argv[1]);
+    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, &certificate);
+    UA_ByteString_deleteMembers(&certificate);
+#endif
+
+    /* Override with a custom access control policy */
+    config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
+
+    /* uncomment next line to add a custom hostname */
+    // UA_ServerConfig_set_customHostname(config, UA_STRING("custom"));
+
+    UA_Server *server = UA_Server_new(config);
+    if(server == NULL)
+        return 1;
+
+    setInformationModel(server);
 
     /* run server */
     UA_StatusCode retval = UA_Server_run(server, &running);

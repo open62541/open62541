@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_server.h"
 #include "ua_server_config.h"
 #include "ua_timer.h"
@@ -240,9 +240,7 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *da
 
 /* A few global NodeId definitions */
 extern const UA_NodeId subtypeId;
-
-UA_StatusCode
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
+extern const UA_NodeId hierarchicalReferences;
 
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
@@ -266,6 +264,12 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
 const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
+
+/* Write a node attribute with a defined session */
+UA_StatusCode
+UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
+                           const UA_WriteValue *value);
+
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
@@ -381,15 +385,18 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 
 /* Creates a new node in the nodestore. */
 UA_StatusCode
-Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContext,
-                        const UA_AddNodesItem *item, const UA_NodeId *parentNodeId,
-                        const UA_NodeId *referenceTypeId,
-                        UA_NodeId *outNewNodeId);
+AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
+            const UA_AddNodesItem *item, UA_NodeId *outNewNodeId);
 
-/* Children, references, type-checking, constructors. */
+/* Check the reference to the parent node; Add references. */
 UA_StatusCode
-Operation_addNode_finish(UA_Server *server, UA_Session *session,
-                         const UA_NodeId *nodeId);
+AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+                const UA_NodeId *typeDefinitionId);
+
+/* Type-check type-definition; Run the constructors */
+UA_StatusCode
+AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 
 /**********************/
 /* Create Namespace 0 */

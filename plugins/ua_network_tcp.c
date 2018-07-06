@@ -39,6 +39,7 @@
 #include "ua_network_tcp.h"
 #include "ua_log_stdout.h"
 #include "../deps/queue.h"
+#include "ua_util.h"
 
 #include <stdio.h> // snprintf
 #include <string.h> // memset
@@ -862,7 +863,31 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
         UA_UInt32 timeSinceStart =
                         (UA_UInt32) ((UA_Double) (UA_DateTime_nowMonotonic() - connStart)
                                         * UA_DATETIME_MSEC);
+#ifdef _OS9000
+        /* OS-9 can't use select for checking write sockets.
+         * Therefore, we need to use connect until success or failed
+         */
+        UA_UInt32 timeout_usec = (tcpConnection->timeout - timeSinceStart)
+                        * 1000;
+        int resultsize = 0;
+        do {
+            u_int32 time = 0x80000001;
+            signal_code sig;
 
+            timeout_usec -= 1000000/256;    // Sleep 1/256 second
+            if (timeout_usec < 0)
+                break;
+
+            _os_sleep(&time,&sig);
+            error = connect(clientsockfd, tcpConnection->server->ai_addr,
+                        WIN32_INT tcpConnection->server->ai_addrlen);
+            if ((error == -1 && errno__ == EISCONN) || (error == 0))
+                resultsize = 1;
+            if (error == -1 && errno__ != EALREADY && errno__ != EINPROGRESS)
+                break;
+        }
+        while(resultsize == 0);
+#else
         fd_set fdset;
         FD_ZERO(&fdset);
         UA_fd_set(clientsockfd, &fdset);
@@ -873,7 +898,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
         int resultsize = select((UA_Int32) (clientsockfd + 1), NULL, &fdset,
         NULL, &tmptv);
-
+#endif
         if (resultsize == 1) {
             /* Windows does not have any getsockopt equivalent and it is not needed there */
 #ifdef _WIN32
@@ -1127,6 +1152,29 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
             if(timeSinceStart > dtTimeout)
                 break;
 
+#ifdef _OS9000
+            /* OS-9 can't use select for checking write sockets.
+             * Therefore, we need to use connect until success or failed
+             */
+            UA_DateTime timeout_usec = (dtTimeout - timeSinceStart) / UA_DATETIME_USEC;
+            int resultsize = 0;
+            do {
+                u_int32 time = 0x80000001;
+                signal_code sig;
+
+                timeout_usec -= 1000000/256;    // Sleep 1/256 second
+                if (timeout_usec < 0)
+                    break;
+
+                _os_sleep(&time,&sig);
+                error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
+                if ((error == -1 && errno__ == EISCONN) || (error == 0))
+                    resultsize = 1;
+                if (error == -1 && errno__ != EALREADY && errno__ != EINPROGRESS)
+                    break;
+            }
+            while(resultsize == 0);
+#else 
             fd_set fdset;
             FD_ZERO(&fdset);
             UA_fd_set(clientsockfd, &fdset);
@@ -1135,7 +1183,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
                                     (long int) (timeout_usec % 1000000)};
 
             int resultsize = select((UA_Int32)(clientsockfd + 1), NULL, &fdset, NULL, &tmptv);
-
+#endif
             if(resultsize == 1) {
 #ifdef _WIN32
                 /* Windows does not have any getsockopt equivalent and it is not

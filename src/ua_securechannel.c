@@ -11,7 +11,7 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
@@ -33,9 +33,9 @@ const UA_ByteString
     UA_SECURITY_POLICY_NONE_URI = {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
 
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
-UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
-UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
+UA_StatusCode decrypt_verifySignatureFailure;
+UA_StatusCode sendAsym_sendFailure;
+UA_StatusCode processSym_seqNumberFailure;
 #endif
 
 UA_StatusCode
@@ -108,11 +108,15 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     }
 
     /* Remove the buffered chunks */
-    struct ChunkEntry *ch, *temp_ch;
-    LIST_FOREACH_SAFE(ch, &channel->chunks, pointers, temp_ch) {
-        UA_ByteString_deleteMembers(&ch->bytes);
-        LIST_REMOVE(ch, pointers);
-        UA_free(ch);
+    struct MessageEntry *me, *temp_me;
+    LIST_FOREACH_SAFE(me, &channel->chunks, pointers, temp_me) {
+        struct ChunkPayload *cp, *temp_cp;
+        SIMPLEQ_FOREACH_SAFE(cp, &me->chunkPayload, pointers, temp_cp) {
+            UA_ByteString_deleteMembers(&cp->bytes);
+            UA_free(cp);
+        }
+        LIST_REMOVE(me, pointers);
+        UA_free(me);
     }
 }
 
@@ -725,77 +729,98 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 
 static void
 UA_SecureChannel_removeChunks(UA_SecureChannel *channel, UA_UInt32 requestId) {
-    struct ChunkEntry *ch;
-    LIST_FOREACH(ch, &channel->chunks, pointers) {
-        if(ch->requestId == requestId) {
-            UA_ByteString_deleteMembers(&ch->bytes);
-            LIST_REMOVE(ch, pointers);
-            UA_free(ch);
+    struct MessageEntry *me;
+    LIST_FOREACH(me, &channel->chunks, pointers) {
+        if(me->requestId == requestId) {
+            struct ChunkPayload *cp, *temp_cp;
+            SIMPLEQ_FOREACH_SAFE(cp, &me->chunkPayload, pointers, temp_cp) {
+                UA_ByteString_deleteMembers(&cp->bytes);
+                UA_free(cp);
+            }
+            LIST_REMOVE(me, pointers);
+            UA_free(me);
             return;
         }
     }
 }
 
 static UA_StatusCode
-appendChunk(struct ChunkEntry *chunkEntry, const UA_ByteString *chunkBody) {
-    UA_Byte *new_bytes = (UA_Byte *)
-        UA_realloc(chunkEntry->bytes.data, chunkEntry->bytes.length + chunkBody->length);
-    if(!new_bytes) {
-        UA_ByteString_deleteMembers(&chunkEntry->bytes);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    chunkEntry->bytes.data = new_bytes;
-    memcpy(&chunkEntry->bytes.data[chunkEntry->bytes.length], chunkBody->data, chunkBody->length);
-    chunkEntry->bytes.length += chunkBody->length;
+appendChunk(struct MessageEntry *messageEntry, const UA_ByteString *chunkBody) {
+    
+    struct ChunkPayload* cp = (struct ChunkPayload*)UA_malloc(sizeof(struct ChunkPayload));
+    UA_StatusCode retval = UA_ByteString_copy(chunkBody, &cp->bytes);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
+    
+    SIMPLEQ_INSERT_TAIL(&messageEntry->chunkPayload, cp, pointers);
+    messageEntry->chunkPayloadSize += chunkBody->length;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
                              const UA_ByteString *chunkBody) {
-    struct ChunkEntry *ch;
-    LIST_FOREACH(ch, &channel->chunks, pointers) {
-        if(ch->requestId == requestId)
+    struct MessageEntry *me;
+    LIST_FOREACH(me, &channel->chunks, pointers) {
+        if(me->requestId == requestId)
             break;
     }
 
     /* No chunkentry on the channel, create one */
-    if(!ch) {
-        ch = (struct ChunkEntry *)UA_malloc(sizeof(struct ChunkEntry));
-        if(!ch)
+    if(!me) {
+        me = (struct MessageEntry *)UA_malloc(sizeof(struct MessageEntry));
+        if(!me)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        ch->requestId = requestId;
-        UA_ByteString_init(&ch->bytes);
-        LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
+        memset(me, 0, sizeof(struct MessageEntry));
+        me->requestId = requestId;
+        SIMPLEQ_INIT(&me->chunkPayload);
+        LIST_INSERT_HEAD(&channel->chunks, me, pointers);
     }
 
-    return appendChunk(ch, chunkBody);
+    return appendChunk(me, chunkBody);
 }
 
 static UA_StatusCode
 UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
                                const UA_ByteString *chunkBody, UA_MessageType messageType,
                                UA_ProcessMessageCallback callback, void *application) {
-    struct ChunkEntry *chunkEntry;
-    LIST_FOREACH(chunkEntry, &channel->chunks, pointers) {
-        if(chunkEntry->requestId == requestId)
+    struct MessageEntry *messageEntry;
+    LIST_FOREACH(messageEntry, &channel->chunks, pointers) {
+        if(messageEntry->requestId == requestId)
             break;
     }
 
     UA_ByteString bytes;
-    if(!chunkEntry) {
+    if(!messageEntry) {
         bytes = *chunkBody;
     } else {
-        UA_StatusCode retval = appendChunk(chunkEntry, chunkBody);
+        UA_StatusCode retval = appendChunk(messageEntry, chunkBody);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        bytes = chunkEntry->bytes;
-        LIST_REMOVE(chunkEntry, pointers);
-        UA_free(chunkEntry);
+        
+        UA_ByteString_init(&bytes);
+
+        bytes.data = (UA_Byte*) UA_malloc(messageEntry->chunkPayloadSize);
+        if (!bytes.data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        struct ChunkPayload *cp, *temp_cp;
+        size_t curPos = 0;
+        SIMPLEQ_FOREACH_SAFE(cp, &messageEntry->chunkPayload, pointers, temp_cp) {
+            memcpy(&bytes.data[curPos], cp->bytes.data, cp->bytes.length);
+            curPos += cp->bytes.length;
+            UA_ByteString_deleteMembers(&cp->bytes);
+            UA_free(cp);
+        }
+
+        bytes.length = messageEntry->chunkPayloadSize;
+
+        LIST_REMOVE(messageEntry, pointers);
+        UA_free(messageEntry);
     }
 
     UA_StatusCode retval = callback(application, channel, messageType, requestId, &bytes);
-    if(chunkEntry)
+    if(messageEntry)
         UA_ByteString_deleteMembers(&bytes);
     return retval;
 }

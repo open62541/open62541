@@ -14,7 +14,7 @@
  *    Copyright 2016 (c) Lorenz Haas
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
@@ -71,7 +71,8 @@ UA_findDataType(const UA_NodeId *typeId) {
 /* Random Number Generator */
 /***************************/
 
-static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
+//TODO is this safe for multithreading?
+static pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 void
 UA_random_seed(u64 seed) {
@@ -550,7 +551,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     *stride = v->arrayLength; /* So it can be copied as a contiguous block.   */
     *first = 0;
     size_t running_dimssize = 1;
-    bool found_contiguous = false;
+    UA_Boolean found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
         --k;
         size_t dimrange = 1 + realmax[k] - range.dimensions[k].min;
@@ -567,7 +568,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
 }
 
 /* Is the type string-like? */
-static bool
+static UA_Boolean
 isStringLike(const UA_DataType *type) {
     if(type == &UA_TYPES[UA_TYPES_STRING] ||
        type == &UA_TYPES[UA_TYPES_BYTESTRING] ||
@@ -604,8 +605,8 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range) {
     if(!src->type)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    bool isScalar = UA_Variant_isScalar(src);
-    bool stringLike = isStringLike(src->type);
+    UA_Boolean isScalar = UA_Variant_isScalar(src);
+    UA_Boolean stringLike = isStringLike(src->type);
     UA_Variant arraySrc;
 
     /* Extract the range for copying at this level. The remaining range is dealt
@@ -733,7 +734,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
  * variant and strings. This is already possible for reading... */
 static UA_StatusCode
 Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
-                 const UA_NumericRange range, bool copy) {
+                 const UA_NumericRange range, UA_Boolean copy) {
     /* Compute the strides */
     size_t count, block, stride, first;
     UA_StatusCode retval = computeStrides(v, range, &count,
@@ -1108,4 +1109,81 @@ isDataTypeNumeric(const UA_DataType *type) {
         if (&UA_TYPES[i] == type)
             return true;
     return false;
+}
+
+/**********************/
+/* Parse NumericRange */
+/**********************/
+
+static size_t
+readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
+    size_t progress = UA_readNumber(buf, buflen, &dim->min);
+    if(progress == 0)
+        return 0;
+    if(buflen <= progress + 1 || buf[progress] != ':') {
+        dim->max = dim->min;
+        return progress;
+    }
+
+    ++progress;
+    size_t progress2 = UA_readNumber(&buf[progress], buflen - progress, &dim->max);
+    if(progress2 == 0)
+        return 0;
+
+    /* invalid range */
+    if(dim->min >= dim->max)
+        return 0;
+
+    return progress + progress2;
+}
+
+UA_StatusCode
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
+    size_t idx = 0;
+    size_t dimensionsMax = 0;
+    UA_NumericRangeDimension *dimensions = NULL;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    size_t offset = 0;
+    while(true) {
+        /* alloc dimensions */
+        if(idx >= dimensionsMax) {
+            UA_NumericRangeDimension *newds;
+            size_t newdssize = sizeof(UA_NumericRangeDimension) * (dimensionsMax + 2);
+            newds = (UA_NumericRangeDimension*)UA_realloc(dimensions, newdssize);
+            if(!newds) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                break;
+            }
+            dimensions = newds;
+            dimensionsMax = dimensionsMax + 2;
+        }
+
+        /* read the dimension */
+        size_t progress = readDimension(&str->data[offset], str->length - offset,
+                                        &dimensions[idx]);
+        if(progress == 0) {
+            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
+            break;
+        }
+        offset += progress;
+        ++idx;
+
+        /* loop into the next dimension */
+        if(offset >= str->length)
+            break;
+
+        if(str->data[offset] != ',') {
+            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
+            break;
+        }
+        ++offset;
+    }
+
+    if(retval == UA_STATUSCODE_GOOD && idx > 0) {
+        range->dimensions = dimensions;
+        range->dimensionsSize = idx;
+    } else
+        UA_free(dimensions);
+
+    return retval;
 }

@@ -6,13 +6,15 @@
  */
 
 #include "ua_types_encoding_binary.h"
-#include "ua_server_pubsub.h"
 #include "server/ua_server_internal.h"
+
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+
+#include "ua_server_pubsub.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_manager.h"
 #include "ua_pubsub_networkmessage.h"
 
-#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
 #endif
@@ -1001,7 +1003,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     memset(dsmStore, 0, sizeof(UA_DataSetMessage) * writerGroup->writersCount);
     //The binary DataSetMessage sizes are part of the payload. Memory is allocated on the stack.
     UA_STACKARRAY(UA_UInt16, dsmSizes, writerGroup->writersCount);
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
     memset(dsmSizes, 0, writerGroup->writersCount * sizeof(UA_UInt16));
+    memset(dsWriterIds, 0, writerGroup->writersCount * sizeof(UA_UInt16));
     /*
      * Calculate the number of needed NetworkMessages. The previous allocated DataSetMessage array is
      * filled from left for combined DSM messages and from the right for single DSM.
@@ -1031,6 +1035,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Publish failed. DataSetMessage creation failed");
                 return;
             };
+            dsWriterIds[(writerGroup->writersCount - 1) - singleNetworkMessagesCount] = tmpDataSetWriter->config.dataSetWriterId;
             dsmSizes[(writerGroup->writersCount-1) - singleNetworkMessagesCount] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsmStore[(writerGroup->writersCount-1)
                                                                                                                                           - singleNetworkMessagesCount]);
             singleNetworkMessagesCount++;
@@ -1039,6 +1044,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Publish failed. DataSetMessage creation failed");
                 return;
             };
+            dsWriterIds[combinedNetworkMessageCount] = tmpDataSetWriter->config.dataSetWriterId;
             dsmSizes[combinedNetworkMessageCount] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsmStore[combinedNetworkMessageCount]);
             combinedNetworkMessageCount++;
         }
@@ -1057,6 +1063,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     for(UA_UInt32 i = 0; i < networkMessageCount; i++) {
         nmStore[i].version = 1;
         nmStore[i].networkMessageType = UA_NETWORKMESSAGE_DATASET;
+        nmStore[i].payloadHeaderEnabled = UA_TRUE;
         //create combined NetworkMessages
         if(i < (networkMessageCount-singleNetworkMessagesCount)){
             if(combinedNetworkMessageCount - (i * writerGroup->config.maxEncapsulatedDataSetMessageCount)){
@@ -1070,11 +1077,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                 //nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
                 nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
                 nmStore->payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+                nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             } else {
                 currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
                 nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) (currentDSMPosition - ((i - 1) * writerGroup->config.maxEncapsulatedDataSetMessageCount)); //attention cast from uint32 to byte
                 nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
                 nmStore->payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+                nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             }
         } else {///create single NetworkMessages (1 DSM per NM)
             nmStore[i].payloadHeader.dataSetPayloadHeader.count = 1;
@@ -1082,6 +1091,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                                                             + (combinedNetworkMessageCount % writerGroup->config.maxEncapsulatedDataSetMessageCount) == 0 ? 0 : 1);
             nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
             nmStore->payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+            nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
         }
         UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, writerGroup->linkedConnection);
         if(!connection){
@@ -1101,9 +1111,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             };
             connection->channel->send(connection->channel, NULL, &buf);
         }
-        nmStore[i].payloadHeaderEnabled = UA_TRUE;
-        //The stack allocated sizes field must be set to NULL to prevent invalid free.
+        //The stack allocated sizes and dataSetWriterIds field must be set to NULL to prevent invalid free.
         nmStore[i].payload.dataSetPayload.sizes = NULL;
+        nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = NULL;
         UA_ByteString_deleteMembers(&buf);
         UA_NetworkMessage_deleteMembers(&nmStore[i]);
     }
