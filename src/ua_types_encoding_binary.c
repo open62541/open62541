@@ -296,7 +296,9 @@ DECODE_BINARY(UInt64) {
 /* Floating Point Types */
 /************************/
 
-#if UA_BINARY_OVERLAYABLE_FLOAT
+/* Can we reuse the integer encoding mechanism by casting floating point
+ * values? */
+#if (UA_FLOAT_IEEE754 == 1) && (UA_LITTLE_ENDIAN == UA_FLOAT_LITTLE_ENDIAN)
 # define Float_encodeBinary UInt32_encodeBinary
 # define Float_decodeBinary UInt32_decodeBinary
 # define Double_encodeBinary UInt64_encodeBinary

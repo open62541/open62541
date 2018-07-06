@@ -431,6 +431,25 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
                                               value);
     }
 
+    // If someone called UA_Server_deleteMonitoredItem in the user callback,
+    // then the monitored item will be deleted soon. So, there is no need to
+    // add the lastValue or lastSampledValue to it.
+    //
+    // If we do so, we will leak
+    // the memory of that values, because UA_Server_deleteMonitoredItem
+    // already deleted all members and scheduled the monitored item pointer
+    // for later delete. In the later delete the monitored item will be deleted
+    // and not the members.
+    //
+    // Also in the later delete, all type information is lost and a deleteMember
+    // is not possible.
+    //
+    // We do detect if the monitored item is already defunct.
+    if (!monitoredItem->sampleCallbackIsRegistered) {
+        UA_ByteString_deleteMembers(&binaryEncoding);
+        return storedValue;
+    }
+
     /* Store the encoding for comparison */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = binaryEncoding;
