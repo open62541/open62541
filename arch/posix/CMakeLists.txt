@@ -16,6 +16,8 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "posix")
 
         if(QNXNTO)
           ua_architecture_append_to_library(socket c stdc++)
+        elseif(OS9)
+          ua_architecture_append_to_library(netdb ndblib socket)
         else()
           ua_architecture_append_to_library(m)
           if(UA_ENABLE_MULTITHREADING OR UA_BUILD_UNIT_TESTS)

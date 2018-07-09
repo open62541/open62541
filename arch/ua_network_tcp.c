@@ -928,6 +928,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
                                     (long int) (timeout_usec % 1000000)};
 
             int resultsize = UA_select((UA_Int32)(clientsockfd + 1), NULL, &fdset, NULL, &tmptv);
+#endif
 
             if(resultsize == 1) {
 #ifdef _WIN32
