@@ -197,7 +197,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
 }
 
 UA_StatusCode
-UA_Server_removePublishedDataSet(UA_Server *server, UA_NodeId pds) {
+UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     //search the identified PublishedDataSet and store the PDS index
     UA_PublishedDataSet *publishedDataSet = NULL;
     size_t publishedDataSetIndex;

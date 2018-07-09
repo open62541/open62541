@@ -6,6 +6,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
+include(macros)
 
 #############################
 # Compiled binaries folders #
@@ -49,6 +50,68 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
 
+
+option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
+set(UA_AMALGAMATION_ARCHITECUTRES "" CACHE STRING "List of architectures to include in amalgamation")
+mark_as_advanced(UA_AMALGAMATION_ARCHITECUTRES)
+
+# Platform. This is at the beginning in case the architecture changes some UA options
+set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
+
+if(UA_ENABLE_AMALGAMATION)
+    if(NOT "${UA_ARCHITECTURE}" STREQUAL "None")
+        set(UA_AMALGAMATION_ARCHITECUTRES "${UA_ARCHITECTURE}")
+    else()
+        if("${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
+            # select some default architectures which should be included
+            set(UA_AMALGAMATION_ARCHITECUTRES "win32;posix")
+        endif()
+    endif()
+    message(STATUS "Architectures included in amalgamation: ${UA_AMALGAMATION_ARCHITECUTRES}")
+endif()
+
+if("${UA_ARCHITECTURE}" STREQUAL "None")
+    if(UNIX)
+        set(UA_ARCHITECTURE "posix" CACHE STRING "" FORCE)
+    elseif(WIN32)
+        set(UA_ARCHITECTURE "win32" CACHE STRING ""  FORCE)
+    endif(UNIX)
+endif()
+
+message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
+string(TOUPPER ${UA_ARCHITECTURE} UA_ARCHITECTURE_UPPER)
+add_definitions(-DUA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
+
+add_subdirectory(arch)
+
+GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
+list(SORT architectures)
+set_property(CACHE UA_ARCHITECTURE PROPERTY STRINGS None ${architectures})
+
+GET_PROPERTY(ua_directories_to_include GLOBAL PROPERTY UA_INCLUDE_DIRECTORIES)
+include_directories(${ua_directories_to_include})
+
+GET_PROPERTY(ua_architecture_headers GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS)
+
+GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS_BEGINNING)
+
+GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
+
+set(ua_architecture_sources ${ua_architecture_sources}
+            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
+)
+
+set(ua_architecture_headers ${ua_architecture_headers}
+            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.h
+            ${PROJECT_SOURCE_DIR}/arch/ua_architecture_functions.h
+)
+
+
+
+if(${UA_ARCHITECTURE} STREQUAL "None")
+  message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
+endif(${UA_ARCHITECTURE} STREQUAL "None")
+
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_HISTORIZING "Enable server to provide historical access." ON)
@@ -59,7 +122,6 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events. (EXPERIMENTAL)"
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_QUERY "Enable query support." OFF)
-option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -158,12 +220,6 @@ option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
        "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
 
-set(UA_VXWORKS_WRS_KERNEL OFF CACHE BOOL "Enable if you want to compile for VxWorks as kernel Module")
-mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
-
-set(UA_FREERTOS OFF CACHE BOOL "Enable if you want to compile for freeRTOS")
-mark_as_advanced(UA_FREERTOS)
-
 set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
 mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
 
@@ -233,31 +289,6 @@ if(UA_ENABLE_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
-if(NOT WIN32)
-  if(QNXNTO)
-    list(APPEND open62541_LIBRARIES socket)
-    list(APPEND open62541_LIBRARIES c)
-    list(APPEND open62541_LIBRARIES stdc++)
-  elseif(OS9)
-    list(APPEND open62541_LIBRARIES netdb)
-    list(APPEND open62541_LIBRARIES ndblib)
-    list(APPEND open62541_LIBRARIES socket)
-  else()
-    list(APPEND open62541_LIBRARIES m)
-    if(UA_ENABLE_MULTITHREADING OR UA_BUILD_UNIT_TESTS)
-      list(APPEND open62541_LIBRARIES pthread)
-    endif()
-    if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
-      list(APPEND open62541_LIBRARIES rt)
-    endif()
-  endif()
-else()
-  list(APPEND open62541_LIBRARIES ws2_32)
-    if(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_PUBSUB)
-        list(APPEND open62541_LIBRARIES iphlpapi)
-    endif()
-endif()
-
 #####################
 # Compiler Settings #
 #####################
@@ -279,29 +310,9 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wundef
                     -Wc++-compat)
 
-    if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
-        add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
-    endif()
-
     if(UA_ENABLE_AMALGAMATION)
         add_definitions(-Wno-unused-function)
     endif()
-
-    if(UA_VXWORKS_WRS_KERNEL)
-        # Disable flags for VXWORKS
-        remove_definitions(-Werror -Wpedantic -Wno-static-in-inline -fPIC)
-        add_definitions(-D_WRS_KERNEL)
-    endif()
-
-    if(UA_FREERTOS)
-       SET(UA_FREERTOS_INCLUDES "" CACHE STRING "Folders to include from the freeRTOS OS")
-       include_directories(${UA_FREERTOS_INCLUDES})
-        # Disable flags for freeRTOS
-        remove_definitions(-fPIC -Wconversion )
-        add_definitions(-DUA_FREERTOS -DLWIP_TIMEVAL_PRIVATE=0 -DLWIP_COMPAT_MUTEX=0 -DLWIP_POSIX_SOCKETS_IO_NAMES=0 -mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs
-                        -ffunction-sections -fdata-sections  -fno-exceptions -fstack-usage -Wno-unused-variable -Wno-format -Wno-format-security -Wno-format-nonliteral)
-        list(APPEND open62541_LIBRARIES c m stdc++ supc++)
-    endif(UA_FREERTOS)
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
@@ -378,11 +389,22 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
 
-set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+if(NOT "${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
+    set(exported_headers)
+    foreach(arch ${UA_AMALGAMATION_ARCHITECUTRES})
+        list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${arch}/ua_architecture.h)
+    endforeach()
+else()
+    set(exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h)
+endif()
+
+set(exported_headers ${exported_headers}
+                     ${ua_architecture_headers_beginning}
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
@@ -481,19 +503,15 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c)
 
-set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
+set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_socket_error.h
 )
 
-set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
+set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
@@ -519,7 +537,7 @@ if(UA_DEBUG_DUMP_PKGS)
 endif()
 
 if(UA_ENABLE_NONSTANDARD_UDP)
-    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/ua_network_udp.h)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
@@ -669,17 +687,17 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                           ${exported_headers} ${default_plugin_headers}
+                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers} ${default_plugin_headers})
+                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                           ${internal_headers} ${lib_sources} ${default_plugin_sources}
+                           ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                           ${lib_sources} ${default_plugin_sources})
+                           ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources} )
 
 add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
 add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
@@ -695,6 +713,10 @@ if(MSVC)
     set(NODESET_MAX_STR_LEN 65535)
 endif()
 
+if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
+    set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
+endif()
+
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
@@ -703,6 +725,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            --generate-ns0
                            --internal-headers
                            --max-string-length=${NODESET_MAX_STR_LEN}
+                           --encode-binary-size=${UA_NODESET_ENCODE_BINARY_SIZE}
                            --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            --xml ${UA_FILE_NS0}
                            ${UA_FILE_NSPUBSUB}
@@ -734,6 +757,7 @@ assign_source_group(${lib_sources})
 assign_source_group(${internal_headers})
 assign_source_group(${exported_headers})
 assign_source_group(${default_plugin_sources})
+assign_source_group(${ua_architecture_sources})
 
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
@@ -764,7 +788,7 @@ else()
                      open62541-generator-statuscode)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-    add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
+    add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
     add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
@@ -775,7 +799,7 @@ else()
 
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
-        set_source_files_properties(${default_plugin_sources} PROPERTIES LANGUAGE CXX)
+        set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
 endif()
 
@@ -792,12 +816,25 @@ if (UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
+# Generate properly versioned shared library links on Linux
+SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
+
+##################################
+#     Architectures changes      #
+##################################
+
+GET_PROPERTY(ua_architecture_add_definitions GLOBAL PROPERTY UA_ARCHITECTURE_ADD_DEFINITIONS)
+add_definitions(${ua_architecture_add_definitions})
+
+GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS)
+remove_definitions(${ua_architecture_remove_definitions})
+
+GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
+list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
 
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
-# Generate properly versioned shared library links on Linux
-SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 ##########################
 # Build Selected Targets #
@@ -851,10 +888,14 @@ add_custom_target(cpplint cpplint
                   ${internal_headers}
                   ${default_plugin_headers}
                   ${default_plugin_sources}
+                  ${ua_architecture_headers}
+                  ${ua_architecture_sources}
                   DEPENDS ${lib_sources}
                           ${internal_headers}
                           ${default_plugin_headers}
                           ${default_plugin_sources}
+                          ${ua_architecture_headers}
+                          ${ua_architecture_sources}
 
                   COMMENT "Run cpplint code style checker on the library")
 

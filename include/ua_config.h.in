@@ -59,6 +59,8 @@ extern "C" {
 #cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS
 
+#include "ua_architecture.h"
+
 /**
  * C99 Definitions
  * --------------- */
@@ -69,9 +71,6 @@ extern "C" {
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
 # include <stdbool.h> /* C99 Boolean */
-# if defined(_WRS_KERNEL)
-# define UINT32_C(x) ((x) + (UINT32_MAX - UINT32_MAX)) 
-# endif
 #else
 # include "ms_stdint.h"
 # if !defined(__bool_true_false_are_defined)
@@ -115,49 +114,6 @@ extern "C" {
     } UA_CTASTR(static_assertion_failed_,__COUNTER__)
 #else /* Everybody else */
 # define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
-#endif
-
-/**
- * Memory Management
- * -----------------
- * The default is to use the malloc implementation from ``stdlib.h``. Override
- * if required. Changing the settings has no effect on a pre-compiled
- * library. */
-#include <stdlib.h>
-#if defined(_WIN32) && !defined(__clang__)
-# include <malloc.h>
-#endif
-
-#if !defined(UA_FREERTOS)
-
-# define UA_free(ptr) free(ptr)
-# define UA_malloc(size) malloc(size)
-# define UA_calloc(num, size) calloc(num, size)
-# define UA_realloc(ptr, size) realloc(ptr, size)
-
-#else
-
-# include <FreeRTOS.h>
-
-# define UA_free(ptr) vPortFree(ptr)
-# define UA_malloc(size) pvPortMalloc(size)
-# define UA_calloc(num, size) pvPortCalloc(num, size)
-# define UA_realloc(ptr, size) pvPortRealloc(ptr, size)
-
-#endif
-
-/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
- * Otherwise revert to alloca. Note that alloca is not supported on some
- * plattforms. */
-#if defined(__GNUC__) || defined(__clang__)
-# define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
-#elif defined(_WIN32)
-# define UA_STACKARRAY(TYPE, NAME, SIZE) \
-    TYPE *NAME = (TYPE*)_alloca(sizeof(TYPE) * SIZE)
-#else
-# include <alloca.h>
-# define UA_STACKARRAY(TYPE, NAME, SIZE) \
-    TYPE *NAME = (TYPE*)alloca(sizeof(TYPE) * SIZE)
 #endif
 
 /**

@@ -12,11 +12,11 @@
 extern "C" {
 #endif
 
-#include "../deps/queue.h"
 #include "ua_plugin_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 #include "ua_server.h"
 #include "ua_server_pubsub.h"
+#include "../deps/queue.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 

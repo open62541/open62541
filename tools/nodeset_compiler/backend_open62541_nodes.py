@@ -72,7 +72,7 @@ def generateObjectNodeCode(node):
         code.append("attr.eventNotifier = true;")
     return code
 
-def generateVariableNodeCode(node, nodeset, max_string_length):
+def generateVariableNodeCode(node, nodeset, max_string_length, encode_binary_size):
     code = []
     codeCleanup = []
     code.append("UA_VariableAttributes attr = UA_VariableAttributes_default;")
@@ -111,7 +111,7 @@ def generateVariableNodeCode(node, nodeset, max_string_length):
 
             if dataTypeNode.isEncodable():
                 if node.value is not None:
-                    [code1, codeCleanup1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, max_string_length=max_string_length)
+                    [code1, codeCleanup1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, max_string_length=max_string_length, encode_binary_size=encode_binary_size)
                     code += code1
                     codeCleanup += codeCleanup1
                     if node.valueRank > 0 and len(node.arrayDimensions) == node.valueRank:
@@ -121,7 +121,7 @@ def generateVariableNodeCode(node, nodeset, max_string_length):
                     code += generateValueCodeDummy(dataTypeNode, nodeset.nodes[node.id], nodeset)
     return [code, codeCleanup]
 
-def generateVariableTypeNodeCode(node, nodeset, max_string_length):
+def generateVariableTypeNodeCode(node, nodeset, max_string_length, encode_binary_size):
     code = []
     codeCleanup = []
     code.append("UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;")
@@ -140,14 +140,14 @@ def generateVariableTypeNodeCode(node, nodeset, max_string_length):
             code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNode.id))
             if dataTypeNode.isEncodable():
                 if node.value is not None:
-                    [code1, codeCleanup1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, max_string_length)
+                    [code1, codeCleanup1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, max_string_length, encode_binary_size)
                     code += code1
                     codeCleanup += codeCleanup1
                 else:
                     code += generateValueCodeDummy(dataTypeNode, nodeset.nodes[node.id], nodeset)
     return [code, codeCleanup]
 
-def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, arrayIndex=0, max_string_length=0):
+def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, arrayIndex=0, max_string_length=0, encode_binary_size=32000):
     code = [""]
     codeCleanup = [""]
 
@@ -223,11 +223,11 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
         instanceName + "->content.encoded.typeId = UA_NODEID_NUMERIC(" + str(binaryEncodingId.ns) + ", " +
         str(binaryEncodingId.i) + ");")
     code.append(
-        "UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, 65000);")
+        "UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, " + str(encode_binary_size) + ");")
 
     # Encode each value as a bytestring separately.
     code.append("UA_Byte *pos" + instanceName + " = " + instanceName + "->content.encoded.body.data;")
-    code.append("const UA_Byte *end" + instanceName + " = &" + instanceName + "->content.encoded.body.data[65000];")
+    code.append("const UA_Byte *end" + instanceName + " = &" + instanceName + "->content.encoded.body.data[" + str(encode_binary_size) + "];")
     encFieldIdx = 0
     code.append("{")
     for subv in node.value:
@@ -295,7 +295,7 @@ def getTypesArrayForValue(nodeset, value):
     return "&" + typesArray + "[" + typesArray + "_" + \
                     value.__class__.__name__.upper() + "]"
 
-def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_length=0):
+def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_length=0, encode_binary_size=32000):
     code = []
     codeCleanup = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
@@ -330,7 +330,8 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
             if isinstance(node.value[0], ExtensionObject):
                 for idx, v in enumerate(node.value):
                     logger.debug("Building extObj array index " + str(idx))
-                    [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(v, parent=parentNode, nodeset=nodeset, arrayIndex=idx, max_string_length=max_string_length)
+                    [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(v, parent=parentNode, nodeset=nodeset, arrayIndex=idx, max_string_length=max_string_length,
+                                                                               encode_binary_size=encode_binary_size)
                     code = code + code1
                     codeCleanup = codeCleanup + codeCleanup1
             code.append("UA_" + node.value[0].__class__.__name__ + " " + valueName + "[" + str(len(node.value)) + "];")
@@ -361,7 +362,8 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
         else:
             # The following strategy applies to all other types, in particular strings and numerics.
             if isinstance(node.value[0], ExtensionObject):
-                [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(node.value[0], parent=parentNode, nodeset=nodeset, max_string_length=max_string_length)
+                [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(node.value[0], parent=parentNode, nodeset=nodeset, max_string_length=max_string_length,
+                                                                           encode_binary_size=encode_binary_size)
                 code = code + code1
                 codeCleanup = codeCleanup + codeCleanup1
             instanceName = generateNodeValueInstanceName(node.value[0], parentNode, 0, 0)
@@ -430,7 +432,7 @@ def generateSubtypeOfDefinitionCode(node):
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
-def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentref):
+def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentref, encode_binary_size):
     code = []
     codeCleanup = []
     code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
@@ -441,11 +443,11 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
     elif isinstance(node, ObjectNode):
         code.extend(generateObjectNodeCode(node))
     elif isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        [code1, codeCleanup1] = generateVariableNodeCode(node, nodeset, max_string_length)
+        [code1, codeCleanup1] = generateVariableNodeCode(node, nodeset, max_string_length, encode_binary_size)
         code.extend(code1)
         codeCleanup.extend(codeCleanup1)
     elif isinstance(node, VariableTypeNode):
-        [code1, codeCleanup1] = generateVariableTypeNodeCode(node, nodeset, max_string_length)
+        [code1, codeCleanup1] = generateVariableTypeNodeCode(node, nodeset, max_string_length, encode_binary_size)
         code.extend(code1)
         codeCleanup.extend(codeCleanup1)
     elif isinstance(node, MethodNode):

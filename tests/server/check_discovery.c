@@ -2,32 +2,15 @@
 *  License, v. 2.0. If a copy of the MPL was not distributed with this
 *  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 500
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-
-// On older systems we need to define _BSD_SOURCE
-// _DEFAULT_SOURCE is an alias for that
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
-#include <stdio.h>
-#include <fcntl.h>
-#include <check.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
 #include "server/ua_server_internal.h"
 #include "ua_client.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
+
+#include <fcntl.h>
+#include <check.h>
 
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 1

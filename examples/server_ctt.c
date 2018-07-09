@@ -251,11 +251,7 @@ setInformationModel(UA_Server *server) {
         attr.dataType = UA_TYPES[type].typeId;
 #ifndef UA_ENABLE_TYPENAMES
         char name[15];
-#if defined(_WIN32) && !defined(__MINGW32__)
-        sprintf_s(name, 15, "%02d", type);
-#else
-        sprintf(name, "%02d", type);
-#endif
+        UA_snprintf(name, 15, "%02d", type);
         attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
 #else
@@ -320,11 +316,7 @@ setInformationModel(UA_Server *server) {
     id = DEPTHID; // running id in namespace 0 - Start with Matrix NODE
     for(UA_UInt32 i = 1; i <= 20; i++) {
         char name[15];
-#if defined(_WIN32) && !defined(__MINGW32__)
-        sprintf_s(name, 15, "depth%i", i);
-#else
-        sprintf(name, "depth%i", i);
-#endif
+        UA_snprintf(name, 15, "depth%i", i);
         object_attr.description = UA_LOCALIZEDTEXT("en-US", name);
         object_attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
         UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, id + i),

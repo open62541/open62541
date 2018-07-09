@@ -117,13 +117,6 @@ static UA_StatusCode sendUDP(UA_Connection *connection, UA_ByteString *buf) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode socket_set_nonblocking(UA_Int32 sockfd) {
-    int opts = fcntl(sockfd, F_GETFL);
-    if(opts < 0 || fcntl(sockfd, F_SETFL, opts|O_NONBLOCK) < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD;
-}
-
 static void setFDSet(ServerNetworkLayerUDP *layer) {
     FD_ZERO(&layer->fdset);
     FD_SET(layer->serversockfd, &layer->fdset);
@@ -159,7 +152,7 @@ static UA_StatusCode ServerNetworkLayerUDP_start(UA_ServerNetworkLayer *nl, UA_L
         CLOSESOCKET(layer->serversockfd);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    socket_set_nonblocking(layer->serversockfd);
+    UA_socket_set_nonblocking(layer->serversockfd);
     UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Listening for UDP connections on %s:%d",
                    inet_ntoa(serv_addr.sin_addr), ntohs(serv_addr.sin_port));
     return UA_STATUSCODE_GOOD;

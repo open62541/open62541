@@ -130,7 +130,7 @@ def sortNodes(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0):
+def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0, encode_binary_size=32000):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
@@ -234,7 +234,7 @@ extern UA_StatusCode %s(UA_Server *server);
         parentref = node.popParentRef(parentreftypes)
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            code = generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentref)
+            code = generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentref, encode_binary_size)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)

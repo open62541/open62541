@@ -1,29 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include "open62541.h"
 #include <signal.h>
-
-#ifdef _WIN32
-# include <windows.h>
-# define UA_sleep_ms(X) Sleep(X)
-#else
-# include <unistd.h>
-# define UA_sleep_ms(X) usleep(X * 1000)
-#endif
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;

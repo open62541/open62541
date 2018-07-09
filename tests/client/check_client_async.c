@@ -5,10 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifndef WIN32
-#include <unistd.h>
-#endif
-
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"

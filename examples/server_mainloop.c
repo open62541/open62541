@@ -3,13 +3,8 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
+#include "open62541.h"
 #include <signal.h>
-#ifdef _WIN32
-# include <winsock2.h>
-#else
-# include <sys/select.h>
-#endif
-# include "open62541.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {

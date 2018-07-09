@@ -52,7 +52,7 @@ endif()
 list(APPEND LIBS "${open62541_LIBRARIES}")
 
 # Use different plugins for testing
-set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
+set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
@@ -70,7 +70,7 @@ if(UA_ENABLE_ENCRYPTION)
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
-add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources})
+add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-fuzzplugins open62541)
 
 # the fuzzer test are built directly on the open62541 object files. so they can

@@ -16,14 +16,6 @@
 #include <stdio.h>
 #include "open62541.h"
 
-#ifdef _WIN32
-# include <windows.h>
-# define UA_sleep_ms(X) Sleep(X)
-#else
-# include <unistd.h>
-# define UA_sleep_ms(X) usleep(X * 1000)
-#endif
-
 #define NODES_EXIST
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/

@@ -50,16 +50,6 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
 #define UA_PRINTF_STRING_FORMAT "\"%.*s\""
 #define UA_PRINTF_STRING_DATA(STRING) (int)(STRING).length, (STRING).data
 
-//TODO remove when we merge architectures pull request
-#ifndef UA_snprintf
-# include <stdio.h>
-# if defined(_WIN32)
-#  define UA_snprintf(source, size, string, ...) _snprintf_s(source, size, _TRUNCATE, string, __VA_ARGS__)
-# else
-#  define UA_snprintf snprintf
-# endif
-#endif
-
 /**
  * Helper functions for converting data types
  * ------------------------------------ */
