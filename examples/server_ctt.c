@@ -420,55 +420,56 @@ int main(int argc, char **argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
     signal(SIGTERM, stopHandler);
 
+    UA_ServerConfig *config;
 #ifdef UA_ENABLE_ENCRYPTION
     if(argc < 3) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing arguments for encryption support. "
-                         "Arguments are <server-certificate.der> "
-                         "<private-key.der> [<trustlist1.crl>, ...]");
-        return 1;
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "Missing arguments for encryption support. "
+                       "Arguments are <server-certificate.der> "
+                       "<private-key.der> [<trustlist1.crl>, ...]");
+        config = UA_ServerConfig_new_minimal(4840, NULL);
+    } else {
+        /* Load certificate and private key */
+        UA_ByteString certificate = loadFile(argv[1]);
+        UA_ByteString privateKey = loadFile(argv[2]);
+
+        /* Load the trustlist */
+        size_t trustListSize = 0;
+        if(argc > 3)
+            trustListSize = (size_t)argc-3;
+        UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+        for(size_t i = 0; i < trustListSize; i++)
+            trustList[i] = loadFile(argv[i+3]);
+
+        /* Loading of a revocation list currently unsupported */
+        UA_ByteString *revocationList = NULL;
+        size_t revocationListSize = 0;
+
+        config = UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
+                                                         trustList, trustListSize,
+                                                         revocationList, revocationListSize);
+        UA_ByteString_deleteMembers(&certificate);
+        UA_ByteString_deleteMembers(&privateKey);
+        for(size_t i = 0; i < trustListSize; i++)
+            UA_ByteString_deleteMembers(&trustList[i]);
     }
-
-    /* Load certificate and private key */
-    UA_ByteString certificate = loadFile(argv[1]);
-    UA_ByteString privateKey = loadFile(argv[2]);
-
-    /* Load the trustlist */
-    size_t trustListSize = 0;
-    if(argc > 3)
-        trustListSize = (size_t)argc-3;
-    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
-    for(size_t i = 0; i < trustListSize; i++)
-        trustList[i] = loadFile(argv[i+3]);
-
-    /* Loading of a revocation list currently unsupported */
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
-    UA_ServerConfig *config =
-        UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
-                                                trustList, trustListSize,
-                                                revocationList, revocationListSize);
+#else
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    if(argc < 2) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "Missing argument for the server certificate");
+    } else {
+        certificate = loadFile(argv[1]);
+    }
+    config = UA_ServerConfig_new_minimal(4840, &certificate);
     UA_ByteString_deleteMembers(&certificate);
-    UA_ByteString_deleteMembers(&privateKey);
-    for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_deleteMembers(&trustList[i]);
+#endif
 
     if(!config) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Could not create the server config");
         return 1;
     }
-#else
-    if(argc < 2) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing argument for the server certificate");
-        return 1;
-    }
-    UA_ByteString certificate = loadFile(argv[1]);
-    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, &certificate);
-    UA_ByteString_deleteMembers(&certificate);
-#endif
 
     /* Override with a custom access control policy */
     config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
