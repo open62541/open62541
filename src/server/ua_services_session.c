@@ -93,6 +93,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* TODO: Compare application URI with certificate uri (decode certificate) */
+    UA_CertificateVerification *cv = channel->securityPolicy->certificateVerification;
+    if(cv && cv->verifyApplicationURI) {
+        response->responseHeader.serviceResult =
+            cv->verifyApplicationURI(cv->context, &request->clientCertificate,
+                                     &request->clientDescription.applicationUri);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+            return;
+    }
 
     /* Allocate the response */
     response->serverEndpoints = (UA_EndpointDescription *)

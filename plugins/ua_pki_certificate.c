@@ -16,7 +16,15 @@
 /************/
 
 static UA_StatusCode
-verifyAllowAll(void *verificationContext, const UA_ByteString *certificate) {
+verifyCertificateAllowAll(void *verificationContext,
+               const UA_ByteString *certificate) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+verifyApplicationURIAllowAll(void *verificationContext,
+                             const UA_ByteString *certificate,
+                             const UA_String *applicationURI) {
     return UA_STATUSCODE_GOOD;
 }
 
@@ -26,7 +34,8 @@ deleteVerifyAllowAll(UA_CertificateVerification *cv) {
 }
 
 void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
-    cv->verifyCertificate = verifyAllowAll;
+    cv->verifyCertificate = verifyCertificateAllowAll;
+    cv->verifyApplicationURI = verifyApplicationURIAllowAll;
     cv->deleteMembers = deleteVerifyAllowAll;
 }
 
@@ -70,6 +79,7 @@ certificateVerification_verify(void *verificationContext,
                                                    &crtProfile, NULL, &flags, NULL, NULL);
 
     // TODO: Extend verification
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(mbedErr) {
         /* char buff[100]; */
         /* mbedtls_x509_crt_verify_info(buff, 100, "", flags); */
@@ -77,23 +87,93 @@ certificateVerification_verify(void *verificationContext,
         /*              UA_LOGCATEGORY_SECURITYPOLICY, */
         /*              "Verifying the certificate failed with error: %s", buff); */
 
-        mbedtls_x509_crt_free(&remoteCertificate);
-        if(flags & MBEDTLS_X509_BADCERT_NOT_TRUSTED)
-            return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
-
-        if(flags & MBEDTLS_X509_BADCERT_FUTURE ||
-           flags & MBEDTLS_X509_BADCERT_EXPIRED)
-            return UA_STATUSCODE_BADCERTIFICATETIMEINVALID;
-
-        if(flags & MBEDTLS_X509_BADCERT_REVOKED ||
-           flags & MBEDTLS_X509_BADCRL_EXPIRED)
-            return UA_STATUSCODE_BADCERTIFICATEREVOKED;
-
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        if(flags & MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
+            retval = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
+        } else if (flags & MBEDTLS_X509_BADCERT_FUTURE ||
+           flags & MBEDTLS_X509_BADCERT_EXPIRED) {
+            retval = UA_STATUSCODE_BADCERTIFICATETIMEINVALID;
+        } else if(flags & MBEDTLS_X509_BADCERT_REVOKED ||
+           flags & MBEDTLS_X509_BADCRL_EXPIRED) {
+            retval = UA_STATUSCODE_BADCERTIFICATEREVOKED;
+        } else {
+            retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
     }
 
     mbedtls_x509_crt_free(&remoteCertificate);
-    return UA_STATUSCODE_GOOD;
+    return retval;
+}
+
+/* Find binary substring. Taken and adjusted from
+ * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
+
+static const unsigned char *
+bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
+    /* find first occurrence of c in char s[] for length l*/
+    /* handle special case */
+    if(l == 0)
+        return (NULL);
+
+    for(; *s != ch; ++s, --l)
+        if(l == 0)
+            return (NULL);
+    return s;
+}
+
+static const unsigned char *
+bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
+    /* find first occurrence of s2[] in s1[] for length l1*/
+    const unsigned char *ss1 = s1;
+    const unsigned char *ss2 = s2;
+    /* handle special case */
+    if(l1 == 0)
+        return (NULL);
+    if(l2 == 0)
+        return s1;
+
+    /* match prefix */
+    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
+             (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
+
+        /* match rest of prefix */
+        const unsigned char *sc1, *sc2;
+        for (sc1 = s1, sc2 = s2; ;)
+            if (++sc2 >= ss2+l2)
+                return s1;
+            else if (*++sc1 != *sc2)
+                break;
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+certificateVerification_verifyApplicationURI(void *verificationContext,
+                                             const UA_ByteString *certificate,
+                                             const UA_String *applicationURI) {
+    CertInfo *ci = (CertInfo*)verificationContext;
+    if(!ci)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Parse the certificate */
+    mbedtls_x509_crt remoteCertificate;
+    mbedtls_x509_crt_init(&remoteCertificate);
+    int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
+                                         certificate->length);
+    if(mbedErr)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    /* Poor man's ApplicationUri verification. mbedTLS does not parse all fields
+     * of the Alternative Subject Name. Instead test whether the URI-string is
+     * present in the v3_ext field in general.
+     *
+     * TODO: Improve parsing of the Alternative Subject Name */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
+               applicationURI->data, applicationURI->length) == NULL)
+        retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+
+    mbedtls_x509_crt_free(&remoteCertificate);
+    return retval;
 }
 
 static void
@@ -123,8 +203,9 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     if(certificateTrustListSize > 0)
         cv->verifyCertificate = certificateVerification_verify;
     else
-        cv->verifyCertificate = verifyAllowAll;
+        cv->verifyCertificate = verifyCertificateAllowAll;
     cv->deleteMembers = certificateVerification_deleteMembers;
+    cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
     int err = 0;
     for(size_t i = 0; i < certificateTrustListSize; i++) {
