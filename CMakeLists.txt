@@ -329,8 +329,10 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
         add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
                         -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
+        if(NOT OS9)
+            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
+            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
+        endif()
         if(APPLE)
             set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
             set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
@@ -398,7 +400,7 @@ endif()
 
 set(exported_headers ${exported_headers}
                      ${ua_architecture_headers_beginning}
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h 
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h

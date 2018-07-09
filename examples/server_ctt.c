@@ -241,6 +241,7 @@ setInformationModel(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
     /* Fill demo nodes for each type*/
+    UA_UInt32 matrixDims[2] = {3, 3};
     UA_UInt32 id = 51000; // running id in namespace 0
     for(UA_UInt32 type = 0; type < UA_TYPES_DIAGNOSTICINFO; type++) {
         if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
@@ -271,7 +272,10 @@ setInformationModel(UA_Server *server) {
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an array node for every built-in type */
+        UA_UInt32 arrayDims = 0;
         attr.valueRank = 1;
+        attr.arrayDimensions = &arrayDims;
+        attr.arrayDimensionsSize = 1;
         UA_Variant_setArray(&attr.value, UA_Array_new(10, &UA_TYPES[type]), 10, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, ARRAYID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
@@ -280,6 +284,8 @@ setInformationModel(UA_Server *server) {
 
         /* add an matrix node for every built-in type */
         attr.valueRank = 2;
+        attr.arrayDimensions = matrixDims;
+        attr.arrayDimensionsSize = 2;
         void *myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
         attr.value.arrayDimensions = (UA_UInt32 *)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
         attr.value.arrayDimensions[0] = 3;
