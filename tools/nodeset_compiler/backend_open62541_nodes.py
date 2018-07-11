@@ -460,8 +460,10 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
         code.extend(generateViewNodeCode(node))
     code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, alloc=False,
                                                                   max_string_length=max_string_length) + ";")
+    code.append("#ifdef UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS")
     code.append("attr.description = " + generateLocalizedTextCode(node.description, alloc=False,
                                                                   max_string_length=max_string_length) + ";")
+    code.append("#endif")
     code.append("attr.writeMask = %d;" % node.writeMask)
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
 

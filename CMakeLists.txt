@@ -193,6 +193,9 @@ mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" ON)
 mark_as_advanced(UA_ENABLE_TYPENAMES)
 
+option(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS "Set node description attribute for nodeset compiler generated nodes" ON)
+mark_as_advanced(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS)
+
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
