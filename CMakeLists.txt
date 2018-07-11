@@ -206,6 +206,9 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     endif()
 endif()
 
+option(UA_ENABLE_JSON_ENCODING "Enable Json encoding." OFF)
+mark_as_advanced(UA_ENABLE_JSON_ENCODING)
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -483,8 +486,15 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
+                     ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.h
+                     ${PROJECT_SOURCE_DIR}/deps/string_escape.h
+                     ${PROJECT_SOURCE_DIR}/deps/itoa.h
+                     ${PROJECT_SOURCE_DIR}/deps/atoi.h
+                     #${PROJECT_SOURCE_DIR}/deps/musl/floatscan.h
+                     #${PROJECT_SOURCE_DIR}/deps/musl/vfprintf.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
@@ -508,6 +518,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
 
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
+                ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
@@ -553,10 +564,14 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
-                ${PROJECT_SOURCE_DIR}/deps/base64.c)
+                ${PROJECT_SOURCE_DIR}/deps/base64.c
+                ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.c
+                ${PROJECT_SOURCE_DIR}/deps/string_escape.c
+                ${PROJECT_SOURCE_DIR}/deps/itoa.c
+                ${PROJECT_SOURCE_DIR}/deps/atoi.c)
 
-set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
-                           ${historizing_default_plugin_headers}
+set(default_plugin_headers #${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
@@ -585,6 +600,11 @@ if(UA_ENABLE_PUBSUB)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.c)
     endif()
+endif()
+
+if(UA_ENABLE_CUSTOM_LIBC)
+     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/musl/floatscan.c)
+     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/musl/vfprintf.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)

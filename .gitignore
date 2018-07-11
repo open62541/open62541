@@ -81,3 +81,5 @@ Makefile
 /.idea
 /cmake-build*
 /tools/certs/certs/*
+nbproject/*
+
