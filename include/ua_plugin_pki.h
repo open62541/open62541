@@ -37,8 +37,17 @@ typedef struct UA_CertificateVerification UA_CertificateVerification;
 
 struct UA_CertificateVerification {
     void *context;
+
+    /* Verify the certificate against the configured policies and trust chain. */
     UA_StatusCode (*verifyCertificate)(void *verificationContext,
                                        const UA_ByteString *certificate);
+
+    /* Verify that the certificate has the applicationURI in the subject name. */
+    UA_StatusCode (*verifyApplicationURI)(void *verificationContext,
+                                          const UA_ByteString *certificate,
+                                          const UA_String *applicationURI);
+
+    /* Delete the certificate verification context */
     void (*deleteMembers)(UA_CertificateVerification *cv);
 };
 

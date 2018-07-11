@@ -19,7 +19,6 @@
 import sys
 import logging
 from datatypes import *
-from constants import *
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,6 @@ def RefOrAlias(s):
 class Node(object):
     def __init__(self):
         self.id = NodeId()
-        self.nodeClass = NODE_CLASS_GENERERIC
         self.browseName = QualifiedName()
         self.displayName = LocalizedText()
         self.description = LocalizedText()
@@ -188,7 +186,6 @@ class Node(object):
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_REFERENCETYPE
         self.isAbstract = False
         self.symmetric = False
         self.inverseName = ""
@@ -213,7 +210,6 @@ class ReferenceTypeNode(Node):
 class ObjectNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_OBJECT
         self.eventNotifier = 0
         if xmlelement:
             self.parseXML(xmlelement)
@@ -227,7 +223,6 @@ class ObjectNode(Node):
 class VariableNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_VARIABLE
         self.dataType = NodeId()
         self.valueRank = -2
         self.arrayDimensions = []
@@ -303,7 +298,6 @@ class VariableNode(Node):
 class VariableTypeNode(VariableNode):
     def __init__(self, xmlelement=None):
         VariableNode.__init__(self)
-        self.nodeClass = NODE_CLASS_VARIABLETYPE
         self.isAbstract = False
         if xmlelement:
             self.parseXML(xmlelement)
@@ -317,7 +311,6 @@ class VariableTypeNode(VariableNode):
 class MethodNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_METHOD
         self.executable = True
         self.userExecutable = True
         self.methodDecalaration = None
@@ -337,7 +330,6 @@ class MethodNode(Node):
 class ObjectTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_OBJECTTYPE
         self.isAbstract = False
         if xmlelement:
             self.parseXML(xmlelement)
@@ -382,7 +374,6 @@ class DataTypeNode(Node):
 
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_DATATYPE
         self.isAbstract = False
         self.__xmlDefinition__ = None
         self.__baseTypeEncoding__ = []
@@ -615,7 +606,6 @@ class DataTypeNode(Node):
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_VIEW
         self.containsNoLoops == False
         self.eventNotifier == False
         if xmlelement:

@@ -254,7 +254,7 @@ basicConstraints = CA:false
 # left out by default.
 # keyUsage = cRLSign, keyCertSign
 
-keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment, dataEncipherment, keyCertSign
 extendedKeyUsage = TLS Web Server Authentication, TLS Web Client Authentication
 
 # Some might want this also

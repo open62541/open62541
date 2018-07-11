@@ -14,6 +14,8 @@ extern "C" {
 
 #include "ua_server.h"
 
+#ifdef UA_ENABLE_PUBSUB
+
 /**
  * .. _pubsub:
  *
@@ -344,6 +346,8 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
 
 UA_StatusCode
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
+
+#endif /* UA_ENABLE_PUBSUB */
     
 #ifdef __cplusplus
 } // extern "C"

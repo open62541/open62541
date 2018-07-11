@@ -604,7 +604,8 @@ __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
 
 }
 
-/*Misc Highlevel Functions*/
+/* Misc Highlevel Functions */
+#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode __UA_Client_call_async(UA_Client *client,
         const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
         const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
@@ -625,6 +626,7 @@ UA_StatusCode __UA_Client_call_async(UA_Client *client,
             &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
             &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
 }
+#endif
 
 UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
         char *paths[], UA_UInt32 ids[], size_t pathSize,

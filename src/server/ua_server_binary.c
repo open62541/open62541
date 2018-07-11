@@ -77,6 +77,7 @@ typedef enum {
 static void
 getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
                    const UA_DataType **responseType, UA_Service *service,
+                   UA_InSituService *serviceInsitu,
                    UA_Boolean *requiresSession, UA_ServiceType *serviceType) {
     switch(requestTypeId) {
     case UA_NS0ID_GETENDPOINTSREQUEST_ENCODING_DEFAULTBINARY:
@@ -114,14 +115,14 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_CreateSession;
+        *service = NULL; //(UA_Service)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
         *requiresSession = false;
         *serviceType = UA_SERVICETYPE_CUSTOM;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_ActivateSession;
+        *service = NULL; //(UA_Service)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
         *serviceType = UA_SERVICETYPE_CUSTOM;
@@ -132,7 +133,8 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *responseType = &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE];
         break;
     case UA_NS0ID_READREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_Read;
+        *service = NULL;
+        *serviceInsitu = (UA_InSituService)Service_Read;
         *requestType = &UA_TYPES[UA_TYPES_READREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_READRESPONSE];
         *serviceType = UA_SERVICETYPE_INSITU;
@@ -400,12 +402,13 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Get the service pointers */
     UA_Service service = NULL;
+    UA_InSituService serviceInsitu = NULL;
     const UA_DataType *requestType = NULL;
     const UA_DataType *responseType = NULL;
     UA_Boolean sessionRequired = true;
     UA_ServiceType serviceType = UA_SERVICETYPE_NORMAL;
     getServicePointers(requestTypeId.identifier.numeric, &requestType,
-                       &responseType, &service, &sessionRequired, &serviceType);
+                       &responseType, &service, &serviceInsitu, &sessionRequired, &serviceType);
     if(!requestType) {
         if(requestTypeId.identifier.numeric == 787) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
@@ -518,7 +521,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                "bound to this SecureChannel");
         UA_deleteMembers(request, requestType);
         return sendServiceFault(channel, msg, requestPos, responseType,
-                                requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+                                requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
     }
 
     /* Update the session lifetime */
@@ -561,7 +564,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         retval = UA_MessageContext_encode(&mc, response, responseType);
         break;
     case UA_SERVICETYPE_INSITU:
-        retval = ((UA_InSituService)service)
+        retval = serviceInsitu
             (server, session, &mc, request, (UA_ResponseHeader*)response);
         break;
     case UA_SERVICETYPE_NORMAL:

@@ -14,35 +14,16 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#include "ua_types.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* BSD Queue Macros */
+#include "ua_types.h"
 #include "../deps/queue.h"
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
-
-/* Thread-Local Storage
- * --------------------
- * Thread-local storage is not required by the main library functionality. It is
- * only used for some testing strategies. ``UA_THREAD_LOCAL`` is empty if the
- * feature is not available. */
-
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-# define UA_THREAD_LOCAL _Thread_local /* C11 */
-#elif defined(__cplusplus) && __cplusplus > 199711L
-# define UA_THREAD_LOCAL thread_local /* C++11 */
-#elif defined(__GNUC__)
-# define UA_THREAD_LOCAL __thread /* GNU extension */
-#elif defined(_MSC_VER)
-# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
-#else
-# define UA_THREAD_LOCAL
-#endif
 
 /* Integer Shortnames
  * ------------------
@@ -170,8 +151,13 @@ UA_atomic_subSize(volatile size_t *addr, size_t decrease) {
  * up to that point. */
 size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 
+#ifndef UA_MIN
 #define UA_MIN(A,B) (A > B ? B : A)
+#endif
+
+#ifndef UA_MAX
 #define UA_MAX(A,B) (A > B ? A : B)
+#endif
 
 #ifdef UA_DEBUG_DUMP_PKGS
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -14,10 +14,12 @@
 #ifndef UA_SUBSCRIPTION_H_
 #define UA_SUBSCRIPTION_H_
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_session.h"
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 
 /**
  * MonitoredItems create Notifications. Subscriptions collect Notifications from
@@ -41,15 +43,16 @@ typedef enum {
     UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
 } UA_MonitoredItemType;
 
-
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 typedef struct UA_EventNotification {
     UA_EventFieldList fields;
     /* EventFilterResult currently isn't being used
     UA_EventFilterResult result; */
 } UA_EventNotification;
+#endif
 
 typedef struct UA_Notification {
     TAILQ_ENTRY(UA_Notification) listEntry; /* Notification list for the MonitoredItem */
@@ -59,13 +62,21 @@ typedef struct UA_Notification {
 
     /* See the monitoredItemType of the MonitoredItem */
     union {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_EventNotification event;
+#endif
         UA_DataValue value;
     } data;
 } UA_Notification;
 
-/* Clean up the notification. Must be removed from the lists first. */
-void UA_Notification_delete(UA_Notification *n);
+/* Ensure enough space is available; Add notification to the linked lists;
+ * Increase the counters */
+void UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
+                             UA_MonitoredItem *mon, UA_Notification *n);
+
+/* Delete the notification. Also removes it from the linked lists. */
+void UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
+                            UA_Notification *n);
 
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
@@ -87,7 +98,9 @@ struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
     union {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_EventFilter eventFilter;
+#endif
         UA_DataChangeFilter dataChangeFilter;
     } filter;
     UA_Variant lastValue;
@@ -165,8 +178,16 @@ struct UA_Subscription {
 
     /* Global list of notifications from the MonitoredItems */
     NotificationQueue notificationQueue;
-    UA_UInt32 notificationQueueSize;
-    UA_UInt32 readyNotifications; /* Notifications to be sent out now (already late) */
+    UA_UInt32 notificationQueueSize; /* Total queue size */
+    UA_UInt32 dataChangeNotifications;
+    UA_UInt32 eventNotifications;
+    UA_UInt32 statusChangeNotifications;
+
+    /* Notifications to be sent out now (already late). In a regular publish
+     * callback, all queued notifications are sent out. In a late publish
+     * response, only the notifications left from the last regular publish
+     * callback are sent. */
+    UA_UInt32 readyNotifications;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
@@ -188,5 +209,7 @@ void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
 void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 #endif /* UA_SUBSCRIPTION_H_ */

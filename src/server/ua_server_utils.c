@@ -14,83 +14,6 @@
 
 #define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
 
-/**********************/
-/* Parse NumericRange */
-/**********************/
-
-static size_t
-readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
-    size_t progress = UA_readNumber(buf, buflen, &dim->min);
-    if(progress == 0)
-        return 0;
-    if(buflen <= progress + 1 || buf[progress] != ':') {
-        dim->max = dim->min;
-        return progress;
-    }
-
-    ++progress;
-    size_t progress2 = UA_readNumber(&buf[progress], buflen - progress, &dim->max);
-    if(progress2 == 0)
-        return 0;
-
-    /* invalid range */
-    if(dim->min >= dim->max)
-        return 0;
-
-    return progress + progress2;
-}
-
-UA_StatusCode
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
-    size_t idx = 0;
-    size_t dimensionsMax = 0;
-    UA_NumericRangeDimension *dimensions = NULL;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t offset = 0;
-    while(true) {
-        /* alloc dimensions */
-        if(idx >= dimensionsMax) {
-            UA_NumericRangeDimension *newds;
-            size_t newdssize = sizeof(UA_NumericRangeDimension) * (dimensionsMax + 2);
-            newds = (UA_NumericRangeDimension*)UA_realloc(dimensions, newdssize);
-            if(!newds) {
-                retval = UA_STATUSCODE_BADOUTOFMEMORY;
-                break;
-            }
-            dimensions = newds;
-            dimensionsMax = dimensionsMax + 2;
-        }
-
-        /* read the dimension */
-        size_t progress = readDimension(&str->data[offset], str->length - offset,
-                                        &dimensions[idx]);
-        if(progress == 0) {
-            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
-            break;
-        }
-        offset += progress;
-        ++idx;
-
-        /* loop into the next dimension */
-        if(offset >= str->length)
-            break;
-
-        if(str->data[offset] != ',') {
-            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
-            break;
-        }
-        ++offset;
-    }
-
-    if(retval == UA_STATUSCODE_GOOD && idx > 0) {
-        range->dimensions = dimensions;
-        range->dimensionsSize = idx;
-    } else
-        UA_free(dimensions);
-
-    return retval;
-}
-
 /********************************/
 /* Information Model Operations */
 /********************************/
@@ -414,6 +337,10 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
     }
     return UA_STATUSCODE_GOOD;
 }
+
+/* A few global NodeId definitions */
+const UA_NodeId subtypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
+const UA_NodeId hierarchicalReferences = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
 
 /*********************************/
 /* Default attribute definitions */

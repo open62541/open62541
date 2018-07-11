@@ -15,15 +15,6 @@
 #include "ua_services.h"
 #include "ua_mdns_internal.h"
 
-#ifdef _MSC_VER
-# ifndef UNDER_CE
-#  include <io.h> //access
-#  define access _access
-# endif
-#else
-# include <unistd.h> //access
-#endif
-
 #ifdef UA_ENABLE_DISCOVERY
 
 #include "ua_client_internal.h"
@@ -370,7 +361,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
-        if(access( filePath, 0 ) == -1) {
+        if(UA_access( filePath, 0 ) == -1) {
             responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
             UA_free(filePath);
             return;
@@ -507,7 +498,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                 if(fp)
                     fclose(fp);
 #else
-                semaphoreDeleted = access( filePath, 0 ) == -1;
+                semaphoreDeleted = UA_access( filePath, 0 ) == -1;
 #endif
                 UA_free(filePath);
             } else {

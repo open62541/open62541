@@ -15,21 +15,21 @@
 extern "C" {
 #endif
 
-#include "../deps/queue.h"
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
+#include "../deps/queue.h"
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
 /* Thread-local variables to force failure modes during testing */
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-extern UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
-extern UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
-extern UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
+extern UA_StatusCode decrypt_verifySignatureFailure;
+extern UA_StatusCode sendAsym_sendFailure;
+extern UA_StatusCode processSym_seqNumberFailure;
 #endif
 
 /* The Session implementation differs between client and server. Still, it is
@@ -44,10 +44,16 @@ typedef struct UA_SessionHeader {
 } UA_SessionHeader;
 
 /* For chunked requests */
-struct ChunkEntry {
-    LIST_ENTRY(ChunkEntry) pointers;
-    UA_UInt32 requestId;
+struct ChunkPayload {
+    SIMPLEQ_ENTRY(ChunkPayload) pointers;
     UA_ByteString bytes;
+};
+
+struct MessageEntry {
+    LIST_ENTRY(MessageEntry) pointers;
+    UA_UInt32 requestId;
+    SIMPLEQ_HEAD(chunkpayload_pointerlist, ChunkPayload) chunkPayload;
+    size_t chunkPayloadSize;
 };
 
 typedef enum {
@@ -79,7 +85,7 @@ struct UA_SecureChannel {
     UA_UInt32 sendSequenceNumber;
 
     LIST_HEAD(session_pointerlist, UA_SessionHeader) sessions;
-    LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
+    LIST_HEAD(chunk_pointerlist, MessageEntry) chunks;
 };
 
 UA_StatusCode

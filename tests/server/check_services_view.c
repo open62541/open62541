@@ -173,6 +173,19 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds) {
 }
 END_TEST
 
+START_TEST(BrowseSimplifiedBrowsePath) {
+    UA_QualifiedName objectsName = UA_QUALIFIEDNAME(0, "Objects");
+    UA_BrowsePathResult bpr =
+        UA_Server_browseSimplifiedBrowsePath(server_translate_browse,
+                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+                                             1, &objectsName);
+
+    ck_assert_int_eq(bpr.targetsSize, 1);
+
+    UA_BrowsePathResult_deleteMembers(&bpr);
+}
+END_TEST
+
 static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     Suite *s = suite_create("Service_TranslateBrowsePathsToNodeIds");
     TCase *tc_browse = tcase_create("Browse Service");
@@ -183,6 +196,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
     tcase_add_unchecked_fixture(tc_translate, setup_server, teardown_server);
     tcase_add_test(tc_translate, Service_TranslateBrowsePathsToNodeIds);
+    tcase_add_test(tc_translate, BrowseSimplifiedBrowsePath);
 
     suite_add_tcase(s, tc_translate);
     return s;

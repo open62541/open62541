@@ -72,7 +72,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            UA_CreateSubscriptionResponse *response) {
     /* Check limits for the number of subscriptions */
     if((server->config.maxSubscriptionsPerSession != 0) &&
-       (session->numPublishReq >= server->config.maxSubscriptionsPerSession)) {
+       (session->numSubscriptions >= server->config.maxSubscriptionsPerSession)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -163,6 +163,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          // Then numeric type will be detected from this value. Set null as defaut.
                          const UA_DataType* dataType) {
 
+
     /* Filter */
     if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED) {
         UA_DataChangeFilter_init(&(mon->filter.dataChangeFilter));
@@ -181,8 +182,11 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
             return UA_STATUSCODE_BADFILTERNOTALLOWED;
         }
         UA_DataChangeFilter_copy(filter, &(mon->filter.dataChangeFilter));
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     } else if (params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTER]) {
-        UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data, &(mon->filter.eventFilter));
+        UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data,
+                            &mon->filter.eventFilter);
+#endif
     } else {
         return UA_STATUSCODE_BADMONITOREDITEMFILTERINVALID;
     }
@@ -523,12 +527,8 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
-            TAILQ_REMOVE(&mon->queue, notification, listEntry);
-            TAILQ_REMOVE(&smc->sub->notificationQueue, notification, globalEntry);
-            --smc->sub->notificationQueueSize;
-            UA_Notification_delete(notification);
+            UA_Notification_delete(smc->sub, mon, notification);
         }
-        mon->queueSize = 0;
 
         /* Initialize lastSampledValue */
         UA_ByteString_deleteMembers(&mon->lastSampledValue);

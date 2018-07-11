@@ -66,7 +66,7 @@ struct UA_Connection {
     UA_ConnectionConfig remoteConf;
     UA_SecureChannel *channel;       /* The securechannel that is attached to
                                       * this connection */
-    UA_Int32 sockfd;                 /* Most connectivity solutions run on
+    UA_SOCKET sockfd;                 /* Most connectivity solutions run on
                                       * sockets. Having the socket id here
                                       * simplifies the design. */
     UA_DateTime openingDate;         /* The date the connection was created */
@@ -200,29 +200,6 @@ struct UA_ServerNetworkLayer {
 typedef UA_Connection
 (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
                               const UA_UInt32 timeout, UA_Logger logger);
-
-/**
- * Endpoint URL Parser
- * -------------------
- * The endpoint URL parser is generally useful for the implementation of network
- * layer plugins. */
-
-/* Split the given endpoint url into hostname, port and path. All arguments must
- * be non-NULL. EndpointUrls have the form "opc.tcp://hostname:port/path", port
- * and path may be omitted (together with the prefix colon and slash).
- *
- * @param endpointUrl The endpoint URL.
- * @param outHostname Set to the parsed hostname. The string points into the
- *        original endpointUrl, so no memory is allocated. If an IPv6 address is
- *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'
- * @param outPort Set to the port of the url or left unchanged.
- * @param outPath Set to the path if one is present in the endpointUrl.
- *        Starting or trailing '/' are NOT included in the path. The string
- *        points into the original endpointUrl, so no memory is allocated.
- * @return Returns UA_STATUSCODE_BADTCPENDPOINTURLINVALID if parsing failed. */
-UA_StatusCode UA_EXPORT
-UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
-                    UA_UInt16 *outPort, UA_String *outPath);
 
 #ifdef __cplusplus
 } // extern "C"

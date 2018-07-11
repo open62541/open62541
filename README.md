@@ -106,7 +106,8 @@ As an open source project, new contributors are encouraged to help improve open6
 
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
-Using the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server``` (under Windows you may need to add ``` -lws2_32```).
+Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> open62541.c -o server``` (under Windows you may need to add ``` -lws2_32``` 
+and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
 #include <signal.h>
 #include "open62541.h"

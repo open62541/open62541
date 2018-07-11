@@ -16,10 +16,10 @@
 extern "C" {
 #endif
 
-#include "../../deps/queue.h"
 #include "ua_server.h"
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_session.h"
+#include "../../deps/queue.h"
 
 typedef struct session_list_entry {
     LIST_ENTRY(session_list_entry) pointers;

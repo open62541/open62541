@@ -3,60 +3,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
- /* Disable some security warnings on MSVC */
-#ifdef _MSC_VER
-# define _CRT_SECURE_NO_WARNINGS
-#endif
-
- /* Assume that Windows versions are newer than Windows XP */
-#if defined(__MINGW32__) && (!defined(WINVER) || WINVER < 0x501)
-# undef WINVER
-# undef _WIN32_WINDOWS
-# undef _WIN32_WINNT
-# define WINVER 0x0501
-# define _WIN32_WINDOWS 0x0501
-# define _WIN32_WINNT 0x0501
-#endif
-
-#ifdef _WIN32
-# include <winsock2.h>
-# include <ws2tcpip.h>
-# include <Iphlpapi.h>
-# define CLOSESOCKET(S) closesocket((SOCKET)S)
-# define ssize_t int
-# define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
-#else /* _WIN32 */
-#  define CLOSESOCKET(S) close(S)
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <net/if.h>
-# define UA_fd_set(fd, fds) FD_SET(fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
-# endif /* Not Windows */
-
-#include <stdio.h>
 #include "ua_plugin_network.h"
 #include "ua_network_pubsub_udp.h"
+#include "ua_util.h"
 #include "ua_log_stdout.h"
 
 //UDP multicast network layer specific internal data
@@ -77,10 +29,7 @@ typedef struct {
  */
 static UA_PubSubChannel *
 UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
-    #ifdef _WIN32
-        WSADATA wsaData;
-        WSAStartup(MAKEWORD(2, 2), &wsaData);
-    #endif /* Not Windows */
+    UA_initialize_architecture_network();
 
     UA_NetworkAddressUrlDataType address;
     if(UA_Variant_hasScalarType(&connectionConfig->address, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])){
@@ -133,16 +82,6 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
 
     UA_String hostname, path;
     UA_UInt16 networkPort;
-    //TODO replace fallback to use the existing parseEndpointUrl function. Extend parseEndpointUrl for UDP or create own parseEndpointUrl function for PubSub.
-    if(strncmp((char*)&address.url.data, "opc.udp://", 10) != 0){
-        strncpy((char*)address.url.data, "opc.tcp://", 10);
-    } else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Invalid URL.");
-        UA_free(channelDataUDPMC);
-        UA_free(newChannel);
-        return NULL;
-    }
     if(UA_parseEndpointUrl(&address.url, &hostname, &networkPort, &path) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Invalid URL.");
@@ -164,7 +103,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     char port[6];
     sprintf(port, "%u", networkPort);
 
-    if(getaddrinfo(addressAsChar, port, &hints, &requestResult) != 0) {
+    if(UA_getaddrinfo(addressAsChar, port, &hints, &requestResult) != 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Internal error.");
         UA_free(channelDataUDPMC);
@@ -175,11 +114,11 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     //check if the ip address is a multicast address
     if(requestResult->ai_family == PF_INET){
         struct in_addr imr_interface;
-        inet_pton(AF_INET, addressAsChar, &imr_interface);
-        if((ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000){
+        UA_inet_pton(AF_INET, addressAsChar, &imr_interface);
+        if((UA_ntohl(imr_interface.s_addr) & 0xF0000000) != 0xE0000000){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "PubSub Connection creation failed. No multicast address.");
-            freeaddrinfo(requestResult);
+            UA_freeaddrinfo(requestResult);
             UA_free(channelDataUDPMC);
             UA_free(newChannel);
             return NULL;
@@ -189,15 +128,15 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     }
 
     for(rp = requestResult; rp != NULL; rp = rp->ai_next){
-        newChannel->sockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if(newChannel->sockfd != -1){
+        newChannel->sockfd = UA_socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if(newChannel->sockfd != UA_INVALID_SOCKET){
             break; /*success*/
         }
     }
     if(!rp){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Internal error.");
-        freeaddrinfo(requestResult);
+        UA_freeaddrinfo(requestResult);
         UA_free(channelDataUDPMC);
         UA_free(newChannel);
         return NULL;
@@ -207,8 +146,8 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     if(!channelDataUDPMC->ai_addr){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Out of memory.");
-        CLOSESOCKET(newChannel->sockfd);
-        freeaddrinfo(requestResult);
+        UA_close(newChannel->sockfd);
+        UA_freeaddrinfo(requestResult);
         UA_free(channelDataUDPMC);
         UA_free(newChannel);
         return NULL;
@@ -218,24 +157,41 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     newChannel->handle = channelDataUDPMC;
 
     //Set loop back data to your host
-    if(setsockopt(newChannel->sockfd,
-                     requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6:IPPROTO_IP,
+#if UA_IPV6
+    if(UA_setsockopt(newChannel->sockfd,
+                     requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
                      requestResult->ai_family == PF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP,
-                     (const char *)&channelDataUDPMC->enableLoopback, sizeof (channelDataUDPMC->enableLoopback)) < 0) {
+                     (const char *)&channelDataUDPMC->enableLoopback, sizeof (channelDataUDPMC->enableLoopback))
+#else
+    if(UA_setsockopt(newChannel->sockfd,
+                     IPPROTO_IP,
+                     IP_MULTICAST_LOOP,
+                     (const char *)&channelDataUDPMC->enableLoopback, sizeof (channelDataUDPMC->enableLoopback))
+#endif
+                      < 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Loopback setup failed.");
-        CLOSESOCKET(newChannel->sockfd);
-        freeaddrinfo(requestResult);
+        UA_close(newChannel->sockfd);
+        UA_freeaddrinfo(requestResult);
         UA_free(channelDataUDPMC);
         UA_free(newChannel);
         return NULL;
     }
 
     //Set Time to live (TTL). Value of 1 prevent forward beyond the local network.
-    if(setsockopt(newChannel->sockfd,
-                  requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6:IPPROTO_IP,
-                  requestResult->ai_family == PF_INET6 ? IPV6_MULTICAST_HOPS : IP_MULTICAST_TTL,
-                  (const char *)&channelDataUDPMC->messageTTL, sizeof(channelDataUDPMC->messageTTL)) < 0) {
+#if UA_IPV6
+    if(UA_setsockopt(newChannel->sockfd,
+                     requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
+                     requestResult->ai_family == PF_INET6 ? IPV6_MULTICAST_HOPS : IP_MULTICAST_TTL,
+                     (const char *)&channelDataUDPMC->messageTTL, sizeof(channelDataUDPMC->messageTTL))
+#else
+    if(UA_setsockopt(newChannel->sockfd,
+                     IPPROTO_IP,
+                     IP_MULTICAST_TTL,
+                     (const char *)&channelDataUDPMC->messageTTL, sizeof(channelDataUDPMC->messageTTL))
+#endif
+
+                      < 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation problem. Time to live setup failed.");
     }
@@ -243,7 +199,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     //Set reuse address -> enables sharing of the same listening address on different sockets.
     if(channelDataUDPMC->enableReuse){
         int enableReuse = 1;
-        if(setsockopt(newChannel->sockfd,
+        if(UA_setsockopt(newChannel->sockfd,
                       SOL_SOCKET, SO_REUSEADDR,
                       (const char*)&enableReuse, sizeof(enableReuse)) < 0){
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -258,32 +214,47 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
         interfaceAsChar[address.networkInterface.length] = 0;
         enum{
             IPv4,
+#if UA_IPV6
             IPv6,
+#endif
             INVALID
         } ipVersion;
         union {
             struct ip_mreq ipv4;
+#if UA_IPV6
             struct ipv6_mreq ipv6;
+#endif
         } group;
-        if(inet_pton(AF_INET, interfaceAsChar, &group.ipv4.imr_interface)){
+        if(UA_inet_pton(AF_INET, interfaceAsChar, &group.ipv4.imr_interface)){
             ipVersion = IPv4;
-        } else if (inet_pton(AF_INET6, interfaceAsChar, &group.ipv6.ipv6mr_multiaddr)){
-            group.ipv6.ipv6mr_interface = if_nametoindex(interfaceAsChar);
+#if UA_IPV6
+        } else if (UA_inet_pton(AF_INET6, interfaceAsChar, &group.ipv6.ipv6mr_multiaddr)){
+            group.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
             ipVersion = IPv6;
+#endif
         } else {
             ipVersion = INVALID;
         }
         if(ipVersion == INVALID ||
-                setsockopt(newChannel->sockfd,
+#if UA_IPV6
+                UA_setsockopt(newChannel->sockfd,
                            requestResult->ai_family == PF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
                            requestResult->ai_family == PF_INET6 ? IPV6_MULTICAST_IF : IP_MULTICAST_IF,
-                           ipVersion == IPv6 ? (void *) &group.ipv6.ipv6mr_interface : &group.ipv4.imr_interface,
-                           ipVersion == IPv6 ? sizeof(group.ipv6.ipv6mr_interface) : sizeof(struct in_addr)) < 0){
+                           ipVersion == IPv6 ? (const void *) &group.ipv6.ipv6mr_interface : &group.ipv4.imr_interface,
+                           ipVersion == IPv6 ? sizeof(group.ipv6.ipv6mr_interface) : sizeof(struct in_addr))
+#else
+                UA_setsockopt(newChannel->sockfd,
+                           IPPROTO_IP,
+                           IP_MULTICAST_IF,
+                           &group.ipv4.imr_interface,
+                           sizeof(struct in_addr))
+#endif
+                                                         < 0) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                            "PubSub Connection creation problem. Interface selection failed.");
         };
     }
-    freeaddrinfo(requestResult);
+    UA_freeaddrinfo(requestResult);
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
     return newChannel;
 }
@@ -304,22 +275,23 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
         struct sockaddr_in addr;
         memcpy(&addr, connectionConfig->ai_addr, sizeof(struct sockaddr_in));
         addr.sin_addr.s_addr = INADDR_ANY;
-        if (bind(channel->sockfd, (const struct sockaddr *)&addr, sizeof(struct sockaddr_in)) != 0){
+        if (UA_bind(channel->sockfd, (const struct sockaddr *)&addr, sizeof(struct sockaddr_in)) != 0){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         struct ip_mreq groupV4;
         memcpy(&groupV4.imr_multiaddr, &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr, sizeof(struct ip_mreq));
-        groupV4.imr_interface.s_addr = htonl(INADDR_ANY);
+        groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
         //multihomed hosts can join several groups on different IF, INADDR_ANY -> kernel decides
 
-        if(setsockopt(channel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0){
+        if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
-
+#if UA_IPV6
     } else if (connectionConfig->ai_family == PF_INET6) {//IPv6 handling
         //TODO implement regist for IPv6
+#endif
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection regist failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -342,14 +314,16 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
     if(connectionConfig->ai_family == PF_INET){//IPv4 handling
         struct ip_mreq groupV4;
         memcpy(&groupV4.imr_multiaddr, &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr, sizeof(struct ip_mreq));
-        groupV4.imr_interface.s_addr = htonl(INADDR_ANY);
+        groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
 
-        if(setsockopt(channel->sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0){
+        if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection unregist failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+#if UA_IPV6
     } else if (connectionConfig->ai_family == PF_INET6) {//IPv6 handling
         //TODO implement unregist for IPv6
+#endif
     } else {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection unregist failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -372,7 +346,7 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
     //TODO evalute: chunk messages or check against MTU?
     long nWritten = 0;
     while (nWritten < (long)buf->length) {
-        long n = sendto(channel->sockfd, buf->data, buf->length, 0,
+        long n = (long)UA_sendto(channel->sockfd, buf->data, buf->length, 0,
                         (struct sockaddr *) channelConfigUDPMC->ai_addr, sizeof(struct sockaddr_storage));
         if(n == -1L) {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection sending failed.");
@@ -403,7 +377,7 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         UA_fd_set(channel->sockfd, &fdset);
         struct timeval tmptv = {(long int)(timeout / 1000000),
                                 (long int)(timeout % 1000000)};
-        int resultsize = select(channel->sockfd+1, &fdset, NULL,
+        int resultsize = UA_select(channel->sockfd+1, &fdset, NULL,
                                 NULL, &tmptv);
         if(resultsize == 0) {
             message->length = 0;
@@ -417,14 +391,16 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
 
     if(channelConfigUDPMC->ai_family == PF_INET){
         ssize_t messageLength;
-        messageLength = recvfrom(channel->sockfd, message->data, message->length, 0, NULL, NULL);
+        messageLength = UA_recvfrom(channel->sockfd, message->data, message->length, 0, NULL, NULL);
         if(messageLength > 0){
             message->length = (size_t) messageLength;
         } else {
             message->length = 0;
         }
+#if UA_IPV6
     } else {
         //TODO implement recieve for IPv6
+#endif
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -436,10 +412,8 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
  */
 static UA_StatusCode
 UA_PubSubChannelUDPMC_close(UA_PubSubChannel *channel) {
-#ifdef _WIN32
-    WSACleanup();
-#endif /* Not Windows */
-    if(CLOSESOCKET(channel->sockfd) != 0){
+    UA_deinitialize_architecture_network();
+    if(UA_close(channel->sockfd) != 0){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection delete failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -480,5 +454,3 @@ UA_PubSubTransportLayerUDPMP() {
     pubSubTransportLayer.createPubSubChannel = &TransportLayerUDPMC_addChannel;
     return pubSubTransportLayer;
 }
-
-#undef _POSIX_C_SOURCE

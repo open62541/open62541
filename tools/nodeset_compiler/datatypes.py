@@ -23,7 +23,6 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 import xml.dom.minidom as dom
 
-from constants import *
 from base64 import *
 
 import six
@@ -52,7 +51,6 @@ def valueIsInternalType(valueTypeString):
 class Value(object):
     def __init__(self, xmlelement=None):
         self.value = None
-        self.numericRepresentation = 0
         self.alias = None
         self.dataType = None
         self.encodingRule = []
@@ -293,7 +291,6 @@ class Value(object):
 class Boolean(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_BOOLEAN
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -312,7 +309,6 @@ class Boolean(Value):
 class Number(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_NUMBER
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -328,77 +324,66 @@ class Number(Value):
 class Integer(Number):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_INTEGER
         if xmlelement:
             self.parseXML(xmlelement)
 
 class UInteger(Number):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_UINTEGER
         if xmlelement:
             self.parseXML(xmlelement)
 
 class Byte(UInteger):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_BYTE
         if xmlelement:
             self.parseXML(xmlelement)
 
 class SByte(Integer):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_SBYTE
         if xmlelement:
             self.parseXML(xmlelement)
 
 class Int16(Integer):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_INT16
         if xmlelement:
             self.parseXML(xmlelement)
 
 class UInt16(UInteger):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_UINT16
         if xmlelement:
             self.parseXML(xmlelement)
 
 class Int32(Integer):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_INT32
         if xmlelement:
             self.parseXML(xmlelement)
 
 class UInt32(UInteger):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_UINT32
         if xmlelement:
             self.parseXML(xmlelement)
 
 class Int64(Integer):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_INT64
         if xmlelement:
             self.parseXML(xmlelement)
 
 class UInt64(UInteger):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_UINT64
         if xmlelement:
             self.parseXML(xmlelement)
 
 class Float(Number):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_FLOAT
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -414,14 +399,12 @@ class Float(Number):
 class Double(Float):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_DOUBLE
         if xmlelement:
             self.parseXML(xmlelement)
 
 class String(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_STRING
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -445,12 +428,10 @@ class String(Value):
 class XmlElement(String):
     def __init__(self, xmlelement=None):
         Value.__init__(self, xmlelement)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_XMLELEMENT
 
 class ByteString(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self, xmlelement)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_BYTESTRING
 
     def parseXML(self, xmlvalue):
         # Expect <ByteString>value</ByteString>
@@ -466,7 +447,6 @@ class ByteString(Value):
 class ExtensionObject(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_EXTENSIONOBJECT
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -474,12 +454,11 @@ class ExtensionObject(Value):
         pass
 
     def __str__(self):
-        return "'" + self.alias() + "':" + self.stringRepresentation + "(" + str(self.value) + ")"
+        return "'ExtensionObject'"
 
 class LocalizedText(Value):
     def __init__(self, xmlvalue=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_LOCALIZEDTEXT
         self.locale = ''
         self.text = ''
         if xmlvalue:
@@ -510,7 +489,6 @@ class LocalizedText(Value):
 class NodeId(Value):
     def __init__(self, idstring=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_NODEID
         self.i = None
         self.b = None
         self.g = None
@@ -555,18 +533,9 @@ class NodeId(Value):
         #           </Identifier>
         #        </NodeId> or </Alias>
         if not isinstance(xmlvalue, dom.Element):
-            self.text = xmlvalue
+            self.text = xmlvalue # Alias
             return
         self.checkXML(xmlvalue)
-
-        if self.alias != None:
-            if not self.alias == xmlvalue.localName:
-                logger.warn(
-                    "Expected an aliased XML field called " + self.alias + " but got " + xmlvalue.localName + " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
-        else:
-            if not self.stringRepresentation == xmlvalue.localName:
-                logger.warn(
-                    "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.localName + " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
 
         # Catch XML <NodeId />
         if xmlvalue.firstChild == None:
@@ -608,7 +577,6 @@ class NodeId(Value):
 class ExpandedNodeId(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_EXPANDEDNODEID
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -619,7 +587,6 @@ class ExpandedNodeId(Value):
 class DateTime(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_DATETIME
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -653,7 +620,6 @@ class DateTime(Value):
 class QualifiedName(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_QUALIFIEDNAME
         self.ns = 0
         self.name = ''
         if xmlelement:
@@ -686,12 +652,10 @@ class QualifiedName(Value):
 class StatusCode(UInt32):
     def __init__(self, xmlelement=None):
         Value.__init__(self, xmlelement)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_STATUSCODE
 
 class DiagnosticInfo(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_DIAGNOSTICINFO
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -702,7 +666,6 @@ class DiagnosticInfo(Value):
 class Guid(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_GUID
         if xmlelement:
             self.parseXML(xmlelement)
 

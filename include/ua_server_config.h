@@ -186,6 +186,29 @@ struct UA_ServerConfig {
                                           const UA_NodeId *nodeId, void *nodeContext,
                                           const UA_UInt32 attibuteId, const UA_Boolean removed);
 #endif
+
+    /* Historical Access */
+#ifdef UA_ENABLE_HISTORIZING
+    UA_Boolean accessHistoryDataCapability;
+    UA_UInt32  maxReturnDataValues; /* 0 -> unlimited size */
+
+    UA_Boolean accessHistoryEventsCapability;
+    UA_UInt32  maxReturnEventValues; /* 0 -> unlimited size */
+
+    UA_Boolean insertDataCapability;
+    UA_Boolean insertEventCapability;
+    UA_Boolean insertAnnotationsCapability;
+
+    UA_Boolean replaceDataCapability;
+    UA_Boolean replaceEventCapability;
+
+    UA_Boolean updateDataCapability;
+    UA_Boolean updateEventCapability;
+
+    UA_Boolean deleteRawCapability;
+    UA_Boolean deleteEventCapability;
+    UA_Boolean deleteAtTimeDataCapability;
+#endif
 };
 
 #ifdef __cplusplus

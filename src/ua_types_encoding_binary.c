@@ -15,7 +15,7 @@
  *    Copyright 2017 (c) Henrik Norrman
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
@@ -182,8 +182,10 @@ UA_decode64(const u8 buf[8], u64 *v) {
 #endif /* !UA_BINARY_OVERLAYABLE_INTEGER */
 
 /* Boolean */
+/* Note that sizeof(bool) != 1 on some platforms. Overlayable integer encoding
+ * is disabled in those cases. */
 ENCODE_BINARY(Boolean) {
-    if(ctx->pos + sizeof(bool) > ctx->end)
+    if(ctx->pos + 1 > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     *ctx->pos = *(const u8*)src;
     ++ctx->pos;
@@ -191,7 +193,7 @@ ENCODE_BINARY(Boolean) {
 }
 
 DECODE_BINARY(Boolean) {
-    if(ctx->pos + sizeof(bool) > ctx->end)
+    if(ctx->pos + 1 > ctx->end)
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (*ctx->pos > 0) ? true : false;
     ++ctx->pos;
@@ -294,7 +296,9 @@ DECODE_BINARY(UInt64) {
 /* Floating Point Types */
 /************************/
 
-#if UA_BINARY_OVERLAYABLE_FLOAT
+/* Can we reuse the integer encoding mechanism by casting floating point
+ * values? */
+#if (UA_FLOAT_IEEE754 == 1) && (UA_LITTLE_ENDIAN == UA_FLOAT_LITTLE_ENDIAN)
 # define Float_encodeBinary UInt32_encodeBinary
 # define Float_decodeBinary UInt32_decodeBinary
 # define Double_encodeBinary UInt64_encodeBinary
@@ -968,7 +972,7 @@ DECODE_BINARY(ExtensionObject) {
 
 /* Never returns UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED */
 static status
-Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const bool isArray, Ctx *ctx) {
+Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const UA_Boolean isArray, Ctx *ctx) {
     /* Default to 1 for a scalar. */
     size_t length = 1;
 
@@ -1016,8 +1020,8 @@ ENCODE_BINARY(Variant) {
         return ENCODE_DIRECT(&encoding, Byte);
 
     /* Set the content type in the encoding mask */
-    const bool isBuiltin = src->type->builtin;
-    const bool isAlias = src->type->membersSize == 1
+    const UA_Boolean isBuiltin = src->type->builtin;
+    const UA_Boolean isAlias = src->type->membersSize == 1
                          && UA_TYPES[src->type->members[0].memberTypeIndex].builtin;
     if(isBuiltin)
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeIndex + 1);
@@ -1027,8 +1031,8 @@ ENCODE_BINARY(Variant) {
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1);
 
     /* Set the array type in the encoding mask */
-    const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
-    const bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
+    const UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
+    const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     if(isArray) {
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
         if(hasDimensions)
@@ -1111,7 +1115,7 @@ DECODE_BINARY(Variant) {
         return UA_STATUSCODE_GOOD;
 
     /* Does the variant contain an array? */
-    const bool isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
+    const UA_Boolean isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
 
     /* Get the datatype of the content. The type must be a builtin data type.
      * All not-builtin types are wrapped in an ExtensionObject. */
@@ -1550,10 +1554,10 @@ Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *type) {
     return s;
 }
 
-static size_t
-calcSizeBinaryMemSize(const void *UA_RESTRICT p, const UA_DataType *type) {
-    return type->memSize;
-}
+static size_t calcSizeBinary1(const void *_, const UA_DataType *__) { return 1; }
+static size_t calcSizeBinary2(const void *_, const UA_DataType *__) { return 2; }
+static size_t calcSizeBinary4(const void *_, const UA_DataType *__) { return 4; }
+static size_t calcSizeBinary8(const void *_, const UA_DataType *__) { return 8; }
 
 CALCSIZE_BINARY(String) {
     return 4 + src->length;
@@ -1644,9 +1648,9 @@ CALCSIZE_BINARY(Variant) {
     if(!src->type)
         return s;
 
-    bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
-    bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
-    bool isBuiltin = src->type->builtin;
+    UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
+    UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
+    UA_Boolean isBuiltin = src->type->builtin;
 
 
     size_t encode_index = src->type->typeIndex;
@@ -1712,25 +1716,25 @@ CALCSIZE_BINARY(DiagnosticInfo) {
 }
 
 const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Boolean */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Byte */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Int16 */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Int32 */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Int64 */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Float */
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* Double */
+    (calcSizeBinarySignature)calcSizeBinary1, /* Boolean */
+    (calcSizeBinarySignature)calcSizeBinary1, /* SByte */
+    (calcSizeBinarySignature)calcSizeBinary1, /* Byte */
+    (calcSizeBinarySignature)calcSizeBinary2, /* Int16 */
+    (calcSizeBinarySignature)calcSizeBinary2, /* UInt16 */
+    (calcSizeBinarySignature)calcSizeBinary4, /* Int32 */
+    (calcSizeBinarySignature)calcSizeBinary4, /* UInt32 */
+    (calcSizeBinarySignature)calcSizeBinary8, /* Int64 */
+    (calcSizeBinarySignature)calcSizeBinary8, /* UInt64 */
+    (calcSizeBinarySignature)calcSizeBinary4, /* Float */
+    (calcSizeBinarySignature)calcSizeBinary8, /* Double */
     (calcSizeBinarySignature)String_calcSizeBinary,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* DateTime */
+    (calcSizeBinarySignature)calcSizeBinary8, /* DateTime */
     (calcSizeBinarySignature)Guid_calcSizeBinary,
     (calcSizeBinarySignature)String_calcSizeBinary, /* ByteString */
     (calcSizeBinarySignature)String_calcSizeBinary, /* XmlElement */
     (calcSizeBinarySignature)NodeId_calcSizeBinary,
     (calcSizeBinarySignature)ExpandedNodeId_calcSizeBinary,
-    (calcSizeBinarySignature)calcSizeBinaryMemSize, /* StatusCode */
+    (calcSizeBinarySignature)calcSizeBinary4, /* StatusCode */
     (calcSizeBinarySignature)QualifiedName_calcSizeBinary,
     (calcSizeBinarySignature)LocalizedText_calcSizeBinary,
     (calcSizeBinarySignature)ExtensionObject_calcSizeBinary,

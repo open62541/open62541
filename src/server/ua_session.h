@@ -12,8 +12,8 @@
 extern "C" {
 #endif
 
-#include "../deps/queue.h"
 #include "ua_securechannel.h"
+#include "ua_util.h"
 
 #define UA_MAXCONTINUATIONPOINTS 5
 

@@ -2,25 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
-#include <time.h>
-#ifdef _WIN32
-# include <windows.h>
-#endif
 #include "testing_clock.h"
-
+#include <time.h>
 
 UA_DateTime testingClock = 0;
 
@@ -59,7 +42,7 @@ UA_realSleep(UA_UInt32 duration) {
 }
 
 void
-UA_comboSleep(UA_UInt32 duration) {
-    UA_fakeSleep(duration);
-    UA_realSleep(duration);
+UA_comboSleep(size_t duration) {
+    UA_fakeSleep((UA_UInt32)duration);
+    UA_realSleep((UA_UInt32)duration);
 }

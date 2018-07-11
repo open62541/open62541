@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_timer.h"
 
 /* Only one thread operates on the repeated jobs. This is usually the "main"
@@ -128,16 +128,25 @@ addTimerCallbackEntry(UA_Timer *t, UA_TimerCallbackEntry * UA_RESTRICT tc) {
     SLIST_FOREACH(tmpTc, &t->repeatedCallbacks, next) {
         if(tmpTc->nextTime >= tc->nextTime)
             break;
-        afterTc = tmpTc;
 
         /* The goal is to have many repeated callbacks with the same repetition
          * interval in a "block" in order to reduce linear search for re-entry
          * to the sorted list after processing. Allow the first execution to lie
          * between "nextTime - 1s" and "nextTime" if this adjustment groups
-         * callbacks with the same repetition interval. */
+         * callbacks with the same repetition interval.
+         * Callbacks of a block are added in reversed order. This design allows
+         * the monitored items of a subscription (if created in a sequence with the
+         * same publish/sample interval) to be executed before the subscription
+         * publish the notifications */
         if(tmpTc->interval == tc->interval &&
-           tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC))
+           tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC)) {
             tc->nextTime = tmpTc->nextTime;
+            break;
+        }
+
+        /* tc is neither in the same interval nor supposed to be executed sooner
+         * than tmpTc. Update afterTc to push tc further back in the timer list. */
+        afterTc = tmpTc;
     }
 
     /* Add the repeated callback */
@@ -324,10 +333,12 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
                     break;
                 prev_tc = n;
             }
-
-            /* Update last_dispatched */
-            last_dispatched = tc;
         }
+
+        /* Update last_dispatched to make sure batched callbacks are added in the
+         * same sequence as before they were executed and to save some iterations
+         * of the linear search for callbacks to be added further back in the list. */
+        last_dispatched = tc;
 
         /* Add entry to the new position in the sorted list */
         SLIST_INSERT_AFTER(prev_tc, tc, next);

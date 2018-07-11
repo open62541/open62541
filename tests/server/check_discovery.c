@@ -2,32 +2,15 @@
 *  License, v. 2.0. If a copy of the MPL was not distributed with this
 *  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 500
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-
-// On older systems we need to define _BSD_SOURCE
-// _DEFAULT_SOURCE is an alias for that
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
-#include <stdio.h>
-#include <fcntl.h>
-#include <check.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
 #include "server/ua_server_internal.h"
 #include "ua_client.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
+
+#include <fcntl.h>
+#include <check.h>
 
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 1
@@ -422,8 +405,10 @@ START_TEST(Client_find_on_network_registered) {
     ck_assert_uint_eq(gethostname(hostname, 255), 0);
 
     //DNS limits name to max 63 chars (+ \0)
-    snprintf(urls[0], 64, "LDS_test-%s", hostname);
-    snprintf(urls[1], 64, "Register_test-%s", hostname);
+    //We need this ugly casting, otherwise gcc >7.2 will complain about format-truncation, but we want it here
+    void *hostnameVoid = (void*)hostname;
+    snprintf(urls[0], 64, "LDS_test-%s", (char*)hostnameVoid);
+    snprintf(urls[1], 64, "Register_test-%s", (char*)hostnameVoid);
     expectedUris[0] = UA_STRING(urls[0]);
     expectedUris[1] = UA_STRING(urls[1]);
     FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL, NULL, 0);

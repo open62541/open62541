@@ -14,6 +14,8 @@ extern "C" {
 
 #include "ua_server_pubsub.h"
 
+#ifdef UA_ENABLE_PUBSUB
+
 /**
  * .. _pubsub_connection:
  *
@@ -47,7 +49,7 @@ struct UA_PubSubChannel{
     UA_UInt32 publisherId;                                  // unique identifier
     UA_PubSubChannelState state;
     UA_PubSubConnectionConfig *connectionConfig;            //link to parent connection config
-    UA_Int32 sockfd;
+    UA_SOCKET sockfd;
     void *handle;                                           //implementation specific data
     /*@info for handle: each network implementation should provide an structure
     * UA_PubSubChannelData[ImplementationName] This structure can be used by the
@@ -85,6 +87,8 @@ typedef struct UA_PubSubTransportLayer{
     UA_String transportProfileUri;
     UA_PubSubChannel * (*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
 } UA_PubSubTransportLayer;
+
+#endif /* UA_ENABLE_PUBSUB */
 
 #ifdef __cplusplus
 } // extern "C"

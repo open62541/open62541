@@ -16,8 +16,8 @@
 #include "ua_securechannel.h"
 #include "ua_client_highlevel.h"
 #include "ua_client_subscriptions.h"
-#include "../../deps/queue.h"
 #include "ua_timer.h"
+#include "../../deps/queue.h"
 
 /**************************/
 /* Subscriptions Handling */

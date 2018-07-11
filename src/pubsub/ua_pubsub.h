@@ -12,11 +12,13 @@
 extern "C" {
 #endif
 
-#include "../deps/queue.h"
 #include "ua_plugin_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 #include "ua_server.h"
 #include "ua_server_pubsub.h"
+#include "../deps/queue.h"
+
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 //forward declarations
 struct UA_WriterGroup;
@@ -68,10 +70,12 @@ UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connec
 /*              DataSetWriter                 */
 /**********************************************/
 
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 typedef struct UA_DataSetWriterSample{
-    UA_Boolean valeChanged;
-    UA_DataValue *value;
+    UA_Boolean valueChanged;
+    UA_DataValue value;
 } UA_DataSetWriterSample;
+#endif
 
 typedef struct UA_DataSetWriter{
     UA_DataSetWriterConfig config;
@@ -81,9 +85,11 @@ typedef struct UA_DataSetWriter{
     UA_NodeId linkedWriterGroup;
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     UA_UInt16 deltaFrameCounter;            //actual count of sent deltaFrames
     size_t lastSamplesCount;
     UA_DataSetWriterSample *lastSamples;
+#endif
     UA_UInt16 actualDataSetMessageSequenceCount;
 } UA_DataSetWriter;
 
@@ -130,7 +136,6 @@ typedef struct UA_DataSetField{
     UA_FieldMetaData fieldMetaData;
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
-    UA_DataValue lastValue;
 } UA_DataSetField;
 
 UA_StatusCode
@@ -148,6 +153,8 @@ UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+
+#endif /* UA_ENABLE_PUBSUB */
 
 #ifdef __cplusplus
 } // extern "C"

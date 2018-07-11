@@ -88,6 +88,12 @@ parser.add_argument('--max-string-length',
                     default=0,
                     help='Maximum allowed length of a string literal. If longer, it will be set to an empty string')
 
+parser.add_argument('--encode-binary-size',
+                    type=int,
+                    dest="encode_binary_size",
+                    default=32000,
+                    help='Size of the temporary array used to encode custom datatypes. If you don\'t know what it is, do not use this option')
+
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
@@ -182,5 +188,5 @@ ns.allocateVariables()
 
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")
-generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.max_string_length)
+generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.max_string_length, args.encode_binary_size)
 logger.info("NodeSet generation code successfully printed")

@@ -6,19 +6,6 @@
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include "ua_server_internal.h"
 #include "ua_mdns_internal.h"
 #include "ua_util.h"
@@ -246,14 +233,8 @@ setSrv(UA_Server *server, const struct resource *r,
 
     // todo: malloc may fail: return a statuscode
     char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
-    #ifndef _MSC_VER
-    snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d/", (int) srvNameLen,
+    UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d/", (int) srvNameLen,
              r->known.srv.name, r->known.srv.port);
-    #else
-    _snprintf_s(newUrl, 10 + srvNameLen + 8, _TRUNCATE, "opc.tcp://%.*s:%d/", (int) srvNameLen,
-             r->known.srv.name, r->known.srv.port);
-    #endif
-
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %s", newUrl);
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
@@ -490,8 +471,8 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
             std::string ipv6_str(str_buffer);
 
             // Detect and skip non-external addresses
-            bool is_link_local(false);
-            bool is_special_use(false);
+            UA_Boolean is_link_local(false);
+            UA_Boolean is_special_use(false);
 
             if(0 == ipv6_str.find("fe")) {
             char c = ipv6_str[2];

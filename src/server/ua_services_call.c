@@ -4,7 +4,7 @@
  *
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2017 (c) Florian Palm
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016 (c) LEvertz
@@ -48,9 +48,11 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
     return NULL;
 }
 
+/* inputArgumentResults has the length request->inputArgumentsSize */
 static UA_StatusCode
-typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
-                   size_t argsSize, UA_Variant *args) {
+typeCheckArguments(UA_Server *server, UA_Session *session,
+                   const UA_VariableNode *argRequirements, size_t argsSize,
+                   UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
     if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
@@ -71,33 +73,38 @@ typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
 
     /* Type-check every argument against the definition */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
     for(size_t i = 0; i < argReqsSize; ++i) {
-        if(!compatibleValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
+        if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                            &args[i], NULL))
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+                            &args[i], NULL)) {
+            inputArgumentResults[i] = UA_STATUSCODE_BADTYPEMISMATCH;
+            retval = UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
     }
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
+/* inputArgumentResults has the length request->inputArgumentsSize */
 static UA_StatusCode
-validMethodArguments(UA_Server *server, const UA_MethodNode *method,
-                     const UA_CallMethodRequest *request) {
+validMethodArguments(UA_Server *server, UA_Session *session, const UA_MethodNode *method,
+                     const UA_CallMethodRequest *request,
+                     UA_StatusCode *inputArgumentResults) {
     /* Get the input arguments node */
     const UA_VariableNode *inputArguments =
         getArgumentsVariableNode(server, method, UA_STRING("InputArguments"));
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!inputArguments) {
         if(request->inputArgumentsSize > 0)
-            retval = UA_STATUSCODE_BADINVALIDARGUMENT;
-        return retval;
+            return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+        return UA_STATUSCODE_GOOD;
     }
 
     /* Verify the request */
-    retval = typeCheckArguments(server, inputArguments,
-                                request->inputArgumentsSize,
-                                request->inputArguments);
+    UA_StatusCode retval = typeCheckArguments(server, session, inputArguments,
+                                              request->inputArgumentsSize,
+                                              request->inputArguments,
+                                              inputArgumentResults);
 
     /* Release the input arguments node */
     server->config.nodestore.releaseNode(server->config.nodestore.context,
@@ -168,8 +175,27 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Allocate the inputArgumentResults array */
+    result->inputArgumentResults = (UA_StatusCode*)
+        UA_Array_new(request->inputArgumentsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    if(!result->inputArgumentResults) {
+        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    result->inputArgumentResultsSize = request->inputArgumentsSize;
+
     /* Verify Input Arguments */
-    result->statusCode = validMethodArguments(server, method, request);
+    result->statusCode = validMethodArguments(server, session, method, request, result->inputArgumentResults);
+
+    /* Return inputArgumentResults only for BADINVALIDARGUMENT */
+    if(result->statusCode != UA_STATUSCODE_BADINVALIDARGUMENT) {
+        UA_Array_delete(result->inputArgumentResults, result->inputArgumentResultsSize,
+                        &UA_TYPES[UA_TYPES_STATUSCODE]);
+        result->inputArgumentResults = NULL;
+        result->inputArgumentResultsSize = 0;
+    }
+
+    /* Error during type-checking? */
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -178,22 +204,20 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         getArgumentsVariableNode(server, method, UA_STRING("OutputArguments"));
 
     /* Allocate the output arguments array */
-    if(outputArguments) {
-        if(outputArguments->value.data.value.value.arrayLength > 0) {
-            result->outputArguments = (UA_Variant*)
-                UA_Array_new(outputArguments->value.data.value.value.arrayLength,
-                             &UA_TYPES[UA_TYPES_VARIANT]);
-            if(!result->outputArguments) {
-                result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-                return;
-            }
-            result->outputArgumentsSize = outputArguments->value.data.value.value.arrayLength;
-        }
-
-        /* Release the output arguments node */
-        server->config.nodestore.releaseNode(server->config.nodestore.context,
-                                             (const UA_Node*)outputArguments);
+    size_t outputArgsSize = 0;
+    if(outputArguments)
+        outputArgsSize = outputArguments->value.data.value.value.arrayLength;
+    result->outputArguments = (UA_Variant*)
+        UA_Array_new(outputArgsSize, &UA_TYPES[UA_TYPES_VARIANT]);
+    if(!result->outputArguments) {
+        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
     }
+    result->outputArgumentsSize = outputArgsSize;
+
+    /* Release the output arguments node */
+    server->config.nodestore.releaseNode(server->config.nodestore.context,
+                                         (const UA_Node*)outputArguments);
 
     /* Call the method */
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
@@ -212,7 +236,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
         server->config.nodestore.getNode(server->config.nodestore.context,
                                          &request->methodId);
     if(!method) {
-        result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
