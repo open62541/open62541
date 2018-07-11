@@ -113,18 +113,22 @@ monitoredHandler(UA_Server *server,
         return UA_STATUSCODE_GOOD;
 
     /* The nodeContext is used as counter */
-    UA_UInt32 monCount = 0;
-    UA_Server_getNodeContext(server, *nodeId, (void*)&monCount);
-    monCount += removed ? -1 : 1;
+    UA_UInt32 *monCount = 0;
+    UA_Server_getNodeContext(server, *nodeId, (void**)&monCount);
+    if (removed && *monCount > 0) {
+        (*monCount)--;
+    } else if (!removed) {
+        (*monCount)++;
+    }
     UA_Server_setNodeContext(server, *nodeId, (void*)monCount);
 
     /* Check, if the node was monitored the first time or not monitored anymore */
-    if (!removed && monCount == 1) {
+    if (!removed && *monCount == 1) {
         // assure the nodeid is numeric (for logging in this example)
         if (nodeId->identifierType == UA_NODEIDTYPE_NUMERIC)
             printf("Started monitoring Node ns=%d; id=%d\n", nodeId->namespaceIndex, nodeId->identifier.numeric);
     }
-    else if (removed && monCount == 0) {
+    else if (removed && *monCount == 0) {
         // assure the nodeid is numeric (for logging in this example)
         if (nodeId->identifierType == UA_NODEIDTYPE_NUMERIC)
             printf("Stopped monitoring Node ns=%d; id=%d\n", nodeId->namespaceIndex, nodeId->identifier.numeric);
