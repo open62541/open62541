@@ -709,13 +709,6 @@ add_dependencies(open62541-amalgamation-header open62541-generator-types)
 add_dependencies(open62541-amalgamation-source open62541-generator-types
                  open62541-generator-transport open62541-generator-statuscode)
 
-
-set(NODESET_MAX_STR_LEN 0)
-if(MSVC)
-    # Visual Studio has a maximum string length of 65535 bytes
-    set(NODESET_MAX_STR_LEN 65535)
-endif()
-
 if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
     set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
 endif()
@@ -727,7 +720,6 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            --generate-ns0
                            --internal-headers
-                           --max-string-length=${NODESET_MAX_STR_LEN}
                            --encode-binary-size=${UA_NODESET_ENCODE_BINARY_SIZE}
                            --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            --xml ${UA_FILE_NS0}

@@ -19,18 +19,13 @@ def stringtoByteArray(value):
 def makeCLiteral(value):
     return value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r'')
 
-def splitStringLiterals(value, splitLength=500, max_string_length=0):
+def splitStringLiterals(value, splitLength=500):
     """
     Split a string literal longer than splitLength into smaller literals.
     E.g. "Some very long text" will be split into "Some ver" "y long te" "xt"
     On VS2008 there is a maximum allowed length of a single string literal.
-    If maxLength is set and the string is longer than maxLength, then an
-    empty string will be returned.
     """
     value = value.strip()
-    if max_string_length > 0 and len(value) > max_string_length:
-        logger.info("String is longer than {}. Returning empty string.".format(max_string_length))
-        return "\"\""
     if len(value) < splitLength or splitLength == 0:
         return "\"" + value.replace('"', r'\"') + "\""
     ret = ""
@@ -41,33 +36,32 @@ def splitStringLiterals(value, splitLength=500, max_string_length=0):
     ret += "\"" + tmp.replace('"', r'\"') + "\" "
     return ret
 
-def generateStringCode(value, alloc=False, max_string_length=0):
+def generateStringCode(value, alloc=False):
     value = makeCLiteral(value)
-    return u"UA_STRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
+    return u"UA_STRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
 
-def generateXmlElementCode(value, alloc=False, max_string_length=0):
+def generateXmlElementCode(value, alloc=False):
     value = makeCLiteral(value)
-    return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
+    return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
 
-def generateByteStringCode(value):
+def generateByteStringCode(value, valueName):
     asciiarray = stringtoByteArray(value)
     asciiarraystr = str(asciiarray).rstrip(']').lstrip('[')
-    return "char stringArr[{}] = {{{}}};\nUA_ByteString variable;\nvariable.length = {};\nvariable.data = (UA_Byte *)stringArr;" \
-           "\nif(variable.data == NULL){{\nreturn UA_STATUSCODE_BADOUTOFMEMORY;\n}}"\
-                                                .format(len(asciiarray), asciiarraystr, len(asciiarray))
+    return "UA_Byte stringArr[{len}] = {{{data}}};\n{instance}->length = {len};\n{instance}->data = stringArr;"\
+                                                .format(len=len(asciiarray), data=asciiarraystr, instance=valueName)
 
     #here the info is returned in the form we want the code to take. after this line the code will appear just as we wished it to be.
 
 
-def generateLocalizedTextCode(value, alloc=False, max_string_length=0):
+def generateLocalizedTextCode(value, alloc=False):
     vt = makeCLiteral(value.text)
     return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", value.locale,
-                                                   splitStringLiterals(vt, max_string_length=max_string_length))
+                                                   splitStringLiterals(vt))
 
-def generateQualifiedNameCode(value, alloc=False, max_string_length=0):
+def generateQualifiedNameCode(value, alloc=False,):
     vn = makeCLiteral(value.name)
     return u"UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
-                                                     str(value.ns), splitStringLiterals(vn, max_string_length=max_string_length))
+                                                     str(value.ns), splitStringLiterals(vn))
 
 def generateNodeIdCode(value):
     if not value:
@@ -92,21 +86,21 @@ def generateDateTimeCode(value):
     mSecsSinceEpoch = int((value - epoch).total_seconds() * 1000.0)
     return "( (UA_DateTime)(" + str(mSecsSinceEpoch) + " * UA_DATETIME_MSEC) + UA_DATETIME_UNIX_EPOCH)"
 
-def generateNodeValueCode(prepend , node, instanceName, asIndirect=False, max_string_length=0):
+def generateNodeValueCode(prepend , node, instanceName, valueName, asIndirect=False):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
         return prepend + "(UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
     elif type(node) == String:
-        return prepend + generateStringCode(node.value, alloc=asIndirect, max_string_length=max_string_length) + ";"
+        return prepend + generateStringCode(node.value, alloc=asIndirect) + ";"
     elif type(node) == XmlElement:
-        return prepend + generateXmlElementCode(node.value, alloc=asIndirect, max_string_length=max_string_length) + ";"
+        return prepend + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
     elif type(node) == ByteString:
         # replace whitespaces between tags and remove newlines
-        return prepend + "UA_BYTESTRING_NULL" if not node.value else generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", \
-                                                                                                                          "", node.value)))
+        return prepend + "UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", \
+                                                                                                                          "", node.value)), valueName)
         # the replacements done here is just for the array form can be workable in C code. It doesn't couses any problem
         # because the core data used here is already in byte form. So, there is no way we disturb it.
     elif type(node) == LocalizedText:
-        return prepend + generateLocalizedTextCode(node, alloc=asIndirect, max_string_length=max_string_length) + ";"
+        return prepend + generateLocalizedTextCode(node, alloc=asIndirect) + ";"
     elif type(node) == NodeId:
         return prepend + generateNodeIdCode(node) + ";"
     elif type(node) == ExpandedNodeId:
@@ -114,7 +108,7 @@ def generateNodeValueCode(prepend , node, instanceName, asIndirect=False, max_st
     elif type(node) == DateTime:
         return prepend + generateDateTimeCode(node.value) + ";"
     elif type(node) == QualifiedName:
-        return prepend + generateQualifiedNameCode(node.value, alloc=asIndirect, max_string_length=max_string_length) + ";"
+        return prepend + generateQualifiedNameCode(node.value, alloc=asIndirect) + ";"
     elif type(node) == StatusCode:
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
     elif type(node) == DiagnosticInfo:
