@@ -653,6 +653,12 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     /* Access Control */
     config->accessControl.deleteMembers(&config->accessControl);
 
+    /* Historical data */
+#ifdef UA_ENABLE_HISTORIZING
+    if (config->historyDataService.deleteMembers)
+        config->historyDataService.deleteMembers(&config->historyDataService);
+#endif
+
     UA_free(config);
 }
 

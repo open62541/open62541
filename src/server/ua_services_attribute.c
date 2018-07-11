@@ -1097,6 +1097,16 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         else
             retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
 
+#ifdef UA_ENABLE_HISTORIZING
+        if(retval == UA_STATUSCODE_GOOD && server->config.historyDataService.setValue)
+            server->config.historyDataService.setValue(server,
+                                                       server->config.historyDataService.context,
+                                                       &session->sessionId,
+                                                       session->sessionHandle,
+                                                       &node->nodeId,
+                                                       node->historizing,
+                                                       &adjustedValue);
+#endif
         /* Callback after writing */
         if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite)
             node->value.data.callback.onWrite(server, &session->sessionId,
@@ -1401,6 +1411,63 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     }
     return UA_Server_write(server, &wvalue);
 }
+
+#ifdef UA_ENABLE_HISTORIZING
+
+#include "ua_plugin_history_data_service.h"
+
+void
+Service_HistoryRead(UA_Server *server,
+                    UA_Session *session,
+                    const UA_HistoryReadRequest *request,
+                    UA_HistoryReadResponse *response) {
+    if (request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        return;
+    }
+    if (request->historyReadDetails.content.decoded.type == &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
+        UA_ReadRawModifiedDetails * details = (UA_ReadRawModifiedDetails*)request->historyReadDetails.content.decoded.data;
+        if (details->isReadModified) {
+            // TODO add server->config.historyReadService.read_modified
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+            return;
+        } else {
+            if (server->config.historyDataService.readRaw) {
+                response->resultsSize = request->nodesToReadSize;
+
+                response->results = (UA_HistoryReadResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+                UA_HistoryData ** historyData = (UA_HistoryData **)UA_calloc(response->resultsSize, sizeof(UA_HistoryData*));
+                for (size_t i = 0; i < response->resultsSize; ++i) {
+                    UA_HistoryData * data = UA_HistoryData_new();
+                    response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
+                    response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
+                    response->results[i].historyData.content.decoded.data = data;
+                    historyData[i] = data;
+                }
+                server->config.historyDataService.readRaw(server,
+                                                          server->config.historyDataService.context,
+                                                          &session->sessionId,
+                                                          session->sessionHandle,
+                                                          &request->requestHeader,
+                                                          details,
+                                                          request->timestampsToReturn,
+                                                          request->releaseContinuationPoints,
+                                                          request->nodesToReadSize,
+                                                          request->nodesToRead,
+                                                          response,
+                                                          historyData);
+                UA_free(historyData);
+                return;
+            }
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+            return;
+        }
+    }
+    // TODO handle more request->historyReadDetails.content.decoded.type types
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+    return;
+}
+#endif
 
 UA_StatusCode UA_EXPORT
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
