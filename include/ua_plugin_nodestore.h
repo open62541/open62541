@@ -188,7 +188,7 @@ typedef struct {
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
-    UA_Boolean historizing; /* currently unsupported */
+    UA_Boolean historizing;
 } UA_VariableNode;
 
 /**

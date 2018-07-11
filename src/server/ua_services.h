@@ -408,6 +408,12 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
                                const UA_SetMonitoringModeRequest *request,
                                UA_SetMonitoringModeResponse *response);
 
+#ifdef UA_ENABLE_HISTORIZING
+void Service_HistoryRead(UA_Server *server, UA_Session *session,
+                         const UA_HistoryReadRequest *request,
+                         UA_HistoryReadResponse *response);
+#endif
+
 /**
  * SetTriggering Service
  * ^^^^^^^^^^^^^^^^^^^^^

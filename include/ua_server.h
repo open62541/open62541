@@ -291,8 +291,7 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - UserWriteMask
  * - UserAccessLevel
  * - UserExecutable
- *
- * Historizing is currently unsupported */
+ */
 
 /* Overwrite an attribute of a node. The specialized functions below provide a
  * more concise syntax.
@@ -405,6 +404,15 @@ UA_Server_writeMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId
                              UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                              &UA_TYPES[UA_TYPES_DOUBLE],
                              &miniumSamplingInterval);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Server_writeHistorizing(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_Boolean historizing) {
+    return __UA_Server_write(server, &nodeId,
+                             UA_ATTRIBUTEID_HISTORIZING,
+                             &UA_TYPES[UA_TYPES_BOOLEAN],
+                             &historizing);
 }
 
 static UA_INLINE UA_StatusCode

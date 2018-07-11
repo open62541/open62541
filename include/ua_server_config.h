@@ -27,6 +27,10 @@ extern "C" {
 #include "ua_plugin_pubsub.h"
 #endif
 
+#ifdef UA_ENABLE_HISTORIZING
+#include "ua_plugin_history_data_service.h"
+#endif
+
 /**
  * .. _server-configuration:
  *
@@ -169,6 +173,8 @@ struct UA_ServerConfig {
 
     /* Historical Access */
 #ifdef UA_ENABLE_HISTORIZING
+    UA_HistoryDataService historyDataService;
+    
     UA_Boolean accessHistoryDataCapability;
     UA_UInt32  maxReturnDataValues; /* 0 -> unlimited size */
     
