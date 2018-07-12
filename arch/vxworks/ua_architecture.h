@@ -10,8 +10,6 @@
 #ifndef PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 
-#include <../deps/queue.h>  //in some compilers there's already a _SYS_QUEUE_H_ who is included first and doesn't have all functions
-
 #include <errno.h>
 
 #include <arpa/inet.h>
@@ -108,6 +106,34 @@
 }
 
 #include "../ua_architecture_functions.h"
+
+#undef SLIST_EMPTY
+#undef SLIST_FOREACH
+#undef SLIST_INIT
+#undef SLIST_REMOVE
+
+#undef LIST_EMPTY
+#undef LIST_FOREACH
+#undef LIST_INIT
+#undef LIST_REMOVE
+
+#undef TAILQ_EMPTY
+#undef TAILQ_FOREACH
+#undef TAILQ_INIT
+#undef TAILQ_REMOVE
+#undef TAILQ_FOREACH_REVERSE
+
+#undef CIRCLEQ_EMPTY
+#undef CIRCLEQ_FOREACH
+#undef CIRCLEQ_INIT
+#undef CIRCLEQ_FOREACH_REVERSE
+#undef CIRCLEQ_REMOVE
+#undef CIRCLEQ_INSERT_TAIL
+#undef CIRCLEQ_INSERT_HEAD
+#undef CIRCLEQ_INSERT_AFTER
+#undef CIRCLEQ_INSERT_BEFORE
+
+#undef _SYS_QUEUE_H_
 
 #endif /* PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_ */
 
