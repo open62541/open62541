@@ -1247,7 +1247,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
 /* Add a new namespace to the server. Returns the index of the new namespace */
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 
-UA_ServerConfig* UA_EXPORT
+UA_ServerConfig*
 UA_Server_getConfig(UA_Server *server);
 
 /* Get namespace by name from the server. */
