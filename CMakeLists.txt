@@ -830,14 +830,16 @@ GET_PROPERTY(ua_architecture_add_definitions GLOBAL PROPERTY UA_ARCHITECTURE_ADD
 add_definitions(${ua_architecture_add_definitions})
 
 GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS)
-remove_definitions(${ua_architecture_remove_definitions})
+if (NOT "${ua_architecture_remove_definitions}" STREQUAL "")
+  string(REPLACE " " ";" ua_architecture_remove_definitions_list ${ua_architecture_remove_definitions})
+  remove_definitions(${ua_architecture_remove_definitions_list})
+endif(NOT "${ua_architecture_remove_definitions}" STREQUAL "")
 
 GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
 list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
 
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})
-
 
 ##########################
 # Build Selected Targets #

@@ -5,10 +5,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
-#define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
-
-#include <../deps/queue.h>  //TODO: in some compilers there's already a _SYS_QUEUE_H_ who is included first and doesn't have all functions
+#ifndef PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_
+#define PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_
 
 #include <pkgconf/system.h>
 #include <cyg/kernel/kapi.h>
@@ -85,4 +83,32 @@ int gethostname_ecos(char* name, size_t len);
 
 #include "../ua_architecture_functions.h"
 
-#endif /* PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_ */
+#undef SLIST_EMPTY
+#undef SLIST_FOREACH
+#undef SLIST_INIT
+#undef SLIST_REMOVE
+
+#undef LIST_EMPTY
+#undef LIST_FOREACH
+#undef LIST_INIT
+#undef LIST_REMOVE
+
+#undef TAILQ_EMPTY
+#undef TAILQ_FOREACH
+#undef TAILQ_INIT
+#undef TAILQ_REMOVE
+#undef TAILQ_FOREACH_REVERSE
+
+#undef CIRCLEQ_EMPTY
+#undef CIRCLEQ_FOREACH
+#undef CIRCLEQ_INIT
+#undef CIRCLEQ_FOREACH_REVERSE
+#undef CIRCLEQ_REMOVE
+#undef CIRCLEQ_INSERT_TAIL
+#undef CIRCLEQ_INSERT_HEAD
+#undef CIRCLEQ_INSERT_AFTER
+#undef CIRCLEQ_INSERT_BEFORE
+
+#undef _SYS_QUEUE_H_
+
+#endif /* PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_ */
