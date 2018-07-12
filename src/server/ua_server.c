@@ -64,6 +64,15 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     return addNamespace(server, nameString);
 }
 
+UA_ServerConfig*
+UA_Server_getConfig(UA_Server *server)
+{
+  if(!server)
+    return NULL;
+  else
+    return &server->config;
+}
+
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
