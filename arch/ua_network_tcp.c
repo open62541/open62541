@@ -652,10 +652,10 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
             _os_sleep(&time,&sig);
             error = connect(clientsockfd, tcpConnection->server->ai_addr,
-                        WIN32_INT tcpConnection->server->ai_addrlen);
-            if ((error == -1 && errno__ == EISCONN) || (error == 0))
+                        tcpConnection->server->ai_addrlen);
+            if ((error == -1 && errno == EISCONN) || (error == 0))
                 resultsize = 1;
-            if (error == -1 && errno__ != EALREADY && errno__ != EINPROGRESS)
+            if (error == -1 && errno != EALREADY && errno != EINPROGRESS)
                 break;
         }
         while(resultsize == 0);
@@ -912,10 +912,10 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
                     break;
 
                 _os_sleep(&time,&sig);
-                error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
-                if ((error == -1 && errno__ == EISCONN) || (error == 0))
+                error = connect(clientsockfd, server->ai_addr, server->ai_addrlen);
+                if ((error == -1 && errno == EISCONN) || (error == 0))
                     resultsize = 1;
-                if (error == -1 && errno__ != EALREADY && errno__ != EINPROGRESS)
+                if (error == -1 && errno != EALREADY && errno != EINPROGRESS)
                     break;
             }
             while(resultsize == 0);
