@@ -333,19 +333,19 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
         }
     }
 
-    /* Copy into outServiceDomain */
     size_t offset = 0;
-    memcpy(&outServiceDomain[offset], servername->data, servernameLen);
-    offset += servernameLen;
-    if(hostnameLen > 0) {
-        memcpy(&outServiceDomain[offset], "-", 1);
-        ++offset;
-        memcpy(&outServiceDomain[offset], hostname->data, hostnameLen);
-        offset += hostnameLen;
+    if (hostnameLen > 0) {
+        UA_snprintf(outServiceDomain, maxLen - 1, "%.*s-%.*s",
+                    (int) servernameLen, (char *) servername->data,
+                    (int) hostnameLen, (char *) hostname->data);
+        offset = servernameLen + hostnameLen + 1;
     }
-    memcpy(&outServiceDomain[offset], "._opcua-tcp._tcp.local.", 23);
-    offset += 23;
-    outServiceDomain[offset] = 0;
+    else {
+        UA_snprintf(outServiceDomain, maxLen - 1, "%.*s",
+                    (int) servernameLen, (char *) servername->data);
+        offset = servernameLen;
+    }
+    UA_snprintf(&outServiceDomain[offset], 24, "._opcua-tcp._tcp.local.");
 }
 
 /* Check if mDNS already has an entry for given hostname and port combination */
