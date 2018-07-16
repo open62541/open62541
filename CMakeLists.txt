@@ -838,6 +838,8 @@ endif(NOT "${ua_architecture_remove_definitions}" STREQUAL "")
 GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
 list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
 
+target_compile_definitions(open62541 PUBLIC UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
+
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
