@@ -12,9 +12,6 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "vxworks")
 
         ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-        ua_architecture_remove_definitions(-Werror -Wpedantic -Wno-static-in-inline)
-        ua_architecture_add_definitions(-D_WRS_KERNEL)
-
     endif()
 
 endif()

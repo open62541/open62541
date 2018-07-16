@@ -4,6 +4,7 @@
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
+#ifdef UA_ARCHITECTURE_ECOS
 
 #ifndef PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_
@@ -112,3 +113,5 @@ int gethostname_ecos(char* name, size_t len);
 #undef _SYS_QUEUE_H_
 
 #endif /* PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_ */
+
+#endif /* UA_ARCHITECTURE_ECOS */
