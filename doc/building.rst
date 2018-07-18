@@ -11,7 +11,7 @@ Using the GCC compiler, the following calls build the examples on Linux.
 .. code-block:: bash
 
    cp /path-to/open62541.* . # copy single-file distribution to the local directory
-   cp /path-to/examples/server_variable.c . # copy the example server
+   cp /path-to/examples/tutorial_server_variable.c . # copy the example server
    gcc -std=c99 -DUA_ARCHITECTURE_POSIX open62541.c server_variable.c -o server
 
 Building the Library
