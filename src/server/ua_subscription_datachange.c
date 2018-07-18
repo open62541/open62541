@@ -131,12 +131,14 @@ MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
          if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
              /* check if an overflowEvent is being deleted
               * TODO: make sure overflowEvents are never deleted */
+             UA_NodeId overflowBaseId = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
              UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
 
              /* Check if an OverflowEvent is being deleted */
              if (del->data.event.fields.eventFieldsSize == 1
-                   &&  del->data.event.fields.eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID]
-                   &&  UA_NodeId_equal((UA_NodeId *)del->data.event.fields.eventFields[0].data, &overflowId)) {
+                 && del->data.event.fields.eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID]
+                 && isNodeInTree(&server->config.nodestore, (UA_NodeId*)del->data.event.fields.eventFields[0].data,
+                                 &overflowBaseId, &subtypeId, 1)) {
                  /* Don't do anything, since adding and removing an overflow will not change anything */
                  return UA_STATUSCODE_GOOD;
              }
