@@ -3295,22 +3295,22 @@ DECODE_JSON(Double){
     if(tokenType != JSMN_PRIMITIVE){
         /*It could be a String with Nan, Infinity*/
         if(size == 8 && memcmp(data, "Infinity", 8) == 0){
-            *dst = DOUBLE_INF_;
+            *dst = (UA_Double)DOUBLE_INF_;
             return UA_STATUSCODE_GOOD;
         }
         
         if(size == 9 && memcmp(data, "-Infinity", 9) == 0){
-            *dst = DOUBLE_NEG_INF_;
+            *dst = (UA_Double)DOUBLE_NEG_INF_;
             return UA_STATUSCODE_GOOD;
         }
         
         if(size == 3 && memcmp(data, "NaN", 3) == 0){
-            *dst = DOUBLE_NAN_;
+            *dst = (UA_Double)DOUBLE_NAN_;
             return UA_STATUSCODE_GOOD;
         }
         
         if(size == 4 && memcmp(data, "-NaN", 4) == 0){
-            *dst = DOUBLE_NAN_;
+            *dst = (UA_Double)DOUBLE_NAN_;
             return UA_STATUSCODE_GOOD;
         }
         return UA_STATUSCODE_BADDECODINGERROR;
