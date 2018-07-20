@@ -45,7 +45,7 @@ endif()
 ###################
 
 # PLCopen requires the full ns0 as basis
-if(UA_ENABLE_FULL_NS0)
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Generate types for DI namespace
     set(UA_TYPES_OUT "ua_types_di")
