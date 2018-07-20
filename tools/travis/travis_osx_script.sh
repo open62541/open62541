@@ -17,7 +17,7 @@ echo -en 'travis_fold:end:script.build.doc\\r'
 echo "Full Namespace 0 Generation" && echo -en 'travis_fold:start:script.build.ns0\\r'
 mkdir -p build
 cd build
-cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_FULL_NS0=ON -DUA_BUILD_EXAMPLES=ON  ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DUA_NAMESPACE_ZERO=FULL -DUA_BUILD_EXAMPLES=ON  ..
 make -j
 cd .. && rm -rf build
 echo -en 'travis_fold:end:script.build.ns0\\r'

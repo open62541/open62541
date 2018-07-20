@@ -32,7 +32,7 @@ add_test_valgrind(nodeset_objecttype ${TESTS_BINARY_DIR}/check_nodeset_objecttyp
 # Test Companion Specs that need the full NS0 #
 ###############################################
 
-if(UA_ENABLE_FULL_NS0)
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Generate types for DI namespace
     set(UA_TYPES_OUT "ua_types_di")
