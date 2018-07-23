@@ -23,6 +23,7 @@ import string
 from os.path import basename
 import logging
 import codecs
+import os
 try:
     from StringIO import StringIO
 except ImportError:
@@ -295,10 +296,15 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         writec("retVal |= function_" + outfilebase + "_" + str(i) + "_finish(server, ns);")
 
     writec("return retVal;\n}")
+    outfileh.flush()
+    os.fsync(outfileh)
     outfileh.close()
     fullCode = outfilec.getvalue()
     outfilec.close()
 
     outfilec = codecs.open(outfilename + ".c", r"w+", encoding='utf-8')
     outfilec.write(fullCode)
+    outfilec.flush()
+    os.fsync(outfilec)
     outfilec.close()
+
