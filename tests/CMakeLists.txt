@@ -13,6 +13,7 @@ include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/src/server)
 include_directories(${PROJECT_SOURCE_DIR}/src/pubsub)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
+include_directories(${PROJECT_SOURCE_DIR}/plugins/historydata)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
@@ -39,6 +40,9 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
+                        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
+                        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
+                        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
@@ -152,6 +156,10 @@ add_test_valgrind(subscription_events ${TESTS_BINARY_DIR}/check_subscription_eve
 add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_nodestore ${LIBS})
 add_test_valgrind(nodestore ${TESTS_BINARY_DIR}/check_nodestore)
+
+add_executable(check_historical_data server/check_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_historical_data ${LIBS})
+add_test_valgrind(historical_data ${TESTS_BINARY_DIR}/check_historical_data)
 
 add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_session ${LIBS})
