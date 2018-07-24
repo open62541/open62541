@@ -55,8 +55,8 @@
  * setting constraints on the variable values as this is not the focus of this
  * tutorial and was already covered. */
 
-#include <signal.h>
 #include "open62541.h"
+#include <signal.h>
 
 static void
 manuallyDefinePump(UA_Server *server) {

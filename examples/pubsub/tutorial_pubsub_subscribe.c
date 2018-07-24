@@ -9,7 +9,6 @@
  * The following code uses internal API which will be later replaced by the higher-level
  * PubSub subscriber API.
 */
-#include <signal.h>
 #include "ua_pubsub_networkmessage.h"
 #include "ua_log_stdout.h"
 #include "ua_server.h"
@@ -17,6 +16,7 @@
 #include "ua_pubsub.h"
 #include "ua_network_pubsub_udp.h"
 #include "src_generated/ua_types_generated.h"
+#include <signal.h>
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {

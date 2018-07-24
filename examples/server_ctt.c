@@ -5,14 +5,9 @@
 #define _CRT_SECURE_NO_WARNINGS /* disable fopen deprication warning in msvs */
 #endif
 
-#include <signal.h>
-#include <errno.h> // errno, EINTR
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <open62541.h>
 #include "open62541.h"
 #include "common.h"
+#include <signal.h>
 
 /* This server is configured to the Compliance Testing Tools (CTT) against. The
  * corresponding CTT configuration is available at

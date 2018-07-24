@@ -13,7 +13,6 @@
 # define _BSD_SOURCE
 #endif
 
-#include <stdio.h>
 #include "open62541.h"
 
 #define NODES_EXIST

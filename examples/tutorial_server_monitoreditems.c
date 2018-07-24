@@ -19,8 +19,8 @@
  * context pointer.
  */
 
-#include <signal.h>
 #include "open62541.h"
+#include <signal.h>
 
 static void
 dataChangeNotificationCallback(UA_Server *server, UA_UInt32 monitoredItemId,

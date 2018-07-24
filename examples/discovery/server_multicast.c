@@ -7,11 +7,8 @@
  * (i.e., LDS-ME).
  */
 
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
 #include "open62541.h"
+#include <signal.h>
 
 UA_Logger logger = UA_Log_Stdout;
 UA_Boolean running = true;

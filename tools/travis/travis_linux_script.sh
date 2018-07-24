@@ -177,8 +177,8 @@ else
     echo -e "\r\n== Building the C++ example =="  && echo -en 'travis_fold:start:script.build.example\\r'
     mkdir -p build && cd build
     cp ../../open62541.* .
-    gcc -std=c99  -DUA_ARCHITECTURE_POSIX  -c open62541.c
-    g++ ../examples/server.cpp -DUA_ARCHITECTURE_POSIX -I./ open62541.o -lrt -o cpp-server
+    gcc -std=c99 -c open62541.c
+    g++ ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.example\\r'

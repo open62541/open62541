@@ -1,8 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <signal.h>
 #include "open62541.h"
+#include <signal.h>
 
 static void
 testCallback(UA_Server *server, void *data) {

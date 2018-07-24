@@ -5,12 +5,9 @@
 #define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
 #endif
 
-#include <stdio.h>
-#include <signal.h>
-#include <errno.h> // errno, EINTR
-#include <stdlib.h>
 #include "open62541.h"
 #include "common.h"
+#include <signal.h>
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;

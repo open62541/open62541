@@ -1,9 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <stdio.h>
-#include <errno.h>
-
 #include "open62541.h"
 #include "common.h"
 

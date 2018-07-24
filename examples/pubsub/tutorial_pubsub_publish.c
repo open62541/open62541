@@ -21,8 +21,8 @@
  * PubSubConnections can be created and deleted on runtime. More details about the system preconfiguration and
  * connection can be found in ``tutorial_pubsub_connection.c``.
  */
-#include <signal.h>
 #include "open62541.h"
+#include <signal.h>
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 static void

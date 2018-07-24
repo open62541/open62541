@@ -16,7 +16,6 @@
  * This section shows the basic interaction patterns for data types. Make
  * sure to compare with the type definitions in ``ua_types.h``. */
 
-#include <assert.h>
 #include "open62541.h"
 
 static void

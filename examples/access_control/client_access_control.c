@@ -5,8 +5,6 @@
  * Using access_control_server
  */
 
-#include <stdio.h>
-
 #include "open62541.h"
 
 int main(void) {

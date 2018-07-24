@@ -2,6 +2,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/examples)
+include_directories(${PROJECT_SOURCE_DIR}/arch)
 
 set(examples_headers
     ${examples_headers}

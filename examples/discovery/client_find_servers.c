@@ -5,9 +5,7 @@
  * and then calls GetEndpoints on the returned list of servers.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <open62541.h>
+#include "open62541.h"
 
 UA_Logger logger = UA_Log_Stdout;
 

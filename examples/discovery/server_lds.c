@@ -6,9 +6,8 @@
  * find servers service to get all registered servers (see client_find_servers.c).
  */
 
-#include <stdio.h>
-#include <signal.h>
 #include "open62541.h"
+#include <signal.h>
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {

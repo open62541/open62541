@@ -25,8 +25,8 @@
  * new value arrives from the underlying process, we can just write into the
  * variable. */
 
-#include <signal.h>
 #include "open62541.h"
+#include <signal.h>
 
 static void
 updateCurrentTime(UA_Server *server) {
