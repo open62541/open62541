@@ -52,22 +52,22 @@ endif()
 
 
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
-set(UA_AMALGAMATION_ARCHITECUTRES "" CACHE STRING "List of architectures to include in amalgamation")
-mark_as_advanced(UA_AMALGAMATION_ARCHITECUTRES)
+set(UA_AMALGAMATION_ARCHITECTURES "" CACHE STRING "List of architectures to include in amalgamation")
+mark_as_advanced(UA_AMALGAMATION_ARCHITECTURES)
 
 # Platform. This is at the beginning in case the architecture changes some UA options
 set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
 
 if(UA_ENABLE_AMALGAMATION)
     if(NOT "${UA_ARCHITECTURE}" STREQUAL "None")
-        set(UA_AMALGAMATION_ARCHITECUTRES "${UA_ARCHITECTURE}")
+        set(UA_AMALGAMATION_ARCHITECTURES "${UA_ARCHITECTURE}")
     else()
-        if("${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
+        if("${UA_AMALGAMATION_ARCHITECTURES}" STREQUAL "")
             # select some default architectures which should be included
-            set(UA_AMALGAMATION_ARCHITECUTRES "win32;posix")
+            set(UA_AMALGAMATION_ARCHITECTURES "win32;posix")
         endif()
     endif()
-    message(STATUS "Architectures included in amalgamation: ${UA_AMALGAMATION_ARCHITECUTRES}")
+    message(STATUS "Architectures included in amalgamation: ${UA_AMALGAMATION_ARCHITECTURES}")
 endif()
 
 if("${UA_ARCHITECTURE}" STREQUAL "None")
@@ -111,6 +111,15 @@ set(ua_architecture_headers ${ua_architecture_headers}
 if(${UA_ARCHITECTURE} STREQUAL "None")
   message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
 endif(${UA_ARCHITECTURE} STREQUAL "None")
+
+# Create a list of ifdefs for all the architectures.
+# This is needed to enable a default architecture if none is selected through gcc compiler def.
+# Especially if someone is using the amalgamated file on Linux/Windows he should not need to define an architecture.
+set(UA_ARCHITECTURES_NODEF "1 ") #to make it easier to append later the && symbol
+foreach(arch_ ${architectures})
+    string(TOUPPER ${arch_} UA_ARCHITECTURE_UPPER_)
+    set(UA_ARCHITECTURES_NODEF "${UA_ARCHITECTURES_NODEF} && !defined(UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER_})")
+endforeach(arch_ ${architectures})
 
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
@@ -392,18 +401,22 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
 
-if(NOT "${UA_AMALGAMATION_ARCHITECUTRES}" STREQUAL "")
-    set(exported_headers)
-    foreach(arch ${UA_AMALGAMATION_ARCHITECUTRES})
+set(exported_headers ${exported_headers}
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+                     ${ua_architecture_headers_beginning}
+                     )
+
+if(NOT "${UA_AMALGAMATION_ARCHITECTURES}" STREQUAL "")
+    foreach(arch ${UA_AMALGAMATION_ARCHITECTURES})
         list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${arch}/ua_architecture.h)
     endforeach()
 else()
-    set(exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h)
 endif()
 
+list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h)
+
 set(exported_headers ${exported_headers}
-                     ${ua_architecture_headers_beginning}
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h

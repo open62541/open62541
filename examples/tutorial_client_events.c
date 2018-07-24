@@ -1,9 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <signal.h>
-#include <stdio.h>
 #include "open62541.h"
+#include <signal.h>
 
 #ifdef _MSC_VER
 #pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_addMonitoredEvent': was declared deprecated

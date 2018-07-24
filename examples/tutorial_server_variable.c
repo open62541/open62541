@@ -14,9 +14,8 @@
  * read only. See below for making the variable writable.
  */
 
-#include <signal.h>
-#include <stdio.h>
 #include "open62541.h"
+#include <signal.h>
 
 static void
 addVariable(UA_Server *server) {
