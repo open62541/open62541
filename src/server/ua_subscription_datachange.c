@@ -311,16 +311,19 @@ detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataVal
     const UA_Byte *bufEnd = &valueEncoding.data[valueEncoding.length];
     UA_StatusCode retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
                                            &bufPos, &bufEnd, NULL, NULL);
-    if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
+    if(retval == UA_STATUSCODE_BADENCODINGERROR) {
         size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
         if(binsize == 0)
             return false;
-        retval = UA_ByteString_allocBuffer(&valueEncoding, binsize);
-        if(retval == UA_STATUSCODE_GOOD) {
-            bufPos = valueEncoding.data;
-            bufEnd = &valueEncoding.data[valueEncoding.length];
-            retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                     &bufPos, &bufEnd, NULL, NULL);
+
+        if(binsize > UA_VALUENCODING_MAXSTACK) {
+            retval = UA_ByteString_allocBuffer(&valueEncoding, binsize);
+            if(retval == UA_STATUSCODE_GOOD) {
+                bufPos = valueEncoding.data;
+                bufEnd = &valueEncoding.data[valueEncoding.length];
+                retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                                         &bufPos, &bufEnd, NULL, NULL);
+            }
         }
     }
 
