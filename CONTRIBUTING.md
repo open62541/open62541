@@ -20,11 +20,6 @@ The open62541 project has a [Code of Conduct](./CODE_OF_CONDUCT.md) that *all*
 contributors are expected to follow. This code describes the *minimum* behavior
 expectations for all contributors.
 
-## Issues
-
-- Help us help you
-- Use the [Issue Template](./.github/ISSUE_TEMPLATE)
-
 ## Pull Requests
 
 Everybody can propose a pull request (PR). But only the core-maintainers of the
@@ -50,6 +45,13 @@ The following are the minimal requirements that every PR needs to meet.
 
 ### Commit and PR Hygiene
 
+These sites explain a core set of good practice rules for preparing a PR:
+
+- https://wiki.openstack.org/wiki/GitCommitMessages
+- https://nvie.com/posts/a-successful-git-branching-model/
+
+The following points will be especially looked at during the review.
+
 - **Separation of Concerns**: Small changes are much easier to review.
   Typically, small PR are merged much faster. For larger contributions, it might
   make sense to break them up into a series of PR. For example, a PR with a new
@@ -71,10 +73,11 @@ The following are the minimal requirements that every PR needs to meet.
 
 ### Review Process
 
-The following labels can be used for the PR title to indicate its status.
+These labels can be used for the PR title to indicate its status.
 
 - [WIP]: The PR is work in progress and at this point simply informative.
 - [Review]: The PR is ready from the developers perspective. He requests a review from a core-maintainer.
+- [Discussion]: The PR is a contribution to ongoing technical discussions. The PR may be incomplete and is not intended to be merged before the discussion has concluded.
 
 The core-maintainers are busy people. If they take especially long to react,
 feel free to trigger them by additional comments in the PR thread. Again, small
