@@ -19,15 +19,14 @@
 #define UA_sleep_ms(X) vTaskDelay(pdMS_TO_TICKS(X))
 
 #ifdef OPEN62541_FEERTOS_USE_OWN_MEM
+# undef UA_free
+# undef UA_malloc
+# undef UA_calloc
+# undef UA_realloc
 # define UA_free vPortFree
 # define UA_malloc pvPortMalloc
 # define UA_calloc pvPortCalloc
 # define UA_realloc pvPortRealloc
-#else
-# define UA_free free
-# define UA_malloc malloc
-# define UA_calloc calloc
-# define UA_realloc realloc
 #endif
 
 #define UA_access access

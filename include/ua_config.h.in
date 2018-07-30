@@ -77,6 +77,17 @@ extern "C" {
 # endif
 #endif
 
+/**
+ * Memory management
+ * -----------------
+ * Redefine the following macros for custom memory management.
+ */
+
+#define UA_free(p) free(p)
+#define UA_malloc(size) malloc(size)
+#define UA_calloc(num,size) calloc(num,size)
+#define UA_realloc(ptr,size) realloc(ptr,size)
+
 #include "ua_architecture.h"
 
 #ifdef __cplusplus

@@ -110,11 +110,8 @@ void UA_sleep_ms(size_t ms);
 # define UA_if_nametoindex if_nametoindex
 #endif
 
+/* Malloc */
 #include <stdlib.h>
-#define UA_free free
-#define UA_malloc malloc
-#define UA_calloc calloc
-#define UA_realloc realloc
 
 #include <stdio.h>
 #define UA_snprintf snprintf

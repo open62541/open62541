@@ -29,11 +29,6 @@
 # define _WIN32_WINNT 0x0600 //windows vista version, which included InepPton
 #endif
 
-#include <stdlib.h>
-#if defined(_WIN32) && !defined(__clang__)
-# include <malloc.h>
-#endif
-
 #include <stdio.h>
 #include <errno.h>
 #include <winsock2.h>
@@ -117,10 +112,11 @@ void UA_sleep_ms(size_t ms);
 # undef maxStringLength
 #endif
 
-#define UA_free free
-#define UA_malloc malloc
-#define UA_calloc calloc
-#define UA_realloc realloc
+/* Malloc */
+#include <stdlib.h>
+#if defined(_WIN32) && !defined(__clang__)
+# include <malloc.h>
+#endif
 
 #define UA_snprintf(source, size, string, ...) _snprintf_s(source, size, _TRUNCATE, string, __VA_ARGS__)
 
