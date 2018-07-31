@@ -235,12 +235,16 @@ extern UA_StatusCode %s(UA_Server *server);
         parentref = node.popParentRef(parentreftypes)
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            code = generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary_size)
+            code_global = []
+            code = generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary_size, code_global)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
                 continue
             else:
+                if len(code_global) > 0:
+                    writec("\n".join(code_global))
+                    writec("\n")
                 writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {")
                 if isinstance(node, MethodNode):
                     writec("#ifdef UA_ENABLE_METHODCALLS")

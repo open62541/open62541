@@ -11,11 +11,6 @@ def generateBooleanCode(value):
         return "true"
     return "false"
 
-def stringtoByteArray(value):
-    value = value.strip()
-    byteform = [ord(c) for c in value] #transform every char to ASCII
-    return byteform
-
 def makeCLiteral(value):
     return value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r'')
 
@@ -44,14 +39,15 @@ def generateXmlElementCode(value, alloc=False):
     value = makeCLiteral(value)
     return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
 
-def generateByteStringCode(value, valueName):
-    asciiarray = stringtoByteArray(value)
+def generateByteStringCode(value, valueName, global_var_code):
+    asciiarray = [ord(c) for c in value.strip()]
     asciiarraystr = str(asciiarray).rstrip(']').lstrip('[')
-    return "UA_Byte stringArr[{len}] = {{{data}}};\n{instance}->length = {len};\n{instance}->data = stringArr;"\
-                                                .format(len=len(asciiarray), data=asciiarraystr, instance=valueName)
-
-    #here the info is returned in the form we want the code to take. after this line the code will appear just as we wished it to be.
-
+    global_var_code.append("static const UA_Byte {instance}_byteArray[{len}] = {{{data}}};".format(
+        len=len(asciiarray), data=asciiarraystr, instance=valueName
+    ))
+    # Cast away const with '(UA_Byte *)(void*)(uintptr_t)' since we know that UA_Server_addNode_begin will copy the content
+    return "{instance}->length = {len};\n{instance}->data = (UA_Byte *)(void*)(uintptr_t){instance}_byteArray;"\
+                                                .format(len=len(asciiarray), instance=valueName)
 
 def generateLocalizedTextCode(value, alloc=False):
     vt = makeCLiteral(value.text)
@@ -86,7 +82,7 @@ def generateDateTimeCode(value):
     mSecsSinceEpoch = int((value - epoch).total_seconds() * 1000.0)
     return "( (UA_DateTime)(" + str(mSecsSinceEpoch) + " * UA_DATETIME_MSEC) + UA_DATETIME_UNIX_EPOCH)"
 
-def generateNodeValueCode(prepend , node, instanceName, valueName, asIndirect=False):
+def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_code, asIndirect=False):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
         return prepend + "(UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
     elif type(node) == String:
@@ -95,8 +91,8 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, asIndirect=Fa
         return prepend + generateXmlElementCode(node.value, alloc=asIndirect) + ";"
     elif type(node) == ByteString:
         # replace whitespaces between tags and remove newlines
-        return prepend + "UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", \
-                                                                                                                          "", node.value)), valueName)
+        return prepend + "UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
+            re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", "", node.value)), valueName, global_var_code)
         # the replacements done here is just for the array form can be workable in C code. It doesn't couses any problem
         # because the core data used here is already in byte form. So, there is no way we disturb it.
     elif type(node) == LocalizedText:
