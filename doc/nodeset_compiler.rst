@@ -212,7 +212,7 @@ Take the previous snippet and save it to a file ``myNS.xml``. To compile this no
                                [--generate-ns0] [--internal-headers]
                                [-b <blacklistFile>] [-i <ignoreFile>]
                                [-t <typesArray>]
-                               [--max-string-length MAX_STRING_LENGTH] [-v]
+                               [-v]
                                <outputFile>
 
     positional arguments:

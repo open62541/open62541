@@ -72,9 +72,10 @@ def generateObjectNodeCode(node):
         code.append("attr.eventNotifier = true;")
     return code
 
-def generateVariableNodeCode(node, nodeset, max_string_length, encode_binary_size):
+def generateVariableNodeCode(node, nodeset, encode_binary_size):
     code = []
     codeCleanup = []
+    codeGlobal = []
     code.append("UA_VariableAttributes attr = UA_VariableAttributes_default;")
     if node.historizing:
         code.append("attr.historizing = true;")
@@ -111,19 +112,21 @@ def generateVariableNodeCode(node, nodeset, max_string_length, encode_binary_siz
 
             if dataTypeNode.isEncodable():
                 if node.value is not None:
-                    [code1, codeCleanup1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, max_string_length=max_string_length, encode_binary_size=encode_binary_size)
+                    [code1, codeCleanup1, codeGlobal1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, encode_binary_size=encode_binary_size)
                     code += code1
                     codeCleanup += codeCleanup1
+                    codeGlobal += codeGlobal1
                     if node.valueRank > 0 and len(node.arrayDimensions) == node.valueRank:
                         code.append("attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;")
                         code.append("attr.value.arrayDimensions = attr.arrayDimensions;")
                 else:
                     code += generateValueCodeDummy(dataTypeNode, nodeset.nodes[node.id], nodeset)
-    return [code, codeCleanup]
+    return [code, codeCleanup, codeGlobal]
 
-def generateVariableTypeNodeCode(node, nodeset, max_string_length, encode_binary_size):
+def generateVariableTypeNodeCode(node, nodeset, encode_binary_size):
     code = []
     codeCleanup = []
+    codeGlobal = []
     code.append("UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;")
     if node.historizing:
         code.append("attr.historizing = true;")
@@ -140,14 +143,15 @@ def generateVariableTypeNodeCode(node, nodeset, max_string_length, encode_binary
             code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNode.id))
             if dataTypeNode.isEncodable():
                 if node.value is not None:
-                    [code1, codeCleanup1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, max_string_length, encode_binary_size)
+                    [code1, codeCleanup1, codeGlobal1] = generateValueCode(node.value, nodeset.nodes[node.id], nodeset, encode_binary_size)
                     code += code1
                     codeCleanup += codeCleanup1
+                    codeGlobal += codeGlobal1
                 else:
                     code += generateValueCodeDummy(dataTypeNode, nodeset.nodes[node.id], nodeset)
-    return [code, codeCleanup]
+    return [code, codeCleanup, codeGlobal]
 
-def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, arrayIndex=0, max_string_length=0, encode_binary_size=32000):
+def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, recursionDepth=0, arrayIndex=0, encode_binary_size=32000):
     code = [""]
     codeCleanup = [""]
 
@@ -185,8 +189,9 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
             "Encoding of field " + subv.alias + " is " + str(subv.encodingRule) + "defined by " + str(encField))
         # Check if this is an array
         if encField[2] == 0:
-            code.append(instanceName + "_struct." + subv.alias + " = " +
-                        generateNodeValueCode(subv, instanceName, asIndirect=False, max_string_length=max_string_length) + ";")
+            valueName = instanceName + "_struct." + subv.alias
+            code.append(generateNodeValueCode(valueName + " = " ,
+                        subv, instanceName,valueName, global_var_code, asIndirect=False))
         else:
             if isinstance(subv, list):
                 # this is an array
@@ -199,8 +204,9 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
                 for subvidx in range(0, len(subv)):
                     subvv = subv[subvidx]
                     logger.debug("  " + str(subvidx) + " " + str(subvv))
-                    code.append(instanceName + "_struct." + subv.alias + "[" + str(
-                        subvidx) + "] = " + generateNodeValueCode(subvv, instanceName, max_string_length=max_string_length) + ";")
+                    valueName = instanceName + "_struct." + subv.alias + "[" + str(
+                        subvidx) + "]"
+                    code.append(generateNodeValueCode(valueName + " = ", subvv, instanceName, valueName, global_var_code))
                 code.append("}")
             else:
                 code.append(instanceName + "_struct." + subv.alias + "Size = 1;")
@@ -208,9 +214,9 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
                     "{0}_struct.{1} = (UA_{2}*) UA_malloc(sizeof(UA_{2}));".format(
                         instanceName, subv.alias, subv.__class__.__name__))
                 codeCleanup.append("UA_free({0}_struct.{1});".format(instanceName, subv.alias))
-
-                code.append(instanceName + "_struct." + subv.alias + "[0]  = " +
-                            generateNodeValueCode(subv, instanceName, asIndirect=True, max_string_length=max_string_length) + ";")
+                valueName = instanceName + "_struct." + subv.alias + "[0]"
+                code.append(generateNodeValueCode(valueName + " = ",
+                            subv, instanceName, valueName, global_var_code, asIndirect=True))
 
     # Allocate some memory
     code.append("UA_ExtensionObject *" + instanceName + " =  UA_ExtensionObject_new();")
@@ -295,9 +301,10 @@ def getTypesArrayForValue(nodeset, value):
     return "&" + typesArray + "[" + typesArray + "_" + \
                     value.__class__.__name__.upper() + "]"
 
-def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_length=0, encode_binary_size=32000):
+def generateValueCode(node, parentNode, nodeset, bootstrapping=True, encode_binary_size=32000):
     code = []
     codeCleanup = []
+    codeGlobal = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
 
     # node.value either contains a list of multiple identical BUILTINTYPES, or it
@@ -330,8 +337,8 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
             if isinstance(node.value[0], ExtensionObject):
                 for idx, v in enumerate(node.value):
                     logger.debug("Building extObj array index " + str(idx))
-                    [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(v, parent=parentNode, nodeset=nodeset, arrayIndex=idx, max_string_length=max_string_length,
-                                                                               encode_binary_size=encode_binary_size)
+                    [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(v, parent=parentNode, nodeset=nodeset, arrayIndex=idx,
+                                                                               encode_binary_size=encode_binary_size, global_var_code=codeGlobal)
                     code = code + code1
                     codeCleanup = codeCleanup + codeCleanup1
             code.append("UA_" + node.value[0].__class__.__name__ + " " + valueName + "[" + str(len(node.value)) + "];")
@@ -339,15 +346,15 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
                 for idx, v in enumerate(node.value):
                     logger.debug("Printing extObj array index " + str(idx))
                     instanceName = generateNodeValueInstanceName(v, parentNode, 0, idx)
-                    code.append(
-                        valueName + "[" + str(idx) + "] = " +
-                        generateNodeValueCode(v, instanceName, max_string_length=max_string_length) + ";")
+                    code.append(generateNodeValueCode(
+                        valueName + "[" + str(idx) + "] = ",
+                        v, instanceName, valueName, codeGlobal))
                     # code.append("UA_free(&" +valueName + "[" + str(idx) + "]);")
             else:
                 for idx, v in enumerate(node.value):
                     instanceName = generateNodeValueInstanceName(v, parentNode, 0, idx)
-                    code.append(
-                        valueName + "[" + str(idx) + "] = " + generateNodeValueCode(v, instanceName, max_string_length=max_string_length) + ";")
+                    code.append(generateNodeValueCode(
+                        valueName + "[" + str(idx) + "] = " , v, instanceName, valueName, codeGlobal))
             code.append("UA_Variant_setArray(&attr.value, &" + valueName +
                         ", (UA_Int32) " + str(len(node.value)) + ", " +
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
@@ -362,14 +369,14 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
         else:
             # The following strategy applies to all other types, in particular strings and numerics.
             if isinstance(node.value[0], ExtensionObject):
-                [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(node.value[0], parent=parentNode, nodeset=nodeset, max_string_length=max_string_length,
-                                                                           encode_binary_size=encode_binary_size)
+                [code1, codeCleanup1] = generateExtensionObjectSubtypeCode(node.value[0], parent=parentNode, nodeset=nodeset,
+                                                                           encode_binary_size=encode_binary_size, global_var_code=codeGlobal)
                 code = code + code1
                 codeCleanup = codeCleanup + codeCleanup1
             instanceName = generateNodeValueInstanceName(node.value[0], parentNode, 0, 0)
             if isinstance(node.value[0], ExtensionObject):
-                code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " +
-                            generateNodeValueCode(node.value[0], instanceName, max_string_length=max_string_length) + ";")
+                code.append(generateNodeValueCode("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " ,
+                            node.value[0], instanceName, valueName, codeGlobal))
                 code.append(
                     "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                     getTypesArrayForValue(nodeset, node.value[0]) + ");")
@@ -379,13 +386,17 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
             else:
                 code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " =  UA_" + node.value[
                     0].__class__.__name__ + "_new();")
-                code.append("*" + valueName + " = " + generateNodeValueCode(node.value[0], instanceName, asIndirect=True, max_string_length=max_string_length) + ";")
+                code.append(generateNodeValueCode("*" + valueName + " = " , node.value[0], instanceName, valueName, codeGlobal, asIndirect=True))
                 code.append(
                         "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
+                if node.value[0].__class__.__name__ == "ByteString":
+                    # The data is on the stack, not heap, so we can not delete the ByteString
+                    codeCleanup.append("{}->data = NULL;".format(valueName))
+                    codeCleanup.append("{}->length = 0;".format(valueName))
                 codeCleanup.append("UA_{0}_delete({1});".format(
                     node.value[0].__class__.__name__, valueName))
-    return [code, codeCleanup]
+    return [code, codeCleanup, codeGlobal]
 
 def generateMethodNodeCode(node):
     code = []
@@ -432,7 +443,7 @@ def generateSubtypeOfDefinitionCode(node):
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
-def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentref, encode_binary_size):
+def generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary_size, code_global):
     code = []
     codeCleanup = []
     code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
@@ -443,13 +454,15 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
     elif isinstance(node, ObjectNode):
         code.extend(generateObjectNodeCode(node))
     elif isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        [code1, codeCleanup1] = generateVariableNodeCode(node, nodeset, max_string_length, encode_binary_size)
+        [code1, codeCleanup1, codeGlobal1] = generateVariableNodeCode(node, nodeset, encode_binary_size)
         code.extend(code1)
         codeCleanup.extend(codeCleanup1)
+        code_global.extend(codeGlobal1)
     elif isinstance(node, VariableTypeNode):
-        [code1, codeCleanup1] = generateVariableTypeNodeCode(node, nodeset, max_string_length, encode_binary_size)
+        [code1, codeCleanup1, codeGlobal1] = generateVariableTypeNodeCode(node, nodeset, encode_binary_size)
         code.extend(code1)
         codeCleanup.extend(codeCleanup1)
+        code_global.extend(codeGlobal1)
     elif isinstance(node, MethodNode):
         code.extend(generateMethodNodeCode(node))
     elif isinstance(node, ObjectTypeNode):
@@ -458,11 +471,9 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
         code.extend(generateDataTypeNodeCode(node))
     elif isinstance(node, ViewNode):
         code.extend(generateViewNodeCode(node))
-    code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, alloc=False,
-                                                                  max_string_length=max_string_length) + ";")
+    code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, alloc=False) + ";")
     code.append("#ifdef UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS")
-    code.append("attr.description = " + generateLocalizedTextCode(node.description, alloc=False,
-                                                                  max_string_length=max_string_length) + ";")
+    code.append("attr.description = " + generateLocalizedTextCode(node.description, alloc=False) + ";")
     code.append("#endif")
     code.append("attr.writeMask = %d;" % node.writeMask)
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
@@ -473,7 +484,7 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
     code.append(generateNodeIdCode(node.id) + ",")
     code.append(generateNodeIdCode(parentref.target) + ",")
     code.append(generateNodeIdCode(parentref.referenceType) + ",")
-    code.append(generateQualifiedNameCode(node.browseName, max_string_length=max_string_length) + ",")
+    code.append(generateQualifiedNameCode(node.browseName) + ",")
     if isinstance(node, VariableNode) or isinstance(node, ObjectNode):
         typeDefRef = node.popTypeDef()
         code.append(generateNodeIdCode(typeDefRef.target) + ",")
@@ -482,7 +493,7 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
     code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
                 format(node.__class__.__name__.upper().replace("NODE" ,"")))
     code.extend(codeCleanup)
-    
+
     return "\n".join(code)
 
 def generateNodeCode_finish(node):

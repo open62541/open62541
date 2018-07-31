@@ -23,6 +23,7 @@ import string
 from os.path import basename
 import logging
 import codecs
+import os
 try:
     from StringIO import StringIO
 except ImportError:
@@ -130,7 +131,7 @@ def sortNodes(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0, encode_binary_size=32000):
+def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_headers=False, typesArray=[], encode_binary_size=32000):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
@@ -234,12 +235,16 @@ extern UA_StatusCode %s(UA_Server *server);
         parentref = node.popParentRef(parentreftypes)
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            code = generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, parentref, encode_binary_size)
+            code_global = []
+            code = generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary_size, code_global)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
                 continue
             else:
+                if len(code_global) > 0:
+                    writec("\n".join(code_global))
+                    writec("\n")
                 writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {")
                 if isinstance(node, MethodNode):
                     writec("#ifdef UA_ENABLE_METHODCALLS")
@@ -295,10 +300,15 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         writec("retVal |= function_" + outfilebase + "_" + str(i) + "_finish(server, ns);")
 
     writec("return retVal;\n}")
+    outfileh.flush()
+    os.fsync(outfileh)
     outfileh.close()
     fullCode = outfilec.getvalue()
     outfilec.close()
 
     outfilec = codecs.open(outfilename + ".c", r"w+", encoding='utf-8')
     outfilec.write(fullCode)
+    outfilec.flush()
+    os.fsync(outfilec)
     outfilec.close()
+
