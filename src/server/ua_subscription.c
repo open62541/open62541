@@ -297,23 +297,11 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY && enl) {
             UA_assert(enl != NULL); /* Have at least one event notification */
 
-            /* TODO: The following lead to crashes when we assumed notifications to be ready... */
-            /* /\* removing an overflowEvent should not reduce the queueSize *\/ */
-            /* UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE); */
-            /* if (!(notification->data.event.fields.eventFieldsSize == 1 */
-            /*       && notification->data.event.fields.eventFields->type == &UA_TYPES[UA_TYPES_NODEID] */
-            /*       && UA_NodeId_equal((UA_NodeId *)notification->data.event.fields.eventFields->data, &overflowId))) { */
-            /*     --mon->queueSize; */
-            /*     --sub->notificationQueueSize; */
-            /* } */
-
             /* Move the content to the response */
             UA_EventFieldList *efl = &enl->events[enlPos];
             *efl = notification->data.event.fields;
             UA_EventFieldList_init(&notification->data.event.fields);
             efl->clientHandle = mon->clientHandle;
-            /* EventFilterResult currently isn't being used
-               UA_EventFilterResult_deleteMembers(&notification->data.event.result); */
             enlPos++;
         }
 #endif
