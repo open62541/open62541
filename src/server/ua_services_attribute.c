@@ -1101,7 +1101,10 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
             retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
 
 #ifdef UA_ENABLE_HISTORIZING
-        if(retval == UA_STATUSCODE_GOOD && server->config.historyDataService.setValue)
+        /* node is a UA_VariableNode*, but it may also point to a UA_VariableTypeNode */
+        /* UA_VariableTypeNode doesn't have the historizing attribute */
+        if(retval == UA_STATUSCODE_GOOD && node->nodeClass == UA_NODECLASS_VARIABLE &&
+                server->config.historyDataService.setValue)
             server->config.historyDataService.setValue(server,
                                                        server->config.historyDataService.context,
                                                        &session->sessionId,
