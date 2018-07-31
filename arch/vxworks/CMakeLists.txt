@@ -1,17 +1,7 @@
-SET(SOURCE_GROUP ${SOURCE_GROUP}\\vxworks)
+list(APPEND ua_architecture_sources ${CMAKE_CURRENT_SOURCE_DIR}/ua_clock.c
+                                    ${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture_functions.c)
+list(APPEND ua_architecture_headers ${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture.h)
 
-ua_add_architecture("vxworks")
-
-list (FIND UA_AMALGAMATION_ARCHITECUTRES "vxworks" _index)
-if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "vxworks")
-
-    ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_clock.c)
-    ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture_functions.c)
-
-    if("${UA_ARCHITECTURE}" STREQUAL "vxworks")
-
-        ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
-    endif()
-
-endif()
+# Bring changes back to the parent scope
+set(ua_architecture_sources ${ua_architecture_sources} PARENT_SCOPE)
+set(ua_architecture_headers ${ua_architecture_headers} PARENT_SCOPE)

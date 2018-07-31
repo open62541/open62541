@@ -4,6 +4,9 @@
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
+
+#include "ua_config.h"
+
 #ifdef UA_ARCHITECTURE_ECOS
 
 #ifndef PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_

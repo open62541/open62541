@@ -4,6 +4,8 @@
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
+#include "ua_config.h"
+
 #ifdef UA_ARCHITECTURE_WIN32
 
 #include "ua_types.h"

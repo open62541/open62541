@@ -6,6 +6,8 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
+#include "ua_config.h"
+
 #ifdef UA_ARCHITECTURE_POSIX
 
 #include "ua_types.h"

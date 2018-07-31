@@ -6,7 +6,6 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
-include(macros)
 
 #############################
 # Compiled binaries folders #
@@ -50,78 +49,6 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
 endif()
 
-
-option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
-set(UA_AMALGAMATION_ARCHITECTURES "" CACHE STRING "List of architectures to include in amalgamation")
-mark_as_advanced(UA_AMALGAMATION_ARCHITECTURES)
-
-# Platform. This is at the beginning in case the architecture changes some UA options
-set(UA_ARCHITECTURE "None" CACHE STRING "Architecture to build open62541 on")
-
-if(UA_ENABLE_AMALGAMATION)
-    if(NOT "${UA_ARCHITECTURE}" STREQUAL "None")
-        set(UA_AMALGAMATION_ARCHITECTURES "${UA_ARCHITECTURE}")
-    else()
-        if("${UA_AMALGAMATION_ARCHITECTURES}" STREQUAL "")
-            # select some default architectures which should be included
-            set(UA_AMALGAMATION_ARCHITECTURES "win32;posix")
-        endif()
-    endif()
-    message(STATUS "Architectures included in amalgamation: ${UA_AMALGAMATION_ARCHITECTURES}")
-endif()
-
-if("${UA_ARCHITECTURE}" STREQUAL "None")
-    if(UNIX)
-        set(UA_ARCHITECTURE "posix" CACHE STRING "" FORCE)
-    elseif(WIN32)
-        set(UA_ARCHITECTURE "win32" CACHE STRING ""  FORCE)
-    endif(UNIX)
-endif()
-
-message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
-string(TOUPPER ${UA_ARCHITECTURE} UA_ARCHITECTURE_UPPER)
-add_definitions(-DUA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
-
-add_subdirectory(arch)
-
-GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
-list(SORT architectures)
-set_property(CACHE UA_ARCHITECTURE PROPERTY STRINGS None ${architectures})
-
-GET_PROPERTY(ua_directories_to_include GLOBAL PROPERTY UA_INCLUDE_DIRECTORIES)
-include_directories(${ua_directories_to_include})
-
-GET_PROPERTY(ua_architecture_headers GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS)
-
-GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS_BEGINNING)
-
-GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
-
-set(ua_architecture_sources ${ua_architecture_sources}
-            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
-)
-
-set(ua_architecture_headers ${ua_architecture_headers}
-            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.h
-            ${PROJECT_SOURCE_DIR}/arch/ua_architecture_functions.h
-)
-
-
-
-if(${UA_ARCHITECTURE} STREQUAL "None")
-  message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
-endif(${UA_ARCHITECTURE} STREQUAL "None")
-
-# Create a list of ifdefs for all the architectures.
-# This is needed to enable a default architecture if none is selected through gcc compiler def.
-# Especially if someone is using the amalgamated file on Linux/Windows he should not need to define an architecture.
-set(UA_ARCHITECTURES_NODEF "1 ") #to make it easier to append later the && symbol
-foreach(arch_ ${architectures})
-    string(TOUPPER ${arch_} UA_ARCHITECTURE_UPPER_)
-    set(UA_ARCHITECTURES_NODEF "${UA_ARCHITECTURES_NODEF} && !defined(UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER_})")
-endforeach(arch_ ${architectures})
-
-# Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_HISTORIZING "Enable server to provide historical access." ON)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
@@ -132,11 +59,22 @@ option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_QUERY "Enable query support." OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
-option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
+option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
+# Encryption
+option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
+if(UA_ENABLE_ENCRYPTION)
+    # The recommended way is to install mbedtls via the OS package manager. If
+    # that is not possible, manually compile mbedTLS and set the cmake variables
+    # defined in /tools/cmake/FindMbedTLS.cmake.
+    find_package(MbedTLS REQUIRED)
+    list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+endif()
+
 # Namespace Zero
-set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
+set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING
+    "Completeness of the generated namespace zero (minimal/reduced/full)")
 SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL")
 if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
     set(UA_GENERATED_NAMESPACE_ZERO OFF)
@@ -174,7 +112,10 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
     SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
 endif()
 
-# Advanced options
+##########################
+# Advanced Build Options #
+##########################
+
 option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
 
@@ -235,6 +176,14 @@ mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
 set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
 mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
 
+# Force compilation with as C++
+option(UA_COMPILE_AS_CXX "Force compilation with a C++ compiler" OFF)
+mark_as_advanced(UA_COMPILE_AS_CXX)
+if(UA_COMPILE_AS_CXX)
+    # We need the UINT32_C define
+    add_definitions(-D__STDC_CONSTANT_MACROS)
+endif()
+
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
 mark_as_advanced(UA_DEBUG)
@@ -245,7 +194,57 @@ endif()
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 
-# Build Targets
+################
+# Architecture #
+################
+
+if(WIN32)
+    set(UA_ARCHITECTURE "WIN32" CACHE STRING "Architecture to build open62541 for")
+else()
+    set(UA_ARCHITECTURE "POSIX" CACHE STRING "Architecture to build open62541 for")
+endif()
+SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "POSIX" "WIN32" "FREERTOSLWIP" "VXWORKS" "ECOS")
+string(TOLOWER ${UA_ARCHITECTURE} UA_ARCHITECTURE_LOWER)
+
+# This list is extended with architecture and feature-specific external
+# dependencies
+list(APPEND open62541_LIBRARIES "")
+
+# The following lists are extended by the definitions in the /arch/.../CMakeLists.txt
+set(ua_architecture_headers "") # More standard definitions will be appended later on
+set(ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c)
+
+# The list of architectures that are included in the amalgamation. But only the
+# activated architecture is actually used via internal ifdefs.
+set(UA_AMALGAMATION_ARCHITECTURES "WIN32;POSIX" CACHE STRING
+    "List of architectures to include in the amalgamation")
+mark_as_advanced(UA_AMALGAMATION_ARCHITECTURES)
+
+# Ensure that the activated architecture is included in the amalgamation list
+list(FIND UA_AMALGAMATION_ARCHITECTURES "${UA_ARCHITECTURE}" _index)
+if(${_index} EQUAL -1)
+    list(APPEND UA_AMALGAMATION_ARCHITECTURES ${UA_ARCHITECTURE})
+endif()
+
+# Add the selected architectures from the /arch folder
+if(UA_ENABLE_AMALGAMATION)
+    foreach(arch_ ${UA_AMALGAMATION_ARCHITECTURES})
+        string(TOLOWER ${arch_} arch__)
+        add_subdirectory(${PROJECT_SOURCE_DIR}/arch/${arch__})
+    endforeach()
+else()
+    add_subdirectory(${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE_LOWER})
+endif()
+
+list(APPEND ua_architecture_headers ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.h
+                                    ${PROJECT_SOURCE_DIR}/arch/ua_architecture_functions.h)
+
+assign_source_group(${ua_architecture_headers} ${ua_architecture_sources})
+
+#################
+# Build Targets #
+#################
+
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
@@ -289,105 +288,23 @@ if(BUILD_SHARED_LIBS)
   endif()
 endif()
 
-######################
-# External Libraries #
-######################
-
-list(APPEND open62541_LIBRARIES "")
-
-# Force compilation with as C++
-option(UA_COMPILE_AS_CXX "Force compilation with a C++ compiler" OFF)
-mark_as_advanced(UA_COMPILE_AS_CXX)
-if (UA_COMPILE_AS_CXX)
-    # We need the UINT32_C define
-    add_definitions(-D__STDC_CONSTANT_MACROS)
-endif()
-
-if(UA_ENABLE_ENCRYPTION)
-    # The recommended way is to install mbedtls via the OS package manager. If
-    # that is not possible, manually compile mbedTLS and set the cmake variables
-    # defined in /tools/cmake/FindMbedTLS.cmake.
-    find_package(MbedTLS REQUIRED)
-    list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
-endif()
-
 #####################
 # Compiler Settings #
 #####################
 
-if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
-    # Compiler
-    add_definitions(-std=c99 -pipe
-                    -Wall -Wextra -Werror -Wpedantic
-                    -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
-                    -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
-                    -Wno-unused-parameter # some methods may require unused arguments to cast to a method pointer
-                    -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls
-                    -Wformat -Wformat-security -Wformat-nonliteral
-                    -Wuninitialized -Winit-self
-                    -Wcast-qual
-                    -Wstrict-overflow
-                    -Wnested-externs
-                    -Wmultichar
-                    -Wundef
-                    -Wc++-compat)
+add_definitions(${open62541_C_FLAGS}) # Compiler
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS ${open62541_LINK_C_FLAGS}) # Linker
 
-    if(UA_ENABLE_AMALGAMATION)
-        add_definitions(-Wno-unused-function)
-    endif()
-
-    # Linker
-    set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
-
-    # Debug
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # add_definitions(-fsanitize=address)
-        # list(APPEND open62541_LIBRARIES asan)
-        # add_definitions(-fsanitize=undefined)
-        # list(APPEND open62541_LIBRARIES ubsan)
-    endif()
-
-    # Strip release builds
-    if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
-                        -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
-        if(NOT OS9)
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
-        endif()
-        if(APPLE)
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
-        else()
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
-        endif()
-        if(NOT WIN32 AND NOT CYGWIN AND NOT APPLE)
-            # these settings reduce the binary size by ~2kb
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
-        endif()
-    endif()
-endif()
-
-if(APPLE)
-    set(CMAKE_MACOSX_RPATH 1)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
-endif()
-
-if(MSVC)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX /w44996") # Compiler warnings, error on warning
-
-  if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
-    set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
-        CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
-    foreach(CompilerFlag ${CompilerFlags})
-      string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
-    endforeach()
-  endif()
+# Enable sanitizers for debug builds
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # add_definitions(-fsanitize=address)
+    # list(APPEND open62541_LIBRARIES asan)
+    # add_definitions(-fsanitize=undefined)
+    # list(APPEND open62541_LIBRARIES ubsan)
 endif()
 
 #########################
-# Generate Main Library #
+# Generate Source Files #
 #########################
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
@@ -399,34 +316,184 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
 
-if(UA_ENABLE_DISCOVERY)
-    include_directories(${PROJECT_SOURCE_DIR}/src/client)
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    endif()
+
+    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
+    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
+else()
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    endif()
+    set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
+    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
+    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
+
+    if(UA_ENABLE_METHODCALLS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
+    endif()
+
+    if(UA_ENABLE_SUBSCRIPTIONS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_subscriptions.txt)
+    endif()
+
+    if(UA_ENABLE_HISTORIZING)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_historizing.txt)
+    endif()
+
+    if(UA_ENABLE_DISCOVERY)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
+    endif()
+
+    if(UA_ENABLE_QUERY)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_query.txt)
+    endif()
+
+    if(UA_ENABLE_PUBSUB)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_pubsub.txt)
+        if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+            set(UA_FILE_NSPUBSUB --xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+        endif()
+    endif()
 endif()
+
+if(NOT EXISTS "${UA_FILE_NS0}")
+    message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+endif()
+
+set(SELECTED_TYPES_TMP "")
+foreach(f ${UA_FILE_DATATYPES})
+    set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
+endforeach()
+
+# standard-defined data types
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
+                           --type-csv=${UA_FILE_NODEIDS}
+                           ${SELECTED_TYPES_TMP}
+                           --type-bsd=${UA_FILE_TYPES_BSD}
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                           ${UA_FILE_NODEIDS}
+                           ${UA_FILE_TYPES_BSD}
+                           ${UA_FILE_DATATYPES})
+# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
+add_custom_target(open62541-generator-types DEPENDS
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h)
+
+# Transport data types
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
+                           --namespace=1
+                           --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
+                           --type-bsd=${UA_FILE_TYPES_BSD}
+                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
+                           --no-builtin
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
+                           ${UA_FILE_TYPES_BSD}
+                           ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
+
+# We need a custom target to avoid that the generator is called concurrently and
+# thus overwriting files while the other thread is compiling
+add_custom_target(open62541-generator-transport DEPENDS
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
+
+# Statuscode explanations
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
+        ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
+                ${UA_FILE_STATUSCODES})
+
+# Header containing defines for all NodeIds
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
+        ${UA_FILE_NODEIDS}  ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids NS0
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeid_header.py
+        ${UA_FILE_NODEIDS})
+
+# we need a custom target to avoid that the generator is called concurrently and
+# thus overwriting files while the other thread is compiling
+add_custom_target(open62541-generator-statuscode DEPENDS
+        ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
+
+# Generate namespace 0
+if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
+    set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
+endif()
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           --generate-ns0
+                           --internal-headers
+                           --encode-binary-size=${UA_NODESET_ENCODE_BINARY_SIZE}
+                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
+                           --xml ${UA_FILE_NS0}
+                           ${UA_FILE_NSPUBSUB}
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
+                   DEPENDS ${UA_FILE_NS0}
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
+
+# we need a custom target to avoid that the generator is called concurrently and
+# thus overwriting files while the other thread is compiling
+add_custom_target(open62541-generator-namespace DEPENDS
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
+
+# stack protector needs to be disabled for the huge ns0 file, otherwise it may
+# take many minutes to compile the file.
+if(NOT MSVC)
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+                                PROPERTIES COMPILE_FLAGS -fno-stack-protector)
+endif()
+
+#########################
+# Generate Main Library #
+#########################
 
 include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins
+                    ${PROJECT_SOURCE_DIR}/src/client
                     ${PROJECT_SOURCE_DIR}/deps
                     ${PROJECT_SOURCE_DIR}/src/pubsub
+                    ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}
                     ${PROJECT_BINARY_DIR}
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
 
-set(exported_headers ${exported_headers}
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
-                     ${ua_architecture_headers_beginning}
-                     )
-
-if(NOT "${UA_AMALGAMATION_ARCHITECTURES}" STREQUAL "")
-    foreach(arch ${UA_AMALGAMATION_ARCHITECTURES})
-        list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${arch}/ua_architecture.h)
-    endforeach()
-else()
-    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h)
-endif()
-
-list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h)
-
-set(exported_headers ${exported_headers}
+set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
@@ -524,7 +591,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_worker.c
-
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
@@ -536,8 +602,7 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_defaul
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h
-)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h)
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
@@ -545,8 +610,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
-)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
 
 if(UA_ENABLE_ENCRYPTION)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h
@@ -559,7 +623,6 @@ if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
 endif()
-
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
@@ -586,151 +649,24 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
         ${lib_sources})
 endif()
 
-#########################
-# Generate source files #
-#########################
-
-if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
-    endif()
-
-    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
-else()
-    if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
-    endif()
-    set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
-    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
-
-    if(UA_ENABLE_METHODCALLS)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
-    endif()
-
-    if(UA_ENABLE_SUBSCRIPTIONS)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_subscriptions.txt)
-    endif()
-
-    if(UA_ENABLE_HISTORIZING)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_historizing.txt)
-    endif()
-
-    if(UA_ENABLE_DISCOVERY)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
-    endif()
-
-    if(UA_ENABLE_QUERY)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_query.txt)
-    endif()
-
-    if(UA_ENABLE_PUBSUB)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_pubsub.txt)
-        if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-            set(UA_FILE_NSPUBSUB --xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
-        endif()
-    endif()
-endif()
-
-if(NOT EXISTS "${UA_FILE_NS0}")
-    message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
-endif()
-
-set(SELECTED_TYPES_TMP "")
-foreach(f ${UA_FILE_DATATYPES})
-    set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
-endforeach()
-
-# standard-defined data types
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --type-csv=${UA_FILE_NODEIDS}
-                           ${SELECTED_TYPES_TMP}
-                           --type-bsd=${UA_FILE_TYPES_BSD}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_types
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${UA_FILE_NODEIDS}
-                           ${UA_FILE_TYPES_BSD}
-                           ${UA_FILE_DATATYPES})
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-types DEPENDS
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h)
-
-# transport data types
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --namespace=1
-                           --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           --type-bsd=${UA_FILE_TYPES_BSD}
-                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
-                           --no-builtin
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${UA_FILE_TYPES_BSD}
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
-
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-transport DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
-
-# statuscode explanation
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
-        PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-                ${UA_FILE_STATUSCODES})
-
-# Header containing defines for all NodeIds
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-        PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
-        ${UA_FILE_NODEIDS}  ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids NS0
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeid_header.py
-        ${UA_FILE_NODEIDS})
-
-# we need a custom target to avoid that the generator is called concurrently and
-# thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-statuscode DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
-
 # single-file release
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
+                           ${exported_headers} ${default_plugin_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers})
+                           ${exported_headers} ${default_plugin_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                           ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                           ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources} )
+                           ${ua_architecture_headers} ${internal_headers} ${lib_sources}
+                           ${default_plugin_sources} ${ua_architecture_sources}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                           ${ua_architecture_headers} ${internal_headers} ${lib_sources}
+                           ${default_plugin_sources} ${ua_architecture_sources} )
 
 add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
 add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
@@ -738,41 +674,6 @@ add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/op
 add_dependencies(open62541-amalgamation-header open62541-generator-types)
 add_dependencies(open62541-amalgamation-source open62541-generator-types
                  open62541-generator-transport open62541-generator-statuscode)
-
-if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
-    set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
-endif()
-
-# generated namespace 0
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                           --generate-ns0
-                           --internal-headers
-                           --encode-binary-size=${UA_NODESET_ENCODE_BINARY_SIZE}
-                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
-                           --xml ${UA_FILE_NS0}
-                           ${UA_FILE_NSPUBSUB}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
-                   DEPENDS ${UA_FILE_NS0}
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
-
-# stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
-if(NOT MSVC)
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
-endif()
-
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-namespace DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
 
 #####################
 # Build the Library #
@@ -788,9 +689,11 @@ if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
 
-    # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
-    # and thus may overwrite the amalgamation result during multiprocessor compilation
-    # the header is already a dependency of open62541 target itself
+    # Make sure the open62541_amalgamation target builds before so that
+    # amalgamation is finished and it is not executed again for
+    # open62541-object. Otherwise, it may overwrite the amalgamation result
+    # during multiprocessor compilation. The header is already a dependency of
+    # open62541 target itself
     add_dependencies(open62541-object
                      open62541-amalgamation-header
                      open62541-generator-types
@@ -805,17 +708,21 @@ if(UA_ENABLE_AMALGAMATION)
     endif()
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
-    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
+    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers}
+                                        ${ua_architecture_headers} ${ua_architecture_sources})
     add_dependencies(open62541-object
                      open62541-amalgamation-header
                      open62541-generator-types
                      open62541-generator-transport
                      open62541-generator-statuscode)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE_LOWER})
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
     add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
+    target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/arch)
+    target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE_LOWER})
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
@@ -837,30 +744,12 @@ endif()
 # Export Symbols
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-if (UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
 # Generate properly versioned shared library links on Linux
 SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
-
-##################################
-#     Architectures changes      #
-##################################
-
-GET_PROPERTY(ua_architecture_add_definitions GLOBAL PROPERTY UA_ARCHITECTURE_ADD_DEFINITIONS)
-add_definitions(${ua_architecture_add_definitions})
-
-GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS)
-if (NOT "${ua_architecture_remove_definitions}" STREQUAL "")
-  string(REPLACE " " ";" ua_architecture_remove_definitions_list ${ua_architecture_remove_definitions})
-  remove_definitions(${ua_architecture_remove_definitions_list})
-endif(NOT "${ua_architecture_remove_definitions}" STREQUAL "")
-
-GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
-list(APPEND open62541_LIBRARIES ${ua_architecture_append_to_library})
-
-target_compile_definitions(open62541 PUBLIC UA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
 
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})

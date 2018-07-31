@@ -5,6 +5,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include "ua_config.h"
+
 #ifdef UA_ARCHITECTURE_VXWORKS
 
 #ifndef PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_

@@ -4,8 +4,11 @@
  *    Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-#include "ua_types.h"
+#include "ua_config.h"
 
+#ifdef UA_ARCHITECTURE_ECOS
+
+#include "ua_types.h"
 
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
   int on = 0;
@@ -35,3 +38,5 @@ int gethostname_ecos(char* name, size_t len){
   strcpy(name, UA_ECOS_HOSTNAME);
   return 0;
 }
+
+#endif /* UA_ARCHITECTURE_ECOS */
