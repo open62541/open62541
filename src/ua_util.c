@@ -32,7 +32,7 @@ UA_readNumber(u8 *buf, size_t buflen, u32 *number) {
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
-                    u16 *outPort, UA_String *outPath) {
+                    UA_UInt16 *outPort, UA_String *outPath) {
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
@@ -103,7 +103,8 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str) {
+UA_StatusCode
+UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str) {
     if (str->length != 0) {
         UA_free(str->data);
         str->data = NULL;
