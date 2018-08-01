@@ -15,6 +15,19 @@ static UA_Server *server = NULL;
 static UA_ServerConfig *config = NULL;
 static UA_Session *session = NULL;
 
+UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
+
+static void
+monitoredRegisterCallback(UA_Server *s,
+                          const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *nodeId, void *nodeContext,
+                          const UA_UInt32 attrId, const UA_Boolean removed) {
+    if(!removed)
+        monitored++;
+    else
+        monitored--;
+}
+
 static void
 createSession(void) {
     UA_CreateSessionRequest request;
@@ -27,6 +40,7 @@ createSession(void) {
 
 static void setup(void) {
     config = UA_ServerConfig_new_default();
+    config->monitoredItemRegisterCallback = monitoredRegisterCallback;
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     createSession();
@@ -36,6 +50,8 @@ static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
+
+    ck_assert_uint_eq(monitored, 0); /* All MonitoredItems have been de-registered */
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

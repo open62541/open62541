@@ -85,6 +85,8 @@ struct UA_MonitoredItem {
     UA_Subscription *subscription;
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
+    UA_Boolean registered; /* Was the MonitoredItem registered in Userland with
+                              the callback? */
 
     /* Settings */
     UA_MonitoredItemType monitoredItemType;

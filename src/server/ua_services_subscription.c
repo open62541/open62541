@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_server_internal.h"
@@ -350,6 +351,17 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
         newMon->monitoredItemId = ++server->lastLocalMonitoredItemId;
         LIST_INSERT_HEAD(&server->localMonitoredItems, newMon, listEntry);
+    }
+
+    /* Register MonitoredItem in userland */
+    if(server->config.monitoredItemRegisterCallback) {
+        void *targetContext = NULL;
+        UA_Server_getNodeContext(server, request->itemToMonitor.nodeId, &targetContext);
+        server->config.monitoredItemRegisterCallback(server, &session->sessionId,
+                                                     session->sessionHandle,
+                                                     &request->itemToMonitor.nodeId,
+                                                     targetContext, newMon->attributeId, false);
+        newMon->registered = true;
     }
 
     /* Create the first sample */
