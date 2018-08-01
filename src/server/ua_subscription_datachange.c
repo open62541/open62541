@@ -6,6 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_server_internal.h"
@@ -79,6 +80,26 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
         UA_EventFilter_deleteMembers(&monitoredItem->filter.eventFilter);
     }
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+    /* Deregister MonitoredItem in userland */
+    if(server->config.monitoredItemRegisterCallback && monitoredItem->registered) {
+        /* Get the session context. Local MonitoredItems don't have a subscription. */
+        UA_Session *session = NULL;
+        if(monitoredItem->subscription)
+            session = monitoredItem->subscription->session;
+        if(!session)
+            session = &server->adminSession;
+
+        /* Get the node context */
+        void *targetContext = NULL;
+        UA_Server_getNodeContext(server, monitoredItem->monitoredNodeId, &targetContext);
+
+        /* Deregister */
+        server->config.monitoredItemRegisterCallback(server,
+                                                     &session->sessionId, session->sessionHandle,
+                                                     &monitoredItem->monitoredNodeId, targetContext,
+                                                     monitoredItem->attributeId, true);
+    }
 
     /* Remove the monitored item */
     if(monitoredItem->listEntry.le_prev != NULL)
