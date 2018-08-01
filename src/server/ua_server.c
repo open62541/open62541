@@ -137,8 +137,8 @@ void UA_Server_delete(UA_Server *server) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *mon, *mon_tmp;
-    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
-        LIST_REMOVE(mon, listEntry);
+    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry_store, mon_tmp) {
+        LIST_REMOVE(mon, listEntry_store);
         UA_MonitoredItem_delete(server, mon);
     }
 #endif

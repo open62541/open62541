@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
@@ -13,6 +13,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2017 (c) Mattias Bornhager
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_server_internal.h"
@@ -95,8 +96,8 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
 
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
-        LIST_REMOVE(mon, listEntry);
+    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry_store, tmp_mon) {
+        LIST_REMOVE(mon, listEntry_store);
         UA_MonitoredItem_delete(server, mon);
     }
     sub->monitoredItemsSize = 0;
@@ -114,7 +115,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId) {
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry_store) {
         if(mon->monitoredItemId == monitoredItemId)
             break;
     }
@@ -126,15 +127,26 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemId) {
     /* Find the MonitoredItem */
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry_store) {
         if(mon->monitoredItemId == monitoredItemId)
             break;
     }
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
+    /* Triggering monitored callback on the server config */
+    if (server->config.monitoredItemCallback) {
+        const UA_Node *target = UA_Nodestore_get(server, &mon->monitoredNodeId);
+        
+        // FIXME: Should the returned StatusCode be used as return value?
+        server->config.monitoredItemCallback(server, &sub->session->sessionId,
+                                             sub->session->sessionHandle, &target->nodeId,
+                                             target->context, mon->attributeId, true);
+        UA_Nodestore_release(server, target);
+    }
+    
     /* Remove the MonitoredItem */
-    LIST_REMOVE(mon, listEntry);
+    LIST_REMOVE(mon, listEntry_store);
     sub->monitoredItemsSize--;
 
     /* Remove content and delayed free */
@@ -146,7 +158,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 void
 UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon) {
     sub->monitoredItemsSize++;
-    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry_store);
 }
 
 static void

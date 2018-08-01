@@ -171,13 +171,33 @@ struct UA_ServerConfig {
     UA_UInt32 discoveryCleanupTimeout;
 #endif
 
+    /* Monitored Items Callback */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Triggered, if the the node gets (un)monitored by a subscription.
+     *
+     * @param server Allows the access to the server object
+     * @param sessionId The session id, represented as an node id
+     * @param sessionContext An optional pointer to user-defined data for the specific data source
+     * @param nodeid Id of the node in question
+     * @param nodeidContext An optional pointer to user-defined data, associated
+     *        with the node in the nodestore
+     * @param attributeId Identifies which attribute (value, data type etc.) is monitored
+     * @param removed Determines, if the monitoring on the node was removed or created.
+     * @return Returns a status code for logging. It could be used to determine,
+     *         if the subscription was successfull and might be returned to the user. */
+    UA_StatusCode(*monitoredItemCallback)(UA_Server *server,
+                                          const UA_NodeId *sessionId, void *sessionContext,
+                                          const UA_NodeId *nodeId, void *nodeContext,
+                                          const UA_UInt32 attibuteId, const UA_Boolean removed);
+#endif
+
     /* Historical Access */
 #ifdef UA_ENABLE_HISTORIZING
     UA_HistoryDataService historyDataService;
     
     UA_Boolean accessHistoryDataCapability;
     UA_UInt32  maxReturnDataValues; /* 0 -> unlimited size */
-    
+
     UA_Boolean accessHistoryEventsCapability;
     UA_UInt32  maxReturnEventValues; /* 0 -> unlimited size */
 
@@ -187,10 +207,10 @@ struct UA_ServerConfig {
 
     UA_Boolean replaceDataCapability;
     UA_Boolean replaceEventCapability;
-    
+
     UA_Boolean updateDataCapability;
     UA_Boolean updateEventCapability;
-    
+
     UA_Boolean deleteRawCapability;
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;

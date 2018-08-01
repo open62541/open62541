@@ -8,6 +8,7 @@
  *    Copyright 2015-2016 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #ifndef UA_SERVER_H_
@@ -689,13 +690,14 @@ typedef struct {
      * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
      * memory being cleaned up. Don't forget to also set `value->hasValue` to
      * true to indicate the presence of a value.
-     * 
+     *
      * @param server The server executing the callback
-     * @param sessionId The identifier of the session
+     * @param sessionId The session id, represented as an node id
      * @param sessionContext Additional data attached to the session in the
      *        access control layer
      * @param nodeId The identifier of the node being read from
-     * @param nodeContext Additional data attached to the node by the user
+     * @param nodeContext An optional pointer to user-defined data, associated
+     *        with the node, stored in the nodestore
      * @param includeSourceTimeStamp If true, then the datasource is expected to
      *        set the source timestamp in the returned value
      * @param range If not null, then the datasource shall return only a
@@ -716,13 +718,14 @@ typedef struct {
 
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
-     * 
+     *
      * @param server The server executing the callback
-     * @param sessionId The identifier of the session
+     * @param sessionId The session id, represented as an node id
      * @param sessionContext Additional data attached to the session in the
      *        access control layer
      * @param nodeId The identifier of the node being written to
-     * @param nodeContext Additional data attached to the node by the user
+     * @param nodeContext An optional pointer to user-defined data, associated
+     *        with the node, stored in the nodestore
      * @param range If not NULL, then the datasource shall return only a
      *        selection of the (nonscalar) data. Set
      *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not

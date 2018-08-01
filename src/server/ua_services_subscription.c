@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Florian Palm
@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
 #include "ua_server_internal.h"
@@ -349,7 +350,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         localMon->context = cmc->context;
         localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
         newMon->monitoredItemId = ++server->lastLocalMonitoredItemId;
-        LIST_INSERT_HEAD(&server->localMonitoredItems, newMon, listEntry);
+        LIST_INSERT_HEAD(&server->localMonitoredItems, newMon, listEntry_store);
     }
 
     /* Create the first sample */
@@ -360,6 +361,18 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     result->revisedSamplingInterval = newMon->samplingInterval;
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->monitoredItemId;
+    
+    /* Triggering monitored callback on the server config */
+    if (server->config.monitoredItemCallback) {
+        const UA_Node *target = UA_Nodestore_get(server, &request->itemToMonitor.nodeId);
+        
+        // FIXME: Should the returned StatusCode be used as return value?
+        server->config.monitoredItemCallback(server, &session->sessionId,
+                                             session->sessionHandle, &target->nodeId,
+                                             target->context, newMon->attributeId, false);
+        UA_Nodestore_release(server, target);
+    }
+
 }
 
 void
@@ -763,10 +776,10 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &server->localMonitoredItems, listEntry) {
+    LIST_FOREACH(mon, &server->localMonitoredItems, listEntry_store) {
         if(mon->monitoredItemId != monitoredItemId)
             continue;
-        LIST_REMOVE(mon, listEntry);
+        LIST_REMOVE(mon, listEntry_store);
         UA_MonitoredItem_delete(server, mon);
         return UA_STATUSCODE_GOOD;
     }

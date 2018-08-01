@@ -81,8 +81,8 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
     /* Remove the monitored item */
-    if(monitoredItem->listEntry.le_prev != NULL)
-        LIST_REMOVE(monitoredItem, listEntry);
+    if(monitoredItem->listEntry_store.le_prev != NULL)
+        LIST_REMOVE(monitoredItem, listEntry_store);
     UA_String_deleteMembers(&monitoredItem->indexRange);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     UA_Variant_deleteMembers(&monitoredItem->lastValue);

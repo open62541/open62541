@@ -81,7 +81,7 @@ void UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
 struct UA_MonitoredItem {
-    LIST_ENTRY(UA_MonitoredItem) listEntry;
+    LIST_ENTRY(UA_MonitoredItem) listEntry_store;
     UA_Subscription *subscription;
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
