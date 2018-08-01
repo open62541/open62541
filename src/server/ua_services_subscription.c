@@ -412,7 +412,7 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
 
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
-    Operation_CreateMonitoredItem(server, &adminSession, &cmc, &item, &result);
+    Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
     return result;
 }
 

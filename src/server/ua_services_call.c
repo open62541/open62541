@@ -164,7 +164,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Verify access rights */
     UA_Boolean executable = method->executable;
-    if(session != &adminSession)
+    if(session != &server->adminSession)
         executable = executable &&
             server->config.accessControl.getUserExecutableOnObject(server, 
                            &server->config.accessControl, &session->sessionId,
@@ -283,7 +283,7 @@ UA_CallMethodResult UA_EXPORT
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
-    Operation_CallMethod(server, &adminSession, NULL, request, &result);
+    Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
     return result;
 }
 

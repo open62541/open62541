@@ -294,7 +294,7 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
 static UA_Boolean
 detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataValue *value,
                             UA_ByteString *encoding) {
-    UA_Session *session = &adminSession;
+    UA_Session *session = &server->adminSession;
     UA_UInt32 subscriptionId = 0;
     UA_Subscription *sub = mon->subscription;
     if(sub) {
@@ -484,7 +484,7 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
 
 void
 UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
-    UA_Session *session = &adminSession;
+    UA_Session *session = &server->adminSession;
     UA_UInt32 subscriptionId = 0;
     UA_Subscription *sub = monitoredItem->subscription;
     if(sub) {

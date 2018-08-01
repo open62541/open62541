@@ -27,7 +27,7 @@ addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
     item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     item.nodeAttributes.content.decoded.data = attributes;
     item.nodeAttributes.content.decoded.type = attributesType;
-    return AddNode_raw(server, &adminSession, NULL, &item, NULL);
+    return AddNode_raw(server, &server->adminSession, NULL, &item, NULL);
 }
 
 static UA_StatusCode
@@ -39,7 +39,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     UA_StatusCode retval = UA_Server_addReference(server, sourceId, refTypeId, targetId, UA_FALSE);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
-    return AddNode_finish(server, &adminSession, &sourceId);
+    return AddNode_finish(server, &server->adminSession, &sourceId);
 }
 
 static UA_StatusCode

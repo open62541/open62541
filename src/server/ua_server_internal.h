@@ -114,6 +114,9 @@ struct UA_Server {
     /* Security */
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
+    UA_Session adminSession; /* Local access to the services (for startup and
+                              * maintenance) uses this Session with all possible
+                              * access rights (Session Id: 1) */
 
 #ifdef UA_ENABLE_DISCOVERY
     /* Discovery */

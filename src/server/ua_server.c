@@ -202,6 +202,9 @@ void UA_Server_delete(UA_Server *server) {
 
 #endif
 
+    /* Clean up the Admin Session */
+    UA_Session_deleteMembersCleanup(&server->adminSession, server);
+
 #ifdef UA_ENABLE_MULTITHREADING
     /* Process new delayed callbacks from the cleanup */
     UA_Server_cleanupDispatchQueue(server);
@@ -277,6 +280,12 @@ UA_Server_new(const UA_ServerConfig *config) {
 #ifdef UA_ENABLE_MULTITHREADING
     SIMPLEQ_INIT(&server->dispatchQueue);
 #endif
+
+    /* Initialize the adminSession */
+    UA_Session_init(&server->adminSession);
+    server->adminSession.sessionId.identifierType = UA_NODEIDTYPE_GUID;
+    server->adminSession.sessionId.identifier.guid.data1 = 1;
+    server->adminSession.validTill = UA_INT64_MAX;
 
     /* Create Namespaces 0 and 1 */
     server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
