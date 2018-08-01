@@ -9,6 +9,7 @@
 #include <check.h>
 
 #include "ua_server.h"
+#include "ua_server_internal.h"
 #include "ua_config_default.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
@@ -97,7 +98,7 @@ START_TEST(readSpeed) {
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], 0, NULL);
 
         UA_MessageContext_begin(&mc, &testChannel, 0, UA_MESSAGETYPE_MSG);
-        retval |= Service_Read(server, &adminSession, &mc, &rq, &rh);
+        retval |= Service_Read(server, &server->adminSession, &mc, &rq, &rh);
         UA_MessageContext_finish(&mc);
 
         UA_ReadRequest_deleteMembers(&rq);

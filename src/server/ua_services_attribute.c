@@ -29,7 +29,7 @@
 static UA_UInt32
 getUserWriteMask(UA_Server *server, const UA_Session *session,
                  const UA_Node *node) {
-    if(session == &adminSession)
+    if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
     return node->writeMask &
         server->config.accessControl.getUserRightsMask(server, &server->config.accessControl,
@@ -40,7 +40,7 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
 static UA_Byte
 getAccessLevel(UA_Server *server, const UA_Session *session,
                const UA_VariableNode *node) {
-    if(session == &adminSession)
+    if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
     return node->accessLevel;
 }
@@ -48,7 +48,7 @@ getAccessLevel(UA_Server *server, const UA_Session *session,
 static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
-    if(session == &adminSession)
+    if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
     return node->accessLevel &
         server->config.accessControl.getUserAccessLevel(server, &server->config.accessControl,
@@ -59,7 +59,7 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
 static UA_Boolean
 getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
-    if(session == &adminSession)
+    if(session == &server->adminSession)
         return true; /* the local admin user has all rights */
     return node->executable &
         server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
@@ -480,7 +480,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
 UA_DataValue
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
-    return UA_Server_readWithSession(server, &adminSession, item, timestamps);
+    return UA_Server_readWithSession(server, &server->adminSession, item, timestamps);
 }
 
 /* Used in inline functions exposing the Read service with more syntactic sugar
@@ -1391,7 +1391,7 @@ UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
-    return UA_Server_editNode(server, &adminSession, &value->nodeId,
+    return UA_Server_editNode(server, &server->adminSession, &value->nodeId,
                               (UA_EditNodeCallback)copyAttributeIntoNode,
                               /* casting away const qualifier because callback uses const anyway */
                               (UA_WriteValue *)(uintptr_t)value);

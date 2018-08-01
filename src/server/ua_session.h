@@ -63,10 +63,6 @@ typedef struct {
 #endif
 } UA_Session;
 
-/* Local access to the services (for startup and maintenance) uses this Session
- * with all possible access rights (Session Id: 1) */
-extern UA_Session adminSession;
-
 /**
  * Session Lifecycle
  * ----------------- */
