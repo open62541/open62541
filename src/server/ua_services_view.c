@@ -311,6 +311,12 @@ void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing BrowseRequest");
 
+    if(server->config.maxNodesPerBrowse != 0 &&
+       request->nodesToBrowseSize > server->config.maxNodesPerBrowse) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+	
     /* No views supported at the moment */
     if(!UA_NodeId_isNull(&request->view.viewId)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
