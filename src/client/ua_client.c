@@ -23,8 +23,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_util.h"
-#include "ua_securitypolicy_none.h"
-#include "ua_securitypolicy_basic128rsa15.h"
+#include "ua_securitypolicies.h"
 #include "ua_pki_certificate.h"
 
 #define STATUS_CODE_BAD_POINTER 0x01

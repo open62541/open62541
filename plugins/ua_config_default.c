@@ -18,13 +18,7 @@
 #include "ua_accesscontrol_default.h"
 #include "ua_pki_certificate.h"
 #include "ua_nodestore_default.h"
-#include "ua_securitypolicy_none.h"
-
-#ifdef UA_ENABLE_ENCRYPTION
-#include "ua_securitypolicy_basic128rsa15.h"
-#include "ua_securitypolicy_basic256sha256.h"
-#endif
-
+#include "ua_securitypolicies.h"
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is

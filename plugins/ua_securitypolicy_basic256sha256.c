@@ -17,10 +17,9 @@
 #include <mbedtls/version.h>
 #include <mbedtls/sha1.h>
 
-#include "ua_plugin_pki.h"
-#include "ua_plugin_securitypolicy.h"
-#include "ua_securitypolicy_basic256sha256.h"
 #include "ua_types.h"
+#include "ua_plugin_pki.h"
+#include "ua_securitypolicies.h"
 #include "ua_types_generated_handling.h"
 
 /* Notes:
