@@ -126,17 +126,14 @@ UA_debug_dump_setName_withoutChannel(UA_Server *server, UA_Connection *connectio
  *
  * message is the decoded message starting at the nodeid of the content type.
  */
-static UA_StatusCode
+static void
 UA_debug_dump_setName_withChannel(void *application, UA_SecureChannel *channel,
-                            UA_MessageType messagetype, UA_UInt32 requestId,
-                            const UA_ByteString *message) {
+                                  UA_MessageType messagetype, UA_UInt32 requestId,
+                                  const UA_ByteString *message) {
     struct UA_dump_filename *dump_filename = (struct UA_dump_filename *)application;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     dump_filename->messageType = UA_debug_dumpGetMessageTypePrefix(messagetype);
-    if (messagetype == UA_MESSAGETYPE_MSG) {
+    if(messagetype == UA_MESSAGETYPE_MSG)
         UA_debug_dumpSetServiceName(message, dump_filename->serviceName);
-    }
-    return retval;
 }
 
 /**
@@ -156,14 +153,14 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     if(!connection->channel) {
         UA_debug_dump_setName_withoutChannel(server, connection, messageBuffer, &dump_filename);
     } else {
-        // make a backup of the sequence number and reset it, because processChunk increases it
-        UA_UInt32 seqBackup = connection->channel->receiveSequenceNumber;
+        UA_SecureChannel dummy = *connection->channel;
+        TAILQ_INIT(&dummy.messages);
         UA_ByteString messageBufferCopy;
         UA_ByteString_copy(messageBuffer, &messageBufferCopy);
-        UA_SecureChannel_processChunk(connection->channel, &messageBufferCopy,
-                                      UA_debug_dump_setName_withChannel, &dump_filename);
+        UA_SecureChannel_decryptAddChunk(&dummy, &messageBufferCopy);
+        UA_SecureChannel_processCompleteMessages(&dummy, &dump_filename, UA_debug_dump_setName_withChannel);
+        UA_SecureChannel_deleteMessages(&dummy);
         UA_ByteString_deleteMembers(&messageBufferCopy);
-        connection->channel->receiveSequenceNumber = seqBackup;
     }
 
     char fileName[250];
@@ -186,5 +183,3 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
     fclose(write_ptr);
 }
-
-

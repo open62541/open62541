@@ -44,23 +44,33 @@ typedef struct UA_SessionHeader {
 } UA_SessionHeader;
 
 /* For chunked requests */
-struct ChunkPayload {
-    SIMPLEQ_ENTRY(ChunkPayload) pointers;
+typedef struct UA_ChunkPayload {
+    SIMPLEQ_ENTRY(UA_ChunkPayload) pointers;
     UA_ByteString bytes;
-};
+    UA_Boolean copied; /* Do the bytes point to a buffer from the network or was
+                          memory allocated for the chunk separately */
+} UA_ChunkPayload;
 
-struct MessageEntry {
-    LIST_ENTRY(MessageEntry) pointers;
+/* Receieved messages. Process them only in order. The Chunk payload has all
+ * headers and the padding stripped out. The payload begins at the
+ * ExtensionObject prefix.*/
+typedef struct UA_Message {
+    TAILQ_ENTRY(UA_Message) pointers;
     UA_UInt32 requestId;
-    SIMPLEQ_HEAD(chunkpayload_pointerlist, ChunkPayload) chunkPayload;
-    size_t chunkPayloadSize;
-};
+    UA_MessageType messageType;
+    SIMPLEQ_HEAD(pp, UA_ChunkPayload) chunkPayloads;
+    size_t chunkPayloadsSize; /* No of chunks received so far */
+    size_t messageSize; /* Total length of the chunks received so far */
+    UA_Boolean final; /* All chunks for the message have been received */
+} UA_Message;
 
 typedef enum {
     UA_SECURECHANNELSTATE_FRESH,
     UA_SECURECHANNELSTATE_OPEN,
     UA_SECURECHANNELSTATE_CLOSED
 } UA_SecureChannelState;
+
+typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
 
 struct UA_SecureChannel {
     UA_SecureChannelState   state;
@@ -84,14 +94,18 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    LIST_HEAD(session_pointerlist, UA_SessionHeader) sessions;
-    LIST_HEAD(chunk_pointerlist, MessageEntry) chunks;
+    LIST_HEAD(, UA_SessionHeader) sessions;
+    UA_MessageQueue messages;
 };
 
 UA_StatusCode
 UA_SecureChannel_init(UA_SecureChannel *channel,
                       const UA_SecurityPolicy *securityPolicy,
                       const UA_ByteString *remoteCertificate);
+
+/* Remove (partially) received unprocessed messages */
+void UA_SecureChannel_deleteMessages(UA_SecureChannel *channel);
+
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 /* Generates new keys and sets them in the channel context */
@@ -166,31 +180,39 @@ void
 UA_MessageContext_abort(UA_MessageContext *mc);
 
 /**
- * Process Received Chunks
- * ----------------------- */
+ * Receive Message
+ * --------------- */
 
-typedef UA_StatusCode
+/* Decrypt a chunk and add it to the message. Create a new message if necessary. */
+UA_StatusCode
+UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk);
+
+/* The network buffer is about to be cleared. Copy all chunks that point into
+ * the network buffer into dedicated memory. */
+UA_StatusCode
+UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel);
+
+typedef void
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
                             UA_MessageType messageType, UA_UInt32 requestId,
                             const UA_ByteString *message);
 
-/* Process a single chunk. This also decrypts the chunk if required. The
- * callback function is called with the complete message body if the message is
- * complete.
+/* Process received complete messages in-order. The callback function is called
+ * with the complete message body if the message is complete. The message is
+ * removed afterwards.
  *
  * Symmetric callback is ERR, MSG, CLO only
  * Asymmetric callback is OPN only
  *
  * @param channel the channel the chunks were received on.
- * @param chunks the memory region where the chunks are stored.
+ * @param application data pointer to application specific data that gets passed
+ *                    on to the callback function.
  * @param callback the callback function that gets called with the complete
  *                 message body, once a final chunk is processed.
- * @param application data pointer to application specific data that gets passed
- *                    on to the callback function. */
+ * @return Returns if an irrecoverable error occured. Maybe close the channel. */
 UA_StatusCode
-UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
-                              UA_ProcessMessageCallback callback,
-                              void *application);
+UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *application,
+                                         UA_ProcessMessageCallback callback);
 
 /**
  * Log Helper

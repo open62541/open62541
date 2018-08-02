@@ -152,15 +152,17 @@ sendHELMessage(UA_Client *client) {
     return client->connectStatus;
 }
 
-static UA_StatusCode
+static void
 processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
                                 UA_MessageType messageType,
                                 UA_UInt32 requestId,
                                 const UA_ByteString *message) {
     /* Does the request id match? */
     UA_Client *client = (UA_Client*)application;
-    if (requestId != client->requestId)
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    if(requestId != client->requestId) {
+        UA_Client_disconnect(client);
+        return;
+    }
 
     /* Is the content of the expected type? */
     size_t offset = 0;
@@ -169,11 +171,14 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
             0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
     UA_StatusCode retval = UA_NodeId_decodeBinary(message, &offset,
                                                   &responseId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_disconnect(client);
+        return;
+    }
     if(!UA_NodeId_equal(&responseId, &expectedId)) {
         UA_NodeId_deleteMembers(&responseId);
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        UA_Client_disconnect(client);
+        return;
     }
     UA_NodeId_deleteMembers (&responseId);
 
@@ -181,8 +186,10 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
     UA_OpenSecureChannelResponse response;
     retval = UA_OpenSecureChannelResponse_decodeBinary(message, &offset,
                                                        &response);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_disconnect(client);
+        return;
+    }
 
     /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
      * DateTime=Int64 we take 75% of lifetime to start renewing as described in
@@ -198,29 +205,37 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
     client->channel.remoteNonce = response.serverNonce;
     UA_ResponseHeader_deleteMembers(&response.responseHeader); /* the other members were moved */
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "SecureChannel renewed");
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel renewed");
     else
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "SecureChannel opened");
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened");
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
-    return UA_STATUSCODE_GOOD;
+
+    if(client->state < UA_CLIENTSTATE_SECURECHANNEL)
+        setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 }
 
-static UA_StatusCode processOPNResponse
-    (void *application, UA_Connection *connection,
-                    UA_ByteString *chunk) {
+static UA_StatusCode
+processOPNResponse(void *application, UA_Connection *connection,
+                   UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*) application;
-    UA_StatusCode retval = UA_SecureChannel_processChunk (
-            &client->channel, chunk, processDecodedOPNResponseAsync, client);
+    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk);
     client->connectStatus = retval;
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_disconnect(client);
         return retval;
     }
-    setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
+    UA_SecureChannel_processCompleteMessages(&client->channel, client, processDecodedOPNResponseAsync);
+    
+    if(client->state < UA_CLIENTSTATE_SECURECHANNEL)
+        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
+
+    retval |= UA_SecureChannel_persistIncompleteMessages(&client->channel);
     retval |= UA_SecureChannel_generateNewKeys(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_disconnect(client);
         return retval;
+    }
+
     /* Following requests and responses */
     UA_UInt32 reqId;
     if(client->endpointsHandshake)
@@ -228,9 +243,9 @@ static UA_StatusCode processOPNResponse
     else
         retval = requestSession (client, &reqId);
 
-    client->connectStatus = retval;
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_Client_disconnect(client);
     return retval;
-
 }
 
 /* OPN messges to renew the channel are sent asynchronous */

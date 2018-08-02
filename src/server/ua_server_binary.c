@@ -601,7 +601,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. */
-static UA_StatusCode
+static void
 processSecureChannelMessage(void *application, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             const UA_ByteString *message) {
@@ -626,7 +626,12 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
         break;
     }
-    return retval;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                            "Processing the message failed with StatusCode %s."
+                            "Closing the channel", UA_StatusCode_name(retval));
+        Service_CloseSecureChannel(server, channel);
+    }
 }
 
 static UA_StatusCode
@@ -709,11 +714,12 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        retval = UA_SecureChannel_processChunk(connection->channel, message,
-                                               processSecureChannelMessage,
-                                               server);
+        retval = UA_SecureChannel_decryptAddChunk(connection->channel, message);
         if(retval != UA_STATUSCODE_GOOD)
             break;
+
+        UA_SecureChannel_processCompleteMessages(connection->channel, server,
+                                                 processSecureChannelMessage);
         break;
     }
     default:
@@ -727,23 +733,20 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
 }
 
 static UA_StatusCode
-processCompleteChunk(void *const application,
-                     UA_Connection *const connection,
-                     UA_ByteString *const chunk) {
-    UA_Server *const server = (UA_Server*)application;
+processCompleteChunk(void *const application, UA_Connection *connection,
+                     UA_ByteString *chunk) {
+    UA_Server *server = (UA_Server*)application;
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
     UA_debug_dumpCompleteChunk(server, connection, chunk);
 #endif
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
-    return UA_SecureChannel_processChunk(connection->channel, chunk,
-                                         processSecureChannelMessage,
-                                         server);
+    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk);
 }
 
-static void
-processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                     UA_ByteString *message) {
+void
+UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                               UA_ByteString *message) {
     UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | Received a packet.", connection->sockfd);
 #ifdef UA_DEBUG_DUMP_PKGS
@@ -762,48 +765,21 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
         error.reason = UA_STRING_NULL;
         UA_Connection_sendError(connection, &error);
         connection->close(connection);
-    }
-}
-
-#ifndef UA_ENABLE_MULTITHREADING
-
-void
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message) {
-    processBinaryMessage(server, connection, message);
-}
-
-#else
-
-typedef struct {
-    UA_Connection *connection;
-    UA_ByteString message;
-} ConnectionMessage;
-
-static void
-workerProcessBinaryMessage(UA_Server *server, ConnectionMessage *cm) {
-    processBinaryMessage(server, cm->connection, &cm->message);
-    UA_free(cm);
-}
-
-void
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message) {
-    /* Allocate the memory for the callback data */
-    ConnectionMessage *cm = (ConnectionMessage*)UA_malloc(sizeof(ConnectionMessage));
-
-    /* If malloc failed, execute immediately */
-    if(!cm) {
-        processBinaryMessage(server, connection, message);
         return;
     }
 
-    /* Dispatch to the workers */
-    cm->connection = connection;
-    cm->message = *message;
-    UA_Server_workerCallback(server, (UA_ServerCallback)workerProcessBinaryMessage, cm);
+    if(!connection->channel)
+        return;
+
+    /* Process complete messages */
+    UA_SecureChannel_processCompleteMessages(connection->channel, server,
+                                             processSecureChannelMessage);
+
+    /* Store unused chunks internally in the SecureChannel */
+    UA_SecureChannel_persistIncompleteMessages(connection->channel);
 }
 
+#ifdef UA_ENABLE_MULTITHREADING
 static void
 deleteConnectionTrampoline(UA_Server *server, void *data) {
     UA_Connection *connection = (UA_Connection*)data;
