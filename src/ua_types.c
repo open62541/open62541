@@ -259,27 +259,9 @@ NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
 
 UA_Boolean
 UA_NodeId_isNull(const UA_NodeId *p) {
-    if(p->namespaceIndex != 0)
-        return false;
-    switch(p->identifierType) {
-    case UA_NODEIDTYPE_NUMERIC:
-        return (p->identifier.numeric == 0);
-    case UA_NODEIDTYPE_GUID:
-        return (p->identifier.guid.data1 == 0 &&
-                p->identifier.guid.data2 == 0 &&
-                p->identifier.guid.data3 == 0 &&
-                p->identifier.guid.data4[0] == 0 &&
-                p->identifier.guid.data4[1] == 0 &&
-                p->identifier.guid.data4[2] == 0 &&
-                p->identifier.guid.data4[3] == 0 &&
-                p->identifier.guid.data4[4] == 0 &&
-                p->identifier.guid.data4[5] == 0 &&
-                p->identifier.guid.data4[6] == 0 &&
-                p->identifier.guid.data4[7] == 0);
-    default:
-        break;
-    }
-    return (p->identifier.string.length == 0);
+    return p->namespaceIndex == 0 &&
+        p->identifierType == UA_NODEIDTYPE_NUMERIC &&
+        p->identifier.numeric == 0;
 }
 
 UA_Boolean
