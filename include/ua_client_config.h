@@ -14,6 +14,9 @@
 
 _UA_BEGIN_DECLS
 
+struct UA_Client;
+typedef struct UA_Client UA_Client;
+
 /**
  * .. _client-config:
  *
@@ -45,34 +48,7 @@ typedef enum {
     UA_CLIENTSTATE_SESSION_RENEWED       /* A session with the server is open (renewed) */
 } UA_ClientState;
 
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-        UA_UInt32 requestId, void *response);
-
-/**
- * Repeated Callbacks
- * ^^^^^^^^^^^^^^^^^^ */
-
-typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
-
-UA_StatusCode
-UA_Client_addRepeatedCallback(UA_Client *Client, UA_ClientCallback callback,
-        void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
-
-UA_StatusCode
-UA_Client_changeRepeatedCallbackInterval(UA_Client *Client,
-        UA_UInt64 callbackId, UA_UInt32 interval);
-
-UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *Client,
-        UA_UInt64 callbackId);
-
-/**
- * Client Configuration Data
- * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
-
-typedef struct UA_ClientConfig {
+typedef struct {
     UA_UInt32 timeout;               /* ASync + Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
@@ -82,7 +58,7 @@ typedef struct UA_ClientConfig {
     /* Callbacks for async connection handshakes */
     UA_ConnectClientConnection connectionFunc;
     UA_ConnectClientConnection initConnectionFunc;
-    UA_ClientCallback pollConnectionFunc;
+    void (*pollConnectionFunc)(UA_Client *client, void *context);
 
     /* Custom DataTypes */
     size_t customDataTypesSize;
