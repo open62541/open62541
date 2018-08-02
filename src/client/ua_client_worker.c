@@ -164,8 +164,8 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
     if(client->state >= UA_CLIENTSTATE_SESSION && retvalPublish != UA_STATUSCODE_GOOD)
         return retvalPublish;
 #endif
-    if(timeout){
-        retval = UA_Client_manuallyRenewSecureChannel(client);
+    if(timeout) {
+        retval = openSecureChannel(client, true);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
