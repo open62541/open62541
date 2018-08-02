@@ -184,7 +184,7 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
         (client->channel.securityToken.revisedLifetime * (UA_Double)UA_DATETIME_MSEC * 0.75);
 }
 
-static UA_StatusCode
+UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew) {
     /* Check if sc is still valid */
     if(renew && client->nextChannelRenewal > UA_DateTime_nowMonotonic())
@@ -685,15 +685,6 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
     client->username = UA_STRING_ALLOC(username);
     client->password = UA_STRING_ALLOC(password);
     return UA_Client_connect(client, endpointUrl);
-}
-
-UA_StatusCode
-UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
-    UA_StatusCode retval = openSecureChannel(client, true);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_Client_disconnect(client);
-
-    return retval;
 }
 
 /************************/

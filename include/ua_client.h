@@ -152,10 +152,6 @@ UA_Client_close(UA_Client *client) {
     return UA_Client_disconnect(client);
 }
 
-/* Renew the underlying secure channel */
-UA_StatusCode UA_EXPORT
-UA_Client_manuallyRenewSecureChannel(UA_Client *client);
-
 /**
  * Discovery
  * --------- */
@@ -429,14 +425,19 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
 
 /* Listen on the network and process arriving asynchronous responses in the
- * background. Internal housekeeping and subscription management is done as
- * well. */
+ * background. Internal housekeeping, renewal of SecureChannels and subscription
+ * management is done as well. */
 UA_StatusCode UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout);
 
 UA_DEPRECATED static UA_INLINE UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     return UA_Client_run_iterate(client, timeout);
+}
+
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
+    return UA_Client_run_iterate(client, 0);
 }
 
 /* Use the type versions of this method. See below. However, the general

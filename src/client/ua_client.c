@@ -289,7 +289,7 @@ static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Make sure we have a valid session */
-    UA_StatusCode retval = UA_Client_manuallyRenewSecureChannel(client);
+    UA_StatusCode retval = openSecureChannel(client, true);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
