@@ -32,8 +32,7 @@ struct UA_HistoryDataService {
      * sessionId and sessionContext identify the session which set this value.
      * nodeId is the node id for which data was set.
      * historizing is the nodes boolean flag for historizing
-     * value is the new value.
-     */
+     * value is the new value. */
     void
     (*setValue)(UA_Server *server,
                 void *hdsContext,
@@ -43,9 +42,9 @@ struct UA_HistoryDataService {
                 UA_Boolean historizing,
                 const UA_DataValue *value);
 
-    /* This function is called if a history read is requested
-     * with isRawReadModified set to false.
-     * Setting it to NULL will result in a response with statuscode UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED.
+    /* This function is called if a history read is requested with
+     * isRawReadModified set to false. Setting it to NULL will result in a
+     * response with statuscode UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED.
      *
      * server is the server this node lives in.
      * hdsContext is the context of the UA_HistoryDataService. UA_HistoryDataService.context
@@ -60,8 +59,7 @@ struct UA_HistoryDataService {
      *          Do not access historyData after that.
      * historyData is a proper typed pointer array pointing in the UA_HistoryReadResult extension object.
      *             use this to provide result data to the client.
-     *             Index in the array is the same as in nodesToRead and the UA_HistoryReadResult array.
-     */
+     *             Index in the array is the same as in nodesToRead and the UA_HistoryReadResult array. */
     void
     (*readRaw)(UA_Server *server,
                void *hdsContext,
@@ -76,8 +74,8 @@ struct UA_HistoryDataService {
                UA_HistoryReadResponse *response,
                UA_HistoryData * const * const historyData);
 
-    // Add more function pointer here.
-    // For example for read_event, read_modified, read_processed, read_at_time
+    /* Add more function pointer here.
+     * For example for read_event, read_modified, read_processed, read_at_time */
 };
 
 _UA_END_DECLS
