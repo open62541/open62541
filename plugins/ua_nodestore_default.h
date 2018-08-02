@@ -11,16 +11,12 @@
 
 #include "ua_plugin_nodestore.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 /* Initializes the nodestore, sets the context and function pointers */
 UA_StatusCode UA_EXPORT
 UA_Nodestore_default_new(UA_Nodestore *ns);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_NODESTORE_DEFAULT_H_ */

@@ -8,12 +8,10 @@
 #ifndef UA_PLUGIN_PKI_H_
 #define UA_PLUGIN_PKI_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_server.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * Public Key Infrastructure Integration
@@ -51,8 +49,6 @@ struct UA_CertificateVerification {
     void (*deleteMembers)(UA_CertificateVerification *cv);
 };
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_PKI_H_ */

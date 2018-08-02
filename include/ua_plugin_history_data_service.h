@@ -8,12 +8,10 @@
 #ifndef UA_PLUGIN_HISTORY_DATA_SERVICE_H_
 #define UA_PLUGIN_HISTORY_DATA_SERVICE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_server.h"
+
+_UA_BEGIN_DECLS
 
 struct UA_HistoryDataService;
 typedef struct UA_HistoryDataService UA_HistoryDataService;
@@ -82,8 +80,6 @@ struct UA_HistoryDataService {
     // For example for read_event, read_modified, read_processed, read_at_time
 };
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_HISTORY_DATA_SERVICE_H_ */

@@ -13,11 +13,9 @@
 #ifndef UA_CLIENT_HIGHLEVEL_H_
 #define UA_CLIENT_HIGHLEVEL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_client.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * .. _client-highlevel:
@@ -590,8 +588,6 @@ UA_StatusCode UA_EXPORT
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) ;
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CLIENT_HIGHLEVEL_H_ */

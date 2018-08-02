@@ -200,15 +200,11 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 #include "open62541.h"
 """)
     writeh("""
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 extern UA_StatusCode %s(UA_Server *server);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* %s_H_ */""" % \
            (outfilebase, outfilebase.upper()))

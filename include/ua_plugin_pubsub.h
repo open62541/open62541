@@ -8,11 +8,9 @@
 #ifndef UA_PLUGIN_PUBSUB_H_
 #define UA_PLUGIN_PUBSUB_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_server_pubsub.h"
+
+_UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
 
@@ -90,8 +88,6 @@ typedef struct UA_PubSubTransportLayer{
 
 #endif /* UA_ENABLE_PUBSUB */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_PUBSUB_H_ */

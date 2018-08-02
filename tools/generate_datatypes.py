@@ -483,16 +483,14 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifndef ''' + outname.upper() + '''_GENERATED_H_
 #define ''' + outname.upper() + '''_GENERATED_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
 ''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
 #else
 #include "open62541.h"
 #endif
+
+_UA_BEGIN_DECLS
 
 ''')
 
@@ -519,9 +517,9 @@ for t in filtered_types:
     i += 1
 
 printh('''
-#ifdef __cplusplus
-} // extern "C"
-#endif\n
+
+_UA_END_DECLS
+
 #endif /* %s_GENERATED_H_ */''' % outname.upper())
 
 ##################
@@ -535,11 +533,9 @@ printf('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifndef ''' + outname.upper() + '''_GENERATED_HANDLING_H_
 #define ''' + outname.upper() + '''_GENERATED_HANDLING_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "''' + outname + '''_generated.h"
+
+_UA_BEGIN_DECLS
 
 #if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
 # pragma GCC diagnostic push
@@ -557,9 +553,8 @@ printf('''
 # pragma GCC diagnostic pop
 #endif
 
-#ifdef __cplusplus
-} // extern "C"
-#endif\n
+_UA_END_DECLS
+
 #endif /* %s_GENERATED_HANDLING_H_ */''' % outname.upper())
 
 ###########################

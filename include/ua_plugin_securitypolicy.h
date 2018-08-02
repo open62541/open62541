@@ -10,19 +10,21 @@
 #ifndef UA_PLUGIN_SECURITYPOLICY_H_
 #define UA_PLUGIN_SECURITYPOLICY_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_plugin_log.h"
 #include "ua_plugin_pki.h"
 
+_UA_BEGIN_DECLS
+
 extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
 
 struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
+
+/**
+ * SecurityPolicy Interface Definition
+ * ----------------------------------- */
 
 typedef struct {
     UA_String uri;
@@ -385,8 +387,6 @@ typedef UA_StatusCode (*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,
                                                 const UA_ByteString localPrivateKey,
                                                 UA_Logger logger);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_SECURITYPOLICY_H_ */

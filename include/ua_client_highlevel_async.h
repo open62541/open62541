@@ -2,15 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
+ *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
 #ifndef UA_CLIENT_HIGHLEVEL_ASYNC_H_
 #define UA_CLIENT_HIGHLEVEL_ASYNC_H_
+
 #include "ua_client.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 /**
  * Raw Services
@@ -613,9 +614,10 @@ static UA_INLINE UA_StatusCode UA_Client_addMethodNode_async(UA_Client *client,
 
 /**
  * Misc Functionalities
- * ^^^^^^^^^^^^^^ */
+ * ^^^^^^^^^^^^^^^^^^^^ */
 
-UA_StatusCode UA_EXPORT __UA_Client_translateBrowsePathsToNodeIds_async(
+UA_StatusCode UA_EXPORT
+__UA_Client_translateBrowsePathsToNodeIds_async(
 		UA_Client *client, char *paths[], UA_UInt32 ids[], size_t pathSize,
 		UA_ClientAsyncServiceCallback callback, void *userdata,
 		UA_UInt32 *reqId);
@@ -623,6 +625,7 @@ UA_StatusCode UA_EXPORT __UA_Client_translateBrowsePathsToNodeIds_async(
 typedef void (*UA_ClientAsyncTranslateCallback)(UA_Client *client,
 		void *userdata, UA_UInt32 requestId,
 		UA_TranslateBrowsePathsToNodeIdsResponse *tr);
+
 static UA_INLINE UA_StatusCode UA_Cient_translateBrowsePathsToNodeIds_async(
 		UA_Client *client, char **paths, UA_UInt32 *ids, size_t pathSize,
 		UA_ClientAsyncTranslateCallback callback, void *userdata,
@@ -631,8 +634,6 @@ static UA_INLINE UA_StatusCode UA_Cient_translateBrowsePathsToNodeIds_async(
 			pathSize, (UA_ClientAsyncServiceCallback) callback, userdata, reqId);
 }
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CLIENT_HIGHLEVEL_ASYNC_H_ */

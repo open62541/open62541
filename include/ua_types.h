@@ -16,13 +16,11 @@
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_config.h"
 #include "ua_constants.h"
 #include "ua_statuscodes.h"
+
+_UA_BEGIN_DECLS
 
 #define UA_BUILTIN_TYPES_COUNT 25U
 
@@ -942,8 +940,6 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  *
  *    types_generated */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_TYPES_H_ */

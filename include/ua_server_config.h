@@ -11,10 +11,6 @@
 #ifndef UA_SERVER_CONFIG_H_
 #define UA_SERVER_CONFIG_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_server.h"
 #include "ua_plugin_log.h"
 #include "ua_plugin_network.h"
@@ -30,6 +26,8 @@ extern "C" {
 #ifdef UA_ENABLE_HISTORIZING
 #include "ua_plugin_history_data_service.h"
 #endif
+
+_UA_BEGIN_DECLS
 
 /**
  * .. _server-configuration:
@@ -215,8 +213,6 @@ struct UA_ServerConfig {
 #endif
 };
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SERVER_CONFIG_H_ */

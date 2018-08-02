@@ -9,9 +9,7 @@
 
 #include "ua_plugin_pki.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 /* Default implementation that accepts all certificates */
 UA_EXPORT void
@@ -30,8 +28,6 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
 
 #endif
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PKI_CERTIFICATE_H_ */

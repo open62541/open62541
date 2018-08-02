@@ -9,16 +9,13 @@
 #ifndef UA_PLUGIN_LOG_H_
 #define UA_PLUGIN_LOG_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdarg.h>
 #include "ua_config.h"
-
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
 #include "base64.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * Logging Plugin API
@@ -111,9 +108,6 @@ UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_LOG_H_ */

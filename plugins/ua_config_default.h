@@ -9,13 +9,11 @@
 #ifndef UA_CONFIG_DEFAULT_H_
 #define UA_CONFIG_DEFAULT_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_server.h"
 #include "ua_server_config.h"
 #include "ua_client.h"
+
+_UA_BEGIN_DECLS
 
 /**********************/
 /* Default Connection */
@@ -117,8 +115,6 @@ UA_ServerConfig_delete(UA_ServerConfig *config);
 
 extern const UA_EXPORT UA_ClientConfig UA_ClientConfig_default;
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CONFIG_DEFAULT_H_ */
