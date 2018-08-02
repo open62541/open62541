@@ -38,18 +38,23 @@ UA_StatusCode sendAsym_sendFailure;
 UA_StatusCode processSym_seqNumberFailure;
 #endif
 
-UA_StatusCode
-UA_SecureChannel_init(UA_SecureChannel *channel,
-                      const UA_SecurityPolicy *securityPolicy,
-                      const UA_ByteString *remoteCertificate) {
-    if(channel == NULL || securityPolicy == NULL || remoteCertificate == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
+void
+UA_SecureChannel_init(UA_SecureChannel *channel) {
     /* Linked lists are also initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->state = UA_SECURECHANNELSTATE_FRESH;
-    channel->securityPolicy = securityPolicy;
+    TAILQ_INIT(&channel->messages);
+}
 
+UA_StatusCode
+UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
+                                   const UA_SecurityPolicy *securityPolicy,
+                                   const UA_ByteString *remoteCertificate) {
+    /* Is a policy already configured? */
+    if(channel->securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    
+    channel->securityPolicy = securityPolicy;
     UA_StatusCode retval;
     if(channel->securityPolicy->certificateVerification != NULL) {
         retval = channel->securityPolicy->certificateVerification->

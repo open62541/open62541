@@ -121,8 +121,10 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
 
     /* Create the channel context and parse the sender (remote) certificate used for the
      * secureChannel. */
-    UA_StatusCode retval = UA_SecureChannel_init(&entry->channel, securityPolicy,
-                                                 &asymHeader->senderCertificate);
+    UA_SecureChannel_init(&entry->channel);
+    UA_StatusCode retval =
+        UA_SecureChannel_setSecurityPolicy(&entry->channel, securityPolicy,
+                                           &asymHeader->senderCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(entry);
         return retval;
