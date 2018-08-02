@@ -24,7 +24,6 @@
 #include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
-#include "ua_securitypolicy_none.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 // store the authentication token and session ID so we can help fuzzing by setting

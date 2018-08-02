@@ -4,19 +4,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "check.h"
 
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_server_internal.h"
 #include "ua_client.h"
 #include "client/ua_client_internal.h"
-#include "ua_securitypolicy_basic128rsa15.h"
+#include "ua_securitypolicies.h"
 #include "ua_config_default.h"
 #include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
-#include "check.h"
 #include "thread_wrapper.h"
 #include "certificates.h"
 

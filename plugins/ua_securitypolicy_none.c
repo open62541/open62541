@@ -6,7 +6,7 @@
  */
 
 #include "ua_types.h"
-#include "ua_securitypolicy_none.h"
+#include "ua_securitypolicies.h"
 #include "ua_types_generated_handling.h"
 
 static UA_StatusCode
