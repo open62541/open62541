@@ -299,8 +299,8 @@ typedef UA_String UA_XmlElement;
  * An identifier for a node in the address space of an OPC UA Server. */
 enum UA_NodeIdType {
     UA_NODEIDTYPE_NUMERIC    = 0, /* In the binary encoding, this can also
-                                     become 1 or 2 (2byte and 4byte encoding of
-                                     small numeric nodeids) */
+                                   * become 1 or 2 (two-byte and four-byte
+                                   * encoding of small numeric nodeids) */
     UA_NODEIDTYPE_STRING     = 3,
     UA_NODEIDTYPE_GUID       = 4,
     UA_NODEIDTYPE_BYTESTRING = 5
