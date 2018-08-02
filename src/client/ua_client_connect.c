@@ -151,7 +151,7 @@ HelAckHandshake(UA_Client *client) {
                     "Receiving ACK message failed with %s", UA_StatusCode_name(retval));
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             client->state = UA_CLIENTSTATE_DISCONNECTED;
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
     }
     return retval;
 }
@@ -223,7 +223,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Sending OPN message failed with error %s", UA_StatusCode_name(retval));
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
         return retval;
     }
 
@@ -244,7 +244,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
                                     &requestId);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
         return retval;
     }
 
@@ -664,7 +664,7 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     return retval;
 
 cleanup:
-    UA_Client_close(client);
+    UA_Client_disconnect(client);
     return retval;
 }
 
@@ -691,7 +691,7 @@ UA_StatusCode
 UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
     UA_StatusCode retval = openSecureChannel(client, true);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
 
     return retval;
 }
@@ -759,27 +759,6 @@ UA_Client_disconnect(UA_Client *client) {
 // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
     /* We need to clean up the subscriptions */
     UA_Client_Subscriptions_clean(client);
-#endif
-
-    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Client_close(UA_Client *client) {
-    client->requestHandle = 0;
-
-    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
-        UA_SecureChannel_deleteMembersCleanup(&client->channel);
-
-    /* Close the TCP connection */
-    if(client->connection.state != UA_CONNECTION_CLOSED)
-        client->connection.close(&client->connection);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
-        /* We need to clean up the subscriptions */
-        UA_Client_Subscriptions_clean(client);
 #endif
 
     setClientState(client, UA_CLIENTSTATE_DISCONNECTED);

@@ -288,7 +288,7 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                       "Sending OPN message failed with error %s",
                       UA_StatusCode_name(retval));
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
         //if(renew)
         //    UA_free(ac);
         return retval;
@@ -589,7 +589,7 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
 
     return retval;
 
-    cleanup: UA_Client_close(client);
+    cleanup: UA_Client_disconnect(client);
         return retval;
 }
 

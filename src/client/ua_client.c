@@ -506,7 +506,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
                 setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
-            UA_Client_close(client);
+            UA_Client_disconnect(client);
             break;
         }
     } while(!rd.received);
@@ -528,7 +528,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
             respHeader->serviceResult = retval;
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
         return;
     }
 
@@ -538,7 +538,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         /* In synchronous service, if we have don't have a reply we need to close the connection */
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
     if(retval != UA_STATUSCODE_GOOD)
@@ -557,7 +557,7 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
             && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
     }
     return retval;
 }
@@ -578,7 +578,7 @@ receivePacketAsync(UA_Client *client) {
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
-        UA_Client_close(client);
+        UA_Client_disconnect(client);
     }
     return retval;
 }
