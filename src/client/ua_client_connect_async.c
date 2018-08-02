@@ -574,6 +574,20 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     }
 
+    /* Set the channel SecurityMode if not done so far */
+    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
+        client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+    /* Set the channel SecurityPolicy if not done so far */
+    if(!client->channel.securityPolicy) {
+        UA_ByteString remoteCertificate = UA_BYTESTRING_NULL;
+        retval = UA_SecureChannel_setSecurityPolicy(&client->channel,
+                                                    &client->securityPolicy,
+                                                    &remoteCertificate);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
     client->asyncConnectCall.callback = callback;
     client->asyncConnectCall.userdata = userdata;
 

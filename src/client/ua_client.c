@@ -37,8 +37,7 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     /* TODO: Select policy according to the endpoint */
     UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL, config.logger);
-    client->channel.securityPolicy = &client->securityPolicy;
-    client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    UA_SecureChannel_init(&client->channel);
     client->config = config;
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
@@ -110,8 +109,7 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     (*securityPolicyFunction)(&client->securityPolicy,
                               client->securityPolicy.certificateVerification,
                               certificate, privateKey, config.logger);
-    client->channel.securityPolicy = &client->securityPolicy;
-    client->channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+
     client->config = config;
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
@@ -125,46 +123,12 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
 #ifndef UA_ENABLE_MULTITHREADING
     SLIST_INIT(&client->delayedClientCallbacks);
 #endif
-    /* Verify remote certificate if trust list given to the application */
-    if(trustListSize > 0) {
-        retval = client->channel.securityPolicy->certificateVerification->
-                 verifyCertificate(client->channel.securityPolicy->certificateVerification->context,
-                                   remoteCertificate);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Certificate verification failed with error %s", UA_StatusCode_name(retval));
-            return retval;
-        }
 
-    } else {
-        UA_LOG_WARNING(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "No PKI plugin set. Accepting all certificates");
-    }
-
-    const UA_SecurityPolicy *securityPolicy = (UA_SecurityPolicy *) &client->securityPolicy;
-    retval = client->securityPolicy.channelModule.newContext(securityPolicy, remoteCertificate,
-                                                             &client->channel.channelContext);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "New context creation failed with error %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-
-    retval = UA_ByteString_copy(remoteCertificate, &client->channel.remoteCertificate);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Copying byte string failed with error %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-
-    UA_ByteString remoteCertificateThumbprint = {20, client->channel.remoteCertificateThumbprint};
-
-    /* Invoke remote certificate thumbprint */
-    retval = client->securityPolicy.asymmetricModule.
-             makeCertificateThumbprint(securityPolicy, &client->channel.remoteCertificate,
-                                       &remoteCertificateThumbprint);
+    /* Initialize the SecureChannel */
+    UA_SecureChannel_init(&client->channel);
+    client->channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    retval = UA_SecureChannel_setSecurityPolicy(&client->channel, &client->securityPolicy,
+                                                remoteCertificate);
     return retval;
 }
 
