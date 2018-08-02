@@ -8,19 +8,14 @@
 #ifndef UA_SECURITYPOLICY_NONE_H_
 #define UA_SECURITYPOLICY_NONE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_plugin_securitypolicy.h"
-#include "ua_plugin_log.h"
+
+_UA_BEGIN_DECLS
 
 UA_StatusCode UA_EXPORT
 UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *certificateVerification,
                        const UA_ByteString localCertificate, UA_Logger logger);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SECURITYPOLICY_NONE_H_ */

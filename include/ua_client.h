@@ -17,10 +17,6 @@
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
@@ -29,6 +25,8 @@ extern "C" {
 #include "ua_plugin_log.h"
 #include "ua_client_config.h"
 #include "ua_nodeids.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * .. _client:
@@ -463,8 +461,6 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
  *    client_highlevel
  *    client_subscriptions */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CLIENT_H_ */

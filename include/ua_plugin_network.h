@@ -9,12 +9,10 @@
 #ifndef UA_PLUGIN_NETWORK_H_
 #define UA_PLUGIN_NETWORK_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_server.h"
 #include "ua_plugin_log.h"
+
+_UA_BEGIN_DECLS
 
 /* Forward declarations */
 struct UA_Connection;
@@ -201,8 +199,6 @@ typedef UA_Connection
 (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
                               const UA_UInt32 timeout, UA_Logger logger);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_NETWORK_H_ */

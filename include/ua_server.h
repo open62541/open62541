@@ -13,15 +13,14 @@
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_nodeids.h"
 
+_UA_BEGIN_DECLS
+
+/* Forward declarations */
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
@@ -1263,8 +1262,6 @@ UA_StatusCode UA_EXPORT
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SERVER_H_ */

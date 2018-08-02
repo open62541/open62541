@@ -11,9 +11,7 @@
 #include "ua_server.h"
 #include "ua_plugin_access_control.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 typedef struct {
     UA_String username;
@@ -27,8 +25,6 @@ UA_AccessControl_default(UA_Boolean allowAnonymous,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_ACCESSCONTROL_DEFAULT_H_ */

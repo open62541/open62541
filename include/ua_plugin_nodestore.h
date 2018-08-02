@@ -17,17 +17,15 @@
  * not meant to be used directly by end users. Please use the public server API
  * / OPC UA services to interact with the information model. */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include "ua_types.h"
 #include "ua_server.h"
+
+_UA_BEGIN_DECLS
+
+/* Forward declaration */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-/* forward declaration */
 struct UA_MonitoredItem;
 #endif
-
-#include "ua_types.h"
 
 /**
  * .. _information-modelling:
@@ -529,8 +527,6 @@ UA_Node_deleteReferences(UA_Node *node);
 void UA_EXPORT
 UA_Node_deleteMembers(UA_Node *node);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SERVER_NODES_H_ */

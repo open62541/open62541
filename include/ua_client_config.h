@@ -9,11 +9,10 @@
 #ifndef UA_CLIENT_CONFIG_H
 #define UA_CLIENT_CONFIG_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include "ua_config.h"
 #include "ua_plugin_network.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * .. _client-config:
@@ -138,15 +137,13 @@ typedef struct UA_ClientConfig {
     /* 0 = background task disabled                    */
     UA_UInt16 outStandingPublishRequests;
 #endif
+
    /**
      * connectivity check interval in ms
      * 0 = background task disabled */
     UA_UInt32 connectivityCheckInterval;
 } UA_ClientConfig;
 
-#ifdef __cplusplus
-}
-#endif
-
+_UA_END_DECLS
 
 #endif /* UA_CLIENT_CONFIG_H */

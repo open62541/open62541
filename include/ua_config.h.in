@@ -5,10 +5,6 @@
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * open62541 Version
  * ----------------- */
@@ -68,6 +64,22 @@ extern "C" {
  * import symbols from a DLL.*/
 #cmakedefine UA_DYNAMIC_LINKING
 
+/* Shortcuts for extern "C" declarations */
+#if !defined(_UA_BEGIN_DECLS)
+# ifdef __cplusplus
+#  define _UA_BEGIN_DECLS extern "C" {
+# else
+#  define _UA_BEGIN_DECLS
+# endif
+#endif
+#if !defined(_UA_END_DECLS)
+# ifdef __cplusplus
+#  define _UA_END_DECLS }
+# else
+#  define _UA_END_DECLS
+# endif
+#endif
+
 /* Select default architecture if non is selected through CMake or compiler define */
 #if ${UA_ARCHITECTURES_NODEF}
 # ifdef _WIN32
@@ -78,9 +90,5 @@ extern "C" {
 #endif
 
 #include "ua_architecture.h"
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
 
 #endif /* UA_CONFIG_H_ */

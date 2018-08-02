@@ -5,11 +5,9 @@
 #ifndef UA_CLIENT_SUBSCRIPTIONS_H_
 #define UA_CLIENT_SUBSCRIPTIONS_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_client.h"
+
+_UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
@@ -203,8 +201,6 @@ UA_Client_MonitoredItems_setTriggering(UA_Client *client,
 
 #endif
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CLIENT_SUBSCRIPTIONS_H_ */

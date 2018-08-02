@@ -9,11 +9,12 @@
 #ifndef UA_PLUGIN_ACCESS_CONTROL_H_
 #define UA_PLUGIN_ACCESS_CONTROL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
+
+_UA_BEGIN_DECLS
+
+struct UA_AccessControl;
+typedef struct UA_AccessControl UA_AccessControl;
 
 /**
  * .. _access-control:
@@ -22,9 +23,6 @@ extern "C" {
  * =========================
  * The access control callback is used to authenticate sessions and grant access
  * rights accordingly. */
-
-struct UA_AccessControl;
-typedef struct UA_AccessControl UA_AccessControl;
 
 struct UA_AccessControl {
     void *context;
@@ -92,8 +90,6 @@ struct UA_AccessControl {
                                        const UA_DeleteReferencesItem *item);
 };
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_ACCESS_CONTROL_H_ */

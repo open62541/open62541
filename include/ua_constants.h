@@ -11,9 +11,9 @@
 #ifndef UA_CONSTANTS_H_
 #define UA_CONSTANTS_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "ua_config.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * Standard-Defined Constants
@@ -96,8 +96,6 @@ typedef enum {
 #define UA_WRITEMASK_WRITEMASK               (0x01<<20)
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE    (0x01<<21)
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CONSTANTS_H_ */

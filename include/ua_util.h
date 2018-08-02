@@ -9,12 +9,10 @@
 #ifndef UA_HELPER_H_
 #define UA_HELPER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_config.h"
 #include "ua_types.h"
+
+_UA_BEGIN_DECLS
 
 /**
 * Endpoint URL Parser
@@ -76,9 +74,6 @@ UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str);
 UA_StatusCode UA_EXPORT
 UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr);
 
-
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_HELPER_H_ */
