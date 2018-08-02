@@ -420,6 +420,11 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout);
 
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
+    return UA_Client_run_iterate(client, timeout);
+}
+
 /* Use the type versions of this method. See below. However, the general
  * mechanism of async service calls is explained here.
  *
