@@ -623,7 +623,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
     }
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID) {
-        UA_Client_close(client); /* TODO: This should be handled before the process callback */
+        UA_Client_disconnect(client); /* TODO: This should be handled before the process callback */
         UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Received BadSessionIdInvalid");
         return;
@@ -655,7 +655,7 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         /* This is an error. But we do not abort the connection. Some server
          * SDKs misbehave from time to time and send out-of-order sequence
          * numbers. (Probably some multi-threading synchronization issue.) */
-        /* UA_Client_close(client);
+        /* UA_Client_disconnect(client);
            return; */
     }
     /* According to f), a keep-alive message contains no notifications and has the sequence number

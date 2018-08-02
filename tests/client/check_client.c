@@ -243,7 +243,7 @@ START_TEST(Client_activateSessionClose) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_deleteMembers(&val);
 
-    UA_Client_close(client);
+    UA_Client_disconnect(client);
 
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

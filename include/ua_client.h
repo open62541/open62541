@@ -147,8 +147,10 @@ UA_StatusCode UA_EXPORT
 UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId);
 
 /* Close a connection to the selected server */
-UA_StatusCode UA_EXPORT
-UA_Client_close(UA_Client *client);
+UA_DEPRECATED static UA_INLINE UA_StatusCode
+UA_Client_close(UA_Client *client) {
+    return UA_Client_disconnect(client);
+}
 
 /* Renew the underlying secure channel */
 UA_StatusCode UA_EXPORT
