@@ -27,7 +27,6 @@ typedef struct UA_ServerConfig UA_ServerConfig;
 struct UA_Server;
 typedef struct UA_Server UA_Server;
 
-struct UA_ClientConfig;
 struct UA_Client;
 
 /**

@@ -95,6 +95,9 @@ UA_Client_delete(UA_Client *client);
  * Connect to a Server
  * ------------------- */
 
+typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
+        UA_UInt32 requestId, void *response);
+
 /* Connect to the server
  *
  * @param client to use
@@ -452,6 +455,27 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
                            void *userdata, UA_UInt32 *requestId,
                            UA_UInt32 timeout);
 
+/**
+ * Repeated Callbacks
+ * ------------------
+ * Repeated callbacks can be attached to a client and will be executed in the
+ * defined interval. */
+
+typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
+
+UA_StatusCode
+UA_Client_addRepeatedCallback(UA_Client *client,
+                              UA_ClientCallback callback,
+                              void *data, UA_UInt32 interval,
+                              UA_UInt64 *callbackId);
+
+UA_StatusCode
+UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
+                                         UA_UInt64 callbackId,
+                                         UA_UInt32 interval);
+
+UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *client,
+                                               UA_UInt64 callbackId);
 
 /**
  * .. toctree::
