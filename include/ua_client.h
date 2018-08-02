@@ -79,9 +79,18 @@ UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
 UA_ClientState UA_EXPORT
 UA_Client_getState(UA_Client *client);
 
+/* Get the client configuration */
+UA_EXPORT UA_ClientConfig *
+UA_Client_getConfig(UA_Client *client);
+
 /* Get the client context */
-void UA_EXPORT *
-UA_Client_getContext(UA_Client *client);
+static UA_INLINE void *
+UA_Client_getContext(UA_Client *client) {
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    if(!config)
+        return NULL;
+    return config->clientContext;
+}
 
 /* Reset a client */
 void UA_EXPORT

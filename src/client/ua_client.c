@@ -262,11 +262,11 @@ UA_Client_getState(UA_Client *client) {
     return client->state;
 }
 
-void *
-UA_Client_getContext(UA_Client *client) {
+UA_ClientConfig *
+UA_Client_getConfig(UA_Client *client) {
     if(!client)
         return NULL;
-    return client->config.clientContext;
+    return &client->config;
 }
 
 /****************/
