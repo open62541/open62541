@@ -679,17 +679,17 @@ const UA_ClientConfig UA_ClientConfig_default = {
     UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
     UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
     UA_ClientConnectionTCP_poll_callback, /* .pollConnectionFunc (for async connection) */
-    0, /* .customDataTypesSize */
+    0,    /* .customDataTypesSize */
     NULL, /* .customDataTypes */
 
     NULL, /* .stateCallback */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    NULL, /* .subscriptionInactivityCallback */
-#endif
+    0,    /* .connectivityCheckInterval */
+
     NULL, /* .inactivityCallback */
     NULL, /* .clientContext */
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    10, /* .outStandingPublishRequests */
+    10,  /* .outStandingPublishRequests */
+    NULL /* .subscriptionInactivityCallback */
 #endif
-    0 /* .connectivityCheckInterval */
 };
