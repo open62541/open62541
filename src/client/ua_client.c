@@ -106,9 +106,15 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     }
 
     /* Initiate client security policy */
-    (*securityPolicyFunction)(&client->securityPolicy,
-                              client->securityPolicy.certificateVerification,
-                              certificate, privateKey, config.logger);
+    retval = (*securityPolicyFunction)(&client->securityPolicy,
+                                       client->securityPolicy.certificateVerification,
+                                       certificate, privateKey, config.logger);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Initialisation of the SecurityPolicy failed with error %s",
+                     UA_StatusCode_name(retval));
+        return retval;
+    }
 
     client->config = config;
     if(client->config.stateCallback)
