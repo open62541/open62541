@@ -161,7 +161,8 @@ UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
                                                  remoteCertificate, trustList, trustListSize,
                                                  revocationList, revocationListSize,
                                                  securityPolicyFunction);
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(client);
         return NULL;
     }
 
