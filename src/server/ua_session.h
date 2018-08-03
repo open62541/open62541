@@ -98,65 +98,34 @@ UA_PublishResponseEntry* UA_Session_dequeuePublishReq(UA_Session *session);
  * zero arguments. So we add a dummy argument that is not printed (%.0s is
  * string of length zero). */
 
-#define UA_LOG_TRACE_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
+#define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...) do {  \
+        UA_String idString = UA_STRING_NULL;                            \
+        UA_NodeId_toString(&(SESSION)->sessionId, &idString);           \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
+                       "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
+                       ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
+                       ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
+                       (int)idString.length, idString.data, __VA_ARGS__); \
+        UA_String_deleteMembers(&idString);                             \
+    } while(0)
 
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_TRACE_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_DEBUG_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, TRACE, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_DEBUG_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_INFO_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, DEBUG, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_INFO_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_WARNING_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, INFO, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_WARNING_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_ERROR_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, WARNING, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_ERROR_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_FATAL_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, ERROR, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_FATAL_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, FATAL, SESSION, __VA_ARGS__, ""))
 
 #ifdef __cplusplus
 } // extern "C"

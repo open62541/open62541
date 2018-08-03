@@ -100,9 +100,12 @@ UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *toke
     }
 
     /* Session not found */
+    UA_String nodeIdStr = UA_STRING_NULL;
+    UA_NodeId_toString(token, &nodeIdStr);
     UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
-                UA_PRINTF_GUID_DATA(token->identifier.guid));
+                "Try to use Session with token %.*s but is not found",
+                (int)nodeIdStr.length, nodeIdStr.data);
+    UA_String_deleteMembers(&nodeIdStr);
     return NULL;
 }
 
@@ -126,9 +129,12 @@ UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *session
     }
 
     /* Session not found */
+    UA_String sessionIdStr = UA_STRING_NULL;
+    UA_NodeId_toString(sessionId, &sessionIdStr);
     UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                "Try to use Session with identifier " UA_PRINTF_GUID_FORMAT " but is not found",
-                UA_PRINTF_GUID_DATA(sessionId->identifier.guid));
+                "Try to use Session with identifier %.*s but is not found",
+                (int)sessionIdStr.length, sessionIdStr.data);
+    UA_String_deleteMembers(&sessionIdStr);
     return NULL;
 }
 
