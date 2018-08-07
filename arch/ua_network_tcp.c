@@ -556,8 +556,11 @@ static void
 ClientNetworkLayerTCP_close(UA_Connection *connection) {
     if (connection->state == UA_CONNECTION_CLOSED)
         return;
-    UA_shutdown(connection->sockfd, 2);
-    UA_close(connection->sockfd);
+
+    if(connection->sockfd != UA_INVALID_SOCKET) {
+        UA_shutdown(connection->sockfd, 2);
+        UA_close(connection->sockfd);
+    }
     connection->state = UA_CONNECTION_CLOSED;
 }
 
@@ -758,6 +761,7 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig config,
     if (parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                             "Server url is invalid: %s", endpointUrl);
+            connection.state = UA_CONNECTION_CLOSED;
             return connection;
     }
     memcpy(hostname, hostnameString.data, hostnameString.length);
@@ -779,6 +783,7 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig config,
     if (error != 0 || !tcpClientConnection->server) {
       UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                                                  "DNS lookup of %s failed with error %s", hostname, errno_str));
+      connection.state = UA_CONNECTION_CLOSED;
       return connection;
     }
     return connection;
