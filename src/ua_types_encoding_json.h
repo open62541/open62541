@@ -87,12 +87,19 @@ status encodingCalcJsonStartArray(CtxJson *ctx);
 size_t encodingCalcJsonEndArray(CtxJson *ctx);
 status calcWriteComma(CtxJson *ctx, UA_Boolean commaNeeded);
 status calcWriteNull(CtxJson *ctx);
+status calcJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
 
 
 typedef struct {
     jsmntok_t *tokenArray;
     UA_Int32 tokenCount;
     UA_UInt16 *index;
+    
+    /* Additonal data for special cases such as networkmessage/datasetmessage
+     * Currently only used for dataSetWriterIds*/
+    size_t numCustom;
+    void * custom;
+    size_t* currentCustomIndex;
 } ParseCtx;
 
 typedef status(*encodeJsonSignature)(const void *UA_RESTRICT src, const UA_DataType *type,
