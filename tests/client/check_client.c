@@ -183,6 +183,32 @@ START_TEST(Client_renewSecureChannel) {
 
 } END_TEST
 
+START_TEST(Client_renewSecureChannelWithActiveSubscription) {
+    UA_ClientConfig uaClientConfig = UA_ClientConfig_default;
+    uaClientConfig.secureChannelLifeTime = 10000;
+    UA_Client *client = UA_Client_new(uaClientConfig);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    request.requestedLifetimeCount = 1000;
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
+
+    (void)response;
+
+    for(int i = 0; i < 15; ++i) {
+        UA_sleep_ms(1000);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 START_TEST(Client_reconnect) {
     UA_ClientConfig clientConfig = UA_ClientConfig_default;
     UA_Client *client = UA_Client_new(clientConfig);
@@ -322,6 +348,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannel);
+    tcase_add_test(tc_client_reconnect, Client_renewSecureChannelWithActiveSubscription);
     tcase_add_test(tc_client_reconnect, Client_reconnect);
 #ifdef UA_SESSION_RECOVERY
     tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
