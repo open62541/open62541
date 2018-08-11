@@ -18,6 +18,13 @@ extern "C" {
 #include "ua_plugin_network.h"
 #include "ua_transport_generated.h"
 
+/* Process the remote configuration in the HEL/ACK handshake. The connection
+ * config is initialized with the local settings. */
+UA_StatusCode
+UA_Connection_processHELACK(UA_Connection *connection,
+                            const UA_ConnectionConfig *localConfig,
+                            const UA_ConnectionConfig *remoteConfig);
+
 /* The application can be the client or the server */
 typedef UA_StatusCode (*UA_Connection_processChunk)(void *application,
                                                     UA_Connection *connection,
