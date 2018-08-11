@@ -75,27 +75,18 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     }
 
+    /* Decode the ACK message */
     retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Decoding ACK message failed");
         return retval;
     }
-
-    /* Store remote connection settings and adjust local configuration to not
-     * exceed the limits */
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
-    connection->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
-    connection->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
-    connection->remoteConf.protocolVersion = ackMessage.protocolVersion;
-    connection->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
-    connection->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
-    if(connection->remoteConf.recvBufferSize < connection->localConf.sendBufferSize)
-        connection->localConf.sendBufferSize = connection->remoteConf.recvBufferSize;
-    if(connection->remoteConf.sendBufferSize < connection->localConf.recvBufferSize)
-        connection->localConf.recvBufferSize = connection->remoteConf.sendBufferSize;
-    connection->state = UA_CONNECTION_ESTABLISHED;
-    return UA_STATUSCODE_GOOD;
+
+    /* Process the ACK message */
+    return UA_Connection_processHELACK(connection, &client->config.localConnectionConfig,
+                                       (const UA_ConnectionConfig*)&ackMessage);
 }
 
 static UA_StatusCode
@@ -110,11 +101,7 @@ HelAckHandshake(UA_Client *client) {
     /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
     UA_String_copy(&client->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
-    hello.maxChunkCount = conn->localConf.maxChunkCount;
-    hello.maxMessageSize = conn->localConf.maxMessageSize;
-    hello.protocolVersion = conn->localConf.protocolVersion;
-    hello.receiveBufferSize = conn->localConf.recvBufferSize;
-    hello.sendBufferSize = conn->localConf.sendBufferSize;
+    memcpy(&hello, &client->config.localConnectionConfig, sizeof(UA_ConnectionConfig)); /* same struct layout */
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
@@ -604,7 +591,7 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         return retval;
 
     /* Open a TCP connection */
-    client->connection.localConf = client->config.localConnectionConfig;
+    client->connection.config = client->config.localConnectionConfig;
     retval = HelAckHandshake(client);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;

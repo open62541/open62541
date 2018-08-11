@@ -26,7 +26,7 @@
 static UA_StatusCode
 connection_getsendbuffer(UA_Connection *connection,
                          size_t length, UA_ByteString *buf) {
-    if(length > connection->remoteConf.recvBufferSize)
+    if(length > connection->config.sendBufferSize)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     return UA_ByteString_allocBuffer(buf, length);
 }
@@ -111,7 +111,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     }
 
     response->data = (UA_Byte*)
-        UA_malloc(connection->localConf.recvBufferSize);
+        UA_malloc(connection->config.recvBufferSize);
     if(!response->data) {
         response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
@@ -119,7 +119,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
 
     /* Get the received packet(s) */
     ssize_t ret = UA_recv(connection->sockfd, (char*)response->data,
-                       connection->localConf.recvBufferSize, 0);
+                          connection->config.recvBufferSize, 0);
 
     /* The remote side closed the connection */
     if(ret == 0) {
@@ -159,7 +159,6 @@ typedef struct ConnectionEntry {
 
 typedef struct {
     UA_Logger logger;
-    UA_ConnectionConfig conf;
     UA_UInt16 port;
     UA_SOCKET serverSockets[FD_SETSIZE];
     UA_UInt16 serverSocketsSize;
@@ -183,8 +182,8 @@ ServerNetworkLayerTCP_close(UA_Connection *connection) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
-                          struct sockaddr_storage *remote) {
+ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *layer,
+                          UA_Int32 newsockfd, struct sockaddr_storage *remote) {
     /* Set nonblocking */
     UA_socket_set_nonblocking(newsockfd);//TODO: check return value
 
@@ -213,7 +212,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
     } else {
         UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                                                 "Connection %i | New connection over TCP, "
-                                                        "getnameinfo failed with error: %s",
+                                                "getnameinfo failed with error: %s",
                                                 (int)newsockfd, errno_str));
     }
 #else
@@ -232,8 +231,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
     memset(c, 0, sizeof(UA_Connection));
     c->sockfd = newsockfd;
     c->handle = layer;
-    c->localConf = layer->conf;
-    c->remoteConf = layer->conf;
+    c->config = nl->localConnectionConfig;
     c->send = connection_write;
     c->close = ServerNetworkLayerTCP_close;
     c->free = ServerNetworkLayerTCP_freeConnection;
@@ -425,7 +423,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                     "Connection %i | New TCP connection on server socket %i",
                     (int)newsockfd, layer->serverSockets[i]);
 
-        ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd, &remote);
+        ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote);
     }
 
     /* Read from established sockets */
@@ -516,7 +514,7 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port, UA_Logger logger) {
+UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)
@@ -525,10 +523,10 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port, UA_Logger log
         return nl;
 
     layer->logger = (logger != NULL ? logger : UA_Log_Stdout);
-    layer->conf = conf;
     layer->port = port;
 
     nl.handle = layer;
+    nl.localConnectionConfig = config;
     nl.start = ServerNetworkLayerTCP_start;
     nl.listen = ServerNetworkLayerTCP_listen;
     nl.stop = ServerNetworkLayerTCP_stop;
@@ -721,15 +719,14 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
 }
 
-UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
+UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig config,
 		const char *endpointUrl, const UA_UInt32 timeout,
                 UA_Logger logger) {
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
 
     connection.state = UA_CONNECTION_OPENING;
-    connection.localConf = conf;
-    connection.remoteConf = conf;
+    connection.config = config;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
@@ -781,7 +778,7 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
 }
 
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig conf,
+UA_ClientConnectionTCP(UA_ConnectionConfig config,
                        const char *endpointUrl, const UA_UInt32 timeout,
                        UA_Logger logger) {
 
@@ -794,8 +791,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTION_CLOSED;
-    connection.localConf = conf;
-    connection.remoteConf = conf;
+    connection.config = config;
     connection.send = connection_write;
     connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;

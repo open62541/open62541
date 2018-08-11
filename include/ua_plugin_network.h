@@ -42,10 +42,10 @@ typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
 
 typedef struct {
     UA_UInt32 protocolVersion;
-    UA_UInt32 sendBufferSize;
     UA_UInt32 recvBufferSize;
-    UA_UInt32 maxMessageSize;
-    UA_UInt32 maxChunkCount;
+    UA_UInt32 sendBufferSize;
+    UA_UInt32 maxMessageSize; /* Indicated by the remote side (0 = unbounded) */
+    UA_UInt32 maxChunkCount;  /* Indicated by the remote side (0 = unbounded) */
 } UA_ConnectionConfig;
 
 typedef enum {
@@ -60,8 +60,7 @@ typedef enum {
 
 struct UA_Connection {
     UA_ConnectionState state;
-    UA_ConnectionConfig localConf;
-    UA_ConnectionConfig remoteConf;
+    UA_ConnectionConfig config;
     UA_SecureChannel *channel;       /* The securechannel that is attached to
                                       * this connection */
     UA_SOCKET sockfd;                 /* Most connectivity solutions run on
@@ -150,7 +149,10 @@ UA_Server_removeConnection(UA_Server *server, UA_Connection *connection);
 
 struct UA_ServerNetworkLayer {
     void *handle; /* Internal data */
+
     UA_String discoveryUrl;
+
+    UA_ConnectionConfig localConnectionConfig;
 
     /* Start listening on the networklayer.
      *
@@ -191,12 +193,12 @@ struct UA_ServerNetworkLayer {
  * The client has only a single connection used for sending and receiving binary
  * messages. */
 
-/* @param localConf the connection config for this client
+/* @param config the connection config for this client
  * @param endpointUrl to where to connect
  * @param timeout in ms until the connection try times out if remote not reachable
  * @param logger the logger to use */
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
+(*UA_ConnectClientConnection)(UA_ConnectionConfig config, const char *endpointUrl,
                               const UA_UInt32 timeout, UA_Logger logger);
 
 _UA_END_DECLS
