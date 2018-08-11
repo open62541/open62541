@@ -562,11 +562,12 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
             continue;
 
         for(size_t j = refs->targetIdsSize; j > 0; --j) {
-            if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &refs->targetIds[j-1].nodeId))
+            UA_ExpandedNodeId *target = &refs->targetIds[j-1];
+            if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &target->nodeId))
                 continue;
 
             /* Ok, delete the reference */
-            UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j-1]);
+            UA_ExpandedNodeId_deleteMembers(target);
             refs->targetIdsSize--;
 
             /* One matching target remaining */
@@ -574,11 +575,11 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
                 if(j-1 != refs->targetIdsSize) // avoid valgrind error: Source
                                                // and destination overlap in
                                                // memcpy
-                    refs->targetIds[j-1] = refs->targetIds[refs->targetIdsSize];
+                    *target = refs->targetIds[refs->targetIdsSize];
                 return UA_STATUSCODE_GOOD;
             }
 
-            /* Remove refs */
+            /* No target for the ReferenceType remaining. Remove entry. */
             UA_free(refs->targetIds);
             UA_NodeId_deleteMembers(&refs->referenceTypeId);
             node->referencesSize--;
@@ -590,7 +591,7 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
                 return UA_STATUSCODE_GOOD;
             }
 
-            /* Remove the node references */
+            /* No remaining references of any ReferenceType */
             UA_free(node->references);
             node->references = NULL;
             return UA_STATUSCODE_GOOD;
