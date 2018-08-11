@@ -764,22 +764,19 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
             return true;
 
-        /* Workaround: Allow empty value if the target data type is abstract */
-        const UA_Node *datatype = UA_Nodestore_get(server, targetDataTypeId);
-        if(datatype && datatype->nodeClass == UA_NODECLASS_DATATYPE) {
-            UA_Boolean isAbstract = ((const UA_DataTypeNode*)datatype)->isAbstract;
-            UA_Nodestore_release(server, datatype);
-            if(isAbstract)
-                return true;
+        /* Allow empty node values since existing information models may have
+         * variables with no value, e.g. OldValues - ns=0;i=3024. See also
+         * #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
+        if(server->config.relaxEmptyValueConstraint) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Only Variables with data type BaseDataType can contain an "
+                                 "empty value. Allow via explicit constraint relaxation.");
+            return true;
         }
 
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Only Variables with data type BaseDataType should contain "
-                    "a null (empty) value");
-        /* we allow addition of the node anyways since existing information models may have
-           variables with no value, e.g. OldValues - ns=0;i=3024.
-           See also #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
-        return true;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "Only Variables with data type BaseDataType can contain an empty value");
+        return false;
     }
 
     /* Has the value a subtype of the required type? BaseDataType (Variant) can
