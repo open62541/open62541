@@ -249,6 +249,9 @@ createDefaultConfig(void) {
     /* Access Control. Anonymous Login only. */
     conf->accessControl = UA_AccessControl_default(true, usernamePasswordsSize, usernamePasswords);
 
+    /* Relax constraints for the InformationModel */
+    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
+
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
     conf->maxSecurityTokenLifetime = 10 * 60 * 1000; /* 10 minutes */
