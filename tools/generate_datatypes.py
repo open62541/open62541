@@ -28,7 +28,7 @@ excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode"
                   "UA_SessionDiagnosticsDataType"]
 
 builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                 "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
+                 "Int64", "UInt64", "Float", "Double", "String", "CharArray", "DateTime", "Guid",
                  "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode",
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
@@ -163,7 +163,7 @@ class Type(object):
 
 class BuiltinType(Type):
     def __init__(self, name):
-        self.name = name
+        self.name = name if name != "CharArray"  else "String"
         self.ns0 = "true"
         self.typeIndex = "UA_TYPES_" + self.name.upper()
         self.outname = "ua_types"
@@ -462,6 +462,7 @@ def printc(string):
 
 def iter_types(v):
     l = None
+    del v["CharArray"]
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
     else:
