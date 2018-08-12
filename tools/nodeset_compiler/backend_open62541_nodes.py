@@ -376,7 +376,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, encode_bina
             instanceName = generateNodeValueInstanceName(node.value[0], parentNode, 0, 0)
             if isinstance(node.value[0], ExtensionObject):
                 code.append(generateNodeValueCode("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " ,
-                            node.value[0], instanceName, valueName, codeGlobal))
+                            node.value[0], instanceName, valueName, codeGlobal, asIndirect=True ))
                 code.append(
                     "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
                     getTypesArrayForValue(nodeset, node.value[0]) + ");")
