@@ -271,6 +271,16 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
                     return False
         return True
 
+    def unknownTypes(element):
+        "Return all unknown types"
+        unknowns = []
+        for child in element:
+            if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
+                childname = child.get("TypeName")
+                if childname[childname.find(":")+1:] not in types:
+                    unknowns.append(childname)
+        return unknowns
+
     def skipType(name):
         if name in excluded_types:
             return True
@@ -287,7 +297,12 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
         name = typeXml.get("Name")
         snippets[name] = typeXml
 
+    detectLoop = len(snippets)+1
     while(len(snippets) > 0):
+        if detectLoop == len(snippets):
+            name, typeXml = (snippets.items())[0]
+            raise RuntimeError("Infinite loop detected trying to processing types " + name + ": unknonwn subtype " + str(unknownTypes(typeXml)))
+        detectLoop = len(snippets)
         for name, typeXml in list(snippets.items()):
             if name in types or skipType(name):
                 del snippets[name]
@@ -462,7 +477,6 @@ def printc(string):
 
 def iter_types(v):
     l = None
-    del v["CharArray"]
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
     else:
@@ -495,6 +509,8 @@ _UA_BEGIN_DECLS
 
 ''')
 
+# Remove CharArray (alias of String) to avoid duplications
+del types["CharArray"]
 filtered_types = iter_types(types)
 
 printh('''/**
