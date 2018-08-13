@@ -562,7 +562,7 @@ ClientNetworkLayerTCP_free(UA_Connection *connection) {
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
         if(tcpConnection->server)
           UA_freeaddrinfo(tcpConnection->server);
-        free(tcpConnection);
+        UA_free(tcpConnection);
     }
 }
 
@@ -738,7 +738,7 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
     connection.releaseSendBuffer = connection_releasesendbuffer;
     connection.releaseRecvBuffer = connection_releaserecvbuffer;
 
-    TCPClientConnection *tcpClientConnection = (TCPClientConnection*) malloc(
+    TCPClientConnection *tcpClientConnection = (TCPClientConnection*) UA_malloc(
                     sizeof(TCPClientConnection));
     connection.handle = (void*) tcpClientConnection;
     tcpClientConnection->timeout = timeout;
