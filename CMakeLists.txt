@@ -31,7 +31,7 @@ set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
                     RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    if(${res_var} EQUAL 0)
+    if(${res_var} EQUAL 0 AND NOT OPEN62541_VER_COMMIT STREQUAL "")
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
