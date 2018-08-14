@@ -54,6 +54,12 @@ builtin_overlayable = {"Boolean": "true",
                        "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " + \
                        "offsetof(UA_Guid, data4) == (2*sizeof(UA_UInt32)))"}
 
+# Type aliases
+type_aliases = { "CharArray" : "String" }
+def getTypeName(xmlTypeName):
+   typeName = xmlTypeName[xmlTypeName.find(":")+1:]
+   return type_aliases.get(typeName, typeName);
+
 ################
 # Type Classes #
 ################
@@ -224,8 +230,8 @@ class StructType(Type):
                 continue
             memberName = child.get("Name")
             memberName = memberName[:1].lower() + memberName[1:]
-            memberTypeName = child.get("TypeName")
-            memberType = types[memberTypeName[memberTypeName.find(":")+1:]]
+            memberTypeName = getTypeName(child.get("TypeName"))
+            memberType = types[memberTypeName]
             isArray = True if child.get("LengthField") else False
             self.members.append(StructMember(memberName, memberType, isArray))
 
@@ -266,10 +272,20 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
         "Are all member types defined?"
         for child in element:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                childname = child.get("TypeName")
-                if childname[childname.find(":")+1:] not in types:
+                childname = getTypeName(child.get("TypeName"))
+                if childname not in types:
                     return False
         return True
+
+    def unknownTypes(element):
+        "Return all unknown types"
+        unknowns = []
+        for child in element:
+            if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
+                childname = getTypeName(child.get("TypeName"))
+                if childname not in types:
+                    unknowns.append(childname)
+        return unknowns
 
     def skipType(name):
         if name in excluded_types:
@@ -287,7 +303,12 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
         name = typeXml.get("Name")
         snippets[name] = typeXml
 
+    detectLoop = len(snippets)+1
     while(len(snippets) > 0):
+        if detectLoop == len(snippets):
+            name, typeXml = (snippets.items())[0]
+            raise RuntimeError("Infinite loop detected trying to processing types " + name + ": unknonwn subtype " + str(unknownTypes(typeXml)))
+        detectLoop = len(snippets)
         for name, typeXml in list(snippets.items()):
             if name in types or skipType(name):
                 del snippets[name]
