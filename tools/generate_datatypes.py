@@ -28,7 +28,7 @@ excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode"
                   "UA_SessionDiagnosticsDataType"]
 
 builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
-                 "Int64", "UInt64", "Float", "Double", "String", "CharArray", "DateTime", "Guid",
+                 "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
                  "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode",
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
@@ -53,6 +53,12 @@ builtin_overlayable = {"Boolean": "true",
                        "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
                        "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " + \
                        "offsetof(UA_Guid, data4) == (2*sizeof(UA_UInt32)))"}
+
+# Type aliases
+type_aliases = { "CharArray" : "String" }
+def getTypeName(xmlTypeName):
+   typeName = xmlTypeName[xmlTypeName.find(":")+1:]
+   return type_aliases.get(typeName, typeName);
 
 ################
 # Type Classes #
@@ -163,7 +169,7 @@ class Type(object):
 
 class BuiltinType(Type):
     def __init__(self, name):
-        self.name = name if name != "CharArray"  else "String"
+        self.name = name
         self.ns0 = "true"
         self.typeIndex = "UA_TYPES_" + self.name.upper()
         self.outname = "ua_types"
@@ -224,8 +230,8 @@ class StructType(Type):
                 continue
             memberName = child.get("Name")
             memberName = memberName[:1].lower() + memberName[1:]
-            memberTypeName = child.get("TypeName")
-            memberType = types[memberTypeName[memberTypeName.find(":")+1:]]
+            memberTypeName = getTypeName(child.get("TypeName"))
+            memberType = types[memberTypeName]
             isArray = True if child.get("LengthField") else False
             self.members.append(StructMember(memberName, memberType, isArray))
 
@@ -266,8 +272,8 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
         "Are all member types defined?"
         for child in element:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                childname = child.get("TypeName")
-                if childname[childname.find(":")+1:] not in types:
+                childname = getTypeName(child.get("TypeName"))
+                if childname not in types:
                     return False
         return True
 
@@ -276,8 +282,8 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
         unknowns = []
         for child in element:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                childname = child.get("TypeName")
-                if childname[childname.find(":")+1:] not in types:
+                childname = getTypeName(child.get("TypeName"))
+                if childname not in types:
                     unknowns.append(childname)
         return unknowns
 
@@ -509,8 +515,6 @@ _UA_BEGIN_DECLS
 
 ''')
 
-# Remove CharArray (alias of String) to avoid duplications
-del types["CharArray"]
 filtered_types = iter_types(types)
 
 printh('''/**
