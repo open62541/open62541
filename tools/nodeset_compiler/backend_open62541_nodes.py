@@ -116,7 +116,7 @@ def generateVariableNodeCode(node, nodeset, encode_binary_size):
                     code += code1
                     codeCleanup += codeCleanup1
                     codeGlobal += codeGlobal1
-                    if node.valueRank > 0 and len(node.arrayDimensions) == node.valueRank:
+                    if node.valueRank > 1 and len(node.arrayDimensions) == node.valueRank:
                         code.append("attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;")
                         code.append("attr.value.arrayDimensions = attr.arrayDimensions;")
                 else:
