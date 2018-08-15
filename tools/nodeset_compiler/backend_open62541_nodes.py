@@ -116,6 +116,10 @@ def generateVariableNodeCode(node, nodeset, encode_binary_size):
                     code += code1
                     codeCleanup += codeCleanup1
                     codeGlobal += codeGlobal1
+                    # #1978 Variant arrayDimensions are only required to properly decode multidimensional arrays
+                    # (valueRank >= 2) from data stored as one-dimensional array of arrayLength elements.
+                    # One-dimensional arrays are already completely defined by arraylength attribute so setting
+                    # also arrayDimensions, even if not explicitly forbidden, can confuse clients
                     if node.valueRank > 1 and len(node.arrayDimensions) == node.valueRank:
                         code.append("attr.value.arrayDimensionsSize = attr.arrayDimensionsSize;")
                         code.append("attr.value.arrayDimensions = attr.arrayDimensions;")
