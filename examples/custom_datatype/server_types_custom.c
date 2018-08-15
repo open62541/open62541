@@ -61,8 +61,13 @@ int main(void) {
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     /* Make your custom datatype known to the stack */
-    UA_DataType types[1];
+    UA_DataType *types = (UA_DataType*)UA_malloc(sizeof(UA_DataType));
+    UA_DataTypeMember *members = (UA_DataTypeMember*)UA_malloc(sizeof(UA_DataTypeMember) * 3);
+    members[0] = Point_members[0];
+    members[1] = Point_members[1];
+    members[2] = Point_members[2];
     types[0] = PointType;
+    types[0].members = members;
     config->customDataTypes = types;
     config->customDataTypesSize = 1;
 
