@@ -620,11 +620,13 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
         config->nodestore.deleteNodestore(config->nodestore.context);
 
     /* Custom DataTypes */
-    for(size_t i = 0; i < config->customDataTypesSize; ++i)
-        UA_free(config->customDataTypes[i].members);
-    UA_free(config->customDataTypes);
-    config->customDataTypes = NULL;
-    config->customDataTypesSize = 0;
+    if(config->customDataTypesSize > 0) {
+        for(size_t i = 0; i < config->customDataTypesSize; ++i)
+            UA_free(config->customDataTypes[i].members);
+        UA_free(config->customDataTypes);
+        config->customDataTypes = NULL;
+        config->customDataTypesSize = 0;
+    }
 
     /* Networking */
     for(size_t i = 0; i < config->networkLayersSize; ++i)
