@@ -19,7 +19,7 @@
 
 #define ABS_SUBTRACT_TYPE_INDEPENDENT(a,b) ((a)>(b)?(a)-(b):(b)-(a))
 
-static UA_INLINE UA_Boolean
+static UA_Boolean
 outOfDeadBand(const void *data1, const void *data2, const size_t index,
               const UA_DataType *type, const UA_Double deadbandValue) {
     if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
