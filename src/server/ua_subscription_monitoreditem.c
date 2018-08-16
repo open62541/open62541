@@ -44,6 +44,8 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         }
     }
 
+    /* if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY)
+     * -> UA_DataChangeFilter does not hold dynamic content we need to free */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         /* Remove the monitored item from the node queue */
