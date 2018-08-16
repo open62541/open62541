@@ -327,6 +327,14 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
 /* Check Information Model Consistency */
 /***************************************/
 
+/* Read a node attribute in the context of a "checked-out" node. So the
+ * attribute will not be copied when possible. The variant then points into the
+ * node and has UA_VARIANT_DATA_NODELETE set. */
+void
+ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
+             UA_TimestampsToReturn timestampsToReturn,
+             const UA_ReadValueId *id, UA_DataValue *v);
+
 UA_StatusCode
 readValueAttribute(UA_Server *server, UA_Session *session,
                    const UA_VariableNode *vn, UA_DataValue *v);

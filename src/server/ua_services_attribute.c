@@ -190,10 +190,10 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
 /* Returns a datavalue that may point into the node via the
  * UA_VARIANT_DATA_NODELETE tag. Don't access the returned DataValue once the
  * node has been released! */
-static void
-Read(const UA_Node *node, UA_Server *server, UA_Session *session,
-     UA_TimestampsToReturn timestampsToReturn,
-     const UA_ReadValueId *id, UA_DataValue *v) {
+void
+ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
+             UA_TimestampsToReturn timestampsToReturn,
+             const UA_ReadValueId *id, UA_DataValue *v) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Read the attribute %i", id->attributeId);
 
@@ -376,7 +376,7 @@ Operation_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
 
     /* Perform the read operation */
     if(node) {
-        Read(node, server, session, timestampsToReturn, id, &dv);
+        ReadWithNode(node, server, session, timestampsToReturn, id, &dv);
     } else {
         dv.hasStatus = true;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -456,7 +456,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     }
 
     /* Perform the read operation */
-    Read(node, server, session, timestampsToReturn, item, &dv);
+    ReadWithNode(node, server, session, timestampsToReturn, item, &dv);
 
     /* Do we have to copy the result before releasing the node? */
     if(dv.hasValue && dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
