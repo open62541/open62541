@@ -449,7 +449,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     result->revisedQueueSize = mon->maxQueueSize;
 
     /* Remove some notifications if the queue is now too small */
-    MonitoredItem_ensureQueueSpace(server, mon);
+    UA_MonitoredItem_ensureQueueSpace(server, mon);
 }
 
 void

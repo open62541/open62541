@@ -499,9 +499,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
@@ -558,6 +555,14 @@ if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
 endif()
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                            ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
+                            ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
+    endif()
+endif()
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
