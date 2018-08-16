@@ -10,6 +10,31 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
+UA_StatusCode
+UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
+                                         UA_Node *node, void *data) {
+    /* data is the monitoredItemID */
+    /* catch edge case that it's the first element */
+    if (data == ((UA_ObjectNode *) node)->monitoredItemQueue) {
+        ((UA_ObjectNode *)node)->monitoredItemQueue = ((UA_MonitoredItem *)data)->next;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* SLIST_FOREACH */
+    for (UA_MonitoredItem *entry = ((UA_ObjectNode *) node)->monitoredItemQueue->next;
+         entry != NULL; entry=entry->next) {
+        if (entry == (UA_MonitoredItem *)data) {
+            /* SLIST_REMOVE */
+            UA_MonitoredItem *iter = ((UA_ObjectNode *) node)->monitoredItemQueue;
+            for (; iter->next != entry; iter=iter->next) {}
+            iter->next = entry->next;
+            UA_free(entry);
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 typedef struct Events_nodeListElement {
     LIST_ENTRY(Events_nodeListElement) listEntry;
     UA_NodeId nodeId;

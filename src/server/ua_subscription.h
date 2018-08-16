@@ -130,7 +130,10 @@ UA_StatusCode UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_Mo
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
-UA_StatusCode MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
+
+UA_StatusCode UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
+                                                       UA_Node *node, void *data);
 
 /****************/
 /* Subscription */
@@ -210,7 +213,8 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemId);
 
 void UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
-UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
+UA_StatusCode UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
+                                                          UA_UInt32 sequenceNumber);
 void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
 

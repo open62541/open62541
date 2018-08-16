@@ -40,7 +40,7 @@ UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
 
     /* Ensure enough space is available in the MonitoredItem. Do this only after
      * adding the new Notification. */
-    MonitoredItem_ensureQueueSpace(server, mon);
+    UA_MonitoredItem_ensureQueueSpace(server, mon);
 }
 
 void
