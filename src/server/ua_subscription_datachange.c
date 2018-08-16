@@ -230,13 +230,22 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
             return false;
         }
 
+        if(value->value.storageType == UA_VARIANT_DATA) {
+            newNotification->data.value = *value; /* Move the value to the notification */
+            storedValue = true;
+        } else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
+            UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_ByteString_deleteMembers(&binaryEncoding);
+                UA_free(newNotification);
+                return false;
+            }
+        }
+
         /* <-- Point of no return --> */
 
-        newNotification->mon = monitoredItem;
-        newNotification->data.value = *value; /* Move the value to the notification */
-        storedValue = true;
-
         /* Enqueue the new notification */
+        newNotification->mon = monitoredItem;
         UA_Notification_enqueue(server, sub, monitoredItem, newNotification);
     } else {
         /* Call the local callback if not attached to a subscription */
@@ -295,21 +304,33 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
         return;
     }
 
-    /* Sample the value */
-    UA_ReadValueId rvid;
-    UA_ReadValueId_init(&rvid);
-    rvid.nodeId = monitoredItem->monitoredNodeId;
-    rvid.attributeId = monitoredItem->attributeId;
-    rvid.indexRange = monitoredItem->indexRange;
-    UA_DataValue value = UA_Server_readWithSession(server, session, &rvid,
-                                                   monitoredItem->timestampsToReturn);
+    /* Get the node */
+    const UA_Node *node = UA_Nodestore_get(server, &monitoredItem->monitoredNodeId);
+
+    /* Sample the value. The sample can still point into the node. */
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    if(node) {
+        UA_ReadValueId rvid;
+        UA_ReadValueId_init(&rvid);
+        rvid.nodeId = monitoredItem->monitoredNodeId;
+        rvid.attributeId = monitoredItem->attributeId;
+        rvid.indexRange = monitoredItem->indexRange;
+
+        ReadWithNode(node, server, session, monitoredItem->timestampsToReturn, &rvid, &value);
+    } else {
+        value.hasStatus = true;
+        value.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
 
     /* Operate on the sample */
     UA_Boolean storedValue = sampleCallbackWithValue(server, monitoredItem, &value);
 
     /* Delete the sample if it was not stored in the MonitoredItem  */
     if(!storedValue)
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_deleteMembers(&value); /* Does nothing for UA_VARIANT_DATA_NODELETE */
+    if(node)
+        UA_Nodestore_release(server, node);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
