@@ -244,13 +244,6 @@ UA_Server_new(const UA_ServerConfig *config) {
     if(!config)
         return NULL;
 
-    /* At least one endpoint has to be configured */
-    if(config->endpointsSize == 0) {
-        UA_LOG_FATAL(config->logger, UA_LOGCATEGORY_SERVER,
-                     "There has to be at least one endpoint.");
-        return NULL;
-    }
-
     /* Allocate the server */
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
