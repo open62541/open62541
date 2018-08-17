@@ -159,11 +159,7 @@ static UA_StatusCode
 setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,
                          const UA_MonitoringParameters *params,
-                         // This parameter is optional and used only if mon->lastValue is not set yet.
-                         // Then numeric type will be detected from this value. Set null as defaut.
                          const UA_DataType* dataType) {
-
-
     /* Filter */
     if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED) {
         UA_DataChangeFilter_init(&(mon->filter.dataChangeFilter));
@@ -171,17 +167,19 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     } else if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
         UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
         // TODO implement EURange to support UA_DEADBANDTYPE_PERCENT
-        if (filter->deadbandType == UA_DEADBANDTYPE_PERCENT) {
+        switch(filter->deadbandType) {
+        case UA_DEADBANDTYPE_NONE:
+            break;
+        case UA_DEADBANDTYPE_ABSOLUTE:
+            if(!dataType || !isDataTypeNumeric(dataType))
+                return UA_STATUSCODE_BADFILTERNOTALLOWED;
+            break;
+        case UA_DEADBANDTYPE_PERCENT:
+            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        default:
             return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
         }
-        if (UA_Variant_isEmpty(&mon->lastValue)) {
-            if (!dataType || !isDataTypeNumeric(dataType))
-                return UA_STATUSCODE_BADFILTERNOTALLOWED;
-        } else
-        if (!isDataTypeNumeric(mon->lastValue.type)) {
-            return UA_STATUSCODE_BADFILTERNOTALLOWED;
-        }
-        UA_DataChangeFilter_copy(filter, &(mon->filter.dataChangeFilter));
+        UA_DataChangeFilter_copy(filter, &mon->filter.dataChangeFilter);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     } else if (params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTER]) {
         UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data,
@@ -191,8 +189,10 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
         return UA_STATUSCODE_BADMONITOREDITEMFILTERINVALID;
     }
 
+    /* <-- The point of no return --> */
+
+    /* Unregister the callback */
     UA_MonitoredItem_unregisterSampleCallback(server, mon);
-    mon->monitoringMode = monitoringMode;
 
     /* Remove the old samples */
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
@@ -234,6 +234,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     mon->discardOldest = params->discardOldest;
 
     /* Register sample callback if reporting is enabled */
+    mon->monitoringMode = monitoringMode;
     if(monitoringMode == UA_MONITORINGMODE_REPORTING)
         UA_MonitoredItem_registerSampleCallback(server, mon);
     return UA_STATUSCODE_GOOD;
@@ -442,8 +443,19 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         result->statusCode = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-    UA_StatusCode retval;
-    retval = setMonitoredItemSettings(server, mon, mon->monitoringMode, &request->requestedParameters, NULL);
+
+    /* Read the current value to test if filters are possible.
+     * Can return an empty value (v.value.type == NULL). */
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = mon->monitoredNodeId;
+    rvid.attributeId = mon->attributeId;
+    rvid.indexRange = mon->indexRange;
+    UA_DataValue v = UA_Server_readWithSession(server, session, &rvid, mon->timestampsToReturn);
+    UA_StatusCode retval = setMonitoredItemSettings(server, mon, mon->monitoringMode,
+                                                    &request->requestedParameters,
+                                                    v.value.type);
+    UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = retval;
         return;
