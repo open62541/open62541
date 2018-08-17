@@ -209,11 +209,11 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
     UA_Subscription *sub = monitoredItem->subscription;
 
     /* Contains heap-allocated binary encoding of the value if a change was detected */
-    UA_ByteString binaryEncoding = UA_BYTESTRING_NULL;
+    UA_ByteString binValueEncoding = UA_BYTESTRING_NULL;
 
-    /* Has the value changed? Allocates memory in binaryEncoding if necessary.
+    /* Has the value changed? Allocates memory in binValueEncoding if necessary.
      * value is edited internally so we make a shallow copy. */
-    UA_Boolean changed = detectValueChange(server, monitoredItem, *value, &binaryEncoding);
+    UA_Boolean changed = detectValueChange(server, monitoredItem, *value, &binValueEncoding);
     if(!changed)
         return false;
 
@@ -226,7 +226,7 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
                                    "Subscription %u | MonitoredItem %i | "
                                    "Item for the publishing queue could not be allocated",
                                    sub->subscriptionId, monitoredItem->monitoredItemId);
-            UA_ByteString_deleteMembers(&binaryEncoding);
+            UA_ByteString_deleteMembers(&binValueEncoding);
             return false;
         }
 
@@ -236,7 +236,7 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
         } else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
             UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_ByteString_deleteMembers(&binaryEncoding);
+                UA_ByteString_deleteMembers(&binValueEncoding);
                 UA_free(newNotification);
                 return false;
             }
@@ -274,13 +274,13 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
     //
     // We do detect if the monitored item is already defunct.
     if (!monitoredItem->sampleCallbackIsRegistered) {
-        UA_ByteString_deleteMembers(&binaryEncoding);
+        UA_ByteString_deleteMembers(&binValueEncoding);
         return storedValue;
     }
 
     /* Store the encoding for comparison */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
-    monitoredItem->lastSampledValue = binaryEncoding;
+    monitoredItem->lastSampledValue = binValueEncoding;
 
     /* Store the value for filter comparison (we don't want to decode
      * lastSampledValue in every iteration) */
