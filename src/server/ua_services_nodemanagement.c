@@ -968,6 +968,13 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
     return retval;
 }
 
+UA_StatusCode
+UA_Server_addNode_raw(UA_Server *server, void *nodeContext,
+                      const UA_AddNodesItem *item, UA_NodeId *outNewNodeId)
+{
+    return AddNode_raw(server, &adminSession, nodeContext, item, outNewNodeId);
+}
+
 static void
 Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
                   const UA_AddNodesItem *item, UA_AddNodesResult *result) {

@@ -1167,6 +1167,10 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
 UA_StatusCode UA_EXPORT
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId);
 
+UA_StatusCode UA_EXPORT
+UA_Server_addNode_raw(UA_Server *server, void *nodeContext,
+                      const UA_AddNodesItem *item, UA_NodeId *outNewNodeId);
+
 #ifdef UA_ENABLE_METHODCALLS
 
 UA_StatusCode UA_EXPORT
