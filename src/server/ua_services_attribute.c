@@ -262,12 +262,12 @@ Read(const UA_Node *node, UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         if(node->nodeClass == UA_NODECLASS_VIEW) {
-          setScalarNoDelete(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
-                                    &UA_TYPES[UA_TYPES_BYTE]);
+            setScalarNoDelete(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
+                              &UA_TYPES[UA_TYPES_BYTE]);
         }
         else{
-          setScalarNoDelete(&v->value, &((const UA_ObjectNode*)node)->eventNotifier,
-                                    &UA_TYPES[UA_TYPES_BYTE]);
+            setScalarNoDelete(&v->value, &((const UA_ObjectNode*)node)->eventNotifier,
+                              &UA_TYPES[UA_TYPES_BYTE]);
         }
         break;
     case UA_ATTRIBUTEID_VALUE: {
