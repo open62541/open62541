@@ -972,7 +972,7 @@ UA_StatusCode
 UA_Server_addNode_raw(UA_Server *server, void *nodeContext,
                       const UA_AddNodesItem *item, UA_NodeId *outNewNodeId)
 {
-    return AddNode_raw(server, &adminSession, nodeContext, item, outNewNodeId);
+    return AddNode_raw(server, &server->adminSession, nodeContext, item, outNewNodeId);
 }
 
 static void
