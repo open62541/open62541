@@ -194,6 +194,10 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     UA_MonitoredItem_unregisterSampleCallback(server, mon);
     mon->monitoringMode = monitoringMode;
 
+    /* Remove the old samples */
+    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_Variant_deleteMembers(&mon->lastValue);
+
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;
 
