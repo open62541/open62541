@@ -162,6 +162,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 
     /* Copy the references */
     dst->references = NULL;
+	dst->referencesSize = src->referencesSize;
     if(src->referencesSize > 0) {
         dst->references = (UA_NodeReferenceKind*)
             UA_calloc(src->referencesSize, sizeof(UA_NodeReferenceKind));
@@ -169,7 +170,6 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
             UA_Node_deleteMembers(dst);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        dst->referencesSize = src->referencesSize;
 
         for(size_t i = 0; i < src->referencesSize; ++i) {
             UA_NodeReferenceKind *srefs = &src->references[i];
