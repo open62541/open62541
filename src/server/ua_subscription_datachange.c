@@ -281,8 +281,18 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
     /* Store the encoding for comparison */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = binaryEncoding;
-    UA_Variant_deleteMembers(&monitoredItem->lastValue);
-    UA_Variant_copy(&value->value, &monitoredItem->lastValue);
+
+    /* Store the value for filter comparison (we don't want to decode
+     * lastSampledValue in every iteration) */
+    if((monitoredItem->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT ||
+        monitoredItem->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) &&
+       (monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+        monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
+        UA_Variant_deleteMembers(&monitoredItem->lastValue);
+        UA_Variant_copy(&value->value, &monitoredItem->lastValue);
+        /* Don't test the return code here. If this fails, lastValue is empty
+         * and a notification will be forced for the next deadband comparison. */
+    }
 
     return storedValue;
 }
@@ -316,7 +326,6 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
         rvid.nodeId = monitoredItem->monitoredNodeId;
         rvid.attributeId = monitoredItem->attributeId;
         rvid.indexRange = monitoredItem->indexRange;
-
         ReadWithNode(node, server, session, monitoredItem->timestampsToReturn, &rvid, &value);
     } else {
         value.hasStatus = true;
