@@ -22,6 +22,10 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_services.h"
 
+#ifdef UA_ENABLE_HISTORIZING
+#include "ua_plugin_historydatabase.h"
+#endif
+
 /******************/
 /* Access Control */
 /******************/
@@ -1107,14 +1111,10 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         /* node is a UA_VariableNode*, but it may also point to a UA_VariableTypeNode */
         /* UA_VariableTypeNode doesn't have the historizing attribute */
         if(retval == UA_STATUSCODE_GOOD && node->nodeClass == UA_NODECLASS_VARIABLE &&
-                server->config.historyDataService.setValue)
-            server->config.historyDataService.setValue(server,
-                                                       server->config.historyDataService.context,
-                                                       &session->sessionId,
-                                                       session->sessionHandle,
-                                                       &node->nodeId,
-                                                       node->historizing,
-                                                       &adjustedValue);
+                server->config.historyDatabase.setValue)
+            server->config.historyDatabase.setValue(server, server->config.historyDatabase.context,
+                                                    &session->sessionId, session->sessionHandle,
+                                                    &node->nodeId, node->historizing, &adjustedValue);
 #endif
         /* Callback after writing */
         if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite)
@@ -1422,9 +1422,6 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
 }
 
 #ifdef UA_ENABLE_HISTORIZING
-
-#include "ua_plugin_history_data_service.h"
-
 void
 Service_HistoryRead(UA_Server *server,
                     UA_Session *session,
@@ -1441,7 +1438,7 @@ Service_HistoryRead(UA_Server *server,
             response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
             return;
         } else {
-            if (server->config.historyDataService.readRaw) {
+            if (server->config.historyDatabase.readRaw) {
                 response->resultsSize = request->nodesToReadSize;
 
                 response->results = (UA_HistoryReadResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
@@ -1453,18 +1450,12 @@ Service_HistoryRead(UA_Server *server,
                     response->results[i].historyData.content.decoded.data = data;
                     historyData[i] = data;
                 }
-                server->config.historyDataService.readRaw(server,
-                                                          server->config.historyDataService.context,
-                                                          &session->sessionId,
-                                                          session->sessionHandle,
-                                                          &request->requestHeader,
-                                                          details,
-                                                          request->timestampsToReturn,
-                                                          request->releaseContinuationPoints,
-                                                          request->nodesToReadSize,
-                                                          request->nodesToRead,
-                                                          response,
-                                                          historyData);
+                server->config.historyDatabase.readRaw(server, server->config.historyDatabase.context,
+                                                       &session->sessionId, session->sessionHandle,
+                                                       &request->requestHeader, details,
+                                                       request->timestampsToReturn, request->releaseContinuationPoints,
+                                                       request->nodesToReadSize, request->nodesToRead,
+                                                       response, historyData);
                 UA_free(historyData);
                 return;
             }

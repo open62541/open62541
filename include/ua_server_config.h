@@ -24,7 +24,7 @@
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
-#include "ua_plugin_history_data_service.h"
+#include "ua_plugin_historydatabase.h"
 #endif
 
 _UA_BEGIN_DECLS
@@ -194,7 +194,7 @@ struct UA_ServerConfig {
 
     /* Historical Access */
 #ifdef UA_ENABLE_HISTORIZING
-    UA_HistoryDataService historyDataService;
+    UA_HistoryDatabase historyDatabase;
     
     UA_Boolean accessHistoryDataCapability;
     UA_UInt32  maxReturnDataValues; /* 0 -> unlimited size */

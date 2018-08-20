@@ -257,7 +257,7 @@ endif()
 
 if(UA_ENABLE_HISTORIZING)
     set(historizing_exported_headers
-        ${PROJECT_SOURCE_DIR}/include/ua_plugin_history_data_service.h
+        ${PROJECT_SOURCE_DIR}/include/ua_plugin_historydatabase.h
         )
     set(historizing_default_plugin_headers
         )
