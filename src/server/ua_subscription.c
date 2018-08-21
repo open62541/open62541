@@ -164,7 +164,7 @@ UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub
     }
 
     /* Add entry */
-    TAILQ_INSERT_HEAD(&sub->retransmissionQueue, entry, listEntry);
+    TAILQ_INSERT_TAIL(&sub->retransmissionQueue, entry, listEntry);
     ++sub->retransmissionQueueSize;
 }
 
