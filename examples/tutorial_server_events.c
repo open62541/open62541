@@ -68,7 +68,7 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
 
     UA_String eventSourceName = UA_STRING("Server");
     UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "SourceName"),
-										 &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
+                                         &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
 
     return UA_STATUSCODE_GOOD;
 }
