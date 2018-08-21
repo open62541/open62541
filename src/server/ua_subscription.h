@@ -139,7 +139,7 @@ struct UA_Subscription {
 
     /* Runtime information */
     UA_SubscriptionState state;
-    UA_UInt32 sequenceNumber;
+    UA_UInt32 nextSequenceNumber;
     UA_UInt32 currentKeepAliveCount;
     UA_UInt32 currentLifetimeCount;
 
