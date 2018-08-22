@@ -656,6 +656,7 @@
     <References>
       <Reference ReferenceType="HasProperty">i=112</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=77</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">i=2996</Reference>
     </References>
   </UAObject>
   <UAVariable NodeId="i=112" BrowseName="NamingRule" ParentNodeId="i=78" DataType="i=120">
@@ -675,6 +676,7 @@
     <References>
       <Reference ReferenceType="HasProperty">i=113</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=77</Reference>
+      <Reference ReferenceType="Organizes" IsForward="false">i=2996</Reference>
     </References>
   </UAObject>
   <UAVariable NodeId="i=113" BrowseName="NamingRule" ParentNodeId="i=80" DataType="i=120">
@@ -1349,6 +1351,8 @@
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2268</Reference>
+      <Reference ReferenceType="Organizes">i=78</Reference>
+      <Reference ReferenceType="Organizes">i=80</Reference>
     </References>
   </UAObject>
   <UAObject NodeId="i=2997" BrowseName="AggregateFunctions" ParentNodeId="i=2268">
