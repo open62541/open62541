@@ -68,7 +68,7 @@ struct UA_Connection {
                                       * simplifies the design. */
     UA_DateTime openingDate;         /* The date the connection was created */
     void *handle;                    /* A pointer to internal data */
-    UA_ByteString incompleteMessage; /* A half-received message (TCP is a
+    UA_ByteString incompleteChunk;   /* A half-received chunk (TCP is a
                                       * streaming protocol) is stored here */
     UA_UInt64 connectCallbackID;     /* Callback Id, for the connect-loop */
     /* Get a buffer for sending */

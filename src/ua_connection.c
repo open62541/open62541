@@ -19,7 +19,7 @@
 #include "ua_securechannel.h"
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
-    UA_ByteString_deleteMembers(&connection->incompleteMessage);
+    UA_ByteString_deleteMembers(&connection->incompleteChunk);
 }
 
 UA_StatusCode
@@ -93,30 +93,14 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
 }
 
 static UA_StatusCode
-prependIncompleteChunk(UA_Connection *connection, UA_ByteString *message) {
-    /* Allocate the new message buffer */
-    size_t length = connection->incompleteMessage.length + message->length;
-    UA_Byte *data = (UA_Byte*)UA_realloc(connection->incompleteMessage.data, length);
-    if(!data) {
-        UA_ByteString_deleteMembers(&connection->incompleteMessage);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    /* Copy / release the current message buffer */
-    memcpy(&data[connection->incompleteMessage.length], message->data, message->length);
-    message->length = length;
-    message->data = data;
-    connection->incompleteMessage = UA_BYTESTRING_NULL;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos, size_t length) {
-    UA_assert(length > 0);
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, length);
+bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos,
+                      const UA_Byte *end) {
+    UA_assert(pos < end);
+    size_t length = (uintptr_t)end - (uintptr_t)pos;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&connection->incompleteChunk, length);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    memcpy(connection->incompleteMessage.data, pos, length);
+    memcpy(connection->incompleteChunk.data, pos, length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -125,12 +109,10 @@ processChunk(UA_Connection *connection, void *application,
              UA_Connection_processChunk processCallback,
              const UA_Byte **posp, const UA_Byte *end, UA_Boolean *done) {
     const UA_Byte *pos = *posp;
-    const size_t length = (uintptr_t)end - (uintptr_t)pos;
+    const size_t remaining = (uintptr_t)end - (uintptr_t)pos;
 
     /* At least 8 byte needed for the header. Wait for the next chunk. */
-    if(length < 8) {
-        if(length > 0)
-            bufferIncompleteChunk(connection, pos, length);
+    if(remaining < 8) {
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
@@ -161,9 +143,8 @@ processChunk(UA_Connection *connection, void *application,
     if(chunk_length < 16 || chunk_length > connection->config.recvBufferSize)
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
 
-    /* Wait for the next packet to process the complete chunk */
-    if(chunk_length > length) {
-        bufferIncompleteChunk(connection, pos, length);
+    /* Have an the complete chunk */
+    if(chunk_length > remaining) {
         *done = true;
         return UA_STATUSCODE_GOOD;
     }
@@ -179,30 +160,24 @@ UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
                             UA_Connection_processChunk processCallback,
                             const UA_ByteString *packet) {
-    /* If we have stored an incomplete chunk, prefix to the received message.
-     * After this block, connection->incompleteMessage is always empty. The
-     * message and the buffer is released if allocating the memory fails. */
-    UA_Boolean realloced = false;
-    UA_ByteString message = *packet;
-    UA_StatusCode retval;
-    if(connection->incompleteMessage.length > 0) {
-        retval = prependIncompleteChunk(connection, &message);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-        realloced = true;
-    }
+    /* The connection has already prepended any incomplete chunk during recv */
+    UA_assert(connection->incompleteChunk.length == 0);
 
     /* Loop over the received chunks. pos is increased with each chunk. */
-    const UA_Byte *pos = message.data;
-    const UA_Byte *end = &message.data[message.length];
-    UA_Boolean done = true;
-    do {
-        retval = processChunk(connection, application, processCallback,
-                              &pos, end, &done);
-    } while(!done && retval == UA_STATUSCODE_GOOD);
+    const UA_Byte *pos = packet->data;
+    const UA_Byte *end = &packet->data[packet->length];
+    UA_Boolean done = false;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    while(!done) {
+        retval = processChunk(connection, application, processCallback, &pos, end, &done);
+        /* If an irrecoverable error happens: do not buffer incomplete chunk */
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
-    if(realloced)
-        UA_ByteString_deleteMembers(&message);
+    if(end > pos)
+        retval = bufferIncompleteChunk(connection, pos, end);
+
     return retval;
 }
 

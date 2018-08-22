@@ -110,16 +110,18 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         }
     }
 
-    response->data = (UA_Byte*)
-        UA_malloc(connection->config.recvBufferSize);
+    response->data = (UA_Byte*)UA_malloc(connection->config.recvBufferSize);
     if(!response->data) {
         response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
+    size_t offset = connection->incompleteChunk.length;
+    size_t remaining = connection->config.recvBufferSize - offset;
+
     /* Get the received packet(s) */
-    ssize_t ret = UA_recv(connection->sockfd, (char*)response->data,
-                          connection->config.recvBufferSize, 0);
+    ssize_t ret = UA_recv(connection->sockfd, (char*)&response->data[offset],
+                          remaining, 0);
 
     /* The remote side closed the connection */
     if(ret == 0) {
@@ -138,8 +140,13 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
+    /* Preprend the last incompleteChunk into the buffer */
+    memcpy(response->data, connection->incompleteChunk.data,
+           connection->incompleteChunk.length);
+    UA_ByteString_deleteMembers(&connection->incompleteChunk);
+
     /* Set the length of the received buffer */
-    response->length = (size_t)ret;
+    response->length = offset + (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
 
