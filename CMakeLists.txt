@@ -258,10 +258,18 @@ endif()
 if(UA_ENABLE_HISTORIZING)
     set(historizing_exported_headers
         ${PROJECT_SOURCE_DIR}/include/ua_plugin_history_data_service.h
+        ${PROJECT_SOURCE_DIR}/include/ua_plugin_history_data_backend.h
+        ${PROJECT_SOURCE_DIR}/include/ua_plugin_history_data_gathering.h
         )
     set(historizing_default_plugin_headers
+        ${PROJECT_SOURCE_DIR}/plugins/ua_historydatabackend_memory.h
+        ${PROJECT_SOURCE_DIR}/plugins/ua_historydatagathering_default.h
+        ${PROJECT_SOURCE_DIR}/plugins/ua_historydataservice_default.h
         )
     set(historizing_default_plugin_sources
+        ${PROJECT_SOURCE_DIR}/plugins/ua_historydatabackend_memory.c
+        ${PROJECT_SOURCE_DIR}/plugins/ua_historydatagathering_default.c
+        ${PROJECT_SOURCE_DIR}/plugins/ua_historydataservice_default.c
         )
 endif()
 
