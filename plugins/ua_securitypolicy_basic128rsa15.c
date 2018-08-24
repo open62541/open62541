@@ -520,7 +520,7 @@ sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         if(offset + hashLen > out->length) {
             outSegment.data = NULL;
             outSegment.length = 0;
-            retval |= UA_ByteString_allocBuffer(&outSegment, hashLen);
+            retval = UA_ByteString_allocBuffer(&outSegment, hashLen);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_ByteString_deleteMembers(&A_and_seed);
                 UA_ByteString_deleteMembers(&ANext_and_seed);

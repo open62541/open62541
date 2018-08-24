@@ -204,21 +204,22 @@ processOPNResponse(void *application, UA_Connection *connection,
     UA_Client *client = (UA_Client*) application;
     UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk);
     client->connectStatus = retval;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_disconnect(client);
-        return retval;
-    }
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
     UA_SecureChannel_processCompleteMessages(&client->channel, client, processDecodedOPNResponseAsync);
     
-    if(client->state < UA_CLIENTSTATE_SECURECHANNEL)
-        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
-
-    retval |= UA_SecureChannel_persistIncompleteMessages(&client->channel);
-    retval |= UA_SecureChannel_generateNewKeys(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_disconnect(client);
-        return retval;
+    if(client->state < UA_CLIENTSTATE_SECURECHANNEL) {
+        retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
+        goto error;
     }
+
+    retval = UA_SecureChannel_persistIncompleteMessages(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    retval = UA_SecureChannel_generateNewKeys(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
 
     /* Following requests and responses */
     UA_UInt32 reqId;
@@ -228,7 +229,13 @@ processOPNResponse(void *application, UA_Connection *connection,
         retval = requestSession (client, &reqId);
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Client_disconnect(client);
+        goto error;
+
+    return retval;
+
+error:
+    UA_Client_disconnect(client);
+
     return retval;
 }
 
@@ -579,10 +586,11 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
         retval = UA_Client_addRepeatedCallback(
                      client, client->config.pollConnectionFunc, &client->connection, 100,
                      &client->connection.connectCallbackID);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
-    retval |= UA_SecureChannel_generateLocalNonce(&client->channel);
-
+    retval = UA_SecureChannel_generateLocalNonce(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
