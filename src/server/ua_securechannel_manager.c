@@ -171,18 +171,28 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
 
     /* Set the nonces and generate the keys */
     UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
-    retval |= UA_SecureChannel_generateLocalNonce(channel);
-    retval |= UA_SecureChannel_generateNewKeys(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_SecureChannel_generateLocalNonce(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_SecureChannel_generateNewKeys(channel);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Set the response */
     retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
-    retval |= UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
-    response->responseHeader.timestamp = UA_DateTime_now();
-    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    retval = UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
 
     /* The channel is open */
     channel->state = UA_SECURECHANNELSTATE_OPEN;
@@ -215,14 +225,20 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_SecureChannel *cha
     /* Replace the nonces */
     UA_ByteString_deleteMembers(&channel->remoteNonce);
     UA_StatusCode retval = UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
-    retval |= UA_SecureChannel_generateLocalNonce(channel);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_SecureChannel_generateLocalNonce(channel);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Set the response */
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     retval = UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
-    retval |= UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

@@ -341,10 +341,16 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     /* Decode the request */
     size_t offset = 0;
     UA_NodeId requestType;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
-    retval |= UA_NodeId_decodeBinary(msg, &offset, &requestType);
-    retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
+    UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_NodeId_deleteMembers(&requestType);
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not decode the NodeId. Closing the connection");
+        UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
+        return retval;
+    }
+    retval = UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
 
     /* Error occurred */
     if(retval != UA_STATUSCODE_GOOD ||
@@ -381,7 +387,9 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
                             UA_StatusCode_name(retval));
         UA_SecureChannelManager_close(&server->secureChannelManager,
                                       channel->securityToken.channelId);
+        return retval;
     }
+
     return retval;
 }
 
