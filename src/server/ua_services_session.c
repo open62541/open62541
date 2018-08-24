@@ -102,6 +102,17 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             return;
     }
 
+    UA_Session *newSession = NULL;
+    response->responseHeader.serviceResult =
+        UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                             "Processing CreateSessionRequest failed");
+        return;
+    }
+
+    UA_assert(newSession != NULL);
+
     /* Allocate the response */
     response->serverEndpoints = (UA_EndpointDescription *)
         UA_Array_new(server->config.endpointsSize,
@@ -126,17 +137,6 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_String_copy(&request->endpointUrl,
                        &response->serverEndpoints[i].endpointUrl);
     }
-
-    UA_Session *newSession = NULL;
-    response->responseHeader.serviceResult =
-        UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Processing CreateSessionRequest failed");
-        return;
-    }
-
-    UA_assert(newSession != NULL);
 
     /* Attach the session to the channel. But don't activate for now. */
     UA_Session_attachToSecureChannel(newSession, channel);
