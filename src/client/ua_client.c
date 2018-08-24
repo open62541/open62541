@@ -405,8 +405,13 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
         goto finish;
     }
 
+#ifdef UA_ENABLE_TYPENAMES
+    UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Decode a message of type %s", rd->responseType->typeName);
+#else
     UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Decode a message of type %u", responseId.identifier.numeric);
+#endif
 
     /* Decode the response */
     retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
