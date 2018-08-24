@@ -127,7 +127,7 @@ int main(void) {
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_USERLAND, "Not connected. Retrying to connect in 1 second");
-            /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
+            /* The connect may timeout after 5 seconds (default timeout) or it may fail immediately on network errors */
             /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */
             UA_sleep_ms(1000);
             continue;
