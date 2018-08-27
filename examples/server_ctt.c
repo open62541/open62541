@@ -426,7 +426,17 @@ int main(int argc, char **argv) {
     } else {
         /* Load certificate and private key */
         UA_ByteString certificate = loadFile(argv[1]);
+        if(certificate.length == 0) {
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                           "Unable to load file %s.", argv[1]);
+            return 1;
+        }
         UA_ByteString privateKey = loadFile(argv[2]);
+        if(privateKey.length == 0) {
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                           "Unable to load file %s.", argv[2]);
+            return 1;
+        }
 
         /* Load the trustlist */
         size_t trustListSize = 0;
