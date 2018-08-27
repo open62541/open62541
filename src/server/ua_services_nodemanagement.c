@@ -474,9 +474,11 @@ copyChildNode(UA_Server *server, UA_Session *session,
         /* Call addnode_finish, this recursively adds additional members, the type
          * definition and so on of the base type of this child, if they are not yet
          * in the destination */
-        retval |= AddNode_finish(server, session, &newNodeId);
+        retval = AddNode_finish(server, session, &newNodeId);
         UA_NodeId_deleteMembers(&newNodeId);
         UA_Nodestore_release(server, type);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
     return retval;
 }
@@ -506,7 +508,9 @@ copyChildNodes(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-        retval |= copyChildNode(server, session, destinationNodeId, rd);
+        retval = copyChildNode(server, session, destinationNodeId, rd);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
     UA_BrowseResult_deleteMembers(&br);
@@ -525,8 +529,13 @@ addChildren(UA_Server *server, UA_Session *session,
         return retval;
 
     /* Copy members of the type and supertypes (and instantiate them) */
-    for(size_t i = 0; i < hierarchySize; ++i)
-        retval |= copyChildNodes(server, session, &hierarchy[i], &node->nodeId);
+    for(size_t i = 0; i < hierarchySize; ++i) {
+        retval = copyChildNodes(server, session, &hierarchy[i], &node->nodeId);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+cleanup:
     UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
     return retval;
 }
@@ -832,18 +841,18 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
 
     /* Fill the node attributes */
     node->context = nodeContext;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval |= UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId);
-    retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName);
-    retval |= UA_Node_setAttributes(node, item->nodeAttributes.content.decoded.data,
+    UA_StatusCode retval = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto create_error;
+
+    retval = UA_QualifiedName_copy(&item->browseName, &node->browseName);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto create_error;
+
+    retval = UA_Node_setAttributes(node, item->nodeAttributes.content.decoded.data,
                                     item->nodeAttributes.content.decoded.type);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Node could not create a node "
-                            "with error code %s", UA_StatusCode_name(retval));
-        UA_Nodestore_delete(server, node);
-        return retval;
-    }
+    if(retval != UA_STATUSCODE_GOOD)
+        goto create_error;
 
     /* Add the node to the nodestore */
     retval = UA_Nodestore_insert(server, node, outNewNodeId);
@@ -852,6 +861,13 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
                             "AddNodes: Node could not add the new node "
                             "to the nodestore with error code %s",
                             UA_StatusCode_name(retval));
+    return retval;
+
+create_error:
+    UA_LOG_INFO_SESSION(server->config.logger, session,
+                        "AddNodes: Node could not create a node "
+                        "with error code %s", UA_StatusCode_name(retval));
+    UA_Nodestore_delete(server, node);
     return retval;
 }
 
@@ -1592,11 +1608,13 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         UA_UInt32 inputArgsSize32 = (UA_UInt32)inputArgumentsSize;
         attr.arrayDimensions = &inputArgsSize32;
         attr.arrayDimensionsSize = 1;
-        UA_Variant_setArray(&attr.value, (void*)(uintptr_t) inputArguments,
+        UA_Variant_setArray(&attr.value, (void *)(uintptr_t)inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        retval |= UA_Server_addVariableNode(server, inputArgumentsRequestedNewNodeId, nodeId,
-                                            hasproperty, UA_QUALIFIEDNAME(0, name),
-                                            propertytype, attr, NULL, &inputArgsId);
+        retval = UA_Server_addVariableNode(server, inputArgumentsRequestedNewNodeId, nodeId,
+                                           hasproperty, UA_QUALIFIEDNAME(0, name),
+                                           propertytype, attr, NULL, &inputArgsId);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
     }
 
     /* Add the Output Arguments VariableNode */
@@ -1609,31 +1627,39 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         UA_UInt32 outputArgsSize32 = (UA_UInt32)outputArgumentsSize;
         attr.arrayDimensions = &outputArgsSize32;
         attr.arrayDimensionsSize = 1;
-        UA_Variant_setArray(&attr.value, (void*)(uintptr_t) outputArguments,
+        UA_Variant_setArray(&attr.value, (void *)(uintptr_t)outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-        retval |= UA_Server_addVariableNode(server, outputArgumentsRequestedNewNodeId, nodeId,
-                                            hasproperty, UA_QUALIFIEDNAME(0, name),
-                                            propertytype, attr, NULL, &outputArgsId);
+        retval = UA_Server_addVariableNode(server, outputArgumentsRequestedNewNodeId, nodeId,
+                                           hasproperty, UA_QUALIFIEDNAME(0, name),
+                                           propertytype, attr, NULL, &outputArgsId);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto error;
     }
 
-    retval |= UA_Server_setMethodNode_callback(server, nodeId, method);
+    retval = UA_Server_setMethodNode_callback(server, nodeId, method);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
 
     /* Call finish to add the parent reference */
-    retval |= AddNode_finish(server, &server->adminSession, &nodeId);
+    retval = AddNode_finish(server, &server->adminSession, &nodeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
 
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Server_deleteNode(server, nodeId, true);
-        UA_Server_deleteNode(server, inputArgsId, true);
-        UA_Server_deleteNode(server, outputArgsId, true);
-    } else {
-        if(inputArgumentsOutNewNodeId != NULL) {
-            UA_NodeId_copy(&inputArgsId, inputArgumentsOutNewNodeId);
+    if(inputArgumentsOutNewNodeId != NULL) {
+        UA_NodeId_copy(&inputArgsId, inputArgumentsOutNewNodeId);
     }
-        if(outputArgumentsOutNewNodeId != NULL) {
-            UA_NodeId_copy(&outputArgsId, outputArgumentsOutNewNodeId);
-        }
+    if(outputArgumentsOutNewNodeId != NULL) {
+        UA_NodeId_copy(&outputArgsId, outputArgumentsOutNewNodeId);
     }
     UA_BrowseResult_deleteMembers(&br);
+    return retval;
+
+error:
+    UA_Server_deleteNode(server, nodeId, true);
+    UA_Server_deleteNode(server, inputArgsId, true);
+    UA_Server_deleteNode(server, outputArgsId, true);
+    UA_BrowseResult_deleteMembers(&br);
+
     return retval;
 }
 
