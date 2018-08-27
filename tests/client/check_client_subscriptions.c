@@ -464,6 +464,10 @@ START_TEST(Client_subscription_async_sub) {
 }
 END_TEST
 
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
+#ifdef UA_ENABLE_METHODCALLS
+
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -522,7 +526,7 @@ START_TEST(Client_methodcall) {
 }
 END_TEST
 
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
+#endif /* UA_ENABLE_METHODCALLS */
 
 static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Subscription Basic");
@@ -538,9 +542,9 @@ static Suite* testSuite_Client(void) {
 
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
     tcase_add_checked_fixture(tc_client2, setup, teardown);
-#ifdef UA_ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_METHODCALLS
     tcase_add_test(tc_client2, Client_methodcall);
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
+#endif /* UA_ENABLE_METHODCALLS */
 
     Suite *s = suite_create("Client Subscription");
     suite_add_tcase(s,tc_client);
