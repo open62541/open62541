@@ -76,7 +76,7 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     }
 
     /* Decode the ACK message */
-    retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
+    retval = UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Decoding ACK message failed");
@@ -107,13 +107,18 @@ HelAckHandshake(UA_Client *client) {
     const UA_Byte *bufEnd = &message.data[message.length];
     retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
     UA_TcpHelloMessage_deleteMembers(&hello);
+    if(retval != UA_STATUSCODE_GOOD) {
+        conn->releaseSendBuffer(conn, &message);
+        return retval;
+    }
+
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32)((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
+    retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
         return retval;
@@ -635,7 +640,7 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
 #endif /* UA_SESSION_RECOVERY */
 
     /* Generate new local and remote key */
-    retval |= UA_SecureChannel_generateNewKeys(&client->channel);
+    retval = UA_SecureChannel_generateNewKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
