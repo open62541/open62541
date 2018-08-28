@@ -28,7 +28,8 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
             UA_MonitoredItem *iter = ((UA_ObjectNode *) node)->monitoredItemQueue;
             for (; iter->next != entry; iter=iter->next) {}
             iter->next = entry->next;
-            UA_free(entry);
+            /* Unlike SLIST_REMOVE, do not free the entry, since it
+             * is still being worked on in the calling function */
             break;
         }
     }
