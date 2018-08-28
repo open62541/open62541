@@ -139,8 +139,9 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Mirror back the endpointUrl */
     for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
         UA_String_deleteMembers(&response->serverEndpoints[i].endpointUrl);
-        UA_String_copy(&request->endpointUrl,
-                       &response->serverEndpoints[i].endpointUrl);
+        response->responseHeader.serviceResult |=
+            UA_String_copy(&request->endpointUrl,
+                           &response->serverEndpoints[i].endpointUrl);
     }
 
     /* Attach the session to the channel. But don't activate for now. */
