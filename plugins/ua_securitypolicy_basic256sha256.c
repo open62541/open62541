@@ -881,7 +881,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, UA_CertificateVerifi
     UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =
         &asymmetricModule->cryptoModule.signatureAlgorithm;
     asym_signatureAlgorithm->uri =
-        UA_STRING("http://www.w3.org/2000/09/xmldsig#rsa-sha1\0");
+        UA_STRING("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\0");
     asym_signatureAlgorithm->verify =
         (UA_StatusCode (*)(const UA_SecurityPolicy *, void *,
                            const UA_ByteString *, const UA_ByteString *))asym_verify_sp_basic256sha256;
@@ -897,7 +897,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, UA_CertificateVerifi
 
     UA_SecurityPolicyEncryptionAlgorithm *asym_encryptionAlgorithm =
         &asymmetricModule->cryptoModule.encryptionAlgorithm;
-    asym_encryptionAlgorithm->uri = UA_STRING("TODO: ALG URI");
+    asym_encryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#rsa-oaep\0");
     asym_encryptionAlgorithm->encrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))asym_encrypt_sp_basic256sha256;
     asym_encryptionAlgorithm->decrypt =
