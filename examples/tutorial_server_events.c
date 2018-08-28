@@ -41,8 +41,8 @@ addNewEventType(UA_Server *server) {
  * All we need for this is our `EventType`. Once we have our event node, which is saved internally as an `ObjectNode`,
  * we can define the attributes the event has the same way we would define the attributes of an object node. It is not
  * necessary to define the attributes `EventId`, `ReceiveTime`, `SourceNode` or `EventType` since these are set
- * automatically by the server. In this example, we will be setting all the rest mandatory EventFields of the BaseEventType: 
- * `Time` (to make the example UaExpert compliant), `Severity`, `Message` and `SourceName`.
+ * automatically by the server. In this example, we will be setting the fields 'Message' and 'Severity' in addition
+ * to `Time` which is needed to make the example UaExpert compliant.
  */
 static UA_StatusCode
 setUpEvent(UA_Server *server, UA_NodeId *outId) {
@@ -54,6 +54,7 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
     }
 
     /* Set the Event Attributes */
+    /* Setting the Time is required or else the event will not show up in UAExpert! */
     UA_DateTime eventTime = UA_DateTime_now();
     UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "Time"),
                                          &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
