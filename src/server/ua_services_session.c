@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
  *    Copyright 2014-2018 (c) Julius Pfrommer, Fraunhofer IOSB
- *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -119,6 +119,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->serverEndpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_SessionManager_removeSession(&server->sessionManager,
+                                        &newSession->header.authenticationToken);
         return;
     }
     response->serverEndpointsSize = server->config.endpointsSize;
@@ -128,14 +130,18 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult |=
             UA_EndpointDescription_copy(&server->config.endpoints[i].endpointDescription,
                                         &response->serverEndpoints[i]);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_SessionManager_removeSession(&server->sessionManager,
+                                        &newSession->header.authenticationToken);
         return;
+    }
 
     /* Mirror back the endpointUrl */
     for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
         UA_String_deleteMembers(&response->serverEndpoints[i].endpointUrl);
-        UA_String_copy(&request->endpointUrl,
-                       &response->serverEndpoints[i].endpointUrl);
+        response->responseHeader.serviceResult |=
+            UA_String_copy(&request->endpointUrl,
+                           &response->serverEndpoints[i].endpointUrl);
     }
 
     /* Attach the session to the channel. But don't activate for now. */
@@ -153,7 +159,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
     response->authenticationToken = newSession->header.authenticationToken;
-    response->responseHeader.serviceResult =
+    response->responseHeader.serviceResult |=
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
     if(server->config.endpointsSize > 0)
@@ -162,7 +168,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                &response->serverCertificate);
 
     /* Create a session nonce */
-    response->responseHeader.serviceResult = UA_Session_generateNonce(newSession);
+    response->responseHeader.serviceResult |= UA_Session_generateNonce(newSession);
     response->responseHeader.serviceResult |=
         UA_ByteString_copy(&newSession->serverNonce, &response->serverNonce);
 
