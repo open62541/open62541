@@ -15,6 +15,16 @@ unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
   return UA_STATUSCODE_GOOD;;
 }
 
+#ifdef UNDER_CE
+char *strerror(int errnum)
+{
+    if (errnum > MAX_STRERROR)
+        return errorStrings[MAX_STRERROR];
+    else
+        return errorStrings[errnum];
+}
+#endif
+
 unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd){
   u_long iMode = 1;
   if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
