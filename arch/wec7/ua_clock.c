@@ -38,6 +38,7 @@ UA_DateTime UA_DateTime_now(void) {
     return (UA_DateTime)ul.QuadPart;
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 
 UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
     return 0;
@@ -53,10 +54,16 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
     // Request that mktime() looksup dst in timezone database
     ptm.tm_isdst = -1;
     gmt = mktime(&ptm);
+=======
+>>>>>>> added arch for windows embedded compact 7
 
-    return (UA_Int64) (difftime(rawtime, gmt) * UA_DATETIME_SEC);
+UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
+    return 0;
 }
+<<<<<<< HEAD
 #endif
+>>>>>>> added arch for windows embedded compact 7
+=======
 >>>>>>> added arch for windows embedded compact 7
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
