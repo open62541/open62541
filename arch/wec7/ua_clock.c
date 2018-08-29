@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- *    Copyright 2018 (c) Stephan
+ *    Copyright 2018 (c) Stephan Kantelberg
  */
 
 #ifdef UA_ARCHITECTURE_WEC7
@@ -37,20 +37,10 @@ UA_DateTime UA_DateTime_now(void) {
     ul.HighPart = ft.dwHighDateTime;
     return (UA_DateTime)ul.QuadPart;
 }
-#ifndef UNDER_CE
-// The problem here is that not all time functions are implemented in Windows CE.
+
 UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
-    time_t gmt, rawtime = time(NULL);
-
-    struct tm ptm;
-    gmtime_s(&ptm, &rawtime);
-    // Request that mktime() looksup dst in timezone database
-    ptm.tm_isdst = -1;
-    gmt = mktime(&ptm);
-
-    return (UA_Int64) (difftime(rawtime, gmt) * UA_DATETIME_SEC);
+    return 0;
 }
-#endif
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
     LARGE_INTEGER freq, ticks;
