@@ -17,6 +17,9 @@
 #include <stddef.h>
 
 /* Include stdint.h and stdbool.h or workaround for older Visual Studios */
+#ifdef UNDER_CE
+# include "stdint.h"
+#endif
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
 # include <stdbool.h> /* C99 Boolean */
