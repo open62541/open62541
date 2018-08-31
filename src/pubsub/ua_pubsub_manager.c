@@ -139,15 +139,16 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
 UA_AddPublishedDataSetResult
 UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig *publishedDataSetConfig,
                               UA_NodeId *pdsIdentifier) {
+    UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
     if(!publishedDataSetConfig){
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. No config passed in.");
-        return (UA_AddPublishedDataSetResult) {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
+        return result;
     }
     if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
-        return (UA_AddPublishedDataSetResult) {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
+        return result;
     }
     //deep copy the given connection config
     UA_PublishedDataSetConfig tmpPublishedDataSetConfig;
@@ -155,7 +156,8 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     if(UA_PublishedDataSetConfig_copy(publishedDataSetConfig, &tmpPublishedDataSetConfig) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Configuration copy failed.");
-        return (UA_AddPublishedDataSetResult) {UA_STATUSCODE_BADINTERNALERROR, 0, NULL, {0, 0}};
+		result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
     }
     //create new PDS and add to UA_PubSubManager
     UA_PublishedDataSet *newPubSubDataSetField = (UA_PublishedDataSet *)
@@ -165,10 +167,11 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
         UA_PublishedDataSetConfig_deleteMembers(&tmpPublishedDataSetConfig);
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Out of Memory.");
-        return (UA_AddPublishedDataSetResult) {UA_STATUSCODE_BADOUTOFMEMORY, 0, NULL, {0, 0}};
+		result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
+		return result;
     }
     server->pubSubManager.publishedDataSets = newPubSubDataSetField;
-    UA_PublishedDataSet *newPubSubDataSet = &server->pubSubManager.publishedDataSets[server->pubSubManager.publishedDataSetsSize];
+    UA_PublishedDataSet *newPubSubDataSet = &server->pubSubManager.publishedDataSets[(server->pubSubManager.publishedDataSetsSize)];
     memset(newPubSubDataSet, 0, sizeof(UA_PublishedDataSet));
     LIST_INIT(&newPubSubDataSet->fields);
     //workaround - fixing issue with queue.h and realloc.
@@ -187,9 +190,11 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
         UA_NodeId_copy(&newPubSubDataSet->identifier, pdsIdentifier);
     }
     server->pubSubManager.publishedDataSetsSize++;
-    UA_AddPublishedDataSetResult result = {UA_STATUSCODE_GOOD, 0, NULL,
-                                                 {UA_PubSubConfigurationVersionTimeDifference(),
-                                                  UA_PubSubConfigurationVersionTimeDifference()}};
+	result.addResult = UA_STATUSCODE_GOOD;
+	result.fieldAddResults = NULL;
+	result.fieldAddResultsSize = 0;
+	result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+	result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPublishedDataItemsRepresentation(server, newPubSubDataSet);
 #endif
@@ -275,16 +280,16 @@ UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId) {
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub cleanup was called.");
+    //free the currently configured transport layers
+    for(size_t i = 0; i < server->config.pubsubTransportLayersSize; i++){
+        UA_free(&server->config.pubsubTransportLayers[i]);
+    }
     //remove Connections and WriterGroups
     while(pubSubManager->connectionsSize > 0){
         UA_Server_removePubSubConnection(server, pubSubManager->connections[pubSubManager->connectionsSize-1].identifier);
     }
     while(pubSubManager->publishedDataSetsSize > 0){
         UA_Server_removePublishedDataSet(server, pubSubManager->publishedDataSets[pubSubManager->publishedDataSetsSize-1].identifier);
-    }
-    //free the currently configured transport layers
-    for(size_t i = 0; i < server->config.pubsubTransportLayersSize; i++){
-        UA_free(&server->config.pubsubTransportLayers[i]);
     }
 }
 

@@ -49,7 +49,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
 
     /* Decode the message */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "Message length: %zu", buffer.length);
+                "Message length: %lu", (unsigned long) buffer.length);
     UA_NetworkMessage networkMessage;
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;

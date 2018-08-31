@@ -76,12 +76,13 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_Variant value;
     UA_Variant_init(&value);
     UA_NodeId myNodeId;
+	UA_WriterGroup *writerGroup = NULL;
     switch(((UA_NodePropertyContext *) nodeContext)->parentCalssifier){
         case UA_NS0ID_PUBSUBCONNECTIONTYPE:
             break;
         case UA_NS0ID_WRITERGROUPTYPE:
             myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
-            UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, myNodeId);
+            writerGroup = UA_WriterGroup_findWGbyId(server, myNodeId);
             if(!writerGroup)
                 return;
             switch(((UA_NodePropertyContext *) nodeContext)->elementClassiefier){
@@ -104,12 +105,13 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         const UA_NumericRange *range, const UA_DataValue *data){
     UA_Variant value;
     UA_NodeId myNodeId;
+	UA_WriterGroup *writerGroup = NULL;
     switch(((UA_NodePropertyContext *) nodeContext)->parentCalssifier){
         case UA_NS0ID_PUBSUBCONNECTIONTYPE:
             break;
         case UA_NS0ID_WRITERGROUPTYPE:
             myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
-            UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, myNodeId);
+            writerGroup = UA_WriterGroup_findWGbyId(server, myNodeId);
             UA_WriterGroupConfig writerGroupConfig;
             memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
             if(!writerGroup)
@@ -151,8 +153,15 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     connectionName[connection->config->name.length] = '\0';
     //This code block must use a lock
     UA_Nodestore_remove(server, &connection->identifier);
-    retVal |= addPubSubObjectNode(server, connectionName, connection->identifier.identifier.numeric, UA_NS0ID_PUBLISHSUBSCRIBE,
-                            UA_NS0ID_HASPUBSUBCONNECTION, UA_NS0ID_PUBSUBCONNECTIONTYPE);
+    UA_NodeId pubSubConnectionNodeId;
+    UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("de-DE", connectionName);
+    retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric),
+    UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPUBSUBCONNECTION),
+    UA_QUALIFIEDNAME(0, connectionName), UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE), (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &pubSubConnectionNodeId);
+    addPubSubObjectNode(server, "Address", connection->identifier.identifier.numeric+1, pubSubConnectionNodeId.identifier.numeric,  UA_NS0ID_HASCOMPONENT, UA_NS0ID_NETWORKADDRESSURLTYPE);
+    UA_Server_addNode_finish(server, pubSubConnectionNodeId);
+
     //End lock zone
     UA_NodeId addressNode, urlNode, interfaceNode;
     addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
@@ -241,7 +250,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     publishingIntervalContext->parentNodeId = writerGroup->identifier;
     publishingIntervalContext->parentCalssifier = UA_NS0ID_WRITERGROUPTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL;
-    retVal |= addVariableValueSource(server,(UA_ValueCallback) {onRead, onWrite}, publishingIntervalNode, publishingIntervalContext);
+    UA_ValueCallback valueCallback;
+    valueCallback.onRead = onRead;
+    valueCallback.onWrite = onWrite;
+    retVal |= addVariableValueSource(server, valueCallback, publishingIntervalNode, publishingIntervalContext);
     UA_Server_writeAccessLevel(server, publishingIntervalNode, (UA_ACCESSLEVELMASK_READ ^ UA_ACCESSLEVELMASK_WRITE));
 
     priorityNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Priority"),
