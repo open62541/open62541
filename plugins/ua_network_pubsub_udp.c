@@ -413,11 +413,11 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
  */
 static UA_StatusCode
 UA_PubSubChannelUDPMC_close(UA_PubSubChannel *channel) {
-    UA_deinitialize_architecture_network();
     if(UA_close(channel->sockfd) != 0){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection delete failed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    UA_deinitialize_architecture_network();
     //cleanup the internal NetworkLayer data
     UA_PubSubChannelDataUDPMC *networkLayerData = (UA_PubSubChannelDataUDPMC *) channel->handle;
     UA_free(networkLayerData->ai_addr);
