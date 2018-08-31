@@ -100,6 +100,10 @@ socket_close(UA_Connection *connection) {
 static UA_StatusCode
 socket_write(UA_Connection *connection, UA_ByteString *buf) {
     size_t nWritten = 0;
+    int flags = 0;
+#ifdef MSG_NOSIGNAL
+    flags = MSG_NOSIGNAL;
+#endif
     do {
         ssize_t n = 0;
         do {
@@ -107,7 +111,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
          * size_t bytes_to_send = buf->length - nWritten >  1024 ? 1024 : buf->length - nWritten; */
             size_t bytes_to_send = buf->length - nWritten;
             n = send((SOCKET)connection->sockfd, (const char*)buf->data + nWritten,
-                     WIN32_INT bytes_to_send, 0);
+                     WIN32_INT bytes_to_send, flags);
             if(n < 0 && errno__ != INTERRUPTED && errno__ != AGAIN) {
                 connection->close(connection);
                 socket_close(connection);
