@@ -143,9 +143,36 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
         UA_BrowsePathResult_deleteMembers(&bpr);
         return UA_FALSE;
     }
+    
+	/* get the EventType Property Node */
+    const UA_Node* tLeafNode = UA_Nodestore_get(server, &bpr.targets[0].targetId.nodeId);
+    UA_Variant tOutVariant;
+    /* read the Value of EventType Property Node (the Value should be a NodeId) */
+    UA_Server_readValue(server, tLeafNode->nodeId, &tOutVariant);
+    UA_NodeId tEventType = *((UA_NodeId*)tOutVariant.data);
+
+    /* Make sure the EventType is not a Subtype of CondtionType
+     * First check for filter set using UaExpert
+     * (ConditionId Clause won't be present in Events, which are not Conditions)
+     * Second check for Events which are Conditions or Alarms (Part 9 not supported yet) */
+    UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    UA_Boolean tmp = isNodeInTree(&server->config.nodestore, &bpr.targets[0].targetId.nodeId,
-                                  validEventParent, &hasSubtypeId, 1);
+    if(UA_NodeId_equal(validEventParent, &conditionTypeId) ||
+       isNodeInTree(&server->config.nodestore, &tEventType, 
+    		         &conditionTypeId, &hasSubtypeId, 1)){
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+    	         "Alarms and Conditions are not supported yet!");
+        UA_Nodestore_release(server, (const UA_Node *) tLeafNode);
+        UA_BrowsePathResult_deleteMembers(&bpr);
+        return UA_FALSE;
+    }
+
+    /* check whether Valid Event other than Conditions */
+    UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    UA_Boolean tmp = isNodeInTree(&server->config.nodestore, &tEventType,
+                                  &baseEventTypeId, &hasSubtypeId, 1);
+
+    UA_Nodestore_release(server, (const UA_Node *) tLeafNode);
     UA_BrowsePathResult_deleteMembers(&bpr);
     return tmp;
 }
@@ -248,7 +275,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
     /* iterate over the selectClauses */
     for(size_t i = 0; i < filter->selectClausesSize; i++) {
         if(!UA_NodeId_equal(&filter->selectClauses[i].typeDefinitionId, &baseEventTypeId) &&
-           !isValidEvent(server, &filter->selectClauses[0].typeDefinitionId, eventNode)) {
+           !isValidEvent(server, &filter->selectClauses[i].typeDefinitionId, eventNode)) {
             UA_Variant_init(&notification->fields.eventFields[i]);
             /* EventFilterResult currently isn't being used
             notification->result.selectClauseResults[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID; */
