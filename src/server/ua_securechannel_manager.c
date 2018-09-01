@@ -40,28 +40,22 @@ UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
 }
 
 static void
-removeSecureChannelCallback(UA_Server *server, void *entry) {
-    channel_entry *centry = (channel_entry *)entry;
-    UA_SecureChannel_deleteMembersCleanup(&centry->channel);
-    UA_free(entry);
+removeSecureChannelCallback(void *_, channel_entry *entry) {
+    UA_SecureChannel_deleteMembersCleanup(&entry->channel);
 }
 
-static UA_StatusCode
+static void
 removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry) {
-    /* Add a delayed callback to remove the channel when the currently
-     * scheduled jobs have completed */
-    UA_StatusCode retval = UA_Server_delayedCallback(cm->server, removeSecureChannelCallback, entry);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(cm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                       "Could not remove the secure channel with error code %s",
-                       UA_StatusCode_name(retval));
-        return retval; /* Try again next time */
-    }
-
     /* Detach the channel and make the capacity available */
     TAILQ_REMOVE(&cm->channels, entry, pointers);
     UA_atomic_subUInt32(&cm->currentChannelCount, 1);
-    return UA_STATUSCODE_GOOD;
+
+    /* Add a delayed callback to remove the channel when the currently
+     * scheduled jobs have completed */
+    entry->cleanupCallback.callback = (UA_ApplicationCallback)removeSecureChannelCallback;
+    entry->cleanupCallback.application = NULL;
+    entry->cleanupCallback.data = entry;
+    UA_WorkQueue_enqueueDelayed(&cm->server->workQueue, &entry->cleanupCallback);
 }
 
 /* remove channels that were not renewed or who have no connection attached */
@@ -266,5 +260,7 @@ UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) 
     }
     if(!entry)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return removeSecureChannel(cm, entry);
+
+    removeSecureChannel(cm, entry);
+    return UA_STATUSCODE_GOOD;
 }

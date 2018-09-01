@@ -82,7 +82,10 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     UA_Variant_deleteMembers(&monitoredItem->lastValue);
     UA_NodeId_deleteMembers(&monitoredItem->monitoredNodeId);
-    UA_Server_delayedFree(server, monitoredItem);
+
+    /* No actual callback, just remove the structure */
+    monitoredItem->delayedFreePointers.callback = NULL;
+    UA_WorkQueue_enqueueDelayed(&server->workQueue, &monitoredItem->delayedFreePointers);
 }
 
 UA_StatusCode

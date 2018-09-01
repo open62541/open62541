@@ -116,13 +116,6 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
 }
 
 #ifdef UA_ENABLE_MULTITHREADING
-static void
-delayedFree(UA_Server *server, void *data) {
-    UA_free(data);
-}
-#endif
-
-
 
 static struct mdnsHostnameToIp_list_entry *
 mdns_hostname_add_or_get(UA_Server *server, const char *hostname, struct in_addr addr, UA_Boolean createNew) {
@@ -416,7 +409,8 @@ mdns_record_remove(UA_Server *server, const char *record,
     UA_free(entry);
 #else
     UA_atomic_subSize(&server->serverOnNetworkSize, 1);
-    UA_Server_delayedCallback(server, delayedFree, entry);
+    entry->delayedCleanup.callback = NULL; /* Only free the structure */
+    UA_WorkQueue_enqueueDelayed(&server->workQueue, &entry->delayedCleanup);
 #endif
 }
 

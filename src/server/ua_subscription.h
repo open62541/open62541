@@ -83,6 +83,7 @@ void UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 
 struct UA_MonitoredItem {
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry;
     UA_Subscription *subscription;
     UA_UInt32 monitoredItemId;
@@ -158,6 +159,7 @@ typedef enum {
 typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) ListOfNotificationMessages;
 
 struct UA_Subscription {
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_Subscription) listEntry;
     UA_Session *session;
     UA_UInt32 subscriptionId;

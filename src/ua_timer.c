@@ -33,7 +33,8 @@ struct UA_TimerCallbackEntry {
     UA_UInt64 interval;                      /* Interval in 100ns resolution */
     UA_UInt64 id;                            /* Id of the repeated callback */
 
-    UA_TimerCallback callback;
+    UA_ApplicationCallback callback;
+    void *application;
     void *data;
 };
 
@@ -88,8 +89,8 @@ dequeueChange(UA_Timer *t) {
  * future. This will be picked up in the next iteration and inserted at the
  * correct place. So that the next execution takes place ät "nextTime". */
 UA_StatusCode
-UA_Timer_addRepeatedCallback(UA_Timer *t, UA_TimerCallback callback,
-                             void *data, UA_UInt32 interval,
+UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
+                             void *application, void *data, UA_UInt32 interval,
                              UA_UInt64 *callbackId) {
     /* A callback method needs to be present */
     if(!callback)
@@ -109,6 +110,7 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_TimerCallback callback,
     tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
     tc->id = ++t->idCounter;
     tc->callback = callback;
+    tc->application = application;
     tc->data = data;
     tc->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)tc->interval;
 
@@ -173,7 +175,7 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
     tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
     tc->id = callbackId;
     tc->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)tc->interval;
-    tc->callback = (UA_TimerCallback)CHANGE_SENTINEL;
+    tc->callback = (UA_ApplicationCallback)CHANGE_SENTINEL;
 
     /* Enqueue the changes in the MPSC queue */
     enqueueChange(t, tc);
@@ -219,7 +221,7 @@ UA_Timer_removeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId) {
 
     /* Set the repeated callback with the sentinel nextTime */
     tc->id = callbackId;
-    tc->callback = (UA_TimerCallback)REMOVE_SENTINEL;
+    tc->callback = (UA_ApplicationCallback)REMOVE_SENTINEL;
 
     /* Enqueue the changes in the MPSC queue */
     enqueueChange(t, tc);
@@ -265,8 +267,8 @@ processChanges(UA_Timer *t) {
 
 UA_DateTime
 UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
-                 UA_TimerDispatchCallback dispatchCallback,
-                 void *application) {
+                 UA_TimerExecutionCallback executionCallback,
+                 void *executionApplication) {
     /* Insert and remove callbacks */
     processChanges(t);
 
@@ -303,7 +305,8 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
         SLIST_REMOVE_HEAD(&executedNowList, next);
 
         /* Dispatch/process callback */
-        dispatchCallback(application, tc->callback, tc->data);
+        executionCallback(executionApplication, tc->callback,
+                          tc->application, tc->data);
 
         /* Set the time for the next execution. Prevent an infinite loop by
          * forcing the next processing into the next iteration. */
