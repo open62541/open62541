@@ -117,9 +117,9 @@ encodeWithExchangeBuffer(const void *ptr, encodeBinarySignature encodeFunc, Ctx 
         ret = exchangeBuffer(ctx);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
-        encodeFunc(ptr, NULL, ctx);
+        ret = encodeFunc(ptr, NULL, ctx);
     }
-    return UA_STATUSCODE_GOOD;
+    return ret;
 }
 
 #define ENCODE_WITHEXCHANGE(VAR, TYPE) \
