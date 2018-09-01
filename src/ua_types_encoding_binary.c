@@ -34,7 +34,8 @@
  * is "looped through" every method call. The ``_``-macro accesses either the
  * thread-local or the "looped through" context . */
 
-#define UA_ENCODING_MAX_RECURSION 20
+/* Part 6 §5.1.5: Decoders shall support at least 100 nesting levels */
+#define UA_ENCODING_MAX_RECURSION 100
 
 typedef struct {
     /* Pointers to the current position and the last position in the buffer */
