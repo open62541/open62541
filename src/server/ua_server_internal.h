@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
@@ -21,6 +21,7 @@
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
+#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 
@@ -42,30 +43,21 @@ typedef struct {
 
 #endif
 
-#ifdef UA_ENABLE_MULTITHREADING
-
-#include <pthread.h>
-
-struct UA_Worker;
-typedef struct UA_Worker UA_Worker;
-
-struct UA_WorkerCallback;
-typedef struct UA_WorkerCallback UA_WorkerCallback;
-
-SIMPLEQ_HEAD(UA_DispatchQueue, UA_WorkerCallback);
-typedef struct UA_DispatchQueue UA_DispatchQueue;
-
-#endif /* UA_ENABLE_MULTITHREADING */
-
 #ifdef UA_ENABLE_DISCOVERY
 
 typedef struct registeredServer_list_entry {
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_DelayedCallback delayedCleanup;
+#endif
     LIST_ENTRY(registeredServer_list_entry) pointers;
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
 } registeredServer_list_entry;
 
 typedef struct periodicServerRegisterCallback_entry {
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_DelayedCallback delayedCleanup;
+#endif
     LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
     struct PeriodicServerRegisterCallback *callback;
 } periodicServerRegisterCallback_entry;
@@ -75,6 +67,9 @@ typedef struct periodicServerRegisterCallback_entry {
 #include "mdnsd/libmdnsd/mdnsd.h"
 
 typedef struct serverOnNetwork_list_entry {
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_DelayedCallback delayedCleanup;
+#endif
     LIST_ENTRY(serverOnNetwork_list_entry) pointers;
     UA_ServerOnNetwork serverOnNetwork;
     UA_DateTime created;
@@ -157,17 +152,7 @@ struct UA_Server {
     /* Callbacks with a repetition interval */
     UA_Timer timer;
 
-    /* Delayed callbacks */
-    SLIST_HEAD(DelayedCallbacksList, UA_DelayedCallback) delayedCallbacks;
-
-    /* Worker threads */
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_Worker *workers; /* there are nThread workers in a running server */
-    UA_DispatchQueue dispatchQueue; /* Dispatch queue for the worker threads */
-    pthread_mutex_t dispatchQueue_accessMutex; /* mutex for access to queue */
-    pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    pthread_mutex_t dispatchQueue_conditionMutex; /* mutex for access to condition variable */
-#endif
+    UA_WorkQueue workQueue;
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
@@ -228,31 +213,6 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
                                  const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback,
                                  void *data);
-
-/*************/
-/* Callbacks */
-/*************/
-
-/* Delayed callbacks are executed when all previously dispatched callbacks are
- * finished */
-UA_StatusCode
-UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
-
-UA_StatusCode
-UA_Server_delayedFree(UA_Server *server, void *data);
-
-#ifndef UA_ENABLE_MULTITHREADING
-/* Execute all delayed callbacks regardless of whether the worker threads have
- * finished previous work */
-void UA_Server_cleanupDelayedCallbacks(UA_Server *server);
-#else
-void UA_Server_cleanupDispatchQueue(UA_Server *server);
-#endif
-
-/* Callback is executed in the same thread or, if possible, dispatched to one of
- * the worker threads. */
-void
-UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 
 /*********************/
 /* Utility Functions */

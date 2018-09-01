@@ -44,12 +44,8 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     /* Catch error during async connection */
     client->connectStatus = UA_STATUSCODE_GOOD;
 
-    /* Needed by async client */
     UA_Timer_init(&client->timer);
-
-#ifndef UA_ENABLE_MULTITHREADING
-    SLIST_INIT(&client->delayedClientCallbacks);
-#endif
+    UA_WorkQueue_init(&client->workQueue);
 }
 
 UA_Client *
@@ -122,12 +118,8 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     /* Catch error during async connection */
     client->connectStatus = UA_STATUSCODE_GOOD;
 
-    /* Needed by async client */
     UA_Timer_init(&client->timer);
-
-#ifndef UA_ENABLE_MULTITHREADING
-    SLIST_INIT(&client->delayedClientCallbacks);
-#endif
+    UA_WorkQueue_init(&client->workQueue);
 
     /* Initialize the SecureChannel */
     UA_SecureChannel_init(&client->channel);
@@ -204,6 +196,9 @@ UA_Client_deleteMembers(UA_Client* client) {
 
     /* Delete the timed work */
     UA_Timer_deleteMembers(&client->timer);
+
+    /* Clean up the work queue */
+    UA_WorkQueue_cleanup(&client->workQueue);
 }
 
 void
@@ -640,16 +635,16 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
-UA_Client_addRepeatedCallback(UA_Client *Client, UA_ClientCallback callback,
+UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_UInt32 interval,
                               UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&Client->timer,
-                                        (UA_TimerCallback) callback, data,
+    return UA_Timer_addRepeatedCallback(&client->timer,
+                                        (UA_ApplicationCallback) callback, client, data,
                                         interval, callbackId);
 }
 
 
 UA_StatusCode
-UA_Client_removeRepeatedCallback(UA_Client *Client, UA_UInt64 callbackId) {
-    return UA_Timer_removeRepeatedCallback(&Client->timer, callbackId);
+UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId) {
+    return UA_Timer_removeRepeatedCallback(&client->timer, callbackId);
 }

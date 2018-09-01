@@ -31,13 +31,11 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
 
 /* Delayed callback to free the session memory */
 static void
-removeSessionCallback(UA_Server *server, void *entry) {
-    session_list_entry *sentry = (session_list_entry*)entry;
-    UA_Session_deleteMembersCleanup(&sentry->session, server);
-    UA_free(sentry);
+removeSessionCallback(UA_Server *server, session_list_entry *entry) {
+    UA_Session_deleteMembersCleanup(&entry->session, server);
 }
 
-static UA_StatusCode
+static void
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     /* Detach the Session from the SecureChannel */
     UA_Session_detachFromSecureChannel(&sentry->session);
@@ -45,21 +43,17 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     /* Deactivate the session */
     sentry->session.activated = false;
 
-    /* Add a delayed callback to remove the session when the currently
-     * scheduled jobs have completed */
-    UA_StatusCode retval = UA_Server_delayedCallback(sm->server, removeSessionCallback, sentry);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(sm->server->config.logger, &sentry->session,
-                       "Could not remove session with error code %s",
-                       UA_StatusCode_name(retval));
-        return retval; /* Try again next time */
-    }
-
     /* Detach the session from the session manager and make the capacity
      * available */
     LIST_REMOVE(sentry, pointers);
     UA_atomic_subUInt32(&sm->currentSessionCount, 1);
-    return UA_STATUSCODE_GOOD;
+
+    /* Add a delayed callback to remove the session when the currently
+     * scheduled jobs have completed */
+    sentry->cleanupCallback.callback = (UA_ApplicationCallback)removeSessionCallback;
+    sentry->cleanupCallback.application = sm->server;
+    sentry->cleanupCallback.data = sentry;
+    UA_WorkQueue_enqueueDelayed(&sm->server->workQueue, &sentry->cleanupCallback);
 }
 
 void
@@ -175,5 +169,7 @@ UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token) {
     }
     if(!current)
         return UA_STATUSCODE_BADSESSIONIDINVALID;
-    return removeSession(sm, current);
+
+    removeSession(sm, current);
+    return UA_STATUSCODE_GOOD;
 }

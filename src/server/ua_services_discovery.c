@@ -300,13 +300,6 @@ error:
 
 #ifdef UA_ENABLE_DISCOVERY
 
-#ifdef UA_ENABLE_MULTITHREADING
-static void
-freeEntry(UA_Server *server, void *entry) {
-    UA_free(entry);
-}
-#endif
-
 static void
 process_RegisterServer(UA_Server *server, UA_Session *session,
                        const UA_RequestHeader* requestHeader,
@@ -428,7 +421,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         server->registeredServersSize--;
 #else
         UA_atomic_subSize(&server->registeredServersSize, 1);
-        UA_Server_delayedCallback(server, freeEntry, registeredServer_entry);
+        registeredServer_entry->delayedCleanup.callback = NULL; /* only free the structure */
+        UA_WorkQueue_enqueueDelayed(&server->workQueue, &registeredServer_entry->delayedCleanup);
 #endif
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
         return;
@@ -543,7 +537,8 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             server->registeredServersSize--;
 #else
             UA_atomic_subSize(&server->registeredServersSize, 1);
-            UA_Server_delayedCallback(server, freeEntry, current);
+            current->delayedCleanup.callback = NULL; /* Only free the structure */
+            UA_WorkQueue_enqueueDelayed(&server->workQueue, &current->delayedCleanup);
 #endif
         }
     }

@@ -14,6 +14,7 @@
 #define UA_CLIENT_INTERNAL_H_
 
 #include "ua_securechannel.h"
+#include "ua_workqueue.h"
 #include "ua_client_highlevel.h"
 #include "ua_client_subscriptions.h"
 #include "ua_timer.h"
@@ -171,8 +172,9 @@ struct UA_Client {
     /*When using highlevel functions these are the callbacks that can be accessed by the user*/
     LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
 
-    /* Delayed callbacks */
-    SLIST_HEAD(DelayedClientCallbacksList, UA_DelayedClientCallback) delayedClientCallbacks;
+    /* Work queue */
+    UA_WorkQueue workQueue;
+
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 monitoredItemHandles;
@@ -220,12 +222,7 @@ receiveServiceResponse(UA_Client *client, void *response,
 UA_StatusCode
 receiveServiceResponseAsync(UA_Client *client, void *response,
                              const UA_DataType *responseType);
-void
-UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
-                         void *data);
-UA_StatusCode
-UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
-                          void *data);
+
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
 
