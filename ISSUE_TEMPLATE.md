@@ -1,3 +1,4 @@
+<!--
 !ATTENTION!
 Please read the following page carefully and provide us with all the
 information requested:
@@ -8,9 +9,9 @@ https://help.github.com/articles/basic-writing-and-formatting-syntax/
 
 Fill out the sections and checklist below (add text at the end of each line).
 
-Remove this text between the ATTENTION marks after reading it.
 !ATTENTION!
 --------------------------------------------------------------------------------
+-->
 
 Description
 ===========
