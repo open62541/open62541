@@ -19,3 +19,8 @@ EnumDescription
 SimpleTypeDescription
 DataSetFieldFlags
 FieldMetaData
+BrokerTransportQualityOfService
+BrokerConnectionTransportDataType
+BrokerWriterGroupTransportDataType
+BrokerDataSetWriterTransportDataType
+BrokerWriterGroupTransportType

@@ -57,8 +57,9 @@ struct UA_PubSubChannel {
     UA_StatusCode (*send)(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings,
                           const UA_ByteString *buf);
 
-    /* Register to an specified message source, e.g. multicast group or topic */
-    UA_StatusCode (*regist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings);
+    /* Register to an specified message source, e.g. multicast group or topic. Callback is used for mqtt. */
+    UA_StatusCode (*regist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings, 
+        void (*callback)(UA_ByteString *encodedBuffer, UA_ByteString *topic));
 
     /* Remove subscription to an specified message source, e.g. multicast group or topic */
     UA_StatusCode (*unregist)(UA_PubSubChannel * channel, UA_ExtensionObject *transportSettings);
@@ -69,6 +70,10 @@ struct UA_PubSubChannel {
 
     /* Closing the connection and implicit free of the channel structures. */
     UA_StatusCode (*close)(UA_PubSubChannel *channel);
+    
+    /* Giving the connection protocoll time to process inbound and outbound traffic.
+     * This should be caller periodically when using mqtt. (each 200ms or so) */
+    UA_StatusCode (*yield)(UA_PubSubChannel *channel);
 };
 
 /**

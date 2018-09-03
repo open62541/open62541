@@ -209,6 +209,14 @@ endif()
 option(UA_ENABLE_JSON_ENCODING "Enable Json encoding." OFF)
 mark_as_advanced(UA_ENABLE_JSON_ENCODING)
 
+option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" ON)
+mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
+if(UA_ENABLE_PUBSUB_MQTT)
+    if(NOT UA_ENABLE_PUBSUB)
+    message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
+    endif()
+endif()
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -570,10 +578,14 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.c
                 ${PROJECT_SOURCE_DIR}/deps/string_escape.c
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
-                ${PROJECT_SOURCE_DIR}/deps/atoi.c)
+                ${PROJECT_SOURCE_DIR}/deps/atoi.c
+                ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c
+                #impl of the mqtt-c abstraction layer, using UA_Connection   
+                ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c)
 
 set(default_plugin_headers #${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
+                           ${historizing_default_plugin_headers}
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
@@ -588,6 +600,9 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
+
+                           #adapter from mqtt channel to external dependency mqtt-c
+                           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
@@ -598,9 +613,16 @@ endif()
 if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
+
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.c)
+    endif()
+
+    if(UA_ENABLE_PUBSUB_MQTT)
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c)  
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)                   
     endif()
 endif()
 

@@ -1136,7 +1136,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                 UA_ByteString_deleteMembers(&buf);
                 return;
             };
-            connection->channel->send(connection->channel, NULL, &buf);
+            connection->channel->send(connection->channel, &writerGroup->config.transportSettings, &buf);
         }
         //The stack allocated sizes and dataSetWriterIds field must be set to NULL to prevent invalid free.
         nmStore[i].payload.dataSetPayload.sizes = NULL;
