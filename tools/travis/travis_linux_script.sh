@@ -267,9 +267,10 @@ else
         if [ $? -ne 0 ] ; then exit 1 ; fi
         echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
 
-        # only run coveralls on main repo, otherwise it fails uploading the files
+        # only run coveralls on main repo and when MINGW=true
+        # We only want to build coveralls once, so we just take the travis run where MINGW=true which is only enabled once
         echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
-        if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+        if [ -z ${MINGW+x} ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
             echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
             coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
             echo -en 'travis_fold:end:script.build.coveralls\\r'
