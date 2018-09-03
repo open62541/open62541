@@ -51,7 +51,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 
-option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" ON)
+option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 set(UA_AMALGAMATION_ARCHITECTURES "" CACHE STRING "List of architectures to include in amalgamation")
 mark_as_advanced(UA_AMALGAMATION_ARCHITECTURES)
 
