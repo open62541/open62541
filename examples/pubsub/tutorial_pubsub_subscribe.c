@@ -138,7 +138,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
     if(connection != NULL) {
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL);
+        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
         if (rv == UA_STATUSCODE_GOOD) {
             UA_UInt64 subscriptionCallbackId;
             UA_Server_addRepeatedCallback(server, (UA_ServerCallback)subscriptionPollingCallback,

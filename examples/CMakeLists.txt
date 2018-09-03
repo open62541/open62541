@@ -3,6 +3,8 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/examples)
 include_directories(${PROJECT_SOURCE_DIR}/arch)
+include_directories(${PROJECT_SOURCE_DIR}/deps/mqtt-c)
+include_directories(${PROJECT_SOURCE_DIR}/examples/mqtt)
 
 set(examples_headers
     ${examples_headers}
@@ -144,5 +146,8 @@ if(UA_ENABLE_PUBSUB)
         message(WARNING "PubSub subscriber tutorial (preview) can not be used with AMALGAMATION. Skipping tutorial_pubsub_subscribe.")
     else(NOT UA_ENABLE_AMALGAMATION)
         add_example(tutorial_pubsub_subscribe pubsub/tutorial_pubsub_subscribe.c)
+    endif()
+    if(UA_ENABLE_PUBSUB_MQTT)
+        add_example(tutorial_pubsub_mqtt pubsub/tutorial_pubsub_mqtt.c)
     endif()
 endif()
