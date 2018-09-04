@@ -101,7 +101,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         if(resultsize == -1) {
             /* The call to select was interrupted manually. Act as if it timed
              * out */
-            if(errno == EINTR)
+            if(UA_ERRNO == EINTR)
                 return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
             /* The error cannot be recovered. Close the connection. */
@@ -657,9 +657,9 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
             _os_sleep(&time,&sig);
             error = connect(clientsockfd, tcpConnection->server->ai_addr,
                         tcpConnection->server->ai_addrlen);
-            if ((error == -1 && errno == EISCONN) || (error == 0))
+            if ((error == -1 && UA_ERRNO == EISCONN) || (error == 0))
                 resultsize = 1;
-            if (error == -1 && errno != EALREADY && errno != EINPROGRESS)
+            if (error == -1 && UA_ERRNO != EALREADY && UA_ERRNO != EINPROGRESS)
                 break;
         }
         while(resultsize == 0);
@@ -915,9 +915,9 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config,
 
                 _os_sleep(&time,&sig);
                 error = connect(clientsockfd, server->ai_addr, server->ai_addrlen);
-                if ((error == -1 && errno == EISCONN) || (error == 0))
+                if ((error == -1 && UA_ERRNO == EISCONN) || (error == 0))
                     resultsize = 1;
-                if (error == -1 && errno != EALREADY && errno != EINPROGRESS)
+                if (error == -1 && UA_ERRNO != EALREADY && UA_ERRNO != EINPROGRESS)
                     break;
             }
             while(resultsize == 0);
