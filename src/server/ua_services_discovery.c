@@ -380,7 +380,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
-        if(UA_access( filePath, 0 ) == -1) {
+        if(!UA_fileExists( filePath )) {
             responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
             UA_free(filePath);
             return;
@@ -511,14 +511,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                 memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
                        current->registeredServer.semaphoreFilePath.length );
                 filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
-#ifdef UNDER_CE
-                FILE *fp = fopen(filePath,"rb");
-                semaphoreDeleted = (fp==NULL);
-                if(fp)
-                    fclose(fp);
-#else
-                semaphoreDeleted = UA_access( filePath, 0 ) == -1;
-#endif
+                semaphoreDeleted = UA_fileExists(filePath) == UA_FALSE;
                 UA_free(filePath);
             } else {
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot check registration semaphore. Out of memory");
