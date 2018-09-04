@@ -198,6 +198,9 @@ int UA_snprintf(char* pa_stream, size_t pa_size, const char* pa_format, ...); //
 int UA_access(const char *pathname, int mode); //equivalent implementation of https://linux.die.net/man/2/access
 #endif
 
+#ifndef UA_fileExists
+#define UA_fileExists(X) ( UA_access(X, 0) == 0)
+#endif
 
 #include "ua_architecture_definitions.h"
 
