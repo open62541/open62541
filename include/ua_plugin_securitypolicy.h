@@ -356,6 +356,12 @@ struct UA_SecurityPolicy {
 
     UA_Logger logger;
 
+    /*Updates the ApplicationInstanceCertificate and the corresponding
+    * private key at runtime. */
+    UA_StatusCode (*updateCertificateAndPrivateKey)(UA_SecurityPolicy *policy,
+                                                    const UA_ByteString newCertificate,
+                                                    const UA_ByteString newPrivateKey);
+
     /* Deletes the dynamic content of the policy */
     void (*deleteMembers)(UA_SecurityPolicy *policy);
 };
