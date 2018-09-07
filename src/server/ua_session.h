@@ -82,11 +82,25 @@ void UA_Session_updateLifetime(UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscription);
-UA_Subscription * UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId);
-UA_StatusCode UA_Session_deleteSubscription(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionId);
-void UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, UA_Boolean head);
-UA_PublishResponseEntry* UA_Session_dequeuePublishReq(UA_Session *session);
+void
+UA_Session_addSubscription(UA_Session *session,
+                           UA_Subscription *newSubscription);
+
+UA_Subscription *
+UA_Session_getSubscriptionById(UA_Session *session,
+                               UA_UInt32 subscriptionId);
+
+UA_StatusCode
+UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
+                              UA_UInt32 subscriptionId);
+
+void
+UA_Session_queuePublishReq(UA_Session *session,
+                           UA_PublishResponseEntry* entry,
+                           UA_Boolean head);
+
+UA_PublishResponseEntry *
+UA_Session_dequeuePublishReq(UA_Session *session);
 
 #endif
 
@@ -103,8 +117,11 @@ UA_PublishResponseEntry* UA_Session_dequeuePublishReq(UA_Session *session);
         UA_NodeId_toString(&(SESSION)->sessionId, &idString);           \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
                        "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
-                       ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                       ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
+                       ((SESSION)->header.channel ?                     \
+                        ((SESSION)->header.channel->connection ?        \
+                         (SESSION)->header.channel->connection->sockfd : 0) : 0), \
+                       ((SESSION)->header.channel ?                     \
+                        (SESSION)->header.channel->securityToken.channelId : 0), \
                        (int)idString.length, idString.data, __VA_ARGS__); \
         UA_String_deleteMembers(&idString);                             \
     } while(0)
