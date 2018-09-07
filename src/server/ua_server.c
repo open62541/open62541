@@ -372,3 +372,54 @@ UA_StatusCode
 UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId) {
     return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
 }
+
+
+UA_StatusCode UA_EXPORT
+UA_Server_updateCertificate(UA_Server *server,
+                            const UA_ByteString *oldCertificate,
+                            const UA_ByteString *newCertificate,
+                            const UA_ByteString *newPrivateKey,
+                            UA_Boolean closeSessions,
+                            UA_Boolean closeSecureChannels) {
+
+    if (server == NULL || oldCertificate == NULL
+        || newCertificate == NULL || newPrivateKey == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if (closeSessions) {
+        UA_SessionManager *sm = &server->sessionManager;
+        session_list_entry *current;
+        LIST_FOREACH(current, &sm->sessions, pointers) {
+            if (UA_ByteString_equal(oldCertificate,
+                                    &current->session.header.channel->securityPolicy->localCertificate)) {
+                UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken);
+            }
+        }
+
+    }
+
+    if (closeSecureChannels) {
+        UA_SecureChannelManager *cm = &server->secureChannelManager;
+        channel_entry *entry;
+        TAILQ_FOREACH(entry, &cm->channels, pointers) {
+            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate)){
+                UA_SecureChannelManager_close(cm, entry->channel.securityToken.channelId);
+            }
+        }
+    }
+
+    size_t index = 0;
+    while (index < server->config.endpointsSize) {
+        UA_EndpointDescription *ed = &server->config.endpoints[index].endpointDescription;
+        if (UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
+            UA_String_deleteMembers(&ed->serverCertificate);
+            UA_String_copy(newCertificate, &ed->serverCertificate);
+            UA_SecurityPolicy *sp = &server->config.endpoints[index].securityPolicy;
+            sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
+        }
+        index++;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}

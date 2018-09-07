@@ -110,6 +110,16 @@ compareCertificate_none(const void *channelContext,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+updateCertificateAndPrivateKey_none(UA_SecurityPolicy *policy,
+                                    const UA_ByteString newCertificate,
+                                    const UA_ByteString newPrivateKey) {
+    UA_ByteString_deleteMembers(&policy->localCertificate);
+    UA_ByteString_copy(&newCertificate, &policy->localCertificate);
+    return UA_STATUSCODE_GOOD;
+}
+
+
 static void
 policy_deletemembers_none(UA_SecurityPolicy *policy) {
     UA_ByteString_deleteMembers(&policy->localCertificate);
@@ -168,6 +178,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *ce
     policy->channelModule.setRemoteSymSigningKey = setContextValue_none;
     policy->channelModule.setRemoteSymIv = setContextValue_none;
     policy->channelModule.compareCertificate = compareCertificate_none;
+    policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_none;
     policy->deleteMembers = policy_deletemembers_none;
 
     return UA_STATUSCODE_GOOD;
