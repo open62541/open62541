@@ -109,23 +109,47 @@ UA_PublishResponseEntry* UA_Session_dequeuePublishReq(UA_Session *session);
         UA_String_deleteMembers(&idString);                             \
     } while(0)
 
+#if UA_LOGLEVEL <= 100
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, TRACE, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
 
+#if UA_LOGLEVEL <= 200
 #define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, DEBUG, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
 
+#if UA_LOGLEVEL <= 300
 #define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, INFO, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
 
+#if UA_LOGLEVEL <= 400
 #define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, WARNING, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
 
+#if UA_LOGLEVEL <= 500
 #define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, ERROR, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
 
+#if UA_LOGLEVEL <= 600
 #define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, FATAL, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
 
 #ifdef __cplusplus
 } // extern "C"
