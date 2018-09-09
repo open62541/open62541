@@ -12,22 +12,24 @@
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-# ifdef UA_NO_AMALGAMATION
-#  include "mdnsd/libmdnsd/xht.h"
-#  include "mdnsd/libmdnsd/sdtxt.h"
-# endif
-#  ifdef _WIN32
-#   define _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated on MSVC but used for compatibility */
-#   include <winsock2.h>
-#   include <iphlpapi.h>
-#   include <ws2tcpip.h>
-#  else
-#   include <sys/time.h> // for struct timeval
-#   include <netinet/in.h> // for struct ip_mreq
-#   include <ifaddrs.h>
-#   include <net/if.h> /* for IFF_RUNNING */
-#   include <netdb.h> // for recvfrom in cygwin
-#  endif
+#ifdef UA_NO_AMALGAMATION
+#include "mdnsd/libmdnsd/xht.h"
+#include "mdnsd/libmdnsd/sdtxt.h"
+#endif
+
+#ifdef _WIN32
+/* inet_ntoa is deprecated on MSVC but used for compatibility */
+# define _WINSOCK_DEPRECATED_NO_WARNINGS
+# include <winsock2.h>
+# include <iphlpapi.h>
+# include <ws2tcpip.h>
+#else
+# include <sys/time.h> // for struct timeval
+# include <netinet/in.h> // for struct ip_mreq
+# include <ifaddrs.h>
+# include <net/if.h> /* for IFF_RUNNING */
+# include <netdb.h> // for recvfrom in cygwin
+#endif
 
 #ifndef UA_STRDUP
 # if defined(__MINGW32__)
@@ -36,15 +38,15 @@ static char *ua_strdup(const char *s) {
     if(p) { strcpy(p, s); }
     return p;
 }
-# define UA_STRDUP ua_strdup
+#  define UA_STRDUP ua_strdup
 # elif defined(_WIN32)
-# define UA_STRDUP _strdup
+#  define UA_STRDUP _strdup
 # else
-# define UA_STRDUP strdup
+#  define UA_STRDUP strdup
 # endif
 #endif
 
-// FIXME: Is this a required algorithm? Otherwise, reuse hashing for nodeids
+/* FIXME: Is this a required algorithm? Otherwise, reuse hashing for nodeids */
 /* Generates a hash code for a string.
  * This function uses the ELF hashing algorithm as reprinted in
  * Andrew Binstock, "Hashing Rehashed," Dr. Dobb's Journal, April 1996.
@@ -76,7 +78,8 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
         else
             maxLen = serverNameLen;
 
-        if(strncmp((char *) hash_entry->entry->serverOnNetwork.serverName.data, serverName, maxLen) == 0)
+        if(strncmp((char *) hash_entry->entry->serverOnNetwork.serverName.data,
+                   serverName, maxLen) == 0)
             return hash_entry->entry;
         hash_entry = hash_entry->next;
     }
@@ -84,10 +87,10 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     if(!createNew)
         return NULL;
 
-    // not yet in list, create new one
-    // todo: malloc may fail: return a statuscode
-    struct serverOnNetwork_list_entry *listEntry =
-            (serverOnNetwork_list_entry*)UA_malloc(sizeof(struct serverOnNetwork_list_entry));
+    /* not yet in list, create new one */
+    /* todo: malloc may fail: return a statuscode */
+    struct serverOnNetwork_list_entry *listEntry = (serverOnNetwork_list_entry*)
+        UA_malloc(sizeof(struct serverOnNetwork_list_entry));
     listEntry->created = UA_DateTime_now();
     listEntry->pathTmp = NULL;
     listEntry->txtSet = UA_FALSE;
@@ -95,17 +98,17 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
     listEntry->serverOnNetwork.recordId = server->serverOnNetworkRecordIdCounter;
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
-    // todo: malloc may fail: return a statuscode
+    /* todo: malloc may fail: return a statuscode */
     listEntry->serverOnNetwork.serverName.data = (UA_Byte*)UA_malloc(serverNameLen);
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
     UA_atomic_addUInt32(&server->serverOnNetworkRecordIdCounter, 1);
     if(server->serverOnNetworkRecordIdCounter == 0)
         server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 
-    // add to hash
-    // todo: malloc may fail: return a statuscode
-    struct serverOnNetwork_hash_entry *newHashEntry =
-            (struct serverOnNetwork_hash_entry*)UA_malloc(sizeof(struct serverOnNetwork_hash_entry));
+    /* add to hash */
+    /* todo: malloc may fail: return a statuscode */
+    struct serverOnNetwork_hash_entry *newHashEntry = (struct serverOnNetwork_hash_entry*)
+        UA_malloc(sizeof(struct serverOnNetwork_hash_entry));
     newHashEntry->next = server->serverOnNetworkHash[hashIdx];
     server->serverOnNetworkHash[hashIdx] = newHashEntry;
     newHashEntry->entry = listEntry;
@@ -115,10 +118,9 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     return listEntry;
 }
 
-#ifdef UA_ENABLE_MULTITHREADING
-
 static struct mdnsHostnameToIp_list_entry *
-mdns_hostname_add_or_get(UA_Server *server, const char *hostname, struct in_addr addr, UA_Boolean createNew) {
+mdns_hostname_add_or_get(UA_Server *server, const char *hostname,
+                         struct in_addr addr, UA_Boolean createNew) {
     int hashIdx = mdns_hash_record(hostname) % MDNS_HOSTNAME_TO_IP_HASH_PRIME;
     struct mdnsHostnameToIp_hash_entry *hash_entry = server->mdnsHostnameToIpHash[hashIdx];
 
@@ -127,7 +129,7 @@ mdns_hostname_add_or_get(UA_Server *server, const char *hostname, struct in_addr
         return NULL;
 
     if(hostname[hostnameLen - 1] == '.')
-        // cut off last dot
+        /* cut off last dot */
         hostnameLen--;
 
     while (hash_entry) {
@@ -140,7 +142,7 @@ mdns_hostname_add_or_get(UA_Server *server, const char *hostname, struct in_addr
     if(!createNew)
         return NULL;
 
-    // not yet in list, create new one
+    /* not yet in list, create new one */
     struct mdnsHostnameToIp_list_entry *listEntry =
         (mdnsHostnameToIp_list_entry*)UA_malloc(sizeof(struct mdnsHostnameToIp_list_entry));
     if (!listEntry)
@@ -154,9 +156,9 @@ mdns_hostname_add_or_get(UA_Server *server, const char *hostname, struct in_addr
     listEntry->mdnsHostname.length = hostnameLen;
     listEntry->addr = addr;
 
-    // add to hash
-    struct mdnsHostnameToIp_hash_entry *newHashEntry =
-        (struct mdnsHostnameToIp_hash_entry*)UA_malloc(sizeof(struct mdnsHostnameToIp_hash_entry));
+    /* add to hash */
+    struct mdnsHostnameToIp_hash_entry *newHashEntry = (struct mdnsHostnameToIp_hash_entry*)
+        UA_malloc(sizeof(struct mdnsHostnameToIp_hash_entry));
     if (!newHashEntry) {
         UA_String_deleteMembers(&listEntry->mdnsHostname);
         UA_free(listEntry);
@@ -169,44 +171,18 @@ mdns_hostname_add_or_get(UA_Server *server, const char *hostname, struct in_addr
     return listEntry;
 }
 
-/*static void
-mdns_hostname_remove(UA_Server *server, const char *record,
-                   struct mdnsHostnameToIp_list_entry *entry) {
-    // remove from hash
-    int hashIdx = mdns_hash_record(record) % MDNS_HOSTNAME_TO_IP_HASH_PRIME;
-    struct mdnsHostnameToIp_hash_entry *hash_entry = server->mdnsHostnameToIpHash[hashIdx];
-    struct mdnsHostnameToIp_hash_entry *prevEntry = hash_entry;
-    while(hash_entry) {
-        if(hash_entry->entry == entry) {
-            if(server->mdnsHostnameToIpHash[hashIdx] == hash_entry)
-                server->mdnsHostnameToIpHash[hashIdx] = hash_entry->next;
-            else if(prevEntry)
-                prevEntry->next = hash_entry->next;
-            break;
-        }
-        prevEntry = hash_entry;
-        hash_entry = hash_entry->next;
-    }
-    UA_free(hash_entry);
-
-    // remove from list
-    LIST_REMOVE(entry, pointers);
-    UA_String_deleteMembers(&entry->mdnsHostname);
-    UA_free(entry);
-}*/
-
 #ifdef _WIN32
 
-// see http://stackoverflow.com/a/10838854/869402
+/* see http://stackoverflow.com/a/10838854/869402 */
 static IP_ADAPTER_ADDRESSES *
 getInterfaces(UA_Server *server) {
     IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
 
-    // Start with a 16 KB buffer and resize if needed - multiple attempts in
-    // case interfaces change while we are in the middle of querying them.
+    /* Start with a 16 KB buffer and resize if needed - multiple attempts in
+     * case interfaces change while we are in the middle of querying them. */
     DWORD adapter_addresses_buffer_size = 16 * 1024;
     for(size_t attempts = 0; attempts != 3; ++attempts) {
-        // todo: malloc may fail: return a statuscode
+        /* todo: malloc may fail: return a statuscode */
         adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
         if(!adapter_addresses) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -224,7 +200,7 @@ getInterfaces(UA_Server *server) {
         if(ERROR_SUCCESS == error) {
             break;
         } else if (ERROR_BUFFER_OVERFLOW == error) {
-            // Try again with the new size
+            /* Try again with the new size */
             UA_free(adapter_addresses);
             adapter_addresses = NULL;
             continue;
@@ -245,25 +221,24 @@ getInterfaces(UA_Server *server) {
 
 static UA_Boolean
 mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entry) {
-
     for (size_t i=0; i<server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        if (UA_String_equal(&entry->serverOnNetwork.discoveryUrl, &nl->discoveryUrl)) {
+        if(UA_String_equal(&entry->serverOnNetwork.discoveryUrl,
+                           &nl->discoveryUrl))
             return UA_TRUE;
-        }
     }
 
-    // The discovery URL may also just contain the IP address, but in our discovery URL we are using hostname
-    // thus previous check may not detect the same URL.
-    // Therefore we also check if the name matches:
-
+    /* The discovery URL may also just contain the IP address, but in our
+     * discovery URL we are using hostname thus previous check may not detect
+     * the same URL. Therefore we also check if the name matches: */
     UA_String hostnameRemote = UA_STRING_NULL;
     UA_UInt16 portRemote = 4840;
     UA_String pathRemote = UA_STRING_NULL;
-    UA_StatusCode retval = UA_parseEndpointUrl(&entry->serverOnNetwork.discoveryUrl, &hostnameRemote,
-                                               &portRemote, &pathRemote);
+    UA_StatusCode retval =
+        UA_parseEndpointUrl(&entry->serverOnNetwork.discoveryUrl,
+                            &hostnameRemote, &portRemote, &pathRemote);
     if(retval != UA_STATUSCODE_GOOD) {
-        // skip invalid url
+        /* skip invalid url */
         return UA_FALSE;
     }
 
@@ -296,7 +271,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
         retval = UA_parseEndpointUrl(&nl->discoveryUrl, &hostnameSelf,
                                      &portSelf, &pathSelf);
         if(retval != UA_STATUSCODE_GOOD) {
-            // skip invalid url
+            /* skip invalid url */
             continue;
         }
         if (portRemote != portSelf)
@@ -310,27 +285,28 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
             if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
                 continue;
 
-            // Parse all IPv4 and IPv6 addresses
+            /* Parse all IPv4 and IPv6 addresses */
             IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress;
             for(; NULL != address; address = address->Next) {
                 int family = address->Address.lpSockaddr->sa_family;
                 if(AF_INET == family) {
-                    SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); // IPv4
+                    SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); /* IPv4 */
                     char *ipStr = inet_ntoa(ipv4->sin_addr);
-                    if (strncmp((const char*)hostnameRemote.data, ipStr, hostnameRemote.length) == 0) {
+                    if(strncmp((const char*)hostnameRemote.data, ipStr,
+                               hostnameRemote.length) == 0) {
                         isSelf = UA_TRUE;
                         break;
                     }
+                } else if(AF_INET6 == family) {
+                    /* IPv6 not implemented yet */
                 }
-                /*else if(AF_INET6 == family) {
-                // IPv6 not implemented yet
-                }*/
             }
             if (isSelf)
                 break;
         }
 #else
-        /* Walk through linked list, maintaining head pointer so we can free list later */
+        /* Walk through linked list, maintaining head pointer so we can free
+         * list later */
         int n;
         for(ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
             if(!ifa->ifa_addr)
@@ -346,7 +322,8 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
                 struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
 
                 char *ipStr = inet_ntoa(sa->sin_addr);
-                if (strncmp((const char*)hostnameRemote.data, ipStr, hostnameRemote.length) == 0) {
+                if(strncmp((const char*)hostnameRemote.data, ipStr,
+                           hostnameRemote.length) == 0) {
                     isSelf = UA_TRUE;
                     break;
                 }
@@ -376,7 +353,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
 static void
 mdns_record_remove(UA_Server *server, const char *record,
                    struct serverOnNetwork_list_entry *entry) {
-    // remove from hash
+    /* remove from hash */
     int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
     struct serverOnNetwork_hash_entry *hash_entry = server->serverOnNetworkHash[hashIdx];
     struct serverOnNetwork_hash_entry *prevEntry = hash_entry;
@@ -398,7 +375,7 @@ mdns_record_remove(UA_Server *server, const char *record,
         server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE,
                                         entry->txtSet, server->serverOnNetworkCallbackData);
 
-    // remove from list
+    /* remove from list */
     LIST_REMOVE(entry, pointers);
     UA_ServerOnNetwork_deleteMembers(&entry->serverOnNetwork);
     if(entry->pathTmp)
@@ -417,7 +394,7 @@ mdns_record_remove(UA_Server *server, const char *record,
 static void
 mdns_append_path_to_url(UA_String *url, const char *path) {
     size_t pathLen = strlen(path);
-    // todo: malloc may fail: return a statuscode
+    /* todo: malloc may fail: return a statuscode */
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
     memcpy(newUrl, url->data, url->length);
     memcpy(newUrl + url->length, path, pathLen);
@@ -436,7 +413,7 @@ setTxt(const struct resource *r,
     if(path && strlen(path) > 1) {
         if(!entry->srvSet) {
             /* txt arrived before SRV, thus cache path entry */
-            // todo: malloc in strdup may fail: return a statuscode
+            /* todo: malloc in strdup may fail: return a statuscode */
             entry->pathTmp = UA_STRDUP(path);
         } else {
             /* SRV already there and discovery URL set. Add path to discovery URL */
@@ -461,7 +438,7 @@ setTxt(const struct resource *r,
             char *nextStr = strchr(caps, ',');
             size_t len = nextStr ? (size_t) (nextStr - caps) : strlen(caps);
             entry->serverOnNetwork.serverCapabilities[i].length = len;
-            // todo: malloc may fail: return a statuscode
+            /* todo: malloc may fail: return a statuscode */
             entry->serverOnNetwork.serverCapabilities[i].data = (UA_Byte*)UA_malloc(len);
             memcpy(entry->serverOnNetwork.serverCapabilities[i].data, caps, len);
             if(nextStr)
@@ -473,28 +450,28 @@ setTxt(const struct resource *r,
     xht_free(x);
 }
 
-// [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
+/* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
 static void
 setSrv(UA_Server *server, const struct resource *r,
        struct serverOnNetwork_list_entry *entry) {
     entry->srvSet = UA_TRUE;
 
 
-    // The specification Part 12 says:
-    // The hostname maps onto the SRV record target field.
-    // If the hostname is an IPAddress then it must be converted to a domain name.
-    // If this cannot be done then LDS shall report an error.
+    /* The specification Part 12 says: The hostname maps onto the SRV record
+     * target field. If the hostname is an IPAddress then it must be converted
+     * to a domain name. If this cannot be done then LDS shall report an
+     * error.
 
+     * The correct way would be:
+     * 1. Take the target field (known.srv.name), which is something like my-host.local.
+     * 2. Check additional mdns Answers, which resolve the target to an IP address
+     * 3. Use that IP address to get a hostname (as the spec says) */
 
-    // The correct way would be:
-    // 1. Take the target field (known.srv.name), which is something like my-host.local.
-    // 2. Check additional mdns Answers, which resolve the target to an IP address
-    // 3. Use that IP address to get a hostname (as the spec says)
-
-    // just a dummy, not used
+    /* just a dummy, not used */
     struct in_addr tmp = {0};
 
-    mdnsHostnameToIp_list_entry *hostnameEntry = mdns_hostname_add_or_get(server, r->known.srv.name, tmp, UA_FALSE);
+    mdnsHostnameToIp_list_entry *hostnameEntry =
+        mdns_hostname_add_or_get(server, r->known.srv.name, tmp, UA_FALSE);
 
     char *newUrl;
     if (hostnameEntry) {
@@ -508,28 +485,31 @@ setSrv(UA_Server *server, const struct resource *r,
                               NULL, 0, NI_NAMEREQD);
         newUrl = (char*)UA_malloc(10 + NI_MAXHOST + 8);
         if (!newUrl)
-            return; //TODO show error message
+            return; /* TODO show error message */
         if(res == 0) {
-            UA_snprintf(newUrl, 10 + NI_MAXHOST + 8, "opc.tcp://%s:%d", remote_name, r->known.srv.port);
+            UA_snprintf(newUrl, 10 + NI_MAXHOST + 8, "opc.tcp://%s:%d",
+                        remote_name, r->known.srv.port);
         } else {
             char ipinput[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(hostnameEntry->addr), ipinput, INET_ADDRSTRLEN);
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Multicast: Can not resolve IP address to hostname: %s - %s. Using IP instead",ipinput, errno_str));
+                             "Multicast: Can not resolve IP address to hostname: "
+                             "%s - %s. Using IP instead",ipinput, errno_str));
 
-            UA_snprintf(newUrl, 10 + INET_ADDRSTRLEN + 8, "opc.tcp://%s:%d", ipinput, r->known.srv.port);
+            UA_snprintf(newUrl, 10 + INET_ADDRSTRLEN + 8, "opc.tcp://%s:%d",
+                        ipinput, r->known.srv.port);
         }
     } else {
-        // fallback to just using the given target name
+        /* fallback to just using the given target name */
         size_t srvNameLen = strlen(r->known.srv.name);
         if(srvNameLen > 0 && r->known.srv.name[srvNameLen - 1] == '.')
-            // cut off last dot
+            /* cut off last dot */
             srvNameLen--;
-        // opc.tcp://[servername]:[port][path]
+        /* opc.tcp://[servername]:[port][path] */
         newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
         if (!newUrl)
-            return; //TODO show error message
+            return; /* TODO show error message */
         UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
                  r->known.srv.name, r->known.srv.port);
     }
@@ -547,14 +527,14 @@ setSrv(UA_Server *server, const struct resource *r,
 }
 
 
-// [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
+/* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
 static void
 setAddress(UA_Server *server, const struct resource *r) {
     if (r->type != QTYPE_A)
         return;
 
     if (!mdns_hostname_add_or_get(server, r->name, r->known.a.ip, UA_TRUE)) {
-        // should we log an error?
+        /* should we log an error? */
     }
 }
 
@@ -563,7 +543,7 @@ setAddress(UA_Server *server, const struct resource *r) {
 void mdns_record_received(const struct resource *r, void *data) {
     UA_Server *server = (UA_Server *) data;
     /* we only need SRV and TXT records */
-    // TODO: remove magic number
+    /* TODO: remove magic number */
     if((r->clazz != QCLASS_IN && r->clazz != QCLASS_IN + 32768) ||
        (r->type != QTYPE_SRV && r->type != QTYPE_TXT && r->type != QTYPE_A))
         return;
@@ -582,7 +562,7 @@ void mdns_record_received(const struct resource *r, void *data) {
     size_t servernameLen = (size_t) (opcStr - r->name);
     if(servernameLen == 0)
         return;
-    servernameLen--; // remove point
+    servernameLen--; /* remove point */
 
     /* Get entry */
     struct serverOnNetwork_list_entry *entry =
@@ -630,12 +610,12 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
     if(!path || strlen(path) == 0) {
         xht_set(h, "path", "/");
     } else {
-        // path does not contain slash, so add it here
+        /* path does not contain slash, so add it here */
         if(path[0] == '/')
-            // todo: malloc in strdup may fail: return a statuscode
+            /* todo: malloc in strdup may fail: return a statuscode */
             allocPath = UA_STRDUP(path);
         else {
-            // todo: malloc may fail: return a statuscode
+            /* todo: malloc may fail: return a statuscode */
             allocPath = (char*)UA_malloc(strlen(path) + 2);
             allocPath[0] = '/';
             memcpy(allocPath + 1, path, strlen(path));
@@ -644,17 +624,17 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
         xht_set(h, "path", allocPath);
     }
 
-    // calculate max string length:
+    /* calculate max string length: */
     size_t capsLen = 0;
     for(size_t i = 0; i < *capabilitiesSize; i++) {
-        // add comma or last \0
+        /* add comma or last \0 */
         capsLen += capabilites[i].length + 1;
     }
 
     char *caps = NULL;
     if(capsLen) {
-        // freed when xht_free is called
-        // todo: malloc may fail: return a statuscode
+        /* freed when xht_free is called */
+        /* todo: malloc may fail: return a statuscode */
         caps = (char*)UA_malloc(sizeof(char) * capsLen);
         size_t idx = 0;
         for(size_t i = 0; i < *capabilitiesSize; i++) {
@@ -687,7 +667,7 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
     if(!r)
         return NULL;
 
-    // search for the record with the correct ptr hostname
+    /* search for the record with the correct ptr hostname */
     while(r) {
         const mdns_answer_t *data = mdnsd_record_data(r);
         if(data->type == type && strcmp(data->rdname, rdname) == 0)
@@ -701,11 +681,11 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
 static void
 mdns_set_address_record_if(UA_Server *server, const char *fullServiceDomain,
                            const char *localDomain, char *addr, UA_UInt16 addr_len) {
-    // [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+    /* [servername]-[hostname]._opcua-tcp._tcp.local. A [ip]. */
     mdns_record_t *r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
     mdnsd_set_raw(server->mdnsDaemon, r, addr, addr_len);
 
-    // [hostname]. A [ip].
+    /* [hostname]. A [ip]. */
     r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
     mdnsd_set_raw(server->mdnsDaemon, r, addr, addr_len);
 }
@@ -726,39 +706,40 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
         if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
             continue;
 
-        // Parse all IPv4 and IPv6 addresses
+        /* Parse all IPv4 and IPv6 addresses */
         IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress;
         for(; NULL != address; address = address->Next) {
             int family = address->Address.lpSockaddr->sa_family;
             if(AF_INET == family) {
-                SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); // IPv4
+                SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); /* IPv4 */
                 mdns_set_address_record_if(server, fullServiceDomain, localDomain,
                                            (char *)&ipv4->sin_addr, 4);
+            } else if(AF_INET6 == family) {
+                /* IPv6 */
+#if 0
+                SOCKADDR_IN6* ipv6 = (SOCKADDR_IN6*)(address->Address.lpSockaddr);
+
+                char str_buffer[INET6_ADDRSTRLEN] = {0};
+                inet_ntop(AF_INET6, &(ipv6->sin6_addr), str_buffer, INET6_ADDRSTRLEN);
+
+                std::string ipv6_str(str_buffer);
+
+                /* Detect and skip non-external addresses */
+                UA_Boolean is_link_local(false);
+                UA_Boolean is_special_use(false);
+
+                if(0 == ipv6_str.find("fe")) {
+                    char c = ipv6_str[2];
+                    if(c == '8' || c == '9' || c == 'a' || c == 'b')
+                        is_link_local = true;
+                } else if (0 == ipv6_str.find("2001:0:")) {
+                    is_special_use = true;
+                }
+
+                if(!(is_link_local || is_special_use))
+                    ipAddrs.mIpv6.push_back(ipv6_str);
+#endif
             }
-            /*else if(AF_INET6 == family) {
-            // IPv6
-            SOCKADDR_IN6* ipv6 = (SOCKADDR_IN6*)(address->Address.lpSockaddr);
-
-            char str_buffer[INET6_ADDRSTRLEN] = {0};
-            inet_ntop(AF_INET6, &(ipv6->sin6_addr), str_buffer, INET6_ADDRSTRLEN);
-
-            std::string ipv6_str(str_buffer);
-
-            // Detect and skip non-external addresses
-            UA_Boolean is_link_local(false);
-            UA_Boolean is_special_use(false);
-
-            if(0 == ipv6_str.find("fe")) {
-            char c = ipv6_str[2];
-            if(c == '8' || c == '9' || c == 'a' || c == 'b')
-            is_link_local = true;
-            } else if (0 == ipv6_str.find("2001:0:")) {
-            is_special_use = true;
-            }
-
-            if(!(is_link_local || is_special_use))
-            ipAddrs.mIpv6.push_back(ipv6_str);
-            }*/
         }
     }
 
@@ -767,7 +748,7 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
     adapter_addresses = NULL;
 }
 
-#else //_WIN32
+#else /* _WIN32 */
 
 void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                              const char *localDomain) {
@@ -803,6 +784,6 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
     freeifaddrs(ifaddr);
 }
 
-#endif //_WIN32
+#endif /* _WIN32 */
 
-#endif // UA_ENABLE_DISCOVERY_MULTICAST
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
