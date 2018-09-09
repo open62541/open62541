@@ -125,11 +125,6 @@ typedef struct CustomCallback {
 } CustomCallback;
 
 typedef enum {
-    UA_CHUNK_COMPLETED,
-    UA_CHUNK_NOT_COMPLETED
-} UA_ChunkState;
-
-typedef enum {
     UA_CLIENTAUTHENTICATION_NONE,
     UA_CLIENTAUTHENTICATION_USERNAME
 } UA_Client_Authentication;
