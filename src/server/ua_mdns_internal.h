@@ -5,10 +5,16 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#ifndef UA_MDNS_INTERNAL_H
-#define UA_MDNS_INTERNAL_H
+#ifndef UA_MDNS_INTERNAL_H_
+#define UA_MDNS_INTERNAL_H_
+
+#include "ua_config.h"
+
+_UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+#include "mdnsd/libmdnsd/mdnsd.h"
 
 /**
  * TXT record:
@@ -18,12 +24,6 @@
  * [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
  * [hostname]. A [ip].
  */
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "mdnsd/libmdnsd/mdnsd.h"
 
 void mdns_record_received(const struct resource *r, void *data);
 
@@ -45,10 +45,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                                         const UA_String *discoveryUrl,
                                         UA_Boolean isOnline, UA_Boolean updateTxt);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
-#endif // UA_ENABLE_DISCOVERY_MULTICAST
+_UA_END_DECLS
 
-#endif //UA_MDNS_INTERNAL_H
+#endif /* UA_MDNS_INTERNAL_H_ */

@@ -10,12 +10,9 @@
 
 #include "ua_plugin_history_data_backend.h"
 
+_UA_BEGIN_DECLS
+
 #define INITIAL_MEMORY_STORE_SIZE 1000
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 
 UA_HistoryDataBackend UA_EXPORT
 UA_HistoryDataBackend_Memory(size_t initialNodeIdStoreSize, size_t initialDataStoreSize);
@@ -23,8 +20,6 @@ UA_HistoryDataBackend_Memory(size_t initialNodeIdStoreSize, size_t initialDataSt
 void UA_EXPORT
 UA_HistoryDataBackend_Memory_deleteMembers(UA_HistoryDataBackend *backend);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_HISTORYDATABACKEND_MEMORY_H_ */

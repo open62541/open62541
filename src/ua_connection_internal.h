@@ -11,12 +11,10 @@
 #ifndef UA_CONNECTION_INTERNAL_H_
 #define UA_CONNECTION_INTERNAL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_plugin_network.h"
 #include "ua_transport_generated.h"
+
+_UA_BEGIN_DECLS
 
 /* Process the remote configuration in the HEL/ACK handshake. The connection
  * config is initialized with the local settings. */
@@ -83,8 +81,6 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_Connection_attachSecureChannel(UA_Connection *connection,
                                        UA_SecureChannel *channel);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CONNECTION_INTERNAL_H_ */

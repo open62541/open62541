@@ -25,8 +25,6 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_default;
 /* Default Server Config */
 /*************************/
 
-
-
 /* Creates a new server config with one endpoint and custom buffer size.
  *
  * The config will set the tcp network layer to the given port and adds a single
@@ -42,7 +40,8 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_default;
  *
  */
 UA_EXPORT UA_ServerConfig *
-UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber, const UA_ByteString *certificate, UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
+UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber, const UA_ByteString *certificate,
+                                 UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
 
 /* Creates a new server config with one endpoint.
  * 

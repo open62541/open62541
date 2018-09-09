@@ -14,10 +14,6 @@
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_util_internal.h"
 #include "ua_server.h"
 #include "ua_server_config.h"
@@ -25,6 +21,8 @@ extern "C" {
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
+
+_UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
 #include "ua_pubsub_manager.h"
@@ -448,8 +446,6 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 
 UA_StatusCode UA_Server_initNS0(UA_Server *server);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SERVER_INTERNAL_H_ */

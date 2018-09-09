@@ -19,6 +19,8 @@
 #include "ua_timer.h"
 #include "../../deps/queue.h"
 
+_UA_BEGIN_DECLS
+
 /**************************/
 /* Subscriptions Handling */
 /**************************/
@@ -226,4 +228,7 @@ UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
                           void *data);
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
+
+_UA_END_DECLS
+
 #endif /* UA_CLIENT_INTERNAL_H_ */

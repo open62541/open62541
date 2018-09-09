@@ -8,12 +8,10 @@
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_securechannel.h"
 #include "ua_util.h"
+
+_UA_BEGIN_DECLS
 
 #define UA_MAXCONTINUATIONPOINTS 5
 
@@ -168,8 +166,6 @@ UA_Session_dequeuePublishReq(UA_Session *session);
 #define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...) do {} while(0)
 #endif
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SESSION_H_ */

@@ -19,6 +19,8 @@
 #include "ua_types_generated.h"
 #include "ua_session.h"
 
+_UA_BEGIN_DECLS
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 /**
@@ -219,5 +221,7 @@ void UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_S
 UA_Boolean UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
+
+_UA_END_DECLS
 
 #endif /* UA_SUBSCRIPTION_H_ */

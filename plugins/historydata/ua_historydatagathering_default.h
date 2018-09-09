@@ -10,16 +10,11 @@
 
 #include "ua_plugin_history_data_gathering.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+_UA_BEGIN_DECLS
 
 UA_HistoryDataGathering UA_EXPORT
 UA_HistoryDataGathering_Default(size_t initialNodeIdStoreSize);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_HISTORYDATAGATHERING_DEFAULT_H_ */
