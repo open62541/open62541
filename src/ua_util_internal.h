@@ -14,13 +14,10 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* BSD Queue Macros */
 #include "ua_types.h"
 #include "../deps/queue.h"
+
+_UA_BEGIN_DECLS
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
@@ -163,8 +160,6 @@ size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_UTIL_H_ */

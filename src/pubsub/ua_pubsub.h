@@ -8,15 +8,13 @@
 #ifndef UA_PUBSUB_H_
 #define UA_PUBSUB_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_plugin_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 #include "ua_server.h"
 #include "ua_server_pubsub.h"
 #include "../deps/queue.h"
+
+_UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -156,8 +154,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 
 #endif /* UA_ENABLE_PUBSUB */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PUBSUB_H_ */

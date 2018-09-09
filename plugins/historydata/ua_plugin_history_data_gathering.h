@@ -8,13 +8,11 @@
 #ifndef UA_PLUGIN_HISTORY_DATA_GATHERING_H_
 #define UA_PLUGIN_HISTORY_DATA_GATHERING_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_plugin_history_data_backend.h"
+
+_UA_BEGIN_DECLS
 
 typedef enum {
     UA_HISTORIZINGUPDATESTRATEGY_USER     = 0x00,
@@ -43,8 +41,7 @@ struct UA_HistoryDataGathering {
      * server is the server the node lives in.
      * hdgContext is the context of the UA_HistoryDataGathering.
      * nodeId is the node id of the node to register.
-     * setting contains the gatering settings for the node to register.
-     */
+     * setting contains the gatering settings for the node to register. */
     UA_StatusCode
     (*registerNodeId)(UA_Server *server,
                       void *hdgContext,
@@ -56,8 +53,7 @@ struct UA_HistoryDataGathering {
      * server is the server the node lives in.
      * hdgContext is the context of the UA_HistoryDataGathering.
      * nodeId is id of the node for which polling shall be stopped.
-     * setting contains the gatering settings for the node.
-     */
+     * setting contains the gatering settings for the node. */
     UA_StatusCode
     (*stopPoll)(UA_Server *server,
                 void *hdgContext,
@@ -67,8 +63,7 @@ struct UA_HistoryDataGathering {
      *
      * server is the server the node lives in.
      * hdgContext is the context of the UA_HistoryDataGathering.
-     * nodeId is the id of the node for which polling shall be started.
-     */
+     * nodeId is the id of the node for which polling shall be started. */
     UA_StatusCode
     (*startPoll)(UA_Server *server,
                  void *hdgContext,
@@ -79,8 +74,7 @@ struct UA_HistoryDataGathering {
      * server is the server the node lives in.
      * hdgContext is the context of the UA_HistoryDataGathering.
      * nodeId is the node id of the node for which gathering shall be modified.
-     * setting contains the new gatering settings for the node.
-     */
+     * setting contains the new gatering settings for the node. */
     UA_Boolean
     (*updateNodeIdSetting)(UA_Server *server,
                            void *hdgContext,
@@ -91,8 +85,8 @@ struct UA_HistoryDataGathering {
      *
      * server is the server the node lives in.
      * hdgContext is the context of the UA_HistoryDataGathering.
-     * nodeId is the node id of the node for which the gathering settings shall be retrieved.
-     */
+     * nodeId is the node id of the node for which the gathering settings shall
+     *        be retrieved. */
     const UA_HistorizingNodeIdSettings*
     (*getHistorizingSetting)(UA_Server *server,
                              void *hdgContext,
@@ -105,8 +99,7 @@ struct UA_HistoryDataGathering {
      * sessionId and sessionContext identify the session which wants to set this value.
      * nodeId is the node id of the node for which a value shall be set.
      * historizing is the historizing flag of the node identified by nodeId.
-     * value is the value to set in the history data storage.
-     */
+     * value is the value to set in the history data storage. */
     void
     (*setValue)(UA_Server *server,
                 void *hdgContext,
@@ -117,8 +110,6 @@ struct UA_HistoryDataGathering {
                 const UA_DataValue *value);
 };
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_HISTORY_DATA_GATHERING_H_ */

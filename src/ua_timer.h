@@ -9,11 +9,9 @@
 #ifndef UA_TIMER_H_
 #define UA_TIMER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_util_internal.h"
+
+_UA_BEGIN_DECLS
 
 /* An (event) timer triggers callbacks with a recurring interval. Adding,
  * removing and changing repeated callbacks can be done from independent
@@ -83,8 +81,6 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
 /* Remove all repeated callbacks. Not thread-safe. */
 void UA_Timer_deleteMembers(UA_Timer *t);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_TIMER_H_ */

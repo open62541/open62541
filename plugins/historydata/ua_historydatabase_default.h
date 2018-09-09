@@ -12,15 +12,11 @@
 #include "ua_plugin_historydatabase.h"
 #include "ua_plugin_history_data_gathering.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 UA_HistoryDatabase UA_EXPORT
 UA_HistoryDatabase_default(UA_HistoryDataGathering gathering);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_HISTORYDATASERVICE_DEFAULT_H_ */

@@ -11,16 +11,14 @@
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
 #include "../deps/queue.h"
+
+_UA_BEGIN_DECLS
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
@@ -282,8 +280,6 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 #define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \
     UA_MACRO_EXPAND(UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SECURECHANNEL_H_ */
