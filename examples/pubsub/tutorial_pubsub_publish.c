@@ -21,21 +21,23 @@
  * PubSubConnections can be created and deleted on runtime. More details about the system preconfiguration and
  * connection can be found in ``tutorial_pubsub_connection.c``.
  */
+
 #include "open62541.h"
 #include <signal.h>
+#include <stdio.h>
+
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 static void
-addPubSubConnection(UA_Server *server){
+addPubSubConnection(UA_Server *server, UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl){
     /* Details about the connection configuration and handling are located
      * in the pubsub connection tutorial */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
-    connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
-    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.name = UA_STRING("UADP Connection 1");
+    connectionConfig.transportProfileUri = *transportProfile;
     connectionConfig.enabled = UA_TRUE;
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.numeric = UA_UInt32_random();
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
@@ -136,23 +138,27 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-int main(void) {
+static int run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     /* Details about the connection configuration and handling are located in the pubsub connection tutorial */
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
+    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_calloc(2, sizeof(UA_PubSubTransportLayer));
     if(!config->pubsubTransportLayers) {
         UA_ServerConfig_delete(config);
         return -1;
     }
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
+    config->pubsubTransportLayersSize++;
+#endif
     UA_Server *server = UA_Server_new(config);
 
-    addPubSubConnection(server);
+    addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);
     addWriterGroup(server);
@@ -164,3 +170,34 @@ int main(void) {
     return (int)retval;
 }
 
+static void
+usage(char *progname) {
+    printf("usage: %s <uri> [device]\n", progname);
+}
+
+int main(int argc, char **argv) {
+    UA_String transportProfile = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+
+    if (argc > 1) {
+        if (strcmp(argv[1], "-h") == 0) {
+            usage(argv[0]);
+            return 0;
+        } else if (strncmp(argv[1], "opc.udp://", 10) == 0) {
+            networkAddressUrl.url = UA_STRING(argv[1]);
+        } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
+            transportProfile = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+            if (argc < 3) {
+                printf("Error: UADP/ETH needs an interface name\n");
+                return 1;
+            }
+            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
+            networkAddressUrl.url = UA_STRING(argv[1]);
+        } else {
+            printf("Error: unknown URI\n");
+            return 1;
+        }
+    }
+
+    return run(&transportProfile, &networkAddressUrl);
+}
