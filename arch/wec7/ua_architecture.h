@@ -130,6 +130,7 @@ void UA_sleep_ms(size_t ms);
 }
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
+#define UA_fileExists
 #include "../ua_architecture_functions.h"
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */

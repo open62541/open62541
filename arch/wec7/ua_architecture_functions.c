@@ -8,6 +8,15 @@
 
 #include "ua_types.h"
 
+#undef UA_fileExists
+UA_Boolean UA_fileExists(const char* path) {
+  FILE *fp = fopen(path,"rb");
+  UA_Boolean exists = (fp==NULL);
+  if(fp)
+      fclose(fp);
+  return exists;
+}
+
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
   u_long iMode = 0;
   if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
