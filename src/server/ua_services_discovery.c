@@ -379,13 +379,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
-#ifdef UNDER_CE
-        FILE* fp = fopen(filePath, "r");
-        if(!fp) {
-#else
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(!UA_fileExists( filePath )) {
-#endif
             responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
             UA_free(filePath);
             return;
