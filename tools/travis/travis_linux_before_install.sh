@@ -50,7 +50,7 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 
 	echo "=== Installing python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
 	pip install --user cpp-coveralls
-	pip install --user sphinx
+	pip install --user 'sphinx==1.7.9'
 	pip install --user sphinx_rtd_theme
 	pip install --user cpplint
 	echo -en 'travis_fold:end:script.before_install.python\\r'
