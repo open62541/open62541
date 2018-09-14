@@ -302,16 +302,11 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
     typeArr = dataTypeNode.typesArray + "[" + dataTypeNode.typesArray + "_" + typeBrowseNode.upper() + "]"
     typeStr = "UA_" + typeBrowseNode
 
+    # This method is only called if parentNode.value is None. Do net set any value for the array, only the type.
     if parentNode.valueRank > 0:
-        code.append("UA_STACKARRAY(" + typeStr + ", " + valueName + "," + str(parentNode.valueRank) + ");")
-        for i in range(0, parentNode.valueRank):
-            code.append("UA_init(&" + valueName + "[" + str(i) + "], &" + typeArr + ");")
-            code.append("UA_Variant_setArray(&attr.value, " + valueName + ", (UA_Int32) " +
-                        str(parentNode.valueRank) + ", &" + typeArr + ");")
+        code.append("UA_Variant_setArray(&attr.value, NULL, (UA_Int32) 0, &" + typeArr + ");")
     else:
-        code.append("UA_STACKARRAY(" + typeStr + ", " + valueName + ", 1);")
-        code.append("UA_init(" + valueName + ", &" + typeArr + ");")
-        code.append("UA_Variant_setScalar(&attr.value, " + valueName + ", &" + typeArr + ");")
+        code.append("UA_Variant_setScalar(&attr.value, NULL, &" + typeArr + ");")
 
     return code
 
