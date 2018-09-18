@@ -12,7 +12,7 @@ def generateBooleanCode(value):
     return "false"
 
 def makeCLiteral(value):
-    return value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r'')
+    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
 
 def splitStringLiterals(value, splitLength=500):
     """
@@ -22,13 +22,13 @@ def splitStringLiterals(value, splitLength=500):
     """
     value = value.strip()
     if len(value) < splitLength or splitLength == 0:
-        return "\"" + value.replace('"', r'\"') + "\""
+        return "\"" + re.sub(r'(?<!\\)"', r'\\"', value) + "\""
     ret = ""
     tmp = value
     while len(tmp) > splitLength:
         ret += "\"" + tmp[:splitLength].replace('"', r'\"') + "\" "
         tmp = tmp[splitLength:]
-    ret += "\"" + tmp.replace('"', r'\"') + "\" "
+    ret += "\"" + re.sub(r'(?<!\\)"', r'\\"', tmp) + "\" "
     return ret
 
 def generateStringCode(value, alloc=False):
@@ -65,7 +65,7 @@ def generateNodeIdCode(value):
     if value.i != None:
         return "UA_NODEID_NUMERIC(ns[%s], %s)" % (value.ns, value.i)
     elif value.s != None:
-        v = re.sub(r'(?<!\\)"', r'\\"', makeCLiteral(value.s))
+        v = makeCLiteral(value.s)
         return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
@@ -73,7 +73,7 @@ def generateExpandedNodeIdCode(value):
     if value.i != None:
         return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
     elif value.s != None:
-        vs = re.sub(r'(?<!\\)"', r'\\"', makeCLiteral(value.s))
+        vs = makeCLiteral(value.s)
         return u"UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
