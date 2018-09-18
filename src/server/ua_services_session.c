@@ -162,10 +162,21 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult |=
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
+    UA_ByteString_init(&response->serverCertificate);
+
     if(server->config.endpointsSize > 0)
-        response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&channel->securityPolicy->localCertificate,
-                               &response->serverCertificate);
+       for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
+          if(response->serverEndpoints[i].securityMode==channel->securityMode &&
+             UA_ByteString_equal(&response->serverEndpoints[i].securityPolicyUri,
+                                 &channel->securityPolicy->policyUri) &&
+             UA_String_equal(&response->serverEndpoints[i].endpointUrl,
+                             &request->endpointUrl))
+          {
+             response->responseHeader.serviceResult |=
+                 UA_ByteString_copy(&response->serverEndpoints[i].serverCertificate,
+                                    &response->serverCertificate);
+          }
+       }
 
     /* Create a session nonce */
     response->responseHeader.serviceResult |= UA_Session_generateNonce(newSession);
