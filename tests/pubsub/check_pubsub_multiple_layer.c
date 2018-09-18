@@ -33,20 +33,20 @@ START_TEST(AddMultipleTransportLayers){
     ck_assert_int_eq(config->pubsubTransportLayersSize, 0);
 
     pubsubTransportLayer = UA_PubSubTransportLayerUDPMP();
-    UA_Server_addPubSubTransportLayer(config, &pubsubTransportLayer);
+    UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
     ck_assert_int_eq(config->pubsubTransportLayersSize, 1);
 
     pubsubTransportLayer = UA_PubSubTransportLayerUDPMP();
-    UA_Server_addPubSubTransportLayer(config, &pubsubTransportLayer);
+    UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
     ck_assert_int_eq(config->pubsubTransportLayersSize, 2);
 
     pubsubTransportLayer = UA_PubSubTransportLayerUDPMP();
-    UA_Server_addPubSubTransportLayer(config, &pubsubTransportLayer);
+    UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
     ck_assert_int_eq(config->pubsubTransportLayersSize, 3);
-
 
     server = UA_Server_new(config);
     UA_Server_delete(server);
+
     UA_ServerConfig_delete(config);
 
     } END_TEST

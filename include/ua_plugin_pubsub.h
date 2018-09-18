@@ -87,7 +87,7 @@ typedef struct {
 
 
 UA_StatusCode
-UA_Server_addPubSubTransportLayer(UA_ServerConfig *config,
+UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
         UA_PubSubTransportLayer *pubsubTransportLayer);
 
 #endif /* UA_ENABLE_PUBSUB */

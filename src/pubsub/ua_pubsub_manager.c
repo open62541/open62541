@@ -16,7 +16,7 @@
 /* Add a pubsubTransportLayer to the configuration.
  * Memory is reallocated on demand */
 UA_StatusCode
-UA_Server_addPubSubTransportLayer(UA_ServerConfig *config,
+UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
         UA_PubSubTransportLayer *pubsubTransportLayer) {
 
     if(config->pubsubTransportLayersSize == 0) {
@@ -309,6 +309,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub cleanup was called.");
     //free the currently configured transport layers
     UA_free(server->config.pubsubTransportLayers);
+    server->config.pubsubTransportLayersSize = 0;
 
     //remove Connections and WriterGroups
     while(pubSubManager->connectionsSize > 0){
