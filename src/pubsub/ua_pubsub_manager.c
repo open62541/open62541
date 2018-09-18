@@ -12,6 +12,33 @@
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
+
+/* Add a pubsubTransportLayer to the configuration.
+ * Memory is reallocated on demand */
+UA_StatusCode
+UA_Server_addPubSubTransportLayer(UA_ServerConfig *config,
+        UA_PubSubTransportLayer *pubsubTransportLayer) {
+
+    if(config->pubsubTransportLayersSize == 0) {
+        config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
+                UA_malloc(sizeof(UA_PubSubTransportLayer));
+    } else {
+        config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
+                UA_realloc(config->pubsubTransportLayers,
+                sizeof(UA_PubSubTransportLayer) * (config->pubsubTransportLayersSize + 1));
+    }
+
+    if (config->pubsubTransportLayers == NULL) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    memcpy(&config->pubsubTransportLayers[config->pubsubTransportLayersSize],
+            pubsubTransportLayer, sizeof(UA_PubSubTransportLayer));
+    config->pubsubTransportLayersSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *connectionConfig,
                               UA_NodeId *connectionIdentifier) {
@@ -281,9 +308,8 @@ void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub cleanup was called.");
     //free the currently configured transport layers
-    for(size_t i = 0; i < server->config.pubsubTransportLayersSize; i++){
-        UA_free(&server->config.pubsubTransportLayers[i]);
-    }
+    UA_free(server->config.pubsubTransportLayers);
+
     //remove Connections and WriterGroups
     while(pubSubManager->connectionsSize > 0){
         UA_Server_removePubSubConnection(server, pubSubManager->connections[pubSubManager->connectionsSize-1].identifier);

@@ -85,6 +85,11 @@ typedef struct {
     UA_PubSubChannel * (*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
 } UA_PubSubTransportLayer;
 
+
+UA_StatusCode
+UA_Server_addPubSubTransportLayer(UA_ServerConfig *config,
+        UA_PubSubTransportLayer *pubsubTransportLayer);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
