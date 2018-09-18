@@ -31,9 +31,18 @@ UA_readNumber(u8 *buf, size_t buflen, u32 *number) {
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     u16 *outPort, UA_String *outPath) {
-    /* Url must begin with "opc.tcp://" */
-    if(endpointUrl->length < 11 || strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0)
+    /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
+    if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+    } else if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
+#ifdef UA_ENABLE_PUBSUB
+        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0) {
+            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+        }
+#else
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+#endif
+    }
 
     /* Where does the hostname end? */
     size_t curr = 10;
