@@ -67,14 +67,16 @@ def getTypeName(xmlTypeName):
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
         self.name = name
+        self.cSafeName = re.sub(r'[^\w]', '', self.name)
         self.memberType = memberType
         self.isArray = isArray
 
 class Type(object):
     def __init__(self, outname, xml, namespace):
         self.name = xml.get("Name")
+        self.cSafeName = re.sub(r'[^\w]', '', self.name)
         self.ns0 = ("true" if namespace == 0 else "false")
-        self.typeIndex = outname.upper() + "_" + self.name.upper()
+        self.typeIndex = outname.upper() + "_" + self.cSafeName.upper()
         self.outname = outname
         self.description = ""
         self.pointerfree = "false"
@@ -99,44 +101,44 @@ class Type(object):
             binaryEncodingId = description.binaryEncodingId
         else:
             typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
-        return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % self.name + \
+        return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % self.cSafeName + \
             "    " + typeid + ", /* .typeId */\n" + \
-            "    sizeof(UA_" + self.name + "), /* .memSize */\n" + \
+            "    sizeof(UA_" + self.cSafeName + "), /* .memSize */\n" + \
             "    " + self.typeIndex + ", /* .typeIndex */\n" + \
             "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
             "    " + self.builtin + ", /* .builtin */\n" + \
             "    " + self.pointerfree + ", /* .pointerFree */\n" + \
             "    " + self.overlayable + ", /* .overlayable */\n" + \
             "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
-            "    %s_members" % self.name + " /* .members */\n}"
+            "    %s_members" % self.cSafeName + " /* .members */\n}"
 
     def members_c(self):
         if len(self.members)==0:
-            return "#define %s_members NULL" % (self.name)
-        members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
+            return "#define %s_members NULL" % (self.cSafeName)
+        members = "static UA_DataTypeMember %s_members[%s] = {" % (self.cSafeName, len(self.members))
         before = None
         i = 0
         size = len(self.members)
         for index, member in enumerate(self.members):
             i += 1
-            membername = member.name
+            membername = member.cSafeName
             if len(membername) > 0:
-                membername = member.name[0].upper() + member.name[1:]
+                membername = member.cSafeName[0].upper() + member.cSafeName[1:]
             m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % membername
-            m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
+            m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.cSafeName.upper())
             m += "    "
             if not before:
                 m += "0,"
             else:
                 if member.isArray:
-                    m += "offsetof(UA_%s, %sSize)" % (self.name, member.name)
+                    m += "offsetof(UA_%s, %sSize)" % (self.cSafeName, member.cSafeName)
                 else:
-                    m += "offsetof(UA_%s, %s)" % (self.name, member.name)
-                m += " - offsetof(UA_%s, %s)" % (self.name, before.name)
+                    m += "offsetof(UA_%s, %s)" % (self.cSafeName, member.cSafeName)
+                m += " - offsetof(UA_%s, %s)" % (self.cSafeName, before.cSafeName)
                 if before.isArray:
                     m += " - sizeof(void*),"
                 else:
-                    m += " - sizeof(UA_%s)," % before.memberType.name
+                    m += " - sizeof(UA_%s)," % before.memberType.cSafeName
             m += " /* .padding */\n"
             m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
             m += ("    true" if member.isArray else "    false") + " /* .isArray */\n}"
@@ -147,31 +149,32 @@ class Type(object):
         return members + "};"
 
     def datatype_ptr(self):
-        return "&" + self.outname.upper() + "[" + self.outname.upper() + "_" + self.name.upper() + "]"
+        return "&" + self.outname.upper() + "[" + self.outname.upper() + "_" + self.cSafeName.upper() + "]"
 
     def functions_c(self):
-        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (self.name, self.name, self.name)
-        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
+        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (self.cSafeName, self.cSafeName, self.cSafeName)
+        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (self.cSafeName, self.cSafeName, self.cSafeName, self.datatype_ptr())
         if self.pointerfree == "true":
-            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (self.name, self.name, self.name)
-            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (self.name, self.name, self.name)
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (self.cSafeName, self.cSafeName, self.cSafeName)
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (self.cSafeName, self.cSafeName, self.cSafeName)
         else:
-            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
-            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_deleteMembers(p, %s);\n}\n\n" % (self.name, self.name, self.datatype_ptr())
-        funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (self.name, self.name, self.datatype_ptr())
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (self.cSafeName, self.cSafeName, self.cSafeName, self.datatype_ptr())
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_deleteMembers(p, %s);\n}\n\n" % (self.cSafeName, self.cSafeName, self.datatype_ptr())
+        funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (self.cSafeName, self.cSafeName, self.datatype_ptr())
         return funcs
 
     def encoding_h(self):
         enc = "static UA_INLINE size_t\nUA_%s_calcSizeBinary(const UA_%s *src) {\n    return UA_calcSizeBinary(src, %s);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, 0, NULL);\n}"
-        return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 3))))
+        return enc % tuple(list(itertools.chain(*itertools.repeat([self.cSafeName, self.cSafeName, self.datatype_ptr()], 3))))
 
 class BuiltinType(Type):
     def __init__(self, name):
         self.name = name
+        self.cSafeName = re.sub(r'[^\w]', '', self.name)
         self.ns0 = "true"
-        self.typeIndex = "UA_TYPES_" + self.name.upper()
+        self.typeIndex = "UA_TYPES_" + self.cSafeName.upper()
         self.outname = "ua_types"
         self.description = ""
         self.pointerfree = "false"
@@ -201,10 +204,10 @@ class EnumerationType(Type):
             values = self.elements.iteritems()
         else:
             values = self.elements.items()
-        return "typedef enum {\n    " + ",\n    ".join(map(lambda kv : "UA_" + self.name.upper() + "_" + kv[0].upper() + \
+        return "typedef enum {\n    " + ",\n    ".join(map(lambda kv : "UA_" + self.cSafeName.upper() + "_" + kv[0].upper() + \
                                                            " = " + kv[1], values)) + \
-               ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(self.name.upper()) + "} " + \
-               "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(self.name)
+               ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(self.cSafeName.upper()) + "} " + \
+               "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(self.cSafeName)
 
 class OpaqueType(Type):
     def __init__(self, outname, xml, namespace, baseType):
@@ -246,22 +249,22 @@ class StructType(Type):
                 self.overlayable += " && " + m.memberType.overlayable
                 if before:
                     self.overlayable += " && offsetof(UA_%s, %s) == (offsetof(UA_%s, %s) + sizeof(UA_%s))" % \
-                                        (self.name, m.name, self.name, before.name, before.memberType.name)
+                                        (self.cSafeName, m.cSafeName, self.cSafeName, before.cSafeName, before.memberType.cSafeName)
             if "false" in self.overlayable:
                 self.overlayable = "false"
             before = m
 
     def typedef_h(self):
         if len(self.members) == 0:
-            return "typedef void * UA_%s;" % self.name
+            return "typedef void * UA_%s;" % self.cSafeName
         returnstr =  "typedef struct {\n"
         for member in self.members:
             if member.isArray:
-                returnstr += "    size_t %sSize;\n" % member.name
-                returnstr += "    UA_%s *%s;\n" % (member.memberType.name, member.name)
+                returnstr += "    size_t %sSize;\n" % member.cSafeName
+                returnstr += "    UA_%s *%s;\n" % (member.memberType.cSafeName, member.cSafeName)
             else:
-                returnstr += "    UA_%s %s;\n" % (member.memberType.name, member.name)
-        return returnstr + "} UA_%s;" % self.name
+                returnstr += "    UA_%s %s;\n" % (member.memberType.cSafeName, member.cSafeName)
+        return returnstr + "} UA_%s;" % self.cSafeName
 
 #########################
 # Parse Typedefinitions #
@@ -534,7 +537,7 @@ for t in filtered_types:
         printh(" * " + t.description + " */")
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
-    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
+    printh("#define " + outname.upper() + "_" + t.cSafeName.upper() + " " + str(i))
     i += 1
 
 printh('''
