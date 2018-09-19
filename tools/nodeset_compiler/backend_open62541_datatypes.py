@@ -11,8 +11,13 @@ def generateBooleanCode(value):
         return "true"
     return "false"
 
+# Strip invalid characters to create valid C identifiers (variable names etc):
+def makeCIdentifier(value):
+    return re.sub(r'[^\w]', '', value)
+
+# Escape C strings:
 def makeCLiteral(value):
-    return value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r'')
+    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
 
 def splitStringLiterals(value, splitLength=500, max_string_length=0):
     """
@@ -27,13 +32,13 @@ def splitStringLiterals(value, splitLength=500, max_string_length=0):
         logger.info("String is longer than {}. Returning empty string.".format(max_string_length))
         return "\"\""
     if len(value) < splitLength or splitLength == 0:
-        return "\"" + value.replace('"', r'\"') + "\""
+        return "\"" + re.sub(r'(?<!\\)"', r'\\"', value) + "\""
     ret = ""
     tmp = value
     while len(tmp) > splitLength:
         ret += "\"" + tmp[:splitLength].replace('"', r'\"') + "\" "
         tmp = tmp[splitLength:]
-    ret += "\"" + tmp.replace('"', r'\"') + "\" "
+    ret += "\"" + re.sub(r'(?<!\\)"', r'\\"', tmp) + "\" "
     return ret
 
 def generateStringCode(value, alloc=False, max_string_length=0):
@@ -45,7 +50,7 @@ def generateXmlElementCode(value, alloc=False, max_string_length=0):
     return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
 
 def generateByteStringCode(value, alloc=False, max_string_length=0):
-    value = makeCLiteral(value)
+    #value = makeCLiteral(value)
     return u"UA_BYTESTRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value, max_string_length=max_string_length))
 
 def generateLocalizedTextCode(value, alloc=False, max_string_length=0):
