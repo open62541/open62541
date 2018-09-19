@@ -11,6 +11,11 @@ def generateBooleanCode(value):
         return "true"
     return "false"
 
+# Strip invalid characters to create valid C identifiers (variable names etc):
+def makeCIdentifier(value):
+    return re.sub(r'[^\w]', '', value)
+
+# Escape C strings:
 def makeCLiteral(value):
     return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
 

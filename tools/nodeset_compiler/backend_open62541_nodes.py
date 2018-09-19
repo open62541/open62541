@@ -277,7 +277,7 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset):
     code = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
 
-    typeBrowseNode = makeCLiteral(dataTypeNode.browseName.name)
+    typeBrowseNode = makeCIdentifier(dataTypeNode.browseName.name)
     if typeBrowseNode == "NumericRange":
         # in the stack we define a separate structure for the numeric range, but
         # the value itself is just a string
@@ -303,7 +303,7 @@ def getTypesArrayForValue(nodeset, value):
     else:
         typesArray = typeNode.typesArray
     return "&" + typesArray + "[" + typesArray + "_" + \
-            makeCLiteral(value.__class__.__name__.upper()) + "]"
+            makeCIdentifier(value.__class__.__name__.upper()) + "]"
 
 def generateValueCode(node, parentNode, nodeset, bootstrapping=True, encode_binary_size=32000):
     code = []
@@ -484,7 +484,7 @@ def generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary
 
     # AddNodes call
     code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".
-            format(makeCLiteral(node.__class__.__name__.upper().replace("NODE" ,""))))
+            format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
     code.append(generateNodeIdCode(node.id) + ",")
     code.append(generateNodeIdCode(parentref.target) + ",")
     code.append(generateNodeIdCode(parentref.referenceType) + ",")
@@ -495,7 +495,7 @@ def generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary
     else:
         code.append(" UA_NODEID_NULL,")
     code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
-            format(makeCLiteral(node.__class__.__name__.upper().replace("NODE" ,""))))
+            format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
     code.extend(codeCleanup)
 
     return "\n".join(code)
