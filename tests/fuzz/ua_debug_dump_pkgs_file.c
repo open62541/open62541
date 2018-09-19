@@ -157,7 +157,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
         TAILQ_INIT(&dummy.messages);
         UA_ByteString messageBufferCopy;
         UA_ByteString_copy(messageBuffer, &messageBufferCopy);
-        UA_SecureChannel_decryptAddChunk(&dummy, &messageBufferCopy);
+        UA_SecureChannel_decryptAddChunk(&dummy, &messageBufferCopy, UA_TRUE);
         UA_SecureChannel_processCompleteMessages(&dummy, &dump_filename, UA_debug_dump_setName_withChannel);
         UA_SecureChannel_deleteMessages(&dummy);
         UA_ByteString_deleteMembers(&messageBufferCopy);
