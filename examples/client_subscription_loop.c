@@ -94,7 +94,8 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
     return;
 }
 
-int main(void) {
+int
+main(void) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ClientConfig config = UA_ClientConfig_default;
@@ -105,7 +106,7 @@ int main(void) {
     UA_Client *client = UA_Client_new(config);
 
     /* Endless loop runAsync */
-    while (running) {
+    while(running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
         /* Alternatively you can also use UA_Client_getState to get the current state */
