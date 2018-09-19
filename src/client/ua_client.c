@@ -260,9 +260,12 @@ static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Make sure we have a valid session */
-    UA_StatusCode retval = openSecureChannel(client, true);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* FIXME: this is just a dirty workaround. We need to rework some of the sync and async processing
+     * FIXME: in the client. Currently a lot of stuff is semi broken and in dire need of cleaning up.*/
+    /*UA_StatusCode retval = openSecureChannel(client, true);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        return retval;*/
 
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
@@ -438,10 +441,9 @@ finish:
 static UA_StatusCode
 client_processChunk(void *application, UA_Connection *connection, UA_ByteString *chunk) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
-    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&rd->client->channel, chunk);
+    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&rd->client->channel, chunk, UA_TRUE);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    UA_SecureChannel_processCompleteMessages(&rd->client->channel, rd, processServiceResponse);
     return UA_SecureChannel_persistIncompleteMessages(&rd->client->channel);
 }
 
@@ -471,6 +473,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
         retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd, client_processChunk, timeout);
+        UA_SecureChannel_processCompleteMessages(&client->channel, &rd, processServiceResponse);
 
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
@@ -521,6 +524,7 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
 
     UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking(
             &client->connection, &rd, client_processChunk);
+    UA_SecureChannel_processCompleteMessages(&client->channel, &rd, processServiceResponse);
     /*let client run when non critical timeout*/
     if(retval != UA_STATUSCODE_GOOD
             && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {

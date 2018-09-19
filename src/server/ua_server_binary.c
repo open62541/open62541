@@ -718,7 +718,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        retval = UA_SecureChannel_decryptAddChunk(connection->channel, message);
+        retval = UA_SecureChannel_decryptAddChunk(connection->channel, message, UA_FALSE);
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
@@ -745,7 +745,7 @@ processCompleteChunk(void *const application, UA_Connection *connection,
 #endif
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
-    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk);
+    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, UA_FALSE);
 }
 
 void

@@ -158,14 +158,22 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
 
 UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
 // TODO connectivity check & timeout features for the async implementation (timeout == 0)
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
     if(client->state >= UA_CLIENTSTATE_SESSION && retvalPublish != UA_STATUSCODE_GOOD)
         return retvalPublish;
 #endif
-    if(timeout) {
+    /* Make sure we have an open channel */
+
+    /************************************************************/
+    /* FIXME: This is a dirty workaround */
+    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
         retval = openSecureChannel(client, true);
+    /* FIXME: Will most likely break somewhere in the future */
+    /************************************************************/
+
+    if(timeout) {
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
@@ -196,7 +204,6 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         } else {
             retval = receivePacketAsync(client);
         }
-
     }
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         /* The inactivity check must be done after receiveServiceResponse*/

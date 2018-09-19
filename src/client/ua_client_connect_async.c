@@ -202,7 +202,7 @@ static UA_StatusCode
 processOPNResponse(void *application, UA_Connection *connection,
                    UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*) application;
-    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk);
+    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk, UA_TRUE);
     client->connectStatus = retval;
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
