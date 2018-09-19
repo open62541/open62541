@@ -110,9 +110,8 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
                                        client->securityPolicy.certificateVerification,
                                        certificate, privateKey, config.logger);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Initialisation of the SecurityPolicy failed with error %s",
-                     UA_StatusCode_name(retval));
+        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_CLIENT,
+                     "Failed to setup the SecurityPolicy with error %s", UA_StatusCode_name(retval));
         return retval;
     }
 
@@ -528,8 +527,9 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
     /*let client run when non critical timeout*/
     if(retval != UA_STATUSCODE_GOOD
             && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
-        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+        }
         UA_Client_disconnect(client);
     }
     return retval;
