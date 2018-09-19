@@ -302,7 +302,7 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
     code = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
 
-    typeBrowseNode = dataTypeNode.browseName.name
+    typeBrowseNode = makeCIdentifier(dataTypeNode.browseName.name)
     if typeBrowseNode == "NumericRange":
         # in the stack we define a separate structure for the numeric range, but the value itself is just a string
         typeBrowseNode = "String"
@@ -325,7 +325,7 @@ def getTypesArrayForValue(nodeset, value):
     else:
         typesArray = typeNode.typesArray
     return "&" + typesArray + "[" + typesArray + "_" + \
-                    value.__class__.__name__.upper() + "]"
+            makeCIdentifier(value.__class__.__name__.upper()) + "]"
 
 def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_length=0):
     code = []
@@ -505,7 +505,8 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
     else:
         (parentNode, parentRef) = (NodeId(), NodeId())
 
-    code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".format(node.__class__.__name__.upper().replace("NODE" ,"")))
+    code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".
+            format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
     code.append(generateNodeIdCode(node.id) + ",")
     code.append(generateNodeIdCode(parentNode) + ",")
     code.append(generateNodeIdCode(parentRef) + ",")
@@ -523,7 +524,8 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
                     node.printRefs.remove(ref)
     else:
         code.append("UA_NODEID_NULL,")
-    code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".format(node.__class__.__name__.upper().replace("NODE" ,"")))
+    code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
+            format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
     code.extend(codeCleanup)
 
     return "\n".join(code)
@@ -544,4 +546,3 @@ def generateNodeCode_finish(node):
         code.append(");")
 
     return "\n".join(code)
-
