@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2014-2016 (c) Sten Grüner
@@ -543,6 +543,13 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     ((UA_ResponseHeader*)response)->requestHandle = requestHeader->requestHandle;
     ((UA_ResponseHeader*)response)->timestamp = UA_DateTime_now();
 
+    /* Process normal services before initializing the message context.
+     * Some services may initialize new message contexts and to support network
+     * layers only providing one send buffer, only one message context can be
+     * initialized concurrently. */
+    if(serviceType == UA_SERVICETYPE_NORMAL)
+        service(server, session, request, response);
+
     /* Start the message */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, responseType->binaryEncodingId);
     UA_MessageContext mc;
@@ -569,7 +576,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         break;
     case UA_SERVICETYPE_NORMAL:
     default:
-        service(server, session, request, response);
         retval = UA_MessageContext_encode(&mc, response, responseType);
         break;
     }
