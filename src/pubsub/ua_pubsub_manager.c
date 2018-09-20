@@ -281,9 +281,9 @@ void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub cleanup was called.");
     //free the currently configured transport layers
-    for(size_t i = 0; i < server->config.pubsubTransportLayersSize; i++){
-        UA_free(&server->config.pubsubTransportLayers[i]);
-    }
+    UA_free(server->config.pubsubTransportLayers);
+    server->config.pubsubTransportLayersSize = 0;
+
     //remove Connections and WriterGroups
     while(pubSubManager->connectionsSize > 0){
         UA_Server_removePubSubConnection(server, pubSubManager->connections[pubSubManager->connectionsSize-1].identifier);
