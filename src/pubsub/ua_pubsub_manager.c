@@ -12,33 +12,6 @@
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
-
-/* Add a pubsubTransportLayer to the configuration.
- * Memory is reallocated on demand */
-UA_StatusCode
-UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-        UA_PubSubTransportLayer *pubsubTransportLayer) {
-
-    if(config->pubsubTransportLayersSize == 0) {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-                UA_malloc(sizeof(UA_PubSubTransportLayer));
-    } else {
-        config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
-                UA_realloc(config->pubsubTransportLayers,
-                sizeof(UA_PubSubTransportLayer) * (config->pubsubTransportLayersSize + 1));
-    }
-
-    if (config->pubsubTransportLayers == NULL) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    memcpy(&config->pubsubTransportLayers[config->pubsubTransportLayersSize],
-            pubsubTransportLayer, sizeof(UA_PubSubTransportLayer));
-    config->pubsubTransportLayersSize++;
-
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode
 UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *connectionConfig,
                               UA_NodeId *connectionIdentifier) {
