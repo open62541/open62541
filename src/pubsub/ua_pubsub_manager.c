@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
 #include "server/ua_server_internal.h"
@@ -13,81 +14,92 @@
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
 UA_StatusCode
-UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *connectionConfig,
+UA_Server_addPubSubConnection(UA_Server *server,
+                              const UA_PubSubConnectionConfig *connectionConfig,
                               UA_NodeId *connectionIdentifier) {
-    //iterate over the available UA_PubSubTransportLayers
+    /* Find the matching UA_PubSubTransportLayers */
+    UA_PubSubTransportLayer *tl = NULL;
     for(size_t i = 0; i < server->config.pubsubTransportLayersSize; i++) {
-        if(connectionConfig && UA_String_equal(&server->config.pubsubTransportLayers[i].transportProfileUri,
-                                               &connectionConfig->transportProfileUri)){
-            //create new connection config
-            UA_PubSubConnectionConfig *tmpConnectionConfig = (UA_PubSubConnectionConfig *)
-                    UA_calloc(1, sizeof(UA_PubSubConnectionConfig));
-            if(!tmpConnectionConfig){
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub Connection creation failed. Out of Memory.");
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            //deep copy the given connection config
-            if(UA_PubSubConnectionConfig_copy(connectionConfig, tmpConnectionConfig) != UA_STATUSCODE_GOOD){
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub Connection creation failed. Config copy problem.");
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            //create new connection and add to UA_PubSubManager
-            UA_PubSubConnection *newConnectionsField = (UA_PubSubConnection *)
-                    UA_realloc(server->pubSubManager.connections,
-                               sizeof(UA_PubSubConnection) * (server->pubSubManager.connectionsSize + 1));
-            if(!newConnectionsField) {
-                UA_PubSubConnectionConfig_deleteMembers(tmpConnectionConfig);
-                UA_free(tmpConnectionConfig);
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub Connection creation failed. Out of Memory.");
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            server->pubSubManager.connections = newConnectionsField;
-            UA_PubSubConnection *newConnection = &server->pubSubManager.connections[server->pubSubManager.connectionsSize];
-            memset(newConnection, 0, sizeof(UA_PubSubConnection));
-            LIST_INIT(&newConnection->writerGroups);
-            //workaround - fixing issue with queue.h and realloc.
-            for(size_t n = 0; n < server->pubSubManager.connectionsSize; n++){
-                if(server->pubSubManager.connections[n].writerGroups.lh_first){
-                    server->pubSubManager.connections[n].writerGroups.lh_first->listEntry.le_prev = &server->pubSubManager.connections[n].writerGroups.lh_first;
-                }
-            }
-            newConnection->config = tmpConnectionConfig;
-            newConnection->channel = server->config.pubsubTransportLayers[i].createPubSubChannel(newConnection->config);
-            if(!newConnection->channel){
-                UA_PubSubConnection_deleteMembers(server, newConnection);
-                if(server->pubSubManager.connectionsSize > 0){
-                    newConnectionsField = (UA_PubSubConnection *)
-                            UA_realloc(server->pubSubManager.connections,
-                                       sizeof(UA_PubSubConnection) * (server->pubSubManager.connectionsSize));
-                    if(!newConnectionsField) {
-                        return UA_STATUSCODE_BADINTERNALERROR;
-                    }
-                    server->pubSubManager.connections = newConnectionsField;
-                } else  {
-                    UA_free(newConnectionsField);
-                    server->pubSubManager.connections = NULL;
-                }
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub Connection creation failed. Transport layer creation problem.");
-                return UA_STATUSCODE_BADINTERNALERROR;
-            }
-            UA_PubSubManager_generateUniqueNodeId(server, &newConnection->identifier);
-            if(connectionIdentifier != NULL){
-                UA_NodeId_copy(&newConnection->identifier, connectionIdentifier);
-            }
-            server->pubSubManager.connectionsSize++;
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-        addPubSubConnectionRepresentation(server, newConnection);
-#endif
-            return UA_STATUSCODE_GOOD;
+        if(connectionConfig &&
+           UA_String_equal(&server->config.pubsubTransportLayers[i].transportProfileUri,
+                           &connectionConfig->transportProfileUri)) {
+            tl = &server->config.pubsubTransportLayers[i];
         }
     }
-    UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "PubSub Connection creation failed. Requested transport layer not found.");
-    return UA_STATUSCODE_BADNOTFOUND;
+    if(!tl) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Requested transport layer not found.");
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Create a copy of the connection config */
+    UA_PubSubConnectionConfig *tmpConnectionConfig = (UA_PubSubConnectionConfig *)
+        UA_calloc(1, sizeof(UA_PubSubConnectionConfig));
+    if(!tmpConnectionConfig){
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Out of Memory.");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_StatusCode retval = UA_PubSubConnectionConfig_copy(connectionConfig, tmpConnectionConfig);
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Could not copy the config.");
+        return retval;
+    }
+
+    /* Create new connection and add to UA_PubSubManager */
+    UA_PubSubConnection *newConnectionsField = (UA_PubSubConnection *)
+        UA_realloc(server->pubSubManager.connections,
+                   sizeof(UA_PubSubConnection) * (server->pubSubManager.connectionsSize + 1));
+    if(!newConnectionsField) {
+        UA_PubSubConnectionConfig_deleteMembers(tmpConnectionConfig);
+        UA_free(tmpConnectionConfig);
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Out of Memory.");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    server->pubSubManager.connections = newConnectionsField;
+    server->pubSubManager.connectionsSize++;
+
+    UA_PubSubConnection *newConnection =
+        &server->pubSubManager.connections[server->pubSubManager.connectionsSize-1];
+
+    /* Initialize the new connection */
+    memset(newConnection, 0, sizeof(UA_PubSubConnection));
+    LIST_INIT(&newConnection->writerGroups);
+    //workaround - fixing issue with queue.h and realloc.
+    for(size_t n = 0; n < server->pubSubManager.connectionsSize; n++){
+        if(server->pubSubManager.connections[n].writerGroups.lh_first){
+            server->pubSubManager.connections[n].writerGroups.lh_first->listEntry.le_prev = &server->pubSubManager.connections[n].writerGroups.lh_first;
+        }
+    }
+    newConnection->config = tmpConnectionConfig;
+
+    /* Open the channel */
+    newConnection->channel = tl->createPubSubChannel(newConnection->config);
+    if(!newConnection->channel) {
+        UA_PubSubConnection_deleteMembers(server, newConnection);
+        server->pubSubManager.connectionsSize--;
+        /* Keep the realloced (longer) array if entries remain */
+        if(server->pubSubManager.connectionsSize == 0) {
+            UA_free(server->pubSubManager.connections);
+            server->pubSubManager.connections = NULL;
+        }
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Transport layer creation problem.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_PubSubManager_generateUniqueNodeId(server, &newConnection->identifier);
+
+    if(connectionIdentifier)
+        UA_NodeId_copy(&newConnection->identifier, connectionIdentifier);
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addPubSubConnectionRepresentation(server, newConnection);
+#endif
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
