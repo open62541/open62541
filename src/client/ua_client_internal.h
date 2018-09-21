@@ -157,7 +157,6 @@ struct UA_Client {
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
     /* Connection Establishment (async) */
-    UA_Connection_processChunk ackResponseCallback;
     UA_Connection_processChunk openSecureChannelResponseCallback;
     UA_Boolean endpointsHandshake;
 
@@ -199,6 +198,10 @@ UA_Client_getEndpointsInternal(UA_Client *client,
  * timout finishes */
 UA_StatusCode
 receivePacketAsync(UA_Client *client);
+
+UA_StatusCode
+processACKResponseAsync(void *application, UA_Connection *connection,
+                        UA_ByteString *chunk);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);
