@@ -118,8 +118,6 @@ UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src, UA_WriterGroupConfig *dst);
 UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
-void
-UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup);
 
 /**********************************************/
 /*               DataSetField                 */
