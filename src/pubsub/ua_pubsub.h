@@ -95,8 +95,6 @@ UA_StatusCode
 UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src, UA_DataSetWriterConfig *dst);
 UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
-void
-UA_DataSetWriter_deleteMembers(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 
 /**********************************************/
 /*               WriterGroup                  */
@@ -138,8 +136,6 @@ UA_StatusCode
 UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConfig *dst);
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
-void
-UA_DataSetField_deleteMembers(UA_DataSetField *field);
 
 /*********************************************************/
 /*               PublishValues handling                  */
