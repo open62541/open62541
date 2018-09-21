@@ -50,7 +50,7 @@ static UA_StatusCode
 requestGetEndpoints(UA_Client *client, UA_UInt32 *requestId);
 
 /*receives hello ack, opens secure channel*/
-static UA_StatusCode
+UA_StatusCode
 processACKResponseAsync(void *application, UA_Connection *connection,
                          UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*)application;
@@ -567,7 +567,6 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     /* Set up further callback function to handle secure channel and session establishment  */
-    client->ackResponseCallback = processACKResponseAsync;
     client->openSecureChannelResponseCallback = processOPNResponse;
     client->endpointsHandshake = true;
 
