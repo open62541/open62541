@@ -19,6 +19,10 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+/* Forward declaration */
+static void
+UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup);
+
 /**********************************************/
 /*               Connection                   */
 /**********************************************/
@@ -157,7 +161,9 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeWriterGroupRepresentation(server, wg);
 #endif
+
     UA_WriterGroup_deleteMembers(server, wg);
+    LIST_REMOVE(wg, listEntry);
     UA_free(wg);
     return UA_STATUSCODE_GOOD;
 }
@@ -499,7 +505,7 @@ UA_WriterGroupConfig_deleteMembers(UA_WriterGroupConfig *writerGroupConfig){
     UA_free(writerGroupConfig->groupProperties);
 }
 
-void
+static void
 UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_WriterGroupConfig_deleteMembers(&writerGroup->config);
     //delete WriterGroup
@@ -508,7 +514,6 @@ UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup) {
     LIST_FOREACH_SAFE(dataSetWriter, &writerGroup->writers, listEntry, tmpDataSetWriter){
         UA_Server_removeDataSetWriter(server, dataSetWriter->identifier);
     }
-    LIST_REMOVE(writerGroup, listEntry);
     UA_NodeId_deleteMembers(&writerGroup->linkedConnection);
     UA_NodeId_deleteMembers(&writerGroup->identifier);
 }
