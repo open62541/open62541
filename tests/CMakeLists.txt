@@ -201,6 +201,10 @@ if(UA_ENABLE_PUBSUB)
     target_link_libraries(check_pubsub_publish ${LIBS})
     add_test_valgrind(check_pubsub_publish ${TESTS_BINARY_DIR}/check_pubsub_publish)
 
+    add_executable(check_pubsub_publishspeed pubsub/check_pubsub_publishspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_publishspeed ${LIBS})
+    add_test_valgrind(check_pubsub_publishspeed ${TESTS_BINARY_DIR}/check_pubsub_publish)
+
     add_executable(check_pubsub_multiple_layer pubsub/check_pubsub_multiple_layer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_multiple_layer ${LIBS})
     add_test_valgrind(check_pubsub_multiple_layer ${TESTS_BINARY_DIR}/check_pubsub_multiple_layer)
