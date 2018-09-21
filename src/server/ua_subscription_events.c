@@ -141,14 +141,21 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return UA_FALSE;
+        return false;
     }
     
-	/* get the EventType Property Node */
+	/* Get the EventType Property Node */
     UA_Variant tOutVariant;
     UA_Variant_init(&tOutVariant);
-    /* read the Value of EventType Property Node (the Value should be a NodeId) */
-    UA_Server_readValue(server, bpr.targets[0].targetId.nodeId, &tOutVariant);
+
+    /* Read the Value of EventType Property Node (the Value should be a NodeId) */
+    UA_StatusCode retval = UA_Server_readValue(server, bpr.targets[0].targetId.nodeId, &tOutVariant);
+    if(retval != UA_STATUSCODE_GOOD ||
+       !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
+        UA_BrowsePathResult_deleteMembers(&bpr);
+        return false;
+    }
+
     const UA_NodeId *tEventType = (UA_NodeId*)tOutVariant.data;
 
     /* Make sure the EventType is not a Subtype of CondtionType
@@ -161,9 +168,10 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
        isNodeInTree(&server->config.nodestore, tEventType,
     		         &conditionTypeId, &hasSubtypeId, 1)){
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
-    	         "Alarms and Conditions are not supported yet!");
+                     "Alarms and Conditions are not supported yet!");
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return UA_FALSE;
+        UA_Variant_deleteMembers(&tOutVariant);
+        return false;
     }
 
     /* check whether Valid Event other than Conditions */
