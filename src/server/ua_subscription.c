@@ -306,6 +306,16 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             *efl = notification->data.event.fields;
             UA_EventFieldList_init(&notification->data.event.fields);
             efl->clientHandle = mon->clientHandle;
+
+            /* Check if this is an overflowEvent */
+            UA_NodeId overflowBaseId = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+            if(efl->eventFieldsSize == 1 &&
+               efl->eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
+               isNodeInTree(&server->config.nodestore,
+                            (UA_NodeId *)efl->eventFields[0].data,
+                            &overflowBaseId, &subtypeId, 1)) {
+                --mon->eventOverflows;
+            }
             enlPos++;
         }
 #endif
