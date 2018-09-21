@@ -156,8 +156,7 @@ struct UA_Client {
     UA_UserTokenPolicy token;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
-    /* Connection Establishment (async) */
-    UA_Connection_processChunk openSecureChannelResponseCallback;
+
     UA_Boolean endpointsHandshake;
 
     /* Async Service */
@@ -201,6 +200,10 @@ receivePacketAsync(UA_Client *client);
 
 UA_StatusCode
 processACKResponseAsync(void *application, UA_Connection *connection,
+                        UA_ByteString *chunk);
+
+UA_StatusCode
+processOPNResponseAsync(void *application, UA_Connection *connection,
                         UA_ByteString *chunk);
 
 UA_StatusCode

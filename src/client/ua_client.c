@@ -538,9 +538,7 @@ receivePacketAsync(UA_Client *client) {
         retval = UA_Connection_receiveChunksNonBlocking(&client->connection, client, processACKResponseAsync);
     }
     else if(UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
-        retval = UA_Connection_receiveChunksNonBlocking(
-                &client->connection, client,
-                client->openSecureChannelResponseCallback);
+        retval = UA_Connection_receiveChunksNonBlocking(&client->connection, client, processOPNResponseAsync);
     }
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
