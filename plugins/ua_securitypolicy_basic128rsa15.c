@@ -219,6 +219,7 @@ asym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
     mbedtls_rsa_context *rsaContext =
         mbedtls_pk_rsa(cc->policyContext->localPrivateKey);
+    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     if(data->length % rsaContext->len != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
