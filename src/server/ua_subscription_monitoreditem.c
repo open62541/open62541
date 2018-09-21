@@ -125,77 +125,89 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         TAILQ_INSERT_AFTER(&sub->notificationQueue, del, after_del, globalEntry);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        /* Create an overflow notification */
-         if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-             /* check if an overflowEvent is being deleted
-              * TODO: make sure overflowEvents are never deleted */
-             UA_NodeId overflowBaseId = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
-             UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+        /* Check if an OverflowEvent is being deleted */
 
-             /* Check if an OverflowEvent is being deleted */
-             if(del->data.event.fields.eventFieldsSize == 1 &&
-                 del->data.event.fields.eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
-                 isNodeInTree(&server->config.nodestore,
-                              (UA_NodeId*)del->data.event.fields.eventFields[0].data,
-                              &overflowBaseId, &subtypeId, 1)) {
-                 /* Don't do anything, since adding and removing an overflow will not change anything */
-                 return UA_STATUSCODE_GOOD;
-             }
-
-             /* cause an overflowEvent */
-             /* an overflowEvent does not care about event filters and as such
-              * will not be "triggered" correctly. Instead, a notification will
-              * be inserted into the queue which includes only the nodeId of the
-              * overflowEventType. It is up to the client to check for possible
-              * overflows. */
-             UA_Notification *overflowNotification = (UA_Notification*)UA_malloc(sizeof(UA_Notification));
-             if(!overflowNotification)
-                 return UA_STATUSCODE_BADOUTOFMEMORY;
-
-             UA_EventFieldList_init(&overflowNotification->data.event.fields);
-             overflowNotification->data.event.fields.eventFields = UA_Variant_new();
-             if(!overflowNotification->data.event.fields.eventFields) {
-                 UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
-                 UA_free(overflowNotification);
-                 return UA_STATUSCODE_BADOUTOFMEMORY;
-             }
-
-             overflowNotification->data.event.fields.eventFieldsSize = 1;
-             UA_StatusCode retval =
-                 UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
-                                          &overflowId, &UA_TYPES[UA_TYPES_NODEID]);
-             if (retval != UA_STATUSCODE_GOOD) {
-                 UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
-                 UA_free(overflowNotification);
-                 return retval;
-             }
-
-             overflowNotification->mon = mon;
-             if(mon->discardOldest) {
-                 TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry);
-                 TAILQ_INSERT_HEAD(&mon->subscription->notificationQueue,
-                                   overflowNotification, globalEntry);
-             } else {
-                 TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry);
-                 TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
-                                   overflowNotification, globalEntry);
-             }
-
-
-             /* The amount of notifications in the subscription don't change. The specification
-              * only states that the queue size in each MonitoredItem isn't affected by OverflowEvents.
-              * Since they are reduced in Notification_delete the queues are increased here, so they
-              * will remain the same in the end.
-              */
-             ++sub->notificationQueueSize;
-             ++sub->eventNotifications;
-         }
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+        /* TODO: EventOverflows should never be deleted */
+        UA_NodeId overflowBaseId = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+        if(del->data.event.fields.eventFieldsSize == 1 &&
+           del->data.event.fields.eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
+           isNodeInTree(&server->config.nodestore,
+                        (UA_NodeId*)del->data.event.fields.eventFields[0].data,
+                        &overflowBaseId, &subtypeId, 1)) {
+            --mon->eventOverflows;
+        }
+#endif
 
         /* Delete the notification. This also removes the notification from the
          * linked lists. */
         UA_Notification_delete(sub, mon, del);
     }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Create an overflow notification */
+    /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
+     * "is generated when the first Event has to be discarded [...] without discarding
+     * any other event". So only generate one for all deleted events. */
+    if (mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        /* check if an overflowEvent is being deleted
+         * TODO: make sure overflowEvents are never deleted */
+        UA_NodeId overflowId = UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE);
+
+        /* an overflowEvent does not care about event filters and as such
+         * will not be "triggered" correctly. Instead, a notification will
+         * be inserted into the queue which includes only the nodeId of the
+         * overflowEventType. It is up to the client to check for possible
+         * overflows. */
+        UA_Notification *overflowNotification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
+        if (!overflowNotification)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        UA_EventFieldList_init(&overflowNotification->data.event.fields);
+        overflowNotification->data.event.fields.eventFields = UA_Variant_new();
+        if (!overflowNotification->data.event.fields.eventFields) {
+            UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
+            UA_free(overflowNotification);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
+        overflowNotification->data.event.fields.eventFieldsSize = 1;
+        UA_StatusCode retval =
+                UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
+                                         &overflowId, &UA_TYPES[UA_TYPES_NODEID]);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
+            UA_free(overflowNotification);
+            return retval;
+        }
+
+        overflowNotification->mon = mon;
+
+        /* The amount of notifications in the subscription don't change. The specification
+         * only states that the queue size in each MonitoredItem isn't affected by OverflowEvents.
+         * (In this case the queue in the MonitoredItemQueue IS affected internally because externally
+         * the queueSize will always appear with eventOverflows subtracted from it)
+         *
+         * Since they are reduced in Notification_delete the queues are increased here, so they
+         * will remain the same in the end.
+         *
+         * Do not use Notification_enqueue to insert the notification into the queues, since this would
+         * cause a bad recursive call of this function.
+         */
+        if (mon->discardOldest) {
+            TAILQ_INSERT_HEAD(&mon->queue, overflowNotification, listEntry);
+            TAILQ_INSERT_HEAD(&mon->subscription->notificationQueue,
+                              overflowNotification, globalEntry);
+        } else {
+            TAILQ_INSERT_TAIL(&mon->queue, overflowNotification, listEntry);
+            TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
+                              overflowNotification, globalEntry);
+        }
+        ++mon->eventOverflows;
+        ++mon->queueSize;
+        ++sub->notificationQueueSize;
+        ++sub->eventNotifications;
+    }
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
     if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Get the element that carries the infobits */
