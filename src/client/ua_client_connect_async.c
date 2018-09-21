@@ -536,24 +536,48 @@ requestSession(UA_Client *client, UA_UInt32 *requestId) {
 }
 
 UA_StatusCode
-UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
-                               UA_ClientAsyncServiceCallback callback,
-                               void *userdata, UA_Boolean endpointsHandshake,
-                               UA_Boolean createNewSession) {
+UA_Client_connect_iterate(UA_Client *client) {
+    UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Client connect iterate");
+    if (client->connection.state == UA_CONNECTION_ESTABLISHED){
+        if (client->state < UA_CLIENTSTATE_WAITING_FOR_ACK)
+            return sendHELMessage(client);
+    }
+
+    /* If server is not connected */
+    if (client->connection.state == UA_CONNECTION_CLOSED) {
+        client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "No connection to server.");
+    }
+
+    return client->connectStatus;
+}
+
+UA_StatusCode
+UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
+                        UA_ClientAsyncServiceCallback callback,
+                        void *userdata) {
+    UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Client internal async");
+
     if(client->state >= UA_CLIENTSTATE_WAITING_FOR_ACK)
         return UA_STATUSCODE_GOOD;
+
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     /* Set up further callback function to handle secure channel and session establishment  */
     client->ackResponseCallback = processACKResponseAsync;
     client->openSecureChannelResponseCallback = processOPNResponse;
-    client->endpointsHandshake = endpointsHandshake;
+    client->endpointsHandshake = true;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection = client->config.initConnectionFunc(
             client->config.localConnectionConfig, endpointUrl,
             client->config.timeout, client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
+        UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Could not init async connection");
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
     }
@@ -576,23 +600,25 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
                                                     &client->securityPolicy,
                                                     &remoteCertificate);
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
 
     client->asyncConnectCall.callback = callback;
     client->asyncConnectCall.userdata = userdata;
 
     if(!client->connection.connectCallbackID) {
+        UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Adding async connection callback");
         retval = UA_Client_addRepeatedCallback(
                      client, client->config.pollConnectionFunc, &client->connection, 100,
                      &client->connection.connectCallbackID);
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
 
     retval = UA_SecureChannel_generateLocalNonce(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        goto cleanup;
 
     /* Delete async service. TODO: Move this from connect to the disconnect/cleanup phase */
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
@@ -606,37 +632,15 @@ UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
     /* Generate new local and remote key */
     retval = UA_SecureChannel_generateNewKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        goto cleanup;
 
     return retval;
 
-    cleanup: UA_Client_disconnect(client);
-        return retval;
-}
-
-UA_StatusCode
-UA_Client_connect_iterate(UA_Client *client) {
-    if (client->connection.state == UA_CONNECTION_ESTABLISHED){
-        if (client->state < UA_CLIENTSTATE_WAITING_FOR_ACK)
-            return sendHELMessage(client);
-    }
-
-    /* If server is not connected */
-    if (client->connection.state == UA_CONNECTION_CLOSED) {
-        client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "No connection to server.");
-    }
-
-    return client->connectStatus;
-}
-
-UA_StatusCode
-UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
-                        UA_ClientAsyncServiceCallback callback,
-                        void *userdata) {
-    return UA_Client_connectInternalAsync(client, endpointUrl, callback,
-            userdata, UA_TRUE, UA_TRUE);
+ cleanup:
+    UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Failure during async connect");
+    UA_Client_disconnect(client);
+    return retval;
 }
 
 /* Async disconnection */

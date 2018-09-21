@@ -191,12 +191,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode
-UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
-                               UA_ClientAsyncServiceCallback callback,
-                               void *connected, UA_Boolean endpointsHandshake,
-                               UA_Boolean createNewSession);
-
-UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client,
                                size_t* endpointDescriptionsSize,
                                UA_EndpointDescription** endpointDescriptions);
