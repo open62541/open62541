@@ -22,6 +22,8 @@
 /* Forward declaration */
 static void
 UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup);
+static void
+UA_DataSetField_deleteMembers(UA_DataSetField *field);
 
 /**********************************************/
 /*               Connection                   */
@@ -326,8 +328,11 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     /* update major version of PublishedDataSet */
     parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference();
+
     UA_DataSetField_deleteMembers(currentField);
+    LIST_REMOVE(currentField, listEntry);
     UA_free(currentField);
+
 	result.result = UA_STATUSCODE_GOOD;
 	result.configurationVersion.majorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion;
 	result.configurationVersion.minorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.minorVersion;
@@ -401,17 +406,16 @@ UA_DataSetWriterConfig_deleteMembers(UA_DataSetWriterConfig *pdsConfig) {
     UA_ExtensionObject_deleteMembers(&pdsConfig->messageSettings);
 }
 
-void
-UA_DataSetWriter_deleteMembers(UA_Server *server, UA_DataSetWriter *dataSetWriter){
+static void
+UA_DataSetWriter_deleteMembers(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
     UA_DataSetWriterConfig_deleteMembers(&dataSetWriter->config);
     //delete DataSetWriter
     UA_NodeId_deleteMembers(&dataSetWriter->identifier);
     UA_NodeId_deleteMembers(&dataSetWriter->linkedWriterGroup);
     UA_NodeId_deleteMembers(&dataSetWriter->connectedDataSet);
-    LIST_REMOVE(dataSetWriter, listEntry);
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     //delete lastSamples store
-    for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++){
+    for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++) {
         UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[i].value);
     }
     UA_free(dataSetWriter->lastSamples);
@@ -587,8 +591,10 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw){
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeDataSetWriterRepresentation(server, dataSetWriter);
 #endif
+
     //remove DataSetWriter from group
     UA_DataSetWriter_deleteMembers(server, dataSetWriter);
+    LIST_REMOVE(dataSetWriter, listEntry);
     UA_free(dataSetWriter);
     return UA_STATUSCODE_GOOD;
 }
@@ -648,13 +654,13 @@ UA_DataSetFieldConfig_deleteMembers(UA_DataSetFieldConfig *dataSetFieldConfig){
     }
 }
 
-void UA_DataSetField_deleteMembers(UA_DataSetField *field) {
+static void
+UA_DataSetField_deleteMembers(UA_DataSetField *field) {
     UA_DataSetFieldConfig_deleteMembers(&field->config);
     //delete DataSetField
     UA_NodeId_deleteMembers(&field->identifier);
     UA_NodeId_deleteMembers(&field->publishedDataSet);
     UA_FieldMetaData_deleteMembers(&field->fieldMetaData);
-    LIST_REMOVE(field, listEntry);
 }
 
 /*********************************************************/
