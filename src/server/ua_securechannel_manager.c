@@ -64,16 +64,30 @@ removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry) {
 
 /* remove channels that were not renewed or who have no connection attached */
 void
-UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime nowMonotonic) {
+UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
+                                        UA_DateTime nowMonotonic) {
     channel_entry *entry, *temp;
     TAILQ_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
-        UA_DateTime timeout = entry->channel.securityToken.createdAt +
-                              (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
-        if(timeout < nowMonotonic || !entry->channel.connection) {
+        /* The channel was closed internally */
+        if(entry->channel.state == UA_SECURECHANNELSTATE_CLOSED ||
+           !entry->channel.connection) {
+            removeSecureChannel(cm, entry);
+            continue;
+        }
+
+        /* The channel has timed out */
+        UA_DateTime timeout =
+            entry->channel.securityToken.createdAt +
+            (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
+        if(timeout < nowMonotonic) {
             UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
             removeSecureChannel(cm, entry);
-        } else if(entry->channel.nextSecurityToken.tokenId > 0) {
+            continue;
+        }
+
+        /* Revolve the channel tokens */
+        if(entry->channel.nextSecurityToken.tokenId > 0) {
             UA_SecureChannel_revolveTokens(&entry->channel);
         }
     }
