@@ -34,18 +34,22 @@ UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     channel_entry *entry, *temp;
     TAILQ_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         TAILQ_REMOVE(&cm->channels, entry, pointers);
-        UA_SecureChannel_deleteMembersCleanup(&entry->channel);
+        UA_SecureChannel_close(&entry->channel);
+        UA_SecureChannel_deleteMembers(&entry->channel);
         UA_free(entry);
     }
 }
 
 static void
 removeSecureChannelCallback(void *_, channel_entry *entry) {
-    UA_SecureChannel_deleteMembersCleanup(&entry->channel);
+    UA_SecureChannel_deleteMembers(&entry->channel);
 }
 
 static void
 removeSecureChannel(UA_SecureChannelManager *cm, channel_entry *entry) {
+    /* Close the SecureChannel */
+    UA_SecureChannel_close(&entry->channel);
+
     /* Detach the channel and make the capacity available */
     TAILQ_REMOVE(&cm->channels, entry, pointers);
     UA_atomic_subUInt32(&cm->currentChannelCount, 1);

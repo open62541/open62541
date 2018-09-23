@@ -118,7 +118,7 @@ UA_SecureChannel_deleteMessages(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
+UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
     /* Delete members */
     UA_ByteString_deleteMembers(&channel->remoteCertificate);
     UA_ByteString_deleteMembers(&channel->localNonce);
@@ -129,6 +129,16 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     /* Delete the channel context for the security policy */
     if(channel->securityPolicy)
         channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
+
+
+    /* Remove the buffered messages */
+    UA_SecureChannel_deleteMessages(channel);
+}
+
+void
+UA_SecureChannel_close(UA_SecureChannel *channel) {
+    /* Set the status to closed */
+    channel->state = UA_SECURECHANNELSTATE_CLOSED;
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
@@ -144,9 +154,6 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
         sh->channel = NULL;
         LIST_REMOVE(sh, pointers);
     }
-
-    /* Remove the buffered messages */
-    UA_SecureChannel_deleteMessages(channel);
 }
 
 UA_StatusCode
@@ -961,6 +968,10 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
         if(!message->final)
             break;
 
+        /* Has the channel been closed (during the last message)? */
+        if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
+            break;
+
         /* Remove the current message before processing */
         TAILQ_REMOVE(&channel->messages, message, pointers);
 
@@ -1195,7 +1206,7 @@ checkSymHeader(UA_SecureChannel *const channel,
            (channel->securityToken.createdAt +
             (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC))
            < UA_DateTime_nowMonotonic()) {
-            UA_SecureChannel_deleteMembersCleanup(channel);
+            UA_SecureChannel_close(channel);
             return UA_STATUSCODE_BADSECURECHANNELCLOSED;
         }
     }
@@ -1356,7 +1367,8 @@ UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString 
 
     UA_StatusCode retval = decryptAddChunk(channel, chunk, allowPreviousToken);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_SecureChannel_deleteMembersCleanup(channel);
+        UA_SecureChannel_close(channel);
+
     return retval;
 }
 
@@ -1371,7 +1383,7 @@ UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel) {
             UA_ByteString copy;
             UA_StatusCode retval = UA_ByteString_copy(&cp->bytes, &copy);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_SecureChannel_deleteMembersCleanup(channel);
+                UA_SecureChannel_close(channel);
                 return retval;
             }
             cp->bytes = copy;
