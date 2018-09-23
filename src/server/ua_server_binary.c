@@ -638,8 +638,8 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
     }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_CHANNEL(server->config.logger, channel,
-                            "Processing the message failed with StatusCode %s."
-                            "Closing the channel", UA_StatusCode_name(retval));
+                            "Processing the message failed with StatusCode %s. "
+                            "Closing the channel.", UA_StatusCode_name(retval));
         Service_CloseSecureChannel(server, channel);
     }
 }
