@@ -778,14 +778,18 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         return;
     }
 
-    if(!connection->channel)
+    UA_SecureChannel *channel = connection->channel;
+    if(!channel)
         return;
 
     /* Process complete messages */
-    UA_SecureChannel_processCompleteMessages(connection->channel, server,
-                                             processSecureChannelMessage);
+    UA_SecureChannel_processCompleteMessages(channel, server, processSecureChannelMessage);
 
-    /* Store unused chunks internally in the SecureChannel */
+    /* Is the channel still open? */
+    if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
+        return;
+
+    /* Store unused decoded chunks internally in the SecureChannel */
     UA_SecureChannel_persistIncompleteMessages(connection->channel);
 }
 

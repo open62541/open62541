@@ -724,7 +724,8 @@ sendCloseSecureChannel(UA_Client *client) {
                                           UA_MESSAGETYPE_CLO, &request,
                                           &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
     UA_CloseSecureChannelRequest_deleteMembers(&request);
-    UA_SecureChannel_deleteMembersCleanup(&client->channel);
+    UA_SecureChannel_close(&client->channel);
+    UA_SecureChannel_deleteMembers(&client->channel);
 }
 
 UA_StatusCode

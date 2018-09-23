@@ -106,6 +106,8 @@ struct UA_SecureChannel {
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 
+void UA_SecureChannel_close(UA_SecureChannel *channel);
+
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                                    const UA_SecurityPolicy *securityPolicy,
@@ -114,7 +116,7 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
 /* Remove (partially) received unprocessed messages */
 void UA_SecureChannel_deleteMessages(UA_SecureChannel *channel);
 
-void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
+void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel);
 
 /* Generates new keys and sets them in the channel context */
 UA_StatusCode
