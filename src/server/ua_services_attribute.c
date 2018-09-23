@@ -753,11 +753,12 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
     size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
     UA_UInt32 *valueArrayDimensions = value->arrayDimensions;
     UA_UInt32 tempArrayDimensions;
-    if(valueArrayDimensions == 0 && !UA_Variant_isScalar(value)) {
+    if(!valueArrayDimensions && !UA_Variant_isScalar(value)) {
         valueArrayDimensionsSize = 1;
         tempArrayDimensions = (UA_UInt32)value->arrayLength;
         valueArrayDimensions = &tempArrayDimensions;
     }
+    UA_assert(valueArrayDimensionsSize == 0 || valueArrayDimensions != NULL);
     return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
                                      valueArrayDimensionsSize, valueArrayDimensions);
 }
