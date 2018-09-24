@@ -326,8 +326,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(responseMessage, offset, response,
-                             responseType, 0, NULL);
+    retval = UA_decodeBinary(responseMessage, offset, response, responseType, NULL);
 
  process:
     if(retval != UA_STATUSCODE_GOOD) {
@@ -392,7 +391,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                          "Received a ServiceFault response");
             UA_init(rd->response, rd->responseType);
             retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], 0, NULL);
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], NULL);
         } else {
             /* Close the connection */
             UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -412,7 +411,6 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 
     /* Decode the response */
     retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
-                             rd->client->config.customDataTypesSize,
                              rd->client->config.customDataTypes);
 
 finish:

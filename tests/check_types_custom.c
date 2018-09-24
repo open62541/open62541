@@ -73,6 +73,8 @@ static const UA_DataType PointType = {
     members
 };
 
+const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType};
+
 START_TEST(parseCustomScalar) {
     Point p;
     p.x = 1.0;
@@ -96,7 +98,7 @@ START_TEST(parseCustomScalar) {
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &PointType);
+    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(var2.type == &PointType);
 
@@ -132,7 +134,7 @@ START_TEST(parseCustomScalarExtensionObject) {
 
     UA_ExtensionObject eo2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], 1, &PointType);
+    retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &customDataTypes);
     ck_assert_int_eq(offset, (uintptr_t)(bufPos - buf.data));
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -171,7 +173,7 @@ START_TEST(parseCustomArray) {
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &PointType);
+    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(var2.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     ck_assert_int_eq(var2.arrayLength, 10);

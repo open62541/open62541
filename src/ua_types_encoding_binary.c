@@ -44,8 +44,7 @@ typedef struct {
 
     u16 depth; /* How often did we en-/decoding recurse? */
 
-    size_t customTypesArraySize;
-    const UA_DataType *customTypesArray;
+    const UA_DataTypeArray *customTypes;
 
     UA_exchangeEncodeBuffer exchangeBufferCallback;
     void *exchangeBufferCallbackHandle;
@@ -826,13 +825,14 @@ UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
             return &UA_TYPES[i];
     }
 
-    /* When other namespace look in custom types, too */
-    if(typeId->namespaceIndex != 0) {
-        for(size_t i = 0; i < ctx->customTypesArraySize; ++i) {
-            if(ctx->customTypesArray[i].binaryEncodingId == typeId->identifier.numeric &&
-               ctx->customTypesArray[i].typeId.namespaceIndex == typeId->namespaceIndex)
-                return &ctx->customTypesArray[i];
+    const UA_DataTypeArray *customTypes = ctx->customTypes;
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            if(customTypes->types[i].binaryEncodingId == typeId->identifier.numeric &&
+               customTypes->types[i].typeId.namespaceIndex == typeId->namespaceIndex)
+                return &customTypes->types[i];
         }
+        customTypes = customTypes->next;
     }
 
     return NULL;
@@ -841,8 +841,7 @@ UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId) {
     Ctx ctx;
-    ctx.customTypesArraySize = 0;
-    ctx.customTypesArray = NULL;
+    ctx.customTypes = NULL;
     return UA_findDataTypeByBinaryInternal(typeId, &ctx);
 }
 
@@ -1525,15 +1524,13 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
 
 status
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) {
+                const UA_DataType *type, const UA_DataTypeArray *customTypes) {
     /* Set up the context */
     Ctx ctx;
     ctx.pos = &src->data[*offset];
     ctx.end = &src->data[src->length];
     ctx.depth = 0;
-    ctx.customTypesArraySize = customTypesSize;
-    ctx.customTypesArray = customTypes;
+    ctx.customTypes = customTypes;
 
     /* Decode */
     memset(dst, 0, type->memSize); /* Initialize the value */

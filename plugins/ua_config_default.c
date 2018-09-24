@@ -620,13 +620,7 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
         config->nodestore.deleteNodestore(config->nodestore.context);
 
     /* Custom DataTypes */
-    if(config->customDataTypesSize > 0) {
-        for(size_t i = 0; i < config->customDataTypesSize; ++i)
-            UA_free(config->customDataTypes[i].members);
-        UA_free(config->customDataTypes);
-        config->customDataTypes = NULL;
-        config->customDataTypesSize = 0;
-    }
+    /* nothing to do */
 
     /* Networking */
     for(size_t i = 0; i < config->networkLayersSize; ++i)
@@ -715,7 +709,7 @@ const UA_ClientConfig UA_ClientConfig_default = {
     UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
     UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
     UA_ClientConnectionTCP_poll_callback, /* .pollConnectionFunc (for async connection) */
-    0,    /* .customDataTypesSize */
+
     NULL, /* .customDataTypes */
 
     NULL, /* .stateCallback */

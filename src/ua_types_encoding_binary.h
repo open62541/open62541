@@ -63,8 +63,8 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
  * @return Returns a statuscode whether decoding succeeded. */
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type, const UA_DataTypeArray *customTypes)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since

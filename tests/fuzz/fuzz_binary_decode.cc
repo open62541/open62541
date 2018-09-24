@@ -29,7 +29,7 @@ static UA_Boolean tortureEncoding(const uint8_t *data, size_t size, size_t *newO
             (UA_Byte *) (void *) data
     };
 
-    UA_StatusCode ret = UA_decodeBinary(&binary, newOffset, dst, &UA_TYPES[typeIndex], 0, nullptr);
+    UA_StatusCode ret = UA_decodeBinary(&binary, newOffset, dst, &UA_TYPES[typeIndex], NULL);
 
     if (ret == UA_STATUSCODE_GOOD) {
         // copy the datatype to test
@@ -78,7 +78,7 @@ static UA_Boolean tortureExtensionObject(const uint8_t *data, size_t size, size_
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (type) {
         void *dstCopy = UA_new(type);
-        ret = UA_decodeBinary(&obj.content.encoded.body, newOffset, dstCopy, type, 0, NULL);
+        ret = UA_decodeBinary(&obj.content.encoded.body, newOffset, dstCopy, type, NULL);
 
         if (ret == UA_STATUSCODE_GOOD) {
             UA_Variant var;

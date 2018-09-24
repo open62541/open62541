@@ -60,9 +60,9 @@ typedef struct {
     UA_ConnectClientConnection initConnectionFunc;
     void (*pollConnectionFunc)(UA_Client *client, void *context);
 
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
+    /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
+     * with the configuration. So it is possible to allocate them on ROM. */
+    const UA_DataTypeArray *customDataTypes;
 
     /* Callback for state changes */
     void (*stateCallback)(UA_Client *client, UA_ClientState clientState);
