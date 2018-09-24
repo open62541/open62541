@@ -818,14 +818,6 @@ struct UA_DataType {
 
 UA_Boolean isDataTypeNumeric(const UA_DataType *type);
 
-/* The following is used to exclude type names in the definition of UA_DataType
- * structures if the feature is disabled. */
-#ifdef UA_ENABLE_TYPENAMES
-# define UA_TYPENAME(name) name,
-#else
-# define UA_TYPENAME(name)
-#endif
-
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
  * the name of the data type. If only the NodeId of a type is known, use the
@@ -935,6 +927,17 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  * -------------------------------
  *
  * The following data types were auto-generated from a definition in XML format.
+ */
+
+/* The following is used to exclude type names in the definition of UA_DataType
+ * structures if the feature is disabled. */
+#ifdef UA_ENABLE_TYPENAMES
+# define UA_TYPENAME(name) name,
+#else
+# define UA_TYPENAME(name)
+#endif
+
+/**
  *
  * .. toctree::
  *
