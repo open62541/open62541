@@ -475,6 +475,44 @@ START_TEST(multipleMonitoredItemsOneNode)
     }
 END_TEST
 
+START_TEST(eventStressing)
+    {
+        // add a monitored item
+        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow);
+        ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+
+        // trigger a large amount of events, ensure the server doesnt crash because of it
+        UA_NodeId eventNodeId;
+        UA_StatusCode retval = eventSetup(&eventNodeId);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        for(int i = 0; i < 50; i++) {
+            for(int j = 0; j < 5; j++) {
+                retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL,
+                                                UA_FALSE);
+                ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+            }
+            UA_fakeSleep((UA_UInt32)publishingInterval + 100);
+            retval = UA_Client_run_iterate(client, 0);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+
+        // delete the monitoredItem
+        UA_DeleteMonitoredItemsRequest deleteRequest;
+        UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+        deleteRequest.subscriptionId = subscriptionId;
+        deleteRequest.monitoredItemIds = &monitoredItemId;
+        deleteRequest.monitoredItemIdsSize = 1;
+
+        UA_DeleteMonitoredItemsResponse deleteResponse =
+            UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+        ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+
+        UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
+    }
+END_TEST
+
 #endif // UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 // assumes subscriptions work fine with data change because of other unit test
@@ -487,6 +525,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, uppropagation);
     tcase_add_test(tc_server, eventOverflow);
     tcase_add_test(tc_server, multipleMonitoredItemsOneNode);
+    tcase_add_test(tc_server, eventStressing);
 #endif // UA_ENABLE_SUBSCRIPTIONS_EVENTS
     suite_add_tcase(s, tc_server);
 
