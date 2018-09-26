@@ -599,7 +599,7 @@ setBufPos(UA_MessageContext *mc) {
         /* PaddingSize and ExtraPaddingSize fields */
         size_t encryptionBlockSize = securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.
             getLocalBlockSize(securityPolicy, channel->channelContext );
-        mc->buf_end -= 1 + (encryptionBlockSize >> 8) ? 1 : 0;
+        mc->buf_end -= 1 + ((encryptionBlockSize >> 8) ? 1 : 0);
 
         /* Reduce the message body size with the remainder of the operation
          * maxEncryptedDataSize modulo EncryptionBlockSize to get a whole
@@ -607,7 +607,7 @@ setBufPos(UA_MessageContext *mc) {
          * padding (1 <= paddingSize <= encryptionBlockSize).
          */
         size_t maxEncryptDataSize = mc->messageBuffer.length-UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH-UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH;
-        mc->buf_end -= (maxEncryptDataSize % encryptionBlockSize);
+        mc->buf_end -= (maxEncryptDataSize % encryptionBlockSize) + 1;
     }
 }
 
