@@ -607,7 +607,7 @@ setBufPos(UA_MessageContext *mc) {
          * padding (1 <= paddingSize <= encryptionBlockSize).
          */
         size_t maxEncryptDataSize = mc->messageBuffer.length-UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH-UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH;
-        mc->buf_end -= (maxEncryptDataSize % encryptionBlockSize) + 1;
+        mc->buf_end -= (maxEncryptDataSize % encryptionBlockSize);
     }
 }
 
