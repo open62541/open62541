@@ -76,9 +76,12 @@ typedef struct UA_Notification {
 void UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
                              UA_MonitoredItem *mon, UA_Notification *n);
 
-/* Delete the notification. Also removes it from the linked lists. */
-void UA_Notification_delete(UA_Subscription *sub, UA_MonitoredItem *mon,
-                            UA_Notification *n);
+/* Remove the notification from the MonitoredItem's queue and the Subscriptions
+ * global queue. Reduce the respective counters. */
+void UA_Notification_dequeue(UA_Server *server, UA_Notification *n);
+
+/* Delete the notification. Must be dequeued first. */
+void UA_Notification_delete(UA_Notification *n);
 
 typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Ari Breitkreuz, fortiss GmbH
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
@@ -13,6 +13,110 @@
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+
+/****************/
+/* Notification */
+/****************/
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+static const UA_NodeId overflowEventType =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
+
+static UA_Boolean
+UA_Notification_isOverflowEvent(UA_Server *server, UA_Notification *n) {
+    UA_MonitoredItem *mon = n->mon;
+    if(mon->monitoredItemType != UA_MONITOREDITEMTYPE_EVENTNOTIFY)
+        return false;
+
+    UA_EventFieldList *efl = &n->data.event.fields;
+    if(efl->eventFieldsSize == 1 &&
+       efl->eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
+       isNodeInTree(&server->config.nodestore,
+                    (const UA_NodeId *)efl->eventFields[0].data,
+                    &overflowEventType, &subtypeId, 1)) {
+        return true;
+    }
+
+    return false;
+}
+
+#endif
+
+void
+UA_Notification_enqueue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *mon, UA_Notification *n) {
+    /* Add to the MonitoredItem */
+    TAILQ_INSERT_TAIL(&mon->queue, n, listEntry);
+    ++mon->queueSize;
+
+    /* Add to the subscription */
+    TAILQ_INSERT_TAIL(&sub->notificationQueue, n, globalEntry);
+    ++sub->notificationQueueSize;
+
+    if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        ++sub->dataChangeNotifications;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        ++sub->eventNotifications;
+        if(UA_Notification_isOverflowEvent(server, n))
+            ++mon->eventOverflows;
+#endif
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
+        ++sub->statusChangeNotifications;
+    }
+
+    /* Ensure enough space is available in the MonitoredItem. Do this only after
+     * adding the new Notification. */
+    UA_MonitoredItem_ensureQueueSpace(server, mon);
+}
+
+void
+UA_Notification_dequeue(UA_Server *server, UA_Notification *n) {
+    UA_MonitoredItem *mon = n->mon;
+    UA_Subscription *sub = mon->subscription;
+
+    if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        --sub->dataChangeNotifications;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        --sub->eventNotifications;
+        if(UA_Notification_isOverflowEvent(server, n))
+            --mon->eventOverflows;
+#endif
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
+        --sub->statusChangeNotifications;
+    }
+
+    TAILQ_REMOVE(&mon->queue, n, listEntry);
+    --mon->queueSize;
+
+    TAILQ_REMOVE(&sub->notificationQueue, n, globalEntry);
+    --sub->notificationQueueSize;
+}
+
+void
+UA_Notification_delete(UA_Notification *n) {
+    UA_MonitoredItem *mon = n->mon;
+
+    if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
+        UA_DataValue_deleteMembers(&n->data.value);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        UA_EventFieldList_deleteMembers(&n->data.event.fields);
+        /* EventFilterResult currently isn't being used
+         * UA_EventFilterResult_delete(notification->data.event->result); */
+#endif
+    } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY) {
+        /* Nothing to do */
+    }
+
+    UA_free(n);
+}
+
+/*****************/
+/* MonitoredItem */
+/*****************/
 
 void
 UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
@@ -33,19 +137,21 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
                      "are not supported yet");
     }
 
-    /* Remove the queued notifications if attached to a subscription */
+    /* Remove the queued notifications if attached to a subscription (not a
+     * local MonitoredItem) */
     if(monitoredItem->subscription) {
-        UA_Subscription *sub = monitoredItem->subscription;
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue,
                            listEntry, notification_tmp) {
             /* Remove the item from the queues and free the memory */
-            UA_Notification_delete(sub, monitoredItem, notification);
+            UA_Notification_dequeue(server, notification);
+            UA_Notification_delete(notification);
         }
     }
 
     /* if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY)
      * -> UA_DataChangeFilter does not hold dynamic content we need to free */
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
         /* Remove the monitored item from the node queue */
