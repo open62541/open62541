@@ -99,7 +99,8 @@ struct UA_MonitoredItem {
     UA_UInt32 attributeId;
     UA_String indexRange;
     UA_Double samplingInterval; // [ms]
-    UA_UInt32 maxQueueSize;
+    UA_UInt32 maxQueueSize; /* The max number of enqueued notifications (not
+                               counting overflow events) */
     UA_Boolean discardOldest;
     // TODO: dataEncoding is hardcoded to UA binary
     union {
