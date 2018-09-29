@@ -59,7 +59,8 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requiresSession = false;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
-        *service = (UA_Service)Service_ActivateSession;
+        /* service is not called in this case */
+        *service = NULL; /* (UA_Service)(uintptr_t)Service_ActivateSession; */
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
         break;
