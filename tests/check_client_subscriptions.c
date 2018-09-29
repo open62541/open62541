@@ -81,6 +81,44 @@ START_TEST(Client_subscription) {
 }
 END_TEST
 
+START_TEST(Client_removeMonitoredItem) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 subId;
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* monitor the server state */
+    UA_UInt32 monId;
+    retval = UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
+                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler, NULL, &monId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_sleep((UA_DateTime)UA_SubscriptionSettings_standard.requestedPublishingInterval + 1);
+
+    notificationReceived = false;
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+
+    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    retval = UA_Client_readValueAttribute(client,
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE),
+                                          &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
@@ -136,6 +174,7 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Subscription Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_subscription);
+    tcase_add_test(tc_client, Client_removeMonitoredItem);
     suite_add_tcase(s,tc_client);
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
     tcase_add_checked_fixture(tc_client2, setup, teardown);
