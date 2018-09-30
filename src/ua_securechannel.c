@@ -615,20 +615,24 @@ static UA_StatusCode
 checkLimitsSym(UA_MessageContext *const messageContext, size_t *const bodyLength) {
     /* Will this chunk surpass the capacity of the SecureChannel for the message? */
     UA_Connection *const connection = messageContext->channel->connection;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(!connection)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_Byte *buf_body_start = messageContext->messageBuffer.data + UA_SECURE_MESSAGE_HEADER_LENGTH;
     const UA_Byte *buf_body_end = messageContext->buf_pos;
     *bodyLength = (uintptr_t)buf_body_end - (uintptr_t)buf_body_start;
     messageContext->messageSizeSoFar += *bodyLength;
     messageContext->chunksSoFar++;
+
     if(messageContext->messageSizeSoFar > connection->config.maxMessageSize &&
        connection->config.maxMessageSize != 0)
-        res = UA_STATUSCODE_BADRESPONSETOOLARGE;
+        return UA_STATUSCODE_BADRESPONSETOOLARGE;
+
     if(messageContext->chunksSoFar > connection->config.maxChunkCount &&
        connection->config.maxChunkCount != 0)
-        res = UA_STATUSCODE_BADRESPONSETOOLARGE;
+        return UA_STATUSCODE_BADRESPONSETOOLARGE;
 
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -788,6 +792,9 @@ sendSymmetricEncodingCallback(void *data, UA_Byte **buf_pos, const UA_Byte **buf
 
     /* Set a new buffer for the next chunk */
     UA_Connection *connection = mc->channel->connection;
+    if(!connection)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     retval = connection->getSendBuffer(connection, connection->config.sendBufferSize,
                                        &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD)
@@ -862,13 +869,11 @@ UA_StatusCode
 UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                       UA_MessageType messageType, void *payload,
                                       const UA_DataType *payloadType) {
-    if(!channel || !payload || !payloadType)
+    if(!channel || !channel->connection || !payload || !payloadType)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(channel->connection) {
-        if(channel->connection->state == UA_CONNECTION_CLOSED)
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-    }
+    if(channel->connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     UA_MessageContext mc;
     UA_StatusCode retval = UA_MessageContext_begin(&mc, channel, requestId, messageType);
@@ -928,6 +933,7 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
 
     /* Test against the connection settings */
     const UA_ConnectionConfig *config = &channel->connection->config;
+    UA_assert(config != NULL); /* clang-analyzer false positive */
     if(config->maxChunkCount > 0 &&
        config->maxChunkCount <= latest->chunkPayloadsSize)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
@@ -1389,6 +1395,10 @@ UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString 
     /* Has the SecureChannel timed out? */
     if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
+
+    /* Is the SecureChannel configured? */
+    if(!channel->connection)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = decryptAddChunk(channel, chunk, allowPreviousToken);
     if(retval != UA_STATUSCODE_GOOD)
