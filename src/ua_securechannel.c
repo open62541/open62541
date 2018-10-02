@@ -478,14 +478,35 @@ setBufPos(UA_MessageContext *mc) {
     mc->buf_pos = &mc->messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH];
     mc->buf_end = &mc->messageBuffer.data[mc->messageBuffer.length];
 
+   /* Reserve space for the message footer at the end of the chunk if the chunk
+    * is signed and/or encrypted. The footer includes the fields PaddingSize,
+    * Padding, ExtraPadding and Signature. The padding fields are only present
+    * if the chunk is encrypted. */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         mc->buf_end -= securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
 
-    /* Hide a byte needed for padding */
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        mc->buf_end -= 2;
+    /* The size of the padding depends on the amount of data that shall be sent
+     * and is unknown at this point. Reserve space for the PaddingSize byte,
+     * the maximum amount of Padding which equals the block size of the
+     * symmetric encryption algorithm and last 1 byte for the ExtraPaddingSize
+     * field that is present if the encryption key is larger than 2048 bits.
+     * The actual padding size is later calculated by the function
+     * calculatePaddingSym(). */
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        /* PaddingSize and ExtraPaddingSize fields */
+        size_t encryptionBlockSize = securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.
+            getLocalBlockSize(securityPolicy, channel->channelContext );
+        mc->buf_end -= 1 + ((encryptionBlockSize >> 8) ? 1 : 0);
+        /* Reduce the message body size with the remainder of the operation
+         * maxEncryptedDataSize modulo EncryptionBlockSize to get a whole
+         * number of blocks to encrypt later. Also reserve one byte for
+         * padding (1 <= paddingSize <= encryptionBlockSize).
+         */
+        size_t maxEncryptDataSize = mc->messageBuffer.length-UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH-UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH;
+        mc->buf_end -= (maxEncryptDataSize % encryptionBlockSize) + 1;
+    }
 }
 
 static UA_StatusCode
@@ -542,6 +563,8 @@ sendSymmetricChunk(UA_MessageContext *mc) {
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
+    /* Space for the padding and the signature have been reserved in setBufPos() */
+    UA_assert(total_length <= connection->localConf.sendBufferSize);
     mc->messageBuffer.length = total_length; /* For giving the buffer to the network layer */
 
     /* Encode the chunk headers at the beginning of the buffer */
