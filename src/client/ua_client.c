@@ -441,7 +441,8 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 
 static void
 backgroundConnectivityCallback(UA_Client *client, void *userdata,
-                               UA_UInt32 requestId, const UA_ReadResponse *response) {
+                               UA_UInt32 requestId, const UA_ReadResponse *response,
+                               const UA_DataType *responseType) {
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
         if (client->config.inactivityCallback)
             client->config.inactivityCallback(client);
