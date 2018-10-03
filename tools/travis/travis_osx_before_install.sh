@@ -4,6 +4,7 @@ set -ev
 brew install check
 brew install userspace-rcu
 brew install --HEAD valgrind
+brew install openssl
 # brew install graphviz
 # brew install python
 
