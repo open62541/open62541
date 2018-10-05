@@ -23,6 +23,12 @@ UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
 
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_Subscription *sub = monitoredItem->subscription;
+    UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+                        "Subscription %u | MonitoredItem %i | "
+                        "Delete the MonitoredItem", sub->subscriptionId,
+                        monitoredItem->monitoredItemId);
+
     if(monitoredItem->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         /* Remove the sampling callback */
         UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
@@ -35,7 +41,6 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
     /* Remove the queued notifications if attached to a subscription */
     if(monitoredItem->subscription) {
-        UA_Subscription *sub = monitoredItem->subscription;
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &monitoredItem->queue,
                            listEntry, notification_tmp) {
