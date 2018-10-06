@@ -344,11 +344,11 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
         UA_Subscription_addMonitoredItem(cmc->sub, newMon);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if (newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-        /* insert the monitored item into the node's queue */
-        UA_Server_editNode(server, NULL, &newMon->monitoredNodeId, UA_Server_addMonitoredItemToNodeEditNodeCallback,
-                           newMon);
-    }
+        if(newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+            /* Insert the monitored item into the node's queue */
+            UA_Server_editNode(server, NULL, &newMon->monitoredNodeId,
+                               UA_Server_addMonitoredItemToNodeEditNodeCallback, newMon);
+        }
 #endif
     } else {
         //TODO support events for local monitored items
