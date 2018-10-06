@@ -101,10 +101,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = newSubscription->lifeTimeCount;
     response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
 
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "CreateSubscriptionRequest: Created Subscription %u "
-                         "with a publishing interval of %f ms", response->subscriptionId,
-                         newSubscription->publishingInterval);
+    UA_LOG_INFO_SESSION(server->config.logger, session, "Subscription %u | "
+                        "Created the Subscription with a publishing interval of %f ms",
+                        response->subscriptionId, newSubscription->publishingInterval);
 }
 
 void
@@ -331,8 +330,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                                        &request->requestedParameters, v.value.type);
     UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "Could not create MonitoredItem "
-                            "with status code %s", UA_StatusCode_name(retval));
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "Subscription %u | Could not create a MonitoredItem "
+                            "with StatusCode %s", cmc->sub ? cmc->sub->subscriptionId : 0,
+                            UA_StatusCode_name(retval));
         result->statusCode = retval;
         UA_MonitoredItem_delete(server, newMon);
         return;
@@ -368,6 +369,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                                                      targetContext, newMon->attributeId, false);
         newMon->registered = true;
     }
+
+    UA_LOG_INFO_SESSION(server->config.logger, session,
+                        "Subscription %u | MonitoredItem %i | "
+                        "Created the MonitoredItem",
+                        cmc->sub ? cmc->sub->subscriptionId : 0,
+                        newMon->monitoredItemId);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
