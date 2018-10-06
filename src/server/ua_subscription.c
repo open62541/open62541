@@ -42,14 +42,15 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
 
 void
 UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
-                             "Delete the subscription", sub->subscriptionId);
-
     Subscription_unregisterPublishCallback(server, sub);
 
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
+        UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+                            "Subscription %u | MonitoredItem %i | "
+                            "Deleted the MonitoredItem", sub->subscriptionId,
+                            mon->monitoredItemId);
         MonitoredItem_delete(server, mon);
     }
     sub->monitoredItemsSize = 0;
@@ -62,6 +63,10 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
         UA_free(nme);
     }
     sub->retransmissionQueueSize = 0;
+
+    UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+                        "Subscription %u | Deleted the Subscription",
+                        sub->subscriptionId);
 }
 
 UA_MonitoredItem *
@@ -85,6 +90,11 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     }
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+
+    UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+                        "Subscription %u | MonitoredItem %i | "
+                        "Delete the MonitoredItem", sub->subscriptionId,
+                        mon->monitoredItemId);
 
     /* Remove the MonitoredItem */
     MonitoredItem_delete(server, mon);

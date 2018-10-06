@@ -99,10 +99,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = newSubscription->lifeTimeCount;
     response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
 
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "CreateSubscriptionRequest: Created Subscription %u "
-                         "with a publishing interval of %f ms", response->subscriptionId,
-                         newSubscription->publishingInterval);
+    UA_LOG_INFO_SESSION(server->config.logger, session, "Subscription %u | "
+                        "Created the Subscription with a publishing interval of %f ms",
+                        response->subscriptionId, newSubscription->publishingInterval);
 }
 
 void
@@ -301,6 +300,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                              &request->requestedParameters, v.value.type);
     UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_SESSION(server->config.logger, cmc->sub->session,
+                            "Subscription %u | Could not create a MonitoredItem "
+                            "with StatusCode %s", cmc->sub->subscriptionId,
+                            UA_StatusCode_name(retval));
         result->statusCode = retval;
         MonitoredItem_delete(server, newMon);
         --cmc->sub->lastMonitoredItemId;
@@ -308,6 +311,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     }
 
     UA_Subscription_addMonitoredItem(cmc->sub, newMon);
+    UA_LOG_INFO_SESSION(server->config.logger, cmc->sub->session,
+                        "Subscription %u | MonitoredItem %i | "
+                        "Created the MonitoredItem", cmc->sub->subscriptionId,
+                        newMon->monitoredItemId);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
