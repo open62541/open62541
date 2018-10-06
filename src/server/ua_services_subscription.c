@@ -102,7 +102,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
 
     UA_LOG_INFO_SESSION(server->config.logger, session, "Subscription %u | "
-                        "Created the Subscription with a publishing interval of %f ms",
+                        "Created the Subscription with a publishing interval of %.2f ms",
                         response->subscriptionId, newSubscription->publishingInterval);
 }
 
