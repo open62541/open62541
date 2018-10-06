@@ -225,6 +225,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     if(samplingInterval != samplingInterval) /* Check for nan */
         mon->samplingInterval = server->config.samplingIntervalLimits.min;
 
+    UA_assert(mon->monitoredItemType != 0);
+
     /* QueueSize */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
                                params->queueSize, mon->maxQueueSize);
@@ -320,7 +322,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
 
     /* Initialize the MonitoredItem */
     UA_MonitoredItem_init(newMon, cmc->sub);
-    newMon->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY;
     newMon->attributeId = request->itemToMonitor.attributeId;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
