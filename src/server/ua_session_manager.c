@@ -11,6 +11,7 @@
 
 #include "ua_session_manager.h"
 #include "ua_server_internal.h"
+#include "ua_subscription.h"
 
 UA_StatusCode
 UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server) {
@@ -18,15 +19,6 @@ UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server) {
     sm->currentSessionCount = 0;
     sm->server = server;
     return UA_STATUSCODE_GOOD;
-}
-
-void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
-    session_list_entry *current, *temp;
-    LIST_FOREACH_SAFE(current, &sm->sessions, pointers, temp) {
-        LIST_REMOVE(current, pointers);
-        UA_Session_deleteMembersCleanup(&current->session, sm->server);
-        UA_free(current);
-    }
 }
 
 /* Delayed callback to free the session memory */
@@ -39,6 +31,20 @@ removeSessionCallback(UA_Server *server, void *entry) {
 
 static UA_StatusCode
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
+    /* Remove the Subscriptions */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Subscription *sub, *tempsub;
+    LIST_FOREACH_SAFE(sub, &sentry->session.serverSubscriptions, listEntry, tempsub) {
+        UA_Session_deleteSubscription(sm->server, &sentry->session, sub->subscriptionId);
+    }
+
+    UA_PublishResponseEntry *entry;
+    while((entry = UA_Session_dequeuePublishReq(&sentry->session))) {
+        UA_PublishResponse_deleteMembers(&entry->response);
+        UA_free(entry);
+    }
+#endif
+
     /* Detach the Session from the SecureChannel */
     UA_Session_detachFromSecureChannel(&sentry->session);
 
@@ -60,6 +66,13 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     LIST_REMOVE(sentry, pointers);
     UA_atomic_subUInt32(&sm->currentSessionCount, 1);
     return UA_STATUSCODE_GOOD;
+}
+
+void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
+    session_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &sm->sessions, pointers, temp) {
+        removeSession(sm, current);
+    }
 }
 
 void
