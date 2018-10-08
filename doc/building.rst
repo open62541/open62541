@@ -90,7 +90,6 @@ Building on OS X
    pip install sphinx_rtd_theme # documentation style
    brew install graphviz # for graphics in the documentation
    brew install check # for unit tests
-   brew install userspace-rcu # for multi-threading support
 
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
 
@@ -174,7 +173,7 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS**
    Enable subscriptions
 
-**UA_ENABLE_SUBSCRIPTIONS_EVENTS**
+**UA_ENABLE_SUBSCRIPTIONS_EVENTS (EXPERIMENTAL)**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
 **UA_ENABLE_METHODCALLS**
@@ -186,8 +185,9 @@ Detailed SDK Features
 **UA_ENABLE_AMALGAMATION**
    Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`
 
-**UA_ENABLE_MULTITHREADING**
-   Enable multi-threading support
+**UA_ENABLE_MULTITHREADING (EXPERIMENTAL)**
+   Enable multi-threading support. Work is distributed to a number of worker threads.
+   This is a new feature and currently marked as EXPERIMENTAL.
 
 **UA_ENABLE_IMMUTABLE_NODES**
    Nodes in the information model are not edited but copied and replaced. The
