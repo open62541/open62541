@@ -184,7 +184,7 @@ if(UA_ENABLE_MULTITHREADING)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
-option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
@@ -192,7 +192,7 @@ option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" 
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(NOT UA_ENABLE_PUBSUB)
-    message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
+        message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
     endif()
 endif()
 
