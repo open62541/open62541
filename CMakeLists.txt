@@ -175,7 +175,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
-option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
+option(UA_ENABLE_MULTITHREADING "Enable multithreading (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
 
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
@@ -295,6 +295,15 @@ if(BUILD_SHARED_LIBS)
   if (UA_ENABLE_DISCOVERY_MULTICAST)
       set(MDNSD_DYNAMIC_LINKING ON)
   endif()
+endif()
+
+# Warn if experimental features are enabled
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+    MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_EVENTS is enabled. The feature is under development and marked as EXPERIMENTAL")
+endif()
+
+if(UA_ENABLE_MULTITHREADING)
+    MESSAGE(WARNING "UA_ENABLE_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
 ######################
