@@ -37,6 +37,24 @@ UA_StatusCode UA_EXPORT
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     UA_UInt16 *outPort, UA_String *outPath);
 
+/* Split the given endpoint url into hostname, vid and pcp. All arguments must
+ * be non-NULL. EndpointUrls have the form "opc.eth://<host>[:<VID>[.PCP]]".
+ * The host is a MAC address, an IP address or a registered name like a
+ * hostname. The format of a MAC address is six groups of hexadecimal digits,
+ * separated by hyphens (e.g. 01-23-45-67-89-ab). A system may also accept
+ * hostnames and/or IP addresses if it provides means to resolve it to a MAC
+ * address (e.g. DNS and Reverse-ARP).
+ *
+ * Note: currently only parsing MAC address is supported.
+ *
+ * @param endpointUrl The endpoint URL.
+ * @param vid Set to VLAN ID.
+ * @param pcp Set to Priority Code Point.
+ * @return Returns UA_STATUSCODE_BADINTERNALERROR if parsing failed. */
+UA_StatusCode UA_EXPORT
+UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
+                            UA_UInt16 *vid, UA_Byte *pcp);
+
 /**
  * Convenience macros for complex types
  * ------------------------------------ */
