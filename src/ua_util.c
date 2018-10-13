@@ -13,7 +13,7 @@
 #include "base64.h"
 
 size_t
-UA_readNumber(u8 *buf, size_t buflen, u32 *number) {
+UA_readNumberWithBase(u8 *buf, size_t buflen, u32 *number, u8 base) {
     UA_assert(buf);
     UA_assert(number);
     u32 n = 0;
@@ -21,13 +21,24 @@ UA_readNumber(u8 *buf, size_t buflen, u32 *number) {
     /* read numbers until the end or a non-number character appears */
     while(progress < buflen) {
         u8 c = buf[progress];
-        if(c < '0' || c > '9')
-            break;
-        n = (n*10) + (u32)(c-'0');
+        if(c >= '0' && c <= '9' && c <= '0' + (base-1))
+           n = (n * base) + c - '0';
+        else if(base > 9 && c >= 'a' && c <= 'z' && c <= 'a' + (base-11))
+           n = (n * base) + c-'a' + 10;
+        else if(base > 9 && c >= 'A' && c <= 'Z' && c <= 'A' + (base-11))
+           n = (n * base) + c-'A' + 10;
+        else
+           break;
         ++progress;
     }
     *number = n;
     return progress;
+}
+
+size_t
+UA_readNumber(u8 *buf, size_t buflen, u32 *number)
+{
+    return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
 UA_StatusCode
@@ -99,6 +110,66 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     /* Remove trailing slash from the path */
     if(endpointUrl->data[endpointUrl->length - 1] == '/')
         outPath->length--;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
+                            UA_UInt16 *vid, UA_Byte *prio) {
+    /* Url must begin with "opc.eth://" */
+    if(endpointUrl->length < 11) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    } else if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Where does the host address end? */
+    size_t curr = 10;
+    for(; curr < endpointUrl->length; ++curr) {
+        if(endpointUrl->data[curr] == ':') {
+           break;
+        }
+    }
+
+    /* set host address */
+    target->data = &endpointUrl->data[10];
+    target->length = curr - 10;
+    if(curr == endpointUrl->length) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Set VLAN */
+    u32 value = 0;
+    curr++;  /* skip ':' */
+    size_t progress = UA_readNumber(&endpointUrl->data[curr],
+                                    endpointUrl->length - curr, &value);
+    if(progress == 0 || value > 4096) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    curr += progress;
+    if(curr == endpointUrl->length || endpointUrl->data[curr] == '.') {
+        *vid = (UA_UInt16) value;
+    }
+    if(curr == endpointUrl->length) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Set priority */
+    if(endpointUrl->data[curr] != '.') {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    curr++;  /* skip '.' */
+    progress = UA_readNumber(&endpointUrl->data[curr],
+                             endpointUrl->length - curr, &value);
+    if(progress == 0 || value > 7) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    curr += progress;
+    if(curr != endpointUrl->length) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    *prio = (UA_Byte) value;
 
     return UA_STATUSCODE_GOOD;
 }
