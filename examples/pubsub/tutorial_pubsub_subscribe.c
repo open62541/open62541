@@ -96,7 +96,8 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
     UA_NetworkMessage_deleteMembers(&networkMessage);
 }
 
-static int run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
+static int
+run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
@@ -161,8 +162,10 @@ usage(char *progname) {
 }
 
 int main(int argc, char **argv) {
-    UA_String transportProfile = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_String transportProfile =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
 
     if (argc > 1) {
         if (strcmp(argv[1], "-h") == 0) {
@@ -171,7 +174,8 @@ int main(int argc, char **argv) {
         } else if (strncmp(argv[1], "opc.udp://", 10) == 0) {
             networkAddressUrl.url = UA_STRING(argv[1]);
         } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
-            transportProfile = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+            transportProfile =
+                UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
             if (argc < 3) {
                 printf("Error: UADP/ETH needs an interface name\n");
                 return 1;
