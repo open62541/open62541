@@ -468,10 +468,10 @@ START_TEST(multipleMonitoredItemsOneNode)
 
             ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
             ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+            UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 
             UA_fakeSleep((UA_UInt32) publishingInterval + 100);
         }
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
     }
 END_TEST
 
