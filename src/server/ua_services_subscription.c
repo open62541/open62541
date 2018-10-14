@@ -25,7 +25,7 @@
         else DST = SRC;                                \
     }
 
-static void
+static UA_StatusCode
 setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_Double requestedPublishingInterval,
                         UA_UInt32 requestedLifetimeCount,
@@ -33,10 +33,12 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
     /* deregister the callback if required */
     UA_StatusCode retval = Subscription_unregisterPublishCallback(server, subscription);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session,
                              "Subscription %u | Could not unregister publish callback with error code %s",
                              subscription->subscriptionId, UA_StatusCode_name(retval));
+        return retval;
+    }
 
     /* re-parameterize the subscription */
     subscription->publishingInterval = requestedPublishingInterval;
@@ -58,10 +60,13 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     subscription->priority = priority;
 
     retval = Subscription_registerPublishCallback(server, subscription);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session,
                              "Subscription %u | Could not register publish callback with error code %s",
                              subscription->subscriptionId, UA_StatusCode_name(retval));
+        return retval;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 void
@@ -88,9 +93,15 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
     /* Set the subscription parameters */
     newSubscription->publishingEnabled = request->publishingEnabled;
-    setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
-                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
-                            request->maxNotificationsPerPublish, request->priority);
+    UA_StatusCode retval = setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
+                                                   request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                                                   request->maxNotificationsPerPublish, request->priority);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        response->responseHeader.serviceResult = retval;
+        return;
+    }
+
     newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount; /* set settings first */
 
     /* Prepare the response */
@@ -116,9 +127,15 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
-    setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
-                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
-                            request->maxNotificationsPerPublish, request->priority);
+    UA_StatusCode retval = setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
+                                                   request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                                                   request->maxNotificationsPerPublish, request->priority);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        response->responseHeader.serviceResult = retval;
+        return;
+    }
+
     sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
@@ -219,7 +236,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 
     /* Register sample callback if reporting is enabled */
     if(monitoringMode == UA_MONITORINGMODE_REPORTING)
-        MonitoredItem_registerSampleCallback(server, mon);
+        return MonitoredItem_registerSampleCallback(server, mon);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -451,7 +469,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
     mon->monitoringMode = smc->monitoringMode;
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
-        MonitoredItem_registerSampleCallback(server, mon);
+        *result = MonitoredItem_registerSampleCallback(server, mon);
     } else {
         MonitoredItem_unregisterSampleCallback(server, mon);
 
