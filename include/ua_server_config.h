@@ -146,7 +146,7 @@ struct UA_ServerConfig {
 
     /* Limits for Subscriptions */
     UA_UInt32 maxSubscriptionsPerSession;
-    UA_DurationRange publishingIntervalLimits;
+    UA_DurationRange publishingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range lifeTimeCountLimits;
     UA_UInt32Range keepAliveCountLimits;
     UA_UInt32 maxNotificationsPerPublish;
@@ -157,7 +157,7 @@ struct UA_ServerConfig {
 
     /* Limits for MonitoredItems */
     UA_UInt32 maxMonitoredItemsPerSubscription;
-    UA_DurationRange samplingIntervalLimits;
+    UA_DurationRange samplingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
 
     /* Limits for PublishRequests */
