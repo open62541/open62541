@@ -666,7 +666,6 @@ END_TEST
 START_TEST(Server_invalidPublishingInterval) {
     UA_Double savedPublishingIntervalLimitsMin = server->config.publishingIntervalLimits.min;
     server->config.publishingIntervalLimits.min = 1;
-//    server->config.samplingIntervalLimits.min = 1;
     /* Create a subscription */
     UA_CreateSubscriptionRequest request;
     UA_CreateSubscriptionResponse response;
