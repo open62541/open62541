@@ -1,7 +1,7 @@
 # using c for language overwrites our compilers
 language: generic
 
-sudo: required
+sudo: false
 
 env:
   global:
