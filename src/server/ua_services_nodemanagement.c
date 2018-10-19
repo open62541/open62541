@@ -196,7 +196,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Typecheck the value */
-    if(!server->bootstrapNS0 && value.hasValue) {
+    if(value.hasValue && value.value.data) {
         /* If the type-check failed write the same value again. The
          * write-service tries to convert to the correct type... */
         if(!compatibleValue(server, session, &node->dataType, node->valueRank,
