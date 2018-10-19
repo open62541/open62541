@@ -848,7 +848,7 @@ START_TEST(Node_ReadWrite_ValueRank) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // we want an array
-    UA_Int32 newvalueRank = UA_VALUERANK_ONE_DIMENSION;
+    UA_Int32 newValueRank = UA_VALUERANK_ONE_DIMENSION;
 
     // shall fail when the value is not compatible
     retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
