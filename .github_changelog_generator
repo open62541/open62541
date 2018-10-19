@@ -3,3 +3,4 @@ user=open62541
 project=open62541
 since-tag=v0.2
 http-cache=true
+exclude-labels=ignore changelog
