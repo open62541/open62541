@@ -14,6 +14,7 @@ import re
 import xml.etree.ElementTree as etree
 import itertools
 import argparse
+import csv
 from nodeset_compiler.opaque_type_mapping import opaque_type_mapping, get_base_type_for_opaque
 
 types = OrderedDict() # contains types that were already parsed
@@ -63,6 +64,16 @@ class StructMember(object):
         self.memberType = memberType
         self.isArray = isArray
 
+def getNodeidTypeAndId(nodeId):
+    if not '=' in nodeId:
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId)
+    if nodeId.startswith("i="):
+        return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId[2:])
+    if nodeId.startswith("s="):
+        strId = nodeId[2:]
+        return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
+
+
 class Type(object):
     def __init__(self, outname, xml, namespace):
         self.name = xml.get("Name")
@@ -87,7 +98,7 @@ class Type(object):
         binaryEncodingId = "0"
         if self.name in typedescriptions:
             description = typedescriptions[self.name]
-            typeid = "{%s, UA_NODEIDTYPE_NUMERIC, {%s}}" % (description.namespaceid, description.nodeid)
+            typeid = "{%s, %s}" % (description.namespaceid, getNodeidTypeAndId(description.nodeid))
             xmlEncodingId = description.xmlEncodingId
             binaryEncodingId = description.binaryEncodingId
         else:
@@ -320,13 +331,11 @@ class TypeDescription(object):
 
 def parseTypeDescriptions(f, namespaceid):
     definitions = {}
-    input_str = f.read()
-    input_str = input_str.replace('\r','')
-    rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
 
+    csvreader = csv.reader(f, delimiter=',')
     delay_init = []
 
-    for index, row in enumerate(rows):
+    for index, row in enumerate(csvreader):
         if len(row) < 3:
             continue
         if row[2] == "Object":

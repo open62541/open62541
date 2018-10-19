@@ -275,7 +275,7 @@ UA_Boolean
 UA_NodeId_isNull(const UA_NodeId *p) {
     if(p->namespaceIndex != 0)
         return false;
-    switch (p->identifierType) {
+    switch(p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         return (p->identifier.numeric == 0);
     case UA_NODEIDTYPE_STRING:
