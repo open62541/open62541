@@ -130,7 +130,7 @@ START_TEST(Node_Add) {
     {
         UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        attr.valueRank = 1; /* array with one dimension */
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 arrayDims[1] = {2};
         attr.arrayDimensions = arrayDims;
         attr.arrayDimensionsSize = 1;
@@ -167,7 +167,7 @@ START_TEST(Node_Add) {
         UA_Int32 values[2] = {10, 20};
         UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        attr.valueRank = 1; /* array with one dimension */
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 arrayDims[1] = {2};
         attr.arrayDimensions = arrayDims;
         attr.arrayDimensionsSize = 1;
@@ -390,7 +390,7 @@ START_TEST(Node_AddReadWriteNodes) {
 
         UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        attr.valueRank = 1; /* array with one dimension */
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 arrayDims[1] = {2};
         attr.arrayDimensions = arrayDims;
         attr.arrayDimensionsSize = 1;
@@ -835,10 +835,10 @@ END_TEST
 
 START_TEST(Node_ReadWrite_ValueRank) {
 
-    UA_Int32 valueRank = 0;
+    UA_Int32 valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
     UA_StatusCode retval = UA_Client_readValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(valueRank, -2);
+    ck_assert_int_eq(valueRank, UA_VALUERANK_ANY);
 
     // set the value to a scalar
     UA_Double val = 0.0;
@@ -848,7 +848,7 @@ START_TEST(Node_ReadWrite_ValueRank) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // we want an array
-    UA_Int32 newValueRank = 1;
+    UA_Int32 newvalueRank = UA_VALUERANK_ONE_DIMENSION;
 
     // shall fail when the value is not compatible
     retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);

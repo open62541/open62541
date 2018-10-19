@@ -103,7 +103,7 @@ setInformationModel(UA_Server *server) {
     myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    myVar.valueRank = -1;
+    myVar.valueRank = UA_VALUERANK_SCALAR;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
@@ -119,7 +119,7 @@ setInformationModel(UA_Server *server) {
     myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer - not readable");
     myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
     myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    myVar.valueRank = -1;
+    myVar.valueRank = UA_VALUERANK_SCALAR;
     UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myInteger2Name = UA_QUALIFIEDNAME(1, "the answer - not readable");
     const UA_NodeId myInteger2NodeId = UA_NODEID_STRING(1, "the.answer.no.read");
@@ -132,7 +132,7 @@ setInformationModel(UA_Server *server) {
     myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer - not current user");
     myVar.accessLevel = UA_ACCESSLEVELMASK_WRITE;
     myVar.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    myVar.valueRank = -1;
+    myVar.valueRank = UA_VALUERANK_SCALAR;
     myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName accessDeniedName = UA_QUALIFIEDNAME(1, "the answer - not current user");
@@ -148,7 +148,7 @@ setInformationModel(UA_Server *server) {
     v_attr.displayName = UA_LOCALIZEDTEXT("en-US", "current time");
     v_attr.accessLevel = UA_ACCESSLEVELMASK_READ;
     v_attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
-    v_attr.valueRank = -1;
+    v_attr.valueRank = UA_VALUERANK_SCALAR;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
@@ -159,7 +159,7 @@ setInformationModel(UA_Server *server) {
     myVar.description = UA_LOCALIZEDTEXT("", "");
     myVar.displayName = UA_LOCALIZEDTEXT("", "example bytestring");
     myVar.dataType = UA_TYPES[UA_TYPES_BYTESTRING].typeId;
-    myVar.valueRank = -1;
+    myVar.valueRank = UA_VALUERANK_SCALAR;
     myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_ByteString myByteString = UA_BYTESTRING("test123\0test123");
     UA_Variant_setScalar(&myVar.value, &myByteString, &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -177,7 +177,7 @@ setInformationModel(UA_Server *server) {
     inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     inputArguments.description = UA_LOCALIZEDTEXT("en-US", "Say your name");
     inputArguments.name = UA_STRING("Name");
-    inputArguments.valueRank = -1; /* scalar argument */
+    inputArguments.valueRank = UA_VALUERANK_SCALAR; /* scalar argument */
 
     UA_Argument outputArguments;
     UA_Argument_init(&outputArguments);
@@ -186,7 +186,7 @@ setInformationModel(UA_Server *server) {
     outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     outputArguments.description = UA_LOCALIZEDTEXT("en-US", "Receive a greeting");
     outputArguments.name = UA_STRING("greeting");
-    outputArguments.valueRank = -1;
+    outputArguments.valueRank = UA_VALUERANK_SCALAR;
 
     UA_MethodAttributes addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "Hello World");
@@ -258,7 +258,7 @@ setInformationModel(UA_Server *server) {
         attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
 
         /* add a scalar node for every built-in type */
-        attr.valueRank = -1;
+        attr.valueRank = UA_VALUERANK_SCALAR;
         void *value = UA_new(&UA_TYPES[type]);
         UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
@@ -268,7 +268,7 @@ setInformationModel(UA_Server *server) {
 
         /* add an array node for every built-in type */
         UA_UInt32 arrayDims = 0;
-        attr.valueRank = 1;
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         attr.arrayDimensions = &arrayDims;
         attr.arrayDimensionsSize = 1;
         UA_Variant_setArray(&attr.value, UA_Array_new(10, &UA_TYPES[type]), 10, &UA_TYPES[type]);
@@ -278,7 +278,7 @@ setInformationModel(UA_Server *server) {
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an matrix node for every built-in type */
-        attr.valueRank = 2;
+        attr.valueRank = UA_VALUERANK_TWO_DIMENSIONS;
         attr.arrayDimensions = matrixDims;
         attr.arrayDimensionsSize = 2;
         void *myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
@@ -360,7 +360,7 @@ setInformationModel(UA_Server *server) {
     inputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     inputArguments.description = UA_LOCALIZEDTEXT("en-US", "Input");
     inputArguments.name = UA_STRING("Input");
-    inputArguments.valueRank = -1; //uaexpert will crash if set to 0 ;)
+    inputArguments.valueRank = UA_VALUERANK_SCALAR; //uaexpert will crash if set to 0 ;)
 
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, INARGID),
                             UA_NODEID_NUMERIC(1, DEMOID),
@@ -379,7 +379,7 @@ setInformationModel(UA_Server *server) {
     outputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     outputArguments.description = UA_LOCALIZEDTEXT("en-US", "Output");
     outputArguments.name = UA_STRING("Output");
-    outputArguments.valueRank = -1;
+    outputArguments.valueRank = UA_VALUERANK_SCALAR;
 
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, OUTARGID),
                             UA_NODEID_NUMERIC(1, DEMOID),

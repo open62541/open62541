@@ -61,7 +61,7 @@ START_TEST(AddVariableNode) {
 START_TEST(InstantiateVariableTypeNode) {
     UA_VariableTypeAttributes vtAttr = UA_VariableTypeAttributes_default;
     vtAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    vtAttr.valueRank = 1; /* array with one dimension */
+    vtAttr.valueRank = UA_VALUERANK_ONE_DIMENSION;
     UA_UInt32 arrayDims[1] = {2};
     vtAttr.arrayDimensions = arrayDims;
     vtAttr.arrayDimensionsSize = 1;
@@ -83,7 +83,7 @@ START_TEST(InstantiateVariableTypeNode) {
     /* Prepare the node attributes */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    vAttr.valueRank = 1; /* array with one dimension */
+    vAttr.valueRank = UA_VALUERANK_ONE_DIMENSION;
     vAttr.arrayDimensions = arrayDims;
     vAttr.arrayDimensionsSize = 1;
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Variable");
@@ -365,7 +365,7 @@ START_TEST(InstantiateObjectType) {
 
     UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
     statusAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Status");
-    statusAttr.valueRank = -1;
+    statusAttr.valueRank = UA_VALUERANK_SCALAR;
     UA_NodeId statusId;
     retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -382,7 +382,7 @@ START_TEST(InstantiateObjectType) {
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MotorRPM");
-    rpmAttr.valueRank = -1;
+    rpmAttr.valueRank = UA_VALUERANK_SCALAR;
     retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                        UA_QUALIFIEDNAME(1, "MotorRPMs"),
