@@ -22,7 +22,29 @@ void UA_Session_init(UA_Session *session) {
 #endif
 }
 
-void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static void
+deleteSubscription(UA_Server *server, UA_Session *session,
+                   UA_Subscription *sub) {
+    UA_Subscription_deleteMembers(server, sub);
+
+    /* Add a delayed callback to remove the subscription when the currently
+     * scheduled jobs have completed */
+    UA_StatusCode retval = UA_Server_delayedFree(server, sub);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(server->config.logger, session,
+                       "Could not remove subscription with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    /* Remove from the session */
+    LIST_REMOVE(sub, listEntry);
+    UA_assert(session->numSubscriptions > 0);
+    session->numSubscriptions--;
+}
+#endif
+
+void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server *server) {
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_deleteMembers(&session->clientDescription);
     UA_NodeId_deleteMembers(&session->header.authenticationToken);
@@ -36,6 +58,13 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
         UA_BrowseDescription_deleteMembers(&cp->browseDescription);
         UA_free(cp);
     }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_Subscription *sub, *sub_tmp;
+    LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, sub_tmp) {
+        deleteSubscription(server, session, sub);
+    }
+#endif
 }
 
 void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
@@ -90,22 +119,7 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
-    UA_Subscription_deleteMembers(server, sub);
-
-    /* Add a delayed callback to remove the subscription when the currently
-     * scheduled jobs have completed */
-    UA_StatusCode retval = UA_Server_delayedFree(server, sub);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(server->config.logger, session,
-                       "Could not remove subscription with error code %s",
-                       UA_StatusCode_name(retval));
-        return retval; /* Try again next time */
-    }
-
-    /* Remove from the session */
-    LIST_REMOVE(sub, listEntry);
-    UA_assert(session->numSubscriptions > 0);
-    session->numSubscriptions--;
+    deleteSubscription(server, session, sub);
     return UA_STATUSCODE_GOOD;
 }
 
