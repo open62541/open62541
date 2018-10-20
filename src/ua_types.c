@@ -275,25 +275,17 @@ UA_Boolean
 UA_NodeId_isNull(const UA_NodeId *p) {
     if(p->namespaceIndex != 0)
         return false;
-    switch(p->identifierType) {
+    switch (p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         return (p->identifier.numeric == 0);
+    case UA_NODEIDTYPE_STRING:
+        return UA_String_equal(&p->identifier.string, &UA_STRING_NULL);
     case UA_NODEIDTYPE_GUID:
-        return (p->identifier.guid.data1 == 0 &&
-                p->identifier.guid.data2 == 0 &&
-                p->identifier.guid.data3 == 0 &&
-                p->identifier.guid.data4[0] == 0 &&
-                p->identifier.guid.data4[1] == 0 &&
-                p->identifier.guid.data4[2] == 0 &&
-                p->identifier.guid.data4[3] == 0 &&
-                p->identifier.guid.data4[4] == 0 &&
-                p->identifier.guid.data4[5] == 0 &&
-                p->identifier.guid.data4[6] == 0 &&
-                p->identifier.guid.data4[7] == 0);
-    default:
-        break;
+        return UA_Guid_equal(&p->identifier.guid, &UA_GUID_NULL);
+    case UA_NODEIDTYPE_BYTESTRING:
+        return UA_ByteString_equal(&p->identifier.byteString, &UA_BYTESTRING_NULL);
     }
-    return (p->identifier.string.length == 0);
+    return false;
 }
 
 UA_Boolean
