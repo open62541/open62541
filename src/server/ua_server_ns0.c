@@ -32,7 +32,8 @@ addNode_begin(UA_Server *server, UA_NodeClass nodeClass,
     item.nodeAttributes.content.decoded.type = attributesType;
     UA_NodeId parentNode = UA_NODEID_NULL;
     UA_NodeId referenceType = UA_NODEID_NULL;
-    return Operation_addNode_begin(server, &adminSession, NULL, &item, &parentNode, &referenceType, NULL);
+    return Operation_addNode_begin(server, &server->adminSession, NULL, &item,
+                                   &parentNode, &referenceType, NULL);
 }
 
 static UA_StatusCode
@@ -47,7 +48,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
 
 
     UA_NodeId node = UA_NODEID_NUMERIC(0, nodeId);
-    return Operation_addNode_finish(server, &adminSession, &node);
+    return Operation_addNode_finish(server, &server->adminSession, &node);
 }
 
 static UA_StatusCode

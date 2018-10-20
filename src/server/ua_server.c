@@ -140,6 +140,9 @@ void UA_Server_delete(UA_Server *server) {
 
 #endif
 
+    /* Clean up the admin session */
+    UA_Session_deleteMembersCleanup(&server->adminSession, server);
+
 #ifdef UA_ENABLE_MULTITHREADING
     /* Process new delayed callbacks from the cleanup */
     UA_Server_cleanupDispatchQueue(server);
@@ -193,6 +196,15 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     /* Set the config */
     server->config = *config;
+
+    /* Initialize the admin session */
+    UA_Session_init(&server->adminSession);
+    server->adminSession.header.authenticationToken = UA_NODEID_NUMERIC(0, 1);
+    server->adminSession.sessionId.identifierType = UA_NODEIDTYPE_GUID;
+    server->adminSession.sessionId.identifier.guid.data1 = 1;
+    server->adminSession.sessionName = UA_STRING_ALLOC("Administrator Session");
+    server->adminSession.validTill = UA_INT64_MAX;
+    server->adminSession.availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 
     /* Init start time to zero, the actual start time will be sampled in
      * UA_Server_run_startup() */

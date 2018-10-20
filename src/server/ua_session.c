@@ -14,37 +14,6 @@
 
 #define UA_SESSION_NONCELENTH 32
 
-UA_Session adminSession = {
-    {{NULL, NULL}, /* .pointers */
-     {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
-     NULL,}, /* .channel */
-    {{0, NULL},{0, NULL},
-     {{0, NULL},{0, NULL}},
-     UA_APPLICATIONTYPE_CLIENT,
-     {0, NULL},{0, NULL},
-     0, NULL}, /* .clientDescription */
-    {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"}, /* .sessionName */
-    false, /* .activated */
-    NULL, /* .sessionHandle */
-    {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .sessionId */
-    UA_UINT32_MAX, /* .maxRequestMessageSize */
-    UA_UINT32_MAX, /* .maxResponseMessageSize */
-    (UA_Double)UA_INT64_MAX, /* .timeout */
-    UA_INT64_MAX, /* .validTill */
-    {0, NULL},
-    UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
-    {NULL}, /* .continuationPoints */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    0, /* .lastSubscriptionId */
-    0, /* .lastSeenSubscriptionId */
-    {NULL}, /* .serverSubscriptions */
-    {NULL, NULL}, /* .responseQueue */
-    0, /* numSubscriptions */
-    0, /* numPublishReq */
-    0  /* sumOfRetransmissionQueueSize */
-#endif
-};
-
 void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
