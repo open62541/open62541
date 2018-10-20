@@ -143,6 +143,10 @@ struct UA_Server {
 
     /* Config */
     UA_ServerConfig config;
+
+    /* Local access to the services (for startup and maintenance) uses this
+     * Session with all possible access rights (Session Id: 1) */
+    UA_Session adminSession;
 };
 
 /*****************/

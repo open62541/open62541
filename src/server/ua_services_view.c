@@ -335,7 +335,7 @@ UA_BrowseResult
 UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
-    Operation_Browse(server, &adminSession, &maxrefs, descr, &result);
+    Operation_Browse(server, &server->adminSession, &maxrefs, descr, &result);
     return result;
 }
 
@@ -394,7 +394,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
-    Operation_BrowseNext(server, &adminSession, &releaseContinuationPoint,
+    Operation_BrowseNext(server, &server->adminSession, &releaseContinuationPoint,
                          continuationPoint, &result);
     return result;
 }
@@ -696,7 +696,7 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath) {
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
-    Operation_TranslateBrowsePathToNodeIds(server, &adminSession, NULL, browsePath, &result);
+    Operation_TranslateBrowsePathToNodeIds(server, &server->adminSession, NULL, browsePath, &result);
     return result;
 }
 

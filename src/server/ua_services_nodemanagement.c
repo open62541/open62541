@@ -46,7 +46,7 @@ UA_StatusCode
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext) {
     UA_StatusCode retval =
-        UA_Server_editNode(server, &adminSession, &nodeId,
+        UA_Server_editNode(server, &server->adminSession, &nodeId,
                            (UA_EditNodeCallback)editNodeContext, nodeContext);
     return retval;
 }
@@ -610,7 +610,7 @@ static UA_StatusCode callConstructors(UA_Server *server, UA_Session *session,
 
     /* Set the context *and* mark the node as constructed */
     if(retval == UA_STATUSCODE_GOOD)
-        retval = UA_Server_editNode(server, &adminSession, &node->nodeId,
+        retval = UA_Server_editNode(server, &server->adminSession, &node->nodeId,
                                     (UA_EditNodeCallback)editNodeContext,
                                     context);
 
@@ -879,7 +879,7 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     UA_assert(outNewNodeId);
 
     /* Do not check access for server */
-    if(session != &adminSession && server->config.accessControl.allowAddNode &&
+    if(session != &server->adminSession && server->config.accessControl.allowAddNode &&
        !server->config.accessControl.allowAddNode(server, &server->config.accessControl,
                                                   &session->sessionId, session->sessionHandle, item)) {
         return UA_STATUSCODE_BADUSERACCESSDENIED;
@@ -1099,7 +1099,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     /* Call the normal addnodes service */
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
-    Operation_addNode(server, &adminSession, nodeContext, &item, &result);
+    Operation_addNode(server, &server->adminSession, nodeContext, &item, &result);
     if(outNewNodeId)
         *outNewNodeId = result.addedNodeId;
     else
@@ -1125,13 +1125,13 @@ UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
     item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     item.nodeAttributes.content.decoded.type = attributeType;
     item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
-    return Operation_addNode_begin(server, &adminSession, nodeContext, &item,
+    return Operation_addNode_begin(server, &server->adminSession, nodeContext, &item,
                                    &parentNodeId, &referenceTypeId, outNewNodeId);
 }
 
 UA_StatusCode
 UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId) {
-    return Operation_addNode_finish(server, &adminSession, &nodeId);
+    return Operation_addNode_finish(server, &server->adminSession, &nodeId);
 }
 
 /****************/
@@ -1252,7 +1252,7 @@ static void
 deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
                     const UA_DeleteNodesItem *item, UA_StatusCode *result) {
     /* Do not check access for server */
-    if(session != &adminSession && server->config.accessControl.allowDeleteNode &&
+    if(session != &server->adminSession && server->config.accessControl.allowDeleteNode &&
        !server->config.accessControl.allowDeleteNode(server, &server->config.accessControl,
                                                      &session->sessionId, session->sessionHandle, item)) {
         *result = UA_STATUSCODE_BADUSERACCESSDENIED;
@@ -1307,7 +1307,7 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
     item.deleteTargetReferences = deleteReferences;
     item.nodeId = nodeId;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    deleteNodeOperation(server, &adminSession, NULL, &item, &retval);
+    deleteNodeOperation(server, &server->adminSession, NULL, &item, &retval);
     return retval;
 }
 
@@ -1331,7 +1331,7 @@ static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval) {
     /* Do not check access for server */
-    if(session != &adminSession && server->config.accessControl.allowAddReference &&
+    if(session != &server->adminSession && server->config.accessControl.allowAddReference &&
        !server->config.accessControl.allowAddReference(server, &server->config.accessControl,
                                                        &session->sessionId, session->sessionHandle, item)) {
         *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
@@ -1421,7 +1421,7 @@ UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
     item.targetNodeId = targetId;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    Operation_addReference(server, &adminSession, NULL, &item, &retval);
+    Operation_addReference(server, &server->adminSession, NULL, &item, &retval);
     return retval;
 }
 
@@ -1433,7 +1433,7 @@ static void
 Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
                           const UA_DeleteReferencesItem *item, UA_StatusCode *retval) {
     /* Do not check access for server */
-    if(session != &adminSession && server->config.accessControl.allowDeleteReference &&
+    if(session != &server->adminSession && server->config.accessControl.allowDeleteReference &&
        !server->config.accessControl.allowDeleteReference(server, &server->config.accessControl,
                                                           &session->sessionId, session->sessionHandle, item)) {
         *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
@@ -1494,7 +1494,7 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
     item.deleteBidirectional = deleteBidirectional;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    Operation_deleteReference(server, &adminSession, NULL, &item, &retval);
+    Operation_deleteReference(server, &server->adminSession, NULL, &item, &retval);
     return retval;
 }
 
@@ -1515,7 +1515,7 @@ UA_StatusCode
 UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
                                         const UA_ValueCallback callback) {
-    return UA_Server_editNode(server, &adminSession, &nodeId,
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
                               (UA_EditNodeCallback)setValueCallback,
                               /* cast away const because callback uses const anyway */
                               (UA_ValueCallback *)(uintptr_t) &callback);
@@ -1550,7 +1550,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     }
 
     /* Create the node and add it to the nodestore */
-    UA_StatusCode retval = AddNode_raw(server, &adminSession, nodeContext, &item, outNewNodeId);
+    UA_StatusCode retval = AddNode_raw(server, &server->adminSession, nodeContext, &item, outNewNodeId);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -1560,13 +1560,13 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
         goto cleanup;
 
     /* Typecheck and add references to parent and type definition */
-    retval = AddNode_typeCheckAddRefs(server, &adminSession, outNewNodeId, &parentNodeId,
+    retval = AddNode_typeCheckAddRefs(server, &server->adminSession, outNewNodeId, &parentNodeId,
                                       &referenceTypeId, &typeDefinition);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     /* Call the constructors */
-    retval = Operation_addNode_finish(server, &adminSession, outNewNodeId);
+    retval = Operation_addNode_finish(server, &server->adminSession, outNewNodeId);
 
  cleanup:
     if(outNewNodeId == &newNodeId)
@@ -1590,7 +1590,7 @@ setDataSource(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
-    return UA_Server_editNode(server, &adminSession, &nodeId,
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
                               (UA_EditNodeCallback)setDataSource,
                             /* casting away const because callback casts it back anyway */
                               (UA_DataSource *) (uintptr_t)&dataSource);
@@ -1627,7 +1627,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
     UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, &adminSession, &maxrefs, &bd, &br);
+    Operation_Browse(server, &server->adminSession, &maxrefs, &bd, &br);
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1688,7 +1688,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
     retval |= UA_Server_setMethodNode_callback(server, nodeId, method);
 
     /* Call finish to add the parent reference */
-    retval |= Operation_addNode_finish(server, &adminSession, &nodeId);
+    retval |= Operation_addNode_finish(server, &server->adminSession, &nodeId);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Server_deleteNode(server, nodeId, true);
@@ -1744,7 +1744,7 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
         outNewNodeId = &newId;
     }
 
-    UA_StatusCode retval = Operation_addNode_begin(server, &adminSession, nodeContext,
+    UA_StatusCode retval = Operation_addNode_begin(server, &server->adminSession, nodeContext,
                                                    &item, &parentNodeId, &referenceTypeId, outNewNodeId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -1776,7 +1776,7 @@ UA_StatusCode
 UA_Server_setMethodNode_callback(UA_Server *server,
                                  const UA_NodeId methodNodeId,
                                  UA_MethodCallback methodCallback) {
-    return UA_Server_editNode(server, &adminSession, &methodNodeId,
+    return UA_Server_editNode(server, &server->adminSession, &methodNodeId,
                               (UA_EditNodeCallback)editMethodCallback,
                               (void*)(uintptr_t)methodCallback);
 }
@@ -1808,7 +1808,7 @@ setNodeTypeLifecycle(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle) {
-    return UA_Server_editNode(server, &adminSession, &nodeId,
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
                               (UA_EditNodeCallback)setNodeTypeLifecycle,
                               &lifecycle);
 }
