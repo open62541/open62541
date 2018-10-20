@@ -61,8 +61,10 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
         TAILQ_REMOVE(&sub->retransmissionQueue, nme, listEntry);
         UA_NotificationMessage_deleteMembers(&nme->message);
         UA_free(nme);
+        --sub->session->totalRetransmissionQueueSize;
+        --sub->retransmissionQueueSize;
     }
-    sub->retransmissionQueueSize = 0;
+    UA_assert(sub->retransmissionQueueSize == 0);
 
     UA_LOG_INFO_SESSION(server->config.logger, sub->session,
                         "Subscription %u | Deleted the Subscription",
@@ -109,21 +111,45 @@ UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon)
 }
 
 static void
+removeOldestRetransmissionMessage(UA_Session *session) {
+    UA_NotificationMessageEntry *oldestEntry = NULL;
+    UA_Subscription *oldestSub = NULL;
+
+    UA_Subscription *sub;
+    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+        UA_NotificationMessageEntry *first =
+            TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
+        if(!first)
+            continue;
+        if(!oldestEntry || oldestEntry->message.publishTime > first->message.publishTime) {
+            oldestEntry = first;
+            oldestSub = sub;
+        }
+    }
+    UA_assert(oldestEntry);
+    UA_assert(oldestSub);
+
+    TAILQ_REMOVE(&oldestSub->retransmissionQueue, oldestEntry, listEntry);
+    UA_NotificationMessage_deleteMembers(&oldestEntry->message);
+    UA_free(oldestEntry);
+    --session->totalRetransmissionQueueSize;
+    --oldestSub->retransmissionQueueSize;
+}
+
+static void
 UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub,
                                          UA_NotificationMessageEntry *entry) {
     /* Release the oldest entry if there is not enough space */
     if(server->config.maxRetransmissionQueueSize > 0 &&
-       sub->retransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
-        UA_NotificationMessageEntry *lastentry =
-            TAILQ_LAST(&sub->retransmissionQueue, ListOfNotificationMessages);
-        TAILQ_REMOVE(&sub->retransmissionQueue, lastentry, listEntry);
-        --sub->retransmissionQueueSize;
-        UA_NotificationMessage_deleteMembers(&lastentry->message);
-        UA_free(lastentry);
+       sub->session->totalRetransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                               "Retransmission queue overflow", sub->subscriptionId);
+        removeOldestRetransmissionMessage(sub->session);
     }
 
     /* Add entry */
     TAILQ_INSERT_TAIL(&sub->retransmissionQueue, entry, listEntry);
+    ++sub->session->totalRetransmissionQueueSize;
     ++sub->retransmissionQueueSize;
 }
 
@@ -140,6 +166,7 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
 
     /* Remove the retransmission message */
     TAILQ_REMOVE(&sub->retransmissionQueue, entry, listEntry);
+    --sub->session->totalRetransmissionQueueSize;
     --sub->retransmissionQueueSize;
     UA_NotificationMessage_deleteMembers(&entry->message);
     UA_free(entry);

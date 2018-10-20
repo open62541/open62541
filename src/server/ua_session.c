@@ -40,7 +40,8 @@ UA_Session adminSession = {
     {NULL}, /* .serverSubscriptions */
     {NULL, NULL}, /* .responseQueue */
     0, /* numSubscriptions */
-    0  /* numPublishReq */
+    0, /* numPublishReq */
+    0  /* sumOfRetransmissionQueueSize */
 #endif
 };
 
