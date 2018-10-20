@@ -51,7 +51,8 @@ static void teardown(void) {
 
 static void
 asyncReadCallback(UA_Client *client, void *userdata,
-                  UA_UInt32 requestId, const UA_ReadResponse *response) {
+                  UA_UInt32 requestId, const UA_ReadResponse *response,
+                  const UA_DataType *responseType) {
     UA_UInt16 *asyncCounter = (UA_UInt16*)userdata;
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
         (*asyncCounter) = 9999;
