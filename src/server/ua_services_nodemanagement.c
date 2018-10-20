@@ -1604,7 +1604,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         char *name = "InputArguments";
         attr.displayName = UA_LOCALIZEDTEXT("", name);
         attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
-        attr.valueRank = 1;
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 inputArgsSize32 = (UA_UInt32)inputArgumentsSize;
         attr.arrayDimensions = &inputArgsSize32;
         attr.arrayDimensionsSize = 1;
@@ -1623,7 +1623,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
         char *name = "OutputArguments";
         attr.displayName = UA_LOCALIZEDTEXT("", name);
         attr.dataType = UA_TYPES[UA_TYPES_ARGUMENT].typeId;
-        attr.valueRank = 1;
+        attr.valueRank = UA_VALUERANK_ONE_DIMENSION;
         UA_UInt32 outputArgsSize32 = (UA_UInt32)outputArgumentsSize;
         attr.arrayDimensions = &outputArgsSize32;
         attr.arrayDimensionsSize = 1;

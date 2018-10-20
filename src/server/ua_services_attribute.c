@@ -636,16 +636,16 @@ UA_Boolean
 compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize) {
     /* ValueRank invalid */
-    if(valueRank < -3) {
+    if(valueRank < UA_VALUERANK_SCALAR_OR_ONE_DIMENSION) {
         UA_LOG_INFO_SESSION(server->config.logger, session, "The ValueRank is invalid (< -3)");
         return false;
     }
 
-    /* case -3: the value can be a scalar or a one dimensional array */
-    /* case -2: the value can be a scalar or an array with any number of dimensions */
-    /* case -1: the value is a scalar */
-    /* case 0:  the value is an array with one or more dimensions */
-    if(valueRank <= 0) {
+    /* case -3, UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: the value can be a scalar or a one dimensional array */
+    /* case -2, UA_VALUERANK_ANY: the value can be a scalar or an array with any number of dimensions */
+    /* case -1, UA_VALUERANK_SCALAR: the value is a scalar */
+    /* case  0, UA_VALUERANK_ONE_OR_MORE_DIMENSIONS:  the value is an array with one or more dimensions */
+    if(valueRank <= UA_VALUERANK_ONE_OR_MORE_DIMENSIONS) {
         if(arrayDimensionsSize > 0) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "No ArrayDimensions can be defined for a ValueRank <= 0");
@@ -654,7 +654,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
         return true;
     }
     
-    /* case >= 1: the value is an array with the specified number of dimensions */
+    /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the specified number of dimensions */
     if(arrayDimensionsSize != (size_t)valueRank) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "The number of ArrayDimensions is not equal to the (positive) ValueRank");
@@ -667,18 +667,18 @@ UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
     /* Check if the valuerank of the variabletype allows the change. */
     switch(constraintValueRank) {
-    case -3: /* the value can be a scalar or a one dimensional array */
-        if(valueRank != -1 && valueRank != 1)
+    case UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: /* the value can be a scalar or a one dimensional array */
+        if(valueRank != UA_VALUERANK_SCALAR && valueRank != UA_VALUERANK_ONE_DIMENSION)
             return false;
         break;
-    case -2: /* the value can be a scalar or an array with any number of dimensions */
+    case UA_VALUERANK_ANY: /* the value can be a scalar or an array with any number of dimensions */
         break;
-    case -1: /* the value is a scalar */
-        if(valueRank != -1)
+    case UA_VALUERANK_SCALAR: /* the value is a scalar */
+        if(valueRank != UA_VALUERANK_SCALAR)
             return false;
         break;
-    case 0: /* the value is an array with one or more dimensions */
-        if(valueRank < (UA_Int32) 0)
+    case UA_VALUERANK_ONE_OR_MORE_DIMENSIONS: /* the value is an array with one or more dimensions */
+        if(valueRank < (UA_Int32) UA_VALUERANK_ONE_OR_MORE_DIMENSIONS)
             return false;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
@@ -695,7 +695,7 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
 static UA_Boolean
 compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     /* Invalid ValueRank */
-    if(valueRank < -3)
+    if(valueRank < UA_VALUERANK_SCALAR_OR_ONE_DIMENSION)
         return false;
 
     /* Empty arrays (-1) always match */
@@ -709,17 +709,17 @@ compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     /* We cannot simply use compatibleValueRankArrayDimensions since we can have
      * defined ArrayDimensions for the value if the ValueRank is -2 */
     switch(valueRank) {
-    case -3: /* The value can be a scalar or a one dimensional array */
+    case UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: /* The value can be a scalar or a one dimensional array */
         return (arrayDims <= 1);
-    case -2: /* The value can be a scalar or an array with any number of dimensions */
+    case UA_VALUERANK_ANY: /* The value can be a scalar or an array with any number of dimensions */
         return true;
-    case -1: /* The value is a scalar */
+    case UA_VALUERANK_SCALAR: /* The value is a scalar */
         return (arrayDims == 0);
     default:
         break;
     }
 
-    UA_assert(valueRank >= 0);
+    UA_assert(valueRank >= UA_VALUERANK_ONE_OR_MORE_DIMENSIONS);
 
     /* case 0:  the value is an array with one or more dimensions */
     return (arrayDims == (UA_UInt32)valueRank);

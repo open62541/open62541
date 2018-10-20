@@ -162,7 +162,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     UA_VariableTypeAttributes basevar_attr = UA_VariableTypeAttributes_default;
     basevar_attr.displayName = UA_LOCALIZEDTEXT("", "BaseVariableType");
     basevar_attr.isAbstract = true;
-    basevar_attr.valueRank = -2;
+    basevar_attr.valueRank = UA_VALUERANK_ANY;
     basevar_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
     ret |= addNode_raw(server, UA_NODECLASS_VARIABLETYPE, UA_NS0ID_BASEVARIABLETYPE, "BaseVariableType",
                        &basevar_attr, &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES]);
@@ -170,7 +170,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     UA_VariableTypeAttributes bdv_attr = UA_VariableTypeAttributes_default;
     bdv_attr.displayName = UA_LOCALIZEDTEXT("", "BaseDataVariableType");
     bdv_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-    bdv_attr.valueRank = -2;
+    bdv_attr.valueRank = UA_VALUERANK_ANY;
     ret |= UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEVARIABLETYPE),
                                          UA_NODEID_NULL, UA_QUALIFIEDNAME(0, "BaseDataVariableType"),
