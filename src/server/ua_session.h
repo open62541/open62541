@@ -60,6 +60,7 @@ typedef struct {
     SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
     UA_UInt32        numSubscriptions;
     UA_UInt32        numPublishReq;
+    size_t           totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
 } UA_Session;
 
