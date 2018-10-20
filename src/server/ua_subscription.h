@@ -206,7 +206,7 @@ struct UA_Subscription {
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
-    UA_UInt32 retransmissionQueueSize;
+    size_t retransmissionQueueSize;
 };
 
 UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId);
