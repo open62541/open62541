@@ -256,9 +256,9 @@ class StructType(Type):
                 self.pointerfree = "false"
                 self.overlayable = "false"
             else:
-                self.overlayable += " && " + m.memberType.overlayable
+                self.overlayable += "\n\t\t && " + m.memberType.overlayable
                 if before:
-                    self.overlayable += " && offsetof(UA_%s, %s) == (offsetof(UA_%s, %s) + sizeof(UA_%s))" % \
+                    self.overlayable += "\n\t\t && offsetof(UA_%s, %s) == (offsetof(UA_%s, %s) + sizeof(UA_%s))" % \
                                         (makeCIdentifier(self.name), makeCIdentifier(m.name), makeCIdentifier(self.name), makeCIdentifier(before.name), makeCIdentifier(before.memberType.name))
             if "false" in self.overlayable:
                 self.overlayable = "false"
