@@ -15,7 +15,7 @@
 #include "ua_services.h"
 #include "ua_mdns_internal.h"
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 # ifndef UNDER_CE
 #  include <io.h> //access
 #  define access _access
