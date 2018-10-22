@@ -586,6 +586,11 @@ if(UA_ENABLE_ENCRYPTION)
                                        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
+if(UA_ENABLE_DISCOVERY)
+    list(INSERT internal_headers 5 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
+endif()
+
 if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
@@ -620,8 +625,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
                          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
                          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h
                          ${internal_headers} )
-    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_mdns_internal.h)
-    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c
+    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery_mdns.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c

@@ -29,6 +29,10 @@ _UA_BEGIN_DECLS
 #include "ua_pubsub_manager.h"
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY
+#include "ua_discovery_manager.h"
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
@@ -43,65 +47,9 @@ typedef struct {
 
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
-
-typedef struct registeredServer_list_entry {
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_DelayedCallback delayedCleanup;
-#endif
-    LIST_ENTRY(registeredServer_list_entry) pointers;
-    UA_RegisteredServer registeredServer;
-    UA_DateTime lastSeen;
-} registeredServer_list_entry;
-
-typedef struct periodicServerRegisterCallback_entry {
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_DelayedCallback delayedCleanup;
-#endif
-    LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
-    struct PeriodicServerRegisterCallback *callback;
-} periodicServerRegisterCallback_entry;
-
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-
-#include "mdnsd/libmdnsd/mdnsd.h"
-
-typedef struct serverOnNetwork_list_entry {
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_DelayedCallback delayedCleanup;
-#endif
-    LIST_ENTRY(serverOnNetwork_list_entry) pointers;
-    UA_ServerOnNetwork serverOnNetwork;
-    UA_DateTime created;
-    UA_DateTime lastSeen;
-    UA_Boolean txtSet;
-    UA_Boolean srvSet;
-    char* pathTmp;
-} serverOnNetwork_list_entry;
-
-#define SERVER_ON_NETWORK_HASH_PRIME 1009
-typedef struct serverOnNetwork_hash_entry {
-    serverOnNetwork_list_entry* entry;
-    struct serverOnNetwork_hash_entry* next;
-} serverOnNetwork_hash_entry;
-
-typedef struct mdnsHostnameToIp_list_entry {
-    LIST_ENTRY(mdnsHostnameToIp_list_entry) pointers;
-    UA_String mdnsHostname;
-    struct in_addr addr;
-} mdnsHostnameToIp_list_entry;
-
-#define MDNS_HOSTNAME_TO_IP_HASH_PRIME 1009
-typedef struct mdnsHostnameToIp_hash_entry {
-    mdnsHostnameToIp_list_entry* entry;
-    struct mdnsHostnameToIp_hash_entry* next;
-} mdnsHostnameToIp_hash_entry;
-
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
-#endif /* UA_ENABLE_DISCOVERY */
-
 struct UA_Server {
-    /* Meta */
+    /* Config */
+    UA_ServerConfig config;
     UA_DateTime startTime;
 
     /* Security */
@@ -111,40 +59,6 @@ struct UA_Server {
                               * maintenance) uses this Session with all possible
                               * access rights (Session Id: 1) */
 
-#ifdef UA_ENABLE_DISCOVERY
-    /* Discovery */
-    LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
-    size_t registeredServersSize;
-    LIST_HEAD(periodicServerRegisterCallback_list, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks; // doubly-linked list of current register callbacks
-    UA_Server_registerServerCallback registerServerCallback;
-    void* registerServerCallbackData;
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    mdns_daemon_t *mdnsDaemon;
-    UA_SOCKET mdnsSocket;
-    UA_Boolean mdnsMainSrvAdded;
-#  ifdef UA_ENABLE_MULTITHREADING
-    pthread_t mdnsThread;
-    UA_Boolean mdnsRunning;
-#  endif
-
-    LIST_HEAD(serverOnNetwork_list, serverOnNetwork_list_entry) serverOnNetwork; // doubly-linked list of servers on the network (from mDNS)
-    size_t serverOnNetworkSize;
-    UA_UInt32 serverOnNetworkRecordIdCounter;
-    UA_DateTime serverOnNetworkRecordIdLastReset;
-    // hash mapping domain name to serverOnNetwork list entry
-    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
-
-    UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
-    void* serverOnNetworkCallbackData;
-
-
-    LIST_HEAD(mdnsHostnameToIp_list, mdnsHostnameToIp_list_entry) mdnsHostnameToIp; // doubly-linked list of hostname to IP mapping (from mDNS)
-    // hash mapping hostname to ip
-    struct mdnsHostnameToIp_hash_entry* mdnsHostnameToIpHash[MDNS_HOSTNAME_TO_IP_HASH_PRIME];
-
-# endif
-#endif
-
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
@@ -152,25 +66,29 @@ struct UA_Server {
     /* Callbacks with a repetition interval */
     UA_Timer timer;
 
+    /* WorkQueue and worker threads */
     UA_WorkQueue workQueue;
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
+    /* Discovery */
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager discoveryManager;
+#endif
+
+    /* Local MonitoredItems */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
 #endif
 
+    /* Publish/Subscribe */
 #ifdef UA_ENABLE_PUBSUB
-    /* Publish/Subscribe toplevel container */
     UA_PubSubManager pubSubManager;
 #endif
-
-    /* Config */
-    UA_ServerConfig config;
 };
 
 /*****************/
@@ -339,47 +257,6 @@ UA_DataValue
 UA_Server_readWithSession(UA_Server *server, UA_Session *session,
                           const UA_ReadValueId *item,
                           UA_TimestampsToReturn timestampsToReturn);
-
-/* Checks if a registration timed out and removes that registration.
- * Should be called periodically in main loop */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
-
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-
-UA_StatusCode
-initMulticastDiscoveryServer(UA_Server* server);
-
-void startMulticastDiscoveryServer(UA_Server *server);
-
-void stopMulticastDiscoveryServer(UA_Server *server);
-
-UA_StatusCode
-iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
-                                UA_Boolean processIn);
-
-void destroyMulticastDiscoveryServer(UA_Server* server);
-
-typedef enum {
-    UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
-    UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
-} UA_DiscoveryProtocol;
-
-/* Send a multicast probe to find any other OPC UA server on the network through mDNS. */
-UA_StatusCode
-UA_Discovery_multicastQuery(UA_Server* server);
-
-UA_StatusCode
-UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
-                       const UA_String *hostname, UA_UInt16 port,
-                       const UA_String *path, const UA_DiscoveryProtocol protocol,
-                       UA_Boolean createTxt, const UA_String* capabilites,
-                       size_t *capabilitiesSize);
-UA_StatusCode
-UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
-                          const UA_String *hostname, UA_UInt16 port,
-                          UA_Boolean removeTxt);
-
-# endif
 
 /*****************************/
 /* AddNodes Begin and Finish */
