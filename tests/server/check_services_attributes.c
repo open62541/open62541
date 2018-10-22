@@ -50,7 +50,7 @@ static void setup(void) {
     UA_Variant_setScalar(&vattr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     vattr.description = UA_LOCALIZEDTEXT("locale","the answer");
     vattr.displayName = UA_LOCALIZEDTEXT("locale","the answer");
-    vattr.valueRank = -2;
+    vattr.valueRank = UA_VALUERANK_ANY;
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
@@ -81,7 +81,7 @@ static void setup(void) {
     vattr = UA_VariableAttributes_default;
     UA_Int32 myIntegerArray[9] = {1,2,3,4,5,6,7,8,9};
     UA_Variant_setArray(&vattr.value, &myIntegerArray, 9, &UA_TYPES[UA_TYPES_INT32]);
-    vattr.valueRank = -2;
+    vattr.valueRank = UA_VALUERANK_ANY;
     UA_UInt32 myIntegerDimensions[2] = {3,3};
     vattr.value.arrayDimensions = myIntegerDimensions;
     vattr.value.arrayDimensionsSize = 2;

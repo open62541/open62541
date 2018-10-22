@@ -60,14 +60,14 @@ addHellWorldMethod(UA_Server *server) {
     inputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
     inputArgument.name = UA_STRING("MyInput");
     inputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    inputArgument.valueRank = -1; /* scalar */
+    inputArgument.valueRank = UA_VALUERANK_SCALAR;
 
     UA_Argument outputArgument;
     UA_Argument_init(&outputArgument);
     outputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
     outputArgument.name = UA_STRING("MyOutput");
     outputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    outputArgument.valueRank = -1; /* scalar */
+    outputArgument.valueRank = UA_VALUERANK_SCALAR;
 
     UA_MethodAttributes helloAttr = UA_MethodAttributes_default;
     helloAttr.description = UA_LOCALIZEDTEXT("en-US","Say `Hello World`");
@@ -120,7 +120,7 @@ addIncInt32ArrayMethod(UA_Server *server) {
     inputArguments[0].description = UA_LOCALIZEDTEXT("en-US", "int32[5] array");
     inputArguments[0].name = UA_STRING("int32 array");
     inputArguments[0].dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    inputArguments[0].valueRank = 1;
+    inputArguments[0].valueRank = UA_VALUERANK_ONE_DIMENSION;
     UA_UInt32 pInputDimension = 5;
     inputArguments[0].arrayDimensionsSize = 1;
     inputArguments[0].arrayDimensions = &pInputDimension;
@@ -129,7 +129,7 @@ addIncInt32ArrayMethod(UA_Server *server) {
     inputArguments[1].description = UA_LOCALIZEDTEXT("en-US", "int32 delta");
     inputArguments[1].name = UA_STRING("int32 delta");
     inputArguments[1].dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    inputArguments[1].valueRank = -1; /* scalar */
+    inputArguments[1].valueRank = UA_VALUERANK_SCALAR;
 
     /* One output argument */
     UA_Argument outputArgument;
@@ -137,7 +137,7 @@ addIncInt32ArrayMethod(UA_Server *server) {
     outputArgument.description = UA_LOCALIZEDTEXT("en-US", "int32[5] array");
     outputArgument.name = UA_STRING("each entry is incremented by the delta");
     outputArgument.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    outputArgument.valueRank = 1;
+    outputArgument.valueRank = UA_VALUERANK_ONE_DIMENSION;
     UA_UInt32 pOutputDimension = 5;
     outputArgument.arrayDimensionsSize = 1;
     outputArgument.arrayDimensions = &pOutputDimension;
