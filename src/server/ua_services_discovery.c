@@ -13,7 +13,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_mdns_internal.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
@@ -160,10 +159,10 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     /* Temporarily store all the pointers which we found to avoid reiterating
      * through the list */
     size_t foundServersSize = 0;
-    UA_STACKARRAY(UA_RegisteredServer*, foundServers, server->registeredServersSize+1);
+    UA_STACKARRAY(UA_RegisteredServer*, foundServers, server->discoveryManager.registeredServersSize+1);
 
     registeredServer_list_entry* current;
-    LIST_FOREACH(current, &server->registeredServers, pointers) {
+    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
         if(request->serverUrisSize) {
             /* If client only requested a specific set of servers */
             for(size_t i = 0; i < request->serverUrisSize; i++) {
@@ -314,7 +313,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     /* Find the server from the request in the registered list */
     registeredServer_list_entry* current;
     registeredServer_list_entry *registeredServer_entry = NULL;
-    LIST_FOREACH(current, &server->registeredServers, pointers) {
+    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
         if(UA_String_equal(&current->registeredServer.serverUri, &requestServer->serverUri)) {
             registeredServer_entry = current;
             break;
@@ -392,9 +391,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             /* create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
                 (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-            UA_Discovery_update_MdnsForDiscoveryUrl(server, mdnsServerName, mdnsConfig,
-                                                    &requestServer->discoveryUrls[i],
-                                                    requestServer->isOnline, updateTxt);
+            UA_Server_updateMdnsForDiscoveryUrl(server, mdnsServerName, mdnsConfig,
+                                                &requestServer->discoveryUrls[i],
+                                                requestServer->isOnline, updateTxt);
         }
     }
 #endif
@@ -410,17 +409,19 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        if(server->registerServerCallback)
-            server->registerServerCallback(requestServer, server->registerServerCallbackData);
+        if(server->discoveryManager.registerServerCallback)
+            server->discoveryManager.
+                registerServerCallback(requestServer,
+                                       server->discoveryManager.registerServerCallbackData);
 
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
 #ifndef UA_ENABLE_MULTITHREADING
         UA_free(registeredServer_entry);
-        server->registeredServersSize--;
+        server->discoveryManager.registeredServersSize--;
 #else
-        UA_atomic_subSize(&server->registeredServersSize, 1);
+        UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
         registeredServer_entry->delayedCleanup.callback = NULL; /* only free the structure */
         UA_WorkQueue_enqueueDelayed(&server->workQueue, &registeredServer_entry->delayedCleanup);
 #endif
@@ -441,15 +442,17 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        LIST_INSERT_HEAD(&server->registeredServers, registeredServer_entry, pointers);
+        LIST_INSERT_HEAD(&server->discoveryManager.registeredServers, registeredServer_entry, pointers);
 #ifndef UA_ENABLE_MULTITHREADING
-        server->registeredServersSize++;
+        server->discoveryManager.registeredServersSize++;
 #else
-        UA_atomic_addSize(&server->registeredServersSize, 1);
+        UA_atomic_addSize(&server->discoveryManager.registeredServersSize, 1);
 #endif
 
-        if(server->registerServerCallback)
-            server->registerServerCallback(requestServer, server->registerServerCallbackData);
+        if(server->discoveryManager.registerServerCallback)
+            server->discoveryManager.
+                registerServerCallback(requestServer,
+                                       server->discoveryManager.registerServerCallbackData);
     } else {
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
     }
@@ -493,7 +496,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
         timedOut -= server->config.discoveryCleanupTimeout*UA_DATETIME_SEC;
 
     registeredServer_list_entry* current, *temp;
-    LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
+    LIST_FOREACH_SAFE(current, &server->discoveryManager.registeredServers, pointers, temp) {
         UA_Boolean semaphoreDeleted = false;
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
@@ -535,9 +538,9 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             UA_RegisteredServer_deleteMembers(&current->registeredServer);
 #ifndef UA_ENABLE_MULTITHREADING
             UA_free(current);
-            server->registeredServersSize--;
+            server->discoveryManager.registeredServersSize--;
 #else
-            UA_atomic_subSize(&server->registeredServersSize, 1);
+            UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
             current->delayedCleanup.callback = NULL; /* Only free the structure */
             UA_WorkQueue_enqueueDelayed(&server->workQueue, &current->delayedCleanup);
 #endif
@@ -653,7 +656,8 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     /* check if we are already registering with the given discovery url and remove the old periodic call */
     {
         periodicServerRegisterCallback_entry *rs, *rs_tmp;
-        LIST_FOREACH_SAFE(rs, &server->periodicServerRegisterCallbacks, pointers, rs_tmp) {
+        LIST_FOREACH_SAFE(rs, &server->discoveryManager.
+                          periodicServerRegisterCallbacks, pointers, rs_tmp) {
             if(strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                             "There is already a register callback for '%s' in place. Removing the older one.", discoveryServerUrl);
@@ -706,7 +710,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     newEntry->callback = cb;
-    LIST_INSERT_HEAD(&server->periodicServerRegisterCallbacks, newEntry, pointers);
+    LIST_INSERT_HEAD(&server->discoveryManager.periodicServerRegisterCallbacks, newEntry, pointers);
 #endif
 
     if(periodicCallbackId)
@@ -718,8 +722,8 @@ void
 UA_Server_setRegisterServerCallback(UA_Server *server,
                                     UA_Server_registerServerCallback cb,
                                     void* data) {
-    server->registerServerCallback = cb;
-    server->registerServerCallbackData = data;
+    server->discoveryManager.registerServerCallback = cb;
+    server->discoveryManager.registerServerCallbackData = data;
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

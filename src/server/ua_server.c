@@ -156,58 +156,7 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-    registeredServer_list_entry *rs, *rs_tmp;
-    LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
-        LIST_REMOVE(rs, pointers);
-        UA_RegisteredServer_deleteMembers(&rs->registeredServer);
-        UA_free(rs);
-    }
-    periodicServerRegisterCallback_entry *ps, *ps_tmp;
-    LIST_FOREACH_SAFE(ps, &server->periodicServerRegisterCallbacks, pointers, ps_tmp) {
-        LIST_REMOVE(ps, pointers);
-        UA_free(ps->callback);
-        UA_free(ps);
-    }
-
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-        destroyMulticastDiscoveryServer(server);
-
-    serverOnNetwork_list_entry *son, *son_tmp;
-    LIST_FOREACH_SAFE(son, &server->serverOnNetwork, pointers, son_tmp) {
-        LIST_REMOVE(son, pointers);
-        UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
-        if(son->pathTmp)
-            UA_free(son->pathTmp);
-        UA_free(son);
-    }
-
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
-        serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
-        while(currHash) {
-            serverOnNetwork_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
-        }
-    }
-
-    mdnsHostnameToIp_list_entry *mhi, *mhi_tmp;
-    LIST_FOREACH_SAFE(mhi, &server->mdnsHostnameToIp, pointers, mhi_tmp) {
-        LIST_REMOVE(mhi, pointers);
-        UA_String_deleteMembers(&mhi->mdnsHostname);
-        UA_free(mhi);
-    }
-
-    for(size_t i = 0; i < MDNS_HOSTNAME_TO_IP_HASH_PRIME; i++) {
-        mdnsHostnameToIp_hash_entry* currHash = server->mdnsHostnameToIpHash[i];
-        while(currHash) {
-            mdnsHostnameToIp_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
-        }
-    }
-# endif
-
+    UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
 
     /* Clean up the Admin Session */
@@ -286,37 +235,9 @@ UA_Server_new(const UA_ServerConfig *config) {
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
                                   10000, NULL);
 
-    /* Initialized discovery database */
+    /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    LIST_INIT(&server->registeredServers);
-    server->registeredServersSize = 0;
-    LIST_INIT(&server->periodicServerRegisterCallbacks);
-    server->registerServerCallback = NULL;
-    server->registerServerCallbackData = NULL;
-#endif
-
-    /* Initialize multicast discovery */
-#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
-    server->mdnsDaemon = NULL;
-    server->mdnsSocket = UA_INVALID_SOCKET;
-    server->mdnsMainSrvAdded = false;
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-        initMulticastDiscoveryServer(server);
-
-    LIST_INIT(&server->serverOnNetwork);
-    server->serverOnNetworkSize = 0;
-    server->serverOnNetworkRecordIdCounter = 0;
-    server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-    memset(server->serverOnNetworkHash, 0,
-           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
-
-
-    LIST_INIT(&server->mdnsHostnameToIp);
-    memset(server->mdnsHostnameToIpHash, 0,
-           sizeof(struct mdnsHostnameToIp_hash_entry*) * MDNS_HOSTNAME_TO_IP_HASH_PRIME);
-
-    server->serverOnNetworkCallback = NULL;
-    server->serverOnNetworkCallbackData = NULL;
+    UA_DiscoveryManager_init(&server->discoveryManager, server);
 #endif
 
     /* Initialize namespace 0*/
@@ -329,6 +250,7 @@ UA_Server_new(const UA_ServerConfig *config) {
         UA_Server_delete(server);
         return NULL;
     }
+
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_Server_initPubSubNS0(server);
