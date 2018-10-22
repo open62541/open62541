@@ -1640,6 +1640,14 @@ typedef enum {
 #define UA_NS0ID_SERVER_NAMESPACES_OPCUANAMESPACEURI_NAMESPACEFILE_EXPORTNAMESPACE 15211 // Method
 #define UA_NS0ID_HASMODELPARENT 50 // ReferenceType
 
+#define UA_VALUERANK_SCALAR_OR_ONE_DIMENSION  -3
+#define UA_VALUERANK_ANY                      -2
+#define UA_VALUERANK_SCALAR                   -1
+#define UA_VALUERANK_ONE_OR_MORE_DIMENSIONS    0
+#define UA_VALUERANK_ONE_DIMENSION             1
+#define UA_VALUERANK_TWO_DIMENSIONS            2
+#define UA_VALUERANK_THREE_DIMENSIONS          3
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

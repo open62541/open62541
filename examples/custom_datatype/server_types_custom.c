@@ -18,7 +18,7 @@ add3PointDataType(UA_Server *server) {
     dattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
     dattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
     dattr.dataType = PointType.typeId;
-    dattr.valueRank = -1;
+    dattr.valueRank = UA_VALUERANK_SCALAR;
 
     Point p;
     p.x = 0.0;
@@ -45,7 +45,7 @@ add3DPointVariable(UA_Server *server) {
     vattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
     vattr.dataType = PointType.typeId;
-    vattr.valueRank = -1;
+    vattr.valueRank = UA_VALUERANK_SCALAR;
     UA_Variant_setScalar(&vattr.value, &p, &PointType);
 
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "3D.Point"),

@@ -74,7 +74,7 @@ START_TEST(Nodes_createCustomStateType)
         attr.minimumSamplingInterval = 0.000000;
         attr.userAccessLevel = 1;
         attr.accessLevel = 1;
-        attr.valueRank = -2;
+        attr.valueRank = UA_VALUERANK_ANY;
         attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
         UA_UInt32 val = 0;
         UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
