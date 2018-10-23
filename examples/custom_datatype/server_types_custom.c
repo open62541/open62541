@@ -68,8 +68,11 @@ int main(void) {
     members[2] = Point_members[2];
     types[0] = PointType;
     types[0].members = members;
-    config->customDataTypes = types;
-    config->customDataTypesSize = 1;
+
+    /* Attention! Here the custom datatypes are allocated on the stack. So they
+     * cannot be accessed from parallel (worker) threads. */
+    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
+    config->customDataTypes = &customDataTypes;
 
     UA_Server *server = UA_Server_new(config);
 

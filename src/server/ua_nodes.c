@@ -331,7 +331,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
                 for(size_t i=0; i<attr->value.arrayLength; i++) {
                     size_t offset =0;
                     const UA_ExtensionObject *curr = &((const UA_ExtensionObject *)attr->value.data)[i];
-                    UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, 0, NULL);
+                    UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, NULL);
                     if(ret != UA_STATUSCODE_GOOD) {
                         return ret;
                     }

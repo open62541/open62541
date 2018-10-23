@@ -77,9 +77,10 @@ struct UA_ServerConfig {
     UA_String *serverCapabilities;
 #endif
 
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    UA_DataType *customDataTypes;
+    /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
+     * with the configuration. So it is possible to allocate them on ROM. */
+    const UA_DataTypeArray *customDataTypes;
+
     /**
      * .. note:: See the section on :ref:`generic-types`. Examples for working
      *    with custom data types are provided in

@@ -10,8 +10,11 @@ int main(void) {
     /* Make your custom datatype known to the stack */
     UA_DataType types[1];
     types[0] = PointType;
-    config.customDataTypes = types;
-    config.customDataTypesSize = 1;
+
+    /* Attention! Here the custom datatypes are allocated on the stack. So they
+     * cannot be accessed from parallel (worker) threads. */
+    UA_DataTypeArray customDataTypes = {config.customDataTypes, 1, types};
+    config.customDataTypes = &customDataTypes;
 
     UA_Client *client = UA_Client_new(config);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");

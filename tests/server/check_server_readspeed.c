@@ -95,9 +95,9 @@ START_TEST(readSpeed) {
     clock_t begin, finish;
     begin = clock();
 
-    for(int i = 0; i < 1000000; i++) {
+    for(size_t i = 0; i < 1000000; i++) {
         size_t offset = 0;
-        retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], 0, NULL);
+        retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
 
         UA_MessageContext_begin(&mc, &testChannel, 0, UA_MESSAGETYPE_MSG);
         retval |= Service_Read(server, &server->adminSession, &mc, &rq, &rh);
