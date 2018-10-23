@@ -19,24 +19,32 @@ environment:
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin
           OUT_DIR_EXAMPLES: bin\examples
-        - CC_NAME: Visual Studio 9 2008
-          CC_SHORTNAME: vs2008
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
-          FORCE_CXX: ON
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
-        - CC_NAME: Visual Studio 12 2013
-          CC_SHORTNAME: vs2013
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+        #- CC_NAME: Visual Studio 9 2008
+        #  CC_SHORTNAME: vs2008
+        #  MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+        #  FORCE_CXX: ON
+        #  OUT_DIR_LIB: bin\Debug
+        #  OUT_DIR_EXAMPLES: bin\examples\Debug
+        #- CC_NAME: Visual Studio 12 2013
+        #  CC_SHORTNAME: vs2013
+        #  MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+        #  FORCE_CXX: OFF
+        #  OUT_DIR_LIB: bin\Debug
+        #  OUT_DIR_EXAMPLES: bin\examples\Debug
+        #- CC_NAME: Visual Studio 14 2015
+        #  CC_SHORTNAME: vs2015
+        #  MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+        #  FORCE_CXX: OFF
+        #  OUT_DIR_LIB: bin\Debug
+        #  OUT_DIR_EXAMPLES: bin\examples\Debug
+        - CC_NAME: ClangCL
+          CC_SHORTNAME: clang
+          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
+          # Only use one thread, otherwise appveyor runs out of memory
+          MAKE: mingw32-make -j1 2>&1
           FORCE_CXX: OFF
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
-        - CC_NAME: Visual Studio 14 2015
-          CC_SHORTNAME: vs2015
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
-          FORCE_CXX: OFF
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
+          OUT_DIR_LIB: bin
+          OUT_DIR_EXAMPLES: bin\examples
 
 cache:
   - C:\ProgramData\chocolatey\bin -> tools/appveyor/install.ps1
