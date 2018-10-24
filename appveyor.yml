@@ -11,14 +11,14 @@ environment:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
 
     matrix:
-        - CC_NAME: MinGW Makefiles
-          CC_SHORTNAME: mingw
+        #- CC_NAME: MinGW Makefiles
+        #  CC_SHORTNAME: mingw
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
-          MAKE: mingw32-make -j1 2>&1
-          FORCE_CXX: OFF
-          OUT_DIR_LIB: bin
-          OUT_DIR_EXAMPLES: bin\examples
+        #  MAKE: mingw32-make -j1 2>&1
+        #  FORCE_CXX: OFF
+        #  OUT_DIR_LIB: bin
+        #  OUT_DIR_EXAMPLES: bin\examples
         #- CC_NAME: Visual Studio 9 2008
         #  CC_SHORTNAME: vs2008
         #  MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
@@ -41,7 +41,7 @@ environment:
           CC_SHORTNAME: clang
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
-          MAKE: mingw32-make -j1 2>&1
+          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin
           OUT_DIR_EXAMPLES: bin\examples
