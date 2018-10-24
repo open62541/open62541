@@ -72,6 +72,10 @@ try {
         Write-Host -ForegroundColor Green "`n### Installing Ninja ###`n"
         $Env:Path += "C:\ProgramData\chocolatey\lib\ninja\tools\ninja.exe"        
         
+        if (!(Test-Path "C:\ProgramData\chocolatey\lib\ninja\tools\ninja.exe")) {
+            Write-Warning "Ninja.exe absent from path"
+        }
+
         choco install ninja
         
         #ninja --version
