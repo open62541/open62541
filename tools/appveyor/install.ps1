@@ -31,11 +31,16 @@ try {
 
     Write-Host -ForegroundColor Green "`n### Installing mbedtls ###`n"
 
-    if ($env:CC_SHORTNAME -eq "mingw" -Or $env:CC_SHORTNAME -eq "clang") {
+    if ($env:CC_SHORTNAME -eq "mingw") {
         # pacman may complain that the directory does not exist, thus create it.
         # See https://github.com/open62541/open62541/issues/2068
         & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
         & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-mbedtls
+    } elseif ($env:CC_SHORTNAME -eq "clang") {
+        # pacman may complain that the directory does not exist, thus create it.
+        # See https://github.com/open62541/open62541/issues/2068
+        & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
+        & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-clang mingw-w64-i686-clang
     } elseif ($env:CC_SHORTNAME -eq "vs2015") {
         # we need the static version, since open62541 is built with /MT
         # vcpkg currently only supports VS2015 and newer builds
