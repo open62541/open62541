@@ -41,7 +41,7 @@ environment:
           CC_SHORTNAME: clang
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
-          MAKE: mingw32-make -j1 2>&1
+          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin
           OUT_DIR_EXAMPLES: bin\examples
