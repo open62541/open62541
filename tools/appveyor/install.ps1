@@ -16,6 +16,17 @@ try {
     & C:\Python27\python.exe -m pip install --upgrade pip
     & C:\Python27\Scripts\pip.exe install six
 
+    if ($env:CC_SHORTNAME -eq "clang") {
+        Write-Host -ForegroundColor Green "`n### Installing CMake and python ###`n"
+        # pacman may complain that the directory does not exist, thus create it.
+        # See https://github.com/open62541/open62541/issues/2068
+        & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
+        & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-i686-cmake
+        & cinst --no-progress msys2
+    } else {
+        & cinst --no-progress cmake python2
+    }
+    
     Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
     & C:\Python27\Scripts\pip.exe install --user sphinx sphinx_rtd_theme
 
