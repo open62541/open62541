@@ -70,7 +70,7 @@ try {
 
     if ($env:CC_SHORTNAME -eq "ClangCL") {
         Write-Host -ForegroundColor Green "`n### Installing Ninja ###`n"
-        $Env:Path += "C:\ninja\ninja.exe"        
+        $Env:Path += "C:\ProgramData\chocolatey\lib\ninja\tools\ninja.exe"        
         
         choco install ninja
         
