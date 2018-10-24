@@ -55,6 +55,14 @@ try {
         & cinst --no-progress drmemory.portable
     }
 
+    if ($env:CC_SHORTNAME -eq "ClangCL") {
+        Write-Host -ForegroundColor Green "`n### Installing Ninja ###`n"
+        #$Env:Path += "C:\ninja\ninja.exe"        
+        
+        choco install ninja
+        
+        #ninja --version
+    }
 } catch {
     # Print a detailed error message
     $FullException = ($_.Exception|format-list -force) | Out-String
