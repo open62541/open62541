@@ -37,7 +37,7 @@ environment:
         #  FORCE_CXX: OFF
         #  OUT_DIR_LIB: bin\Debug
         #  OUT_DIR_EXAMPLES: bin\examples\Debug
-        - CC_NAME: Visual Studio 14 2015
+        - CC_NAME: Ninja
           CC_SHORTNAME: clang
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
