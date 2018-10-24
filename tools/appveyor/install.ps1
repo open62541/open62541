@@ -3,8 +3,8 @@ $ErrorActionPreference = "Stop"
 try {
     & git submodule --quiet update --init --recursive
 
-    Write-Host -ForegroundColor Green "`n### Installing CMake and python ###`n"
-    & cinst --no-progress cmake python2
+    Write-Host -ForegroundColor Green "`n### Upgrade CMake and python ###`n"
+    & cup --no-progress cmake python2
     & C:\Python27\python.exe -m pip install --upgrade pip
     & C:\Python27\Scripts\pip.exe install six
     
