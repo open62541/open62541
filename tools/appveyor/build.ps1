@@ -16,7 +16,8 @@ try {
     if ($env:CC_SHORTNAME -eq "mingw") {
 
     } elseif ($env:CC_SHORTNAME -eq "clang") {
-        #$vcpkg_toolchain = '-G"MSYS Makefiles" -DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe -DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
+        #$vcpkg_toolchain = '-DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe -DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
+        $vcpkg_toolchain = '-DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe'
     } else {
         $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
