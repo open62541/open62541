@@ -65,7 +65,7 @@ try {
     cd build
     if ($env:CC_SHORTNAME -eq "clang") {
        & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption ..
+            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -TLLVM-vs2014 -G"Visual Studio 14 2015" ..
     } else {
         & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
             -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:CC_NAME" ..
