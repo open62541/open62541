@@ -16,7 +16,6 @@ try {
     if ($env:CC_SHORTNAME -eq "mingw") {
 
     } elseif ($env:CC_SHORTNAME -eq "clang") {
-        & clang-cl -v
         #$vcpkg_toolchain = '-DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe -DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
         $vcpkg_toolchain = '-DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe'
     } else {
