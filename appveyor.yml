@@ -39,7 +39,7 @@ environment:
         #  OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Clang-CL
           CC_SHORTNAME: clang-cl
-          GENERATOR: Visual Studio 14 2015
+          GENERATOR: Ninja
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
           MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
@@ -67,7 +67,7 @@ install:
 - ninja --version
 - set CMAKE_MAKE_PROGRAM=C:\projects\dev\ninja\ninja.exe
 # Verify CMake
-- cmake --version
+#- cmake --version
 # Install make because TBB uses it
 - choco install make
 # Enable integration for Visual Studio/MSBuild
