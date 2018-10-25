@@ -44,7 +44,7 @@ try {
     # New-Item -ItemType directory -Path build
     # cd build
     # & cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release `
-    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:CC_NAME" ..
+    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:GENERATOR" ..
     # & cmake --build . --target doc_latex
     # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     #     Write-Host -ForegroundColor Red "`n`n*** Make doc_latex. Exiting ... ***"
@@ -65,10 +65,10 @@ try {
     cd build
     if ($env:CC_SHORTNAME -eq "clang") {
        & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -TLLVM-vs2014 -G"Visual Studio 14 2015" ..
+            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -TLLVM-vs2014 -G"$env::GENERATOR" ..
     } else {
         & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:CC_NAME" ..
+            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
     }
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
