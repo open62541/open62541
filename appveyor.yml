@@ -57,8 +57,34 @@ init:
   - git config --global core.autocrlf input # Attempt to ensure we don't try to convert line endings to Win32 CRLF as this will cause build to fail
 
 install:
-- set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
-- ps: '& "./tools/appveyor/install.ps1"'
+ # Install Ninja
+ - set NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip"
+ - appveyor DownloadFile %NINJA_URL% -FileName ninja.zip
+ - 7z x ninja.zip -oC:\projects\dev\ninja > nul
+ - set PATH=%PATH%;C:\projects\dev\ninja
+ - ninja --version
+ - set CMAKE_MAKE_PROGRAM=C:\projects\dev\ninja\ninja.exe
+ # Verify CMake
+ - cmake --version
+ # Install make because TBB uses it
+ - choco install make
+ # Enable integration for Visual Studio/MSBuild
+ - cd c:\tools\vcpkg
+ - vcpkg integrate install
+ # Use vcpkg to install cgal
+ - git pull
+ - vcpkg update
+ - vcpkg install cgal
+ # Setup Clang-cl
+ - set PATH=%PATH%;"C:\Program Files\LLVM\bin"
+ - clang-cl -v
+ - set CC=clang-cl
+ - set CXX=clang-cl
+ - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86_amd64
+  
+ - set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
+ - set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
+ - ps: '& "./tools/appveyor/install.ps1"'
 
 before_build:
   # Add installed tools to PATH
