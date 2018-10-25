@@ -36,7 +36,7 @@ try {
         # See https://github.com/open62541/open62541/issues/2068
         & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
         & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-mbedtls
-    } elseif ($env:CC_SHORTNAME -eq "clang") {
+    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
         Write-Host -ForegroundColor Green "`n### Installing Clang ###`n"
         choco install llvm
         # pacman may complain that the directory does not exist, thus create it.
@@ -54,7 +54,7 @@ try {
         exit $LASTEXITCODE
     }
 
-    if ($env:CC_SHORTNAME -eq "vs2015" -Or $env:CC_SHORTNAME -eq "clang") {
+    if ($env:CC_SHORTNAME -eq "vs2015" -Or $env:CC_SHORTNAME -eq "clang-cl") {
         Write-Host -ForegroundColor Green "`n### Installing libcheck ###`n"
         & appveyor DownloadFile https://github.com/Pro/check/releases/download/0.12.0_win/check.zip
         & 7z x check.zip -oc:\ -bso0 -bsp0
@@ -63,7 +63,7 @@ try {
         & cinst --no-progress drmemory.portable
     }
 
-    if ($env:CC_SHORTNAME -eq "clang") {
+    if ($env:CC_SHORTNAME -eq "clang-cl") {
         Write-Host -ForegroundColor Green "`n### Installing Ninja ###`n"
         $Env:Path += "C:\ProgramData\chocolatey\lib\ninja\tools\ninja.exe"        
         
