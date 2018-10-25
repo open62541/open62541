@@ -21,6 +21,7 @@ try {
         # since https://github.com/Microsoft/vcpkg/commit/0334365f516c5f229ff4fcf038c7d0190979a38a#diff-464a170117fa96bf98b2f8d224bf503c
         # vcpkg need to have  "C:\Tools\vcpkg\installed\x86-windows-static"
         New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
+        If(Test-Path C:/Program Files (x86)/MSBuild/14.0/bin/MSBuild.exe) { Write-Host -ForegroundColor Green "`n## path ok #####`n" } else {Write-Host -ForegroundColor Yellow "`n## path ko #####`n"}
     } else {
         $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
