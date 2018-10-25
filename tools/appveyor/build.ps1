@@ -62,7 +62,7 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    if ($env:CC_SHORTNAME -eq "clang") {
+    if ($env:CC_SHORTNAME -eq "clang-cl") {
        & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
             -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env::GENERATOR" ..
     } else {
@@ -123,7 +123,7 @@ try {
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
     if ($env:CC_SHORTNAME -eq "mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.a" -Destination pack_tmp\
-    } elseif ($env:CC_SHORTNAME -eq "clang") {
+    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.a" -Destination pack_tmp\
     } else {
         Move-Item -Path "build\$env:OUT_DIR_LIB\open62541.lib" -Destination pack_tmp\
@@ -152,7 +152,7 @@ try {
     if ($env:CC_SHORTNAME -eq "mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll" -Destination pack_tmp\
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll.a" -Destination pack_tmp\
-    } elseif ($env:CC_SHORTNAME -eq "clang") {
+    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll" -Destination pack_tmp\
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll.a" -Destination pack_tmp\
     } else {
