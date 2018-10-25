@@ -15,13 +15,12 @@ try {
 
     if ($env:CC_SHORTNAME -eq "mingw") {
 
-    #} elseif ($env:CC_SHORTNAME -eq "clang-cl") {
-        #$vcpkg_toolchain = '-DCMAKE_C_FLAGS=TRUE -DCMAKE_CXX_FLAGS=TRUE -DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe -DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
-    #    $vcpkg_toolchain = '-DCMAKE_C_FLAGS=TRUE -DCMAKE_CXX_FLAGS=TRUE -DCMAKE_C_COMPILER=clang-cl.exe -DCMAKE_CXX_COMPILER=clang-cl.exe'
-    #    $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
+    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
+        $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake" -TLLVM-vs2014'
+        $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
         # since https://github.com/Microsoft/vcpkg/commit/0334365f516c5f229ff4fcf038c7d0190979a38a#diff-464a170117fa96bf98b2f8d224bf503c
         # vcpkg need to have  "C:\Tools\vcpkg\installed\x86-windows-static"
-    #    New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
+        New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
     } else {
         $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
@@ -65,7 +64,7 @@ try {
     cd build
     if ($env:CC_SHORTNAME -eq "clang") {
        & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -TLLVM-vs2014 -G"$env::GENERATOR" ..
+            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env::GENERATOR" ..
     } else {
         & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
             -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
