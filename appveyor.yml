@@ -78,7 +78,7 @@ install:
 - clang-cl -v
 - set CC=clang-cl
 - set CXX=clang-cl
-- call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86_amd64
+- ps: '& "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86_amd64'
   
 - set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
 
