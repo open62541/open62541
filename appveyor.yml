@@ -41,7 +41,7 @@ environment:
         #  OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Clang-CL
           CC_SHORTNAME: clang-cl
-          GENERATOR: Ninja
+          GENERATOR: Visual Studio 14 2015
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
           MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
