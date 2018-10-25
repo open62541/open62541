@@ -63,18 +63,18 @@ try {
         & cinst --no-progress drmemory.portable
     }
 
-    if ($env:CC_SHORTNAME -eq "clang-cl") {
-        Write-Host -ForegroundColor Green "`n### Installing Ninja ###`n"
-        $Env:Path += "C:\ProgramData\chocolatey\lib\ninja\tools\ninja.exe"        
+    #if ($env:CC_SHORTNAME -eq "clang-cl") {
+    #    Write-Host -ForegroundColor Green "`n### Installing Ninja ###`n"
+    #    $Env:Path += "C:\ProgramData\chocolatey\lib\ninja\tools\ninja.exe"        
         
-        if (!(Test-Path "C:\ProgramData\chocolatey\lib\ninja\tools\ninjaff.exe")) {
-            Write-Warning "Ninja.exe absent from path"
-        }
+    #    if (!(Test-Path "C:\ProgramData\chocolatey\lib\ninja\tools\ninjaff.exe")) {
+    #        Write-Warning "Ninja.exe absent from path"
+    #    }
 
-        choco install ninja
+    #    choco install ninja
         
-        & ninja --version
-    }
+    #    & ninja --version
+    #}
 } catch {
     # Print a detailed error message
     $FullException = ($_.Exception|format-list -force) | Out-String
