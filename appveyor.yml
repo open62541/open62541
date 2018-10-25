@@ -6,8 +6,6 @@ clone_depth: 20
 # Avoid building branch if it is part of a PR and built anyways
 skip_branch_with_pr: true
 
-image: Visual Studio 2017
-
 environment:
     global:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
