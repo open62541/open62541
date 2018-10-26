@@ -3,10 +3,12 @@ $ErrorActionPreference = "Stop"
 try {
     & git submodule --quiet update --init --recursive
 
-    Write-Host -ForegroundColor Green "`n### Install CMake and python ###`n"
-    & cinst --no-progress cmake python2
-    & C:\Python27\python.exe -m pip install --upgrade pip
-    & C:\Python27\Scripts\pip.exe install six
+    if ($env:CC_SHORTNAME -ne "clang-cl") {
+        Write-Host -ForegroundColor Green "`n### Install CMake and python ###`n"
+        & cinst --no-progress cmake python2
+        & C:\Python27\python.exe -m pip install --upgrade pip
+        & C:\Python27\Scripts\pip.exe install six
+    }
     
     Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
     & C:\Python27\Scripts\pip.exe install --user sphinx sphinx_rtd_theme
