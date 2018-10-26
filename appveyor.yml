@@ -69,7 +69,7 @@ install:
 - ninja --version
 - set CMAKE_MAKE_PROGRAM=C:\projects\dev\ninja\ninja.exe
 # Verify CMake
-- cmake --version
+#- cmake --version
 # Install make because TBB uses it
 - choco install make
 # Enable integration for Visual Studio/MSBuild
