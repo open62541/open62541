@@ -65,13 +65,13 @@ install:
 #- set NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip"
 #- appveyor DownloadFile %NINJA_URL% -FileName ninja.zip
 #- 7z x ninja.zip -oC:\projects\dev\ninja > nul
-#- set PATH=%PATH%;C:\projects\dev\ninja
-#- ninja --version
-#- set CMAKE_MAKE_PROGRAM=C:\projects\dev\ninja\ninja.exe
+- set PATH=%PATH%;C:\projects\dev\ninja
+- ninja --version
+- set CMAKE_MAKE_PROGRAM=C:\projects\dev\ninja\ninja.exe
 # Verify CMake
-#- cmake --version
+- cmake --version
 # Install make because TBB uses it
-#- choco install make
+- choco install make
 # Enable integration for Visual Studio/MSBuild
 #- cd c:\tools\vcpkg
 #- vcpkg integrate install
