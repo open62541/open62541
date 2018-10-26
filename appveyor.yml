@@ -73,8 +73,8 @@ install:
 # Install make because TBB uses it
 - choco install make
 # Enable integration for Visual Studio/MSBuild
-- cd c:\tools\vcpkg
-- vcpkg integrate install
+#- cd c:\tools\vcpkg
+#- vcpkg integrate install
 # Setup Clang-cl
 #- set PATH=%PATH%;"C:\Program Files\LLVM\bin"
 #- clang-cl -v
