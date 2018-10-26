@@ -73,8 +73,15 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_ByteString_equal(&request->clientCertificate,
-                                &channel->remoteCertificate)) {
+        /* Compare the clientCertificate with the remoteCertificate of the channel.
+         * Both the clientCertificate of this request and the remoteCertificate
+         * of the channel may contain a partial or a complete certificate chain.
+         * The compareCertificate function of the channelModule will compare the 
+         * first certificate of each chain. The end certificate shall be located
+         * first in the chain according to the OPC UA specification Part 6 (1.04),
+         * chapter 6.2.3.*/
+        if(channel->securityPolicy->channelModule.compareCertificate(channel->channelContext,
+                                                                     &request->clientCertificate) != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
             return;
         }
