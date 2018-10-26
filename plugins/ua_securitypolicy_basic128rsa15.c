@@ -718,6 +718,7 @@ channelContext_compareCertificate_sp_basic128rsa15(const Basic128Rsa15_ChannelCo
     const UA_SecurityPolicy *securityPolicy = cc->policyContext->securityPolicy;
 
     mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
     int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data, certificate->length);
     UA_MBEDTLS_ERRORHANDLING_RETURN(UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
