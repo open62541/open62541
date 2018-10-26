@@ -18,6 +18,8 @@ try {
         Write-Host -ForegroundColor Green "`n## Path ok #####`n"
     }
     
+    & where rc.exe
+    
     if ($env:CC_SHORTNAME -eq "mingw") {
 
     } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
