@@ -61,6 +61,7 @@ install:
 - set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
 - ps: '& "./tools/appveyor/install.ps1"'
 # Install Ninja
+- choco update ninja
 #- set NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip"
 #- appveyor DownloadFile %NINJA_URL% -FileName ninja.zip
 #- 7z x ninja.zip -oC:\projects\dev\ninja > nul
