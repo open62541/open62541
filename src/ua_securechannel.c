@@ -526,7 +526,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
 
     /* The total message length is known here which is why we */
     /* encode the headers at this step and not earlier. */
-    size_t finalLength;
+    size_t finalLength = 0;
     retval = prependHeadersAsym(channel, buf.data, buf_end, total_length,
                                 securityHeaderLength, requestId, &finalLength);
     if(retval != UA_STATUSCODE_GOOD)
