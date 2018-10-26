@@ -84,7 +84,7 @@ install:
 - ps: '& "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" x86_amd64'
   
 - set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
-- set CMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"
+- set CMAKE_LINKER="C:\Program Files\LLVM\bin\llvm-ld.exe"
 - set CMAKE_RC_COMPILER="C:\Program Files\LLVM\bin\llvm-rc.exe"
 
 before_build:
