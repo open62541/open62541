@@ -16,7 +16,7 @@ try {
     if ($env:CC_SHORTNAME -eq "mingw") {
 
     } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
-        $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE=c:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_LINKER=lld-link.exe'
+        $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE=c:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake -DCMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
         # since https://github.com/Microsoft/vcpkg/commit/0334365f516c5f229ff4fcf038c7d0190979a38a#diff-464a170117fa96bf98b2f8d224bf503c
         # vcpkg need to have  "C:\Tools\vcpkg\installed\x86-windows-static"
