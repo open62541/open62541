@@ -13,6 +13,10 @@ try {
         $build_encryption = "ON"
     }
 
+    if (Test-Path "C:\Program Files\LLVM\bin\lld-link.exe") {
+        Write-Host -ForegroundColor Green "`n## Path ok #####`n"
+    }
+    
     if ($env:CC_SHORTNAME -eq "mingw") {
 
     } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
