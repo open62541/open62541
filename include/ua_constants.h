@@ -96,6 +96,13 @@ typedef enum {
 #define UA_WRITEMASK_WRITEMASK               (0x01<<20)
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE    (0x01<<21)
 
+/**
+ * ValueRanks
+ * ----------
+ * The following are the most common ValueRanks used for Variables,
+ * VariableTypes and method arguments. ValueRanks higher than 3 are valid as
+ * well (but less common). */
+
 #define UA_VALUERANK_SCALAR_OR_ONE_DIMENSION  -3
 #define UA_VALUERANK_ANY                      -2
 #define UA_VALUERANK_SCALAR                   -1
