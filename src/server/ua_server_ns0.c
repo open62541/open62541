@@ -507,53 +507,56 @@ UA_Server_minimalServerObject(UA_Server *server) {
 
     /* Use a valuerank of -2 for now. The array is added later on and the valuerank set to 1. */
     retval |= addVariableNode(server, "ServerArray", UA_NS0ID_SERVER_SERVERARRAY,
-                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, -2, UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
+                              UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
     retval |= addVariableNode(server, "NamespaceArray", UA_NS0ID_SERVER_NAMESPACEARRAY,
-                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, -2, UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY,
+                              UA_VALUERANK_ANY, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "ServerStatus", UA_NS0ID_SERVER_SERVERSTATUS,
-                              UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT, -1, UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "CurrentTime", UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME,
-                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "State", UA_NS0ID_SERVER_SERVERSTATUS_STATE,
-                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "BuildInfo", UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO,
-                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "ProductUri", UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI,
-                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "ManufacturerName",
                               UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME,
-                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "ProductName",
                               UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME,
-                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "SoftwareVersion",
                               UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION,
-                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "BuildNumber",
                               UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER,
-                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "BuildDate",
                               UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE,
-                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT, -1,
-                              UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
     return retval;
 }
