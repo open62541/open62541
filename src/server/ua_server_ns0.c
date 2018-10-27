@@ -176,6 +176,15 @@ UA_Server_createNS0_base(UA_Server *server) {
                                          UA_NODEID_NULL, UA_QUALIFIEDNAME(0, "BaseDataVariableType"),
                                          UA_NODEID_NULL, bdv_attr, NULL, NULL);
 
+    UA_VariableTypeAttributes prop_attr = UA_VariableTypeAttributes_default;
+    prop_attr.displayName = UA_LOCALIZEDTEXT("", "PropertyType");
+    prop_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+    prop_attr.valueRank = UA_VALUERANK_ANY;
+    ret |= UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEVARIABLETYPE),
+                                         UA_NODEID_NULL, UA_QUALIFIEDNAME(0, "PropertyType"),
+                                         UA_NODEID_NULL, prop_attr, NULL, NULL);
+
     /***************/
     /* ObjectTypes */
     /***************/
@@ -496,11 +505,11 @@ UA_Server_minimalServerObject(UA_Server *server) {
     UA_StatusCode retval = addObjectNode(server, "Server", UA_NS0ID_SERVER, UA_NS0ID_OBJECTSFOLDER,
                                          UA_NS0ID_ORGANIZES, UA_NS0ID_BASEOBJECTTYPE);
 
+    /* Use a valuerank of -2 for now. The array is added later on and the valuerank set to 1. */
     retval |= addVariableNode(server, "ServerArray", UA_NS0ID_SERVER_SERVERARRAY,
-                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, 1, UA_NS0ID_BASEDATATYPE);
-
+                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, -2, UA_NS0ID_BASEDATATYPE);
     retval |= addVariableNode(server, "NamespaceArray", UA_NS0ID_SERVER_NAMESPACEARRAY,
-                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, 1, UA_NS0ID_BASEDATATYPE);
+                              UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, -2, UA_NS0ID_BASEDATATYPE);
 
     retval |= addVariableNode(server, "ServerStatus", UA_NS0ID_SERVER_SERVERSTATUS,
                               UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT, -1, UA_NS0ID_BASEDATATYPE);
@@ -585,11 +594,13 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_setVariableNode_dataSource(server,
                                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                                    namespaceDataSource);
+    retVal |= UA_Server_writeValueRank(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), 1);
 
     /* ServerArray */
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
                                     &server->config.applicationDescription.applicationUri,
                                     1, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= UA_Server_writeValueRank(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY), 1);
 
     /* ServerStatus */
     UA_DataSource serverStatus = {readStatus, NULL};
