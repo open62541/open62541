@@ -10,6 +10,9 @@
 #include "thread_wrapper.h"
 
 #include <fcntl.h>
+#ifndef WIN32
+#include <sys/stat.h>
+#endif
 #include <check.h>
 
 // set register timeout to 1 second so we are able to test it.
