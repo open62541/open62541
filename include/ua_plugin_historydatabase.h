@@ -43,7 +43,7 @@ struct UA_HistoryDatabase {
                 const UA_DataValue *value);
 
     /* This function is called if a history read is requested with
-     * isRawReadModified set to false. Setting it to NULL will result in a
+     * isRawReadModified set to UA_false. Setting it to NULL will result in a
      * response with statuscode UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED.
      *
      * server is the server this node lives in.

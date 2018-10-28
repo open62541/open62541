@@ -83,13 +83,13 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *service = (UA_Service)Service_GetEndpoints;
         *requestType = &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE];
-        *requiresSession = false;
+        *requiresSession = UA_FALSE;
         break;
     case UA_NS0ID_FINDSERVERSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_FindServers;
         *requestType = &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE];
-        *requiresSession = false;
+        *requiresSession = UA_FALSE;
         break;
 #ifdef UA_ENABLE_DISCOVERY
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -97,27 +97,27 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *service = (UA_Service)Service_FindServersOnNetwork;
         *requestType = &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE];
-        *requiresSession = false;
+        *requiresSession = UA_FALSE;
         break;
 # endif
     case UA_NS0ID_REGISTERSERVERREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_RegisterServer;
         *requestType = &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE];
-        *requiresSession = false;
+        *requiresSession = UA_FALSE;
         break;
     case UA_NS0ID_REGISTERSERVER2REQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_RegisterServer2;
         *requestType = &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE];
-        *requiresSession = false;
+        *requiresSession = UA_FALSE;
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = NULL; //(UA_Service)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
-        *requiresSession = false;
+        *requiresSession = UA_FALSE;
         *serviceType = UA_SERVICETYPE_CUSTOM;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
@@ -416,7 +416,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_InSituService serviceInsitu = NULL;
     const UA_DataType *requestType = NULL;
     const UA_DataType *responseType = NULL;
-    UA_Boolean sessionRequired = true;
+    UA_Boolean sessionRequired = UA_TRUE;
     UA_ServiceType serviceType = UA_SERVICETYPE_NORMAL;
     getServicePointers(requestTypeId.identifier.numeric, &requestType,
                        &responseType, &service, &serviceInsitu, &sessionRequired, &serviceType);

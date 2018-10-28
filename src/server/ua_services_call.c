@@ -24,7 +24,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
     for(size_t i = 0; i < ofMethod->referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &ofMethod->references[i];
 
-        if(rk->isInverse != false)
+        if(rk->isInverse != UA_FALSE)
             continue;
 
         if(!UA_NodeId_equal(&hasProperty, &rk->referenceTypeId))
@@ -142,7 +142,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
      * subtype of hasComponent reference to the method node. Therefore, check
      * every reference between the parent object and the method node if there is
      * a hasComponent (or subtype) reference */
-    UA_Boolean found = false;
+    UA_Boolean found = UA_FALSE;
     for(size_t i = 0; i < object->referencesSize && !found; ++i) {
         UA_NodeReferenceKind *rk = &object->references[i];
         if(rk->isInverse)
@@ -152,7 +152,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             continue;
         for(size_t j = 0; j < rk->targetIdsSize; ++j) {
             if(UA_NodeId_equal(&rk->targetIds[j].nodeId, &request->methodId)) {
-                found = true;
+                found = UA_TRUE;
                 break;
             }
         }

@@ -117,7 +117,7 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     ck_assert_uint_eq(foundSeverity, UA_TRUE);
     ck_assert_uint_eq(foundType, UA_TRUE);
     ck_assert_uint_eq(foundSource, UA_TRUE);
-    notificationReceived = true;
+    notificationReceived = UA_TRUE;
 }
 
 // create a subscription and add a monitored item to it
@@ -149,14 +149,14 @@ removeSubscription(void) {
 
 THREAD_CALLBACK(serverloop) {
     while (*running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     return 0;
 }
 
 static void
 setup(void) {
     running = UA_Boolean_new();
-    *running = true;
+    *running = UA_TRUE;
     config = UA_ServerConfig_new_default();
     config->maxPublishReqPerSession = 5;
     server = UA_Server_new(config);
@@ -174,7 +174,7 @@ setup(void) {
 static void
 teardown(void) {
     removeSubscription();
-    *running = false;
+    *running = UA_FALSE;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
@@ -196,8 +196,8 @@ eventSetup(UA_NodeId *eventNodeId) {
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
+    rpe.isInverse = UA_FALSE;
+    rpe.includeSubtypes = UA_FALSE;
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
     bp.startingNode = *eventNodeId;
@@ -239,7 +239,7 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler) {
     item.requestedParameters.filter.content.decoded.data = &filter;
     item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
     item.requestedParameters.queueSize = 1;
-    item.requestedParameters.discardOldest = true;
+    item.requestedParameters.discardOldest = UA_TRUE;
 
     return UA_Client_MonitoredItems_createEvent(client, subscriptionId,
                                                 UA_TIMESTAMPSTORETURN_BOTH, item,
@@ -260,11 +260,11 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // let the client fetch the event and check if the correct values were received
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     UA_fakeSleep((UA_UInt32) publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
 
     // delete the monitoredItem
@@ -326,7 +326,7 @@ handler_events_propagate(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     ck_assert_uint_eq(foundSeverity, UA_TRUE);
     ck_assert_uint_eq(foundType, UA_TRUE);
     ck_assert_uint_eq(foundSource, UA_TRUE);
-    notificationReceived = true;
+    notificationReceived = UA_TRUE;
 }
 
 START_TEST(uppropagation) {
@@ -344,11 +344,11 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // let the client fetch the event and check if the correct values were received
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     UA_fakeSleep((UA_UInt32) publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
 
     // delete the monitoredItem
@@ -401,13 +401,13 @@ START_TEST(eventOverflow) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // fetch the events, ensure both the overflow and the original event are received
-    notificationReceived = false;
-    overflowNotificationReceived = true;
+    notificationReceived = UA_FALSE;
+    overflowNotificationReceived = UA_TRUE;
     UA_fakeSleep((UA_UInt32) publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
-    ck_assert_uint_eq(overflowNotificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
+    ck_assert_uint_eq(overflowNotificationReceived, UA_TRUE);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
 
     // delete the monitoredItem
@@ -445,7 +445,7 @@ START_TEST(multipleMonitoredItemsOneNode) {
     item.requestedParameters.filter.content.decoded.data = &filter;
     item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
     item.requestedParameters.queueSize = 1;
-    item.requestedParameters.discardOldest = true;
+    item.requestedParameters.discardOldest = UA_TRUE;
 
     for(size_t i = 0; i < 3; i++) {
         UA_MonitoredItemCreateResult result =

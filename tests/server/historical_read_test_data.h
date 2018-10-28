@@ -52,346 +52,346 @@ static testTuple testRequests[] =
     { TIMESTAMP_5_00,
       TIMESTAMP_5_05,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_5_05,
       0,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_04,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_04,
       0,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_05,
       TIMESTAMP_5_00,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_05, TIMESTAMP_5_03, TIMESTAMP_5_02, TIMESTAMP_5_00, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_05,
       TIMESTAMP_5_00,
       0,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_05, TIMESTAMP_5_03, TIMESTAMP_5_02, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_04,
       TIMESTAMP_5_01,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_05, TIMESTAMP_5_03, TIMESTAMP_5_02, TIMESTAMP_5_00, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_04,
       TIMESTAMP_5_01,
       0,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_03, TIMESTAMP_5_02, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_4_59,
       TIMESTAMP_5_05,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_FIRST, TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_4_59,
       TIMESTAMP_5_05,
       0,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_07,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, TIMESTAMP_5_06, TIMESTAMP_LAST, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_07,
       0,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, TIMESTAMP_5_06, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_5_05,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_5_05,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_04,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_04,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_05,
       TIMESTAMP_5_00,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_05, TIMESTAMP_5_03, TIMESTAMP_5_02, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_05,
       TIMESTAMP_5_00,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_05, TIMESTAMP_5_03, TIMESTAMP_5_02, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_04,
       TIMESTAMP_5_01,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_05, TIMESTAMP_5_03, TIMESTAMP_5_02, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_04,
       TIMESTAMP_5_01,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_03, TIMESTAMP_5_02, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_4_59,
       TIMESTAMP_5_05,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_FIRST, TIMESTAMP_5_00, TIMESTAMP_5_02, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_4_59,
       TIMESTAMP_5_05,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_07,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_07,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_UNSPECIFIED,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_UNSPECIFIED,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_UNSPECIFIED,
       6,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, TIMESTAMP_5_06, TIMESTAMP_LAST, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_UNSPECIFIED,
       6,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, TIMESTAMP_5_03, TIMESTAMP_5_05, TIMESTAMP_5_06, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_07,
       TIMESTAMP_UNSPECIFIED,
       6,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_06, TIMESTAMP_LAST, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_07,
       TIMESTAMP_UNSPECIFIED,
       6,
-      false,
+      UA_FALSE,
       { NODATA, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_UNSPECIFIED,
       TIMESTAMP_5_06,
       3,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_06,TIMESTAMP_5_05,TIMESTAMP_5_03, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_UNSPECIFIED,
       TIMESTAMP_5_06,
       3,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_06,TIMESTAMP_5_05,TIMESTAMP_5_03, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_UNSPECIFIED,
       TIMESTAMP_5_06,
       6,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_06,TIMESTAMP_5_05,TIMESTAMP_5_03,TIMESTAMP_5_02,TIMESTAMP_5_00,TIMESTAMP_FIRST, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_UNSPECIFIED,
       TIMESTAMP_5_06,
       6,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_06, TIMESTAMP_5_05, TIMESTAMP_5_03, TIMESTAMP_5_02, TIMESTAMP_5_00, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_UNSPECIFIED,
       TIMESTAMP_4_48,
       6,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_FIRST, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_UNSPECIFIED,
       TIMESTAMP_4_48,
       6,
-      false,
+      UA_FALSE,
       { NODATA, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_4_48,
       TIMESTAMP_4_48,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_FIRST, TIMESTAMP_5_00, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_4_48,
       TIMESTAMP_4_48,
       0,
-      false,
+      UA_FALSE,
       { NODATA, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_4_48,
       TIMESTAMP_4_48,
       1,
-      true,
+      UA_TRUE,
       { TIMESTAMP_FIRST, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_4_48,
       TIMESTAMP_4_48,
       1,
-      false,
+      UA_FALSE,
       { NODATA, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_4_48,
       TIMESTAMP_4_48,
       2,
-      true,
+      UA_TRUE,
       { TIMESTAMP_FIRST,TIMESTAMP_5_00, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_5_00,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00,TIMESTAMP_5_02, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_5_00,
       0,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_5_00,
       1,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_00,
       TIMESTAMP_5_00,
       1,
-      false,
+      UA_FALSE,
       { TIMESTAMP_5_00, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_01,
       0,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, TIMESTAMP_5_02, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_01,
       0,
-      false,
+      UA_FALSE,
       { NODATA, 0 },
-      false
+      UA_FALSE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_01,
       1,
-      true,
+      UA_TRUE,
       { TIMESTAMP_5_00, 0 },
-      true
+      UA_TRUE
     },
     { TIMESTAMP_5_01,
       TIMESTAMP_5_01,
       1,
-      false,
+      UA_FALSE,
       { NODATA },
-      false
+      UA_FALSE
     },
-    {0,0,0,false,{ NODATA }, false} // last element
+    {0,0,0,UA_FALSE,{ NODATA }, UA_FALSE} // last element
 };
 #endif /*UA_HISTORICAL_READ_TEST_DATA_H_*/

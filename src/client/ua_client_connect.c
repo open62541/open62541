@@ -428,8 +428,8 @@ getEndpoints(UA_Client *client) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_Boolean endpointFound = false;
-    UA_Boolean tokenFound = false;
+    UA_Boolean endpointFound = UA_FALSE;
+    UA_Boolean tokenFound = UA_FALSE;
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                           "Transport/uatcp-uasc-uabinary");
@@ -447,7 +447,7 @@ getEndpoints(UA_Client *client) {
         if(!UA_String_equal(&endpoint->securityPolicyUri, &client->securityPolicy.policyUri))
             continue;
 
-        endpointFound = true;
+        endpointFound = UA_TRUE;
 
         /* look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
@@ -465,7 +465,7 @@ getEndpoints(UA_Client *client) {
                 continue;
 
             /* Endpoint with matching usertokenpolicy found */
-            tokenFound = true;
+            tokenFound = UA_TRUE;
             UA_UserTokenPolicy_deleteMembers(&client->token);
             UA_UserTokenPolicy_copy(userToken, &client->token);
             break;
@@ -604,7 +604,7 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
-    retval = openSecureChannel(client, false);
+    retval = openSecureChannel(client, UA_FALSE);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
@@ -703,7 +703,7 @@ sendCloseSession(UA_Client *client) {
 
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    request.deleteSubscriptions = true;
+    request.deleteSubscriptions = UA_TRUE;
     UA_CloseSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);

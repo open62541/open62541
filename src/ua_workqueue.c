@@ -43,7 +43,7 @@ void UA_WorkQueue_cleanup(UA_WorkQueue *wq) {
     UA_WorkQueue_stop(wq);
 
     /* Execute remaining work in the dispatch queue */
-    while(true) {
+    while(UA_TRUE) {
         pthread_mutex_lock(&wq->dispatchQueue_accessMutex);
         UA_DelayedCallback *dc = SIMPLEQ_FIRST(&wq->dispatchQueue);
         if(!dc) {
@@ -130,7 +130,7 @@ UA_WorkQueue_start(UA_WorkQueue *wq, size_t workersCount) {
         UA_Worker *w = &wq->workers[i];
         w->queue = wq;
         w->counter = 0;
-        w->running = true;
+        w->running = UA_TRUE;
         pthread_create(&w->thread, NULL, (void* (*)(void*))workerLoop, w);
     }
     return UA_STATUSCODE_GOOD;
@@ -142,7 +142,7 @@ void UA_WorkQueue_stop(UA_WorkQueue *wq) {
 
     /* Signal the workers to stop */
     for(size_t i = 0; i < wq->workersSize; ++i)
-        wq->workers[i].running = false;
+        wq->workers[i].running = UA_FALSE;
 
     /* Wake up all workers */
     pthread_cond_broadcast(&wq->dispatchQueue_condition);

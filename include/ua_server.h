@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -49,7 +49,7 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
  * networklayers to see if messages have arrived.
  *
  * @param server The server object.
- * @param running The loop is run as long as *running is true.
+ * @param running The loop is run as long as *running is UA_true.
  *        Otherwise, the server shuts down.
  * @return Returns the statuscode of the UA_Server_run_shutdown method */
 UA_StatusCode UA_EXPORT
@@ -542,7 +542,7 @@ UA_Server_setRegisterServerCallback(UA_Server *server, UA_Server_registerServerC
  * call
  *
  * @param isServerAnnounce indicates if the server has just been detected. If
- *        set to false, this means the server is shutting down.
+ *        set to UA_false, this means the server is shutting down.
  * @param isTxtReceived indicates if we already received the corresponding TXT
  *        record with the path and caps data */
 typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork,
@@ -686,15 +686,15 @@ typedef struct {
      * without copying, e.g. with `UA_Variant_setScalar`. Then, also set
      * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
      * memory being cleaned up. Don't forget to also set `value->hasValue` to
-     * true to indicate the presence of a value.
-     * 
+     * UA_true to indicate the presence of a value.
+     *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
      * @param sessionContext Additional data attached to the session in the
      *        access control layer
      * @param nodeId The identifier of the node being read from
      * @param nodeContext Additional data attached to the node by the user
-     * @param includeSourceTimeStamp If true, then the datasource is expected to
+     * @param includeSourceTimeStamp If UA_true, then the datasource is expected to
      *        set the source timestamp in the returned value
      * @param range If not null, then the datasource shall return only a
      *        selection of the (nonscalar) data. Set
@@ -714,7 +714,7 @@ typedef struct {
 
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
-     * 
+     *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
      * @param sessionContext Additional data attached to the session in the

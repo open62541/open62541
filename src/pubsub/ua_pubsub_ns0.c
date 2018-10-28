@@ -48,8 +48,8 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = referenceTypeId;
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
+    rpe.isInverse = UA_FALSE;
+    rpe.includeSubtypes = UA_FALSE;
     rpe.targetName = targetName;
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
@@ -185,7 +185,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
 UA_StatusCode
 removePubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    retVal |= UA_Server_deleteNode(server, connection->identifier, true);
+    retVal |= UA_Server_deleteNode(server, connection->identifier, UA_TRUE);
     return retVal;
 }
 
@@ -219,7 +219,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
 UA_StatusCode
 removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    retVal |= UA_Server_deleteNode(server, publishedDataSet->identifier, false);
+    retVal |= UA_Server_deleteNode(server, publishedDataSet->identifier, UA_FALSE);
     return retVal;
 }
 
@@ -278,7 +278,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
 UA_StatusCode
 removeWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    retVal |= UA_Server_deleteNode(server, writerGroup->identifier, false);
+    retVal |= UA_Server_deleteNode(server, writerGroup->identifier, UA_FALSE);
     return retVal;
 }
 
@@ -300,17 +300,17 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     //End lock zone
     retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
-                                     UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), true);
+                                     UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), UA_TRUE);
     retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
-                                     UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), false);
+                                     UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), UA_FALSE);
     return retVal;
 }
 
 UA_StatusCode
 removeDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    retVal |= UA_Server_deleteNode(server, dataSetWriter->identifier, false);
+    retVal |= UA_Server_deleteNode(server, dataSetWriter->identifier, UA_FALSE);
     return retVal;
 }
 

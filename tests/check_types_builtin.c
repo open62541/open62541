@@ -909,7 +909,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     UA_DataValue src;
     UA_DataValue_init(&src);
     src.serverTimestamp = 80;
-    src.hasServerTimestamp = true;
+    src.hasServerTimestamp = UA_TRUE;
 
     UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
                        0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
@@ -941,8 +941,8 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
     UA_DataValue src;
     UA_DataValue_init(&src);
     src.serverTimestamp    = 80;
-    src.hasValue = true;
-    src.hasServerTimestamp = true;
+    src.hasValue = UA_TRUE;
+    src.hasServerTimestamp = UA_TRUE;
     src.value.type = &UA_TYPES[UA_TYPES_INT32];
     src.value.arrayLength  = 0; // one element (encoded as not an array)
     UA_Int32 vdata = 45;
@@ -1089,9 +1089,9 @@ START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
 
     UA_DiagnosticInfo_init(&value);
     UA_DiagnosticInfo_init(&innerValue);
-    value.hasInnerDiagnosticInfo = true;
+    value.hasInnerDiagnosticInfo = UA_TRUE;
     value.innerDiagnosticInfo = &innerValue;
-    value.hasAdditionalInfo = true;
+    value.hasAdditionalInfo = UA_TRUE;
     value.additionalInfo = testString;
 
     //when
@@ -1227,11 +1227,11 @@ START_TEST(UA_DataValue_copyShallWorkOnInputExample) {
     UA_Variant_init(&srcVariant);
     UA_DataValue src;
     UA_DataValue_init(&src);
-    src.hasSourceTimestamp = true;
+    src.hasSourceTimestamp = UA_TRUE;
     src.sourceTimestamp = 4;
-    src.hasSourcePicoseconds = true;
+    src.hasSourcePicoseconds = UA_TRUE;
     src.sourcePicoseconds = 77;
-    src.hasServerPicoseconds = true;
+    src.hasServerPicoseconds = UA_TRUE;
     src.serverPicoseconds = 8;
     UA_DataValue dst;
 

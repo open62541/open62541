@@ -257,7 +257,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* FIXME: this is just a dirty workaround. We need to rework some of the sync and async processing
      * FIXME: in the client. Currently a lot of stuff is semi broken and in dire need of cleaning up.*/
-    /*UA_StatusCode retval = openSecureChannel(client, true);
+    /*UA_StatusCode retval = openSecureChannel(client, UA_TRUE);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;*/
 
@@ -381,7 +381,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     }
 
     /* Got the synchronous response */
-    rd->received = true;
+    rd->received = UA_TRUE;
 
     /* Check that the response type matches */
     expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
@@ -445,7 +445,7 @@ UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
                        UA_DateTime maxDate, UA_UInt32 *synchronousRequestId) {
     /* Prepare the response and the structure we give into processServiceResponse */
-    SyncResponseDescription rd = { client, false, 0, response, responseType };
+    SyncResponseDescription rd = { client, UA_FALSE, 0, response, responseType };
 
     /* Return upon receiving the synchronized response. All other responses are
      * processed with a callback "in the background". */
@@ -512,7 +512,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
 UA_StatusCode
 receiveServiceResponseAsync(UA_Client *client, void *response,
                              const UA_DataType *responseType) {
-    SyncResponseDescription rd = { client, false, 0, response, responseType };
+    SyncResponseDescription rd = { client, UA_FALSE, 0, response, responseType };
 
     UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking(
             &client->connection, &rd, client_processChunk);

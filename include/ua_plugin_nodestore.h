@@ -303,7 +303,7 @@ typedef struct {
  *
  *    digraph tree {
  *
- *    node [height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+ *    node [height=0, shape=box, fillcolor="#E5E5E5", concentrate=UA_true]
  *
  *    references [label="References\n(Abstract, Symmetric)"]
  *    hierarchical_references [label="HierarchicalReferences\n(Abstract)"]

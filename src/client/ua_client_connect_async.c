@@ -80,7 +80,7 @@ processACKResponseAsync(void *application, UA_Connection *connection,
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
-    client->connectStatus = openSecureChannelAsync(client/*, false*/);
+    client->connectStatus = openSecureChannelAsync(client/*, UA_FALSE*/);
     return client->connectStatus;
 }
 
@@ -405,8 +405,8 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
     resp->endpoints = NULL;
     resp->endpointsSize = 0;
 
-    UA_Boolean endpointFound = false;
-    UA_Boolean tokenFound = false;
+    UA_Boolean endpointFound = UA_FALSE;
+    UA_Boolean tokenFound = UA_FALSE;
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                           "Transport/uatcp-uasc-uabinary");
@@ -425,7 +425,7 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
         if(!UA_String_equal(&endpoint->securityPolicyUri, &client->securityPolicy.policyUri))
             continue;
 
-        endpointFound = true;
+        endpointFound = UA_TRUE;
 
         /* Look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
@@ -445,7 +445,7 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
                 continue;
 
             /* Endpoint with matching usertokenpolicy found */
-            tokenFound = true;
+            tokenFound = UA_TRUE;
             UA_UserTokenPolicy_deleteMembers(&client->token);
             UA_UserTokenPolicy_copy(userToken, &client->token);
             break;
@@ -566,7 +566,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
 
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
-    client->endpointsHandshake = true;
+    client->endpointsHandshake = UA_TRUE;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection = client->config.initConnectionFunc(
@@ -668,7 +668,7 @@ sendCloseSessionAsync(UA_Client *client, UA_UInt32 *requestId) {
 
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    request.deleteSubscriptions = true;
+    request.deleteSubscriptions = UA_TRUE;
 
     UA_Client_sendAsyncRequest(
             client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],

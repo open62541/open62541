@@ -6,10 +6,10 @@
 #include "open62541.h"
 #include <signal.h>
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 /* In this example, we integrate the server into an external "mainloop". This
@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
 
     /* Should the server networklayer block (with a timeout) until a message
        arrives or should it return immediately? */
-    UA_Boolean waitInternal = false;
+    UA_Boolean waitInternal = UA_FALSE;
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)

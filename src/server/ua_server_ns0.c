@@ -82,67 +82,67 @@ UA_Server_createNS0_base(UA_Server *server) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_ReferenceTypeAttributes references_attr = UA_ReferenceTypeAttributes_default;
     references_attr.displayName = UA_LOCALIZEDTEXT("", "References");
-    references_attr.isAbstract = true;
-    references_attr.symmetric = true;
+    references_attr.isAbstract = UA_TRUE;
+    references_attr.symmetric = UA_TRUE;
     references_attr.inverseName = UA_LOCALIZEDTEXT("", "References");
     ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_REFERENCES, "References",
                        &references_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
     UA_ReferenceTypeAttributes hassubtype_attr = UA_ReferenceTypeAttributes_default;
     hassubtype_attr.displayName = UA_LOCALIZEDTEXT("", "HasSubtype");
-    hassubtype_attr.isAbstract = false;
-    hassubtype_attr.symmetric = false;
+    hassubtype_attr.isAbstract = UA_FALSE;
+    hassubtype_attr.symmetric = UA_FALSE;
     hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "HasSupertype");
     ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
                        &hassubtype_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
     ret |= addReferenceTypeNode(server, "HierarchicalReferences", NULL,
-                         UA_NS0ID_HIERARCHICALREFERENCES, true, false, UA_NS0ID_REFERENCES);
+                         UA_NS0ID_HIERARCHICALREFERENCES, UA_TRUE, UA_FALSE, UA_NS0ID_REFERENCES);
 
     ret |= addReferenceTypeNode(server, "NonHierarchicalReferences", NULL,
-                         UA_NS0ID_NONHIERARCHICALREFERENCES, true, false, UA_NS0ID_REFERENCES);
+                         UA_NS0ID_NONHIERARCHICALREFERENCES, UA_TRUE, UA_FALSE, UA_NS0ID_REFERENCES);
 
     ret |= addReferenceTypeNode(server, "HasChild", NULL, UA_NS0ID_HASCHILD,
-                         true, false, UA_NS0ID_HIERARCHICALREFERENCES);
+                         UA_TRUE, UA_FALSE, UA_NS0ID_HIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "Organizes", "OrganizedBy", UA_NS0ID_ORGANIZES,
-                         false, false, UA_NS0ID_HIERARCHICALREFERENCES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_HIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "HasEventSource", "EventSourceOf", UA_NS0ID_HASEVENTSOURCE,
-                         false, false, UA_NS0ID_HIERARCHICALREFERENCES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_HIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "HasModellingRule", "ModellingRuleOf", UA_NS0ID_HASMODELLINGRULE,
-                         false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "HasEncoding", "EncodingOf", UA_NS0ID_HASENCODING,
-                         false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "HasDescription", "DescriptionOf", UA_NS0ID_HASDESCRIPTION,
-                         false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "HasTypeDefinition", "TypeDefinitionOf", UA_NS0ID_HASTYPEDEFINITION,
-                         false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "GeneratesEvent", "GeneratedBy", UA_NS0ID_GENERATESEVENT,
-                         false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
     ret |= addReferenceTypeNode(server, "Aggregates", "AggregatedBy", UA_NS0ID_AGGREGATES,
-                         false, false, UA_NS0ID_HASCHILD);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_HASCHILD);
 
     /* Complete bootstrap of HasSubtype */
     ret |= addNode_finish(server, UA_NS0ID_HASSUBTYPE, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE);
 
     ret |= addReferenceTypeNode(server, "HasProperty", "PropertyOf", UA_NS0ID_HASPROPERTY,
-                         false, false, UA_NS0ID_AGGREGATES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_AGGREGATES);
 
     ret |= addReferenceTypeNode(server, "HasComponent", "ComponentOf", UA_NS0ID_HASCOMPONENT,
-                         false, false, UA_NS0ID_AGGREGATES);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_AGGREGATES);
 
     ret |= addReferenceTypeNode(server, "HasNotifier", "NotifierOf", UA_NS0ID_HASNOTIFIER,
-                         false, false, UA_NS0ID_HASEVENTSOURCE);
+                         UA_FALSE, UA_FALSE, UA_NS0ID_HASEVENTSOURCE);
 
     ret |= addReferenceTypeNode(server, "HasOrderedComponent", "OrderedComponentOf",
-                         UA_NS0ID_HASORDEREDCOMPONENT, false, false, UA_NS0ID_HASCOMPONENT);
+                         UA_NS0ID_HASORDEREDCOMPONENT, UA_FALSE, UA_FALSE, UA_NS0ID_HASCOMPONENT);
 
     /**************/
     /* Data Types */
@@ -151,7 +151,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     /* Bootstrap BaseDataType */
     UA_DataTypeAttributes basedatatype_attr = UA_DataTypeAttributes_default;
     basedatatype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseDataType");
-    basedatatype_attr.isAbstract = true;
+    basedatatype_attr.isAbstract = UA_TRUE;
     ret |= addNode_raw(server, UA_NODECLASS_DATATYPE, UA_NS0ID_BASEDATATYPE, "BaseDataType",
                        &basedatatype_attr, &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES]);
 
@@ -161,7 +161,7 @@ UA_Server_createNS0_base(UA_Server *server) {
 
     UA_VariableTypeAttributes basevar_attr = UA_VariableTypeAttributes_default;
     basevar_attr.displayName = UA_LOCALIZEDTEXT("", "BaseVariableType");
-    basevar_attr.isAbstract = true;
+    basevar_attr.isAbstract = UA_TRUE;
     basevar_attr.valueRank = UA_VALUERANK_ANY;
     basevar_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
     ret |= addNode_raw(server, UA_NODECLASS_VARIABLETYPE, UA_NS0ID_BASEVARIABLETYPE, "BaseVariableType",
@@ -245,7 +245,7 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
            const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
            const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
-        value->hasStatus = true;
+        value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
@@ -262,9 +262,9 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     value->value.data = statustype;
     value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     if(sourceTimestamp) {
-        value->hasSourceTimestamp = true;
+        value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = UA_DateTime_now();
     }
     return UA_STATUSCODE_GOOD;
@@ -276,7 +276,7 @@ readServiceLevel(UA_Server *server, const UA_NodeId *sessionId, void *sessionCon
                  const UA_NodeId *nodeId, void *nodeContext, UA_Boolean includeSourceTimeStamp,
                  const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
-        value->hasStatus = true;
+        value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
@@ -288,9 +288,9 @@ readServiceLevel(UA_Server *server, const UA_NodeId *sessionId, void *sessionCon
     value->value.data = byte;
     value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     if(includeSourceTimeStamp) {
-        value->hasSourceTimestamp = true;
+        value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = UA_DateTime_now();
     }
     return UA_STATUSCODE_GOOD;
@@ -301,7 +301,7 @@ readAuditing(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
              const UA_NodeId *nodeId, void *nodeContext, UA_Boolean includeSourceTimeStamp,
              const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
-        value->hasStatus = true;
+        value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
@@ -309,13 +309,13 @@ readAuditing(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
     value->value.arrayLength = 0;
     UA_Boolean *boolean = UA_Boolean_new();
-    *boolean = false;
+    *boolean = UA_FALSE;
     value->value.data = boolean;
     value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     if(includeSourceTimeStamp) {
-        value->hasSourceTimestamp = true;
+        value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = UA_DateTime_now();
     }
     return UA_STATUSCODE_GOOD;
@@ -328,7 +328,7 @@ readNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionConte
                const UA_NumericRange *range,
                UA_DataValue *value) {
     if(range) {
-        value->hasStatus = true;
+        value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
@@ -337,9 +337,9 @@ readNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionConte
                                      server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     if(includeSourceTimeStamp) {
-        value->hasSourceTimestamp = true;
+        value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = UA_DateTime_now();
     }
     return UA_STATUSCODE_GOOD;
@@ -386,7 +386,7 @@ readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
                 const UA_NodeId *nodeid, void *nodeContext, UA_Boolean sourceTimeStamp,
                 const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
-        value->hasStatus = true;
+        value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
@@ -395,9 +395,9 @@ readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
                                                     &UA_TYPES[UA_TYPES_DATETIME]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
+        value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = currentTime;
     }
     return UA_STATUSCODE_GOOD;
@@ -558,9 +558,9 @@ UA_Server_initNS0(UA_Server *server) {
 
     /* Initialize base nodes which are always required an cannot be created
      * through the NS compiler */
-    server->bootstrapNS0 = true;
+    server->bootstrapNS0 = UA_TRUE;
     UA_StatusCode retVal = UA_Server_createNS0_base(server);
-    server->bootstrapNS0 = false;
+    server->bootstrapNS0 = UA_FALSE;
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
@@ -666,7 +666,7 @@ UA_Server_initNS0(UA_Server *server) {
                                &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE]);
 
     /* ServerDiagnostics - EnabledFlag */
-    UA_Boolean enabledFlag = false;
+    UA_Boolean enabledFlag = UA_FALSE;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 

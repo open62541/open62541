@@ -109,10 +109,10 @@ UA_String_fromChars(char const src[]) {
 UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
     if(s1->length != s2->length)
-        return false;
+        return UA_FALSE;
     i32 is = memcmp((char const*)s1->data,
                     (char const*)s2->data, s1->length);
-    return (is == 0) ? true : false;
+    return (is == 0) ? UA_TRUE : UA_FALSE;
 }
 
 static UA_StatusCode
@@ -145,11 +145,11 @@ UA_Boolean
 UA_QualifiedName_equal(const UA_QualifiedName *qn1,
                        const UA_QualifiedName *qn2) {
     if(qn1 == NULL || qn2 == NULL)
-        return false;
+        return UA_FALSE;
     if(qn1->namespaceIndex != qn2->namespaceIndex)
-        return false;
+        return UA_FALSE;
     if(qn1->name.length != qn2->name.length)
-        return false;
+        return UA_FALSE;
     return (memcmp((char const*)qn1->name.data,
                    (char const*)qn2->name.data, qn1->name.length) == 0);
 }
@@ -182,8 +182,8 @@ UA_DateTime_toStruct(UA_DateTime t) {
 UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return true;
-    return false;
+        return UA_TRUE;
+    return UA_FALSE;
 }
 
 UA_Guid
@@ -260,7 +260,7 @@ NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
 UA_Boolean
 UA_NodeId_isNull(const UA_NodeId *p) {
     if(p->namespaceIndex != 0)
-        return false;
+        return UA_FALSE;
     switch (p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         return (p->identifier.numeric == 0);
@@ -271,16 +271,16 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     case UA_NODEIDTYPE_BYTESTRING:
         return UA_ByteString_equal(&p->identifier.byteString, &UA_BYTESTRING_NULL);
     }
-    return false;
+    return UA_FALSE;
 }
 
 UA_Boolean
 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     if(n1 == NULL || n2 == NULL)
-        return false;
+        return UA_FALSE;
     if(n1->namespaceIndex != n2->namespaceIndex ||
        n1->identifierType!=n2->identifierType)
-        return false;
+        return UA_FALSE;
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         return (n1->identifier.numeric == n2->identifier.numeric);
@@ -294,17 +294,17 @@ UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
         return UA_ByteString_equal(&n1->identifier.byteString,
                                    &n2->identifier.byteString);
     }
-    return false;
+    return UA_FALSE;
 }
 
 UA_Boolean
 UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
     if(n1 == NULL || n2 == NULL)
-        return false;
+        return UA_FALSE;
     if(n1->serverIndex != n2->serverIndex)
-        return false;
+        return UA_FALSE;
     if(!UA_String_equal(&n1->namespaceUri, &n2->namespaceUri))
-        return false;
+        return UA_FALSE;
     return UA_NodeId_equal(&n1->nodeId, &n2->nodeId);
 }
 
@@ -543,13 +543,13 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     *stride = v->arrayLength; /* So it can be copied as a contiguous block.   */
     *first = 0;
     size_t running_dimssize = 1;
-    UA_Boolean found_contiguous = false;
+    UA_Boolean found_contiguous = UA_FALSE;
     for(size_t k = dims_count; k > 0;) {
         --k;
         size_t dimrange = 1 + realmax[k] - range.dimensions[k].min;
         if(!found_contiguous && dimrange != dims[k]) {
             /* Found the maximum block that can be copied contiguously */
-            found_contiguous = true;
+            found_contiguous = UA_TRUE;
             *block = running_dimssize * dimrange;
             *stride = running_dimssize * dims[k];
         }
@@ -565,8 +565,8 @@ isStringLike(const UA_DataType *type) {
     if(type == &UA_TYPES[UA_TYPES_STRING] ||
        type == &UA_TYPES[UA_TYPES_BYTESTRING] ||
        type == &UA_TYPES[UA_TYPES_XMLELEMENT])
-        return true;
-    return false;
+        return UA_TRUE;
+    return UA_FALSE;
 }
 
 /* Returns the part of the string that lies within the rangedimension */
@@ -769,14 +769,14 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
 UA_StatusCode
 UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array,
                     size_t arraySize, const UA_NumericRange range) {
-    return Variant_setRange(v, array, arraySize, range, false);
+    return Variant_setRange(v, array, arraySize, range, UA_FALSE);
 }
 
 UA_StatusCode
 UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
                         size_t arraySize, const UA_NumericRange range) {
     return Variant_setRange(v, (void*)(uintptr_t)array,
-                            arraySize, range, true);
+                            arraySize, range, UA_TRUE);
 }
 
 /* LocalizedText */
@@ -835,9 +835,9 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst,
         if(dst->innerDiagnosticInfo) {
             retval |= DiagnosticInfo_copy(src->innerDiagnosticInfo,
                                           dst->innerDiagnosticInfo, NULL);
-            dst->hasInnerDiagnosticInfo = true;
+            dst->hasInnerDiagnosticInfo = UA_TRUE;
         } else {
-            dst->hasInnerDiagnosticInfo = false;
+            dst->hasInnerDiagnosticInfo = UA_FALSE;
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }
@@ -1099,8 +1099,8 @@ isDataTypeNumeric(const UA_DataType *type) {
     /* All data types between UA_TYPES_SBYTE and UA_TYPES_DOUBLE are numeric */
     for(size_t i = UA_TYPES_SBYTE; i <= UA_TYPES_DOUBLE; ++i)
         if(&UA_TYPES[i] == type)
-            return true;
-    return false;
+            return UA_TRUE;
+    return UA_FALSE;
 }
 
 /**********************/
@@ -1136,7 +1136,7 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
     UA_NumericRangeDimension *dimensions = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t offset = 0;
-    while(true) {
+    while(UA_TRUE) {
         /* alloc dimensions */
         if(idx >= dimensionsMax) {
             UA_NumericRangeDimension *newds;

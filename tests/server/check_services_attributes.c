@@ -30,7 +30,7 @@ readCPUTemperature(UA_Server *server_,
                    UA_DataValue *dataValue) {
     UA_Float temp = 20.5f;
     UA_Variant_setScalarCopy(&dataValue->value, &temp, &UA_TYPES[UA_TYPES_FLOAT]);
-    dataValue->hasValue = true;
+    dataValue->hasValue = UA_TRUE;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -139,7 +139,7 @@ static UA_VariableNode* makeCompareSequence(void) {
 
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    node->value.data.value.hasValue = true;
+    node->value.data.value.hasValue = UA_TRUE;
 
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_QualifiedName_copy(&myIntegerName,&node->browseName);
@@ -184,7 +184,7 @@ START_TEST(ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp) {
     // read 1
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
-    ck_assert_int_eq(true, resp.hasValue);
+    ck_assert_int_eq(UA_TRUE, resp.hasValue);
     UA_DataValue_deleteMembers(&resp);
 
     // read 2
@@ -332,7 +332,7 @@ START_TEST(ReadSingleAttributeIsAbstractWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
-    ck_assert(*(UA_Boolean* )resp.value.data==false);
+    ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -346,7 +346,7 @@ START_TEST(ReadSingleAttributeSymmetricWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
-    ck_assert(*(UA_Boolean* )resp.value.data==false);
+    ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -377,7 +377,7 @@ START_TEST(ReadSingleAttributeContainsNoLoopsWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
-    ck_assert(*(UA_Boolean* )resp.value.data==false);
+    ck_assert(*(UA_Boolean* )resp.value.data==UA_FALSE);
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -406,7 +406,7 @@ START_TEST(ReadSingleAttributeDataTypeWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
-    ck_assert_int_eq(true, resp.hasValue);
+    ck_assert_int_eq(UA_TRUE, resp.hasValue);
     ck_assert(&UA_TYPES[UA_TYPES_NODEID] == resp.value.type);
     UA_NodeId* respval = (UA_NodeId*)resp.value.data;
     ck_assert_int_eq(respval->namespaceIndex,0);
@@ -501,7 +501,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
-    ck_assert(*(UA_Boolean*)resp.value.data==false);
+    ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE);
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -514,10 +514,10 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
 
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
-    ck_assert_int_eq(true, resp.hasValue);
+    ck_assert_int_eq(UA_TRUE, resp.hasValue);
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BOOLEAN] == resp.value.type);
-    ck_assert(*(UA_Boolean*)resp.value.data==true);
+    ck_assert(*(UA_Boolean*)resp.value.data==UA_TRUE);
     UA_DataValue_deleteMembers(&resp);
 #endif
 } END_TEST
@@ -531,10 +531,10 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
 
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
-    /* Uncommented since userexecutable is always true for the local admin user */
+    /* Uncommented since userexecutable is always UA_TRUE for the local admin user */
     /* ck_assert_int_eq(0, resp.value.arrayLength); */
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type); */
-    /* ck_assert(*(UA_Boolean*)resp.value.data==false); */
+    /* ck_assert(*(UA_Boolean*)resp.value.data==UA_FALSE); */
     UA_DataValue_deleteMembers(&resp);
 #endif
 } END_TEST
@@ -560,7 +560,7 @@ START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
-    ck_assert_int_eq(resp.hasServerTimestamp, false);
+    ck_assert_int_eq(resp.hasServerTimestamp, UA_FALSE);
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -585,7 +585,7 @@ START_TEST(WriteSingleAttributeNodeId) {
     UA_NodeId_init(&id);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_NODEID;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &id, &UA_TYPES[UA_TYPES_NODEID]);
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
@@ -598,7 +598,7 @@ START_TEST(WriteSingleAttributeNodeclass) {
     UA_NodeClass nc;
     UA_NodeClass_init(&nc);
     wValue.attributeId = UA_ATTRIBUTEID_NODECLASS;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &nc, &UA_TYPES[UA_TYPES_NODECLASS]);
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
@@ -611,7 +611,7 @@ START_TEST(WriteSingleAttributeBrowseName) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_BROWSENAME;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -621,7 +621,7 @@ START_TEST(WriteSingleAttributeDisplayName) {
     UA_WriteValue_init(&wValue);
     UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
@@ -633,11 +633,11 @@ START_TEST(WriteSingleAttributeDescription) {
     UA_WriteValue_init(&wValue);
     UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_DESCRIPTION;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -650,7 +650,7 @@ START_TEST(WriteSingleAttributeWriteMask) {
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_WRITEMASK;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -658,11 +658,11 @@ START_TEST(WriteSingleAttributeWriteMask) {
 START_TEST(WriteSingleAttributeIsAbstract) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_Boolean testValue = true;
+    UA_Boolean testValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_ISABSTRACT;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
@@ -670,11 +670,11 @@ START_TEST(WriteSingleAttributeIsAbstract) {
 START_TEST(WriteSingleAttributeSymmetric) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_Boolean testValue = true;
+    UA_Boolean testValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_SYMMETRIC;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
@@ -686,7 +686,7 @@ START_TEST(WriteSingleAttributeInverseName) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_INVERSENAME;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
@@ -694,11 +694,11 @@ START_TEST(WriteSingleAttributeInverseName) {
 START_TEST(WriteSingleAttributeContainsNoLoops) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_Boolean testValue = true;
+    UA_Boolean testValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_CONTAINSNOLOOPS;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
@@ -710,7 +710,7 @@ START_TEST(WriteSingleAttributeEventNotifier) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BYTE]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
@@ -720,7 +720,7 @@ START_TEST(WriteSingleAttributeValue) {
     UA_WriteValue_init(&wValue);
     UA_Int32 myInteger = 20;
     UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
@@ -743,7 +743,7 @@ START_TEST(WriteSingleAttributeValueRangeFromScalar) {
     UA_WriteValue_init(&wValue);
     UA_Int32 myInteger = 20;
     UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     wValue.nodeId = UA_NODEID_STRING(1, "myarray");
     wValue.indexRange = UA_STRING("0,0");
     wValue.attributeId = UA_ATTRIBUTEID_VALUE;
@@ -756,7 +756,7 @@ START_TEST(WriteSingleAttributeValueRangeFromArray) {
     UA_WriteValue_init(&wValue);
     UA_Int32 myInteger = 20;
     UA_Variant_setArray(&wValue.value.value, &myInteger, 1, &UA_TYPES[UA_TYPES_INT32]);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     wValue.nodeId = UA_NODEID_STRING(1, "myarray");
     wValue.indexRange = UA_STRING("0,0");
     wValue.attributeId = UA_ATTRIBUTEID_VALUE;
@@ -771,7 +771,7 @@ START_TEST(WriteSingleAttributeDataType) {
     UA_NodeId_init(&typeId);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_DATATYPE;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
@@ -784,7 +784,7 @@ START_TEST(WriteSingleAttributeValueRank) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_INT32]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_VALUERANK;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     // Returns attributeInvalid, since variant/value may be writable
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -797,7 +797,7 @@ START_TEST(WriteSingleAttributeArrayDimensions) {
     UA_Variant_setArray(&wValue.value.value, &testValue, 3, &UA_TYPES[UA_TYPES_UINT32]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     // Returns attributeInvalid, since variant/value may be writable
     ck_assert_int_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
@@ -810,7 +810,7 @@ START_TEST(WriteSingleAttributeAccessLevel) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BYTE]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_ACCESSLEVEL;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -822,7 +822,7 @@ START_TEST(WriteSingleAttributeMinimumSamplingInterval) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_DOUBLE]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -830,11 +830,11 @@ START_TEST(WriteSingleAttributeMinimumSamplingInterval) {
 START_TEST(WriteSingleAttributeHistorizing) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_Boolean testValue = true;
+    UA_Boolean testValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_HISTORIZING;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -842,11 +842,11 @@ START_TEST(WriteSingleAttributeHistorizing) {
 START_TEST(WriteSingleAttributeExecutable) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_Boolean testValue = true;
+    UA_Boolean testValue = UA_TRUE;
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_EXECUTABLE;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
@@ -858,7 +858,7 @@ START_TEST(WriteSingleDataSourceAttributeValue) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_INT32]);
     wValue.nodeId = UA_NODEID_STRING(1, "cpu.temperature");
     wValue.attributeId = UA_ATTRIBUTEID_VALUE;
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 } END_TEST

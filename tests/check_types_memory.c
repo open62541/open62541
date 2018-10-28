@@ -144,7 +144,7 @@ START_TEST(encodeShallYieldDecode) {
     // then
     msg1.length = offset;
     msg2.length = offset;
-    ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true,
+    ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE,
                   "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
 

@@ -103,10 +103,10 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
                                 "Channel was purged since maxSecureChannels was "
                                 "reached and channel had no session attached");
             removeSecureChannel(cm, entry);
-            return true;
+            return UA_TRUE;
         }
     }
-    return false;
+    return UA_FALSE;
 }
 
 UA_StatusCode

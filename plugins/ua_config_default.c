@@ -247,10 +247,10 @@ createDefaultConfig(void) {
     conf->nodeLifecycle.destructor = NULL;
 
     /* Access Control. Anonymous Login only. */
-    conf->accessControl = UA_AccessControl_default(true, usernamePasswordsSize, usernamePasswords);
+    conf->accessControl = UA_AccessControl_default(UA_TRUE, usernamePasswordsSize, usernamePasswords);
 
     /* Relax constraints for the InformationModel */
-    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
+    conf->relaxEmptyValueConstraint = UA_TRUE; /* Allow empty values */
 
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;

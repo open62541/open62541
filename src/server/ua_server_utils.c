@@ -30,14 +30,14 @@ isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_Nod
                        struct ref_history *visitedRefs, const UA_NodeId *referenceTypeIds,
                        size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
-        return true;
+        return UA_TRUE;
 
     if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
-        return false;
+        return UA_FALSE;
 
     const UA_Node *node = ns->getNode(ns->context, leafNode);
     if(!node)
-        return false;
+        return UA_FALSE;
 
     for(size_t i = 0; i < node->referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->references[i];
@@ -46,10 +46,10 @@ isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_Nod
             continue;
 
         /* Consider only the indicated reference types */
-        UA_Boolean match = false;
+        UA_Boolean match = UA_FALSE;
         for(size_t j = 0; j < referenceTypeIdsSize; ++j) {
             if(UA_NodeId_equal(&refs->referenceTypeId, &referenceTypeIds[j])) {
-                match = true;
+                match = UA_TRUE;
                 break;
             }
         }
@@ -84,13 +84,13 @@ isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_Nod
                                        referenceTypeIds, referenceTypeIdsSize);
             if(foundRecursive) {
                 ns->releaseNode(ns->context, node);
-                return true;
+                return UA_TRUE;
             }
         }
     }
 
     ns->releaseNode(ns->context, node);
-    return false;
+    return UA_FALSE;
 }
 
 UA_Boolean
@@ -109,12 +109,12 @@ getNodeType(UA_Server *server, const UA_Node *node) {
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-        inverse = false;
+        inverse = UA_FALSE;
         typeNodeClass = UA_NODECLASS_OBJECTTYPE;
         break;
     case UA_NODECLASS_VARIABLE:
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-        inverse = false;
+        inverse = UA_FALSE;
         typeNodeClass = UA_NODECLASS_VARIABLETYPE;
         break;
     case UA_NODECLASS_OBJECTTYPE:
@@ -122,7 +122,7 @@ getNodeType(UA_Server *server, const UA_Node *node) {
     case UA_NODECLASS_REFERENCETYPE:
     case UA_NODECLASS_DATATYPE:
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-        inverse = true;
+        inverse = UA_TRUE;
         typeNodeClass = node->nodeClass;
         break;
     default:
@@ -153,14 +153,14 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
     const UA_NodeId hasSubType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     const UA_NodeId hasTypeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
     for(size_t i = 0; i < node->referencesSize; ++i) {
-        if(node->references[i].isInverse == false &&
+        if(node->references[i].isInverse == UA_FALSE &&
            UA_NodeId_equal(&node->references[i].referenceTypeId, &hasSubType))
-            return true;
-        if(node->references[i].isInverse == true &&
+            return UA_TRUE;
+        if(node->references[i].isInverse == UA_TRUE &&
            UA_NodeId_equal(&node->references[i].referenceTypeId, &hasTypeDefinition))
-            return true;
+            return UA_TRUE;
     }
-    return false;
+    return UA_FALSE;
 }
 
 static const UA_NodeId hasSubtypeNodeId =
@@ -184,10 +184,10 @@ getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
         for(size_t j = 0; j < refs->targetIdsSize; ++j) {
             /* Is the target a duplicate? (multi-inheritance) */
             UA_NodeId *targetId = &refs->targetIds[j].nodeId;
-            UA_Boolean duplicate = false;
+            UA_Boolean duplicate = UA_FALSE;
             for(size_t k = 0; k < *results_count; ++k) {
                 if(UA_NodeId_equal(targetId, &results[k])) {
-                    duplicate = true;
+                    duplicate = UA_TRUE;
                     break;
                 }
             }
@@ -404,7 +404,7 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
     0, NULL,                     /* arrayDimensions */
     UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
     0.0,                         /* minimumSamplingInterval */
-    false                        /* historizing */
+    UA_FALSE                        /* historizing */
 };
 
 const UA_MethodAttributes UA_MethodAttributes_default = {
@@ -412,7 +412,7 @@ const UA_MethodAttributes UA_MethodAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    true, true              /* executable (userExecutable) */
+    UA_TRUE, UA_TRUE              /* executable (userExecutable) */
 };
 
 const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default = {
@@ -420,7 +420,7 @@ const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    false                   /* isAbstract */
+    UA_FALSE                   /* isAbstract */
 };
 
 const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
@@ -434,7 +434,7 @@ const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
     UA_VALUERANK_ANY,            /* valueRank */
     0, NULL,                     /* arrayDimensions */
-    false                        /* isAbstract */
+    UA_FALSE                        /* isAbstract */
 };
 
 const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default = {
@@ -442,8 +442,8 @@ const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    false,                  /* isAbstract */
-    false,                  /* symmetric */
+    UA_FALSE,                  /* isAbstract */
+    UA_FALSE,                  /* symmetric */
     {{0, NULL}, {0, NULL}}  /* inverseName */
 };
 
@@ -452,7 +452,7 @@ const UA_DataTypeAttributes UA_DataTypeAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    false                   /* isAbstract */
+    UA_FALSE                   /* isAbstract */
 };
 
 const UA_ViewAttributes UA_ViewAttributes_default = {
@@ -460,7 +460,7 @@ const UA_ViewAttributes UA_ViewAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    false,                  /* containsNoLoops */
+    UA_FALSE,                  /* containsNoLoops */
     0                       /* eventNotifier */
 };
 

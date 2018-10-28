@@ -34,15 +34,15 @@ readTimeData(UA_Server *server,
              UA_Boolean sourceTimeStamp,
              const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
-        value->hasStatus = true;
+        value->hasStatus = UA_TRUE;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
     UA_DateTime currentTime = UA_DateTime_now();
     UA_Variant_setScalarCopy(&value->value, &currentTime, &UA_TYPES[UA_TYPES_DATETIME]);
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
+        value->hasSourceTimestamp = UA_TRUE;
         value->sourceTimestamp = currentTime;
     }
     return UA_STATUSCODE_GOOD;
@@ -190,8 +190,8 @@ setInformationModel(UA_Server *server) {
 
     UA_MethodAttributes addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "Hello World");
-    addmethodattributes.executable = true;
-    addmethodattributes.userExecutable = true;
+    addmethodattributes.executable = UA_TRUE;
+    addmethodattributes.userExecutable = UA_TRUE;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -324,9 +324,9 @@ setInformationModel(UA_Server *server) {
     /* Add the variable to some more places to get a node with three inverse references for the CTT */
     UA_ExpandedNodeId answer_nodeid = UA_EXPANDEDNODEID_STRING(1, "the.answer");
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, DEMOID),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), answer_nodeid, true);
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), answer_nodeid, UA_TRUE);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, SCALARID),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), answer_nodeid, true);
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), answer_nodeid, UA_TRUE);
 
     /* Example for manually setting an attribute within the server */
     UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("en-US", "Objects");
@@ -341,8 +341,8 @@ setInformationModel(UA_Server *server) {
     /* Method without arguments */
     addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "noarg");
-    addmethodattributes.executable = true;
-    addmethodattributes.userExecutable = true;
+    addmethodattributes.executable = UA_TRUE;
+    addmethodattributes.userExecutable = UA_TRUE;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, NOARGID),
                             UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -353,8 +353,8 @@ setInformationModel(UA_Server *server) {
     /* Method with in arguments */
     addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "inarg");
-    addmethodattributes.executable = true;
-    addmethodattributes.userExecutable = true;
+    addmethodattributes.executable = UA_TRUE;
+    addmethodattributes.userExecutable = UA_TRUE;
 
     UA_Argument_init(&inputArguments);
     inputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
@@ -372,8 +372,8 @@ setInformationModel(UA_Server *server) {
     /* Method with out arguments */
     addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "outarg");
-    addmethodattributes.executable = true;
-    addmethodattributes.userExecutable = true;
+    addmethodattributes.executable = UA_TRUE;
+    addmethodattributes.userExecutable = UA_TRUE;
 
     UA_Argument_init(&outputArguments);
     outputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
@@ -391,8 +391,8 @@ setInformationModel(UA_Server *server) {
     /* Method with inout arguments */
     addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "inoutarg");
-    addmethodattributes.executable = true;
-    addmethodattributes.userExecutable = true;
+    addmethodattributes.executable = UA_TRUE;
+    addmethodattributes.userExecutable = UA_TRUE;
 
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, INOUTARGID),
                             UA_NODEID_NUMERIC(1, DEMOID),
@@ -403,7 +403,7 @@ setInformationModel(UA_Server *server) {
 #endif
 }
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 
 static void
 stopHandler(int sign) {

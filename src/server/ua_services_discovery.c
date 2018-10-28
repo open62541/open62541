@@ -121,17 +121,17 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing FindServersRequest");
 
     /* Return the server itself? */
-    UA_Boolean foundSelf = false;
+    UA_Boolean foundSelf = UA_FALSE;
     if(request->serverUrisSize) {
         for(size_t i = 0; i < request->serverUrisSize; i++) {
             if(UA_String_equal(&request->serverUris[i],
                                &server->config.applicationDescription.applicationUri)) {
-                foundSelf = true;
+                foundSelf = UA_TRUE;
                 break;
             }
         }
     } else {
-        foundSelf = true;
+        foundSelf = UA_TRUE;
     }
 
 #ifndef UA_ENABLE_DISCOVERY
@@ -233,7 +233,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
         for(size_t j = 0; j < server->config.endpointsSize; ++j)
-            relevant_endpoints[j] = true;
+            relevant_endpoints[j] = UA_TRUE;
         relevant_count = server->config.endpointsSize;
     } else {
         for(size_t j = 0; j < server->config.endpointsSize; ++j) {
@@ -241,7 +241,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                 if(!UA_String_equal(&request->profileUris[i],
                                     &server->config.endpoints[j].endpointDescription.transportProfileUri))
                     continue;
-                relevant_endpoints[j] = true;
+                relevant_endpoints[j] = UA_TRUE;
                 ++relevant_count;
                 break;
             }
@@ -255,10 +255,10 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
     /* Clone the endpoint for each networklayer? */
     size_t clone_times = 1;
-    UA_Boolean nl_endpointurl = false;
+    UA_Boolean nl_endpointurl = UA_FALSE;
     if(endpointUrl->length == 0) {
         clone_times = server->config.networkLayersSize;
-        nl_endpointurl = true;
+        nl_endpointurl = UA_TRUE;
     }
 
     response->endpoints =
@@ -626,7 +626,7 @@ periodicServerRegister(UA_Server *server, void *data) {
         retval = UA_Server_changeRepeatedCallbackInterval(server, cb->id, cb->default_interval);
         /* If changing the interval fails, try again after the next registering */
         if(retval == UA_STATUSCODE_GOOD)
-            cb->registered = true;
+            cb->registered = UA_TRUE;
     }
 }
 
@@ -677,7 +677,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
      * interval.*/
     cb->this_interval = 500;
     cb->default_interval = intervalMs;
-    cb->registered = false;
+    cb->registered = UA_FALSE;
     cb->client = client;
     cb->discovery_server_url = discoveryServerUrl;
 
@@ -696,7 +696,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     }
 
 #ifndef __clang_analyzer__
-    // the analyzer reports on LIST_INSERT_HEAD a use after free false positive
+    // the analyzer reports on LIST_INSERT_HEAD a use after free UA_FALSE positive
     periodicServerRegisterCallback_entry *newEntry =
             (periodicServerRegisterCallback_entry *)UA_malloc(sizeof(periodicServerRegisterCallback_entry));
     if(!newEntry) {

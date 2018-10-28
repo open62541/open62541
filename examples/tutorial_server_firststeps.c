@@ -23,10 +23,10 @@
 #include "open62541.h"
 #include <signal.h>
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 int main(void) {
@@ -97,7 +97,7 @@ int main(void) {
  * method ``stopHandler`` that catches the signal (interrupt) the program
  * receives when the operating systems tries to close it. This happens for
  * example when you press ctrl-c in a terminal program. The signal handler then
- * sets the variable ``running`` to false and the server shuts down once it
+ * sets the variable ``running`` to UA_FALSE and the server shuts down once it
  * takes back control. [#f1]_
  *
  * In order to integrated OPC UA in a single-threaded application with its own

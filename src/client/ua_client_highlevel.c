@@ -295,7 +295,7 @@ __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
     else
         /* hack. is never written into. */
         UA_Variant_setScalar(&wValue.value.value, (void*)(uintptr_t)in, inDataType);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = &wValue;
@@ -328,7 +328,7 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
     wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
     UA_Variant_setArray(&wValue.value.value, (void*)(uintptr_t)newArrayDimensions,
                         newArrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = &wValue;
@@ -561,7 +561,7 @@ UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
         /* hack. is never written into. */
         UA_Variant_setScalar(&wValue.value.value, (void*) (uintptr_t) in,
                 inDataType);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = &wValue;

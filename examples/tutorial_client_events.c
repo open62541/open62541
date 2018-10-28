@@ -16,10 +16,10 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
-static UA_Boolean running = true;
+static UA_Boolean running = UA_TRUE;
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

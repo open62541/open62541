@@ -29,7 +29,7 @@ static UA_Boolean
 UA_Notification_isOverflowEvent(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     if(mon->monitoredItemType != UA_MONITOREDITEMTYPE_EVENTNOTIFY)
-        return false;
+        return UA_FALSE;
 
     UA_EventFieldList *efl = &n->data.event.fields;
     if(efl->eventFieldsSize == 1 &&
@@ -37,10 +37,10 @@ UA_Notification_isOverflowEvent(UA_Server *server, UA_Notification *n) {
        isNodeInTree(&server->config.nodestore,
                     (const UA_NodeId *)efl->eventFields[0].data,
                     &overflowEventType, &subtypeId, 1)) {
-        return true;
+        return UA_TRUE;
     }
 
-    return false;
+    return UA_FALSE;
 }
 
 static UA_Notification *
@@ -208,7 +208,7 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         /* Deregister */
         server->config.monitoredItemRegisterCallback(server, &session->sessionId,
                                                      session->sessionHandle, &monitoredItem->monitoredNodeId,
-                                                     targetContext, monitoredItem->attributeId, true);
+                                                     targetContext, monitoredItem->attributeId, UA_TRUE);
     }
 
     /* Remove the monitored item */
@@ -343,7 +343,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         /* Set the infobits */
         if(mon->maxQueueSize > 1) {
             /* Add the infobits either to the newest or the new last entry */
-            indicator->data.value.hasStatus = true;
+            indicator->data.value.hasStatus = UA_TRUE;
             indicator->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE |
                                              UA_STATUSCODE_INFOBITS_OVERFLOW);
         } else {
@@ -369,7 +369,7 @@ UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon
         UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_sampleCallback,
                                       mon, (UA_UInt32)mon->samplingInterval, &mon->sampleCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
-        mon->sampleCallbackIsRegistered = true;
+        mon->sampleCallbackIsRegistered = UA_TRUE;
     return retval;
 }
 
@@ -377,7 +377,7 @@ UA_StatusCode
 UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     if(!mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
-    mon->sampleCallbackIsRegistered = false;
+    mon->sampleCallbackIsRegistered = UA_FALSE;
     return UA_Server_removeRepeatedCallback(server, mon->sampleCallbackId);
 }
 

@@ -76,8 +76,8 @@ static UA_Boolean
 matchClassMask(const UA_Node *node, UA_UInt32 nodeClassMask) {
     if(nodeClassMask != UA_NODECLASS_UNSPECIFIED &&
        (node->nodeClass & nodeClassMask) == 0)
-        return false;
-    return true;
+        return UA_FALSE;
+    return UA_TRUE;
 }
 
 /* Returns whether the node / continuationpoint is done */
@@ -90,7 +90,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
     /* If the node has no references, just return */
     if(node->referencesSize == 0) {
         result->referencesSize = 0;
-        return true;;
+        return UA_TRUE;;
     }
 
     /* Follow all references? */
@@ -111,12 +111,12 @@ browseReferences(UA_Server *server, const UA_Node *node,
     }
 
     /* Allocate the results array */
-    size_t refs_size = 2; /* True size of the array */
+    size_t refs_size = 2; /* UA_TRUE size of the array */
     result->references = (UA_ReferenceDescription*)
         UA_Array_new(refs_size, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
     if(!result->references) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        return false;
+        return UA_FALSE;
     }
 
     size_t referenceKindIndex = cp->referenceKindIndex;
@@ -156,7 +156,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
                 cp->referenceKindIndex = referenceKindIndex;
                 cp->targetIndex = targetIndex;
                 UA_Nodestore_release(server, target);
-                return false;
+                return UA_FALSE;
             }
 
             /* Make enough space in the array */
@@ -198,7 +198,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
     }
 
     /* The node is done */
-    return true;
+    return UA_TRUE;
 
  error_recovery:
     if(result->referencesSize == 0)
@@ -208,7 +208,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
                         &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
     result->references = NULL;
     result->referencesSize = 0;
-    return false;
+    return UA_FALSE;
 }
 
 /* Results for a single browsedescription. This is the inner loop for both
@@ -225,7 +225,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
        descr->browseDirection != UA_BROWSEDIRECTION_FORWARD &&
        descr->browseDirection != UA_BROWSEDIRECTION_INVERSE) {
         result->statusCode = UA_STATUSCODE_BADBROWSEDIRECTIONINVALID;
-        return true;
+        return UA_TRUE;
     }
 
     /* Is the reference type valid? */
@@ -233,7 +233,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
         const UA_Node *reftype = UA_Nodestore_get(server, &descr->referenceTypeId);
         if(!reftype) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-            return true;
+            return UA_TRUE;
         }
 
         UA_Boolean isRef = (reftype->nodeClass == UA_NODECLASS_REFERENCETYPE);
@@ -241,14 +241,14 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
 
         if(!isRef) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-            return true;
+            return UA_TRUE;
         }
     }
 
     const UA_Node *node = UA_Nodestore_get(server, &descr->nodeId);
     if(!node) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return true;
+        return UA_TRUE;
     }
 
     /* Browse the references */
@@ -548,7 +548,7 @@ addBrowsePathTargets(UA_Server *server, UA_Session *session, UA_UInt32 nodeClass
          * previous path element */
         if(targetName->namespaceIndex != node->browseName.namespaceIndex ||
            !UA_String_equal(&targetName->name, &node->browseName.name))
-            skip = true;
+            skip = UA_TRUE;
 
         UA_Nodestore_release(server, node);
 
@@ -757,7 +757,7 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
     memset(rpe, 0, sizeof(UA_RelativePathElement) * browsePathSize);
     for(size_t j = 0; j < browsePathSize; j++) {
         rpe[j].referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
-        rpe[j].includeSubtypes = true;
+        rpe[j].includeSubtypes = UA_TRUE;
         rpe[j].targetName = browsePath[j];
     }
     bp.relativePath.elements = rpe;

@@ -175,11 +175,11 @@ updateNodeIdSetting_gathering_default(UA_Server *server,
     UA_NodeIdStoreContext *ctx = (UA_NodeIdStoreContext*)context;
     UA_NodeIdStoreContextItem_gathering_default *item = getNodeIdStoreContextItem_gathering_default(ctx, nodeId);
     if (!item) {
-        return false;
+        return UA_FALSE;
     }
     stopPoll_gathering_default(server, context, nodeId);
     item->setting = setting;
-    return true;
+    return UA_TRUE;
 }
 
 static void

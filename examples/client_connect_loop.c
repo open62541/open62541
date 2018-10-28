@@ -13,7 +13,7 @@
 #include "open62541.h"
 #include <signal.h>
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 UA_Logger logger = UA_Log_Stdout;
 
 static void stopHandler(int sign) {

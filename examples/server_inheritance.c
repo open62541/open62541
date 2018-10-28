@@ -4,9 +4,9 @@
 #include "open62541.h"
 #include <signal.h>
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sig) {
-    running = false;
+    running = UA_FALSE;
 }
 
 /**
@@ -20,7 +20,7 @@ static void stopHandler(int sig) {
  *  v- Species
  *  o- Abilities
  *      v- MakeSound
- *      v- Breathe = True
+ *      v- Breathe = UA_TRUE
  *  + DogType
  *      v- Species = "Canis"
  *      v- Name
@@ -179,7 +179,7 @@ static void createCustomInheritance(UA_Server *server) {
                               vAttr, NULL, NULL);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30001),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
 
     vAttr = UA_VariableAttributes_default;
     vAttr.description =  UA_LOCALIZEDTEXT("en-US", "Lamp brightness");
@@ -193,7 +193,7 @@ static void createCustomInheritance(UA_Server *server) {
                               vAttr, NULL, NULL);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30002),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
     
     /* Now we want to inherit all the mandatory children for LampGreen and don't care about the node ids.
      * These will be automatically generated. This will internally call the _begin and _finish methods */

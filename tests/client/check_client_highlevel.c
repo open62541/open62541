@@ -26,12 +26,12 @@ UA_Client *client;
 
 THREAD_CALLBACK(serverloop) {
     while (running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    running = UA_TRUE;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
 
@@ -48,7 +48,7 @@ static void setup(void) {
 static void teardown(void) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    running = false;
+    running = UA_FALSE;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -184,8 +184,8 @@ START_TEST(Node_Add) {
         UA_MethodAttributes attr = UA_MethodAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en-US", "Dummy method");
         attr.displayName = UA_LOCALIZEDTEXT("en-US", "Dummy");
-        attr.executable = true;
-        attr.userExecutable = true;
+        attr.executable = UA_TRUE;
+        attr.userExecutable = UA_TRUE;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          newObjectId,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
@@ -219,7 +219,7 @@ START_TEST(Node_Add) {
     // Delete 'Top' from view
     retval = UA_Client_deleteReference(client, newViewId,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                       true, target, true);
+                                       UA_TRUE, target, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // Delete 'AllTopCoordinates' view
@@ -449,8 +449,8 @@ START_TEST(Node_AddReadWriteNodes) {
         UA_MethodAttributes attr = UA_MethodAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en-US", "Dummy method");
         attr.displayName = UA_LOCALIZEDTEXT("en-US", "Dummy");
-        attr.executable = true;
-        attr.userExecutable = true;
+        attr.executable = UA_TRUE;
+        attr.userExecutable = UA_TRUE;
         attr.writeMask = 0xFFFFFFFF;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
                                          nodeReadWriteUnitTest,

@@ -82,7 +82,7 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
   for(size_t idx = 0; idx < server->namespacesSize; idx++)
   {
-    if(UA_String_equal(&server->namespaces[idx], &namespaceUri) == true)
+    if(UA_String_equal(&server->namespaces[idx], &namespaceUri) == UA_TRUE)
     {
       (*foundIndex) = idx;
       return UA_STATUSCODE_GOOD;
@@ -571,7 +571,7 @@ UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
         ++loopCount;
         loopCount %= UA_VALGRIND_INTERACTIVE_INTERVAL;
 #endif
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     }
     return UA_Server_run_shutdown(server);
 }

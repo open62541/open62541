@@ -85,8 +85,8 @@ findSingleChildNode(UA_Server *server_, UA_QualifiedName targetName, UA_NodeId r
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = referenceTypeId;
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
+    rpe.isInverse = UA_FALSE;
+    rpe.includeSubtypes = UA_FALSE;
     rpe.targetName = targetName;
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);

@@ -25,14 +25,14 @@ UA_Client *clientRegisterRepeated;
 
 THREAD_CALLBACK(serverloop_lds) {
     while(*running_lds)
-        UA_Server_run_iterate(server_lds, true);
+        UA_Server_run_iterate(server_lds, UA_TRUE);
     return 0;
 }
 
 static void setup_lds(void) {
     // start LDS server
     running_lds = UA_Boolean_new();
-    *running_lds = true;
+    *running_lds = UA_TRUE;
     config_lds = UA_ServerConfig_new_default();
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_deleteMembers(&config_lds->applicationDescription.applicationUri);
@@ -57,7 +57,7 @@ static void setup_lds(void) {
 }
 
 static void teardown_lds(void) {
-    *running_lds = false;
+    *running_lds = UA_FALSE;
     THREAD_JOIN(server_thread_lds);
     UA_Server_run_shutdown(server_lds);
     UA_Boolean_delete(running_lds);
@@ -74,14 +74,14 @@ UA_UInt64 periodicRegisterCallbackId;
 
 THREAD_CALLBACK(serverloop_register) {
     while(*running_register)
-        UA_Server_run_iterate(server_register, true);
+        UA_Server_run_iterate(server_register, UA_TRUE);
     return 0;
 }
 
 static void setup_register(void) {
     // start register server
     running_register = UA_Boolean_new();
-    *running_register = true;
+    *running_register = UA_TRUE;
     config_register = UA_ServerConfig_new_minimal(16664, NULL);
     UA_String_deleteMembers(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
@@ -96,7 +96,7 @@ static void setup_register(void) {
 }
 
 static void teardown_register(void) {
-    *running_register = false;
+    *running_register = UA_FALSE;
     THREAD_JOIN(server_thread_register);
     UA_Server_run_shutdown(server_register);
     UA_Boolean_delete(running_register);

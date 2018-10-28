@@ -31,7 +31,7 @@ multicastWorkerLoop(UA_Server *server) {
 
         unsigned short retVal =
             mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
-                       FD_ISSET(server->mdnsSocket, &fds), true, &next_sleep);
+                       FD_ISSET(server->mdnsSocket, &fds), UA_TRUE, &next_sleep);
         if(retVal == 1) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -135,9 +135,9 @@ filterServerRecord(size_t serverCapabilityFilterSize, UA_String *serverCapabilit
         for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++)
             if(!UA_String_equal(&serverCapabilityFilter[i],
                                 &current->serverOnNetwork.serverCapabilities[j]))
-                return false;
+                return UA_FALSE;
     }
-    return true;
+    return UA_TRUE;
 }
 
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
@@ -549,7 +549,7 @@ iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
                                 UA_Boolean processIn) {
     struct timeval next_sleep = { 0, 0 };
     unsigned short retval = mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
-                                       processIn, true, &next_sleep);
+                                       processIn, UA_TRUE, &next_sleep);
     if(retval == 1) {
         UA_LOG_SOCKET_ERRNO_WRAP(
                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,

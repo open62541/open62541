@@ -12,7 +12,7 @@
 #include "testing_policy.h"
 #include "check.h"
 
-#define SET_CALLED(func) funcsCalled->func = true
+#define SET_CALLED(func) funcsCalled->func = UA_TRUE
 
 static funcs_called *funcsCalled;
 static const key_sizes *keySizes;

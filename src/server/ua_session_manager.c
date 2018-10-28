@@ -47,7 +47,7 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     UA_Session_detachFromSecureChannel(&sentry->session);
 
     /* Deactivate the session */
-    sentry->session.activated = false;
+    sentry->session.activated = UA_FALSE;
 
     /* Detach the session from the session manager and make the capacity
      * available */

@@ -308,7 +308,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     UA_NodeId extensionObject = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
     /* if we have an extension object which is still encoded (e.g. from the nodeset compiler)
      * we need to decode it and set the decoded value instead of the encoded object */
-    UA_Boolean valueSet = false;
+    UA_Boolean valueSet = UA_FALSE;
     if(attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
 
         if (attr->value.data == UA_EMPTY_ARRAY_SENTINEL) {
@@ -339,7 +339,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
                 }
 
                 UA_Variant_setArray(&node->value.data.value.value, dst, attr->value.arrayLength, type);
-                valueSet = true;
+                valueSet = UA_TRUE;
             }
         }
     }
@@ -347,7 +347,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     if(!valueSet)
         retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
 
-    node->value.data.value.hasValue = true;
+    node->value.data.value.hasValue = UA_TRUE;
 
     return retval;
 }
@@ -611,10 +611,10 @@ UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
         UA_NodeReferenceKind *refs = &node->references[i-1];
 
         /* Shall we keep the references of this type? */
-        UA_Boolean skip = false;
+        UA_Boolean skip = UA_FALSE;
         for(size_t j = 0; j < referencesSkipSize; j++) {
             if(UA_NodeId_equal(&refs->referenceTypeId, &referencesSkip[j])) {
-                skip = true;
+                skip = UA_TRUE;
                 break;
             }
         }

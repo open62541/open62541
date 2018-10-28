@@ -36,13 +36,13 @@ pthread_t server_thread;
 
 static void * serverloop(void *_) {
     while(*running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     return NULL;
 }
 
 static void start_server(void) {
     running = UA_Boolean_new();
-    *running = true;
+    *running = UA_TRUE;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -50,7 +50,7 @@ static void start_server(void) {
 }
 
 static void teardown_server(void) {
-    *running = false;
+    *running = UA_FALSE;
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
@@ -238,7 +238,7 @@ writeValueRequest(UA_Client *client) {
     UA_WriteValue_init(&wValue);
     UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "MyServer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    wValue.value.hasValue = true;
+    wValue.value.hasValue = UA_TRUE;
     wValue.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
     ASSERT_GOOD(UA_Server_write(server, &wValue));
@@ -537,7 +537,7 @@ nodemanagementRequests(UA_Client *client) {
 
     ASSERT_GOOD(UA_Client_deleteReference(client, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                          true, target, true));
+                                          UA_TRUE, target, UA_TRUE));
 
     ASSERT_GOOD(UA_Client_deleteNode(client, newObjectId, UA_TRUE));
 

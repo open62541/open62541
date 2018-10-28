@@ -150,14 +150,14 @@ START_TEST(AddNodeTwiceGivesError) {
     ck_assert_int_eq(res, UA_STATUSCODE_BADNODEIDEXISTS);
 } END_TEST
 
-static UA_Boolean constructorCalled = false;
+static UA_Boolean constructorCalled = UA_FALSE;
 
 static UA_StatusCode
 objectConstructor(UA_Server *server_,
                   const UA_NodeId *sessionId, void *sessionContext,
                   const UA_NodeId *typeId, void *typeContext,
                   const UA_NodeId *nodeId, void **nodeContext) {
-    constructorCalled = true;
+    constructorCalled = UA_TRUE;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -192,17 +192,17 @@ START_TEST(AddObjectWithConstructor) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
     /* Verify that the constructor was called */
-    ck_assert_int_eq(constructorCalled, true);
+    ck_assert_int_eq(constructorCalled, UA_TRUE);
 } END_TEST
 
-static UA_Boolean destructorCalled = false;
+static UA_Boolean destructorCalled = UA_FALSE;
 
 static void
 objectDestructor(UA_Server *server_,
                  const UA_NodeId *sessionId, void *sessionContext,
                  const UA_NodeId *typeId, void *typeContext,
                  const UA_NodeId *nodeId, void **nodeContext) {
-    destructorCalled = true;
+    destructorCalled = UA_TRUE;
 }
 
 START_TEST(DeleteObjectWithDestructor) {
@@ -236,10 +236,10 @@ START_TEST(DeleteObjectWithDestructor) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
     /* Delete the object */
-    UA_Server_deleteNode(server, objectid, true);
+    UA_Server_deleteNode(server, objectid, UA_TRUE);
 
     /* Verify that the destructor was called */
-    ck_assert_int_eq(destructorCalled, true);
+    ck_assert_int_eq(destructorCalled, UA_TRUE);
 } END_TEST
 
 START_TEST(DeleteObjectAndReferences) {
@@ -274,7 +274,7 @@ START_TEST(DeleteObjectAndReferences) {
     UA_BrowseResult_deleteMembers(&br);
 
     /* Delete the object */
-    UA_Server_deleteNode(server, objectid, true);
+    UA_Server_deleteNode(server, objectid, UA_TRUE);
 
     /* Browse again, this time we expect that no reference is found */
     br = UA_Server_browse(server, 0, &bd);
@@ -342,7 +342,7 @@ START_TEST(InstantiateObjectType) {
     /* Make the manufacturer name mandatory */
     retval = UA_Server_addReference(server, manufacturerNameId,
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
@@ -377,7 +377,7 @@ START_TEST(InstantiateObjectType) {
     /* Make the status variable mandatory */
     retval = UA_Server_addReference(server, statusId,
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;

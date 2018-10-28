@@ -31,8 +31,8 @@ static void findChildId(UA_NodeId stateId, UA_NodeId referenceType, const UA_Qua
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = referenceType;
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
+    rpe.isInverse = UA_FALSE;
+    rpe.includeSubtypes = UA_FALSE;
     rpe.targetName = targetName;
 
     UA_BrowsePath bp;
@@ -93,7 +93,7 @@ START_TEST(Nodes_createCustomStateType)
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 6001), UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     }
@@ -131,7 +131,7 @@ START_TEST(Nodes_createCustomObjectType)
 
         /* modelling rule is mandatory so it will be inherited for the object created from CustomDemoType */
         retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 6011), UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
 

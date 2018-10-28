@@ -113,7 +113,7 @@ processChunk(UA_Connection *connection, void *application,
 
     /* At least 8 byte needed for the header. Wait for the next chunk. */
     if(remaining < 8) {
-        *done = true;
+        *done = UA_TRUE;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -145,14 +145,14 @@ processChunk(UA_Connection *connection, void *application,
 
     /* Have an the complete chunk */
     if(chunk_length > remaining) {
-        *done = true;
+        *done = UA_TRUE;
         return UA_STATUSCODE_GOOD;
     }
 
     /* Process the chunk; forward the position pointer */
     temp.length = chunk_length;
     *posp += chunk_length;
-    *done = false;
+    *done = UA_FALSE;
     return processCallback(application, connection, &temp);
 }
 
@@ -166,7 +166,7 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
     /* Loop over the received chunks. pos is increased with each chunk. */
     const UA_Byte *pos = packet->data;
     const UA_Byte *end = &packet->data[packet->length];
-    UA_Boolean done = false;
+    UA_Boolean done = UA_FALSE;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     while(!done) {
         retval = processChunk(connection, application, processCallback, &pos, end, &done);
@@ -194,7 +194,7 @@ completeChunkTrampoline(void *application, UA_Connection *connection,
                         UA_ByteString *chunk) {
     struct completeChunkTrampolineData *data =
         (struct completeChunkTrampolineData*)application;
-    data->called = true;
+    data->called = UA_TRUE;
     return data->processCallback(data->application, connection, chunk);
 }
 
@@ -206,12 +206,12 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
     UA_DateTime maxDate = now + (timeout * UA_DATETIME_MSEC);
 
     struct completeChunkTrampolineData data;
-    data.called = false;
+    data.called = UA_FALSE;
     data.application = application;
     data.processCallback = processCallback;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    while(true) {
+    while(UA_TRUE) {
         /* Listen for messages to arrive */
         UA_ByteString packet = UA_BYTESTRING_NULL;
         retval = connection->recv(connection, &packet, timeout);
@@ -244,7 +244,7 @@ UA_StatusCode
 UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *application,
                                     UA_Connection_processChunk processCallback) {
     struct completeChunkTrampolineData data;
-    data.called = false;
+    data.called = UA_FALSE;
     data.application = application;
     data.processCallback = processCallback;
 

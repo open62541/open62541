@@ -72,8 +72,8 @@ addHellWorldMethod(UA_Server *server) {
     UA_MethodAttributes helloAttr = UA_MethodAttributes_default;
     helloAttr.description = UA_LOCALIZEDTEXT("en-US","Say `Hello World`");
     helloAttr.displayName = UA_LOCALIZEDTEXT("en-US","Hello World");
-    helloAttr.executable = true;
-    helloAttr.userExecutable = true;
+    helloAttr.executable = UA_TRUE;
+    helloAttr.userExecutable = UA_TRUE;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
@@ -146,8 +146,8 @@ addIncInt32ArrayMethod(UA_Server *server) {
     UA_MethodAttributes incAttr = UA_MethodAttributes_default;
     incAttr.description = UA_LOCALIZEDTEXT("en-US", "IncInt32ArrayValues");
     incAttr.displayName = UA_LOCALIZEDTEXT("en-US", "IncInt32ArrayValues");
-    incAttr.executable = true;
-    incAttr.userExecutable = true;
+    incAttr.executable = UA_TRUE;
+    incAttr.userExecutable = UA_TRUE;
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -159,10 +159,10 @@ addIncInt32ArrayMethod(UA_Server *server) {
 
 /** It follows the main server code, making use of the above definitions. */
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 int main(void) {

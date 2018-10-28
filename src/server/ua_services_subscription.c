@@ -385,8 +385,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         server->config.monitoredItemRegisterCallback(server, &session->sessionId,
                                                      session->sessionHandle,
                                                      &request->itemToMonitor.nodeId,
-                                                     targetContext, newMon->attributeId, false);
-        newMon->registered = true;
+                                                     targetContext, newMon->attributeId, UA_FALSE);
+        newMon->registered = UA_TRUE;
     }
 
     UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -695,7 +695,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Queue the publish response. It will be dequeued in a repeated publish
      * callback. This can also be triggered right now for a late
      * subscription. */
-    UA_Session_queuePublishReq(session, entry, false);
+    UA_Session_queuePublishReq(session, entry, UA_FALSE);
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message");
 
     /* If there are late subscriptions, the new publish request is used to
@@ -715,11 +715,11 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 
     /* If no entry was found, start at the beginning and don't restart  */
-    UA_Boolean found = false;
+    UA_Boolean found = UA_FALSE;
     if(!immediate)
         immediate = LIST_FIRST(&session->serverSubscriptions);
     else
-        found = true;
+        found = UA_TRUE;
 
  repeat:
     while(immediate) {
@@ -737,7 +737,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Restart at the beginning of the list */
     if(found) {
         immediate = LIST_FIRST(&session->serverSubscriptions);
-        found = false;
+        found = UA_FALSE;
         goto repeat;
     }
 

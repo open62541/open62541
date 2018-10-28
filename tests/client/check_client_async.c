@@ -26,12 +26,12 @@ THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
     while (running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     return 0;
 }
 
 static void setup(void) {
-    running = true;
+    running = UA_TRUE;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -39,7 +39,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    running = UA_FALSE;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -199,10 +199,10 @@ START_TEST(Client_read_async_timed)
         UA_Client_delete(client);
     }END_TEST
 
-static UA_Boolean inactivityCallbackTriggered = false;
+static UA_Boolean inactivityCallbackTriggered = UA_FALSE;
 
 static void inactivityCallback(UA_Client *client) {
-    inactivityCallbackTriggered = true;
+    inactivityCallbackTriggered = UA_TRUE;
 }
 
 START_TEST(Client_connectivity_check)
@@ -221,11 +221,11 @@ START_TEST(Client_connectivity_check)
         UA_Client_recv = client->connection.recv;
         client->connection.recv = UA_Client_recvTesting;
 
-        inactivityCallbackTriggered = false;
+        inactivityCallbackTriggered = UA_FALSE;
 
         retval = UA_Client_run_iterate(client, 1000 + 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(inactivityCallbackTriggered, false);
+        ck_assert_uint_eq(inactivityCallbackTriggered, UA_FALSE);
 
         /* Simulate network cable unplugged (no response from server) */
         UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
@@ -233,7 +233,7 @@ START_TEST(Client_connectivity_check)
         retval = UA_Client_run_iterate(client,
                 (UA_UInt16) (1000 + 1 + clientConfig.timeout));
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(inactivityCallbackTriggered, true);
+        ck_assert_uint_eq(inactivityCallbackTriggered, UA_TRUE);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);

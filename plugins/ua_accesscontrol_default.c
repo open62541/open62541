@@ -84,11 +84,11 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
         /* Try to match username/pw */
-        UA_Boolean match = false;
+        UA_Boolean match = UA_FALSE;
         for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
             if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
                UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
-                match = true;
+                match = UA_TRUE;
                 break;
             }
         }
@@ -128,7 +128,7 @@ static UA_Boolean
 getUserExecutable_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext) {
-    return true;
+    return UA_TRUE;
 }
 
 static UA_Boolean
@@ -136,35 +136,35 @@ getUserExecutableOnObject_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *methodId, void *methodContext,
                                   const UA_NodeId *objectId, void *objectContext) {
-    return true;
+    return UA_TRUE;
 }
 
 static UA_Boolean
 allowAddNode_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext,
                      const UA_AddNodesItem *item) {
-    return true;
+    return UA_TRUE;
 }
 
 static UA_Boolean
 allowAddReference_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_AddReferencesItem *item) {
-    return true;
+    return UA_TRUE;
 }
 
 static UA_Boolean
 allowDeleteNode_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
                         const UA_DeleteNodesItem *item) {
-    return true;
+    return UA_TRUE;
 }
 
 static UA_Boolean
 allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
                              const UA_NodeId *sessionId, void *sessionContext,
                              const UA_DeleteReferencesItem *item) {
-    return true;
+    return UA_TRUE;
 }
 
 /***************************************/

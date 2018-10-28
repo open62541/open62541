@@ -29,20 +29,20 @@ UA_NodeId parentNodeId;
 UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
 
-UA_Boolean notificationReceived = false;
+UA_Boolean notificationReceived = UA_FALSE;
 UA_UInt32 countNotificationReceived = 0;
 UA_Double publishingInterval = 500.0;
 UA_DataValue lastValue;
 
 THREAD_CALLBACK(serverloop) {
     while(running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     return 0;
 }
 
 static void setup(void) {
     UA_DataValue_init(&lastValue);
-    running = true;
+    running = UA_TRUE;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -85,7 +85,7 @@ static void setup(void) {
                                                                             NULL, NULL, NULL);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     subId = response.subscriptionId;
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
 }
 
@@ -99,7 +99,7 @@ static void teardown(void) {
     UA_NodeId_deleteMembers(&parentNodeId);
     UA_NodeId_deleteMembers(&parentReferenceNodeId);
     UA_NodeId_deleteMembers(&outNodeId);
-    running = false;
+    running = UA_FALSE;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -113,7 +113,7 @@ static void teardown(void) {
 static void
 dataChangeHandler(UA_Client *thisClient, UA_UInt32 thisSubId, void *subContext,
                   UA_UInt32 monId, void *monContext, UA_DataValue *value) {
-    notificationReceived = true;
+    notificationReceived = UA_TRUE;
     ++countNotificationReceived;
     UA_DataValue_deleteMembers(&lastValue);
     UA_DataValue_copy(value, &lastValue);
@@ -144,10 +144,10 @@ static UA_Boolean fuzzyLastValueIsEqualTo(UA_Double value) {
             && lastValue.value.type == &UA_TYPES[UA_TYPES_DOUBLE]) {
         double lastDouble = *((UA_Double*)(lastValue.value.data));
         if (lastDouble > value - offset && lastDouble < value + offset) {
-            return true;
+            return UA_TRUE;
         }
     }
-    return false;
+    return UA_FALSE;
 }
 
 START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
@@ -178,43 +178,43 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 
     // Do we get initial value ?
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger because no filter
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(42.0));
 
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(44.0));
 
     // set back to 40.0
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 40.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
@@ -225,7 +225,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
 
     itemModify.monitoredItemId = newMonitoredItemIds[0];
     itemModify.requestedParameters.samplingInterval = 250;
-    itemModify.requestedParameters.discardOldest = true;
+    itemModify.requestedParameters.discardOldest = UA_TRUE;
     itemModify.requestedParameters.queueSize = 1;
     itemModify.requestedParameters.clientHandle = newMonitoredItemIds[0];
     UA_DataChangeFilter filter;
@@ -253,11 +253,11 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
 
     // This should trigger only once for the new filter
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 39.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
@@ -266,13 +266,13 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     ck_assert(fuzzyLastValueIsEqualTo(39.0));
 
     // This should trigger once at 43.0.
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(43.0));
@@ -332,44 +332,44 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 
     // Do we get initial value ?
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should not trigger because of filter
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(notificationReceived, UA_FALSE);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger once at 43.0.
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(43.0));
 
     // set back to 40.0
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 40.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
@@ -380,7 +380,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
 
     itemModify.monitoredItemId = newMonitoredItemIds[0];
     itemModify.requestedParameters.samplingInterval = 250;
-    itemModify.requestedParameters.discardOldest = true;
+    itemModify.requestedParameters.discardOldest = UA_TRUE;
     itemModify.requestedParameters.queueSize = 1;
     itemModify.requestedParameters.clientHandle = newMonitoredItemIds[0];
     UA_DataChangeFilter unsetfilter;
@@ -408,24 +408,24 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
 
     // This should trigger because now we do not filter
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(42.0));
 
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(44.0));
@@ -477,43 +477,43 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 
     // Do we get initial value ?
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger because no filter
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(42.0));
 
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(44.0));
 
     // set back to 40.0
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 40.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
@@ -524,7 +524,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
 
     itemModify.monitoredItemId = newMonitoredItemIds[0];
     itemModify.requestedParameters.samplingInterval = 250;
-    itemModify.requestedParameters.discardOldest = true;
+    itemModify.requestedParameters.discardOldest = UA_TRUE;
     itemModify.requestedParameters.queueSize = 1;
     itemModify.requestedParameters.clientHandle = newMonitoredItemIds[0];
     UA_DataChangeFilter filter;
@@ -552,24 +552,24 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
 
     // This should trigger because setting filter failed
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(42.0));
 
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(44.0));
@@ -621,33 +621,33 @@ START_TEST(Server_MonitoredItemsNoFilter) {
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 
     // Do we get initial value ?
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger because no filter
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived,  2);
 
     ck_assert(fuzzyLastValueIsEqualTo(42.0));
 
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     ck_assert(fuzzyLastValueIsEqualTo(44.0));
@@ -706,34 +706,34 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 
     // Do we get initial value ?
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should not trigger because of filter
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(notificationReceived, UA_FALSE);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
     ck_assert(fuzzyLastValueIsEqualTo(40.0));
 
     // This should trigger once at 43.0.
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(notificationReceived, UA_TRUE);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     ck_assert(fuzzyLastValueIsEqualTo(43.0));
@@ -793,10 +793,10 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 
     // Do we get initial value ? (must fail)
-    notificationReceived = false;
+    notificationReceived = UA_FALSE;
     countNotificationReceived = 0;
     ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(notificationReceived, UA_FALSE);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
     // remove monitored item (must fail)

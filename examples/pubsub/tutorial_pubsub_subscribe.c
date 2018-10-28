@@ -22,10 +22,10 @@
 #include <stdio.h>
 #include <signal.h>
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 static void

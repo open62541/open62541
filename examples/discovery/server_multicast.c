@@ -11,7 +11,7 @@
 #include <signal.h>
 
 UA_Logger logger = UA_Log_Stdout;
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 
 
 const UA_ByteString
@@ -19,7 +19,7 @@ const UA_ByteString
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 static UA_StatusCode
@@ -28,7 +28,7 @@ readInteger(UA_Server *server, const UA_NodeId *sessionId,
             void *nodeContext, UA_Boolean includeSourceTimeStamp,
             const UA_NumericRange *range, UA_DataValue *value) {
     UA_Int32 *myInteger = (UA_Int32*)nodeContext;
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     UA_Variant_setScalarCopy(&value->value, myInteger, &UA_TYPES[UA_TYPES_INT32]);
 
     // we know the nodeid is a string
@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
                 "Server started. Waiting for announce of LDS Server.");
     while (running && discovery_url == NULL)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     if(!running) {
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
@@ -354,7 +354,7 @@ int main(int argc, char **argv) {
     }
 
     while (running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
 
     UA_Server_run_shutdown(server);
 

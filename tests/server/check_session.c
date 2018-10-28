@@ -18,7 +18,7 @@ START_TEST(Session_init_ShallWork) {
     UA_ApplicationDescription tmpAppDescription;
     UA_ApplicationDescription_init(&tmpAppDescription);
     UA_DateTime tmpDateTime = 0;
-    ck_assert_int_eq(session.activated, false);
+    ck_assert_int_eq(session.activated, UA_FALSE);
     ck_assert_int_eq(session.header.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
     ck_assert_int_eq(session.availableContinuationPoints, UA_MAXCONTINUATIONPOINTS);
     ck_assert_ptr_eq(session.header.channel, NULL);

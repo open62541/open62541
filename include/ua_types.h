@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014 (c) Leon Urbas
  *    Copyright 2014, 2016-2017 (c) Florian Palm
@@ -556,7 +556,7 @@ typedef struct {
     UA_UInt32 *arrayDimensions;   /* The length of each dimension */
 } UA_Variant;
 
-/* Returns true if the variant has no value defined (contains neither an array
+/* Returns UA_true if the variant has no value defined (contains neither an array
  * nor a scalar value).
  *
  * @param v The variant
@@ -566,7 +566,7 @@ UA_Variant_isEmpty(const UA_Variant *v) {
     return v->type == NULL;
 }
 
-/* Returns true if the variant contains a scalar value. Note that empty variants
+/* Returns UA_true if the variant contains a scalar value. Note that empty variants
  * contain an array of length -1 (undefined).
  *
  * @param v The variant
@@ -576,7 +576,7 @@ UA_Variant_isScalar(const UA_Variant *v) {
     return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
 }
 
-/* Returns true if the variant contains a scalar value of the given type.
+/* Returns UA_true if the variant contains a scalar value of the given type.
  *
  * @param v The variant
  * @param type The data type
@@ -586,7 +586,7 @@ UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type) {
     return UA_Variant_isScalar(v) && type == v->type;
 }
 
-/* Returns true if the variant contains an array of the given type.
+/* Returns UA_true if the variant contains an array of the given type.
  *
  * @param v The variant
  * @param type The data type

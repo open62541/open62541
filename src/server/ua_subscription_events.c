@@ -113,7 +113,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
-        UA_Server_deleteNode(server, newNodeId, true);
+        UA_Server_deleteNode(server, newNodeId, UA_TRUE);
         UA_NodeId_deleteMembers(&newNodeId);
         return retval;
     }
@@ -125,7 +125,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Server_deleteNode(server, newNodeId, true);
+        UA_Server_deleteNode(server, newNodeId, UA_TRUE);
         UA_NodeId_deleteMembers(&newNodeId);
         return retval;
     }
@@ -141,7 +141,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return false;
+        return UA_FALSE;
     }
     
 	/* Get the EventType Property Node */
@@ -153,7 +153,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
     if(retval != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return false;
+        return UA_FALSE;
     }
 
     const UA_NodeId *tEventType = (UA_NodeId*)tOutVariant.data;
@@ -171,7 +171,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
                      "Alarms and Conditions are not supported yet!");
         UA_BrowsePathResult_deleteMembers(&bpr);
         UA_Variant_deleteMembers(&tOutVariant);
-        return false;
+        return UA_FALSE;
     }
 
     /* check whether Valid Event other than Conditions */

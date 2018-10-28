@@ -63,13 +63,13 @@ writeVariable(UA_Server *server) {
     wv.nodeId = myIntegerNodeId;
     wv.attributeId = UA_ATTRIBUTEID_VALUE;
     wv.value.status = UA_STATUSCODE_BADNOTCONNECTED;
-    wv.value.hasStatus = true;
+    wv.value.hasStatus = UA_TRUE;
     UA_Server_write(server, &wv);
 
     /* Reset the variable to a good statuscode with a value */
-    wv.value.hasStatus = false;
+    wv.value.hasStatus = UA_FALSE;
     wv.value.value = myVar;
-    wv.value.hasValue = true;
+    wv.value.hasValue = UA_TRUE;
     UA_Server_write(server, &wv);
 }
 
@@ -95,10 +95,10 @@ writeWrongVariable(UA_Server *server) {
 
 /** It follows the main server code, making use of the above definitions. */
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 int main(void) {

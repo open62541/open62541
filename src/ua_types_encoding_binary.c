@@ -108,7 +108,7 @@ static status exchangeBuffer(Ctx *ctx) {
 }
 
 /* If encoding fails, exchange the buffer and try again. It is assumed that the
- * following encoding never fails on a fresh buffer. This is true for numerical
+ * following encoding never fails on a fresh buffer. This is UA_TRUE for numerical
  * types. */
 static status
 encodeWithExchangeBuffer(const void *ptr, encodeBinarySignature encodeFunc, Ctx *ctx) {
@@ -195,7 +195,7 @@ ENCODE_BINARY(Boolean) {
 DECODE_BINARY(Boolean) {
     if(ctx->pos + 1 > ctx->end)
         return UA_STATUSCODE_BADDECODINGERROR;
-    *dst = (*ctx->pos > 0) ? true : false;
+    *dst = (*ctx->pos > 0) ? UA_TRUE : UA_FALSE;
     ++ctx->pos;
     return UA_STATUSCODE_GOOD;
 }
@@ -1215,29 +1215,29 @@ DECODE_BINARY(DataValue) {
 
     /* Decode the content */
     if(encodingMask & 0x01) {
-        dst->hasValue = true;
+        dst->hasValue = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->value, Variant);
     }
     if(encodingMask & 0x02) {
-        dst->hasStatus = true;
+        dst->hasStatus = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->status, UInt32); /* StatusCode */
     }
     if(encodingMask & 0x04) {
-        dst->hasSourceTimestamp = true;
+        dst->hasSourceTimestamp = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->sourceTimestamp, UInt64); /* DateTime */
     }
     if(encodingMask & 0x10) {
-        dst->hasSourcePicoseconds = true;
+        dst->hasSourcePicoseconds = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->sourcePicoseconds, UInt16);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
     if(encodingMask & 0x08) {
-        dst->hasServerTimestamp = true;
+        dst->hasServerTimestamp = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->serverTimestamp, UInt64); /* DateTime */
     }
     if(encodingMask & 0x20) {
-        dst->hasServerPicoseconds = true;
+        dst->hasServerPicoseconds = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->serverPicoseconds, UInt16);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -1304,27 +1304,27 @@ DECODE_BINARY(DiagnosticInfo) {
 
     /* Decode the content */
     if(encodingMask & 0x01) {
-        dst->hasSymbolicId = true;
+        dst->hasSymbolicId = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->symbolicId, UInt32); /* Int32 */
     }
     if(encodingMask & 0x02) {
-        dst->hasNamespaceUri = true;
+        dst->hasNamespaceUri = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->namespaceUri, UInt32); /* Int32 */
     }
     if(encodingMask & 0x04) {
-        dst->hasLocalizedText = true;
+        dst->hasLocalizedText = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->localizedText, UInt32); /* Int32 */
     }
     if(encodingMask & 0x08) {
-        dst->hasLocale = true;
+        dst->hasLocale = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->locale, UInt32); /* Int32 */
     }
     if(encodingMask & 0x10) {
-        dst->hasAdditionalInfo = true;
+        dst->hasAdditionalInfo = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->additionalInfo, String);
     }
     if(encodingMask & 0x20) {
-        dst->hasInnerStatusCode = true;
+        dst->hasInnerStatusCode = UA_TRUE;
         ret |= DECODE_DIRECT(&dst->innerStatusCode, UInt32); /* StatusCode */
     }
     if(encodingMask & 0x40) {
@@ -1333,7 +1333,7 @@ DECODE_BINARY(DiagnosticInfo) {
             UA_calloc(1, sizeof(UA_DiagnosticInfo));
         if(!dst->innerDiagnosticInfo)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        dst->hasInnerDiagnosticInfo = true;
+        dst->hasInnerDiagnosticInfo = UA_TRUE;
 
         /* Check the recursion limit */
         if(ctx->depth > UA_ENCODING_MAX_RECURSION)

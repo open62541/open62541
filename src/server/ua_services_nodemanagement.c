@@ -114,7 +114,7 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     UA_Boolean referenceTypeIsAbstract = referenceType->isAbstract;
     UA_Nodestore_release(server, (const UA_Node*)referenceType);
     /* Check that the reference type is not abstract */
-    if(referenceTypeIsAbstract == true) {
+    if(referenceTypeIsAbstract == UA_TRUE) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Abstract reference type to the parent not allowed");
         return UA_STATUSCODE_BADREFERENCENOTALLOWED;
@@ -164,7 +164,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return retval;
 
     /* Check the datatype against the vt */
-    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false)) {
+    if(!compatibleDataType(server, &node->dataType, &vt->dataType, UA_FALSE)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: The value is incompatible with the datatype of the VariableType");
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -219,7 +219,7 @@ static UA_StatusCode
 useVariableTypeAttributes(UA_Server *server, UA_Session *session,
                           const UA_VariableNode **node_ptr, const UA_VariableTypeNode *vt) {
     const UA_VariableNode *node = *node_ptr;
-    UA_Boolean modified = false;
+    UA_Boolean modified = UA_FALSE;
 
     /* If no value is set, see if the vt provides one and copy it. This needs to
      * be done before copying the datatype from the vt, as setting the datatype
@@ -244,7 +244,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
             v.nodeId = node->nodeId;
             v.attributeId = UA_ATTRIBUTEID_VALUE;
             retval = UA_Server_writeWithSession(server, session, &v);
-            modified = true;
+            modified = UA_TRUE;
         }
         UA_DataValue_deleteMembers(&v.value);
 
@@ -261,10 +261,10 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_WriteValue_init(&v);
         v.nodeId = node->nodeId;
         v.attributeId = UA_ATTRIBUTEID_DATATYPE;
-        v.value.hasValue = true;
+        v.value.hasValue = UA_TRUE;
         UA_Variant_setScalar(&v.value.value, (void*)(uintptr_t)&vt->dataType, &UA_TYPES[UA_TYPES_NODEID]);
         retval = UA_Server_writeWithSession(server, session, &v);
-        modified = true;
+        modified = UA_TRUE;
 
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -276,11 +276,11 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_WriteValue_init(&v);
         v.nodeId = node->nodeId;
         v.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
-        v.value.hasValue = true;
+        v.value.hasValue = UA_TRUE;
         UA_Variant_setArray(&v.value.value, vt->arrayDimensions, vt->arrayDimensionsSize,
                             &UA_TYPES[UA_TYPES_UINT32]);
         retval = UA_Server_writeWithSession(server, session, &v);
-        modified = true;
+        modified = UA_TRUE;
 
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -313,7 +313,7 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
     UA_BrowseDescription_init(&bd);
     bd.nodeId = *searchInstance;
     bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-    bd.includeSubtypes = true;
+    bd.includeSubtypes = UA_TRUE;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
     bd.resultMask = UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
@@ -350,7 +350,7 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
     /* Get the child */
     const UA_Node *child = UA_Nodestore_get(server, childNodeId);
     if(!child)
-        return false;
+        return UA_FALSE;
 
     /* Look for the reference making the child mandatory */
     for(size_t i = 0; i < child->referencesSize; ++i) {
@@ -362,13 +362,13 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
         for(size_t j = 0; j < refs->targetIdsSize; ++j) {
             if(UA_NodeId_equal(&mandatoryId, &refs->targetIds[j].nodeId)) {
                 UA_Nodestore_release(server, child);
-                return true;
+                return UA_TRUE;
             }
         }
     }
 
     UA_Nodestore_release(server, child);
-    return false;
+    return UA_FALSE;
 }
 
 static UA_StatusCode
@@ -411,7 +411,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
         UA_AddReferencesItem_init(&newItem);
         newItem.sourceNodeId = *destinationNodeId;
         newItem.referenceTypeId = rd->referenceTypeId;
-        newItem.isForward = true;
+        newItem.isForward = UA_TRUE;
         newItem.targetNodeId = rd->nodeId;
         newItem.targetNodeClass = UA_NODECLASS_METHOD;
         Operation_addReference(server, session, NULL, &newItem, &retval);
@@ -492,7 +492,7 @@ copyChildNodes(UA_Server *server, UA_Session *session,
     UA_BrowseDescription_init(&bd);
     bd.nodeId = *sourceNodeId;
     bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-    bd.includeSubtypes = true;
+    bd.includeSubtypes = UA_TRUE;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
     bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS |
@@ -774,7 +774,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             goto cleanup;
         }
 
-        retval = addRef(server, session, &node->nodeId, referenceTypeId, parentNodeId, false);
+        retval = addRef(server, session, &node->nodeId, referenceTypeId, parentNodeId, UA_FALSE);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Adding reference to parent of %.*s failed",
@@ -787,7 +787,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_OBJECT) {
         UA_assert(type != NULL); /* see above */
-        retval = addRef(server, session, &node->nodeId, &hasTypeDefinition, &type->nodeId, true);
+        retval = addRef(server, session, &node->nodeId, &hasTypeDefinition, &type->nodeId, UA_TRUE);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Adding a reference to the type "
@@ -979,7 +979,7 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
     if(type)
         UA_Nodestore_release(server, type);
     if(retval != UA_STATUSCODE_GOOD)
-        removeDeconstructedNode(server, session, node, true);
+        removeDeconstructedNode(server, session, node, UA_TRUE);
     UA_Nodestore_release(server, node);
     return retval;
 }
@@ -1096,7 +1096,7 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
     UA_DeleteReferencesItem item;
     UA_DeleteReferencesItem_init(&item);
     item.targetNodeId.nodeId = node->nodeId;
-    item.deleteBidirectional = false;
+    item.deleteBidirectional = UA_FALSE;
     UA_StatusCode dummy;
     for(size_t i = 0; i < node->referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->references[i];
@@ -1151,7 +1151,7 @@ removeChildren(UA_Server *server, UA_Session *session,
     UA_BrowseDescription_init(&bd);
     bd.nodeId = node->nodeId;
     bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-    bd.includeSubtypes = true;
+    bd.includeSubtypes = UA_TRUE;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
     bd.resultMask = UA_BROWSERESULTMASK_NONE;
@@ -1164,7 +1164,7 @@ removeChildren(UA_Server *server, UA_Session *session,
         return;
 
     UA_DeleteNodesItem item;
-    item.deleteTargetReferences = true;
+    item.deleteTargetReferences = UA_TRUE;
 
     /* Remove every child */
     for(size_t i = 0; i < br.referencesSize; ++i) {
@@ -1325,7 +1325,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         deleteItem.referenceTypeId = item->referenceTypeId;
         deleteItem.isForward = item->isForward;
         deleteItem.targetNodeId = item->targetNodeId;
-        deleteItem.deleteBidirectional = false;
+        deleteItem.deleteBidirectional = UA_FALSE;
         /* ignore returned status code */
         UA_Server_editNode(server, session, &item->sourceNodeId,
                            (UA_EditNodeCallback)deleteOneWayReference, &deleteItem);
@@ -1566,7 +1566,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
     UA_BrowseDescription_init(&bd);
     bd.nodeId = nodeId;
     bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    bd.includeSubtypes = false;
+    bd.includeSubtypes = UA_FALSE;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_VARIABLE;
     bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
@@ -1578,7 +1578,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Server_deleteNode(server, nodeId, true);
+        UA_Server_deleteNode(server, nodeId, UA_TRUE);
         UA_BrowseResult_deleteMembers(&br);
         return retval;
     }
@@ -1655,9 +1655,9 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
     return retval;
 
 error:
-    UA_Server_deleteNode(server, nodeId, true);
-    UA_Server_deleteNode(server, inputArgsId, true);
-    UA_Server_deleteNode(server, outputArgsId, true);
+    UA_Server_deleteNode(server, nodeId, UA_TRUE);
+    UA_Server_deleteNode(server, inputArgsId, UA_TRUE);
+    UA_Server_deleteNode(server, outputArgsId, UA_TRUE);
     UA_BrowseResult_deleteMembers(&br);
 
     return retval;

@@ -25,7 +25,7 @@ THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
     while(running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     return 0;
 }
 
@@ -33,11 +33,11 @@ static void
 onConnect (UA_Client *Client, void *connected, UA_UInt32 requestId,
            void *response) {
     if (UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
-        *(UA_Boolean *)connected = true;
+        *(UA_Boolean *)connected = UA_TRUE;
 }
 
 static void setup(void) {
-    running = true;
+    running = UA_TRUE;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -47,7 +47,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    running = false;
+    running = UA_FALSE;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
@@ -64,7 +64,7 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
 START_TEST(Client_connect_async){
     UA_StatusCode retval;
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-    UA_Boolean connected = false;
+    UA_Boolean connected = UA_FALSE;
     UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
                             &connected);
     /*Windows needs time to response*/
@@ -95,7 +95,7 @@ START_TEST(Client_connect_async){
     } while(reqId < 10);
 
     UA_BrowseRequest_deleteMembers(&bReq);
-    ck_assert_uint_eq(connected, true);
+    ck_assert_uint_eq(connected, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /* With default setting the client uses 4 requests to connect */
     ck_assert_uint_eq(asyncCounter, 10-4);
@@ -107,7 +107,7 @@ END_TEST
 START_TEST(Client_no_connection) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
-    UA_Boolean connected = false;
+    UA_Boolean connected = UA_FALSE;
     UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
             &connected);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -125,7 +125,7 @@ END_TEST
 
 START_TEST(Client_without_run_iterate) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-    UA_Boolean connected = false;
+    UA_Boolean connected = UA_FALSE;
     UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
                             &connected);
     UA_Client_delete(client);

@@ -32,7 +32,7 @@
  *
  * The nodestore uses atomic operations to set entries of the hash-map. If
  * UA_ENABLE_IMMUTABLE_NODES is configured, the nodestore allows read-access
- * from an interrupt without seeing corrupted nodes. For true multi-threaded
+ * from an interrupt without seeing corrupted nodes. For UA_TRUE multi-threaded
  * access, a mutex is used.
  *
  * Multi-threading without a mutex could be realized with the Linux RCU mechanism.
@@ -208,7 +208,7 @@ clearSlot(UA_NodeMap *ns, UA_NodeMapEntry **slot) {
     UA_NodeMapEntry *entry = *slot;
     if(UA_atomic_cmpxchg((void**)slot, entry, UA_NODEMAP_TOMBSTONE) != entry)
         return UA_STATUSCODE_BADINTERNALERROR;
-    entry->deleted = true;
+    entry->deleted = UA_TRUE;
     cleanupEntry(entry);
     --ns->count;
     /* Downsize the hashmap if it is very empty */
@@ -437,7 +437,7 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    oldEntryContainer->deleted = true;
+    oldEntryContainer->deleted = UA_TRUE;
     cleanupEntry(oldEntryContainer);
     END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
@@ -504,7 +504,7 @@ UA_Nodestore_default_new(UA_Nodestore *ns) {
     /* Populate the nodestore */
     ns->context = nodemap;
     ns->deleteNodestore = UA_NodeMap_delete;
-    ns->inPlaceEditAllowed = true;
+    ns->inPlaceEditAllowed = UA_TRUE;
     ns->newNode = UA_NodeMap_newNode;
     ns->deleteNode = UA_NodeMap_deleteNode;
     ns->getNode = UA_NodeMap_getNode;

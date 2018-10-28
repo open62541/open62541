@@ -740,7 +740,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Prepare DataSetMessageContent */
-    dataSetMessage->header.dataSetMessageValid = true;
+    dataSetMessage->header.dataSetMessageValid = UA_TRUE;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dataSetMessage->data.keyFrameData.fieldCount = currentDataSet->fieldSize;
     dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
@@ -758,17 +758,17 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
 
         /* Deactivate statuscode? */
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
-            dfv->hasStatus = false;
+            dfv->hasStatus = UA_FALSE;
 
         /* Deactivate timestamps */
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
-            dfv->hasSourceTimestamp = false;
+            dfv->hasSourceTimestamp = UA_FALSE;
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
-            dfv->hasSourcePicoseconds = false;
+            dfv->hasSourcePicoseconds = UA_FALSE;
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
-            dfv->hasServerTimestamp = false;
+            dfv->hasServerTimestamp = UA_FALSE;
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
-            dfv->hasServerPicoseconds = false;
+            dfv->hasServerPicoseconds = UA_FALSE;
 
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
         /* Update lastValue store */
@@ -793,7 +793,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 
     /* Prepare DataSetMessageContent */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
-    dataSetMessage->header.dataSetMessageValid = true;
+    dataSetMessage->header.dataSetMessageValid = UA_TRUE;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
 
     UA_DataSetField *dsf;
@@ -837,7 +837,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         
         dff->fieldIndex = (UA_UInt16) i;
         UA_DataValue_copy(&dataSetWriter->lastSamples[i].value, &dff->fieldValue);
-        dataSetWriter->lastSamples[i].valueChanged = false;
+        dataSetWriter->lastSamples[i].valueChanged = UA_FALSE;
 
         /* Deactivate statuscode? */
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
@@ -1157,7 +1157,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
                                                  writerGroup, (UA_UInt32) writerGroup->config.publishingInterval,
                                                  &writerGroup->publishCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
-        writerGroup->publishCallbackIsRegistered = true;
+        writerGroup->publishCallbackIsRegistered = UA_TRUE;
     //run once after creation
     UA_WriterGroup_publishCallback(server, writerGroup);
     return retval;

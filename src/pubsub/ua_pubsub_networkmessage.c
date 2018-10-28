@@ -348,13 +348,13 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
     dst->version = v & NM_VERSION_MASK;
     
     if((v & NM_PUBLISHER_ID_ENABLED_MASK) != 0)
-        dst->publisherIdEnabled = true;
+        dst->publisherIdEnabled = UA_TRUE;
 
     if((v & NM_GROUP_HEADER_ENABLED_MASK) != 0)
-        dst->groupHeaderEnabled = true;
+        dst->groupHeaderEnabled = UA_TRUE;
 
     if((v & NM_PAYLOAD_HEADER_ENABLED_MASK) != 0)
-        dst->payloadHeaderEnabled = true;
+        dst->payloadHeaderEnabled = UA_TRUE;
     
     if((v & NM_EXTENDEDFLAGS1_ENABLED_MASK) != 0) {
         v = 0;
@@ -364,16 +364,16 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
 
         dst->publisherIdType = (UA_PublisherIdDatatype)(v & NM_PUBLISHER_ID_MASK);
         if((v & NM_DATASET_CLASSID_ENABLED_MASK) != 0)
-            dst->dataSetClassIdEnabled = true;
+            dst->dataSetClassIdEnabled = UA_TRUE;
 
         if((v & NM_SECURITY_ENABLED_MASK) != 0)
-            dst->securityEnabled = true;
+            dst->securityEnabled = UA_TRUE;
 
         if((v & NM_TIMESTAMP_ENABLED_MASK) != 0)
-            dst->timestampEnabled = true;
+            dst->timestampEnabled = UA_TRUE;
 
         if((v & NM_PICOSECONDS_ENABLED_MASK) != 0)
-            dst->picosecondsEnabled = true;
+            dst->picosecondsEnabled = UA_TRUE;
 
         if((v & NM_EXTENDEDFLAGS2_ENABLED_MASK) != 0) {
             v = 0;
@@ -382,10 +382,10 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                 return rv;
 
             if((v & NM_CHUNK_MESSAGE_MASK) != 0)
-                dst->chunkMessage = true;
+                dst->chunkMessage = UA_TRUE;
 
             if((v & NM_PROMOTEDFIELDS_ENABLED_MASK) != 0)
-                dst->promotedFieldsEnabled = true;
+                dst->promotedFieldsEnabled = UA_TRUE;
 
             v = v & NM_NETWORK_MSG_TYPE_MASK;
             v = (UA_Byte) (v >> NM_SHIFT_LEN);
@@ -438,16 +438,16 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
             return rv;
 
         if((v & GROUP_HEADER_WRITER_GROUPID_ENABLED) != 0)
-            dst->groupHeader.writerGroupIdEnabled = true;
+            dst->groupHeader.writerGroupIdEnabled = UA_TRUE;
 
         if((v & GROUP_HEADER_GROUP_VERSION_ENABLED) != 0)
-            dst->groupHeader.groupVersionEnabled = true;
+            dst->groupHeader.groupVersionEnabled = UA_TRUE;
 
         if((v & GROUP_HEADER_NM_NUMBER_ENABLED) != 0)
-            dst->groupHeader.networkMessageNumberEnabled = true;
+            dst->groupHeader.networkMessageNumberEnabled = UA_TRUE;
 
         if((v & GROUP_HEADER_SEQUENCE_NUMBER_ENABLED) != 0)
-            dst->groupHeader.sequenceNumberEnabled = true;
+            dst->groupHeader.sequenceNumberEnabled = UA_TRUE;
 
         if(dst->groupHeader.writerGroupIdEnabled) {
             rv = UA_UInt16_decodeBinary(src, offset, &dst->groupHeader.writerGroupId);
@@ -553,16 +553,16 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
             return rv;
 
         if((v & SECURITY_HEADER_NM_SIGNED) != 0)
-            dst->securityHeader.networkMessageSigned = true;
+            dst->securityHeader.networkMessageSigned = UA_TRUE;
 
         if((v & SECURITY_HEADER_NM_ENCRYPTED) != 0)
-            dst->securityHeader.networkMessageEncrypted = true;
+            dst->securityHeader.networkMessageEncrypted = UA_TRUE;
 
         if((v & SECURITY_HEADER_SEC_FOOTER_ENABLED) != 0)
-            dst->securityHeader.securityFooterEnabled = true;
+            dst->securityHeader.securityFooterEnabled = UA_TRUE;
 
         if((v & SECURITY_HEADER_FORCE_KEY_RESET) != 0)
-            dst->securityHeader.forceKeyReset = true;
+            dst->securityHeader.forceKeyReset = UA_TRUE;
 
         // SecurityTokenId
         rv = UA_UInt32_decodeBinary(src, offset, &dst->securityHeader.securityTokenId);
@@ -819,7 +819,7 @@ void UA_NetworkMessage_delete(UA_NetworkMessage* p) {
 
 UA_Boolean
 UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
-    UA_Boolean retval = false;
+    UA_Boolean retval = UA_FALSE;
 
     if((src->publisherIdType != UA_PUBLISHERDATATYPE_BYTE) 
         || src->dataSetClassIdEnabled 
@@ -828,7 +828,7 @@ UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
         || src->picosecondsEnabled
         || UA_NetworkMessage_ExtendedFlags2Enabled(src))
     {
-        retval = true;
+        retval = UA_TRUE;
     }
 
     return retval;
@@ -838,16 +838,16 @@ UA_Boolean
 UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessage* src) {
     if(src->chunkMessage || src->promotedFieldsEnabled ||
        src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
-        return true;
-    return false;
+        return UA_TRUE;
+    return UA_FALSE;
 }
 
 UA_Boolean
 UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src) {
     if(src->dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME ||
        src->timestampEnabled || src->picoSecondsIncluded)
-        return true;
-    return false;
+        return UA_TRUE;
+    return UA_FALSE;
 }
 
 UA_StatusCode
@@ -960,19 +960,19 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
     dst->fieldEncoding = (UA_FieldEncoding)v2;
     
     if((v & DS_MESSAGEHEADER_DS_MSG_VALID) != 0)
-        dst->dataSetMessageValid = true;
+        dst->dataSetMessageValid = UA_TRUE;
 
     if((v & DS_MESSAGEHEADER_SEQ_NR_ENABLED_MASK) != 0)
-        dst->dataSetMessageSequenceNrEnabled = true;
+        dst->dataSetMessageSequenceNrEnabled = UA_TRUE;
 
     if((v & DS_MESSAGEHEADER_STATUS_ENABLED_MASK) != 0)
-        dst->statusEnabled = true;
+        dst->statusEnabled = UA_TRUE;
 
     if((v & DS_MESSAGEHEADER_CONFIGMAJORVERSION_ENABLED_MASK) != 0)
-        dst->configVersionMajorVersionEnabled = true;
+        dst->configVersionMajorVersionEnabled = UA_TRUE;
 
     if((v & DS_MESSAGEHEADER_CONFIGMINORVERSION_ENABLED_MASK) != 0)
-        dst->configVersionMinorVersionEnabled = true;
+        dst->configVersionMinorVersionEnabled = UA_TRUE;
 
     if((v & DS_MESSAGEHEADER_FLAGS2_ENABLED_MASK) != 0) {
         v = 0;
@@ -983,13 +983,13 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
         dst->dataSetMessageType = (UA_DataSetMessageType)(v & DS_MESSAGEHEADER_DS_MESSAGE_TYPE_MASK);
 
         if((v & DS_MESSAGEHEADER_TIMESTAMP_ENABLED_MASK) != 0)
-            dst->timestampEnabled = true;
+            dst->timestampEnabled = UA_TRUE;
 
         if((v & DS_MESSAGEHEADER_PICOSECONDS_INCLUDED_MASK) != 0)
-            dst->picoSecondsIncluded = true;
+            dst->picoSecondsIncluded = UA_TRUE;
     } else {
         dst->dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-        dst->picoSecondsIncluded = false;
+        dst->picoSecondsIncluded = UA_FALSE;
     }
 
     if(dst->dataSetMessageSequenceNrEnabled) {
@@ -1160,7 +1160,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                     rv = UA_Variant_decodeBinary(src, offset, &dst->data.keyFrameData.dataSetFields[i].value);
                     if(rv != UA_STATUSCODE_GOOD)
                         return rv;
-                    dst->data.keyFrameData.dataSetFields[i].hasValue = true;
+                    dst->data.keyFrameData.dataSetFields[i].hasValue = UA_TRUE;
                 }
             } else if(dst->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1193,7 +1193,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                     if(rv != UA_STATUSCODE_GOOD)
                         return rv;
 
-                    dst->data.deltaFrameData.deltaFrameFields[i].fieldValue.hasValue = true;
+                    dst->data.deltaFrameData.deltaFrameFields[i].fieldValue.hasValue = UA_TRUE;
                 }
             } else if(dst->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 return UA_STATUSCODE_BADNOTIMPLEMENTED;

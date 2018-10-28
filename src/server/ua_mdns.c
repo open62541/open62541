@@ -725,15 +725,15 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                 std::string ipv6_str(str_buffer);
 
                 /* Detect and skip non-external addresses */
-                UA_Boolean is_link_local(false);
-                UA_Boolean is_special_use(false);
+                UA_Boolean is_link_local(UA_FALSE);
+                UA_Boolean is_special_use(UA_FALSE);
 
                 if(0 == ipv6_str.find("fe")) {
                     char c = ipv6_str[2];
                     if(c == '8' || c == '9' || c == 'a' || c == 'b')
-                        is_link_local = true;
+                        is_link_local = UA_TRUE;
                 } else if (0 == ipv6_str.find("2001:0:")) {
-                    is_special_use = true;
+                    is_special_use = UA_TRUE;
                 }
 
                 if(!(is_link_local || is_special_use))

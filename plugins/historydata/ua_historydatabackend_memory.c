@@ -65,7 +65,7 @@ getNewNodeIdContext_backend_memory(UA_MemoryStoreContext* context,
         ctx->dataStore = (UA_NodeIdStoreContextItem_backend_memory*)UA_realloc(ctx->dataStore,  (newStoreSize * sizeof(UA_NodeIdStoreContextItem_backend_memory)));
         if (!ctx->dataStore) {
             ctx->storeSize = 0;
-            return false;
+            return UA_FALSE;
         }
         ctx->storeSize = newStoreSize;
     }
@@ -102,28 +102,28 @@ binarySearch_backend_memory(const UA_NodeIdStoreContextItem_backend_memory* item
                             size_t *index) {
     if (item->storeEnd == 0) {
         *index = item->storeEnd;
-        return false;
+        return UA_FALSE;
     }
     size_t min = 0;
     size_t max = item->storeEnd - 1;
     while (min <= max) {
         *index = (min + max) / 2;
         if (item->dataStore[*index]->timestamp == timestamp) {
-            return true;
+            return UA_TRUE;
         } else if (item->dataStore[*index]->timestamp < timestamp) {
             if (*index == item->storeEnd - 1) {
                 *index = item->storeEnd;
-                return false;
+                return UA_FALSE;
             }
             min = *index + 1;
         } else {
             if (*index == 0)
-                return false;
+                return UA_FALSE;
             max = *index - 1;
         }
     }
     *index = min;
-    return false;
+    return UA_FALSE;
 
 }
 
@@ -168,7 +168,7 @@ getDateTimeMatch_backend_memory(UA_Server *server,
     case MATCH_EQUAL_OR_AFTER:
         return current;
     case MATCH_EQUAL_OR_BEFORE:
-        // retval == true aka "equal" is handled before
+        // retval == UA_TRUE aka "equal" is handled before
         // Fall through if !retval
     case MATCH_BEFORE:
         if (current > 0)
@@ -269,7 +269,7 @@ boundSupported_backend_memory(UA_Server *server,
                               const UA_NodeId *sessionId,
                               void *sessionContext,
                               const UA_NodeId * nodeId) {
-    return true;
+    return UA_TRUE;
 }
 
 static UA_Boolean
@@ -281,7 +281,7 @@ timestampsToReturnSupported_backend_memory(UA_Server *server,
                                            const UA_TimestampsToReturn timestampsToReturn) {
     const UA_NodeIdStoreContextItem_backend_memory* item = getNodeIdStoreContextItem_backend_memory((UA_MemoryStoreContext*)context, server, nodeId);;
     if (item->storeEnd == 0) {
-        return true;
+        return UA_TRUE;
     }
     if (timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER
             || timestampsToReturn == UA_TIMESTAMPSTORETURN_INVALID
@@ -292,9 +292,9 @@ timestampsToReturnSupported_backend_memory(UA_Server *server,
             || (timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH
                 && !(item->dataStore[0]->value.hasSourceTimestamp
                      && item->dataStore[0]->value.hasServerTimestamp))) {
-        return false;
+        return UA_FALSE;
     }
-    return true;
+    return UA_TRUE;
 }
 
 static const UA_DataValue*

@@ -28,7 +28,7 @@ UA_Boolean *executed;
 
 static void
 dummyCallback(UA_Server *serverPtr, void *data) {
-    *executed = true;
+    *executed = UA_TRUE;
 }
 
 START_TEST(Server_addRemoveRepeatedCallback) {
@@ -40,11 +40,11 @@ START_TEST(Server_addRemoveRepeatedCallback) {
 
     /* Wait until the callback has surely timed out */
     UA_fakeSleep(15);
-    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, UA_FALSE);
 
     /* Wait a bit longer until the workers have picked up the dispatched callback */
     UA_realSleep(100);
-    ck_assert_uint_eq(*executed, true);
+    ck_assert_uint_eq(*executed, UA_TRUE);
 
     UA_Server_removeRepeatedCallback(server, id);
     UA_Boolean_delete(executed);
@@ -63,7 +63,7 @@ START_TEST(Server_repeatedCallbackRemoveItself) {
     UA_Server_addRepeatedCallback(server, removeItselfCallback, NULL, 10, cbId);
 
     UA_fakeSleep(15);
-    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, UA_FALSE);
 
     UA_UInt64_delete(cbId);
 }

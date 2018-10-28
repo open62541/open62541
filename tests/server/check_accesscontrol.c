@@ -20,13 +20,13 @@ THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
     while(*running)
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, UA_TRUE);
     return 0;
 }
 
 static void setup(void) {
     running = UA_Boolean_new();
-    *running = true;
+    *running = UA_TRUE;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -34,7 +34,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    *running = false;
+    *running = UA_FALSE;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);

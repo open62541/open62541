@@ -9,12 +9,12 @@
 #include "common.h"
 #include <signal.h>
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 UA_Logger logger = UA_Log_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 int main(int argc, char** argv) {

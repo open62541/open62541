@@ -354,10 +354,10 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     if(!sub->publishingEnabled)
         notifications = 0;
 
-    UA_Boolean moreNotifications = false;
+    UA_Boolean moreNotifications = UA_FALSE;
     if(notifications > sub->notificationsPerPublish) {
         notifications = sub->notificationsPerPublish;
-        moreNotifications = true;
+        moreNotifications = UA_TRUE;
     }
 
     /* Return if no notifications and no keepalive */
@@ -365,7 +365,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         ++sub->currentKeepAliveCount;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount) {
             if(pre)
-                UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
+                UA_Session_queuePublishReq(sub->session, pre, UA_TRUE); /* Re-enqueue */
             return;
         }
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
@@ -381,7 +381,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                              "The subscription is late.", sub->subscriptionId);
         sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         if(pre)
-            UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
+            UA_Session_queuePublishReq(sub->session, pre, UA_TRUE); /* Re-enqueue */
         return;
     }
 
@@ -397,7 +397,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                                    "Subscription %u | Could not allocate memory for retransmission. "
                                    "The subscription is late.", sub->subscriptionId);
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-            UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
+            UA_Session_queuePublishReq(sub->session, pre, UA_TRUE); /* Re-enqueue */
             return;
         }
 
@@ -409,7 +409,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                                    "The subscription is late.", sub->subscriptionId);
             UA_free(retransmission);
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-            UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
+            UA_Session_queuePublishReq(sub->session, pre, UA_TRUE); /* Re-enqueue */
             return;
         }
     }
@@ -488,7 +488,7 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     /* Cannot publish without a response */
     if(!pre) {
         UA_LOG_FATAL_SESSION(server->config.logger, session, "No publish requests available");
-        return false;
+        return UA_FALSE;
     }
 
     /* <-- The point of no return --> */
@@ -500,7 +500,7 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     response->responseHeader.timestamp = UA_DateTime_now();
     response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
     response->subscriptionId = 0;
-    response->moreNotifications = false;
+    response->moreNotifications = UA_FALSE;
     message->publishTime = response->responseHeader.timestamp;
     message->sequenceNumber = 0;
     response->availableSequenceNumbersSize = 0;
@@ -515,7 +515,7 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     UA_Array_delete(response->results, response->resultsSize, &UA_TYPES[UA_TYPES_UINT32]);
     UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
 
-    return true;
+    return UA_TRUE;
 }
 
 UA_StatusCode
@@ -533,7 +533,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    sub->publishCallbackIsRegistered = true;
+    sub->publishCallbackIsRegistered = UA_TRUE;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -549,7 +549,7 @@ Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) 
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    sub->publishCallbackIsRegistered = false;
+    sub->publishCallbackIsRegistered = UA_FALSE;
     return UA_STATUSCODE_GOOD;
 }
 

@@ -330,7 +330,7 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
             else
                 prev_tc = &tmp_first;
 
-            while(true) {
+            while(UA_TRUE) {
                 UA_TimerCallbackEntry *n = SLIST_NEXT(prev_tc, next);
                 if(!n || n->nextTime >= tc->nextTime)
                     break;

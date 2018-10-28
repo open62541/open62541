@@ -9,9 +9,9 @@
 #include "open62541.h"
 #include <signal.h>
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sig) {
-    running = false;
+    running = UA_FALSE;
 }
 
 int main(void) {

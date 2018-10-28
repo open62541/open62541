@@ -336,7 +336,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Activate the session */
-    session->activated = true;
+    session->activated = UA_TRUE;
     UA_Session_updateLifetime(session);
 
     /* Generate a new session nonce for the next time ActivateSession is called */
@@ -345,7 +345,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_ByteString_copy(&session->serverNonce, &response->serverNonce);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_detachFromSecureChannel(session);
-        session->activated = false;
+        session->activated = UA_FALSE;
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: Could not generate a server nonce");
         return;

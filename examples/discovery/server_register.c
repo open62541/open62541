@@ -12,11 +12,11 @@
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
 UA_Logger logger = UA_Log_Stdout;
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 static UA_StatusCode
@@ -25,7 +25,7 @@ readInteger(UA_Server *server, const UA_NodeId *sessionId,
             void *nodeContext, UA_Boolean includeSourceTimeStamp,
             const UA_NumericRange *range, UA_DataValue *value) {
     UA_Int32 *myInteger = (UA_Int32*)nodeContext;
-    value->hasValue = true;
+    value->hasValue = UA_TRUE;
     UA_Variant_setScalarCopy(&value->value, myInteger, &UA_TYPES[UA_TYPES_INT32]);
 
     // we know the nodeid is a string

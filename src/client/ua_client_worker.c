@@ -31,7 +31,7 @@ backgroundConnectivityCallback(UA_Client *client, void *userdata,
         if (client->config.inactivityCallback)
             client->config.inactivityCallback(client);
     }
-    client->pendingConnectivityCheck = false;
+    client->pendingConnectivityCheck = UA_FALSE;
     client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
 }
 
@@ -64,7 +64,7 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
                                                     (UA_ClientAsyncServiceCallback)backgroundConnectivityCallback,
                                                     &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL);
 
-    client->pendingConnectivityCheck = true;
+    client->pendingConnectivityCheck = UA_TRUE;
 
     return retval;
 }
@@ -100,7 +100,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
     /************************************************************/
     /* FIXME: This is a dirty workaround */
     if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
-        retval = openSecureChannel(client, true);
+        retval = openSecureChannel(client, UA_TRUE);
     /* FIXME: Will most likely break somewhere in the future */
     /************************************************************/
 

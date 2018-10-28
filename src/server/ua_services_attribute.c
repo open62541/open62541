@@ -64,7 +64,7 @@ static UA_Boolean
 getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
     if(session == &server->adminSession)
-        return true; /* the local admin user has all rights */
+        return UA_TRUE; /* the local admin user has all rights */
     return node->executable &
         server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
                                                        &session->sessionId, session->sessionHandle,
@@ -209,13 +209,13 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
            v->status = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
         else
            v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
-        v->hasStatus = true;
+        v->hasStatus = UA_TRUE;
         return;
     }
 
     /* Index range for an attribute other than value */
     if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE) {
-        v->hasStatus = true;
+        v->hasStatus = UA_TRUE;
         v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
         return;
     }
@@ -348,29 +348,29 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
 
     /* Return error code when reading has failed */
     if(retval != UA_STATUSCODE_GOOD) {
-        v->hasStatus = true;
+        v->hasStatus = UA_TRUE;
         v->status = retval;
         return;
     }
 
-    v->hasValue = true;
+    v->hasValue = UA_TRUE;
 
     /* Create server timestamp */
     if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
        timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
         v->serverTimestamp = UA_DateTime_now();
-        v->hasServerTimestamp = true;
+        v->hasServerTimestamp = UA_TRUE;
     }
 
     /* Handle source time stamp */
     if(id->attributeId == UA_ATTRIBUTEID_VALUE) {
         if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
            timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
-            v->hasSourceTimestamp = false;
-            v->hasSourcePicoseconds = false;
+            v->hasSourceTimestamp = UA_FALSE;
+            v->hasSourcePicoseconds = UA_FALSE;
         } else if(!v->hasSourceTimestamp) {
             v->sourceTimestamp = UA_DateTime_now();
-            v->hasSourceTimestamp = true;
+            v->hasSourceTimestamp = UA_TRUE;
         }
     }
 }
@@ -388,7 +388,7 @@ Operation_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
     if(node) {
         ReadWithNode(node, server, session, timestampsToReturn, id, &dv);
     } else {
-        dv.hasStatus = true;
+        dv.hasStatus = UA_TRUE;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
@@ -460,7 +460,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     /* Get the node */
     const UA_Node *node = UA_Nodestore_get(server, &item->nodeId);
     if(!node) {
-        dv.hasStatus = true;
+        dv.hasStatus = UA_TRUE;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return dv;
     }
@@ -476,7 +476,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
             dv = dv2;
         } else {
             UA_DataValue_init(&dv);
-            dv.hasStatus = true;
+            dv.hasStatus = UA_TRUE;
             dv.status = retval;
         }
     }
@@ -535,8 +535,8 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
+    rpe.isInverse = UA_FALSE;
+    rpe.includeSubtypes = UA_FALSE;
     rpe.targetName = propertyName;
 
     UA_BrowsePath bp;
@@ -587,28 +587,28 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
                    const UA_NodeId *constraintDataType, UA_Boolean isValue) {
     /* Do not allow empty datatypes */
     if(UA_NodeId_isNull(dataType))
-       return false;
+       return UA_FALSE;
 
     /* No constraint (TODO: use variant instead) */
     if(UA_NodeId_isNull(constraintDataType))
-        return true;
+        return UA_TRUE;
 
     /* Same datatypes */
     if (UA_NodeId_equal(dataType, constraintDataType))
-        return true;
+        return UA_TRUE;
 
     /* Variant allows any subtype */
     if(UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId))
-        return true;
+        return UA_TRUE;
 
     /* Is the value-type a subtype of the required type? */
     if(isNodeInTree(&server->config.nodestore, dataType, constraintDataType, &subtypeId, 1))
-        return true;
+        return UA_TRUE;
 
     /* Enum allows Int32 (only) */
     if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
        isNodeInTree(&server->config.nodestore, constraintDataType, &enumNodeId, &subtypeId, 1))
-        return true;
+        return UA_TRUE;
 
     /* More checks for the data type of real values (variants) */
     if(isValue) {
@@ -621,10 +621,10 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
            dataType->identifier.numeric <= 25 &&
            isNodeInTree(&server->config.nodestore, constraintDataType,
                         dataType, &subtypeId, 1))
-            return true;
+            return UA_TRUE;
     }
 
-    return false;
+    return UA_FALSE;
 }
 
 /* Test whether a ValueRank and the given arraydimensions are compatible.
@@ -638,7 +638,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
     /* ValueRank invalid */
     if(valueRank < UA_VALUERANK_SCALAR_OR_ONE_DIMENSION) {
         UA_LOG_INFO_SESSION(server->config.logger, session, "The ValueRank is invalid (< -3)");
-        return false;
+        return UA_FALSE;
     }
 
     /* case -3, UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: the value can be a scalar or a one dimensional array */
@@ -649,18 +649,18 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
         if(arrayDimensionsSize > 0) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "No ArrayDimensions can be defined for a ValueRank <= 0");
-            return false;
+            return UA_FALSE;
         }
-        return true;
+        return UA_TRUE;
     }
     
     /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the specified number of dimensions */
     if(arrayDimensionsSize != (size_t)valueRank) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "The number of ArrayDimensions is not equal to the (positive) ValueRank");
-        return false;
+        return UA_FALSE;
     }
-    return true;
+    return UA_TRUE;
 }
 
 UA_Boolean
@@ -669,24 +669,24 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
     switch(constraintValueRank) {
     case UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: /* the value can be a scalar or a one dimensional array */
         if(valueRank != UA_VALUERANK_SCALAR && valueRank != UA_VALUERANK_ONE_DIMENSION)
-            return false;
+            return UA_FALSE;
         break;
     case UA_VALUERANK_ANY: /* the value can be a scalar or an array with any number of dimensions */
         break;
     case UA_VALUERANK_SCALAR: /* the value is a scalar */
         if(valueRank != UA_VALUERANK_SCALAR)
-            return false;
+            return UA_FALSE;
         break;
     case UA_VALUERANK_ONE_OR_MORE_DIMENSIONS: /* the value is an array with one or more dimensions */
         if(valueRank < (UA_Int32) UA_VALUERANK_ONE_OR_MORE_DIMENSIONS)
-            return false;
+            return UA_FALSE;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
         if(valueRank != constraintValueRank)
-            return false;
+            return UA_FALSE;
         break;
     }
-    return true;
+    return UA_TRUE;
 }
 
 /* Check if the ValueRank allows for the value dimension. This is more
@@ -696,11 +696,11 @@ static UA_Boolean
 compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     /* Invalid ValueRank */
     if(valueRank < UA_VALUERANK_SCALAR_OR_ONE_DIMENSION)
-        return false;
+        return UA_FALSE;
 
     /* Empty arrays (-1) always match */
     if(!value->data)
-        return true;
+        return UA_TRUE;
 
     size_t arrayDims = value->arrayDimensionsSize;
     if(arrayDims == 0 && !UA_Variant_isScalar(value))
@@ -712,7 +712,7 @@ compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     case UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: /* The value can be a scalar or a one dimensional array */
         return (arrayDims <= 1);
     case UA_VALUERANK_ANY: /* The value can be a scalar or an array with any number of dimensions */
-        return true;
+        return UA_TRUE;
     case UA_VALUERANK_SCALAR: /* The value is a scalar */
         return (arrayDims == 0);
     default:
@@ -732,19 +732,19 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions) {
     /* No array dimensions defined -> everything is permitted if the value rank fits */
     if(constraintArrayDimensionsSize == 0)
-        return true;
+        return UA_TRUE;
 
     /* Dimension count must match */
     if(testArrayDimensionsSize != constraintArrayDimensionsSize)
-        return false;
+        return UA_FALSE;
 
     /* Dimension lengths must match; zero in the constraint is a wildcard */
     for(size_t i = 0; i < constraintArrayDimensionsSize; ++i) {
         if(constraintArrayDimensions[i] != testArrayDimensions[i] &&
            constraintArrayDimensions[i] != 0)
-            return false;
+            return UA_FALSE;
     }
-    return true;
+    return UA_TRUE;
 }
 
 UA_Boolean
@@ -773,7 +773,7 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
         /* Empty value is allowed for BaseDataType */
         if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
-            return true;
+            return UA_TRUE;
 
         /* Allow empty node values since existing information models may have
          * variables with no value, e.g. OldValues - ns=0;i=3024. See also
@@ -782,26 +782,26 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
             UA_LOG_DEBUG_SESSION(server->config.logger, session,
                                  "Only Variables with data type BaseDataType can contain an "
                                  "empty value. Allow via explicit constraint relaxation.");
-            return true;
+            return UA_TRUE;
         }
 
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "Only Variables with data type BaseDataType can contain an empty value");
-        return false;
+        return UA_FALSE;
     }
 
     /* Has the value a subtype of the required type? BaseDataType (Variant) can
      * be anything... */
-    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId, true))
-        return false;
+    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId, UA_TRUE))
+        return UA_FALSE;
 
     /* Array dimensions are checked later when writing the range */
     if(range)
-        return true;
+        return UA_TRUE;
 
     /* See if the array dimensions match. */
     if(!compatibleValueArrayDimensions(value, targetArrayDimensionsSize, targetArrayDimensions))
-        return false;
+        return UA_FALSE;
 
     /* Check if the valuerank allows for the value dimension */
     return compatibleValueRankValue(targetValueRank, value);
@@ -831,7 +831,7 @@ adjustValue(UA_Server *server, UA_Variant *value,
     }
 
     /* An enum was sent as an int32, or an opaque type as a bytestring. This
-     * is detected with the typeIndex indicating the "true" datatype. */
+     * is detected with the typeIndex indicating the "UA_TRUE" datatype. */
     enum type_equivalence te1 = typeEquivalence(targetDataType);
     enum type_equivalence te2 = typeEquivalence(value->type);
     if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
@@ -967,7 +967,7 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Does the new type match the constraints of the variabletype? */
-    if(!compatibleDataType(server, dataType, &type->dataType, false))
+    if(!compatibleDataType(server, dataType, &type->dataType, UA_FALSE))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the current value would match the new type */
@@ -1098,7 +1098,7 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     /* Set the source timestamp if there is none */
     if(!adjustedValue.hasSourceTimestamp) {
         adjustedValue.sourceTimestamp = UA_DateTime_now();
-        adjustedValue.hasSourceTimestamp = true;
+        adjustedValue.hasSourceTimestamp = UA_TRUE;
     }
 
     /* Ok, do it */
@@ -1411,7 +1411,7 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = *nodeId;
     wvalue.attributeId = attributeId;
-    wvalue.value.hasValue = true;
+    wvalue.value.hasValue = UA_TRUE;
     if(attr_type != &UA_TYPES[UA_TYPES_VARIANT]) {
         /* hacked cast. the target WriteValue is used as const anyway */
         UA_Variant_setScalar(&wvalue.value.value,
@@ -1477,8 +1477,8 @@ UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
+    rpe.isInverse = UA_FALSE;
+    rpe.includeSubtypes = UA_FALSE;
     rpe.targetName = propertyName;
 
     UA_BrowsePath bp;

@@ -822,7 +822,7 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
     mc->requestId = requestId;
     mc->chunksSoFar = 0;
     mc->messageSizeSoFar = 0;
-    mc->final = false;
+    mc->final = UA_FALSE;
     mc->messageBuffer = UA_BYTESTRING_NULL;
     mc->messageType = messageType;
 
@@ -855,7 +855,7 @@ UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
 
 UA_StatusCode
 UA_MessageContext_finish(UA_MessageContext *mc) {
-    mc->final = true;
+    mc->final = UA_TRUE;
     return sendSymmetricChunk(mc);
 }
 
@@ -933,7 +933,7 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
 
     /* Test against the connection settings */
     const UA_ConnectionConfig *config = &channel->connection->config;
-    UA_assert(config != NULL); /* clang-analyzer false positive */
+    UA_assert(config != NULL); /* clang-analyzer UA_FALSE positive */
     if(config->maxChunkCount > 0 &&
        config->maxChunkCount <= latest->chunkPayloadsSize)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
@@ -945,7 +945,7 @@ addChunkPayload(UA_SecureChannel *channel, UA_UInt32 requestId,
     if(!cp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     cp->bytes = *chunkPayload;
-    cp->copied = false;
+    cp->copied = UA_FALSE;
 
     /* Add the chunk */
     SIMPLEQ_INSERT_TAIL(&latest->chunkPayloads, cp, pointers);
@@ -1422,7 +1422,7 @@ UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel) {
                 return retval;
             }
             cp->bytes = copy;
-            cp->copied = true;
+            cp->copied = UA_TRUE;
         }
     }
     return UA_STATUSCODE_GOOD;

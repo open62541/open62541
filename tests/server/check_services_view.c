@@ -19,14 +19,14 @@ THREAD_HANDLE server_thread_translate_browse;
 
 THREAD_CALLBACK(serverloop_register) {
     while (*running_translate_browse)
-        UA_Server_run_iterate(server_translate_browse, true);
+        UA_Server_run_iterate(server_translate_browse, UA_TRUE);
     return 0;
 }
 
 static void setup_server(void) {
     // start server
     running_translate_browse = UA_Boolean_new();
-    *running_translate_browse = true;
+    *running_translate_browse = UA_TRUE;
     server_translate_config = UA_ServerConfig_new_default();
     UA_String_deleteMembers(&server_translate_config->applicationDescription.applicationUri);
     server_translate_config->applicationDescription.applicationUri =
@@ -37,7 +37,7 @@ static void setup_server(void) {
 }
 
 static void teardown_server(void) {
-    *running_translate_browse = false;
+    *running_translate_browse = UA_FALSE;
     THREAD_JOIN(server_thread_translate_browse);
     UA_Server_run_shutdown(server_translate_browse);
     UA_Boolean_delete(running_translate_browse);
@@ -62,7 +62,7 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
     UA_BrowseResult_deleteMembers(&br);
 
     while(cp.length > 0) {
-        br = UA_Server_browseNext(server, false, &cp);
+        br = UA_Server_browseNext(server, UA_FALSE, &cp);
         ck_assert(br.referencesSize > 0);
         UA_ByteString_deleteMembers(&cp);
         cp = br.continuationPoint;

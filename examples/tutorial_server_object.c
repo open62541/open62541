@@ -20,8 +20,8 @@
  *
  *    digraph tree {
  *
- *    fixedsize=true;
- *    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+ *    fixedsize=UA_TRUE;
+ *    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=UA_TRUE]
  *
  *    node_root [label=< <I>ObjectNode</I><BR/>Pump >]
  *
@@ -88,7 +88,7 @@ manuallyDefinePump(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), modelAttr, NULL, NULL);
 
     UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
-    UA_Boolean status = true;
+    UA_Boolean status = UA_TRUE;
     UA_Variant_setScalar(&statusAttr.value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
     statusAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Status");
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
@@ -121,8 +121,8 @@ manuallyDefinePump(UA_Server *server) {
  *
  *    digraph tree {
  *
- *    fixedsize=true;
- *    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+ *    fixedsize=UA_TRUE;
+ *    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=UA_TRUE]
  *
  *    node_root [label=< <I>ObjectTypeNode</I><BR/>Device >]
  *
@@ -187,7 +187,7 @@ defineObjectTypes(UA_Server *server) {
     /* Make the manufacturer name mandatory */
     UA_Server_addReference(server, manufacturerNameId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
 
 
     UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
@@ -216,7 +216,7 @@ defineObjectTypes(UA_Server *server) {
     /* Make the status variable mandatory */
     UA_Server_addReference(server, statusId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), UA_TRUE);
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MotorRPM");
@@ -267,8 +267,8 @@ pumpTypeConstructor(UA_Server *server,
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
+    rpe.isInverse = UA_FALSE;
+    rpe.includeSubtypes = UA_FALSE;
     rpe.targetName = UA_QUALIFIEDNAME(1, "Status");
 
     UA_BrowsePath bp;
@@ -284,7 +284,7 @@ pumpTypeConstructor(UA_Server *server,
         return bpr.statusCode;
 
     /* Set the status value */
-    UA_Boolean status = true;
+    UA_Boolean status = UA_TRUE;
     UA_Variant value;
     UA_Variant_setScalar(&value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
@@ -305,10 +305,10 @@ addPumpTypeConstructor(UA_Server *server) {
 
 /** It follows the main server code, making use of the above definitions. */
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    running = UA_FALSE;
 }
 
 int main(void) {

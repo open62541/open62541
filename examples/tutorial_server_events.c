@@ -123,8 +123,8 @@ addGenerateEventMethod(UA_Server *server) {
     UA_MethodAttributes generateAttr = UA_MethodAttributes_default;
     generateAttr.description = UA_LOCALIZEDTEXT("en-US","Generate an event.");
     generateAttr.displayName = UA_LOCALIZEDTEXT("en-US","Generate Event");
-    generateAttr.executable = true;
-    generateAttr.userExecutable = true;
+    generateAttr.executable = UA_TRUE;
+    generateAttr.userExecutable = UA_TRUE;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
@@ -135,9 +135,9 @@ addGenerateEventMethod(UA_Server *server) {
 
 /** It follows the main server code, making use of the above definitions. */
 
-UA_Boolean running = true;
+UA_Boolean running = UA_TRUE;
 static void stopHandler(int sig) {
-    running = false;
+    running = UA_FALSE;
 }
 
 int main (void) {
