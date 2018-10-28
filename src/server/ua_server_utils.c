@@ -404,7 +404,7 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
     0, NULL,                     /* arrayDimensions */
     UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
     0.0,                         /* minimumSamplingInterval */
-    UA_FALSE                        /* historizing */
+    UA_FALSE                     /* historizing */
 };
 
 const UA_MethodAttributes UA_MethodAttributes_default = {
@@ -412,7 +412,7 @@ const UA_MethodAttributes UA_MethodAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    UA_TRUE, UA_TRUE              /* executable (userExecutable) */
+    UA_TRUE, UA_TRUE        /* executable (userExecutable) */
 };
 
 const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default = {
@@ -420,7 +420,7 @@ const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    UA_FALSE                   /* isAbstract */
+    UA_FALSE                /* isAbstract */
 };
 
 const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
@@ -434,7 +434,7 @@ const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
     UA_VALUERANK_ANY,            /* valueRank */
     0, NULL,                     /* arrayDimensions */
-    UA_FALSE                        /* isAbstract */
+    UA_FALSE                     /* isAbstract */
 };
 
 const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default = {
@@ -442,8 +442,8 @@ const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    UA_FALSE,                  /* isAbstract */
-    UA_FALSE,                  /* symmetric */
+    UA_FALSE,               /* isAbstract */
+    UA_FALSE,               /* symmetric */
     {{0, NULL}, {0, NULL}}  /* inverseName */
 };
 
@@ -452,7 +452,7 @@ const UA_DataTypeAttributes UA_DataTypeAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    UA_FALSE                   /* isAbstract */
+    UA_FALSE                /* isAbstract */
 };
 
 const UA_ViewAttributes UA_ViewAttributes_default = {
@@ -460,7 +460,7 @@ const UA_ViewAttributes UA_ViewAttributes_default = {
     {{0, NULL}, {0, NULL}}, /* displayName */
     {{0, NULL}, {0, NULL}}, /* description */
     0, 0,                   /* writeMask (userWriteMask) */
-    UA_FALSE,                  /* containsNoLoops */
+    UA_FALSE,               /* containsNoLoops */
     0                       /* eventNotifier */
 };
 
