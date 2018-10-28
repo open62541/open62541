@@ -328,8 +328,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
         UA_BrowsePathResult_deleteMembers(&bpr);
         return retval;
     }
-    UA_DateTime time = UA_DateTime_now();
-    UA_Variant_setScalar(&value, &time, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_DateTime rvTime = UA_DateTime_now();
+    UA_Variant_setScalar(&value, &rvTime, &UA_TYPES[UA_TYPES_DATETIME]);
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
