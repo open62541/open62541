@@ -40,9 +40,9 @@ static const UA_DataType PointType = {
         sizeof(Point),                   /* .memSize */
         0,                               /* .typeIndex, in the array of custom types */
         3,                               /* .membersSize */
-        UA_FALSE,                           /* .builtin */
-        UA_TRUE,                            /* .pointerFree */
-        UA_FALSE,                           /* .overlayable (depends on endianness and
+        UA_FALSE,                        /* .builtin */
+        UA_TRUE,                         /* .pointerFree */
+        UA_FALSE,                        /* .overlayable (depends on endianness and
                                          the absence of padding) */
         0,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
