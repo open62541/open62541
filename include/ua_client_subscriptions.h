@@ -46,7 +46,7 @@ typedef void (*UA_Client_StatusChangeNotificationCallback)
  * RequestedLifetimeCount: 10000
  * RequestedMaxKeepAliveCount: 10
  * MaxNotificationsPerPublish: 0 (unlimited)
- * PublishingEnabled: UA_true
+ * PublishingEnabled: UA_TRUE
  * Priority: 0 */
 static UA_INLINE UA_CreateSubscriptionRequest
 UA_CreateSubscriptionRequest_default(void) {
@@ -57,7 +57,7 @@ UA_CreateSubscriptionRequest_default(void) {
     request.requestedLifetimeCount = 10000;
     request.requestedMaxKeepAliveCount = 10;
     request.maxNotificationsPerPublish = 0;
-    request.publishingEnabled = UA_true;
+    request.publishingEnabled = UA_TRUE;
     request.priority = 0;
     return request;
 }
@@ -111,7 +111,7 @@ UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
     request.itemToMonitor.attributeId = UA_ATTRIBUTEID_VALUE;
     request.monitoringMode = UA_MONITORINGMODE_REPORTING;
     request.requestedParameters.samplingInterval = 250;
-    request.requestedParameters.discardOldest = UA_true;
+    request.requestedParameters.discardOldest = UA_TRUE;
     request.requestedParameters.queueSize = 1;
     return request;
 }
