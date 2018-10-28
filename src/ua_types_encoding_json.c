@@ -39,6 +39,22 @@
 
 #define UA_JSON_DATETIME_LENGTH 24
 
+/* Max length of numbers for the allocation of temp buffers. Don't forget that
+ * printf adds an additional \0 at the end!
+ *
+ * Sources:
+ * https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
+ *
+ * UInt16: 3 + 1
+ * SByte: 3 + 1
+ * UInt32:
+ * Int32:
+ * UInt64:
+ * Int64:
+ * Float: 149 + 1
+ * Double: 767 + 1
+ */
+
 /* CALC types */
 #define CALC_JSON_TYPE(TYPE) static status \
     TYPE##_calcJson(const UA_##TYPE *UA_RESTRICT src, const UA_DataType *type, CtxJson *UA_RESTRICT ctx)
@@ -234,7 +250,7 @@ CALC_JSON_TYPE(Boolean) {
 /* Byte */
 CALC_JSON_TYPE(Byte) {
     UA_assert(src != NULL);
-    char buf[3];
+    char buf[4];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -243,7 +259,7 @@ CALC_JSON_TYPE(Byte) {
 /* signed Byte */
 CALC_JSON_TYPE(SByte) {
     UA_assert(src != NULL);
-    char buf[4];
+    char buf[5];
     UA_UInt16 digits = itoaSigned(*src, buf);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -252,7 +268,7 @@ CALC_JSON_TYPE(SByte) {
 /* UInt16 */
 CALC_JSON_TYPE(UInt16) {
     UA_assert(src != NULL);
-    char buf[5];
+    char buf[6];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -261,7 +277,7 @@ CALC_JSON_TYPE(UInt16) {
 /* Int16 */
 CALC_JSON_TYPE(Int16) {
     UA_assert(src != NULL);
-    char buf[6];
+    char buf[7];
     UA_UInt16 digits = itoaSigned(*src, buf);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -270,7 +286,7 @@ CALC_JSON_TYPE(Int16) {
 /* UInt32 */
 CALC_JSON_TYPE(UInt32) {
     UA_assert(src != NULL);
-    char buf[10];
+    char buf[12];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -279,7 +295,7 @@ CALC_JSON_TYPE(UInt32) {
 /* Int32 */
 CALC_JSON_TYPE(Int32) {
     UA_assert(src != NULL);
-    char buf[11];
+    char buf[12];
     UA_UInt16 digits = itoaSigned(*src, buf);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -288,7 +304,7 @@ CALC_JSON_TYPE(Int32) {
 /* UInt64 */
 CALC_JSON_TYPE(UInt64) {
     UA_assert(src != NULL);
-    char buf[20];
+    char buf[21];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -297,7 +313,7 @@ CALC_JSON_TYPE(UInt64) {
 /* Int64 */
 CALC_JSON_TYPE(Int64) {
     UA_assert(src != NULL);
-    char buf[20];
+    char buf[21];
     UA_UInt16 digits = itoaSigned(*src, buf);
     ctx->pos += digits;
     return UA_STATUSCODE_GOOD;
@@ -1451,7 +1467,7 @@ ENCODE_JSON(Byte) {
     if(!src){
         return writeNull(ctx);
     }
-    char buf[3];
+    char buf[4];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
     if (ctx->pos + digits > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -1465,7 +1481,7 @@ ENCODE_JSON(SByte) {
     if(!src){
         return writeNull(ctx);
     }
-    char buf[4];
+    char buf[5];
     UA_UInt16 digits = itoaSigned(*src, buf);
     if (ctx->pos + digits > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -1479,7 +1495,7 @@ ENCODE_JSON(UInt16) {
     if(!src){
         return writeNull(ctx);
     }
-    char buf[5];
+    char buf[6];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
 
     if (ctx->pos + digits > ctx->end)
@@ -1495,7 +1511,7 @@ ENCODE_JSON(Int16) {
     if(!src){
         return writeNull(ctx);
     }
-    char buf[6];
+    char buf[7];
     UA_UInt16 digits = itoaSigned(*src, buf);
 
     if (ctx->pos + digits > ctx->end)
@@ -1511,7 +1527,7 @@ ENCODE_JSON(UInt32) {
     if(!src){
         return writeNull(ctx);
     }
-    char buf[10];
+    char buf[11];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
 
     if (ctx->pos + digits > ctx->end)
@@ -1527,7 +1543,7 @@ ENCODE_JSON(Int32) {
     if(!src){
         return writeNull(ctx);
     }
-    char buf[11];
+    char buf[12];
     UA_UInt16 digits = itoaSigned(*src, buf);
 
     if (ctx->pos + digits > ctx->end)
@@ -1543,7 +1559,7 @@ ENCODE_JSON(UInt64) {
     if(!src){
         return writeNull(ctx);
     }
-    char buf[20];
+    char buf[21];
     UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
 
     if (ctx->pos + digits > ctx->end)
@@ -1560,7 +1576,7 @@ ENCODE_JSON(Int64) {
         return writeNull(ctx);
     }
 
-    char buf[20];
+    char buf[21];
     UA_UInt16 digits = itoaSigned(*src, buf);
 
     if (ctx->pos + digits > ctx->end)
