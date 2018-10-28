@@ -40,8 +40,8 @@ static UA_DataTypeMember members[3] = {
         UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since
                             .namespaceZero is UA_TRUE */
         0,               /* .padding */
-        UA_TRUE,            /* .namespaceZero, see .memberTypeIndex */
-        UA_FALSE            /* .isArray */
+        UA_TRUE,         /* .namespaceZero, see .memberTypeIndex */
+        UA_FALSE         /* .isArray */
     },
 
     /* y */
@@ -63,9 +63,9 @@ static const UA_DataType PointType = {
     sizeof(Point),                   /* .memSize */
     0,                               /* .typeIndex, in the array of custom types */
     3,                               /* .membersSize */
-    UA_FALSE,                           /* .builtin */
-    UA_TRUE,                            /* .pointerFree */
-    UA_FALSE,                           /* .overlayable (depends on endianness and
+    UA_FALSE,                        /* .builtin */
+    UA_TRUE,                         /* .pointerFree */
+    UA_FALSE,                        /* .overlayable (depends on endianness and
                                          the absence of padding) */
     0,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
