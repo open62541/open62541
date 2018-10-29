@@ -18,6 +18,15 @@ try {
         Write-Host -ForegroundColor Green "`n## Path ok #####`n"
     }
     
+    if (Test-Path "C:\Program Files (x86)\Windows Kits") {
+        Write-Host -ForegroundColor Green "`n## Path 1 ok #####`n"
+    }
+    if (Test-Path "C:\Program Files (x86)\Windows Kits\8.1") {
+        Write-Host -ForegroundColor Green "`n## Path 2 ok #####`n"
+    }
+    if (Test-Path "C:\Program Files (x86)\Windows Kits\8.1\bin\x86") {
+        Write-Host -ForegroundColor Green "`n## Path 3 rc.exe ok #####`n"
+    }
     if (Test-Path "C:\Program Files (x86)\Windows Kits\8.1\bin\x86\RC.Exe") {
         Write-Host -ForegroundColor Green "`n## Path rc.exe ok #####`n"
     }
