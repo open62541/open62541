@@ -39,7 +39,7 @@ try {
     
     Write-Host $env:PATH
     
-    & where.exe rc.exe
+    & where.exe clang-cl.exe
     
     
     if ($env:CC_SHORTNAME -eq "mingw") {
