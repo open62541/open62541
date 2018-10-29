@@ -72,7 +72,7 @@ try {
     cd build
     if ($env:CC_SHORTNAME -eq "clang-cl") {
        & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
+            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DSYSTEM_CLANG=ON -G"$env:GENERATOR" ..
     } else {
         & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
             -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
