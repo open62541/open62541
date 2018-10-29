@@ -30,6 +30,12 @@ try {
     if (Test-Path "C:\Program Files (x86)\Windows Kits\8.1\bin\x86\RC.Exe") {
         Write-Host -ForegroundColor Green "`n## Path rc.exe ok #####`n"
     }
+    if (Test-Path "C:\Program Files (x86)\Windows Kits\8.1\bin\x64") {
+        Write-Host -ForegroundColor Green "`n## Path x64 ok #####`n"
+    }
+    if (Test-Path "C:\Program Files (x86)\Windows Kits\8.1\bin\x64\RC.Exe") {
+        Write-Host -ForegroundColor Green "`n## Path x64.exe ok #####`n"
+    }
     
     & where.exe rc.exe
     
