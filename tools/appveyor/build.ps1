@@ -36,6 +36,11 @@ try {
         Write-Host -ForegroundColor Green "`n## Path x64.exe ok #####`n"
     }
     
+    if (Test-Path "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\Bin\SetEnv.cmd") {
+        Write-Host -ForegroundColor Green "`n## Path setenv.exe ok #####`n"
+    }
+    
+    
     Write-Host $env:PATH
     
     & where.exe clang-cl.exe
