@@ -6,6 +6,8 @@ clone_depth: 20
 # Avoid building branch if it is part of a PR and built anyways
 skip_branch_with_pr: true
 
+image: Visual Studio 2015
+
 environment:
     global:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
@@ -39,7 +41,6 @@ environment:
         #  OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Clang-CL
           CC_SHORTNAME: clang-cl
-          APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
           GENERATOR: Ninja
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
