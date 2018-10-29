@@ -79,6 +79,7 @@ install:
 # Setup Clang-cl
 - set PATH=%PATH%;"C:\Program Files\LLVM\bin"
 - set PATH=%PATH%;"C:\Program Files (x86)\Windows Kits\10\bin\x64"
+- set PATH=%PATH%;"C:\Program Files (x86)\Windows Kits\10\bin\x86"
 - clang-cl -v
 - set CC=clang-cl
 - set CXX=clang-cl
