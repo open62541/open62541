@@ -13,7 +13,6 @@ try {
         $build_encryption = "ON"
     }
 
-    choco upgrade windows-sdk-10.0
     if (Test-Path "C:\Program Files\LLVM\bin\lld-link.exe") {
         Write-Host -ForegroundColor Green "`n## Path ok #####`n"
     }
