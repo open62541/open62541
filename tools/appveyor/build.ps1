@@ -18,8 +18,12 @@ try {
         Write-Host -ForegroundColor Green "`n## Path ok #####`n"
     }
     
+    if (Test-Path "C:\Program Files (x86)\Microsoft SDKs\Windows\v8.1\bin\RC.Exe") {
+        Write-Host -ForegroundColor Green "`n## Path rc.exe ok #####`n"
+    }
+    
     & where.exe rc.exe
-    & (get-command rc.exe).Path
+    
     
     if ($env:CC_SHORTNAME -eq "mingw") {
 
