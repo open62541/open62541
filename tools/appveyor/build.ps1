@@ -37,6 +37,8 @@ try {
         Write-Host -ForegroundColor Green "`n## Path x64.exe ok #####`n"
     }
     
+    Write-Host $env:PATH
+    
     & where.exe rc.exe
     
     
