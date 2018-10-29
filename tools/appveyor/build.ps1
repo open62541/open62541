@@ -18,7 +18,7 @@ try {
         Write-Host -ForegroundColor Green "`n## Path ok #####`n"
     }
     
-    if (Test-Path "C:\Program Files (x86)\Microsoft SDKs\Windows\v8.1\bin\RC.Exe") {
+    if (Test-Path "C:\Program Files (x86)\Microsoft SDKs\Windows\10\bin\RC.Exe") {
         Write-Host -ForegroundColor Green "`n## Path rc.exe ok #####`n"
     }
     
