@@ -18,7 +18,8 @@ try {
         Write-Host -ForegroundColor Green "`n## Path ok #####`n"
     }
     
-    & where rc.exe
+    & where.exe rc.exe
+    & (get-command rc.exe).Path
     
     if ($env:CC_SHORTNAME -eq "mingw") {
 
