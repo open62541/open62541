@@ -85,9 +85,9 @@ install:
 - set CXX=clang-cl
 
 - ECHO Fixing VS2008 Express and 64bit builds
-- COPY "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\amd64\vcvarsall.bat"
+- COPY "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\vcvarsall.bat" "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\vcvarsall.bat"
 
-- ps: '& "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\amd64\vcvarsall.bat" x86_amd64 8.1'
+- ps: '& "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\vcvarsall.bat" x86_amd64 8.1'
   
 - set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
 - set CMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"
