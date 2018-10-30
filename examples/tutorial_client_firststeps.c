@@ -46,13 +46,13 @@ int main(void) {
  *
  * .. code-block:: bash
  *
- *     $ gcc -std=c99 open6251.c myClient.c -o myClient
+ *     $ gcc -std=c99 open62541.c myClient.c -o myClient
  *
  * In a MinGW environment, the Winsock library must be added.
  *
  * .. code-block:: bash
  *
- *    $ gcc -std=c99 open6251.c myClient.c -lws2_32 -o myClient.exe
+ *    $ gcc -std=c99 open62541.c myClient.c -lws2_32 -o myClient.exe
  *
  * Further tasks
  * ^^^^^^^^^^^^^
