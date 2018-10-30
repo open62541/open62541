@@ -170,14 +170,16 @@ main(int argc, char **argv) {
         return 1;
     }
 #else
+    UA_ServerConfig *config;
     if(argc < 2) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing argument for the server certificate");
-        return 1;
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "Using server without certificate");
+        config = UA_ServerConfig_new_minimal(4840, NULL);
+    } else {
+        UA_ByteString certificate = loadFile(argv[1]);
+        config = UA_ServerConfig_new_minimal(4840, &certificate);
+        UA_ByteString_deleteMembers(&certificate);
     }
-    UA_ByteString certificate = loadFile(argv[1]);
-    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, &certificate);
-    UA_ByteString_deleteMembers(&certificate);
 #endif
 
     /* uncomment next line to add a custom hostname */
