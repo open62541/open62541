@@ -82,7 +82,6 @@ install:
 - clang-cl -v
 - set CC=clang-cl
 - set CXX=clang-cl
-- '"C:\Program Files\Microsoft SDKs\Windows\v7.1\Bin\SetEnv.cmd" /x64'
   
 - set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
 - set CMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"
