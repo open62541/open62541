@@ -39,10 +39,7 @@ try {
     if (Test-Path "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\Bin\SetEnv.cmd") {
         Write-Host -ForegroundColor Green "`n## Path setenv.exe ok #####`n"
     }
-    
-    
-    choco install --force visualstudio2015professional
-    
+        
     Write-Host $env:PATH
     
     & dir "C:\Program Files (x86)\Windows Kits\8.0\bin\x64"
