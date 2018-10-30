@@ -92,7 +92,8 @@ Jointly with the overall open62541 community, the core maintainers steer the lon
 
 The open62541 community handles support requests for the open source library and its development. Custom development and individual support is provided by commercial partners that are affiliated with open62541:
 
-- [Kalycito Infotech](https://www.kalycito.com) for embedded and realtime IIoT applications (Contact: enterprise.services@kalycito.com)
+- [Kalycito Infotech, Tamil Nadu, INDIA](https://www.kalycito.com/landing/open62541-commercial-partner) for embedded and realtime IIoT applications (Contact: enterprise.services@kalycito.com)
+- [basysKom GmbH, Darmstadt, Germany](https://www.basyskom.com/) Software Engineering for Embedded Systems. (Contact: info@basysKom.com) 
 
 For custom development that shall eventually become part of the open62541 library, please keep one of the core maintainers in the loop. Again, please note that all changes to files that are already licensed under the MPLv2 automatically become MPLv2 as well. Static linking of the open62541 library with code under a different license is possible. All architecture-specific code is implemented in the form of exchangeable plugins under a very permissible CC0 license.
 
