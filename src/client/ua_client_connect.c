@@ -420,6 +420,8 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         return UA_STATUSCODE_GOOD;
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
+    client->channel.sendSequenceNumber = 0;
+    client->requestId = 0;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
