@@ -43,7 +43,7 @@ try {
     
     Write-Host $env:PATH
     
-    & dir "C:\Program Files (x86)\Windows Kits\10\bin"
+    & dir "C:\Program Files (x86)\Windows Kits\10\bin\10.0.14393.0\x64"
     
     & where.exe rc.exe
     
