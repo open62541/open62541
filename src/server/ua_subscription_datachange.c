@@ -20,47 +20,47 @@
 #define ABS_SUBTRACT_TYPE_INDEPENDENT(a,b) ((a)>(b)?(a)-(b):(b)-(a))
 
 static UA_Boolean
-outOfDeadBand(const void *data1, const void *data2, const size_t arrayIndex,
+outOfDeadBand(const void *data1, const void *data2, const size_t arrayPos,
               const UA_DataType *type, const UA_Double deadbandValue) {
     if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_SByte*)data1)[arrayIndex],
-                                         ((const UA_SByte*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_SByte*)data1)[arrayPos],
+                                         ((const UA_SByte*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_BYTE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Byte*)data1)[arrayIndex],
-                                         ((const UA_Byte*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Byte*)data1)[arrayPos],
+                                         ((const UA_Byte*)data2)[arrayPos]) <= deadbandValue)
                 return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT16]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int16*)data1)[arrayIndex],
-                                          ((const UA_Int16*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int16*)data1)[arrayPos],
+                                          ((const UA_Int16*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT16]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt16*)data1)[arrayIndex],
-                                          ((const UA_UInt16*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt16*)data1)[arrayPos],
+                                          ((const UA_UInt16*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT32]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int32*)data1)[arrayIndex],
-                                         ((const UA_Int32*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int32*)data1)[arrayPos],
+                                         ((const UA_Int32*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT32]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt32*)data1)[arrayIndex],
-                                         ((const UA_UInt32*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt32*)data1)[arrayPos],
+                                         ((const UA_UInt32*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT64]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int64*)data1)[arrayIndex],
-                                         ((const UA_Int64*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int64*)data1)[arrayPos],
+                                         ((const UA_Int64*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT64]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt64*)data1)[arrayIndex],
-                                         ((const UA_UInt64*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt64*)data1)[arrayPos],
+                                         ((const UA_UInt64*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_FLOAT]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Float*)data1)[arrayIndex],
-                                         ((const UA_Float*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Float*)data1)[arrayPos],
+                                         ((const UA_Float*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_DOUBLE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Double*)data1)[arrayIndex],
-                                         ((const UA_Double*)data2)[arrayIndex]) <= deadbandValue)
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Double*)data1)[arrayPos],
+                                         ((const UA_Double*)data2)[arrayPos]) <= deadbandValue)
             return false;
     }
     return true;
