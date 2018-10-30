@@ -40,6 +40,8 @@ try {
         Write-Host -ForegroundColor Green "`n## Path setenv.exe ok #####`n"
     }
         
+    & "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\vcvars64.bat"
+    
     Write-Host $env:PATH
     
     & dir "C:\Program Files (x86)\Windows Kits\8.0\bin\x64"
