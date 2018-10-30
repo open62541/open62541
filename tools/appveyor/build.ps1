@@ -45,6 +45,8 @@ try {
     
     & dir "C:\Program Files (x86)\Windows Kits\8.0\bin\x64"
     
+    & cp "C:\Program Files (x86)\Windows Kits\8.0\bin\x64\rc*" "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\"
+    
     & dir "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin"
     
     & where.exe rc.exe
