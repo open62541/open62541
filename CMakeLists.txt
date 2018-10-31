@@ -665,7 +665,7 @@ else()
     if(UA_ENABLE_PUBSUB)
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_pubsub.txt)
         if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-            set(UA_FILE_NSPUBSUB --xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+            set(UA_FILE_NSPUBSUB ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
         endif()
     endif()
 endif()
@@ -747,36 +747,19 @@ if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
     set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
 endif()
 
-# generated namespace 0
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                           --generate-ns0
-                           --internal-headers
-                           --encode-binary-size=${UA_NODESET_ENCODE_BINARY_SIZE}
-                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
-                           --xml ${UA_FILE_NS0}
-                           ${UA_FILE_NSPUBSUB}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
-                   DEPENDS ${UA_FILE_NS0}
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
+ua_generate_nodeset(
+    NAME "ns0"
+    FILE "${UA_FILE_NS0}" "${UA_FILE_NSPUBSUB}"
+    INTERNAL
+    IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
+    ENCODE_BINARY_SIZE ${UA_NODESET_ENCODE_BINARY_SIZE}
+    DEPENDS_TARGET "open62541-generator-types"
+)
 
 # stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
 if(NOT MSVC)
     set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
 endif()
-
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-namespace DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
 
 #####################
 # Build the Library #

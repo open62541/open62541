@@ -164,4 +164,155 @@ function(ua_generate_datatypes)
                       ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
                       ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
                       )
+
+    if(UA_COMPILE_AS_CXX)
+        set_source_files_properties(${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c PROPERTIES LANGUAGE CXX)
+    endif()
+endfunction()
+
+
+# --------------- Generate Nodeset ---------------------
+#
+# Generates C code for the given NodeSet2.xml file.
+# This C code can be used to initialize the server.
+#
+# The resulting files will be put into OUTPUT_DIR with the names:
+# - ua_namespace_NAME.c
+# - ua_namespace_NAME.h
+#
+# The resulting cmake target will be named like this:
+#   open62541-generator-ns-${NAME}
+#
+# The following arguments are accepted:
+#   Options:
+#
+#   [INTERNAL]      Optional argument. If given, then the generated node set code will use internal headers.
+#
+#   Arguments taking one value:
+#
+#   NAME            Full name of the generated files, e.g. ua_types_di
+#   [TYPES_ARRAY]   Optional name of the types array containing the custom datatypes of this node set.
+#   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
+#   [ENCODE_BINARY_SIZE]    Optional array size for binary encoding extension objects.
+#   [IGNORE]        Optional file containing a list of node ids which should be ignored. The file should have one id per line.
+#
+#   Arguments taking multiple values:
+#
+#   FILE            Path to the NodeSet2.xml file. Multiple values can be passed. These nodesets will be combined into one output.
+#   [DEPENDS_TYPES]   Optional list of types array which match with the DEPENDS_NS node sets. e.g. 'UA_TYPES;UA_TYPES_DI'
+#   [DEPENDS_NS]      Optional list of NodeSet2.xml files which are a dependency of this node set.
+#   [DEPENDS_TARGET]  Optional list of CMake targets this nodeset depends on.
+#
+#
+function(ua_generate_nodeset)
+
+    set(options INTERNAL )
+    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR ENCODE_BINARY_SIZE IGNORE)
+    set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
+    cmake_parse_arguments(PARSE_ARGV 0 UA_GEN_NS "${options}" "${oneValueArgs}"
+                          "${multiValueArgs}")
+
+
+
+    # ------ Argument checking -----
+    if(NOT UA_GEN_NS_NAME OR "${UA_GEN_NS_NAME}" STREQUAL "")
+        message(FATAL_ERROR "ua_generate_nodeset function requires a value for the NAME argument")
+    endif()
+
+    if(NOT UA_GEN_NS_FILE OR "${UA_GEN_NS_FILE}" STREQUAL "")
+        message(FATAL_ERROR "ua_generate_nodeset function requires a value for the FILE argument")
+    endif()
+
+    # Set default value for output dir
+    if(NOT UA_GEN_NS_OUTPUT_DIR)
+        set(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+    endif()
+
+    list(LENGTH UA_GEN_NS_DEPENDS_TYPES DEPENDS_TYPES_LEN)
+    list(LENGTH UA_GEN_NS_DEPENDS_NS DEPENDS_NS_LEN)
+
+    if(NOT DEPENDS_TYPES_LEN EQUAL DEPENDS_NS_LEN)
+        message(FATAL_ERROR "ua_generate_nodeset parameters DEPENDS_NS and DEPENDS_TYPES must have the same number of list elements")
+    endif()
+
+    # ------ Add custom command and target -----
+
+    set(GEN_INTERNAL_HEADERS "")
+    if (UA_GEN_NS_INTERNAL)
+        set(GEN_INTERNAL_HEADERS "--internal-headers")
+    endif()
+
+    set(GEN_NS0 "")
+    set(TARGET_SUFFIX "ns-${UA_GEN_NS_NAME}")
+    set(FILE_SUFFIX "_${UA_GEN_NS_NAME}")
+
+    if ("${UA_GEN_NS_NAME}" STREQUAL "ns0")
+        set(GEN_NS0 "--generate-ns0")
+        set(TARGET_SUFFIX "namespace")
+        set(FILE_SUFFIX "0")
+    endif()
+
+    set(GEN_IGNORE "")
+    if (UA_GEN_NS_IGNORE)
+        set(GEN_IGNORE "--ignore=${UA_GEN_NS_IGNORE}")
+    endif()
+
+    set(GEN_BIN_SIZE "")
+    if (UA_GEN_NS_ENCODE_BINARY_SIZE OR "${UA_GEN_NS_ENCODE_BINARY_SIZE}" STREQUAL "0")
+        set(GEN_BIN_SIZE "--encode-binary-size=${UA_GEN_NS_ENCODE_BINARY_SIZE}")
+    endif()
+
+
+    set(TYPES_ARRAY_LIST "")
+    foreach(f ${UA_GEN_NS_DEPENDS_TYPES})
+        set(TYPES_ARRAY_LIST ${TYPES_ARRAY_LIST} "--types-array=${f}")
+    endforeach()
+    if(UA_GEN_NS_TYPES_ARRAY)
+        set(TYPES_ARRAY_LIST ${TYPES_ARRAY_LIST} "--types-array=${UA_GEN_NS_TYPES_ARRAY}")
+    endif()
+
+    set(DEPENDS_FILE_LIST "")
+    foreach(f ${UA_GEN_NS_DEPENDS_NS})
+        set(DEPENDS_FILE_LIST ${DEPENDS_FILE_LIST} "--existing=${f}")
+    endforeach()
+    set(FILE_LIST "")
+    foreach(f ${UA_GEN_NS_FILE})
+        set(FILE_LIST ${FILE_LIST} "--xml=${f}")
+    endforeach()
+
+    add_custom_command(OUTPUT ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c
+                       ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.h
+                       PRE_BUILD
+                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                       ${GEN_INTERNAL_HEADERS}
+                       ${GEN_NS0}
+                       ${GEN_BIN_SIZE}
+                       ${GEN_IGNORE}
+                       ${TYPES_ARRAY_LIST}
+                       ${DEPENDS_FILE_LIST}
+                       ${FILE_LIST}
+                       ${PROJECT_BINARY_DIR}/src_generated/ua_namespace${FILE_SUFFIX}
+                       DEPENDS
+                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
+                       ${UA_GEN_NS_FILE}
+                       ${UA_GEN_NS_DEPENDS_NS}
+                       )
+
+    add_custom_target(open62541-generator-${TARGET_SUFFIX}
+                      DEPENDS
+                      ${PROJECT_BINARY_DIR}/src_generated/ua_namespace${FILE_SUFFIX}.c
+                      ${PROJECT_BINARY_DIR}/src_generated/ua_namespace${FILE_SUFFIX}.h)
+    if (UA_GEN_NS_DEPENDS_TARGET)
+        add_dependencies(open62541-generator-${TARGET_SUFFIX} ${UA_GEN_NS_DEPENDS_TARGET})
+    endif()
+
+    if(UA_COMPILE_AS_CXX)
+        set_source_files_properties(${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c PROPERTIES LANGUAGE CXX)
+    endif()
 endfunction()
