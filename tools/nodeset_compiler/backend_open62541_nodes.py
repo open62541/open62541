@@ -193,7 +193,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
     for field in node.encodingRule:
         ptrSym = ""
         # If this is an Array, this is pointer to its contents with a AliasOfFieldSize entry
-        if field[2] != 0:
+        if field[2] != None and field[2] != 0 :
             code.append("  UA_Int32 " + str(field[0]) + "Size;")
             ptrSym = "*"
         if len(field[1]) == 1:
@@ -211,7 +211,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
         logger.debug(
             "Encoding of field " + subv.alias + " is " + str(subv.encodingRule) + "defined by " + str(encField))
         # Check if this is an array
-        if encField[2] == 0:
+        if subv.valueRank is None or subv.valueRank == 0:
             code.append(instanceName + "_struct." + subv.alias + " = " +
                         generateNodeValueCode(subv, instanceName, asIndirect=False, max_string_length=max_string_length) + ";")
         else:
@@ -260,7 +260,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
     for subv in node.value:
         encField = node.encodingRule[encFieldIdx]
         encFieldIdx = encFieldIdx + 1
-        if encField[2] == 0:
+        if subv.valueRank is None or subv.valueRank == 0:
             code.append(
                 "retVal |= UA_encodeBinary(&" + instanceName + "_struct." + subv.alias + ", " +
                 getTypesArrayForValue(nodeset, subv) + ", &pos" + instanceName + ", &end" + instanceName + ", NULL, NULL);")
@@ -516,7 +516,7 @@ def generateNodeCode_begin(node, nodeset, max_string_length, generate_ns0, paren
         code.append("UA_NODEID_NULL,")
     code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".format(node.__class__.__name__.upper().replace("NODE" ,"")))
     code.extend(codeCleanup)
-    
+
     return "\n".join(code)
 
 def generateNodeCode_finish(node):
