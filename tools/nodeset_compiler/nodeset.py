@@ -108,6 +108,7 @@ class NodeSet(object):
         self.nodes = {}
         self.aliases = {}
         self.namespaces = ["http://opcfoundation.org/UA/"]
+        self.namespaceMapping = {};
 
     def sanitize(self):
         for n in self.nodes.values():
@@ -148,7 +149,7 @@ class NodeSet(object):
     def getRoot(self):
         return self.getNodeByBrowseName("Root")
 
-    def createNode(self, xmlelement, nsMapping, hidden=False):
+    def createNode(self, xmlelement, modelUri, hidden=False):
         ndtype = xmlelement.localName.lower()
         if ndtype[:2] == "ua":
             ndtype = ndtype[2:]
@@ -174,6 +175,7 @@ class NodeSet(object):
         if node == None:
             return None
 
+        node.modelUri = modelUri
         node.hidden = hidden
         return node
 
@@ -212,11 +214,29 @@ class NodeSet(object):
             raise Exception(self, self.originXML + " contains no or more then 1 nodeset")
         nodeset = nodesets[0]
 
+
+        # Extract the modelUri
+        modelUri = None
+        try:
+            modelTag = nodeset.getElementsByTagName("Models")[0].getElementsByTagName("Model")[0]
+            modelUri = modelTag.attributes["ModelUri"].nodeValue
+        except:
+            # Ignore exception and try to use namespace array
+            modelUri = None
+
+
         # Create the namespace mapping
         orig_namespaces = extractNamespaces(xmlfile)  # List of namespaces used in the xml file
+        if modelUri is None and len(orig_namespaces) > 0:
+            modelUri = orig_namespaces[0]
+
+        if modelUri is None:
+            raise Exception(self, self.originXML + " does not define the nodeset URI in Models/Model/ModelUri or NamespaceUris array.")
+
+
         for ns in orig_namespaces:
             self.addNamespace(ns)
-        nsMapping = self.createNamespaceMapping(orig_namespaces)
+        self.namespaceMapping[modelUri] = self.createNamespaceMapping(orig_namespaces)
 
         # Extract the aliases
         for nd in nodeset.childNodes:
@@ -231,11 +251,11 @@ class NodeSet(object):
         for nd in nodeset.childNodes:
             if nd.nodeType != nd.ELEMENT_NODE:
                 continue
-            node = self.createNode(nd, nsMapping, hidden)
+            node = self.createNode(nd, modelUri, hidden)
             if not node:
                 continue
             node.replaceAliases(self.aliases)
-            node.replaceNamespaces(nsMapping)
+            node.replaceNamespaces(self.namespaceMapping[modelUri])
             node.typesArray = typesArray
 
             # Add the node the the global dict
