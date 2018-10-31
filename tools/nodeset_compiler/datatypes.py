@@ -57,6 +57,7 @@ class Value(object):
         self.dataType = None
         self.encodingRule = []
         self.isInternal = False
+        self.valueRank = None
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -165,7 +166,7 @@ class Value(object):
         else:
             self.value = [self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent)]
 
-    def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, alias=None, encodingPart=None):
+    def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, alias=None, encodingPart=None, valueRank=None):
         # Parse an encoding list such as enc = [[Int32], ['Duration', ['DateTime']]],
         # returning a possibly aliased variable or list of variables.
         # Keep track of aliases, as ['Duration', ['Hawaii', ['UtcTime', ['DateTime']]]]
@@ -195,6 +196,7 @@ class Value(object):
                         t = self.getTypeByString(enc[0], enc)
                         t.alias = alias
                         t.parseXML(xmlvalue)
+                        t.valueRank = valueRank
                         return t
                 else:
                     if not valueIsInternalType(xmlvalue.localName):
@@ -207,7 +209,8 @@ class Value(object):
             else:
                 # 1: ['Alias', [...], n]
                 # Let the next elif handle this
-                return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent, alias=alias, encodingPart=enc[0])
+                return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent,
+                                                  alias=alias, encodingPart=enc[0], valueRank=enc[2] if len(enc)>2 else None)
         elif len(enc) == 3 and isinstance(enc[0], six.string_types):
             # [ 'Alias', [...], 0 ]          aliased multipart
             if alias == None:
@@ -216,7 +219,8 @@ class Value(object):
             elif alias != None and len(enc[1]) > 1:
                 alias = enc[0]
             # otherwise drop the alias
-            return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent, alias=alias, encodingPart=enc[1])
+            return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent,
+                                              alias=alias, encodingPart=enc[1], valueRank=enc[2] if len(enc)>2 else None)
         else:
             # [ [...], [...], [...]] multifield of unknowns (analyse separately)
             # create an extension object to hold multipart type
