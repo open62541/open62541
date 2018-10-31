@@ -69,6 +69,7 @@ class Node(object):
         self.references = set()
         self.inverseReferences = set()
         self.hidden = False
+        self.modelUri = None
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -566,9 +567,11 @@ class DataTypeNode(Node):
 
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
-                    if not NodeId(fdtype) in nodeset.nodes:
-                        raise Exception("Node {} not found in nodeset".format(NodeId(fdtype)))
-                    dtnode = nodeset.nodes[NodeId(fdtype)]
+                    fdTypeNodeId = NodeId(fdtype)
+                    fdTypeNodeId.ns = nodeset.namespaceMapping[self.modelUri][fdTypeNodeId.ns]
+                    if not fdTypeNodeId in nodeset.nodes:
+                        raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
+                    dtnode = nodeset.nodes[fdTypeNodeId]
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable
                     typeDict.append([fname, dtnode])
