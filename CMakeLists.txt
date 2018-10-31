@@ -674,57 +674,26 @@ if(NOT EXISTS "${UA_FILE_NS0}")
     message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
 endif()
 
-set(SELECTED_TYPES_TMP "")
-foreach(f ${UA_FILE_DATATYPES})
-    set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
-endforeach()
-
 # standard-defined data types
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --type-csv=${UA_FILE_NODEIDS}
-                           ${SELECTED_TYPES_TMP}
-                           --type-bsd=${UA_FILE_TYPES_BSD}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_types
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${UA_FILE_NODEIDS}
-                           ${UA_FILE_TYPES_BSD}
-                           ${UA_FILE_DATATYPES})
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-types DEPENDS
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h)
+ua_generate_datatypes(
+    BUILTIN
+    NAME "ua_types"
+    TARGET_SUFFIX "types"
+    NAMESPACE_IDX 0
+    FILE_CSV "${UA_FILE_NODEIDS}"
+    FILES_BSD "${UA_FILE_TYPES_BSD}"
+    FILES_SELECTED ${UA_FILE_DATATYPES}
+)
 
 # transport data types
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --namespace=1
-                           --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           --type-bsd=${UA_FILE_TYPES_BSD}
-                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
-                           --no-builtin
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${UA_FILE_TYPES_BSD}
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
-
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-transport DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
+ua_generate_datatypes(
+    NAME "ua_transport"
+    TARGET_SUFFIX "transport"
+    NAMESPACE_IDX 1
+    FILE_CSV "${UA_FILE_NODEIDS}"
+    FILES_BSD "${UA_FILE_TYPES_BSD}" "${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd"
+    FILES_SELECTED "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt"
+)
 
 # statuscode explanation
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h

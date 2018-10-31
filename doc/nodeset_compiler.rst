@@ -376,17 +376,18 @@ Combination of multiple nodesets
 
 In previous section you have seen how you can use the nodeset compiler with one single nodeset which depends on the default nodeset (NS0) ``Opc.Ua.NodeSet2.xml``. The nodeset compiler also supports nodesets which depend on more than one nodeset. We will show this use-case with the PLCopen nodeset. The PLCopen nodeset ``Opc.Ua.Plc.NodeSet2.xml`` depends on the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This example is also shown in ``examples/nodeset/CMakeLists.txt``.
 
-This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types within the generated code, we first need to compile the types into C code. The generated code is mainly a definition of the binary representation of the types required for encoding and decoding. The generation can be done using the ``tools/generate_datatypes.py`` script::
+This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types within the generated code, we first need to compile the types into C code. The generated code is mainly a definition of the binary representation of the types required for encoding and decoding. The generation can be done using the ``ua_generate_datatypes`` CMake function, which uses the ``tools/generate_datatypes.py`` script::
 
-    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-    --namespace=2
-    --type-csv=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv
-    --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd
-    --no-builtin
-    ${PROJECT_BINARY_DIR}/src_generated/ua_types_di
+    ua_generate_datatypes(
+        NAME "ua_types_di"
+        TARGET_SUFFIX "types-di"
+        NAMESPACE_IDX 2
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
+        FILES_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+    )
 
-The ``namespace`` parameter indicates the namespace index of the generated node IDs for the type definitions. Currently we need to rely that the namespace is also added at this position in the final server. There is no automatic inferring yet (pull requests are warmly welcome).
-The CSV and BSD files contain the metadata and definition for the types. The ``--no-builtin`` argument tells the script to skip internal datatypes which are always included in the stack. The last parameter is the output file and at the same time the name of the types array: ``UA_TYPES_DI``.
+The ``NAMESPACE_IDX`` parameter indicates the namespace index of the generated node IDs for the type definitions. Currently we need to rely that the namespace is also added at this position in the final server. There is no automatic inferring yet (pull requests are warmly welcome).
+The CSV and BSD files contain the metadata and definition for the types. ``TARGET_SUFFIX`` is used to create a new target with the name ``open62541-generator-TARGET_SUFFIX``.
 
 Now you can compile the DI nodeset XML using the following command::
 
