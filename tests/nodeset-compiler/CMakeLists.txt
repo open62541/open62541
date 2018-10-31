@@ -35,40 +35,24 @@ add_test_valgrind(nodeset_objecttype ${TESTS_BINARY_DIR}/check_nodeset_objecttyp
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Generate types for DI namespace
-    set(UA_TYPES_OUT "ua_types_di")
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated.c
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated.h
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated_handling.h
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated_encoding_binary.h
-                       PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       --namespace=2
-                       --type-csv=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv
-                       --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd
-                       --no-builtin
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}
-                       DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd)
-    add_custom_target(open62541-generator-tests-types-di DEPENDS ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated.c)
+    ua_generate_datatypes(
+        NAME "ua_types_di"
+        TARGET_SUFFIX "tests-types-di"
+        NAMESPACE_IDX 2
+        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
+        FILES_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+    )
 
     # Generate types for ADI namespace
-    set(UA_TYPES_OUT "ua_types_adi")
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated.c
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated.h
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated_handling.h
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated_encoding_binary.h
-                       PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       --namespace=3
-                       --type-csv=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/OpcUaAdiModel.csv
-                       --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd
-                       --no-builtin
-                       ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}
-                       DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/OpcUaAdiModel.csv
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd)
-    add_custom_target(open62541-generator-tests-types-adi DEPENDS ${PROJECT_BINARY_DIR}/src_generated/tests/${UA_TYPES_OUT}_generated.c)
+    ua_generate_datatypes(
+        NAME "ua_types_adi"
+        TARGET_SUFFIX "tests-types-adi"
+        NAMESPACE_IDX 3
+        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/OpcUaAdiModel.csv"
+        FILES_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd"
+    )
 
     # generate DI namespace
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_di.c
