@@ -154,7 +154,8 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
     }
 
     /* get interface index */
-    struct ifreq ifreq = { 0 };
+    struct ifreq ifreq;
+    memset(&ifreq, 0, sizeof(struct ifreq));
     strncpy(ifreq.ifr_name, (char*)address->networkInterface.data,
             UA_MIN(address->networkInterface.length, sizeof(ifreq.ifr_name)-1));
 
