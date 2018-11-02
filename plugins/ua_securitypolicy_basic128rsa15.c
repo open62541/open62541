@@ -720,15 +720,18 @@ channelContext_compareCertificate_sp_basic128rsa15(const Basic128Rsa15_ChannelCo
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
     int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data, certificate->length);
-    UA_MBEDTLS_ERRORHANDLING_RETURN(UA_STATUSCODE_BADSECURITYCHECKSFAILED);
-
-    if(cert.raw.len != cc->remoteCertificate.raw.len)
+    if(mbedErr) {
+        UA_LOG_MBEDERR;
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
 
-    if(memcmp(cert.raw.p, cc->remoteCertificate.raw.p, cert.raw.len) != 0)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(cert.raw.len != cc->remoteCertificate.raw.len ||
+       memcmp(cert.raw.p, cc->remoteCertificate.raw.p, cert.raw.len) != 0)
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    return UA_STATUSCODE_GOOD;
+    mbedtls_x509_crt_free(&cert);
+    return retval;
 }
 
 static void
