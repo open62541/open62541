@@ -13,8 +13,10 @@
 #ifndef UA_CLIENT_INTERNAL_H_
 #define UA_CLIENT_INTERNAL_H_
 
+#define UA_INTERNAL
 #include "ua_securechannel.h"
 #include "ua_workqueue.h"
+#include "ua_client.h"
 #include "ua_client_highlevel.h"
 #include "ua_client_subscriptions.h"
 #include "ua_timer.h"

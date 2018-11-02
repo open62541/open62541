@@ -14,7 +14,6 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include "ua_util.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_securechannel_manager.h"
@@ -722,7 +721,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        retval = UA_SecureChannel_decryptAddChunk(connection->channel, message, UA_FALSE);
+        retval = UA_SecureChannel_decryptAddChunk(connection->channel, message, false);
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
@@ -749,7 +748,7 @@ processCompleteChunk(void *const application, UA_Connection *connection,
 #endif
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
-    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, UA_FALSE);
+    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
 }
 
 void

@@ -137,6 +137,25 @@
 #endif
 
 /**
+ * Internal Attributes
+ * -------------------
+ * These attributes are only defined if the macro UA_INTERNAL is defined. That
+ * way public methods can be annotated (e.g. to warn for unused results) but
+ * warnings are only triggered for internal code. */
+
+#if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
+# define UA_INTERNAL_DEPRECATED _Pragma ("GCC warning \"Macro is deprecated for internal use\"")
+#else
+# define UA_INTERNAL_DEPRECATED
+#endif
+
+#if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
+# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
+#endif
+
+/**
  * Detect Endianness and IEEE 754 floating point
  * ---------------------------------------------
  * Integers and floating point numbers are transmitted in little-endian (IEEE

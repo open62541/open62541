@@ -8,6 +8,7 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
+#define UA_INTERNAL
 #include "ua_network_tcp.h"
 #include "ua_log_stdout.h"
 #include "../deps/queue.h"
@@ -850,7 +851,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config,
         return connection;
     }
 
-    UA_Boolean connected = UA_FALSE;
+    UA_Boolean connected = false;
     UA_DateTime dtTimeout = timeout * UA_DATETIME_MSEC;
     UA_DateTime connStart = UA_DateTime_nowMonotonic();
     UA_SOCKET clientsockfd;

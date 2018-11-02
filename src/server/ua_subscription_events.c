@@ -189,14 +189,14 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
 /*                   UA_EventFieldList *efl, UA_Boolean *result) { */
 /*     /\* if the where clauses aren't specified leave everything as is *\/ */
 /*     if(whereClause.elementsSize == 0) { */
-/*         *result = UA_TRUE; */
+/*         *result = true; */
 /*         return UA_STATUSCODE_GOOD; */
 /*     } */
 
 /*     /\* where clauses were specified *\/ */
 /*     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND, */
 /*                    "Where clauses are not supported by the server."); */
-/*     *result = UA_TRUE; */
+/*     *result = true; */
 /*     return UA_STATUSCODE_BADNOTSUPPORTED; */
 /* } */
 
@@ -294,7 +294,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
                                       &filter->selectClauses[i],
                                       &notification->fields.eventFields[i]);
     }
-    /* UA_Boolean whereClauseResult = UA_TRUE; */
+    /* UA_Boolean whereClauseResult = true; */
     /* return whereClausesApply(server, filter->whereClause, &notification->fields, &whereClauseResult); */
     return UA_STATUSCODE_GOOD;
 }
@@ -436,7 +436,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     UA_NodeId *parentTypeHierachy = NULL;
     size_t parentTypeHierachySize = 0;
     getTypesHierarchy(&server->config.nodestore, parentReferences_events, 2,
-                      &parentTypeHierachy, &parentTypeHierachySize, UA_TRUE);
+                      &parentTypeHierachy, &parentTypeHierachySize, true);
     UA_Boolean isInObjectsFolder = isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentTypeHierachy, parentTypeHierachySize);
     UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
     if (!isInObjectsFolder) {
@@ -458,7 +458,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     struct getNodesHandle parentHandle;
     parentHandle.server = server;
     LIST_INIT(&parentHandle.nodes);
-    retval = getParentsNodeIteratorCallback(origin, UA_TRUE, parentReferences_events[1], &parentHandle);
+    retval = getParentsNodeIteratorCallback(origin, true, parentReferences_events[1], &parentHandle);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of nodes listening on the event with StatusCode %s",
@@ -489,7 +489,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
 
     /* Delete the node representation of the event */
     if(deleteEventNode) {
-        retval = UA_Server_deleteNode(server, eventNodeId, UA_TRUE);
+        retval = UA_Server_deleteNode(server, eventNodeId, true);
         if (retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Attempt to remove event using deleteNode failed. StatusCode %s",

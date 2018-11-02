@@ -89,7 +89,7 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
         return retval;
     }
     UA_Discovery_addRecord(server, appName, &hostname, port,
-                           &path, UA_DISCOVERY_TCP, UA_TRUE,
+                           &path, UA_DISCOVERY_TCP, true,
                            server->config.serverCapabilities,
                            &server->config.serverCapabilitiesSize);
     return UA_STATUSCODE_GOOD;
@@ -113,7 +113,7 @@ void stopMulticastDiscoveryServer(UA_Server *server) {
     if(UA_gethostname(hostname, 255) == 0) {
         UA_String hnString = UA_STRING(hostname);
         UA_Discovery_removeRecord(server, &server->config.mdnsServerName,
-                                  &hnString, 4840, UA_TRUE);
+                                  &hnString, 4840, true);
     } else {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not get hostname for multicast discovery.");
@@ -123,7 +123,7 @@ void stopMulticastDiscoveryServer(UA_Server *server) {
     multicastListenStop(server);
 # else
     // send out last package with TTL = 0
-    iterateMulticastDiscoveryServer(server, NULL, UA_FALSE);
+    iterateMulticastDiscoveryServer(server, NULL, false);
 # endif
 }
 
@@ -357,10 +357,10 @@ UA_Discovery_recordExists(UA_Server* server, const char* fullServiceDomain,
     while(r) {
         const mdns_answer_t *data = mdnsd_record_data(r);
         if(data->type == QTYPE_SRV && (port == 0 || data->srv.port == port))
-            return UA_TRUE;
+            return true;
         r = mdnsd_record_next(r);
     }
-    return UA_FALSE;
+    return false;
 }
 
 static int
@@ -375,7 +375,7 @@ discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     /* Skip, if we already know about this server */
     UA_Boolean exists =
         UA_Discovery_recordExists(server, a->rdname, 0, UA_DISCOVERY_TCP);
-    if(exists == UA_TRUE)
+    if(exists == true)
         return 0;
 
     if(mdnsd_has_query(server->mdnsDaemon, a->rdname))
@@ -429,7 +429,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
             mdnsd_shared(server->mdnsDaemon, "_services._dns-sd._udp.local.",
                          QTYPE_PTR, 600);
         mdnsd_set_host(server->mdnsDaemon, r, "_opcua-tcp._tcp.local.");
-        server->mdnsMainSrvAdded = UA_TRUE;
+        server->mdnsMainSrvAdded = true;
     }
 
     // [servername]-[hostname]._opcua-tcp._tcp.local.
@@ -437,7 +437,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     createFullServiceDomain(fullServiceDomain, 63+24, servername, hostname);
 
     UA_Boolean exists = UA_Discovery_recordExists(server, fullServiceDomain, port, protocol);
-    if(exists == UA_TRUE)
+    if(exists == true)
         return UA_STATUSCODE_GOOD;
 
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,

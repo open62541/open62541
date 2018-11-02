@@ -5,8 +5,8 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include "ua_types_encoding_binary.h"
 #include "server/ua_server_internal.h"
+#include "ua_types_encoding_binary.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -670,29 +670,29 @@ UA_DataSetField_deleteMembers(UA_DataSetField *field) {
 /**
  * Compare two variants. Internally used for value change detection.
  *
- * @return UA_TRUE if the value has changed
+ * @return true if the value has changed
  */
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 static UA_Boolean
 valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue){
     if(! (oldValue && newValue))
-        return UA_FALSE;
+        return false;
 
     UA_ByteString *oldValueEncoding = UA_ByteString_new(), *newValueEncoding = UA_ByteString_new();
     size_t oldValueEncodingSize, newValueEncodingSize;
     oldValueEncodingSize = UA_calcSizeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT]);
     newValueEncodingSize = UA_calcSizeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT]);
     if((oldValueEncodingSize == 0) || (newValueEncodingSize == 0))
-        return UA_FALSE;
+        return false;
 
     if(oldValueEncodingSize != newValueEncodingSize)
-        return UA_TRUE;
+        return true;
 
     if(UA_ByteString_allocBuffer(oldValueEncoding, oldValueEncodingSize) != UA_STATUSCODE_GOOD)
-        return UA_FALSE;
+        return false;
 
     if(UA_ByteString_allocBuffer(newValueEncoding, newValueEncodingSize) != UA_STATUSCODE_GOOD)
-        return UA_FALSE;
+        return false;
 
     UA_Byte *bufPosOldValue = oldValueEncoding->data;
     const UA_Byte *bufEndOldValue = &oldValueEncoding->data[oldValueEncoding->length];
@@ -700,11 +700,11 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue){
     const UA_Byte *bufEndNewValue = &newValueEncoding->data[newValueEncoding->length];
     if(UA_encodeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
                        &bufPosOldValue, &bufEndOldValue, NULL, NULL) != UA_STATUSCODE_GOOD){
-        return UA_FALSE;
+        return false;
     }
     if(UA_encodeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT],
                        &bufPosNewValue, &bufEndNewValue, NULL, NULL) != UA_STATUSCODE_GOOD){
-        return UA_FALSE;
+        return false;
     }
     oldValueEncoding->length = (uintptr_t)bufPosOldValue - (uintptr_t)oldValueEncoding->data;
     newValueEncoding->length = (uintptr_t)bufPosNewValue - (uintptr_t)newValueEncoding->data;
@@ -808,14 +808,14 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         if(valueChangedVariant(&dataSetWriter->lastSamples[counter].value.value, &value.value)) {
             /* increase fieldCount for current delta message */
             dataSetMessage->data.deltaFrameData.fieldCount++;
-            dataSetWriter->lastSamples[counter].valueChanged = UA_TRUE;
+            dataSetWriter->lastSamples[counter].valueChanged = true;
 
             /* Update last stored sample */
             UA_DataValue_deleteMembers(&dataSetWriter->lastSamples[counter].value);
             dataSetWriter->lastSamples[counter].value = value;
         } else {
             UA_DataValue_deleteMembers(&value);
-            dataSetWriter->lastSamples[counter].valueChanged = UA_FALSE;
+            dataSetWriter->lastSamples[counter].valueChanged = false;
         }
 
         counter++;
@@ -841,17 +841,17 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 
         /* Deactivate statuscode? */
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
-            dff->fieldValue.hasStatus = UA_FALSE;
+            dff->fieldValue.hasStatus = false;
 
         /* Deactivate timestamps? */
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
-            dff->fieldValue.hasSourceTimestamp = UA_FALSE;
+            dff->fieldValue.hasSourceTimestamp = false;
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
-            dff->fieldValue.hasServerPicoseconds = UA_FALSE;
+            dff->fieldValue.hasServerPicoseconds = false;
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
-            dff->fieldValue.hasServerTimestamp = UA_FALSE;
+            dff->fieldValue.hasServerTimestamp = false;
         if((dataSetWriter->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
-            dff->fieldValue.hasServerPicoseconds = UA_FALSE;
+            dff->fieldValue.hasServerPicoseconds = false;
 
         currentDeltaField++;
     }
@@ -920,34 +920,34 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 
     /* Std: 'The DataSetMessageContentMask defines the flags for the content of the DataSetMessage header.' */
     if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION){
-        dataSetMessage->header.configVersionMajorVersionEnabled = UA_TRUE;
+        dataSetMessage->header.configVersionMajorVersionEnabled = true;
         dataSetMessage->header.configVersionMajorVersion =
             currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
     }
     if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION){
-        dataSetMessage->header.configVersionMinorVersionEnabled = UA_TRUE;
+        dataSetMessage->header.configVersionMinorVersionEnabled = true;
         dataSetMessage->header.configVersionMinorVersion =
             currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
     }
 
     if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
-        dataSetMessage->header.dataSetMessageSequenceNrEnabled = UA_TRUE;
+        dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
         dataSetMessage->header.dataSetMessageSequenceNr =
             dataSetWriter->actualDataSetMessageSequenceCount;
     }
 
     if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
-        dataSetMessage->header.timestampEnabled = UA_TRUE;
+        dataSetMessage->header.timestampEnabled = true;
         dataSetMessage->header.timestamp = UA_DateTime_now();
     }
     /* TODO: Picoseconds resolution not supported atm */
     if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
-        dataSetMessage->header.picoSecondsIncluded = UA_FALSE;
+        dataSetMessage->header.picoSecondsIncluded = false;
     }
 
     /* TODO: Statuscode not supported yet */
     if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_STATUS){
-        dataSetMessage->header.statusEnabled = UA_FALSE;
+        dataSetMessage->header.statusEnabled = false;
     }
 
     /* Set the sequence count. Automatically rolls over to zero */
@@ -1095,7 +1095,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     for(UA_UInt32 i = 0; i < networkMessageCount; i++) {
         nmStore[i].version = 1;
         nmStore[i].networkMessageType = UA_NETWORKMESSAGE_DATASET;
-        nmStore[i].payloadHeaderEnabled = UA_TRUE;
+        nmStore[i].payloadHeaderEnabled = true;
         //create combined NetworkMessages
         if(i < (networkMessageCount-singleNetworkMessagesCount)){
             if(combinedNetworkMessageCount - (i * writerGroup->config.maxEncapsulatedDataSetMessageCount)){

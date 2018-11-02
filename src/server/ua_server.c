@@ -17,7 +17,6 @@
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  */
 
-#include "ua_types.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -300,7 +299,7 @@ UA_Server_new(const UA_ServerConfig *config) {
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
     server->mdnsDaemon = NULL;
     server->mdnsSocket = UA_INVALID_SOCKET;
-    server->mdnsMainSrvAdded = UA_FALSE;
+    server->mdnsMainSrvAdded = false;
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
         initMulticastDiscoveryServer(server);
 
@@ -509,7 +508,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         // server->mdnsSocket (see example in mdnsd library) on higher level.
         UA_DateTime multicastNextRepeat = 0;
         UA_StatusCode hasNext =
-            iterateMulticastDiscoveryServer(server, &multicastNextRepeat, UA_TRUE);
+            iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }

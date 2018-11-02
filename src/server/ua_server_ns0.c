@@ -36,7 +36,7 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     const UA_NodeId sourceId = UA_NODEID_NUMERIC(0, nodeId);
     const UA_NodeId refTypeId = UA_NODEID_NUMERIC(0, referenceTypeId);
     const UA_ExpandedNodeId targetId = UA_EXPANDEDNODEID_NUMERIC(0, parentNodeId);
-    UA_StatusCode retval = UA_Server_addReference(server, sourceId, refTypeId, targetId, UA_FALSE);
+    UA_StatusCode retval = UA_Server_addReference(server, sourceId, refTypeId, targetId, false);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
     return AddNode_finish(server, &server->adminSession, &sourceId);

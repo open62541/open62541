@@ -64,10 +64,10 @@ isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_Nod
              * reference types. */
             if(visitedRefs->depth % 5 == 4) {
                 struct ref_history *last = visitedRefs;
-                UA_Boolean skip = UA_FALSE;
+                UA_Boolean skip = false;
                 while(!skip && last) {
                     if(UA_NodeId_equal(last->id, &refs->targetIds[j].nodeId))
-                        skip = UA_TRUE;
+                        skip = true;
                     last = last->parent;
                 }
                 if(skip)

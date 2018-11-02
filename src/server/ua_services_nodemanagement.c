@@ -534,7 +534,7 @@ addChildren(UA_Server *server, UA_Session *session,
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
     UA_StatusCode retval = getTypeHierarchy(&server->config.nodestore, &type->nodeId,
-                                            &hierarchy, &hierarchySize, UA_FALSE);
+                                            &hierarchy, &hierarchySize, false);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -682,7 +682,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             goto cleanup;
         }
 
-        UA_Boolean typeOk = UA_FALSE;
+        UA_Boolean typeOk = false;
         switch(node->nodeClass) {
             case UA_NODECLASS_DATATYPE:
                 typeOk = type->nodeClass == UA_NODECLASS_DATATYPE;
@@ -709,7 +709,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 typeOk = type->nodeClass == UA_NODECLASS_VIEW;
                 break;
             default:
-                typeOk = UA_FALSE;
+                typeOk = false;
         }
         if(!typeOk) {
             UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -727,7 +727,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 UA_NodeId *parentTypeHierachy = NULL;
                 size_t parentTypeHierachySize = 0;
                 getTypesHierarchy(&server->config.nodestore, parentReferences,UA_PARENT_REFERENCES_COUNT,
-                                  &parentTypeHierachy, &parentTypeHierachySize, UA_TRUE);
+                                  &parentTypeHierachy, &parentTypeHierachySize, true);
                 /* Abstract variable is allowed if parent is a children of a base data variable */
                 const UA_NodeId variableTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
                 /* A variable may be of an object type which again is below BaseObjectType */
@@ -754,7 +754,7 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 UA_NodeId *parentTypeHierachy = NULL;
                 size_t parentTypeHierachySize = 0;
                 getTypesHierarchy(&server->config.nodestore, parentReferences,UA_PARENT_REFERENCES_COUNT,
-                                  &parentTypeHierachy, &parentTypeHierachySize, UA_TRUE);
+                                  &parentTypeHierachy, &parentTypeHierachySize, true);
                 /* Object node created of an abstract ObjectType. Only allowed
                  * if within BaseObjectType folder */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
@@ -902,7 +902,7 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
     retval = AddNode_addRefs(server, session, outNewNodeId, parentNodeId,
                              referenceTypeId, &item->typeDefinition.nodeId);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Server_deleteNode(server, *outNewNodeId, UA_TRUE);
+        UA_Server_deleteNode(server, *outNewNodeId, true);
 
     if(outNewNodeId == &newId)
         UA_NodeId_deleteMembers(&newId);
@@ -1310,10 +1310,10 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                                  (UA_EditNodeCallback)addOneWayReference,
                                  /* cast away const because callback uses const anyway */
                                  (UA_AddReferencesItem *)(uintptr_t)item);
-    UA_Boolean firstExisted = UA_FALSE;
+    UA_Boolean firstExisted = false;
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         *retval = UA_STATUSCODE_GOOD;
-        firstExisted = UA_TRUE;
+        firstExisted = true;
     } else if(*retval != UA_STATUSCODE_GOOD)
         return;
 
@@ -1329,10 +1329,10 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                                  (UA_EditNodeCallback)addOneWayReference, &secondItem);
 
     /* remove reference if the second direction failed */
-    UA_Boolean secondExisted = UA_FALSE;
+    UA_Boolean secondExisted = false;
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         *retval = UA_STATUSCODE_GOOD;
-        secondExisted = UA_TRUE;
+        secondExisted = true;
     } else if(*retval != UA_STATUSCODE_GOOD && !firstExisted) {
         UA_DeleteReferencesItem deleteItem;
         deleteItem.sourceNodeId = item->sourceNodeId;

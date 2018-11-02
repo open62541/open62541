@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
 #include "ua_transport_generated.h"
 #include "ua_transport_generated_handling.h"
@@ -202,7 +201,7 @@ UA_StatusCode
 processOPNResponseAsync(void *application, UA_Connection *connection,
                         UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*) application;
-    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk, UA_TRUE);
+    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk, true);
     client->connectStatus = retval;
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
