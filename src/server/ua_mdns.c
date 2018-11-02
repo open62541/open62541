@@ -93,8 +93,8 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
         UA_malloc(sizeof(struct serverOnNetwork_list_entry));
     listEntry->created = UA_DateTime_now();
     listEntry->pathTmp = NULL;
-    listEntry->txtSet = UA_FALSE;
-    listEntry->srvSet = UA_FALSE;
+    listEntry->txtSet = false;
+    listEntry->srvSet = false;
     UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
     listEntry->serverOnNetwork.recordId = server->serverOnNetworkRecordIdCounter;
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
@@ -225,7 +225,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         if(UA_String_equal(&entry->serverOnNetwork.discoveryUrl,
                            &nl->discoveryUrl))
-            return UA_TRUE;
+            return true;
     }
 
     /* The discovery URL may also just contain the IP address, but in our
@@ -239,7 +239,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
                             &hostnameRemote, &portRemote, &pathRemote);
     if(retval != UA_STATUSCODE_GOOD) {
         /* skip invalid url */
-        return UA_FALSE;
+        return false;
     }
 
 #ifdef _WIN32
@@ -247,19 +247,19 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
     if(!adapter_addresses) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
-        return UA_FALSE;
+        return false;
     }
 #else
     struct ifaddrs *ifaddr, *ifa;
     if(getifaddrs(&ifaddr) == -1) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
-        return UA_FALSE;
+        return false;
     }
 #endif
 
 
-    UA_Boolean isSelf = UA_FALSE;
+    UA_Boolean isSelf = false;
 
     for (size_t i=0; i<server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
@@ -294,7 +294,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
                     char *ipStr = inet_ntoa(ipv4->sin_addr);
                     if(strncmp((const char*)hostnameRemote.data, ipStr,
                                hostnameRemote.length) == 0) {
-                        isSelf = UA_TRUE;
+                        isSelf = true;
                         break;
                     }
                 } else if(AF_INET6 == family) {
@@ -324,7 +324,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
                 char *ipStr = inet_ntoa(sa->sin_addr);
                 if(strncmp((const char*)hostnameRemote.data, ipStr,
                            hostnameRemote.length) == 0) {
-                    isSelf = UA_TRUE;
+                    isSelf = true;
                     break;
                 }
             }
@@ -372,7 +372,7 @@ mdns_record_remove(UA_Server *server, const char *record,
 
     if(server->serverOnNetworkCallback &&
        !mdns_is_self_announce(server, entry))
-        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE,
+        server->serverOnNetworkCallback(&entry->serverOnNetwork, false,
                                         entry->txtSet, server->serverOnNetworkCallbackData);
 
     /* remove from list */
@@ -405,7 +405,7 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
 static void
 setTxt(const struct resource *r,
        struct serverOnNetwork_list_entry *entry) {
-    entry->txtSet = UA_TRUE;
+    entry->txtSet = true;
     xht_t *x = txt2sd(r->rdata, r->rdlength);
     char *path = (char *) xht_get(x, "path");
     char *caps = (char *) xht_get(x, "caps");
@@ -454,7 +454,7 @@ setTxt(const struct resource *r,
 static void
 setSrv(UA_Server *server, const struct resource *r,
        struct serverOnNetwork_list_entry *entry) {
-    entry->srvSet = UA_TRUE;
+    entry->srvSet = true;
 
 
     /* The specification Part 12 says: The hostname maps onto the SRV record
@@ -471,7 +471,7 @@ setSrv(UA_Server *server, const struct resource *r,
     struct in_addr tmp = {0};
 
     mdnsHostnameToIp_list_entry *hostnameEntry =
-        mdns_hostname_add_or_get(server, r->known.srv.name, tmp, UA_FALSE);
+        mdns_hostname_add_or_get(server, r->known.srv.name, tmp, false);
 
     char *newUrl;
     if (hostnameEntry) {
@@ -533,7 +533,7 @@ setAddress(UA_Server *server, const struct resource *r) {
     if (r->type != QTYPE_A)
         return;
 
-    if (!mdns_hostname_add_or_get(server, r->name, r->known.a.ip, UA_TRUE)) {
+    if (!mdns_hostname_add_or_get(server, r->name, r->known.a.ip, true)) {
         /* should we log an error? */
     }
 }
@@ -596,7 +596,7 @@ void mdns_record_received(const struct resource *r, void *data) {
     /* Call callback to announce a new server */
     if(entry->srvSet && server->serverOnNetworkCallback &&
        !mdns_is_self_announce(server, entry))
-        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_TRUE,
+        server->serverOnNetworkCallback(&entry->serverOnNetwork, true,
                                         entry->txtSet, server->serverOnNetworkCallbackData);
 }
 

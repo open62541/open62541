@@ -34,7 +34,7 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
 
     // if the client requests a specific locale, select the corresponding server name
     if(request->localeIdsSize) {
-        UA_Boolean appNameFound = UA_FALSE;
+        UA_Boolean appNameFound = false;
         for(size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
             for(size_t j =0; j<registeredServer->serverNamesSize; j++) {
                 if(UA_String_equal(&request->localeIds[i], &registeredServer->serverNames[j].locale)) {
@@ -42,7 +42,7 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
                                                    &target->applicationName);
                     if(retval != UA_STATUSCODE_GOOD)
                         return retval;
-                    appNameFound = UA_TRUE;
+                    appNameFound = true;
                     break;
                 }
             }
@@ -494,7 +494,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 
     registeredServer_list_entry* current, *temp;
     LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
-        UA_Boolean semaphoreDeleted = UA_FALSE;
+        UA_Boolean semaphoreDeleted = false;
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         if(current->registeredServer.semaphoreFilePath.length) {
@@ -505,10 +505,11 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                 memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
                        current->registeredServer.semaphoreFilePath.length );
                 filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
-                semaphoreDeleted = UA_fileExists(filePath) == UA_FALSE;
+                semaphoreDeleted = UA_fileExists(filePath) == false;
                 UA_free(filePath);
             } else {
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot check registration semaphore. Out of memory");
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Cannot check registration semaphore. Out of memory");
             }
         }
 #endif

@@ -17,7 +17,6 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -434,7 +433,7 @@ finish:
 static UA_StatusCode
 client_processChunk(void *application, UA_Connection *connection, UA_ByteString *chunk) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
-    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&rd->client->channel, chunk, UA_TRUE);
+    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&rd->client->channel, chunk, true);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     return UA_SecureChannel_persistIncompleteMessages(&rd->client->channel);

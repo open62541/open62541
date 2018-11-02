@@ -9,7 +9,6 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
 #include "ua_transport_generated.h"
 #include "ua_transport_generated_handling.h"
@@ -677,12 +676,12 @@ cleanup:
 
 UA_StatusCode
 UA_Client_connect(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_TRUE);
+    return UA_Client_connectInternal(client, endpointUrl, true, true);
 }
 
 UA_StatusCode
 UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_FALSE);
+    return UA_Client_connectInternal(client, endpointUrl, true, false);
 }
 
 UA_StatusCode

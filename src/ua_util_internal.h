@@ -14,6 +14,7 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
+#define UA_INTERNAL
 #include "ua_types.h"
 #include "../deps/queue.h"
 

@@ -7,7 +7,6 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
 
 UA_StatusCode
@@ -23,7 +22,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     if(!connected) {
-        retval = UA_Client_connectInternal(client, serverUrl, UA_FALSE, UA_FALSE);
+        retval = UA_Client_connectInternal(client, serverUrl, false, false);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -48,7 +47,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     }
 
     if(!connected) {
-        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, UA_TRUE, UA_FALSE);
+        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, true, false);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -100,7 +99,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
     }
 
     if(!connected) {
-        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, UA_TRUE, UA_FALSE);
+        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, true, false);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }

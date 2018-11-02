@@ -116,13 +116,13 @@ UA_StatusCode
 UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
     return register_server_with_discovery_server(server, client,
-                                                 UA_FALSE, semaphoreFilePath);
+                                                 false, semaphoreFilePath);
 }
 
 UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
     return register_server_with_discovery_server(server, client,
-                                                 UA_TRUE, NULL);
+                                                 true, NULL);
 }
 
 #endif /* UA_ENABLE_DISCOVERY */
