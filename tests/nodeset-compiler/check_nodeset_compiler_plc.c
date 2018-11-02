@@ -7,8 +7,8 @@
 
 #include "ua_types.h"
 
-#include "tests/ua_namespace_di.h"
-#include "tests/ua_namespace_plc.h"
+#include "tests/ua_namespace_tests_di.h"
+#include "tests/ua_namespace_tests_plc.h"
 
 #include "check.h"
 #include "testing_clock.h"
@@ -32,13 +32,13 @@ static void teardown(void) {
 
 
 START_TEST(Server_addDiNodeset) {
-    UA_StatusCode retval = ua_namespace_di(server);
+    UA_StatusCode retval = ua_namespace_tests_di(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(Server_addPlcNodeset) {
-    UA_StatusCode retval = ua_namespace_plc(server);
+    UA_StatusCode retval = ua_namespace_tests_plc(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST

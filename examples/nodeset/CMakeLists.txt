@@ -7,11 +7,9 @@
 ###################
 
 # generate namespace from XML file
-ua_generate_nodeset(
+ua_generate_nodeset_and_datatypes(
     NAME "example"
-    FILE "${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml"
-    DEPENDS_TYPES "UA_TYPES"
-    DEPENDS_NS    "${UA_FILE_NS0}"
+    FILE_NS "${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml"
 )
 
 # The .csv file can be created from within UaModeler or manually
@@ -35,37 +33,24 @@ endif()
 # PLCopen requires the full ns0 as basis
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
-    # Generate types for DI namespace
-    ua_generate_datatypes(
-        NAME "ua_types_di"
-        TARGET_SUFFIX "types-di"
-        NAMESPACE_IDX 2
-        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
-        FILES_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
-    )
-
-    # generate DI namespace
-    ua_generate_nodeset(
+    # Generate types and namespace for DI
+    ua_generate_nodeset_and_datatypes(
         NAME "di"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
-        TYPES_ARRAY "UA_TYPES_DI"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
+        FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+        NAMESPACE_IDX 2
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
-        DEPENDS_TYPES "UA_TYPES"
-        DEPENDS_NS    "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
-        DEPENDS_TARGET "open62541-generator-types-di"
     )
 
     # generate PLCopen namespace which is using DI
-    ua_generate_nodeset(
+    ua_generate_nodeset_and_datatypes(
         NAME "plc"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        # PLCopen does not define custom types. Only generate the nodeset
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        # PLCopen depends on the di nodeset, which must be generated before
+        DEPENDS "di"
         INTERNAL
-        DEPENDS_TYPES
-            "UA_TYPES" "UA_TYPES_DI"
-        DEPENDS_NS
-            "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
-            "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
-        DEPENDS_TARGET "open62541-generator-ns-di"
     )
 
     add_example(server_nodeset_plcopen server_nodeset_plcopen.c

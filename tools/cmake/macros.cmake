@@ -98,8 +98,7 @@ function(ua_generate_datatypes)
     set(options BUILTIN)
     set(oneValueArgs NAME TARGET_SUFFIX NAMESPACE_IDX OUTPUT_DIR FILE_CSV)
     set(multiValueArgs FILES_BSD FILES_SELECTED)
-    cmake_parse_arguments(PARSE_ARGV 0 UA_GEN_DT "${options}" "${oneValueArgs}"
-                          "${multiValueArgs}")
+    cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
 
     # ------ Argument checking -----
@@ -165,6 +164,11 @@ function(ua_generate_datatypes)
                       ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
                       )
 
+    string(TOUPPER "${UA_GEN_DT_NAME}" GEN_NAME_UPPER)
+    set(${GEN_NAME_UPPER}_SOURCES "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c" CACHE INTERNAL "${UA_GEN_DT_NAME} source files")
+    set(${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h"
+        CACHE INTERNAL "${UA_GEN_DT_NAME} header files")
+
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c PROPERTIES LANGUAGE CXX)
     endif()
@@ -190,7 +194,7 @@ endfunction()
 #
 #   Arguments taking one value:
 #
-#   NAME            Full name of the generated files, e.g. ua_types_di
+#   NAME            Name of the nodeset, e.g. 'di'
 #   [TYPES_ARRAY]   Optional name of the types array containing the custom datatypes of this node set.
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
 #   [ENCODE_BINARY_SIZE]    Optional array size for binary encoding extension objects.
@@ -209,8 +213,7 @@ function(ua_generate_nodeset)
     set(options INTERNAL )
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR ENCODE_BINARY_SIZE IGNORE)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
-    cmake_parse_arguments(PARSE_ARGV 0 UA_GEN_NS "${options}" "${oneValueArgs}"
-                          "${multiValueArgs}")
+    cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
 
 
@@ -245,6 +248,7 @@ function(ua_generate_nodeset)
     set(GEN_NS0 "")
     set(TARGET_SUFFIX "ns-${UA_GEN_NS_NAME}")
     set(FILE_SUFFIX "_${UA_GEN_NS_NAME}")
+    string(REPLACE "-" "_" FILE_SUFFIX ${FILE_SUFFIX})
 
     if ("${UA_GEN_NS_NAME}" STREQUAL "ns0")
         set(GEN_NS0 "--generate-ns0")
@@ -291,7 +295,7 @@ function(ua_generate_nodeset)
                        ${TYPES_ARRAY_LIST}
                        ${DEPENDS_FILE_LIST}
                        ${FILE_LIST}
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_namespace${FILE_SUFFIX}
+                       ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}
                        DEPENDS
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
@@ -306,8 +310,8 @@ function(ua_generate_nodeset)
 
     add_custom_target(open62541-generator-${TARGET_SUFFIX}
                       DEPENDS
-                      ${PROJECT_BINARY_DIR}/src_generated/ua_namespace${FILE_SUFFIX}.c
-                      ${PROJECT_BINARY_DIR}/src_generated/ua_namespace${FILE_SUFFIX}.h)
+                      ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c
+                      ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.h)
     if (UA_GEN_NS_DEPENDS_TARGET)
         add_dependencies(open62541-generator-${TARGET_SUFFIX} ${UA_GEN_NS_DEPENDS_TARGET})
     endif()
@@ -315,4 +319,144 @@ function(ua_generate_nodeset)
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c PROPERTIES LANGUAGE CXX)
     endif()
+
+    set_property(GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_FILE_${UA_GEN_NS_NAME}" ${UA_GEN_NS_DEPENDS_NS} ${UA_GEN_NS_FILE})
+    set_property(GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_TYPES_${UA_GEN_NS_NAME}" ${UA_GEN_NS_DEPENDS_TYPES} ${UA_GEN_NS_TYPES_ARRAY})
+
+    string(TOUPPER "${UA_GEN_NS_NAME}" GEN_NAME_UPPER)
+    set(UA_NODESET_${GEN_NAME_UPPER}_SOURCES "${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c" CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} source files")
+    set(UA_NODESET_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.h" CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} header files")
+    set(UA_NODESET_${GEN_NAME_UPPER}_TARGET "open62541-generator-${TARGET_SUFFIX}" CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} target")
+
+endfunction()
+
+
+# --------------- Generate Nodeset and Datatypes ---------------------
+#
+# Generates C code for the given NodeSet2.xml and Datatype file.
+# This C code can be used to initialize the server.
+#
+# This is a combination of the ua_generate_datatypes and ua_generate_nodeset macros.
+# This function can also be used to just create a nodeset without datatypes by
+# omitting the CSV, BSD, and NAMESPACE_IDX parameter.
+# If only one of the previous parameters is given, all of them are required.
+#
+# It is possible to define dependencies of nodesets by using the DEPENDS argument.
+# E.g. the PLCOpen nodeset depends on the 'di' nodeset. Thus it is enough to just
+# pass 'DEPENDS di' to the function. The 'di' nodeset then first needs to be generated
+# with this function or with the ua_generate_nodeset function.
+#
+# The resulting cmake target will be named like this:
+#   open62541-generator-ns-${NAME}
+#
+# The following arguments are accepted:
+#
+#   Options:
+#
+#   INTERNAL        Include internal headers. Required if custom datatypes are added.
+#
+#   Arguments taking one value:
+#
+#   NAME            Short name of the nodeset. E.g. 'di'
+#   FILE_NS         Path to the NodeSet2.xml file. Multiple values can be passed. These nodesets will be combined into one output.
+#
+#   [FILE_CSV]      Optional path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
+#   [FILE_BSD]      Optional path to the .bsd file containing the type definitions, e.g. 'Opc.Ua.Di.Types.bsd'. Multiple files can be
+#                   passed which will all combined to one resulting code.
+#   [NAMESPACE_IDX] Optional namespace index of the nodeset, when it is loaded into the server. This parameter is mandatory if FILE_CSV
+#                   or FILE_BSD is set. See ua_generate_datatypes function.
+#
+#   Arguments taking multiple values:
+#   [DEPENDS]       Optional list of nodeset names on which this nodeset depends. These names must match any name from a previous
+#                   call to this funtion. E.g. 'di' if you are generating the 'plcopen' nodeset
+#
+#
+function(ua_generate_nodeset_and_datatypes)
+
+    set(options INTERNAL)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD NAMESPACE_IDX)
+    set(multiValueArgs DEPENDS)
+    cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
+
+
+    # ------ Argument checking -----
+    if(NOT UA_GEN_NAME OR "${UA_GEN_NAME}" STREQUAL "")
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires a value for the NAME argument")
+    endif()
+
+    if(NOT UA_GEN_FILE_NS OR "${UA_GEN_FILE_NS}" STREQUAL "")
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires a value for the FILE_NS argument")
+    endif()
+
+    if((NOT UA_GEN_FILE_CSV OR "${UA_GEN_FILE_CSV}" STREQUAL "") AND
+        (NOT "${UA_GEN_FILE_BSD}" STREQUAL "" OR
+        NOT "${UA_GEN_NAMESPACE_IDX}" STREQUAL ""))
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if any of FILE_BSD or NAMESPACE_IDX are set")
+    endif()
+
+    if((NOT UA_GEN_FILE_BSD OR "${UA_GEN_FILE_BSD}" STREQUAL "") AND
+        (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
+        NOT "${UA_GEN_NAMESPACE_IDX}" STREQUAL ""))
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_BSD argument if any of FILE_CSV or NAMESPACE_IDX are set")
+    endif()
+        
+    if(NOT UA_GEN_NAMESPACE_IDX OR "${UA_GEN_NAMESPACE_IDX}" STREQUAL "" AND
+        (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
+        NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires NAMESPACE_IDX argument if any of FILE_CSV or FILE_BSD are set")
+    endif()
+
+
+    set(NODESET_DEPENDS_TARGET "")
+    set(NODESET_TYPES_ARRAY "UA_TYPES")
+
+    if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
+        # Generate Datatypes for nodeset
+
+        ua_generate_datatypes(
+            NAME "ua_types_${UA_GEN_NAME}"
+            TARGET_SUFFIX "types-${UA_GEN_NAME}"
+            NAMESPACE_IDX ${UA_GEN_NAMESPACE_IDX}
+            FILE_CSV "${UA_GEN_FILE_CSV}"
+            FILES_BSD "${UA_GEN_FILE_BSD}"
+        )
+        set(NODESET_DEPENDS_TARGET "open62541-generator-types-${UA_GEN_NAME}")
+        string(TOUPPER "${UA_GEN_NAME}" GEN_UPPER_NAME)
+        set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_UPPER_NAME}")
+    endif()
+
+    # Create a list of nodesets on which this nodeset depends on
+    if (NOT UA_GEN_DEPENDS OR "${UA_GEN_DEPENDS}" STREQUAL "" )
+        set(NODESET_DEPENDS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml")
+        set(TYPES_DEPENDS "UA_TYPES")
+    else()
+        foreach(f ${UA_GEN_DEPENDS})
+            get_property(DEPENDS_FILE GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_FILE_${f}")
+            if(NOT DEPENDS_FILE OR "${DEPENDS_FILE}" STREQUAL "")
+                message(FATAL_ERROR "Nodeset dependency ${f} needs to be generated before ${UA_GEN_NAME}")
+            endif()
+
+            set(NODESET_DEPENDS ${NODESET_DEPENDS} "${DEPENDS_FILE}")
+            get_property(DEPENDS_TYPES GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_TYPES_${f}")
+            set(TYPES_DEPENDS ${TYPES_DEPENDS} "${DEPENDS_TYPES}")
+            set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET} "open62541-generator-ns-${f}")
+        endforeach()
+    endif()
+
+
+    set(NODESET_INTERNAL "")
+    if (${UA_GEN_INTERNAL})
+        set(NODESET_INTERNAL "INTERNAL")
+    endif()
+
+    ua_generate_nodeset(
+        NAME "${UA_GEN_NAME}"
+        FILE "${UA_GEN_FILE_NS}"
+        TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
+        ${NODESET_INTERNAL}
+        DEPENDS_TYPES ${TYPES_DEPENDS}
+        DEPENDS_NS ${NODESET_DEPENDS}
+        DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
+    )
+
 endfunction()
