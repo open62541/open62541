@@ -33,6 +33,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
         TYPES_ARRAY "UA_TYPES_DI"
         INTERNAL
+        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
         DEPENDS_TYPES "UA_TYPES"
         DEPENDS_NS    "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
         DEPENDS_TARGET "open62541-generator-tests-types-di"
@@ -44,6 +45,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.NodeSet2.xml"
         TYPES_ARRAY "UA_TYPES_ADI"
         INTERNAL
+        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
         DEPENDS_TYPES
         "UA_TYPES" "UA_TYPES_DI"
         DEPENDS_NS
@@ -58,19 +60,20 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-plc"
         FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
         INTERNAL
+        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
         DEPENDS_TYPES
         "UA_TYPES" "UA_TYPES_DI"
         DEPENDS_NS
         "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
         "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
-        DEPENDS_TARGET "open62541-generator-ns-di"
+        DEPENDS_TARGET "open62541-generator-ns-tests-di"
     )
 
     add_executable(check_nodeset_compiler_adi check_nodeset_compiler_adi.c
                    ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_di_generated.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_di.c
+                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_di.c
                    ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_adi_generated.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_adi.c
+                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_adi.c
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_adi open62541-generator-ns-tests-adi)
     target_link_libraries(check_nodeset_compiler_adi ${LIBS})
@@ -78,8 +81,8 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     add_executable(check_nodeset_compiler_plc check_nodeset_compiler_plc.c
                    ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_di_generated.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_di.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_plc.c
+                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_di.c
+                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_plc.c
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
     target_link_libraries(check_nodeset_compiler_plc ${LIBS})
