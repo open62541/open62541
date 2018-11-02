@@ -337,7 +337,8 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Call the callback */
-    ac->callback(client, ac->userdata, requestId, response);
+    if(ac->callback)
+        ac->callback(client, ac->userdata, requestId, response);
     UA_deleteMembers(response, ac->responseType);
 
     /* Remove the callback */
@@ -555,7 +556,8 @@ UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
     UA_init(resp, ac->responseType);
     ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
 
-    ac->callback(client, ac->userdata, ac->requestId, resp);
+    if(ac->callback)
+        ac->callback(client, ac->userdata, ac->requestId, resp);
 
     /* Clean up the response. Users might move data into it. For whatever reasons. */
     UA_deleteMembers(resp, ac->responseType);
