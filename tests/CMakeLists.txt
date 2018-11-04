@@ -216,6 +216,12 @@ if(UA_ENABLE_PUBSUB)
         add_executable(check_pubsub_informationmodel pubsub/check_pubsub_informationmodel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
         target_link_libraries(check_pubsub_informationmodel ${LIBS})
         add_test(check_pubsub_informationmodel ${TESTS_BINARY_DIR}/check_pubsub_informationmodel)
+        if(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
+            add_executable(check_pubsub_informationmodel_methods pubsub/check_pubsub_informationmodel_methods.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+            target_link_libraries(check_pubsub_informationmodel_methods ${LIBS})
+            add_test(check_pubsub_informationmodel_methods ${TESTS_BINARY_DIR}/check_pubsub_informationmodel_methods)
+
+        endif()
     endif()
 endif()
 
