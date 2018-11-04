@@ -19,3 +19,8 @@ EnumDescription
 SimpleTypeDescription
 DataSetFieldFlags
 FieldMetaData
+PubSubConnectionDataType
+WriterGroupDataType
+ReaderGroupDataType
+DataSetWriterDataType
+DataSetReaderDataType
