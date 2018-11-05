@@ -3,15 +3,11 @@ $ErrorActionPreference = "Stop"
 try {
     & git submodule --quiet update --init --recursive
 
-    if ($env:CC_SHORTNAME -ne "clang-cl") {
-        Write-Host -ForegroundColor Green "`n### Install CMake and python ###`n"
-        & cinst --no-progress cmake python2    
-    }
-    
-    Write-Host -ForegroundColor Green "`n### Upgrade pip ###`n"
+    Write-Host -ForegroundColor Green "`n### Installing CMake and python ###`n"
+    & cinst --no-progress cmake python2
     & C:\Python27\python.exe -m pip install --upgrade pip
     & C:\Python27\Scripts\pip.exe install six
-        
+
     Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
     & C:\Python27\Scripts\pip.exe install --user sphinx sphinx_rtd_theme
 
@@ -35,21 +31,11 @@ try {
 
     Write-Host -ForegroundColor Green "`n### Installing mbedtls ###`n"
 
-    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
+    if ($env:CC_SHORTNAME -eq "mingw") {
         # pacman may complain that the directory does not exist, thus create it.
         # See https://github.com/open62541/open62541/issues/2068
         & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
         & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-mbedtls
-    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
-        #Write-Host -ForegroundColor Green "`n### Upgrading Clang ###`n"
-        #choco upgrade llvm
-        # pacman may complain that the directory does not exist, thus create it.
-        # See https://github.com/open62541/open62541/issues/2068
-        & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
-        & C:\msys64\usr\bin\pacman --noconfirm -S mingw-w64-x86_64-clang mingw-w64-i686-clang
-        #& vcpkg install mbedtls:x86-windows-static
-        #Write-Host -ForegroundColor Green "`n### Upgrading windows-sdk-10 ###`n"
-        #choco upgrade windows-sdk-10.0
     } elseif ($env:CC_SHORTNAME -eq "vs2015") {
         # we need the static version, since open62541 is built with /MT
         # vcpkg currently only supports VS2015 and newer builds
@@ -69,18 +55,6 @@ try {
         & cinst --no-progress drmemory.portable
     }
 
-    #if ($env:CC_SHORTNAME -eq "clang-cl") {
-    #    Write-Host -ForegroundColor Green "`n### Installing Ninja ###`n"
-    #    $Env:Path += "C:\ProgramData\chocolatey\lib\ninja\tools\ninja.exe"        
-        
-    #    if (!(Test-Path "C:\ProgramData\chocolatey\lib\ninja\tools\ninjaff.exe")) {
-    #        Write-Warning "Ninja.exe absent from path"
-    #    }
-
-    #    choco install ninja
-        
-    #    & ninja --version
-    #}
 } catch {
     # Print a detailed error message
     $FullException = ($_.Exception|format-list -force) | Out-String
