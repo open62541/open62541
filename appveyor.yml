@@ -37,9 +37,19 @@ environment:
         #  FORCE_CXX: OFF
         #  OUT_DIR_LIB: bin\Debug
         #  OUT_DIR_EXAMPLES: bin\examples\Debug
-        - CC_NAME: Clang-CL
-          CC_SHORTNAME: clang-cl
-          GENERATOR: Ninja
+        #- CC_NAME: Clang-CL
+        #  CC_SHORTNAME: clang-cl
+        #  GENERATOR: Ninja
+        #  APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
+          # Only use one thread, otherwise appveyor runs out of memory
+        #  MAKE: ninja
+        #  FORCE_CXX: OFF
+        #  OUT_DIR_LIB: bin
+        #  OUT_DIR_EXAMPLES: bin\examples
+        - CC_NAME: Clang
+          CC_SHORTNAME: clang-mingw
+          GENERATOR: MinGW Makefiles
           APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
@@ -80,22 +90,22 @@ install:
 - set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\10\bin\x64
 - set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\10\bin\x86
 - set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\8.0\bin\x64
-- clang-cl -v
-- set CC=clang-cl
-- set CXX=clang-cl
+- set CC=clang --target=x86_64-w64-mingw32
+- set CXX=clang++ --target=x86_64-w64-mingw32
   
-- set CMAKE_C_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
-- set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
-- set CMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"
-- set CMAKE_CXX_LINK_EXECUTABLE="<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>"
-- set CMAKE_C_LINK_EXECUTABLE="<CMAKE_C_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>"
-- set CMAKE_RC_COMPILER="C:\Program Files\LLVM\bin\llvm-rc.exe"
+#- set CMAKE_C_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
+#- set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
+#- set CMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"
+#- set CMAKE_CXX_LINK_EXECUTABLE="<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>"
+#- set CMAKE_C_LINK_EXECUTABLE="<CMAKE_C_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>"
+#- set CMAKE_RC_COMPILER="C:\Program Files\LLVM\bin\llvm-rc.exe"
 
 before_build:
   # Add installed tools to PATH
   - set PATH=C:\Python27;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  - set "PATH=%PATH%;C:\Tools\mingw64\bin"
   ## Miktex
   #- set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
   ## autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
