@@ -56,7 +56,10 @@ try {
     if ($env:CC_SHORTNAME -eq "mingw") {
 
     } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
-
+        # Workaround for http://llvm.org/bugs/show_bug.cgi?id=28089
+        Copy-Item 'C:\Program Files\LLVM' -destination C:\LLVM -recurse
+        $env:Path = 'C:\LLVM\bin;' + $env:Path
+        clang --version
     } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
         #$vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE=c:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
