@@ -105,7 +105,7 @@ before_build:
   - set PATH=C:\Python27;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
   - ps: |
       if ($env:GENERATOR -eq "MinGW Makefiles") {
-        $env:Path = 'C:\Tools\mingw64\bin;' + $env:Path
+        $env:Path = 'C:\msys64\mingw64\bin;' + $env:Path
         gcc --version
         # Workaround for CMake not wanting sh.exe on PATH for MinGW Makefiles
         $env:Path = $env:Path -replace 'C:\\Program Files\\Git\\usr\\bin;',$null
