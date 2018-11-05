@@ -13,60 +13,8 @@ try {
         $build_encryption = "ON"
     }
 
-    if (Test-Path "C:\Program Files\LLVM\bin\lld-link.exe") {
-        Write-Host -ForegroundColor Green "`n## Path ok #####`n"
-    }
-    
-    if (Test-Path "C:\Program Files (x86)\Windows Kits") {
-        Write-Host -ForegroundColor Green "`n## Path 1 ok #####`n"
-    }
-    if (Test-Path "C:\Program Files (x86)\Windows Kits\10") {
-        Write-Host -ForegroundColor Green "`n## Path 2 ok #####`n"
-    }
-    if (Test-Path "C:\Program Files (x86)\Windows Kits\10\bin\x86") {
-        Write-Host -ForegroundColor Green "`n## Path 3 rc.exe ok #####`n"
-    }
-    if (Test-Path "C:\Program Files (x86)\Windows Kits\10\bin\x86\RC.Exe") {
-        Write-Host -ForegroundColor Green "`n## Path rc.exe ok #####`n"
-    }
-    if (Test-Path "C:\Program Files (x86)\Windows Kits\10\bin\x64") {
-        Write-Host -ForegroundColor Green "`n## Path x64 ok #####`n"
-    }
-    if (Test-Path "C:\Program Files (x86)\Windows Kits\10\bin\x64\RC.Exe") {
-        Write-Host -ForegroundColor Green "`n## Path x64.exe ok #####`n"
-    }
-    
-    if (Test-Path "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\Bin\SetEnv.cmd") {
-        Write-Host -ForegroundColor Green "`n## Path setenv.exe ok #####`n"
-    }
-        
-    & "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\amd64\vcvars64.bat"
-    
-    Write-Host $env:PATH
-    
-    & dir "C:\Program Files (x86)\Windows Kits\8.0\bin\x64"
-    
-    & cp "C:\Program Files (x86)\Windows Kits\8.0\bin\x64\rc*" "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin\"
-    
-    & dir "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin"
-    
-    & where.exe rc.exe
-    
-    
     if ($env:CC_SHORTNAME -eq "mingw") {
 
-    } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
-        # Workaround for http://llvm.org/bugs/show_bug.cgi?id=28089
-        Copy-Item 'C:\Program Files\LLVM' -destination C:\LLVM -recurse
-        $env:Path = 'C:\LLVM\bin;' + $env:Path
-        clang --version
-    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
-        #$vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE=c:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake'
-        $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
-        # since https://github.com/Microsoft/vcpkg/commit/0334365f516c5f229ff4fcf038c7d0190979a38a#diff-464a170117fa96bf98b2f8d224bf503c
-        # vcpkg need to have  "C:\Tools\vcpkg\installed\x86-windows-static"
-        New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
-        If(Test-Path "C:/Program Files (x86)/MSBuild/14.0/bin/MSBuild.exe") { Write-Host -ForegroundColor Green "`n## path ok #####`n" } else {Write-Host -ForegroundColor Yellow "`n## path ko #####`n"}
     } else {
         $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
@@ -77,7 +25,7 @@ try {
 
 
     $make_cmd = "& $env:MAKE"
-    
+
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
     Copy-Item LICENSE pack
@@ -89,7 +37,7 @@ try {
     # New-Item -ItemType directory -Path build
     # cd build
     # & cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release `
-    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:GENERATOR" ..
+    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:CC_NAME" ..
     # & cmake --build . --target doc_latex
     # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     #     Write-Host -ForegroundColor Red "`n`n*** Make doc_latex. Exiting ... ***"
@@ -108,13 +56,8 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    if ($env:CC_SHORTNAME -eq "clang-cl") {
-       & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DSYSTEM_CLANG=ON -G"$env:GENERATOR" ..
-     } else {
-        & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
-    }
+    & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
+        -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:CC_NAME" ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -169,8 +112,6 @@ try {
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
     if ($env:CC_SHORTNAME -eq "mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.a" -Destination pack_tmp\
-    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
-        Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.a" -Destination pack_tmp\
     } else {
         Move-Item -Path "build\$env:OUT_DIR_LIB\open62541.lib" -Destination pack_tmp\
     }
@@ -196,9 +137,6 @@ try {
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server_ctt.exe" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
     if ($env:CC_SHORTNAME -eq "mingw") {
-        Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll" -Destination pack_tmp\
-        Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll.a" -Destination pack_tmp\
-    } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll" -Destination pack_tmp\
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll.a" -Destination pack_tmp\
     } else {
