@@ -12,7 +12,7 @@ RANDFILE		= $ENV::HOME/.rnd
 #oid_file		= $ENV::HOME/.oid
 oid_section		= new_oids
 
-hostname = ${ENV::HOSTNAME}
+hostname = openbsd-vm
 
 # To use this configuration file with the "-extfile" option of the
 # "openssl x509" utility, name here the section containing the
