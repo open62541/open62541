@@ -55,6 +55,8 @@ try {
     
     if ($env:CC_SHORTNAME -eq "mingw") {
 
+    } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
+
     } elseif ($env:CC_SHORTNAME -eq "clang-cl") {
         #$vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE=c:/tools/vcpkg/scripts/buildsystems/vcpkg.cmake'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
@@ -71,7 +73,11 @@ try {
     }
 
 
-    $make_cmd = "& $env:MAKE"
+    if ($env:CC_SHORTNAME -eq "clang-mingw") {
+       $make_cmd = "& mingw32-make"
+    } else {
+       $make_cmd = "& $env:MAKE"
+    }
 
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
@@ -106,7 +112,10 @@ try {
     if ($env:CC_SHORTNAME -eq "clang-cl") {
        & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
             -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DSYSTEM_CLANG=ON -G"$env:GENERATOR" ..
-    } else {
+     } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
+       & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
+            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DSYSTEM_CLANG=ON -G"$env:GENERATOR" ..
+     } else {
         & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
             -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
     }
