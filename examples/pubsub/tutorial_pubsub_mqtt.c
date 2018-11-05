@@ -54,7 +54,7 @@ addPubSubConnection(UA_Server *server){
     connectionConfig.name = UA_STRING("MQTT Connection 1");
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     connectionConfig.enabled = UA_TRUE;    
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.mqtt://127.0.0.1:1883/")};
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.mqtt://192.168.56.1:1883/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.numeric = UA_UInt32_random();
     
@@ -156,7 +156,7 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.writerGroupId = 100;
     
     /* Choose the encoding, UA_PUBSUB_ENCODING_JSON is available soon */
-    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP; 
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON; 
     
     UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
     memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
@@ -196,9 +196,8 @@ addDataSetWriter(UA_Server *server) {
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
     
-    
-    /* JSON config for the dataSetWriter
-     * UA_JsonDataSetWriterMessageDataType jsonDswMd;
+    /* JSON config for the dataSetWriter */
+    UA_JsonDataSetWriterMessageDataType jsonDswMd;
     jsonDswMd.dataSetMessageContentMask = (UA_JsonDataSetMessageContentMask)
             (UA_JSONDATASETMESSAGECONTENTMASK_DATASETWRITERID 
             | UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER
@@ -211,7 +210,7 @@ addDataSetWriter(UA_Server *server) {
     messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE];
     messageSettings.content.decoded.data = &jsonDswMd;
     
-    dataSetWriterConfig.messageSettings = messageSettings;*/
+    dataSetWriterConfig.messageSettings = messageSettings;
     
     
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,

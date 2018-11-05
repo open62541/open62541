@@ -59,8 +59,6 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <net/if.h>
-# define UA_fd_set(fd, fds) FD_SET(fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 # endif /* Not Windows */
 
 #include <stdio.h>
