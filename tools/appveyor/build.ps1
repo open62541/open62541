@@ -76,12 +76,8 @@ try {
     }
 
 
-    if ($env:CC_SHORTNAME -eq "clang-mingw") {
-       $make_cmd = "& mingw32-make"
-    } else {
-       $make_cmd = "& $env:MAKE"
-    }
-
+    $make_cmd = "& $env:MAKE"
+    
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
     Copy-Item LICENSE pack
