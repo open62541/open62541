@@ -19,44 +19,24 @@ environment:
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin
           OUT_DIR_EXAMPLES: bin\examples
-        #- CC_NAME: Visual Studio 9 2008
-        #  CC_SHORTNAME: vs2008
-        #  MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
-        #  FORCE_CXX: ON
-        #  OUT_DIR_LIB: bin\Debug
-        #  OUT_DIR_EXAMPLES: bin\examples\Debug
-        #- CC_NAME: Visual Studio 12 2013
-        #  CC_SHORTNAME: vs2013
-        #  MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
-        #  FORCE_CXX: OFF
-        #  OUT_DIR_LIB: bin\Debug
-        #  OUT_DIR_EXAMPLES: bin\examples\Debug
-        #- CC_NAME: Visual Studio 14 2015
-        #  CC_SHORTNAME: vs2015
-        #  MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
-        #  FORCE_CXX: OFF
-        #  OUT_DIR_LIB: bin\Debug
-        #  OUT_DIR_EXAMPLES: bin\examples\Debug
-        #- CC_NAME: Clang-CL
-        #  CC_SHORTNAME: clang-cl
-        #  GENERATOR: Ninja
-        #  APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
-          # Only use one thread, otherwise appveyor runs out of memory
-        #  MAKE: ninja
-        #  FORCE_CXX: OFF
-        #  OUT_DIR_LIB: bin
-        #  OUT_DIR_EXAMPLES: bin\examples
-        - CC_NAME: Clang
-          CC_SHORTNAME: clang-mingw
-          GENERATOR: MinGW Makefiles
-          APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
-          # Only use one thread, otherwise appveyor runs out of memory
-          MAKE: mingw32-make -j1 2>&1
+        - CC_NAME: Visual Studio 9 2008
+          CC_SHORTNAME: vs2008
+          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+          FORCE_CXX: ON
+          OUT_DIR_LIB: bin\Debug
+          OUT_DIR_EXAMPLES: bin\examples\Debug
+        - CC_NAME: Visual Studio 12 2013
+          CC_SHORTNAME: vs2013
+          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
-          OUT_DIR_LIB: bin
-          OUT_DIR_EXAMPLES: bin\examples
+          OUT_DIR_LIB: bin\Debug
+          OUT_DIR_EXAMPLES: bin\examples\Debug
+        - CC_NAME: Visual Studio 14 2015
+          CC_SHORTNAME: vs2015
+          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+          FORCE_CXX: OFF
+          OUT_DIR_LIB: bin\Debug
+          OUT_DIR_EXAMPLES: bin\examples\Debug
 
 cache:
   - C:\ProgramData\chocolatey\bin -> tools/appveyor/install.ps1
@@ -70,46 +50,12 @@ init:
 install:
 - set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
 - ps: '& "./tools/appveyor/install.ps1"'
-# Install Ninja
-#- choco upgrade ninja
-#- set NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v1.8.2/ninja-win.zip"
-#- appveyor DownloadFile %NINJA_URL% -FileName ninja.zip
-#- 7z x ninja.zip -oC:\projects\dev\ninja > nul
-#- set PATH=%PATH%;C:\projects\dev\ninja
-#- ninja --version
-#- set CMAKE_MAKE_PROGRAM=C:\projects\dev\ninja\ninja.exe
-# Verify CMake
-#- cmake --version
-# Install make because TBB uses it
-- choco install make
-# Enable integration for Visual Studio/MSBuild
-#- cd c:\tools\vcpkg
-#- vcpkg integrate install
-# Setup Clang-cl
-- set PATH=%PATH%;C:\Program Files\LLVM\bin
-- set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\10\bin\x64
-- set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\10\bin\x86
-- set PATH=%PATH%;C:\Program Files (x86)\Windows Kits\8.0\bin\x64
-- set CC=clang --target=x86_64-w64-mingw32
-- set CXX=clang++ --target=x86_64-w64-mingw32
-  
-#- set CMAKE_C_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
-#- set CMAKE_CXX_COMPILER="C:\Program Files\LLVM\bin\clang-cl"
-#- set CMAKE_LINKER="C:\Program Files\LLVM\bin\lld-link.exe"
-#- set CMAKE_CXX_LINK_EXECUTABLE="<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>"
-#- set CMAKE_C_LINK_EXECUTABLE="<CMAKE_C_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>"
-#- set CMAKE_RC_COMPILER="C:\Program Files\LLVM\bin\llvm-rc.exe"
 
 before_build:
   # Add installed tools to PATH
-  - set PATH=C:\Python27;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
-  - ps: |
-      if ($env:GENERATOR -eq "MinGW Makefiles") {
-        $env:Path = 'C:\msys64\mingw64\bin;' + $env:Path
-        gcc --version
-        # Workaround for CMake not wanting sh.exe on PATH for MinGW Makefiles
-        $env:Path = $env:Path -replace 'C:\\Program Files\\Git\\usr\\bin;',$null
-      }
+  - set PATH=C:\Python27;C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
+  # Workaround for CMake not wanting sh.exe on PATH for MinGW
+  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
   ## Miktex
   #- set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
   ## autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
