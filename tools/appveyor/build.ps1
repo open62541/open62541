@@ -37,7 +37,7 @@ try {
     # New-Item -ItemType directory -Path build
     # cd build
     # & cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release `
-    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:CC_NAME" ..
+    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:GENERATOR" ..
     # & cmake --build . --target doc_latex
     # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     #     Write-Host -ForegroundColor Red "`n`n*** Make doc_latex. Exiting ... ***"
@@ -57,7 +57,7 @@ try {
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-        -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:CC_NAME" ..
+        -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -84,7 +84,7 @@ try {
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
-    -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON  -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME"  ..
+    -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON  -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:GENERATOR"  ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -98,7 +98,7 @@ try {
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON `
-     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=OFF -G"$env:CC_NAME" ..
+     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=OFF -G"$env:GENERATOR" ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
