@@ -816,7 +816,8 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
-UA_Boolean isDataTypeNumeric(const UA_DataType *type);
+UA_Boolean
+UA_DataType_isNumeric(const UA_DataType *type);
 
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is

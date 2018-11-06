@@ -90,7 +90,7 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
 static UA_Boolean
 detectValueChangeWithFilter(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon,
                             UA_DataValue *value, UA_ByteString *encoding) {
-    if(isDataTypeNumeric(value->value.type) &&
+    if(UA_DataType_isNumeric(value->value.type) &&
        (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
         mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
         if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) {

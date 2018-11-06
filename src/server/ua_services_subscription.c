@@ -187,7 +187,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
         case UA_DEADBANDTYPE_NONE:
             break;
         case UA_DEADBANDTYPE_ABSOLUTE:
-            if(!dataType || !isDataTypeNumeric(dataType))
+            if(!dataType || !UA_DataType_isNumeric(dataType))
                 return UA_STATUSCODE_BADFILTERNOTALLOWED;
             break;
         case UA_DEADBANDTYPE_PERCENT:
