@@ -816,6 +816,9 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/* Test if the data type is a numeric builtin data type. This includes Boolean,
+ * integers and floating point numbers. Not included are DateTime and
+ * StatusCode. */
 UA_Boolean
 UA_DataType_isNumeric(const UA_DataType *type);
 
