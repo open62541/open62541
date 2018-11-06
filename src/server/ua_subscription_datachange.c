@@ -36,11 +36,11 @@ outOfDeadBand(const void *data1, const void *data2, const size_t arrayPos,
                 return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT16]) {
         if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int16*)data1)[arrayPos],
-                                          ((const UA_Int16*)data2)[arrayPos]) <= deadbandValue)
+                                         ((const UA_Int16*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT16]) {
         if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt16*)data1)[arrayPos],
-                                          ((const UA_UInt16*)data2)[arrayPos]) <= deadbandValue)
+                                         ((const UA_UInt16*)data2)[arrayPos]) <= deadbandValue)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT32]) {
         if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int32*)data1)[arrayPos],
