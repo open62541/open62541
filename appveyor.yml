@@ -69,6 +69,10 @@ before_build:
   - set PATH=C:\Python27;C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  
+  - set CC=clang --target=x86_64-w64-mingw32
+  - set CXX=clang++ --target=x86_64-w64-mingw32
+
   ## Miktex
   #- set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
   ## autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
