@@ -22,7 +22,11 @@
 static UA_Boolean
 outOfDeadBand(const void *data1, const void *data2, const size_t arrayPos,
               const UA_DataType *type, const UA_Double deadbandValue) {
-    if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
+    if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Boolean*)data1)[arrayPos],
+                                         ((const UA_Boolean*)data2)[arrayPos]) <= deadbandValue)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
         if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_SByte*)data1)[arrayPos],
                                          ((const UA_SByte*)data2)[arrayPos]) <= deadbandValue)
             return false;
