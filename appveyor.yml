@@ -70,8 +70,8 @@ before_build:
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
   
-  - set CC=clang --target=x86_64-w64-mingw32
-  - set CXX=clang++ --target=x86_64-w64-mingw32
+  #- set CC=clang --target=x86_64-w64-mingw32
+  #- set CXX=clang++ --target=x86_64-w64-mingw32
 
   ## Miktex
   #- set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
