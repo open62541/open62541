@@ -3,6 +3,13 @@ version: '{build}'
 clone_folder: c:\projects\open62541
 clone_depth: 20
 
+# branches to build
+branches:
+  # whitelist
+  only:
+    - master
+    - build_with_clang_on_AppVeyor
+    
 # Avoid building branch if it is part of a PR and built anyways
 skip_branch_with_pr: true
 
