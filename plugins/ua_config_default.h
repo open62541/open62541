@@ -25,6 +25,30 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_default;
 /* Default Server Config */
 /*************************/
 
+/* Creates a new server config with one endpoint, custom buffer size and a custom logger.
+ *
+ * The config will set the tcp network layer to the given port and adds a single
+ * endpoint with the security policy ``SecurityPolicy#None`` to the server. A
+ * server certificate may be supplied but is optional.
+ * Additionally you can define a custom buffer size for send and receive buffer.
+ *
+ * Since changing the logger after calling this method will hide some logging messages
+ * from the network layer, this method gives you the possibility to set your own
+ * logger from the beginning.
+ *
+ * @param portNumber The port number for the tcp network layer
+ * @param certificate Optional certificate for the server endpoint. Can be
+ *        ``NULL``.
+ * @param sendBufferSize The size in bytes for the network send buffer
+ * @param recvBufferSize The size in bytes for the network receive buffer
+ * @param logger you custom logger. If it is NULL, the default logger to stdout will be used.
+ *
+ */
+UA_EXPORT UA_ServerConfig *
+UA_ServerConfig_new_customLogger(UA_UInt16 portNumber, const UA_ByteString *certificate,
+    UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize,
+    UA_Logger logger);
+
 /* Creates a new server config with one endpoint and custom buffer size.
  *
  * The config will set the tcp network layer to the given port and adds a single
@@ -39,9 +63,12 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_default;
  * @param recvBufferSize The size in bytes for the network receive buffer
  *
  */
-UA_EXPORT UA_ServerConfig *
+static UA_INLINE UA_ServerConfig *
 UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber, const UA_ByteString *certificate,
-                                 UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
+                                 UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
+    return UA_ServerConfig_new_customLogger(portNumber, certificate,
+        sendBufferSize, recvBufferSize, NULL);
+}
 
 /* Creates a new server config with one endpoint.
  * 
@@ -54,7 +81,7 @@ UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber, const UA_ByteString *cert
  *        ``NULL``. */
 static UA_INLINE UA_ServerConfig *
 UA_ServerConfig_new_minimal(UA_UInt16 portNumber, const UA_ByteString *certificate) {
-    return UA_ServerConfig_new_customBuffer(portNumber, certificate, 0 ,0);
+    return UA_ServerConfig_new_customLogger(portNumber, certificate, 0 , 0, NULL);
 }
 
 #ifdef UA_ENABLE_ENCRYPTION

@@ -329,11 +329,13 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 s
 }
 
 UA_ServerConfig *
-UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber,
+UA_ServerConfig_new_customLogger(UA_UInt16 portNumber,
                                  const UA_ByteString *certificate,
                                  UA_UInt32 sendBufferSize,
-                                 UA_UInt32 recvBufferSize) {
+                                 UA_UInt32 recvBufferSize, UA_Logger logger) {
     UA_ServerConfig *conf = createDefaultConfig();
+    if (logger != NULL)
+        conf->logger = logger;
 
     UA_StatusCode retval = UA_Nodestore_default_new(&conf->nodestore);
     if(retval != UA_STATUSCODE_GOOD) {
