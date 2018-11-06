@@ -12,6 +12,10 @@
 #include <fcntl.h>
 #include <check.h>
 
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
+
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 1
 // cleanup is only triggered every 10 seconds, thus wait a bit longer to check
