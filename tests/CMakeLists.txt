@@ -7,6 +7,10 @@ if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
 endif()
 
+if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
+    link_directories(/usr/local/lib)
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
