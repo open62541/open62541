@@ -25,7 +25,6 @@
 import logging
 import argparse
 from nodeset import *
-from backend_open62541 import generateOpen62541Code
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('-e', '--existing',
@@ -91,6 +90,13 @@ parser.add_argument('--encode-binary-size',
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
+
+parser.add_argument('--backend',
+                    default='open62541',
+                    const='open62541',
+                    nargs='?',
+                    choices=['open62541', 'graphviz'],
+                    help='Backend for the output files (default: %(default)s)')
 
 args = parser.parse_args()
 
@@ -178,9 +184,20 @@ ns.buildEncodingRules()
 # buidEncodingRules.
 ns.allocateVariables()
 
-#printDependencyGraph(ns)
+ns.addInverseReferences()
 
-# Create the C code with the open62541 backend of the compiler
-logger.info("Generating Code")
-generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.encode_binary_size)
+logger.info("Generating Code for Backend: {}".format(args.backend))
+
+if args.backend == "open62541":
+    # Create the C code with the open62541 backend of the compiler
+    from backend_open62541 import generateOpen62541Code
+    generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.encode_binary_size)
+elif args.backend == "graphviz":
+    from backend_graphviz import generateGraphvizCode
+    generateGraphvizCode(ns, filename=args.outputFile)
+else:
+    logger.error("Unsupported backend: {}".format(args.backend))
+    exit(1)
+
+
 logger.info("NodeSet generation code successfully printed")
