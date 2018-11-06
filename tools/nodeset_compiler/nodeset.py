@@ -40,10 +40,17 @@ hassubtype = NodeId("ns=0;i=45")
 def getSubTypesOf(nodeset, node, skipNodes=[]):
     if node in skipNodes:
         return []
-    re = [node]
+    re = set()
+    re.add(node)
     for ref in node.references:
-        if ref.referenceType == hassubtype and ref.isForward:
-            re = re + getSubTypesOf(nodeset, nodeset.nodes[ref.target], skipNodes=skipNodes)
+        if (ref.referenceType == hassubtype):
+            skipAll = set()
+            skipAll.update(skipNodes)
+            skipAll.update(re)
+            if (ref.source == node.id and ref.isForward):
+                re.update(getSubTypesOf(nodeset, nodeset.nodes[ref.target], skipNodes=skipAll))
+            elif (ref.target == node.id and not ref.isForward):
+                re.update(getSubTypesOf(nodeset, nodeset.nodes[ref.source], skipNodes=skipAll))
     return re
 
 def extractNamespaces(xmlfile):
@@ -327,7 +334,15 @@ class NodeSet(object):
         return None
 
     def getRelevantOrderingReferences(self):
-        relevant_types = getSubTypesOf(self, self.getNodeByBrowseName("HierarchicalReferences"), [])
-        relevant_types += getSubTypesOf(self, self.getNodeByBrowseName("HasEncoding"), [])
-        relevant_types += getSubTypesOf(self, self.getNodeByBrowseName("HasTypeDefinition"), [])
+        relevant_types = set()
+        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HierarchicalReferences"), []))
+        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HasEncoding"), []))
+        relevant_types.update(getSubTypesOf(self, self.getNodeByBrowseName("HasTypeDefinition"), []))
         return list(map(lambda x: x.id, relevant_types))
+
+    def addInverseReferences(self):
+        # Ensure that every reference has an inverse reference in the target
+        for u in self.nodes.values():
+            for ref in u.references:
+                back = Reference(ref.target, ref.referenceType, ref.source, not ref.isForward)
+                self.nodes[ref.target].references.add(back) # ref set does not make a duplicate entry

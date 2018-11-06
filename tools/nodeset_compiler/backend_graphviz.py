@@ -121,19 +121,22 @@ def addReferenceToGraph(nodeset, nodeFrom, nodeTo, reference, graph):
     add_edges(graph, [((getNodeString(nodeFrom), getNodeString(nodeTo)), {'label': getReferenceString(nodeset, reference)})])
 
 
-def addNodeToGraph(nodeset, node, graph, alreadyAdded=[], relevantReferences=[], isRoot=False, depth = 0):
-    if node.id in alreadyAdded:
+def addNodeToGraph(nodeset, node, graph, alreadyAdded=set(), relevantReferences=set(), ignoreNodes=set(), isRoot=False, depth = 0):
+    if node.id in alreadyAdded or node.id in ignoreNodes:
         return
-    alreadyAdded.append(node.id)
+    alreadyAdded.add(node.id)
     add_nodes(graph, [(getNodeString(node), getNodeStyle(node))])
     for ref in node.references:
         if ref.referenceType in relevantReferences and ref.isForward:
             targetNode = nodeset.nodes[ref.target]
-            addNodeToGraph(nodeset, targetNode, graph, alreadyAdded, depth=depth+1, relevantReferences=relevantReferences)
+            if targetNode.id in ignoreNodes:
+                continue
+            addNodeToGraph(nodeset, targetNode, graph, alreadyAdded, depth=depth+1, relevantReferences=relevantReferences,
+                           ignoreNodes = ignoreNodes)
             addReferenceToGraph(nodeset, node, targetNode, ref, graph)
 
 
-def printDependencyGraph(nodeset, filename="dependencies", rootNode=None, excludeNodeIds=[]):
+def generateGraphvizCode(nodeset, filename="dependencies", rootNode=None, excludeNodeIds=[]):
     if rootNode == None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
         root = nodeset.getRoot()
     else:
@@ -142,9 +145,16 @@ def printDependencyGraph(nodeset, filename="dependencies", rootNode=None, exclud
     if root == None:
         return
 
-    g = gv.Digraph(name="NodeSet Dependency", format='pdf')
+    g = gv.dot.Digraph(name="NodeSet Dependency", format='pdf', )
 
-    alreadyAdded = []
-    addNodeToGraph(nodeset, root, g, alreadyAdded, isRoot=True, relevantReferences=nodeset.getRelevantOrderingReferences())
+    alreadyAdded = set()
+    ignoreNodes = set()
+    # Ignore some nodes since almost all nodes will point to that which messes up the graph
+    ignoreNodes.add(NodeId("i=68")) # PropertyType
+    ignoreNodes.add(NodeId("i=63")) # BaseDataVariableType
+    ignoreNodes.add(NodeId("i=61")) # FolderType
+    addNodeToGraph(nodeset, root, g, alreadyAdded, isRoot=True,
+                   relevantReferences=nodeset.getRelevantOrderingReferences(),
+                   ignoreNodes=ignoreNodes)
 
     g.render(filename)

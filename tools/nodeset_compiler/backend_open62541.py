@@ -37,13 +37,6 @@ from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_fin
 
 # Kahn's algorithm: https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
 def sortNodes(nodeset):
-
-    # Ensure that every reference has an inverse reference in the target
-    for u in nodeset.nodes.values():
-        for ref in u.references:
-            back = Reference(ref.target, ref.referenceType, ref.source, not ref.isForward)
-            nodeset.nodes[ref.target].references.add(back) # ref set does not make a duplicate entry
-
     # reverse hastypedefinition references to treat only forward references
     hasTypeDef = NodeId("ns=0;i=40")
     for u in nodeset.nodes.values():
