@@ -31,7 +31,7 @@ try {
 
     Write-Host -ForegroundColor Green "`n### Installing mbedtls ###`n"
 
-    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw")
+    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         # pacman may complain that the directory does not exist, thus create it.
         # See https://github.com/open62541/open62541/issues/2068
         & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
