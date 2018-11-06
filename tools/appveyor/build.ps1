@@ -19,6 +19,9 @@ try {
         # Workaround for http://llvm.org/bugs/show_bug.cgi?id=28089
         Copy-Item 'C:\Program Files\LLVM' -destination C:\LLVM -recurse
         $env:Path = 'C:\LLVM\bin;' + $env:Path
+        # Setup clang
+        $env:CC = "clang --target=x86_64-w64-mingw32"
+        $env:CXX = "clang++ --target=x86_64-w64-mingw32"
         clang --version
     } else {
         $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
