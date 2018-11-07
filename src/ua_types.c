@@ -1110,8 +1110,8 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 
 UA_Boolean
 isDataTypeNumeric(const UA_DataType *type) {
-    // All data types ids between UA_TYPES_SBYTE and UA_TYPES_DOUBLE are numeric
-    for (int i = UA_TYPES_SBYTE; i <= UA_TYPES_DOUBLE; ++i)
+    // All data types ids between UA_TYPES_BOOLEAN and UA_TYPES_DOUBLE are numeric
+    for (int i = UA_TYPES_BOOLEAN; i <= UA_TYPES_DOUBLE; ++i)
         if (&UA_TYPES[i] == type)
             return true;
     return false;
