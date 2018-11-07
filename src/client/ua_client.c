@@ -301,7 +301,7 @@ client_processChunk(void *application, UA_Connection *connection, UA_ByteString 
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
     return UA_SecureChannel_processChunk(&rd->client->channel, chunk,
                                          processServiceResponse,
-                                         rd);
+                                         rd, UA_TRUE);
 }
 
 /* Receive and process messages until a synchronous message arrives or the
