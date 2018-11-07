@@ -65,7 +65,7 @@ void UA_sleep_ms(size_t ms);
 
 #define UA_IPV6 1
 
-#if defined(__MINGW32__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
+#if defined(__MINGW32__) || defined(__clang__) //mingw defines SOCKET as long long unsigned int, giving errors in logging and when comparing with UA_Int32
 # define UA_SOCKET int
 # define UA_INVALID_SOCKET -1
 #else
