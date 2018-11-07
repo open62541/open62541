@@ -66,7 +66,15 @@ struct UA_SecureChannel {
     UA_SecureChannelState   state;
     UA_MessageSecurityMode  securityMode;
     UA_ChannelSecurityToken securityToken; /* the channelId is contained in the securityToken */
+    /* We use three tokens because when switching tokens the client is allowed to accept
+     * messages with the old token for up to 25% of the lifetime after the token would have timed out.
+     * For messages that are sent, the new token is already used, which is contained in the securityToken
+     * variable. The nextSecurityToken variable holds a newly issued token, that will be automatically
+     * revolved into the securityToken variable. This could be done with two variables, but would require
+     * greater changes to the current code. This could be done in the future after the client and networking
+     * structure has been reworked, which would make this easier to implement. */
     UA_ChannelSecurityToken nextSecurityToken;
+    UA_ChannelSecurityToken previousSecurityToken;
 
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
@@ -190,7 +198,8 @@ typedef UA_StatusCode
 UA_StatusCode
 UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
                               UA_ProcessMessageCallback callback,
-                              void *application);
+                              void *application,
+                              UA_Boolean allowPreviousToken);
 
 /**
  * Log Helper

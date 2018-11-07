@@ -710,7 +710,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
 
         retval = UA_SecureChannel_processChunk(connection->channel, message,
                                                processSecureChannelMessage,
-                                               server);
+                                               server, UA_FALSE);
         if(retval != UA_STATUSCODE_GOOD)
             break;
         break;
@@ -737,7 +737,7 @@ processCompleteChunk(void *const application,
         return processCompleteChunkWithoutChannel(server, connection, chunk);
     return UA_SecureChannel_processChunk(connection->channel, chunk,
                                          processSecureChannelMessage,
-                                         server);
+                                         server, UA_FALSE);
 }
 
 static void

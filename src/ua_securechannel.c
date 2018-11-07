@@ -238,9 +238,15 @@ UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
     if(channel->nextSecurityToken.tokenId == 0) // no security token issued
         return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
 
-    //FIXME: not thread-safe
-    memcpy(&channel->securityToken, &channel->nextSecurityToken,
-           sizeof(UA_ChannelSecurityToken));
+
+    //FIXME: not thread-safe ???? Why is this not thread safe?
+    UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
+    UA_ChannelSecurityToken_copy(&channel->securityToken, &channel->previousSecurityToken);
+
+    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
+    UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &channel->securityToken);
+
+    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
     return UA_SecureChannel_generateNewKeys(channel);
 }
@@ -985,12 +991,49 @@ checkAsymHeader(UA_SecureChannel *const channel,
 }
 
 static UA_StatusCode
+checkPreviousToken(UA_SecureChannel *const channel, const UA_UInt32 tokenId) {
+    if(tokenId != channel->previousSecurityToken.tokenId)
+        return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
+
+    UA_DateTime timeout = channel->previousSecurityToken.createdAt +
+                          (UA_DateTime)((UA_Double)channel->previousSecurityToken.revisedLifetime *
+                                        (UA_Double)UA_DATETIME_MSEC *
+                                        1.25);
+
+    if(timeout < UA_DateTime_nowMonotonic()) {
+        return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 checkSymHeader(UA_SecureChannel *const channel,
-               const UA_UInt32 tokenId) {
+               const UA_UInt32 tokenId, UA_Boolean allowPreviousToken) {
+
+    if(tokenId == channel->securityToken.tokenId) {
+        if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
+           (channel->securityToken.createdAt +
+            (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC)) < UA_DateTime_nowMonotonic()) {
+            UA_SecureChannel_deleteMembersCleanup(channel);
+            return UA_STATUSCODE_BADSECURECHANNELCLOSED;
+        }
+    }
+
     if(tokenId != channel->securityToken.tokenId) {
-        if(tokenId != channel->nextSecurityToken.tokenId)
-            return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
+        if(tokenId != channel->nextSecurityToken.tokenId) {
+            if(allowPreviousToken)
+                return checkPreviousToken(channel, tokenId);
+            else
+                return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
+        }
         return UA_SecureChannel_revolveTokens(channel);
+    }
+
+    if(channel->previousSecurityToken.tokenId != 0) {
+        UA_StatusCode retval = UA_SecureChannel_generateRemoteKeys(channel, channel->securityPolicy);
+        UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
+        return retval;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -999,7 +1042,7 @@ checkSymHeader(UA_SecureChannel *const channel,
 UA_StatusCode
 UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
                               UA_ProcessMessageCallback callback,
-                              void *application) {
+                              void *application, UA_Boolean allowPreviousToken) {
     /* Decode message header */
     size_t offset = 0;
     UA_SecureConversationMessageHeader messageHeader;
@@ -1051,7 +1094,7 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
         symmetricSecurityHeader.tokenId = channel->securityToken.tokenId;
 #endif
 
-        retval = checkSymHeader(channel, symmetricSecurityHeader.tokenId);
+        retval = checkSymHeader(channel, symmetricSecurityHeader.tokenId, allowPreviousToken);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
