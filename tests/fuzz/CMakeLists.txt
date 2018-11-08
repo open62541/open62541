@@ -91,6 +91,7 @@ endmacro()
 # Add new fuzzers here
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
+add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 
 file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
 
