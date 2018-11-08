@@ -21,6 +21,13 @@
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 
+// This number is added to the end of every corpus data as 4 bytes.
+// It allows to generate valid corpus and then the fuzzer will use
+// these last 4 bytes to determine the simulated available RAM.
+// The fuzzer will then fiddle around with this number and (hopefully)
+// make it smaller, so that we can simulate Out-of-memory errors.
+#define UA_DUMP_RAM_SIZE 8 * 1024 * 1024
+
 unsigned int UA_dump_chunkCount = 0;
 
 char *UA_dump_messageTypes[] = {"ack", "hel", "msg", "opn", "clo", "err", "unk"};
@@ -181,5 +188,8 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
 
     FILE *write_ptr = fopen(dumpOutputFile, "ab");
     fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
+    // add the available memory size. See the UA_DUMP_RAM_SIZE define for more info.
+    uint32_t ramSize = UA_DUMP_RAM_SIZE;
+    fwrite(&ramSize, sizeof(ramSize), 1, write_ptr);
     fclose(write_ptr);
 }
