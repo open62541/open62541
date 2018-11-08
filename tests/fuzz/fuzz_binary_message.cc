@@ -2,11 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "custom_memory_manager.h"
 #include "ua_server_internal.h"
 #include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "ua_plugin_log.h"
 #include "testing_networklayers.h"
+
+#define RECEIVE_BUFFER_SIZE 65535
 
 /*
 ** Main entry point.  The fuzzer invokes this function with each
@@ -14,13 +17,24 @@
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    UA_Connection c = createDummyConnection(65535, NULL);
+
+    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+        return 0;
+    size -= 4;
+
+    UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
     UA_ServerConfig *config = UA_ServerConfig_new_default();
+    if (!config) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not create server config using UA_ServerConfig_new_default");
+        return 0;
+    }
     UA_Server *server = UA_Server_new(config);
     if (server == NULL) {
+        UA_ServerConfig_delete(config);
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create server instance using UA_Server_new");
-        return 1;
+        return 0;
     }
 
     // we need to copy the message because it will be freed in the processing function

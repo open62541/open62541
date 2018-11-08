@@ -39,7 +39,6 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
                         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c

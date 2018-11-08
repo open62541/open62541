@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "custom_memory_manager.h"
 #include <ua_types.h>
 #include "ua_server_internal.h"
 #include "ua_config_default.h"
@@ -95,6 +96,10 @@ static UA_Boolean tortureExtensionObject(const uint8_t *data, size_t size, size_
 ** fuzzed input.
 */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+
+    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+        return 0;
+    size -= 4;
 
     size_t offset;
     if (!tortureEncoding(data, size, &offset)) {
