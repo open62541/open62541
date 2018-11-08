@@ -9,6 +9,8 @@
 #ifndef PLUGINS_ARCH_WEC7_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_WEC7_UA_ARCHITECTURE_H_
 
+#include "ua_architecture_base.h"
+
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
 #endif
@@ -55,10 +57,6 @@ char *strerror(int errnum);
 #define OPTVAL_TYPE char
 #ifndef UA_sleep_ms
 # define UA_sleep_ms(X) Sleep(X)
-#else /* UA_sleep_ms */
-/* With this one can define its own UA_sleep_ms using a preprocessor define.
-E.g. see unit tests. */
-void UA_sleep_ms(size_t ms);
 #endif
 
 // Windows does not support ansi colors
@@ -111,10 +109,18 @@ void UA_sleep_ms(size_t ms);
 # undef maxStringLength
 #endif
 
+#ifndef UA_free
 #define UA_free free
+#endif
+#ifndef UA_malloc
 #define UA_malloc malloc
+#endif
+#ifndef UA_calloc
 #define UA_calloc calloc
+#endif
+#ifndef UA_realloc
 #define UA_realloc realloc
+#endif
 
 #define UA_snprintf(source, size, string, ...) _snprintf_s(source, size, _TRUNCATE, string, __VA_ARGS__)
 
