@@ -10,6 +10,8 @@
 #ifndef PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 
+#include "ua_architecture_base.h"
+
 #include <errno.h>
 
 #include <arpa/inet.h>

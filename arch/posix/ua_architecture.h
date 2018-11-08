@@ -10,6 +10,8 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
+#include "ua_architecture_base.h"
+
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE)
 # define _XOPEN_SOURCE 600
@@ -33,10 +35,6 @@
 #include <net/if.h>
 #ifndef UA_sleep_ms
 # define UA_sleep_ms(X) usleep(X * 1000)
-#else /* UA_sleep_ms */
-/* With this one can define its own UA_sleep_ms using a preprocessor define.
-E.g. see unit tests. */
-void UA_sleep_ms(size_t ms);
 #endif
 
 #define OPTVAL_TYPE int
@@ -111,10 +109,18 @@ void UA_sleep_ms(size_t ms);
 #endif
 
 #include <stdlib.h>
+#ifndef UA_free
 #define UA_free free
+#endif
+#ifndef UA_malloc
 #define UA_malloc malloc
+#endif
+#ifndef UA_calloc
 #define UA_calloc calloc
+#endif
+#ifndef UA_realloc
 #define UA_realloc realloc
+#endif
 
 #include <stdio.h>
 #define UA_snprintf snprintf

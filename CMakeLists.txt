@@ -440,6 +440,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+                     ${PROJECT_SOURCE_DIR}/arch/ua_architecture_base.h
                      ${ua_architecture_headers_beginning}
                      )
 
