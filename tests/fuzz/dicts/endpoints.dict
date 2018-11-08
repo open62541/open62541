@@ -1,0 +1,16 @@
+#
+# AFL dictionary for OPC UA Endpoints
+# -----------------------------
+#
+#
+# Stefan Profanter <git@s.profanter.me>
+#
+
+endpoint_http="opc.http"
+endpoint_tcp="opc.tcp"
+endpoint_udp="opc.udp"
+endpoint_udp="opc.eth"
+endpoint_proto="://"
+endpoint_host="localhost"
+endpoint_delim="/"
+endpoint_port=":123"
