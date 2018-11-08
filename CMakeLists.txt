@@ -413,6 +413,13 @@ if(MSVC)
   endif()
 endif()
 
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    add_definitions(-DUA_malloc=UA_memoryManager_malloc)
+    add_definitions(-DUA_free=UA_memoryManager_free)
+    add_definitions(-DUA_calloc=UA_memoryManager_calloc)
+    add_definitions(-DUA_realloc=UA_memoryManager_realloc)
+endif()
+
 #########################
 # Generate Main Library #
 #########################
@@ -620,6 +627,12 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
         ${lib_sources})
+endif()
+
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    set(lib_sources
+        ${lib_sources}
+        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
 #########################
