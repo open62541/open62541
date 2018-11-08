@@ -24,8 +24,8 @@ if [ -d "$BUILD_DIR_CORPUS/corpus" ]; then
 fi
 
 if [ -z ${TRAVIS+x} ]; then
-	export CC=clang-5.0
-	export CXX=clang++-5.0
+	export CC=clang
+	export CXX=clang++
 else
 	# Travis needs a specific
 	export CC=clang-6.0
