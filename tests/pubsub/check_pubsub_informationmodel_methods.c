@@ -166,10 +166,94 @@ START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
 
     } END_TEST
 
+START_TEST(AddAndRemovePublishedDataSetFolders){
+        UA_StatusCode retVal;
+        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_Client_delete(client);
+        }
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_String folderName = UA_STRING("TestFolder");
+        UA_Variant inputArguments;
+        UA_Variant_init(&inputArguments);
+        UA_Variant_setScalar(&inputArguments, &folderName, &UA_TYPES[UA_TYPES_STRING]);
+
+        UA_CallMethodRequest callMethodRequest;
+        UA_CallMethodRequest_init(&callMethodRequest);
+        callMethodRequest.inputArgumentsSize = 1;
+        callMethodRequest.inputArguments = &inputArguments;
+        callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS);
+        callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER);
+
+        UA_CallMethodResult result;
+        UA_CallMethodResult_init(&result);
+        result = UA_Server_call(server, &callMethodRequest);
+        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+
+        UA_NodeId createdFolder;
+        if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
+            createdFolder = *((UA_NodeId *) result.outputArguments->data);
+        UA_LocalizedText connectionDisplayName;
+        UA_LocalizedText_init(&connectionDisplayName);
+        retVal = UA_Server_readDisplayName(server, createdFolder, &connectionDisplayName);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_str_eq((const char *) connectionDisplayName.text.data, "TestFolder");
+        retVal = UA_Server_readNodeId(server, createdFolder, &createdFolder);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        //TODO add folder inside the created folder
+        //create folder inside the new folder
+        folderName = UA_STRING("TestFolder2");
+        UA_Variant_init(&inputArguments);
+        UA_Variant_setScalar(&inputArguments, &folderName, &UA_TYPES[UA_TYPES_STRING]);
+        UA_CallMethodRequest_init(&callMethodRequest);
+        callMethodRequest.inputArgumentsSize = 1;
+        callMethodRequest.inputArguments = &inputArguments;
+        callMethodRequest.objectId = createdFolder;
+        callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER);
+        UA_CallMethodResult_init(&result);
+        result = UA_Server_call(server, &callMethodRequest);
+        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+        UA_NodeId createdFolder2;
+        if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
+            createdFolder2 = *((UA_NodeId *) result.outputArguments->data);
+        UA_LocalizedText_init(&connectionDisplayName);
+        retVal = UA_Server_readDisplayName(server, createdFolder2, &connectionDisplayName);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_str_eq((const char *) connectionDisplayName.text.data, "TestFolder2");
+        retVal = UA_Server_readNodeId(server, createdFolder2, &createdFolder2);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        //delete the folder
+        UA_Variant_init(&inputArguments);
+        UA_Variant_setScalar(&inputArguments, &createdFolder, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_CallMethodRequest_init(&callMethodRequest);
+        callMethodRequest.inputArgumentsSize = 1;
+        callMethodRequest.inputArguments = &inputArguments;
+        callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS);
+        callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER);
+
+        result = UA_Server_call(server, &callMethodRequest);
+        ck_assert_int_eq(0, result.outputArgumentsSize);
+        ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+        //check if the node is deleted
+        retVal = UA_Server_readNodeId(server, createdFolder, NULL);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_BADNODEIDUNKNOWN);
+
+
+    } END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionUsingTheInformationModelMethod);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddAndRemovePublishedDataSetFolders);
+
+
 
     Suite *s = suite_create("PubSub CRUD configuration by the information model functions");
     suite_add_tcase(s, tc_add_pubsub_informationmodel_methods_connection);
