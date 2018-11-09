@@ -327,6 +327,7 @@ removeConnectionAction(UA_Server *server,
 /*************************************************/
 /*                PublishedDataSet               */
 /*************************************************/
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 static UA_StatusCode
 addDataSetFolderAction(UA_Server *server,
                        const UA_NodeId *sessionId, void *sessionHandle,
@@ -361,7 +362,9 @@ addDataSetFolderAction(UA_Server *server,
 #endif
     return retVal;
 }
+#endif
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 static UA_StatusCode
 removeDataSetFolderAction(UA_Server *server,
                           const UA_NodeId *sessionId, void *sessionHandle,
@@ -386,10 +389,9 @@ removeDataSetFolderAction(UA_Server *server,
                                         false);
 #endif
     retVal |= UA_Server_deleteNode(server, nodeToRemove, false);
-
     return retVal;
 }
-
+#endif
 
 UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet){
@@ -415,12 +417,70 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     return retVal;
 }
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+addPublishedDataItemsAction(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionHandle,
+                            const UA_NodeId *methodId, void *methodContext,
+                            const UA_NodeId *objectId, void *objectContext,
+                            size_t inputSize, const UA_Variant *input,
+                            size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    size_t fieldNameAliasesSize = input[1].arrayLength;
+    UA_String * fieldNameAliases = (UA_String *) input[1].data;
+    size_t fieldFlagsSize = input[2].arrayLength;
+    UA_DataSetFieldFlags * fieldFlags = (UA_DataSetFieldFlags *) input[2].data;
+    size_t variablesToAddSize = input[3].arrayLength;
+    UA_PublishedVariableDataType *variablesToAdd = (UA_PublishedVariableDataType *) input[3].data;
+
+    if(!(fieldNameAliasesSize == fieldFlagsSize || fieldFlagsSize == variablesToAddSize))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_PublishedDataSetConfig publishedDataSetConfig;
+    memset(&publishedDataSetConfig, 0, sizeof(publishedDataSetConfig));
+    publishedDataSetConfig.name = *((UA_String *) input[0].data);
+    publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+
+    UA_NodeId dataSetItemsNodeId;
+    retVal |= UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &dataSetItemsNodeId).addResult;
+
+    UA_DataSetFieldConfig dataSetFieldConfig;
+    for (size_t j = 0; j < variablesToAddSize; ++j) {
+        memset(&dataSetFieldConfig, 0, sizeof(dataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = fieldNameAliases[j];
+        if(fieldFlags[j] == UA_DATASETFIELDFLAGS_PROMOTEDFIELD){
+            dataSetFieldConfig.field.variable.promotedField = UA_TRUE;
+        }
+        dataSetFieldConfig.field.variable.publishParameters = variablesToAdd[j];
+        UA_Server_addDataSetField(server, dataSetItemsNodeId, &dataSetFieldConfig, NULL);
+    }
+    return retVal;
+}
+
+#endif
+
 UA_StatusCode
 removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_Server_deleteNode(server, publishedDataSet->identifier, false);
     return retVal;
 }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+removePublishedDataSetAction(UA_Server *server,
+                             const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_NodeId *methodId, void *methodContext,
+                             const UA_NodeId *objectId, void *objectContext,
+                             size_t inputSize, const UA_Variant *input,
+                             size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    retVal |= UA_Server_removePublishedDataSet(server, nodeToRemove);
+    return retVal;
+}
+#endif
 
 /**********************************************/
 /*               WriterGroup                  */
@@ -580,6 +640,10 @@ UA_Server_initPubSubNS0(UA_Server *server) {
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER), addDataSetFolderAction);
     retVal |= UA_Server_setMethodNode_callback(server,
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER), removeDataSetFolderAction);
+    retVal |= UA_Server_setMethodNode_callback(server,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDDATAITEMS), addPublishedDataItemsAction);
+    retVal |= UA_Server_setMethodNode_callback(server,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET), removePublishedDataSetAction);
 #else
     retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
                                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
