@@ -254,6 +254,9 @@ Detailed SDK Features
 **UA_ENABLE_SUBSCRIPTIONS_EVENTS (EXPERIMENTAL)**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
+**UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS (EXPERIMENTAL)**
+    Enable the use of A&C for subscriptions. This is a new feature build upon events and currently marked as EXPERIMENTAL.
+
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
 

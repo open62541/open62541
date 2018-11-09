@@ -61,6 +61,43 @@ typedef struct UA_EventNotification {
     /* EventFilterResult currently isn't being used
     UA_EventFilterResult result; */
 } UA_EventNotification;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+typedef struct UA_SpecificCallbacks_Data {
+    UA_TwoStateVariableChangeCallback enteringEnabledStateCallback;
+    UA_TwoStateVariableChangeCallback enteringAckedStateCallback;
+    UA_Boolean ackedRemoveBranch;
+    UA_TwoStateVariableChangeCallback enteringConfirmedStateCallback;
+    UA_Boolean confirmedRemoveBranch;
+    UA_TwoStateVariableChangeCallback enteringActiveStateCallback;
+} UA_SpecificCallbacks_Data;
+
+typedef struct UA_LastSverity_Data {
+    UA_UInt16 lastSeverity;
+    UA_DateTime sourceTimeStamp;
+} UA_LastSverity_Data;
+
+typedef struct UA_ConditionBranch_nodeListElement {
+    LIST_ENTRY(UA_ConditionBranch_nodeListElement) listEntry;
+    UA_NodeId* conditionBranchId;
+    UA_ByteString lastEventId;
+} UA_ConditionBranch_nodeListElement;
+
+typedef struct UA_Condition_nodeListElement {
+    LIST_ENTRY(UA_Condition_nodeListElement) listEntry;
+    LIST_HEAD(conditionbranchlisthead, UA_ConditionBranch_nodeListElement) conditionBranchHead;
+    UA_NodeId conditionId;
+    UA_LastSverity_Data lastSevertyData;
+    UA_SpecificCallbacks_Data specificCallbacksData;
+} UA_Condition_nodeListElement;
+
+typedef struct UA_ConditionSource_nodeListElement {
+    LIST_ENTRY(UA_ConditionSource_nodeListElement) listEntry;
+    LIST_HEAD(conditionlisthead, UA_Condition_nodeListElement) conditionHead;
+    UA_NodeId conditionSourceId;
+} UA_ConditionSource_nodeListElement;
+#endif
+
 #endif
 
 typedef struct UA_Notification {

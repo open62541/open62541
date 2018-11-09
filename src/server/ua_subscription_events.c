@@ -77,6 +77,26 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+
+    /***** Hilscher *****/
+    /* so abstract Events : RefreshStart and RefreshEnd could be created */
+    const UA_Node* node = UA_Nodestore_get(server, &eventType);
+    if(false == ((const UA_ObjectTypeNode*)node)->isAbstract)
+        UA_Nodestore_release(server, node);
+    else
+    {
+        UA_Nodestore_release(server, node);
+        UA_Node* nodeInner;
+        if(UA_STATUSCODE_GOOD != UA_Nodestore_getCopy(server, &eventType, &nodeInner))
+            UA_assert(0);
+        else
+        {
+            ((UA_ObjectTypeNode*)nodeInner)->isAbstract = false;
+            UA_Nodestore_replace(server, nodeInner);
+        }
+    }
+    /***** Hilscher *****/
+
     /* Create an ObjectNode which represents the event */
     UA_QualifiedName name;
     // set a dummy name. This is not used.
@@ -197,7 +217,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     if(sao->browsePathSize == 0) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
       //TODO check for Branches! One Condition could have multiple Branches
-      //set ConditionId
+      // Set ConditionId
       UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
       if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)){
         UA_NodeId conditionId;
@@ -208,9 +228,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
         rvi.nodeId = conditionId;
       }
       else
-      {
         rvi.nodeId = sao->typeDefinitionId;
-      }
 #else
       rvi.nodeId = sao->typeDefinitionId;
 #endif /*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/

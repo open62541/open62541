@@ -1188,7 +1188,7 @@ browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
     /* Browse */
     UA_BrowsePathResult bpr;
     UA_BrowsePathResult_init(&bpr);
-    UA_UInt32 nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE;
+    UA_UInt32 nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_OBJECTTYPE; // TODO: added UA_NODECLASS_OBJECTTYPE for A&C Facet
     Operation_TranslateBrowsePathToNodeIds(server, &server->adminSession, &nodeClassMask, &bp, &bpr);
     return bpr;
 }

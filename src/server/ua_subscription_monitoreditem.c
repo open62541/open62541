@@ -158,6 +158,9 @@ UA_Notification_dequeue(UA_Server *server, UA_Notification *n) {
         {
             --sub->dataChangeNotifications;
         }
+		
+		mon->eventOverflows = 0;// see open issue #2114
+		
         TAILQ_REMOVE(&sub->notificationQueue, n, globalEntry);
         --sub->notificationQueueSize;
     }

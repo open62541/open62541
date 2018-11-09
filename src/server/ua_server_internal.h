@@ -109,6 +109,11 @@ struct UA_Server {
     /* To be cast to UA_LocalMonitoredItem to get the callback and context */
     LIST_HEAD(LocalMonitoredItems, UA_MonitoredItem) localMonitoredItems;
     UA_UInt32 lastLocalMonitoredItemId;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    LIST_HEAD(conditionSourcelisthead, UA_ConditionSource_nodeListElement) headConditionSource;
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
 #endif
 
     /* Publish/Subscribe */
@@ -182,6 +187,24 @@ referenceSubtypes(UA_Server *server, const UA_NodeId *refType,
 UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+
+
+/* Filters an event according to the filter specified by mon and then adds it to
+ * mons notification queue */
+UA_StatusCode UA_EXPORT
+UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon);
+
+/* generates a unique event id */
+UA_StatusCode UA_EXPORT
+UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId);
+
+
+UA_StatusCode UA_EXPORT
+UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId, UA_NodeId *outConditionId);
+
+
+void UA_EXPORT
+UA_ConditionList_delete(UA_Server *server);
 
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
