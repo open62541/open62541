@@ -457,7 +457,6 @@ addPublishedDataItemsAction(UA_Server *server,
     }
     return retVal;
 }
-
 #endif
 
 UA_StatusCode
