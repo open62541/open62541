@@ -327,6 +327,70 @@ removeConnectionAction(UA_Server *server,
 /*************************************************/
 /*                PublishedDataSet               */
 /*************************************************/
+static UA_StatusCode
+addDataSetFolderAction(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *methodId, void *methodContext,
+                       const UA_NodeId *objectId, void *objectContext,
+                       size_t inputSize, const UA_Variant *input,
+                       size_t outputSize, UA_Variant *output){
+    /* defined in R 1.04 9.1.4.5.7 */
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_String newFolderName = *((UA_String *) input[0].data);
+    UA_NodeId generatedId;
+    UA_ObjectAttributes objectAttributes = UA_ObjectAttributes_default;
+    UA_LocalizedText name = {UA_STRING("en-US"), newFolderName};
+    objectAttributes.displayName = name;
+    retVal |= UA_Server_addObjectNode(server, UA_NODEID_NULL, *objectId, UA_NODEID_NUMERIC(0,UA_NS0ID_ORGANIZES),
+                                      UA_QUALIFIEDNAME(0, "DataSetFolder"), UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE),
+                                      objectAttributes, NULL, &generatedId);
+    UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_addReference(server, generatedId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDDATAITEMS), true);
+    retVal |= UA_Server_addReference(server, generatedId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET), true);
+    retVal |= UA_Server_addReference(server, generatedId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER), true);
+    retVal |= UA_Server_addReference(server, generatedId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER), true);
+#endif
+    return retVal;
+}
+
+static UA_StatusCode
+removeDataSetFolderAction(UA_Server *server,
+                          const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *methodId, void *methodContext,
+                          const UA_NodeId *objectId, void *objectContext,
+                          size_t inputSize, const UA_Variant *input,
+                          size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDDATAITEMS),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, nodeToRemove, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER),
+                                        false);
+#endif
+    retVal |= UA_Server_deleteNode(server, nodeToRemove, false);
+
+    return retVal;
+}
+
+
 UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -500,7 +564,22 @@ UA_Server_initPubSubNS0(UA_Server *server) {
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION), addPubSubConnectionAction);
     retVal |= UA_Server_setMethodNode_callback(server,
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_REMOVECONNECTION), removeConnectionAction);
-
+    retVal |= UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER), true);
+    retVal |= UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDDATAITEMS), true);
+    retVal |= UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET), true);
+    retVal |= UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER), true);
+    retVal |= UA_Server_setMethodNode_callback(server,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER), addDataSetFolderAction);
+    retVal |= UA_Server_setMethodNode_callback(server,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER), removeDataSetFolderAction);
 #else
     retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
                                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
