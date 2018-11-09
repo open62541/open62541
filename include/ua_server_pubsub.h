@@ -100,9 +100,15 @@ _UA_BEGIN_DECLS
  * Take a look on the PubSub Tutorials for mor details about the API usage.
  */
 
+typedef enum {
+    UA_PUBSUB_PUBLISHERID_NUMERIC,
+    UA_PUBSUB_PUBLISHERID_STRING
+} UA_PublisherIdType;
+
 typedef struct {
     UA_String name;
     UA_Boolean enabled;
+    UA_PublisherIdType publisherIdType;
     union { /* std: valid types UInt or String */
         UA_UInt32 numeric;
         UA_String string;

@@ -14,8 +14,8 @@
     <References>
 
       <!--      <Reference ReferenceType="HasComponent">i=17296</Reference>  SetSecurityKeys
-            <Reference ReferenceType="HasComponent">i=15844</Reference> Status
             <Reference ReferenceType="HasComponent">i=18715</Reference> Diagnostics SupportedTransportProfiles-->
+      <Reference ReferenceType="HasComponent">i=15844</Reference> <!--Status-->
       <Reference ReferenceType="i=14476">i=14417</Reference>
       <Reference ReferenceType="HasProperty">i=17479</Reference>
       <Reference ReferenceType="HasComponent">i=14434</Reference>
@@ -355,6 +355,23 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=14416</Reference>
     </References>
   </UAObject>
+  <UAObject NodeId="i=15844" BrowseName="Status" ParentNodeId="i=14416">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=15845</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=14643</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14416</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=15845" BrowseName="State" ParentNodeId="i=15844" DataType="i=14647">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15844</Reference>
+    </References>
+  </UAVariable>
   <UAObjectType NodeId="i=14509" BrowseName="PublishedDataSetType">
     <DisplayName>PublishedDataSetType</DisplayName>
       <References>
@@ -410,6 +427,51 @@
       <Field Name="SimpleDataTypes" DataType="i=15005" ValueRank="1" />-->
     </Definition>
   </UADataType>
+  <UADataType NodeId="i=14647" BrowseName="PubSubState">
+    <DisplayName>PubSubState</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=14648</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="PubSubState">
+      <Field Name="Disabled" Value="0" />
+      <Field Name="Paused" Value="1" />
+      <Field Name="Operational" Value="2" />
+      <Field Name="Error" Value="3" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=14648" BrowseName="EnumStrings" ParentNodeId="i=14647" DataType="LocalizedText" ValueRank="1">
+    <DisplayName>EnumStrings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14647</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Disabled</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Paused</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Operational</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>Error</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
   <UADataType NodeId="i=14523" BrowseName="DataSetMetaDataType">
     <DisplayName>DataSetMetaDataType</DisplayName>
     <References>
@@ -719,10 +781,29 @@
       <Field Name="PublisherId" />
       <Field Name="TransportProfileUri" DataType="i=12" />
       <Field Name="Address" DataType="i=22" />
-      <!--      <Field Name="ConnectionProperties" DataType="i=14533" ValueRank="1" />
-            <Field Name="TransportSettings" DataType="i=22" />
+      <Field Name="ConnectionProperties" DataType="i=14533" ValueRank="1" />
+      <!--      <Field Name="TransportSettings" DataType="i=22" />
             <Field Name="WriterGroups" DataType="i=15480" ValueRank="1" />
             <Field Name="ReaderGroups" DataType="i=15520" ValueRank="1" />-->
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=14533" BrowseName="KeyValuePair">
+    <DisplayName>KeyValuePair</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="KeyValuePair">
+      <Field Name="Key" DataType="i=20" />
+      <Field Name="Value" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=16313" BrowseName="AdditionalParametersType" ReleaseStatus="Draft">
+    <DisplayName>AdditionalParametersType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="AdditionalParametersType">
+      <Field Name="Parameters" DataType="i=14533" ValueRank="1" />
     </Definition>
   </UADataType>
   <UADataType NodeId="i=15581" BrowseName="PublishedDataItemsDataType">
@@ -766,16 +847,25 @@
       <Reference ReferenceType="HasComponent">i=17427</Reference> <!--AddWriterGroup-->
       <Reference ReferenceType="HasComponent">i=14225</Reference> <!--RemoveGroup-->
       <Reference ReferenceType="HasComponent">i=17465</Reference> <!--AddReaderGroup-->
+      <Reference ReferenceType="HasProperty">i=17485</Reference>  <!--ConnectionProperties-->
+      <Reference ReferenceType="HasComponent">i=14600</Reference> <!--Status -->
+      <Reference ReferenceType="HasComponent">i=17203</Reference> <!--TransportSettings-->
+
 
       <!--
-            <Reference ReferenceType="HasProperty">i=17485</Reference> ConnectionProperties
-            <Reference ReferenceType="HasComponent">i=17203</Reference> TransportSettings
             <Reference ReferenceType="HasComponent">i=17325</Reference> ReaderGroupName
-            <Reference ReferenceType="HasComponent">i=14600</Reference> Status
             <Reference ReferenceType="HasComponent">i=19241</Reference> Diagnostics -->
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
+  <UAVariable NodeId="i=17485" BrowseName="ConnectionProperties" ParentNodeId="i=14209" DataType="i=14533" ValueRank="1">
+    <DisplayName>ConnectionProperties</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14209</Reference>
+    </References>
+  </UAVariable>
   <UAObject NodeId="i=14221" BrowseName="Address" ParentNodeId="i=14209">
     <DisplayName>Address</DisplayName>
     <References>
@@ -823,6 +913,14 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=21147</Reference>
     </References>
   </UAVariable>
+  <UAObject NodeId="i=17203" BrowseName="TransportSettings" ParentNodeId="i=14209">
+    <DisplayName>TransportSettings</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=17721</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14209</Reference>
+    </References>
+  </UAObject>
   <UAObject NodeId="i=17310" BrowseName="&lt;WriterGroupName&gt;" SymbolicName="WriterGroupName_Placeholder" ParentNodeId="i=14209">
     <DisplayName>&lt;WriterGroupName&gt;</DisplayName>
     <References>
@@ -841,6 +939,23 @@
             <Reference ReferenceType="HasComponent" IsForward="false">i=14209</Reference>-->
     </References>
   </UAObject>
+  <UAObject NodeId="i=14600" BrowseName="Status" ParentNodeId="i=14209">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=14601</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=14643</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14209</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=14601" BrowseName="State" ParentNodeId="i=14600" DataType="i=14647">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14600</Reference>
+    </References>
+  </UAVariable>
   <UAMethod NodeId="i=17427" BrowseName="AddWriterGroup" ParentNodeId="i=14209">
     <DisplayName>AddWriterGroup</DisplayName>
     <References>
@@ -1007,6 +1122,12 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
+  <UAObjectType NodeId="i=17721" BrowseName="ConnectionTransportType" IsAbstract="true">
+    <DisplayName>ConnectionTransportType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
   <UAObjectType NodeId="i=14232" BrowseName="PubSubGroupType">
     <DisplayName>PubSubGroupType</DisplayName>
     <References>
@@ -1139,6 +1260,37 @@
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
+  <UAObjectType NodeId="i=14643" BrowseName="PubSubStatusType">
+    <DisplayName>PubSubStatusType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=14644</Reference>
+      <Reference ReferenceType="HasComponent">i=14645</Reference>
+      <Reference ReferenceType="HasComponent">i=14646</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=14644" BrowseName="State" ParentNodeId="i=14643" DataType="i=14647">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14643</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="i=14645" BrowseName="Enable" ParentNodeId="i=14643">
+    <DisplayName>Enable</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14643</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="i=14646" BrowseName="Disable" ParentNodeId="i=14643">
+    <DisplayName>Disable</DisplayName>
+    <References>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=14643</Reference>
+    </References>
+  </UAMethod>
   <UAVariableType NodeId="i=16309" BrowseName="SelectionListType" DataType="i=862" ValueRank="-2">
     <DisplayName>SelectionListType</DisplayName>
     <References>
@@ -1188,15 +1340,31 @@
       <Reference ReferenceType="i=14476" IsForward="false">i=14416</Reference>
       <Reference ReferenceType="HasComponent">i=14423</Reference>
       <Reference ReferenceType="HasComponent">i=17292</Reference> <!--TransportProfileUri-->
+      <Reference ReferenceType="HasProperty">i=14418</Reference>  <!--PublisherId -->
+      <Reference ReferenceType="HasProperty">i=17478</Reference>  <!--ConnectionProperties -->
+
     </References>
 
     <!--<References>
-      <Reference ReferenceType="HasProperty">i=14418</Reference> PublisherId
-
-      <Reference ReferenceType="HasProperty">i=17478</Reference> ConnectionProperties
       <Reference ReferenceType="HasComponent">i=14419</Reference> Status
     </References>-->
   </UAObject>
+    <UAVariable NodeId="i=14418" BrowseName="PublisherId" ParentNodeId="i=14417">
+    <DisplayName>PublisherId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14417</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=17478" BrowseName="ConnectionProperties" ParentNodeId="i=14417" DataType="i=14533" ValueRank="1">
+    <DisplayName>ConnectionProperties</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=14417</Reference>
+    </References>
+  </UAVariable>
   <UAObject NodeId="i=14423" BrowseName="Address" ParentNodeId="i=14417">
     <DisplayName>Address</DisplayName>
     <References>
@@ -1223,7 +1391,7 @@
             <Reference ReferenceType="HasComponent">i=17405</Reference> Status
             <Reference ReferenceType="HasComponent">i=17409</Reference> Diagnostics-->
       <Reference ReferenceType="HasProperty">i=17481</Reference>
-      <Reference ReferenceType="HasComponent">i=17366</Reference>
+      <Reference ReferenceType="HasComponent">i=17366</Reference> <!-- addConnection -->
       <Reference ReferenceType="HasComponent">i=17369</Reference>
       <Reference ReferenceType="HasComponent">i=17371</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>

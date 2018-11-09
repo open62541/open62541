@@ -24,3 +24,4 @@ WriterGroupDataType
 ReaderGroupDataType
 DataSetWriterDataType
 DataSetReaderDataType
+PubSubState
