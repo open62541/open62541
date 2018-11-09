@@ -6,10 +6,13 @@
  */
 
 #include "ua_server_pubsub.h"
+#include "src_generated/ua_types_generated.h"
+#include "ua_server_pubsub.h"
 #include "ua_types.h"
 #include "ua_types.h"
 #include "ua_pubsub_ns0.h"
 #include "ua_pubsub.h"
+#include "src_generated/ua_types_generated_encoding_binary.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
@@ -77,8 +80,22 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_Variant_init(&value);
     UA_NodeId myNodeId;
 	UA_WriterGroup *writerGroup = NULL;
+    UA_PubSubConnection *pubSubConnection = NULL;
     switch(((UA_NodePropertyContext *) nodeContext)->parentCalssifier){
         case UA_NS0ID_PUBSUBCONNECTIONTYPE:
+            myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
+            pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, myNodeId);
+            switch(((UA_NodePropertyContext *) nodeContext)->elementClassiefier) {
+                case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
+                    if(pubSubConnection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
+                        UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
+                                             &UA_TYPES[UA_TYPES_STRING]);
+                    }else
+                        UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric, &UA_TYPES[UA_TYPES_UINT32]);
+                    break;
+                default:
+                    UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Read error! Unknown property.");
+            }
             break;
         case UA_NS0ID_WRITERGROUPTYPE:
             myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
@@ -108,6 +125,7 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
 	UA_WriterGroup *writerGroup = NULL;
     switch(((UA_NodePropertyContext *) nodeContext)->parentCalssifier){
         case UA_NS0ID_PUBSUBCONNECTIONTYPE:
+            //no runtime writable attributes
             break;
         case UA_NS0ID_WRITERGROUPTYPE:
             myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
@@ -161,9 +179,8 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_QUALIFIEDNAME(0, connectionName), UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE), (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &pubSubConnectionNodeId);
     addPubSubObjectNode(server, "Address", connection->identifier.identifier.numeric+1, pubSubConnectionNodeId.identifier.numeric,  UA_NS0ID_HASCOMPONENT, UA_NS0ID_NETWORKADDRESSURLTYPE);
     UA_Server_addNode_finish(server, pubSubConnectionNodeId);
-
     //End lock zone
-    UA_NodeId addressNode, urlNode, interfaceNode;
+    UA_NodeId addressNode, urlNode, interfaceNode, publisherIdNode, connectionPropertieNode, transportProfileUri;
     addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                       UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
@@ -171,6 +188,20 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
     interfaceNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkInterface"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
+    publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                        UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+    connectionPropertieNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConnectionProperties"),
+                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                                 UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+    transportProfileUri = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TransportProfileUri"),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                          UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
+
+    retVal |= writePubSubNs0VariableArray(server, connectionPropertieNode.identifier.numeric,
+                                          connection->config->connectionProperties,
+                                          connection->config->connectionPropertiesSize,
+                                          &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 
     UA_NetworkAddressUrlDataType *networkAddressUrlDataType = ((UA_NetworkAddressUrlDataType *) connection->config->address.data);
     UA_Variant value;
@@ -179,15 +210,119 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_Server_writeValue(server, urlNode, value);
     UA_Variant_setScalar(&value, &networkAddressUrlDataType->networkInterface, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_writeValue(server, interfaceNode, value);
+    UA_Variant_setScalar(&value, &connection->config->transportProfileUri, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Server_writeValue(server, transportProfileUri, value);
+
+    UA_NodePropertyContext *connectionPublisherIdContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    connectionPublisherIdContext->parentNodeId = connection->identifier;
+    connectionPublisherIdContext->parentCalssifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
+    connectionPublisherIdContext->elementClassiefier = UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID;
+    UA_ValueCallback valueCallback;
+    valueCallback.onRead = onRead;
+    valueCallback.onWrite = NULL;
+    retVal |= addVariableValueSource(server, valueCallback, publisherIdNode, connectionPublisherIdContext);
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_addReference(server, connection->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_ADDWRITERGROUP), true);
+    retVal |= UA_Server_addReference(server, connection->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_ADDREADERGROUP), true);
+    retVal |= UA_Server_addReference(server, connection->identifier,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_REMOVEGROUP), true);
+#endif
     return retVal;
 }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+addPubSubConnectionAction(UA_Server *server,
+                          const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *methodId, void *methodContext,
+                          const UA_NodeId *objectId, void *objectContext,
+                          size_t inputSize, const UA_Variant *input,
+                          size_t outputSize, UA_Variant *output){
+    UA_PubSubConnectionDataType pubSubConnectionDataType = *((UA_PubSubConnectionDataType *) input[0].data);
+    UA_NetworkAddressUrlDataType networkAddressUrlDataType;
+    memset(&networkAddressUrlDataType, 0, sizeof(networkAddressUrlDataType));
+    UA_ExtensionObject eo = pubSubConnectionDataType.address;
+    if(eo.encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING){
+        size_t offset = 0;
+        UA_NetworkAddressUrlDataType_decodeBinary(&eo.content.encoded.body, &offset, &networkAddressUrlDataType);
+        if(networkAddressUrlDataType.url.length > 512)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_STACKARRAY(char, buffer, sizeof(char) * networkAddressUrlDataType.url.length +1);
+        memcpy(buffer, networkAddressUrlDataType.url.data, networkAddressUrlDataType.url.length);
+        buffer[networkAddressUrlDataType.url.length] = '\0';
+        printf("%s\n", buffer);
+    }
+
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.name = pubSubConnectionDataType.name;
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlDataType,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    if(pubSubConnectionDataType.publisherId.type == &UA_TYPES[UA_TYPES_UINT32]){
+        connectionConfig.publisherId.numeric = * ((UA_UInt32 *) pubSubConnectionDataType.publisherId.data);
+    } else {
+        connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
+        connectionConfig.publisherId.string = * ((UA_String *) pubSubConnectionDataType.publisherId.data);
+    }
+    //call API function and create the connection
+    UA_NodeId connectionId;
+    if(UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId) != UA_STATUSCODE_GOOD){
+        //error handling
+    };
+    for(size_t i = 0; i < pubSubConnectionDataType.writerGroupsSize; i++){
+        //UA_PubSubConnection_addWriterGroup(server, UA_NODEID_NULL, NULL, NULL);
+    };
+    for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
+        //UA_PubSubConnection_addReaderGroup(server, NULL, NULL, NULL);
+    };
+    UA_NetworkAddressUrlDataType_deleteMembers(&networkAddressUrlDataType);
+    //set ouput value
+    UA_Variant_setScalar(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 UA_StatusCode
 removePubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_deleteReference(server, connection->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_ADDWRITERGROUP),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, connection->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_ADDREADERGROUP),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, connection->identifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_REMOVEGROUP),
+                                        false);
+#endif
     retVal |= UA_Server_deleteNode(server, connection->identifier, true);
     return retVal;
 }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+removeConnectionAction(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *methodId, void *methodContext,
+                       const UA_NodeId *objectId, void *objectContext,
+                       size_t inputSize, const UA_Variant *input,
+                       size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    retVal |= UA_Server_removePubSubConnection(server, nodeToRemove);
+    if(retVal == UA_STATUSCODE_BADNOTFOUND)
+        retVal = UA_STATUSCODE_BADNODEIDUNKNOWN;
+    return retVal;
+}
+#endif
 
 /*************************************************/
 /*                PublishedDataSet               */
@@ -359,6 +494,21 @@ UA_Server_initPubSubNS0(UA_Server *server) {
     retVal |= writePubSubNs0VariableArray(server, UA_NS0ID_PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES,
                                     profileArray,
                                     1, &UA_TYPES[UA_TYPES_STRING]);
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+    retVal |= UA_Server_setMethodNode_callback(server,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION), addPubSubConnectionAction);
+    retVal |= UA_Server_setMethodNode_callback(server,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_REMOVECONNECTION), removeConnectionAction);
+
+#else
+    retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
+                                        false);
+    retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
+                                        UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_REMOVECONNECTION),
+                                        false);
+#endif
     UA_NodeTypeLifecycle liveCycle;
     liveCycle.constructor = NULL;
     liveCycle.destructor = connectionTypeDestructor;

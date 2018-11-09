@@ -8,8 +8,9 @@
 #include <string.h>
 #include <math.h>
 #include <src_generated/ua_types_generated.h>
-#include <ua_types.h>
-#include <src_generated/ua_types_generated_encoding_binary.h>
+#include "src_generated/ua_types_generated.h"
+#include "ua_types.h"
+#include "src_generated/ua_types_generated_encoding_binary.h"
 #include "ua_types.h"
 #include "ua_server_pubsub.h"
 #include "src_generated/ua_types_generated.h"
@@ -85,20 +86,6 @@ findSingleChildNode(UA_QualifiedName targetName,
     return resultNodeId;
 }
 
-/*
-static UA_StatusCode startServer(void){
-    config = UA_ServerConfig_new_default();
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
-    config->pubsubTransportLayersSize++;
-    server = UA_Server_new(config);
-    return UA_Server_run_startup(server);
-
-}*/
-
 START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
     UA_StatusCode retVal;
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -122,12 +109,22 @@ START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
 
     UA_ExtensionObject eo;
     eo.encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-    UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING("eth0"), UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_ByteString_allocBuffer(&eo.content.encoded.body, UA_NetworkAddressUrlDataType_calcSizeBinary(&networkAddressDataType));
     UA_Byte *bufPos = eo.content.encoded.body.data;
     UA_NetworkAddressUrlDataType_encodeBinary(&networkAddressDataType, &bufPos, &(eo.content.encoded.body.data[eo.content.encoded.body.length]));
     eo.content.encoded.typeId = UA_NODEID_NUMERIC(0, UA_TYPES_NETWORKADDRESSURLDATATYPE);
     pubSubConnection.address = eo;
+    pubSubConnection.connectionPropertiesSize = 2;
+    UA_KeyValuePair connectionOptions[2];
+    memset(connectionOptions, 0, sizeof(UA_KeyValuePair)* 2);
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, "ttl");
+    UA_UInt32 ttl = 10;
+    UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
+    connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
+    UA_Boolean loopback = UA_FALSE;
+    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+    pubSubConnection.connectionProperties = connectionOptions;
 
     UA_Variant inputArguments;
     UA_Variant_init(&inputArguments);
@@ -166,14 +163,10 @@ START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
     ck_assert_int_eq(UA_Server_readValue(server, connectionPublisherId, &serverPubSubConnectionValues),
                      UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(*((UA_UInt32 *) serverPubSubConnectionValues.data), publisherIdValue);
-    //TODO create nd add a connection with string pulisherId
-
-
 
     } END_TEST
 
 int main(void) {
-    //startServer(); //TODO CHECK IF SERVER IS RUNNING
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionUsingTheInformationModelMethod);
