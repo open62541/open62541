@@ -87,8 +87,7 @@ typedef struct UA_ClientConfig {
     /* Callback function */
     UA_ClientStateCallback stateCallback;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /**
-     * When outStandingPublishRequests is greater than 0,
+    /* When outStandingPublishRequests is greater than 0,
      * the server automatically create publishRequest when
      * UA_Client_runAsync is called. If the client don't receive
      * a publishResponse after :
@@ -100,8 +99,7 @@ typedef struct UA_ClientConfig {
     UA_SubscriptionInactivityCallback subscriptionInactivityCallback;
 #endif
 
-    /** 
-     * When connectivityCheckInterval is greater than 0,
+    /* When connectivityCheckInterval is greater than 0,
      * every connectivityCheckInterval (in ms), a async read request
      * is performed on the server. inactivityCallback is called
      * when the client receive no response for this read request
@@ -112,12 +110,11 @@ typedef struct UA_ClientConfig {
     void *clientContext;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* number of PublishResponse standing in the sever */
-    /* 0 = background task disabled                    */
+    /* number of PublishResponse standing in the sever
+     * 0 = background task disabled                    */
     UA_UInt16 outStandingPublishRequests;
 #endif
-   /**
-     * connectivity check interval in ms
+    /* connectivity check interval in ms
      * 0 = background task disabled */
     UA_UInt32 connectivityCheckInterval;
 } UA_ClientConfig;

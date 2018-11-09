@@ -136,6 +136,10 @@ processChunk(UA_Connection *connection, void *application,
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Set pendingMessage if there is a message after this message */
+    if(length > chunk_length)
+        connection->pendingMessage = true;
+
     /* Process the chunk; forward the position pointer */
     temp.length = chunk_length;
     *posp += chunk_length;
@@ -167,6 +171,7 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
     do {
         retval = processChunk(connection, application, processCallback,
                               &pos, end, &done);
+        connection->pendingMessage = false;
     } while(!done && retval == UA_STATUSCODE_GOOD);
 
     if(realloced)
