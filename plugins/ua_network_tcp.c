@@ -216,6 +216,7 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
     return UA_STATUSCODE_GOOD;
 }
 
+#include <stdio.h> // provide printf
 static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
@@ -259,6 +260,13 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     /* Get the received packet(s) */
     ssize_t ret = recv(connection->sockfd, (char*)response->data,
                        connection->localConf.recvBufferSize, 0);
+
+    /* Display received bytes */
+    printf("RECEIVE %d BYTES ", (int)ret);
+    for(unsigned int i=0; i<(unsigned int)ret; i++){
+        printf("%02x ", response->data[i]);
+    }
+    printf("\n");
 
     /* The remote side closed the connection */
     if(ret == 0) {

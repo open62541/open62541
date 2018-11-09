@@ -45,6 +45,7 @@ static void stopHandler(int sign) {
 static void
 handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
                            UA_UInt32 monId, void *monContext, UA_DataValue *value) {
+    return;
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "currentTime has changed!");
     if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *) value->value.data;
@@ -99,6 +100,50 @@ stateCallback (UA_Client *client, UA_ClientState clientState) {
                                                           monRequest, NULL, handler_currentTimeChanged, NULL);
             if(monResponse.statusCode == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monResponse.monitoredItemId);
+
+
+            /* Create a second subscription */
+            request = UA_CreateSubscriptionRequest_default();
+            response = UA_Client_Subscriptions_create(client, request,
+                                                      NULL, NULL, deleteSubscriptionCallback);
+
+            if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", response.subscriptionId);
+            else
+                return;
+
+            /* Add a MonitoredItem */
+            monRequest =
+                UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+
+            monResponse =
+                UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                          UA_TIMESTAMPSTORETURN_BOTH,
+                                                          monRequest, NULL, handler_currentTimeChanged, NULL);
+            if(monResponse.statusCode == UA_STATUSCODE_GOOD)
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monResponse.monitoredItemId);
+
+
+            /* Create a third subscription */
+            request = UA_CreateSubscriptionRequest_default();
+            response = UA_Client_Subscriptions_create(client, request,
+                                                      NULL, NULL, deleteSubscriptionCallback);
+
+            if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", response.subscriptionId);
+            else
+                return;
+
+            /* Add a MonitoredItem */
+            monRequest =
+                UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+
+            monResponse =
+                UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                          UA_TIMESTAMPSTORETURN_BOTH,
+                                                          monRequest, NULL, handler_currentTimeChanged, NULL);
+            if(monResponse.statusCode == UA_STATUSCODE_GOOD)
+                UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u", monResponse.monitoredItemId);
         }
         break;
         case UA_CLIENTSTATE_SESSION_RENEWED:
@@ -113,6 +158,8 @@ int main(void) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ClientConfig config = UA_ClientConfig_default;
+    config.secureChannelLifeTime = 20000; /* 20 secondes */
+
     /* Set stateCallback */
     config.stateCallback = stateCallback;
     config.subscriptionInactivityCallback = subscriptionInactivityCallback;

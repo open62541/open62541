@@ -935,16 +935,19 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
     return UA_STATUSCODE_GOOD;
 }
 
+#include <stdio.h> // provide printf
 typedef UA_StatusCode(*UA_SequenceNumberCallback)(UA_SecureChannel *channel,
                                                   UA_UInt32 sequenceNumber);
 
 static UA_StatusCode
 processSequenceNumberAsym(UA_SecureChannel *const channel, UA_UInt32 sequenceNumber) {
+    printf("PROCESS ASYM SEQ %d\n", sequenceNumber);
     channel->receiveSequenceNumber = sequenceNumber;
 
     return UA_STATUSCODE_GOOD;
 }
 
+unsigned char bug = 0; // BUG DETECTED
 static UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *const channel, UA_UInt32 sequenceNumber) {
     /* Failure mode hook for unit tests */
@@ -952,15 +955,23 @@ processSequenceNumberSym(UA_SecureChannel *const channel, UA_UInt32 sequenceNumb
     if(processSym_seqNumberFailure != UA_STATUSCODE_GOOD)
         return processSym_seqNumberFailure;
 #endif
-
+    printf("PROCESS SYM SEQ %d\n", sequenceNumber);
     /* Does the sequence number match? */
     if(sequenceNumber != channel->receiveSequenceNumber + 1) {
         /* FIXME: Remove magic numbers :( */
         if(channel->receiveSequenceNumber + 1 > 4294966271 && sequenceNumber < 1024)
             channel->receiveSequenceNumber = sequenceNumber - 1; /* Roll over */
-        else
-            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        else {
+            printf("############### BUG : WAITING %d BUT RECEIVE %d\n", channel->receiveSequenceNumber+1, sequenceNumber);
+            bug++;
+            return UA_STATUSCODE_GOOD; // simulate no error to display 5 next messages
+            // return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
     }
+    if(bug)
+        bug++;
+    if(bug > 5) // if 5 message displayed i exit
+        exit(0);
     ++channel->receiveSequenceNumber;
     return UA_STATUSCODE_GOOD;
 }
@@ -1134,6 +1145,8 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
                           &sequenceNumber, &chunkPayload, messageType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    printf("##################################################### I DECRYPT MESSAGE WITH SEQ=%d AND REQID=%d\n", sequenceNumber, requestId);
 
     /* Check the sequence number */
     if(sequenceNumberCallback == NULL)
