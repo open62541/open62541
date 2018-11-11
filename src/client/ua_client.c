@@ -254,11 +254,14 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Make sure we have a valid session */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    /* FIXME: this is just a dirty workaround. We need to rework some of the sync and async processing
-     * FIXME: in the client. Currently a lot of stuff is semi broken and in dire need of cleaning up.*/
-    /*UA_StatusCode retval = openSecureChannel(client, true);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;*/
+
+    /* If a message is pending in the chunk don't call UA_Client_manuallyRenewSecureChannel
+     * to prevent incomming message desynchronization */
+    if(!client->connection.pendingMessage) {
+        retval = openSecureChannel(client, true);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
@@ -590,6 +593,8 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
     /* Call the service and set the requestId */
     UA_StatusCode retval = sendSymmetricServiceRequest(client, request, requestType, &ac->requestId);
     if(retval != UA_STATUSCODE_GOOD) {
+        ac->requestId = 0;
+        UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADTIMEOUT);
         UA_free(ac);
         return retval;
     }

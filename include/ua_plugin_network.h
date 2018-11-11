@@ -110,6 +110,9 @@ struct UA_Connection {
     /* To be called only from within the server (and not the network layer).
      * Frees up the connection's memory. */
     void (*free)(UA_Connection *connection);
+
+    /* A message has not been processed yet */
+    UA_Boolean pendingMessage;
 };
 
 /* Cleans up half-received messages, and so on. Called from connection->free. */

@@ -153,6 +153,11 @@ processChunk(UA_Connection *connection, void *application,
     temp.length = chunk_length;
     *posp += chunk_length;
     *done = false;
+
+    /* Set pendingMessage if there is a message after this message */
+    if(remaining > chunk_length)
+        connection->pendingMessage = true;
+
     return processCallback(application, connection, &temp);
 }
 
@@ -170,6 +175,9 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     while(!done) {
         retval = processChunk(connection, application, processCallback, &pos, end, &done);
+
+        connection->pendingMessage = false;
+
         /* If an irrecoverable error happens: do not buffer incomplete chunk */
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
