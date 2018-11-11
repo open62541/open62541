@@ -54,7 +54,7 @@ master_doc = 'toc'
 
 # General information about the project.
 project = u'open62541'
-copyright = u'2016, The open62541 authors'
+copyright = u'2016-2018, The open62541 authors'
 author = u'The open62541 authors'
 
 # The version info for the project you're documenting, acts as replacement for
