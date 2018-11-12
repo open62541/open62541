@@ -159,8 +159,8 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
         UA_BrowsePathResult_clear(&bpr);
         return false;
     }
-    
-    /* Get the EventType Property Node */
+	
+	/* Get the EventType Property Node */
     UA_Variant tOutVariant;
     UA_Variant_init(&tOutVariant);
 

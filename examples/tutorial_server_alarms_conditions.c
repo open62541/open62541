@@ -25,23 +25,26 @@ static UA_NodeId conditionInstance_2;
 
 static UA_StatusCode
 addConditoinSourceObject(UA_Server *server) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.eventNotifier = 1;
 
     object_attr.displayName = UA_LOCALIZEDTEXT("en", "ConditionSourceObject");
-    retval =  UA_Server_addObjectNode(server, UA_NODEID_NULL,
+    UA_StatusCode retval =  UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                       UA_NODEID_NULL,
                                       UA_NODEID_NULL,
                                       UA_QUALIFIEDNAME(0, "ConditionSourceObject"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                       object_attr, NULL, &conditionSource);
 
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "creating Condition Source failed. StatusCode %s", UA_StatusCode_name(retval));
+    }
+
     /* ConditionSource should be EventNotifier of another Object (usually the Server Object).
      * If this Reference is not created by user then the A&C Server will create "HasEventSource"
      * reference to the Server Object automatically when the condition is created*/
-    retval |= UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+    retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASNOTIFIER),
                                      UA_EXPANDEDNODEID_NUMERIC(conditionSource.namespaceIndex,
                                                                conditionSource.identifier.numeric),
@@ -57,11 +60,13 @@ addConditoinSourceObject(UA_Server *server) {
  */
 static UA_StatusCode
 addConditoin_1(UA_Server *server) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = addConditoinSourceObject(server);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "creating Condition Source failed. StatusCode %s", UA_StatusCode_name(retval));
+    }
 
-    retval = addConditoinSourceObject(server);
-
-    retval |= UA_Server_createCondition(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+    retval = UA_Server_createCondition(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
                                         UA_QUALIFIEDNAME(0, "Condition 1"), conditionSource,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), &conditionInstance_1);
 
@@ -74,9 +79,7 @@ addConditoin_1(UA_Server *server) {
  */
 static UA_StatusCode
 addConditoin_2(UA_Server *server) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    retval = UA_Server_createCondition(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+    UA_StatusCode retval = UA_Server_createCondition(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
                                        UA_QUALIFIEDNAME(0, "Condition 2"), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                        UA_NODEID_NULL, &conditionInstance_2);
 
@@ -139,12 +142,10 @@ afterWriteCallbackVariable_1(UA_Server *server,
                const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeId, void *nodeContext,
                const UA_NumericRange *range, const UA_DataValue *data) {
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
 
-    retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
+    UA_StatusCode retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
                                                   &data->sourceTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
 
     if(*(UA_Boolean *)(data->value.data) == true) {
@@ -157,7 +158,7 @@ afterWriteCallbackVariable_1(UA_Server *server,
                                                               &activeStateId, UA_TYPES_BOOLEAN,
                                                               &activeStateField, &activeStateIdField);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                          "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
             return;
         }
@@ -174,14 +175,14 @@ afterWriteCallbackVariable_1(UA_Server *server,
                                                              &activeStateId, UA_TYPES_BOOLEAN,
                                                              &activeStateField, &activeStateIdField);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                          "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
             return;
         }
 
         retval = UA_Server_triggerConditionEvent(server, conditionInstance_1, conditionSource, NULL);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                            "Triggering condition event failed. StatusCode %s", UA_StatusCode_name(retval));
             return;
         }
@@ -216,11 +217,6 @@ afterWriteCallbackVariable_3(UA_Server *server,
                const UA_NodeId *nodeId, void *nodeContext,
                const UA_NumericRange *range, const UA_DataValue *data) {
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
-                                                  &data->serverTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
-
     //UA_QualifiedName enabledStateField = UA_QUALIFIEDNAME(0,"EnabledState");
     UA_QualifiedName ackedStateField = UA_QUALIFIEDNAME(0,"AckedState");
     UA_QualifiedName confirmedStateField = UA_QUALIFIEDNAME(0,"ConfirmedState");
@@ -231,12 +227,15 @@ afterWriteCallbackVariable_3(UA_Server *server,
     UA_QualifiedName retainField = UA_QUALIFIEDNAME(0,"Retain");
     UA_QualifiedName idField = UA_QUALIFIEDNAME(0,"Id");
 
+    UA_StatusCode retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
+                                                  &data->serverTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
+
     UA_Boolean idValue = false;
     retval |= UA_Server_setConditionVariableFieldProperty(server, &conditionInstance_1,
                                                           &idValue, UA_TYPES_BOOLEAN,
                                                           &activeStateField, &idField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return;
     }
@@ -245,7 +244,7 @@ afterWriteCallbackVariable_3(UA_Server *server,
                                                          &idValue, UA_TYPES_BOOLEAN,
                                                          &ackedStateField, &idField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting AckedState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return;
     }
@@ -254,7 +253,7 @@ afterWriteCallbackVariable_3(UA_Server *server,
                                                          &idValue, UA_TYPES_BOOLEAN,
                                                          &confirmedStateField, &idField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ConfirmedState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return;
     }
@@ -263,7 +262,7 @@ afterWriteCallbackVariable_3(UA_Server *server,
     retval = UA_Server_setConditionField(server, &conditionInstance_1,
                                          &severityValue, UA_TYPES_UINT16, &severityField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Severity Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return;
     }
@@ -272,7 +271,7 @@ afterWriteCallbackVariable_3(UA_Server *server,
     retval = UA_Server_setConditionField(server, &conditionInstance_1,
                                          &messageValue, UA_TYPES_LOCALIZEDTEXT, &messageField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Message Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return;
     }
@@ -281,7 +280,7 @@ afterWriteCallbackVariable_3(UA_Server *server,
     retval = UA_Server_setConditionField(server, &conditionInstance_1,
                                          &commentValue, UA_TYPES_LOCALIZEDTEXT, &commentField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Comment Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return;
     }
@@ -290,14 +289,14 @@ afterWriteCallbackVariable_3(UA_Server *server,
     retval = UA_Server_setConditionField(server, &conditionInstance_1,
                                          &retainValue, UA_TYPES_BOOLEAN, &retainField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Retain Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return;
     }
 
     retval = UA_Server_triggerConditionEvent(server, conditionInstance_1, conditionSource, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
-     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND,
+     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Triggering condition event failed. StatusCode %s", UA_StatusCode_name(retval));
      return;
     }
@@ -318,18 +317,17 @@ enteringEnabledStateCallback(UA_Server *server, const UA_NodeId *condition) {
  */
 static UA_StatusCode
 enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* set ActiveState/Id to false*/
     UA_Boolean activeStateId = false;
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
 
-    retval = UA_Server_setConditionVariableFieldProperty(server, condition,
+    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, condition,
                                                          &activeStateId, UA_TYPES_BOOLEAN,
                                                          &activeStateField, &activeStateIdField);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
     }
 
@@ -338,7 +336,6 @@ enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
 
 static UA_StatusCode
 enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* set ActiveState/Id to false*/
     UA_Boolean activeStateId = false;
     UA_Boolean retain = false;
@@ -346,10 +343,10 @@ enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
     UA_QualifiedName retainField = UA_QUALIFIEDNAME(0,"Retain");
 
-    retval = UA_Server_setConditionVariableFieldProperty(server, condition,
+    UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, condition,
                                                          &activeStateId, UA_TYPES_BOOLEAN, &activeStateField, &activeStateIdField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -357,7 +354,7 @@ enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
     retval = UA_Server_setConditionField(server, condition,
                                          &retain, UA_TYPES_BOOLEAN, &retainField);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
     }
 
@@ -366,7 +363,6 @@ enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
 
 static UA_StatusCode
 setUpEnvironment(UA_Server *server) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId variable_1;
     UA_NodeId variable_2;
     UA_NodeId variable_3;
@@ -377,9 +373,9 @@ setUpEnvironment(UA_Server *server) {
        * exposed condition 1. We will add to it user specific callbacks when entering enabled state,
        * when acknowledging and when confirming
        */
-    retval = addConditoin_1(server);
+    UA_StatusCode retval = addConditoin_1(server);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "adding condition 1 failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -389,7 +385,7 @@ setUpEnvironment(UA_Server *server) {
                                                             &conditionSource, false, userSpecificCallback,
                                                             UA_ENTERING_ENABLEDSTATE);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "adding entering enabled state callback failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -399,7 +395,7 @@ setUpEnvironment(UA_Server *server) {
                                                             &conditionSource, false, userSpecificCallback,
                                                             UA_ENTERING_ACKEDSTATE);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "adding entering acked state callback failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -409,7 +405,7 @@ setUpEnvironment(UA_Server *server) {
                                                             &conditionSource, false, userSpecificCallback,
                                                             UA_ENTERING_CONFIRMEDSTATE);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "adding entering confirmed state callback failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -423,7 +419,7 @@ setUpEnvironment(UA_Server *server) {
      */
     retval = addConditoin_2(server);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "adding condition 2 failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -439,7 +435,7 @@ setUpEnvironment(UA_Server *server) {
                                                          &enabledStateId, UA_TYPES_BOOLEAN, &enabledStateField, &enabledStateIdField);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting EnabledState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -453,7 +449,7 @@ setUpEnvironment(UA_Server *server) {
     callback.onWrite = afterWriteCallbackVariable_1;
     retval = UA_Server_setVariableNode_valueCallback(server, variable_1, callback);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "setting variable 1 Callback failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -467,7 +463,7 @@ setUpEnvironment(UA_Server *server) {
     callback.onWrite = afterWriteCallbackVariable_2;
     retval = UA_Server_setVariableNode_valueCallback(server, variable_2, callback);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "setting variable 2 Callback failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -477,7 +473,7 @@ setUpEnvironment(UA_Server *server) {
     callback.onWrite = afterWriteCallbackVariable_3;
     retval = UA_Server_setVariableNode_valueCallback(server, variable_3, callback);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "setting variable 3 Callback failed. StatusCode %s", UA_StatusCode_name(retval));
     }
 
