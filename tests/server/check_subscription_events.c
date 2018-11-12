@@ -261,7 +261,7 @@ START_TEST(generateEvents) {
 
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
-    UA_fakeSleep((UA_UInt32) publishingInterval + 100);
+    UA_comboSleep((UA_UInt32) publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
@@ -277,7 +277,7 @@ START_TEST(generateEvents) {
     UA_DeleteMonitoredItemsResponse deleteResponse =
         UA_Client_MonitoredItems_delete(client, deleteRequest);
 
-    UA_fakeSleep((UA_UInt32)publishingInterval + 100);
+    UA_realSleep((UA_UInt32)publishingInterval + 100);
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
@@ -348,7 +348,7 @@ START_TEST(uppropagation) {
 
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
-    UA_fakeSleep((UA_UInt32) publishingInterval + 100);
+    UA_comboSleep((UA_UInt32) publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
@@ -408,7 +408,7 @@ START_TEST(eventOverflow) {
     // fetch the events, ensure both the overflow and the original event are received
     notificationReceived = false;
     overflowNotificationReceived = true;
-    UA_fakeSleep((UA_UInt32) publishingInterval + 100);
+    UA_comboSleep((UA_UInt32) publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
@@ -476,8 +476,6 @@ START_TEST(multipleMonitoredItemsOneNode) {
         ck_assert_uint_eq(deleteResponse.resultsSize, 1);
         ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
         UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
-
-        UA_fakeSleep((UA_UInt32) publishingInterval + 100);
     }
 } END_TEST
 
@@ -497,7 +495,6 @@ START_TEST(eventStressing) {
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
-        UA_fakeSleep((UA_UInt32)publishingInterval + 100);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
