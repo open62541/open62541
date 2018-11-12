@@ -78,7 +78,7 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    & cmake -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_NAMESPACE_ZERO:STRING=FULL -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME"  ..
+    & cmake -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_NAMESPACE_ZERO:STRING=FULL -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:GENERATOR"  ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -118,7 +118,7 @@ try {
     Move-Item -Path "build\open62541.h" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server_ctt.exe" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
-    if ($env:CC_SHORTNAME -eq "mingw") {
+    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.a" -Destination pack_tmp\
     } else {
         Move-Item -Path "build\$env:OUT_DIR_LIB\open62541.lib" -Destination pack_tmp\
@@ -132,7 +132,7 @@ try {
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON `
-        -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=ON -G"$env:CC_NAME" ..
+        -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=ON -G"$env:GENERATOR" ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -144,7 +144,7 @@ try {
     Move-Item -Path "build\open62541.h" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server_ctt.exe" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
-    if ($env:CC_SHORTNAME -eq "mingw") {
+    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll" -Destination pack_tmp\
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll.a" -Destination pack_tmp\
     } else {
