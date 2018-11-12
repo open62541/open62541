@@ -128,7 +128,6 @@ setupSubscription(void) {
     UA_CreateSubscriptionResponse response =
         UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
     subscriptionId = response.subscriptionId;
-
 }
 
 static void
@@ -255,6 +254,7 @@ START_TEST(generateEvents) {
     // add a monitored item
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
     // trigger the event
     retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -277,8 +277,10 @@ START_TEST(generateEvents) {
     UA_DeleteMonitoredItemsResponse deleteResponse =
         UA_Client_MonitoredItems_delete(client, deleteRequest);
 
+    UA_fakeSleep((UA_UInt32)publishingInterval + 100);
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 } END_TEST
@@ -338,6 +340,7 @@ START_TEST(uppropagation) {
     //add a monitored item
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
     // trigger the event on a child of server, using namespaces in this case (no reason in particular)
     retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), NULL,
                                     UA_TRUE);
@@ -363,6 +366,7 @@ START_TEST(uppropagation) {
 
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 } END_TEST
@@ -390,6 +394,7 @@ START_TEST(eventOverflow) {
     // add a monitored item
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
 
     // trigger first event
     UA_NodeId eventNodeId;
@@ -422,12 +427,13 @@ START_TEST(eventOverflow) {
 
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 } END_TEST
 
 START_TEST(multipleMonitoredItemsOneNode) {
-    UA_UInt32 monitoredItemIdAr[3] = {0, 1, 2};
+    UA_UInt32 monitoredItemIdAr[3];
 
     /* set up monitored items */
     UA_MonitoredItemCreateRequest item;
@@ -450,8 +456,9 @@ START_TEST(multipleMonitoredItemsOneNode) {
     for(size_t i = 0; i < 3; i++) {
         UA_MonitoredItemCreateResult result =
             UA_Client_MonitoredItems_createEvent(client, subscriptionId, UA_TIMESTAMPSTORETURN_BOTH,
-                                                 item, &monitoredItemIdAr[i], handler_events_simple, NULL);
+                                                 item, NULL, handler_events_simple, NULL);
         ck_assert_uint_eq(result.statusCode, UA_STATUSCODE_GOOD);
+        monitoredItemIdAr[i] = result.monitoredItemId;
     }
 
     // delete the three monitored items after another
@@ -462,11 +469,12 @@ START_TEST(multipleMonitoredItemsOneNode) {
     UA_DeleteMonitoredItemsResponse deleteResponse;
 
     for(size_t i = 0; i < 3; i++) {
-        deleteRequest.monitoredItemIds = &monitoredItemIdAr[1];
+        deleteRequest.monitoredItemIds = &monitoredItemIdAr[i];
         deleteResponse = UA_Client_MonitoredItems_delete(client, deleteRequest);
 
         ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+        ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
         UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 
         UA_fakeSleep((UA_UInt32) publishingInterval + 100);
@@ -477,6 +485,7 @@ START_TEST(eventStressing) {
     // add a monitored item
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
 
     // trigger a large amount of events, ensure the server doesnt crash because of it
     UA_NodeId eventNodeId;
@@ -505,6 +514,7 @@ START_TEST(eventStressing) {
 
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
 
     UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 } END_TEST
@@ -516,7 +526,7 @@ static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Events");
     TCase *tc_server = tcase_create("Server Subscription Events");
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    tcase_add_checked_fixture(tc_server, setup, teardown);
+    tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, generateEvents);
     tcase_add_test(tc_server, uppropagation);
     tcase_add_test(tc_server, eventOverflow);
