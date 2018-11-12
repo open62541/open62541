@@ -297,7 +297,7 @@ processHEL(UA_Server *server, UA_Connection *connection,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Error during the HEL/ACK handshake",
-                    connection->sockfd);
+                    (int)(connection->sockfd));
         return retval;
     }
 
@@ -684,7 +684,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
     /* Process chunk without a channel; must be OPN */
     UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | No channel attached to the connection. "
-                 "Process the chunk directly", connection->sockfd);
+                 "Process the chunk directly", (int)(connection->sockfd));
     size_t offset = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     UA_StatusCode retval =
@@ -700,7 +700,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
     case UA_MESSAGETYPE_OPN:
     {
         UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "Connection %i | Process OPN message", connection->sockfd);
+                     "Connection %i | Process OPN message", (int)(connection->sockfd));
 
         /* Called before HEL */
         if(connection->state != UA_CONNECTION_ESTABLISHED) {
@@ -735,7 +735,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
     default:
         UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Connection %i | Expected OPN or HEL message on a connection "
-                     "without a SecureChannel", connection->sockfd);
+                     "without a SecureChannel", (int)(connection->sockfd));
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
         break;
     }
@@ -758,7 +758,7 @@ void
 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                UA_ByteString *message) {
     UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                 "Connection %i | Received a packet.", connection->sockfd);
+                 "Connection %i | Received a packet.", (int)(connection->sockfd));
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(message->data, message->length);
 #endif
@@ -768,7 +768,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Processing the message failed with "
-                    "error %s", connection->sockfd, UA_StatusCode_name(retval));
+                    "error %s", (int)(connection->sockfd), UA_StatusCode_name(retval));
         /* Send an ERR message and close the connection */
         UA_TcpErrorMessage error;
         error.error = retval;
