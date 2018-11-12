@@ -40,7 +40,7 @@
 #include <windows.h>
 #include <ws2tcpip.h>
 
-#ifdef _MSC_VER
+#if defined (_MSC_VER) || defined(__clang__)
 # ifndef UNDER_CE
 #  include <io.h> //access
 #  define UA_access _access
