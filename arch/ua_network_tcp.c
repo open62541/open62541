@@ -454,7 +454,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 
         UA_LOG_TRACE(layer->logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Activity on the socket",
-                    e->connection.sockfd);
+                    (int)(e->connection.sockfd));
 
         UA_ByteString buf = UA_BYTESTRING_NULL;
         UA_StatusCode retval = connection_recv(&e->connection, &buf, 0);
