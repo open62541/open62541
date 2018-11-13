@@ -279,7 +279,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
 
 #ifdef _WIN32
         /* Iterate through all of the adapters */
-        IP_ADAPTER_ADDRESSES* adapter = adapter_addresses->Next;
+        IP_ADAPTER_ADDRESSES* adapter = adapter_addresses;
         for(; adapter != NULL; adapter = adapter->Next) {
             /* Skip loopback adapters */
             if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
@@ -700,7 +700,7 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
         return;
 
     /* Iterate through all of the adapters */
-    IP_ADAPTER_ADDRESSES* adapter = adapter_addresses->Next;
+    IP_ADAPTER_ADDRESSES* adapter = adapter_addresses;
     for(; adapter != NULL; adapter = adapter->Next) {
         /* Skip loopback adapters */
         if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
