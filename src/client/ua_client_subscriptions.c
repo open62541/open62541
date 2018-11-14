@@ -759,6 +759,7 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
         if (!request)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
+        request->requestHeader.timeoutHint=60000;
         UA_StatusCode retval = UA_Client_preparePublishRequest(client, request);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
