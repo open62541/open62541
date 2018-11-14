@@ -29,26 +29,87 @@
 #include <stdio.h>
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
+UA_Server *server;
+UA_Client *client;
 
 static void
 addVariable(UA_Server *server) {
-    // Define the attribute of the myInteger variable node 
+    /* Define the attribute of the myInteger variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    UA_Int32 myInteger = 42;
-    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
-    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    UA_Float x = 0.0;
+    UA_Variant_setScalar(&attr.value, &x, &UA_TYPES[UA_TYPES_FLOAT]);
+    attr.description = UA_LOCALIZEDTEXT("en-US","x");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","x");
+    attr.dataType = UA_TYPES[UA_TYPES_FLOAT].typeId;
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
-    // Add the variable node to the information model 
-    UA_NodeId myIntegerNodeId = UA_NODEID_NUMERIC(1, 42);
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    /* Add the variable node to the information model */
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "x");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "x");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+}
+
+static void
+deleteSubscriptionCallback(UA_Client *c, UA_UInt32 subscriptionId, void *subscriptionContext) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "Subscription Id %u was deleted", subscriptionId);
+}
+
+static void
+handler_XChanged(UA_Client *c, UA_UInt32 subId, void *subContext,
+                 UA_UInt32 monId, void *monContext, UA_DataValue *value) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "x axis has changed!");
+    UA_Server_writeValue(server, UA_NODEID_STRING(1, "x"), value->value);
+}
+
+static void
+processClientCallback(UA_Server *server, void *data) {
+    UA_Client_run_iterate(client, 1);
+}
+
+static void
+addClientSubscription(UA_Server *server) {
+    addVariable(server);
+
+    UA_ClientConfig cconfig = UA_ClientConfig_default;
+    /* Set stateCallback */
+    //cconfig.stateCallback = stateCallback;
+    //cconfig.subscriptionInactivityCallback = subscriptionInactivityCallback;
+
+    client = UA_Client_new(cconfig);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://192.168.56.1:16664");
+
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not connect to the client");
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request,
+                                       NULL, NULL, deleteSubscriptionCallback);
+
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, 50510));
+        //        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL, handler_XChanged, NULL);
+    if(monResponse.statusCode == UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
+                    monResponse.monitoredItemId);
+    else
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Monitoring the x axis");
+
+    retval = UA_Server_addRepeatedCallback(server, processClientCallback, NULL, 200, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "cannot iterate client %s",
+                    UA_StatusCode_name(retval));
 }
 
 static void
@@ -98,10 +159,10 @@ addDataSetField(UA_Server *server) {
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("The answer");
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("x");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-    UA_NODEID_NUMERIC(1, 42);
+        UA_NODEID_STRING(1, "x");
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSetIdent,
                               &dataSetFieldConfig, &dataSetFieldIdent);
@@ -192,9 +253,9 @@ static int run(UA_String *transportProfile,
     config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 #endif
-    UA_Server *server = UA_Server_new(config);
+    server = UA_Server_new(config);
 
-    addVariable(server);
+    addClientSubscription(server);
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);
