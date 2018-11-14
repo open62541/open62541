@@ -22,7 +22,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(OPEN62541_VER_MAJOR 0)
 set(OPEN62541_VER_MINOR 3)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "-rc4") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
 #  If a relative path is specified, it is treated as relative to the $<INSTALL_PREFIX>
 set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
