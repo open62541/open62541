@@ -19,6 +19,7 @@ static UA_Server *server;
 static UA_ServerConfig *config;
 static UA_Boolean *running;
 static THREAD_HANDLE server_thread;
+static MUTEX_HANDLE serverMutex;
 
 UA_Client *client;
 
@@ -146,14 +147,26 @@ removeSubscription(void) {
     UA_DeleteSubscriptionsResponse_deleteMembers(&deleteSubscriptionsResponse);
 }
 
+static void serverMutexLock(void) {
+    ck_assert_uint_eq(MUTEX_LOCK(serverMutex), true);
+}
+
+static void serverMutexUnlock(void) {
+    ck_assert_uint_eq(MUTEX_UNLOCK(serverMutex), true);
+}
+
 THREAD_CALLBACK(serverloop) {
-    while (*running)
+    while (*running) {
+        serverMutexLock();
         UA_Server_run_iterate(server, true);
+        serverMutexUnlock();
+    }
     return 0;
 }
 
 static void
 setup(void) {
+    ck_assert_uint_eq(MUTEX_INIT(serverMutex), true);
     running = UA_Boolean_new();
     *running = true;
     config = UA_ServerConfig_new_default();
@@ -168,6 +181,7 @@ setup(void) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     setupSubscription();
+    UA_comboSleep((UA_UInt32) publishingInterval + 100);
 }
 
 static void
@@ -183,12 +197,23 @@ teardown(void) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    ck_assert_uint_eq(MUTEX_DESTROY(serverMutex), true);
+}
+
+static UA_StatusCode triggerEventLocked(const UA_NodeId eventNodeId, const UA_NodeId origin,
+                                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
+    serverMutexLock();
+    UA_StatusCode retval = UA_Server_triggerEvent(server, eventNodeId, origin, outEventId, deleteEventNode);
+    serverMutexUnlock();
+    return retval;
 }
 
 static UA_StatusCode
 eventSetup(UA_NodeId *eventNodeId) {
     UA_StatusCode retval;
+    serverMutexLock();
     retval = UA_Server_createEvent(server, eventType, eventNodeId);
+    serverMutexUnlock();
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     // add a severity to the event
     UA_Variant value;
@@ -203,19 +228,27 @@ eventSetup(UA_NodeId *eventNodeId) {
     bp.relativePath.elementsSize = 1;
     bp.relativePath.elements = &rpe;
     rpe.targetName = UA_QUALIFIEDNAME(0, "Severity");
+    serverMutexLock();
     UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    serverMutexUnlock();
     // number with no special meaning
     UA_UInt16 eventSeverity = 1000;
     UA_Variant_setScalar(&value, &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+    serverMutexLock();
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    serverMutexUnlock();
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     //add a message to the event
     rpe.targetName = UA_QUALIFIEDNAME(0, "Message");
+    serverMutexLock();
     bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    serverMutexUnlock();
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
     UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    serverMutexLock();
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    serverMutexUnlock();
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     return retval;
@@ -256,7 +289,7 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event
-    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // let the client fetch the event and check if the correct values were received
@@ -342,8 +375,8 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event on a child of server, using namespaces in this case (no reason in particular)
-    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), NULL,
-                                    UA_TRUE);
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), NULL,
+                                UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // let the client fetch the event and check if the correct values were received
@@ -400,9 +433,9 @@ START_TEST(eventOverflow) {
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // fetch the events, ensure both the overflow and the original event are received
@@ -489,9 +522,9 @@ START_TEST(eventStressing) {
     UA_NodeId eventNodeId;
     UA_StatusCode retval = eventSetup(&eventNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 50; i++) {
+    for(size_t i = 0; i < 20; i++) {
         for(size_t j = 0; j < 5; j++) {
-            retval = UA_Server_triggerEvent(server, eventNodeId,
+            retval = triggerEventLocked(eventNodeId,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
