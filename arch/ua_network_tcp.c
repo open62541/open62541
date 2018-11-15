@@ -429,7 +429,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 
         UA_LOG_TRACE(layer->logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New TCP connection on server socket %i",
-                    (int)newsockfd, layer->serverSockets[i]);
+                    (int)newsockfd, (int)(layer->serverSockets[i]));
 
         ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote);
     }
@@ -442,7 +442,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             (now > (e->connection.openingDate + (NOHELLOTIMEOUT * UA_DATETIME_MSEC)))){
             UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                         "Connection %i | Closed by the server (no Hello Message)",
-                         e->connection.sockfd);
+                         (int)(e->connection.sockfd));
             LIST_REMOVE(e, pointers);
             UA_close(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);
@@ -455,7 +455,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 
         UA_LOG_TRACE(layer->logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Activity on the socket",
-                    e->connection.sockfd);
+                    (int)(e->connection.sockfd));
 
         UA_ByteString buf = UA_BYTESTRING_NULL;
         UA_StatusCode retval = connection_recv(&e->connection, &buf, 0);
@@ -468,7 +468,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             /* The socket is shutdown but not closed */
             UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                         "Connection %i | Closed",
-                        e->connection.sockfd);
+                        (int)(e->connection.sockfd));
             LIST_REMOVE(e, pointers);
             UA_close(e->connection.sockfd);
             UA_Server_removeConnection(server, &e->connection);

@@ -394,11 +394,11 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     }
 
     /* Insert the node */
-    UA_NodeMapEntry *oldEntry = *slot;
-    UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
-    if(oldEntry > UA_NODEMAP_TOMBSTONE ||
-       UA_atomic_cmpxchg((void**)slot, oldEntry,
-                         newEntry) != oldEntry) {
+    UA_NodeMapEntry *oldEntryContainer = *slot;
+    UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
+    if(oldEntryContainer > UA_NODEMAP_TOMBSTONE ||
+       UA_atomic_cmpxchg((void**)slot, oldEntryContainer,
+                         newEntryContainer) != oldEntryContainer) {
         deleteEntry(container_of(node, UA_NodeMapEntry, node));
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDEXISTS;
