@@ -55,6 +55,7 @@ try {
 
         Write-Host -ForegroundColor Green "`n### Installing DrMemory ###`n"
         & cinst --no-progress drmemory.portable
+        $env:Path = 'C:\Program Files (x86)\Dr. Memory\bin;' + $env:Path        
     }
 
 } catch {
