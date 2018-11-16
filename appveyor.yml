@@ -66,9 +66,9 @@ install:
 
 before_build:
   # Add installed tools to PATH
-  - set PATH=C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;%PATH%
-  # Workaround for CMake not wanting sh.exe on PATH for MinGW
-  #- set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  - set PATH=C:\msys64\mingw64\bin;%PATH%
+  # Workaround for CMake not wanting sh.exe on PATH for MinGW (necessary for CMake 3.12.2)
+  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
 
 build_script:
 - ps: '& "./tools/appveyor/build.ps1"'
