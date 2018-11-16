@@ -16,9 +16,6 @@ try {
     if ($env:CC_SHORTNAME -eq "mingw") {
 
     } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
-        # Workaround for http://llvm.org/bugs/show_bug.cgi?id=28089
-        #Copy-Item 'C:\Program Files\LLVM' -destination C:\LLVM -recurse
-        #$env:Path = 'C:\LLVM\bin;' + $env:Path
         # Setup clang
         $env:CC = "clang --target=x86_64-w64-mingw32"
         $env:CXX = "clang++ --target=x86_64-w64-mingw32"
@@ -31,7 +28,6 @@ try {
         New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
     }
 
-
     $make_cmd = "& $env:MAKE"
 
     # Collect files for .zip packing
@@ -39,26 +35,6 @@ try {
     Copy-Item LICENSE pack
     Copy-Item AUTHORS pack
     Copy-Item README.md pack
-
-    # Write-Host -ForegroundColor Green "`n###################################################################"
-    # Write-Host -ForegroundColor Green "`n##### Building Documentation on $env:CC_NAME #####`n"
-    # New-Item -ItemType directory -Path build
-    # cd build
-    # & cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release `
-    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:GENERATOR" ..
-    # & cmake --build . --target doc_latex
-    # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-    #     Write-Host -ForegroundColor Red "`n`n*** Make doc_latex. Exiting ... ***"
-    #     exit $LASTEXITCODE
-    # }
-    # & cmake --build . --target doc_pdf
-    # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-    #     Write-Host -ForegroundColor Red "`n`n*** Make doc_pdf. Exiting ... ***"
-    #     exit $LASTEXITCODE
-    # }
-    # cd ..
-    # Move-Item -Path "build\doc_latex\open62541.pdf" -Destination pack\
-    # Remove-Item -Path build -Recurse -Force
 
     Write-Host -ForegroundColor Green "`n###################################################################"
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME #####`n"
