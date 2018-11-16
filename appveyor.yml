@@ -29,6 +29,7 @@ environment:
           OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
+          APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2013
           GENERATOR: Visual Studio 12 2013
           MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
