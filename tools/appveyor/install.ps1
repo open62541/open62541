@@ -4,32 +4,9 @@ try {
     & git submodule --quiet update --init --recursive
 
     Write-Host -ForegroundColor Green "`n### CMake and Python pre-installed AppVeyor Windows build VMs ###`n"
-    #Write-Host -ForegroundColor Green "`n### Installing CMake and python ###`n"
-    #& cinst --no-progress cmake python2
-    #& C:\Python27\python.exe -m pip install --upgrade pip
-    #& C:\Python27\Scripts\pip.exe install six
 
     Write-Host -ForegroundColor Green "`n### Installing sphinx ###`n"
-    #& C:\Python27\Scripts\pip.exe install --user sphinx sphinx_rtd_theme
     & cinst sphinx --source python
-
-    # Write-Host -ForegroundColor Green "`n### Installing Miktex ###`n"
-    # if (-not (Test-Path "c:\miktex\texmfs\install\miktex\bin\pdflatex.exe")) {
-    #     & appveyor DownloadFile https://ftp.uni-erlangen.de/mirrors/CTAN/systems/win32/miktex/setup/windows-x86/miktex-portable-2.9.6753.exe
-    #     & 7z x miktex-portable-2.9.6753.exe -oc:\miktex -bso0 -bsp0
-
-    #     # Remove some big files to reduce size to be cached
-    #     Remove-Item -Path c:\miktex\texmfs\install\doc -Recurse
-    #     Remove-Item -Path c:\miktex\texmfs\install\miktex\bin\biber.exe
-    #     Remove-Item -Path c:\miktex\texmfs\install\miktex\bin\a5toa4.exe
-    # }
-
-    # Write-Host -ForegroundColor Green "`n### Installing graphviz ###`n"
-    # & cinst --no-progress graphviz
-    # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-    #     Write-Host -ForegroundColor Red "`n`n*** Installing graphviz failed. Exiting ... ***"
-    #     exit $LASTEXITCODE
-    # }
 
     Write-Host -ForegroundColor Green "`n### Installing mbedtls ###`n"
 
