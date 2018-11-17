@@ -770,7 +770,7 @@ typedef struct UA_DiagnosticInfo {
  * - ``UA_StatusCode T_copy(const T *src, T *dst)``: Copy the content of the
  *   data type. Returns ``UA_STATUSCODE_GOOD`` or
  *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
- * - ``void T_deleteMembers(T *ptr)``: Delete the dynamically allocated content
+ * - ``void T_clear(T *ptr)``: Delete the dynamically allocated content
  *   of the data type and perform a ``T_init`` to reset the type.
  * - ``void T_delete(T *ptr)``: Delete the content of the data type and the
  *   memory for the data type itself.
@@ -868,7 +868,9 @@ UA_copy(const void *src, void *dst, const UA_DataType *type);
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable */
-void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *type);
+void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
+
+#define UA_deleteMembers(p, type) UA_clear(p, type)
 
 /* Frees a variable and all of its content.
  *
@@ -888,13 +890,15 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  * In open62541 however, we use ``size_t`` for array lengths. An undefined array
  * has length 0 and the data pointer is ``NULL``. An array of length 0 also has
  * length 0 but a data pointer ``UA_EMPTY_ARRAY_SENTINEL``. */
+
 /* Allocates and initializes an array of variables of a specific type
  *
  * @param size The requested array length
  * @param type The datatype description
  * @return Returns the memory location of the variable or NULL if no memory
            could be allocated */
-void UA_EXPORT * UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
+void UA_EXPORT *
+UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
 /* Allocates and copies an array
  *
