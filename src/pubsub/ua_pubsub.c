@@ -161,7 +161,7 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
     if(UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeWriterGroupRepresentation(server, wg);
+    removeGroupRepresentation(server, wg);
 #endif
 
     UA_WriterGroup_deleteMembers(server, wg);

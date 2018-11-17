@@ -28,7 +28,7 @@ UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
 
 UA_StatusCode
-removeWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
+removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
 
 UA_StatusCode
 addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);

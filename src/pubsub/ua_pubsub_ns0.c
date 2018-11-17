@@ -22,6 +22,20 @@ typedef struct{
     UA_UInt32 elementClassiefier;
 } UA_NodePropertyContext;
 
+//Prototypes
+static UA_StatusCode addWriterGroupAction(UA_Server *server,
+                                          const UA_NodeId *sessionId, void *sessionHandle,
+                                          const UA_NodeId *methodId, void *methodContext,
+                                          const UA_NodeId *objectId, void *objectContext,
+                                          size_t inputSize, const UA_Variant *input,
+                                          size_t outputSize, UA_Variant *output);
+static UA_StatusCode removeGroupAction(UA_Server *server,
+                                          const UA_NodeId *sessionId, void *sessionHandle,
+                                          const UA_NodeId *methodId, void *methodContext,
+                                          const UA_NodeId *objectId, void *objectContext,
+                                          size_t inputSize, const UA_Variant *input,
+                                          size_t outputSize, UA_Variant *output);
+
 static UA_StatusCode
 addPubSubObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
               UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
@@ -284,7 +298,7 @@ addPubSubConnectionAction(UA_Server *server,
     };
     UA_NetworkAddressUrlDataType_deleteMembers(&networkAddressUrlDataType);
     //set ouput value
-    UA_Variant_setScalar(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -533,12 +547,55 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     return retVal;
 }
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+addWriterGroupAction(UA_Server *server,
+                             const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_NodeId *methodId, void *methodContext,
+                             const UA_NodeId *objectId, void *objectContext,
+                             size_t inputSize, const UA_Variant *input,
+                             size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_WriterGroupDataType *writerGroupDataType = ((UA_WriterGroupDataType *) input[0].data);
+    UA_NodeId generatedId;
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
+    writerGroupConfig.name = writerGroupDataType->name;
+    writerGroupConfig.publishingInterval = writerGroupDataType->publishingInterval;
+    writerGroupConfig.writerGroupId = writerGroupDataType->writerGroupId;
+    writerGroupConfig.enabled = writerGroupDataType->enabled;
+    writerGroupConfig.priority = writerGroupDataType->priority;
+    //ToDo transfer all arguments to internal WGConfiguration
+    retVal |= UA_Server_addWriterGroup(server, *objectId, &writerGroupConfig, &generatedId);
+    UA_Variant_setScalarCopy(output, &generatedId, &UA_TYPES[UA_TYPES_NODEID]);
+    return retVal;
+}
+#endif
+
 UA_StatusCode
-removeWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
+removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= UA_Server_deleteNode(server, writerGroup->identifier, false);
     return retVal;
 }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
+static UA_StatusCode
+removeGroupAction(UA_Server *server,
+                             const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_NodeId *methodId, void *methodContext,
+                             const UA_NodeId *objectId, void *objectContext,
+                             size_t inputSize, const UA_Variant *input,
+                             size_t outputSize, UA_Variant *output){
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
+    if(UA_WriterGroup_findWGbyId(server, nodeToRemove) != NULL)
+        retVal |= UA_Server_removeWriterGroup(server, nodeToRemove);
+    //else
+        //retVal |= UA_Server_removeReaderGroup(server, nodeToRemve);
+    return retVal;
+}
+#endif
 
 /**********************************************/
 /*               DataSetWriter                */
@@ -582,6 +639,15 @@ connectionTypeDestructor(UA_Server *server,
                          const UA_NodeId *typeId, void *typeContext,
                          const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_USERLAND, "Connection destructor called!");
+    UA_NodeId publisherIdNode;
+    publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_NodePropertyContext *internalConnectionContext;
+    UA_Server_getNodeContext(server, publisherIdNode, (void **) &internalConnectionContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL , &publisherIdNode)){
+        UA_free(internalConnectionContext);
+    }
+
 }
 
 static void
@@ -643,6 +709,8 @@ UA_Server_initPubSubNS0(UA_Server *server) {
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDPUBLISHEDDATAITEMS), addPublishedDataItemsAction);
     retVal |= UA_Server_setMethodNode_callback(server,
                                                UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET), removePublishedDataSetAction);
+    retVal |= UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_ADDWRITERGROUP), addWriterGroupAction);
+    retVal |= UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE_REMOVEGROUP), removeGroupAction);
 #else
     retVal |= UA_Server_deleteReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), true,
                                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_ADDCONNECTION),
