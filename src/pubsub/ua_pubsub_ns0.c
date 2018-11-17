@@ -23,6 +23,7 @@ typedef struct{
 } UA_NodePropertyContext;
 
 //Prototypes
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
 static UA_StatusCode addWriterGroupAction(UA_Server *server,
                                           const UA_NodeId *sessionId, void *sessionHandle,
                                           const UA_NodeId *methodId, void *methodContext,
@@ -35,6 +36,8 @@ static UA_StatusCode removeGroupAction(UA_Server *server,
                                           const UA_NodeId *objectId, void *objectContext,
                                           size_t inputSize, const UA_Variant *input,
                                           size_t outputSize, UA_Variant *output);
+
+#endif
 
 static UA_StatusCode
 addPubSubObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
