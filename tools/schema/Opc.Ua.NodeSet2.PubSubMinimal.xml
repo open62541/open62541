@@ -518,6 +518,63 @@
       <Field Name="DataSetSource" DataType="i=22" />
     </Definition>
   </UADataType>
+  <UADataType NodeId="i=15583" BrowseName="DataSetFieldContentMask">
+    <DisplayName>DataSetFieldContentMask</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=15584</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+    <Definition Name="DataSetFieldContentMask" IsOptionSet="true">
+      <Field Name="StatusCode" Value="0" />
+      <Field Name="SourceTimestamp" Value="1" />
+      <Field Name="ServerTimestamp" Value="2" />
+      <Field Name="SourcePicoSeconds" Value="3" />
+      <Field Name="ServerPicoSeconds" Value="4" />
+      <Field Name="RawDataEncoding" Value="5" />
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=15584" BrowseName="OptionSetValues" ParentNodeId="i=15583" DataType="LocalizedText" ValueRank="1">
+    <DisplayName>OptionSetValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15583</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>StatusCode</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SourceTimestamp</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>ServerTimestamp</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>SourcePicoSeconds</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>ServerPicoSeconds</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>
+          </Locale>
+          <Text>RawDataEncoding</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
 
   <UAObjectType NodeId="i=14534" BrowseName="PublishedDataItemsType">
       <DisplayName>PublishedDataItemsType</DisplayName>
@@ -1178,11 +1235,12 @@
       <Reference ReferenceType="HasProperty">i=17738</Reference> <!--KeepAliveTime-->
       <Reference ReferenceType="HasProperty">i=17739</Reference> <!--Priority-->
       <Reference ReferenceType="HasProperty">i=17740</Reference> <!--LocaleIds-->
+      <Reference ReferenceType="i=15296">i=17743</Reference> <!--DataSetWriterName-->
+
 
       <!--
             <Reference ReferenceType="HasComponent">i=17741</Reference> TransportSettings
             <Reference ReferenceType="HasComponent">i=17742</Reference> MessageSettings
-            <Reference ReferenceType="i=15296">i=17743</Reference> DataSetWriterName
             <Reference ReferenceType="HasComponent">i=17812</Reference> Diagnostics
             <Reference ReferenceType="HasComponent">i=17969</Reference> AddDataSetWriter
             <Reference ReferenceType="HasComponent">i=17992</Reference> RemoveDataSetWriter-->
@@ -1249,17 +1307,57 @@
   <UAObjectType NodeId="i=15298" BrowseName="DataSetWriterType">
     <DisplayName>DataSetWriterType</DisplayName>
     <References>
-<!--      <Reference ReferenceType="HasProperty">i=21092</Reference> DataSetWriterId
-      <Reference ReferenceType="HasProperty">i=21093</Reference> DataSetFieldContentMask
-      <Reference ReferenceType="HasProperty">i=21094</Reference> KeyFrameCount
-      <Reference ReferenceType="HasProperty">i=17493</Reference> DataSetWriterProperties
-      <Reference ReferenceType="HasComponent">i=15303</Reference> TransportSettings
-      <Reference ReferenceType="HasComponent">i=21095</Reference> MessageSettings
+      <Reference ReferenceType="HasProperty">i=21092</Reference> <!--DataSetWriterId-->
+      <Reference ReferenceType="HasProperty">i=21093</Reference> <!--DataSetFieldContentMask-->
+      <Reference ReferenceType="HasProperty">i=21094</Reference> <!--KeyFrameCount-->
+      <Reference ReferenceType="HasProperty">i=17493</Reference> <!--DataSetWriterProperties-->
+      <Reference ReferenceType="HasComponent">i=15303</Reference> <!--TransportSettings-->
+<!--      <Reference ReferenceType="HasComponent">i=21095</Reference> MessageSettings
       <Reference ReferenceType="HasComponent">i=15299</Reference> Status
       <Reference ReferenceType="HasComponent">i=19550</Reference>  Diagnostics-->
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
+  <UAVariable NodeId="i=21092" BrowseName="DataSetWriterId" ParentNodeId="i=15298" DataType="UInt16">
+    <DisplayName>DataSetWriterId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15298</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=21093" BrowseName="DataSetFieldContentMask" ParentNodeId="i=15298" DataType="i=15583">
+    <DisplayName>DataSetFieldContentMask</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15298</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=21094" BrowseName="KeyFrameCount" ParentNodeId="i=15298" DataType="UInt32">
+    <DisplayName>KeyFrameCount</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15298</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=17493" BrowseName="DataSetWriterProperties" ParentNodeId="i=15298" DataType="i=14533" ValueRank="1">
+    <DisplayName>DataSetWriterProperties</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=15298</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="i=15303" BrowseName="TransportSettings" ParentNodeId="i=15298">
+    <DisplayName>TransportSettings</DisplayName>
+    <References>
+      <!--<Reference ReferenceType="HasTypeDefinition">i=15305</Reference>-->
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15298</Reference>
+    </References>
+  </UAObject>
   <UAObjectType NodeId="i=14643" BrowseName="PubSubStatusType">
     <DisplayName>PubSubStatusType</DisplayName>
     <References>
@@ -1269,6 +1367,59 @@
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
+  <UAObject NodeId="i=17743" BrowseName="&lt;DataSetWriterName&gt;" SymbolicName="DataSetWriterName_Placeholder" ParentNodeId="i=17725">
+    <DisplayName>&lt;DataSetWriterName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=17744</Reference>
+      <Reference ReferenceType="HasProperty">i=17745</Reference>
+      <Reference ReferenceType="HasProperty">i=17490</Reference>
+      <Reference ReferenceType="HasComponent">i=17749</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=15298</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="i=15296" IsForward="false">i=17725</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=17744" BrowseName="DataSetWriterId" ParentNodeId="i=17743" DataType="UInt16">
+    <DisplayName>DataSetWriterId</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=17743</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=17745" BrowseName="DataSetFieldContentMask" ParentNodeId="i=17743" DataType="i=15583">
+    <DisplayName>DataSetFieldContentMask</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=17743</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=17490" BrowseName="DataSetWriterProperties" ParentNodeId="i=17743" DataType="i=14533" ValueRank="1">
+    <DisplayName>DataSetWriterProperties</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=17743</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="i=17749" BrowseName="Status" ParentNodeId="i=17743">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=17750</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=14643</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=17743</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=17750" BrowseName="State" ParentNodeId="i=17749" DataType="i=14647">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=17749</Reference>
+    </References>
+  </UAVariable>
   <UAVariable NodeId="i=14644" BrowseName="State" ParentNodeId="i=14643" DataType="i=14647">
     <DisplayName>State</DisplayName>
     <References>
