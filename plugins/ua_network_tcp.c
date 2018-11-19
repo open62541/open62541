@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
@@ -725,20 +725,21 @@ UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port, UA_Logger logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
+    nl.start = ServerNetworkLayerTCP_start;
+    nl.listen = ServerNetworkLayerTCP_listen;
+    nl.stop = ServerNetworkLayerTCP_stop;
+    nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
+
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)
         UA_calloc(1,sizeof(ServerNetworkLayerTCP));
     if(!layer)
         return nl;
+    nl.handle = layer;
 
     layer->logger = (logger != NULL ? logger : UA_Log_Stdout);
     layer->conf = conf;
     layer->port = port;
 
-    nl.handle = layer;
-    nl.start = ServerNetworkLayerTCP_start;
-    nl.listen = ServerNetworkLayerTCP_listen;
-    nl.stop = ServerNetworkLayerTCP_stop;
-    nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
     return nl;
 }
 
