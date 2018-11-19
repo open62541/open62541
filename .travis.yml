@@ -106,7 +106,25 @@ cache:
 
 # combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
 before_install: |
- set -e
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  # Exit travis if on coverity_scan branch and not first build
  test $TRAVIS_BRANCH != coverity_scan -o ${TRAVIS_JOB_NUMBER##*.} = 1 || exit 0
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-; fi
@@ -114,11 +132,48 @@ before_install: |
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
 script: |
- set -e
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
 after_success: |
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+     echo ""
+     echo ""
+     echo "----------------- Error -----------------"
+     echo ""
+     echo "---- Check additional output above!! ----"
+     # Wait a bit until the stdout is flushed
+     for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
  # Sleep to flush travis output
  echo == Build success ==
