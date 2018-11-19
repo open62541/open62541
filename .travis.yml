@@ -224,7 +224,24 @@ cache:
 
 # combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
 before_install: |
- set -e
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
 
  # set paths for locally installed libs (like liburcu)
  export LOCAL_PKG=$HOME/install
@@ -248,11 +265,48 @@ before_install: |
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
 script: |
- set -e
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
 after_success: |
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+     echo ""
+     echo ""
+     echo "----------------- Error -----------------"
+     echo ""
+     echo "---- Check additional output above!! ----"
+     # Wait a bit until the stdout is flushed
+     for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
  # Sleep to flush travis output
  echo == Build success ==
