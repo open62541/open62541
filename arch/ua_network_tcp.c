@@ -525,20 +525,22 @@ UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)
-        UA_calloc(1,sizeof(ServerNetworkLayerTCP));
-    if(!layer)
-        return nl;
-
-    layer->logger = (logger != NULL ? logger : UA_Log_Stdout);
-    layer->port = port;
-
-    nl.handle = layer;
+    nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
     nl.localConnectionConfig = config;
     nl.start = ServerNetworkLayerTCP_start;
     nl.listen = ServerNetworkLayerTCP_listen;
     nl.stop = ServerNetworkLayerTCP_stop;
-    nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
+    nl.handle = NULL;
+
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)
+        UA_calloc(1,sizeof(ServerNetworkLayerTCP));
+    if(!layer)
+        return nl;
+    nl.handle = layer;
+
+    layer->logger = (logger != NULL ? logger : UA_Log_Stdout);
+    layer->port = port;
+
     return nl;
 }
 
