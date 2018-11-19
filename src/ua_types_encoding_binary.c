@@ -1445,6 +1445,9 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
     ctx.exchangeBufferCallback = exchangeCallback;
     ctx.exchangeBufferCallbackHandle = exchangeHandle;
 
+    if (!ctx.pos)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     /* Encode */
     status ret = encodeBinaryInternal(src, type, &ctx);
 
