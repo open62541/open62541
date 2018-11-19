@@ -1,6 +1,10 @@
 #!/bin/bash
 set -ev
 
+if [ -z ${LOCAL_PKG+x} ] || [ -z "$LOCAL_PKG" ]; then
+    echo "LOCAL_PKG is not set. Aborting..."
+    exit 1
+fi
 
 if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	# Only on non-docker builds required
@@ -25,7 +29,11 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
     echo "=== The build environment is outdated ==="
 
     # Clean up
-    rm -rf $LOCAL_PKG/*
+    # additional safety measure to avoid rm -rf on root
+    # only execute it on travis
+    if ! [ -z ${TRAVIS+x} ]; then
+        echo "rm -rf $LOCAL_PKG/*"
+    fi
 
 	if [ "$CC" = "tcc" ]; then
 		mkdir tcc_install && cd tcc_install
