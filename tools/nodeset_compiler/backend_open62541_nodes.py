@@ -123,6 +123,7 @@ def generateVariableNodeCode(node, nodeset, max_string_length):
     if node.valueRank > 0:
         code.append("attr.arrayDimensionsSize = %d;" % node.valueRank)
         code.append("attr.arrayDimensions = (UA_UInt32 *)UA_Array_new({}, &UA_TYPES[UA_TYPES_UINT32]);".format(node.valueRank))
+        code.append("if (!attr.arrayDimensions) return UA_STATUSCODE_BADOUTOFMEMORY;")
         codeCleanup.append("UA_Array_delete(attr.arrayDimensions, {}, &UA_TYPES[UA_TYPES_UINT32]);".format(node.valueRank))
         for dim in range(0, node.valueRank):
             code.append("attr.arrayDimensions[{}] = 0;".format(dim))
@@ -202,6 +203,11 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
             code.append("  UA_ExtensionObject " + " " + ptrSym + str(field[0]) + ";")
     code.append("} " + instanceName + "_struct;")
 
+    # Allocate some memory
+    code.append("UA_ExtensionObject *" + instanceName + " =  UA_ExtensionObject_new();")
+    code.append("if (!" + instanceName + ") return UA_STATUSCODE_BADOUTOFMEMORY;")
+    codeCleanup.append("UA_ExtensionObject_delete(" + instanceName + ");")
+
     # Assign data to the struct contents
     # Track the encoding rule definition to detect arrays and/or ExtensionObjects
     encFieldIdx = 0
@@ -221,6 +227,8 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
                 code.append(
                      "{0}_struct.{1} = (UA_{2}*) UA_malloc(sizeof(UA_{2})*{3});".format(
                          instanceName, subv.alias, subv.__class__.__name__, str(len(subv))))
+                code.append("if (!{0}_struct.{1}) return UA_STATUSCODE_BADOUTOFMEMORY;".format(
+                    instanceName, subv.alias))
                 codeCleanup.append("UA_free({0}_struct.{1});".format(instanceName, subv.alias))
                 logger.debug("Encoding included array of " + str(len(subv)) + " values.")
                 for subvidx in range(0, len(subv)):
@@ -234,14 +242,13 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
                 code.append(
                     "{0}_struct.{1} = (UA_{2}*) UA_malloc(sizeof(UA_{2}));".format(
                         instanceName, subv.alias, subv.__class__.__name__))
+                code.append("if (!{0}_struct.{1}) return UA_STATUSCODE_BADOUTOFMEMORY;".format(
+                    instanceName, subv.alias))
                 codeCleanup.append("UA_free({0}_struct.{1});".format(instanceName, subv.alias))
 
                 code.append(instanceName + "_struct." + subv.alias + "[0]  = " +
                             generateNodeValueCode(subv, instanceName, asIndirect=True, max_string_length=max_string_length) + ";")
 
-    # Allocate some memory
-    code.append("UA_ExtensionObject *" + instanceName + " =  UA_ExtensionObject_new();")
-    codeCleanup.append("UA_ExtensionObject_delete(" + instanceName + ");")
     code.append(instanceName + "->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;")
     #if parent.dataType.ns == 0:
 
@@ -250,7 +257,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
         instanceName + "->content.encoded.typeId = UA_NODEID_NUMERIC(" + str(binaryEncodingId.ns) + ", " +
         str(binaryEncodingId.i) + ");")
     code.append(
-        "UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, 65000);")
+        "retVal |= UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, 65000);")
 
     # Encode each value as a bytestring separately.
     code.append("UA_Byte *pos" + instanceName + " = " + instanceName + "->content.encoded.body.data;")
@@ -281,6 +288,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
                 "pos" + instanceName + "-" + instanceName + "->content.encoded.body.data);")
     code.append(instanceName + "->content.encoded.body.length = " + instanceName + "_encOffset;")
     code.append("UA_Byte *" + instanceName + "_newBody = (UA_Byte *) UA_malloc(" + instanceName + "_encOffset);")
+    code.append("if (!" + instanceName + "_newBody) return UA_STATUSCODE_BADOUTOFMEMORY;")
     code.append("memcpy(" + instanceName + "_newBody, " + instanceName + "->content.encoded.body.data, " +
                 instanceName + "_encOffset);")
     code.append("UA_Byte *" + instanceName + "_oldBody = " + instanceName + "->content.encoded.body.data;")
@@ -401,6 +409,7 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
             else:
                 code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " =  UA_" + node.value[
                     0].__class__.__name__ + "_new();")
+                code.append("if (!" + valueName + ") return UA_STATUSCODE_BADOUTOFMEMORY;")
                 code.append("*" + valueName + " = " + generateNodeValueCode(node.value[0], instanceName, asIndirect=True, max_string_length=max_string_length) + ";")
                 code.append(
                         "UA_Variant_setScalar(&attr.value, " + valueName + ", " +
