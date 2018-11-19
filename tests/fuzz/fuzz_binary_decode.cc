@@ -25,6 +25,9 @@ static UA_Boolean tortureEncoding(const uint8_t *data, size_t size, size_t *newO
 
     void *dst = UA_new(&UA_TYPES[typeIndex]);
 
+    if (!dst)
+        return UA_FALSE;
+
     const UA_ByteString binary = {
             size, //length
             (UA_Byte *) (void *) data
@@ -35,6 +38,8 @@ static UA_Boolean tortureEncoding(const uint8_t *data, size_t size, size_t *newO
     if (ret == UA_STATUSCODE_GOOD) {
         // copy the datatype to test
         void *dstCopy = UA_new(&UA_TYPES[typeIndex]);
+        if (!dstCopy)
+            return UA_FALSE;
         UA_copy(dst, dstCopy, &UA_TYPES[typeIndex]);
         UA_delete(dstCopy, &UA_TYPES[typeIndex]);
 
@@ -79,6 +84,8 @@ static UA_Boolean tortureExtensionObject(const uint8_t *data, size_t size, size_
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (type) {
         void *dstCopy = UA_new(type);
+        if (!dstCopy)
+            return UA_FALSE;
         ret = UA_decodeBinary(&obj.content.encoded.body, newOffset, dstCopy, type, NULL);
 
         if (ret == UA_STATUSCODE_GOOD) {
