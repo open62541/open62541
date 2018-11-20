@@ -2006,23 +2006,25 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *conditio
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    switch(optionalFieldNode->nodeClass)
+    switch(optionalFieldNode->nodeClass) {
         case UA_NODECLASS_VARIABLE: {
-          UA_StatusCode retval = addOptionalVariableField(server, condition, fieldName,
+            UA_StatusCode retval = addOptionalVariableField(server, condition, fieldName,
                                               (const UA_VariableNode *)optionalFieldNode, outOptionalVariable);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
                              "Adding Condition Optional Variable Field failed. StatusCode %s", UA_StatusCode_name(retval));
             }
-            break;
+            UA_Nodestore_release(server, optionalFieldNode);
+            return retval;
+        }
         case UA_NODECLASS_METHOD:
             /*TODO method: Check first logic of creating methods at all (should we create a new method or just reference it from the ConditionType?)*/
+            UA_Nodestore_release(server, optionalFieldNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         default:
+            UA_Nodestore_release(server, optionalFieldNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-
-    UA_Nodestore_release(server, optionalFieldNode);
 
 #else
     UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
