@@ -1738,7 +1738,7 @@ setConditionVariableCallbacks(UA_Server *server,
     for(size_t i=0; (i<sizeof(conditionVariableName)/sizeof(conditionVariableName[0])) && (retval == UA_STATUSCODE_GOOD); i++) {
         UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, &conditionVariableName[i]);
         if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-            UA_StatusCode retval = bpr.statusCode;
+            retval = bpr.statusCode;
             UA_BrowsePathResult_deleteMembers(&bpr);
             return retval;
         }
@@ -1992,10 +1992,11 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *conditio
                                     UA_NodeId *outOptionalVariable) {
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
+    UA_StatusCode retval;
     /* Get optional Field NodId from ConditionType -> user should give the correct ConditionType or Subtype!!!! */
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *conditionType, 1, fieldName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_StatusCode retval = bpr.statusCode;
+        retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
         return retval;
     }
@@ -2011,7 +2012,7 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *conditio
 
     switch(optionalFieldNode->nodeClass) {
         case UA_NODECLASS_VARIABLE: {
-            UA_StatusCode retval = addOptionalVariableField(server, condition, fieldName,
+            retval = addOptionalVariableField(server, condition, fieldName,
                                               (const UA_VariableNode *)optionalFieldNode, outOptionalVariable);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
@@ -2044,16 +2045,17 @@ UA_StatusCode
 UA_Server_setConditionField(UA_Server *server, const UA_NodeId *condition,
                             const void* variantValue, UA_UInt16 type,
                             const UA_QualifiedName* fieldName) {
+    UA_StatusCode retval;
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, fieldName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-            UA_StatusCode retval = bpr.statusCode;
+            retval = bpr.statusCode;
             UA_BrowsePathResult_deleteMembers(&bpr);
             return retval;
     }
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, (void*)(uintptr_t)variantValue, &UA_TYPES[type]);
-    UA_StatusCode retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     return retval;
