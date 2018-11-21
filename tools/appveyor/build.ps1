@@ -15,6 +15,14 @@ try {
 
     if ($env:CC_SHORTNAME -eq "mingw") {
 
+    } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
+        # Workaround for http://llvm.org/bugs/show_bug.cgi?id=28089
+        Copy-Item 'C:\Program Files\LLVM' -destination C:\LLVM -recurse
+        $env:Path = 'C:\LLVM\bin;' + $env:Path
+        # Setup clang
+        $env:CC = "clang --target=x86_64-w64-mingw32"
+        $env:CXX = "clang++ --target=x86_64-w64-mingw32"
+        clang --version
     } else {
         $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
         $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
@@ -32,32 +40,32 @@ try {
     Copy-Item AUTHORS pack
     Copy-Item README.md pack
 
-    Write-Host -ForegroundColor Green "`n###################################################################"
-    Write-Host -ForegroundColor Green "`n##### Building Documentation on $env:CC_NAME #####`n"
-    New-Item -ItemType directory -Path build
-    cd build
-    & cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release `
-        -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:CC_NAME" ..
-    & cmake --build . --target doc_latex
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-        Write-Host -ForegroundColor Red "`n`n*** Make doc_latex. Exiting ... ***"
-        exit $LASTEXITCODE
-    }
-    & cmake --build . --target doc_pdf
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-        Write-Host -ForegroundColor Red "`n`n*** Make doc_pdf. Exiting ... ***"
-        exit $LASTEXITCODE
-    }
-    cd ..
-    Move-Item -Path "build\doc_latex\open62541.pdf" -Destination pack\
-    Remove-Item -Path build -Recurse -Force
+    # Write-Host -ForegroundColor Green "`n###################################################################"
+    # Write-Host -ForegroundColor Green "`n##### Building Documentation on $env:CC_NAME #####`n"
+    # New-Item -ItemType directory -Path build
+    # cd build
+    # & cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release `
+    #     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DUA_BUILD_EXAMPLES:BOOL=OFF -G"$env:GENERATOR" ..
+    # & cmake --build . --target doc_latex
+    # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    #     Write-Host -ForegroundColor Red "`n`n*** Make doc_latex. Exiting ... ***"
+    #     exit $LASTEXITCODE
+    # }
+    # & cmake --build . --target doc_pdf
+    # if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    #     Write-Host -ForegroundColor Red "`n`n*** Make doc_pdf. Exiting ... ***"
+    #     exit $LASTEXITCODE
+    # }
+    # cd ..
+    # Move-Item -Path "build\doc_latex\open62541.pdf" -Destination pack\
+    # Remove-Item -Path build -Recurse -Force
 
     Write-Host -ForegroundColor Green "`n###################################################################"
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-        -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:CC_NAME" ..
+        -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -G"$env:GENERATOR" ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -70,7 +78,21 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    & cmake -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_NAMESPACE_ZERO:STRING=FULL -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME"  ..
+    & cmake -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_NAMESPACE_ZERO:STRING=FULL -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:GENERATOR"  ..
+    Invoke-Expression $make_cmd
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+        exit $LASTEXITCODE
+    }
+    cd ..
+    Remove-Item -Path build -Recurse -Force
+
+    Write-Host -ForegroundColor Green "`n###################################################################"
+    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with PubSub #####`n"
+    New-Item -ItemType directory -Path "build"
+    cd build
+    & cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
+    -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON  -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:GENERATOR"  ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -84,7 +106,7 @@ try {
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON `
-     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=OFF -G"$env:CC_NAME" ..
+     -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=OFF -G"$env:GENERATOR" ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -96,7 +118,7 @@ try {
     Move-Item -Path "build\open62541.h" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server_ctt.exe" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
-    if ($env:CC_SHORTNAME -eq "mingw") {
+    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.a" -Destination pack_tmp\
     } else {
         Move-Item -Path "build\$env:OUT_DIR_LIB\open62541.lib" -Destination pack_tmp\
@@ -110,7 +132,7 @@ try {
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON `
-        -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=ON -G"$env:CC_NAME" ..
+        -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=ON -G"$env:GENERATOR" ..
     Invoke-Expression $make_cmd
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -122,7 +144,7 @@ try {
     Move-Item -Path "build\open62541.h" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\server_ctt.exe" -Destination pack_tmp\
     Move-Item -Path "build\$env:OUT_DIR_EXAMPLES\client.exe" -Destination pack_tmp\
-    if ($env:CC_SHORTNAME -eq "mingw") {
+    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll" -Destination pack_tmp\
         Move-Item -Path "build\$env:OUT_DIR_LIB\libopen62541.dll.a" -Destination pack_tmp\
     } else {
@@ -141,6 +163,7 @@ try {
         cd build
         & cmake $vcpkg_toolchain $vcpkg_triplet -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON `
             -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DUA_BUILD_UNIT_TESTS=ON `
+             -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
             -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON -DCHECK_PREFIX=c:\check -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -G"$env:CC_NAME" ..
         Invoke-Expression $make_cmd
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
@@ -154,8 +177,8 @@ try {
         }
     }
 
-    # do not cache log
-    Remove-Item -Path c:\miktex\texmfs\data\miktex\log -Recurse -Force
+    # # do not cache log
+    # Remove-Item -Path c:\miktex\texmfs\data\miktex\log -Recurse -Force
 
 } catch {
     # Print a detailed error message

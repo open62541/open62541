@@ -5,22 +5,22 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#ifndef UA_PLUGIN_HISTORY_DATA_SERVICE_H_
-#define UA_PLUGIN_HISTORY_DATA_SERVICE_H_
+#ifndef UA_PLUGIN_HISTORYDATABASE_H_
+#define UA_PLUGIN_HISTORYDATABASE_H_
 
 #include "ua_types.h"
 #include "ua_server.h"
 
 _UA_BEGIN_DECLS
 
-struct UA_HistoryDataService;
-typedef struct UA_HistoryDataService UA_HistoryDataService;
+struct UA_HistoryDatabase;
+typedef struct UA_HistoryDatabase UA_HistoryDatabase;
 
-struct UA_HistoryDataService {
+struct UA_HistoryDatabase {
     void *context;
 
     void
-    (*deleteMembers)(UA_HistoryDataService *service);
+    (*deleteMembers)(UA_HistoryDatabase *hdb);
 
     /* This function will be called when a nodes value is set.
      * Use this to insert data into your database(s) if polling is not suitable
@@ -28,14 +28,14 @@ struct UA_HistoryDataService {
      * Set it to NULL if you do not need it.
      *
      * server is the server this node lives in.
-     * hdsContext is the context of the UA_HistoryDataService. UA_HistoryDataService.context
+     * hdbContext is the context of the UA_HistoryDatabase.
      * sessionId and sessionContext identify the session which set this value.
      * nodeId is the node id for which data was set.
      * historizing is the nodes boolean flag for historizing
      * value is the new value. */
     void
     (*setValue)(UA_Server *server,
-                void *hdsContext,
+                void *hdbContext,
                 const UA_NodeId *sessionId,
                 void *sessionContext,
                 const UA_NodeId *nodeId,
@@ -47,7 +47,7 @@ struct UA_HistoryDataService {
      * response with statuscode UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED.
      *
      * server is the server this node lives in.
-     * hdsContext is the context of the UA_HistoryDataService. UA_HistoryDataService.context
+     * hdbContext is the context of the UA_HistoryDatabase.
      * sessionId and sessionContext identify the session which set this value.
      * requestHeader, historyReadDetails, timestampsToReturn, releaseContinuationPoints
      * nodesToReadSize and nodesToRead is the requested data from the client. It is from the request object.
@@ -62,7 +62,7 @@ struct UA_HistoryDataService {
      *             Index in the array is the same as in nodesToRead and the UA_HistoryReadResult array. */
     void
     (*readRaw)(UA_Server *server,
-               void *hdsContext,
+               void *hdbContext,
                const UA_NodeId *sessionId,
                void *sessionContext,
                const UA_RequestHeader *requestHeader,
@@ -80,4 +80,4 @@ struct UA_HistoryDataService {
 
 _UA_END_DECLS
 
-#endif /* UA_PLUGIN_HISTORY_DATA_SERVICE_H_ */
+#endif /* UA_PLUGIN_HISTORYDATABASE_H_ */

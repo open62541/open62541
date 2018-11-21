@@ -90,7 +90,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
     /* If the node has no references, just return */
     if(node->referencesSize == 0) {
         result->referencesSize = 0;
-        return true;;
+        return true;
     }
 
     /* Follow all references? */

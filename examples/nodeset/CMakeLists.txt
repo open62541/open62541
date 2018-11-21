@@ -7,24 +7,10 @@
 ###################
 
 # generate namespace from XML file
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c
-                   ${PROJECT_BINARY_DIR}/src_generated/example_nodeset.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                   --types-array=UA_TYPES
-                   --existing ${UA_FILE_NS0}
-                   --xml ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml
-                   ${PROJECT_BINARY_DIR}/src_generated/example_nodeset
-                   DEPENDS ${UA_FILE_NS0}
-                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
-                   ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml)
-
+ua_generate_nodeset_and_datatypes(
+    NAME "example"
+    FILE_NS "${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml"
+)
 
 # The .csv file can be created from within UaModeler or manually
 
@@ -35,9 +21,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_id
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
                    ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.csv)
 
-add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids.h)
+add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_example.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids.h)
 if(UA_COMPILE_AS_CXX)
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c PROPERTIES LANGUAGE CXX)
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace_example.c PROPERTIES LANGUAGE CXX)
 endif()
 
 ###################
@@ -47,77 +33,25 @@ endif()
 # PLCopen requires the full ns0 as basis
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
-    # Generate types for DI namespace
-    set(UA_TYPES_OUT "ua_types_di")
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.c
-                       ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.h
-                       ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated_handling.h
-                       ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated_encoding_binary.h
-                       PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       --namespace=2
-                       --type-csv=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv
-                       --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd
-                       --no-builtin
-                       ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}
-                       DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd)
-    add_custom_target(open62541-generator-types-di DEPENDS ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.c)
-
-    # generate DI namespace
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.h
-                       PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                       --internal-headers
-                       --types-array=UA_TYPES
-                       --types-array=UA_TYPES_DI
-                       --existing ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
-                       --xml ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di
-                       DEPENDS ${UA_FILE_NS0}
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
-                       )
-    add_custom_target(open62541-generator-ns-di DEPENDS ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c)
-    add_dependencies(open62541-generator-ns-di open62541-generator-types-di)
+    # Generate types and namespace for DI
+    ua_generate_nodeset_and_datatypes(
+        NAME "di"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
+        FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+        NAMESPACE_IDX 2
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
+        INTERNAL
+    )
 
     # generate PLCopen namespace which is using DI
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc.c
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc.h
-                       PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                       --internal-headers
-                       --types-array=UA_TYPES
-                       --types-array=UA_TYPES_DI
-                       # PLCopen has no specific type definition, thus use the default UA_TYPES to ignore it
-                       --types-array=UA_TYPES
-                       --existing ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
-                       --existing ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
-                       --xml ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml
-                       ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc
-                       DEPENDS ${UA_FILE_NS0}
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
-                       ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml
-                       )
-    add_custom_target(open62541-generator-ns-plc DEPENDS ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc.c)
-    add_dependencies(open62541-generator-ns-plc open62541-generator-ns-di)
+    ua_generate_nodeset_and_datatypes(
+        NAME "plc"
+        # PLCopen does not define custom types. Only generate the nodeset
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        # PLCopen depends on the di nodeset, which must be generated before
+        DEPENDS "di"
+        INTERNAL
+    )
 
     add_example(server_nodeset_plcopen server_nodeset_plcopen.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_di_generated.c
@@ -126,9 +60,4 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     add_dependencies(server_nodeset_plcopen open62541-generator-ns-plc)
     target_include_directories(server_nodeset_plcopen PRIVATE ${PROJECT_SOURCE_DIR}/src) # needs an internal header
 
-    if(UA_COMPILE_AS_CXX)
-        set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_types_di_generated.c PROPERTIES LANGUAGE CXX)
-        set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c PROPERTIES LANGUAGE CXX)
-        set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc.c PROPERTIES LANGUAGE CXX)
-    endif()
 endif()

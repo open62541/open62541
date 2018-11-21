@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Florian Palm
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -27,7 +27,7 @@
         else DST = SRC;                                \
     }
 
-static void
+static UA_StatusCode
 setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_Double requestedPublishingInterval,
                         UA_UInt32 requestedLifetimeCount,
@@ -35,10 +35,12 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
     /* deregister the callback if required */
     UA_StatusCode retval = Subscription_unregisterPublishCallback(server, subscription);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session,
                              "Subscription %u | Could not unregister publish callback with error code %s",
                              subscription->subscriptionId, UA_StatusCode_name(retval));
+        return retval;
+    }
 
     /* re-parameterize the subscription */
     subscription->publishingInterval = requestedPublishingInterval;
@@ -60,10 +62,13 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     subscription->priority = priority;
 
     retval = Subscription_registerPublishCallback(server, subscription);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session,
                              "Subscription %u | Could not register publish callback with error code %s",
                              subscription->subscriptionId, UA_StatusCode_name(retval));
+        return retval;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 void
@@ -90,9 +95,15 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
     /* Set the subscription parameters */
     newSubscription->publishingEnabled = request->publishingEnabled;
-    setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
-                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
-                            request->maxNotificationsPerPublish, request->priority);
+    UA_StatusCode retval = setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
+                                                   request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                                                   request->maxNotificationsPerPublish, request->priority);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        response->responseHeader.serviceResult = retval;
+        return;
+    }
+
     newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount; /* set settings first */
 
     /* Prepare the response */
@@ -101,10 +112,9 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = newSubscription->lifeTimeCount;
     response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
 
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "CreateSubscriptionRequest: Created Subscription %u "
-                         "with a publishing interval of %f ms", response->subscriptionId,
-                         newSubscription->publishingInterval);
+    UA_LOG_INFO_SESSION(server->config.logger, session, "Subscription %u | "
+                        "Created the Subscription with a publishing interval of %.2f ms",
+                        response->subscriptionId, newSubscription->publishingInterval);
 }
 
 void
@@ -119,9 +129,15 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
-    setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
-                            request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
-                            request->maxNotificationsPerPublish, request->priority);
+    UA_StatusCode retval = setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
+                                                   request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
+                                                   request->maxNotificationsPerPublish, request->priority);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        response->responseHeader.serviceResult = retval;
+        return;
+    }
+
     sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
@@ -159,11 +175,7 @@ static UA_StatusCode
 setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,
                          const UA_MonitoringParameters *params,
-                         // This parameter is optional and used only if mon->lastValue is not set yet.
-                         // Then numeric type will be detected from this value. Set null as defaut.
                          const UA_DataType* dataType) {
-
-
     /* Filter */
     if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED) {
         UA_DataChangeFilter_init(&(mon->filter.dataChangeFilter));
@@ -171,17 +183,19 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     } else if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
         UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
         // TODO implement EURange to support UA_DEADBANDTYPE_PERCENT
-        if (filter->deadbandType == UA_DEADBANDTYPE_PERCENT) {
+        switch(filter->deadbandType) {
+        case UA_DEADBANDTYPE_NONE:
+            break;
+        case UA_DEADBANDTYPE_ABSOLUTE:
+            if(!dataType || !UA_DataType_isNumeric(dataType))
+                return UA_STATUSCODE_BADFILTERNOTALLOWED;
+            break;
+        case UA_DEADBANDTYPE_PERCENT:
+            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        default:
             return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
         }
-        if (UA_Variant_isEmpty(&mon->lastValue)) {
-            if (!dataType || !isDataTypeNumeric(dataType))
-                return UA_STATUSCODE_BADFILTERNOTALLOWED;
-        } else
-        if (!isDataTypeNumeric(mon->lastValue.type)) {
-            return UA_STATUSCODE_BADFILTERNOTALLOWED;
-        }
-        UA_DataChangeFilter_copy(filter, &(mon->filter.dataChangeFilter));
+        UA_DataChangeFilter_copy(filter, &mon->filter.dataChangeFilter);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     } else if (params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTER]) {
         UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data,
@@ -191,8 +205,14 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
         return UA_STATUSCODE_BADMONITOREDITEMFILTERINVALID;
     }
 
+    /* <-- The point of no return --> */
+
+    /* Unregister the callback */
     UA_MonitoredItem_unregisterSampleCallback(server, mon);
-    mon->monitoringMode = monitoringMode;
+
+    /* Remove the old samples */
+    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_Variant_deleteMembers(&mon->lastValue);
 
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;
@@ -222,6 +242,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     if(samplingInterval != samplingInterval) /* Check for nan */
         mon->samplingInterval = server->config.samplingIntervalLimits.min;
 
+    UA_assert(mon->monitoredItemType != 0);
+
     /* QueueSize */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
                                params->queueSize, mon->maxQueueSize);
@@ -230,8 +252,10 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     mon->discardOldest = params->discardOldest;
 
     /* Register sample callback if reporting is enabled */
+    mon->monitoringMode = monitoringMode;
     if(monitoringMode == UA_MONITORINGMODE_REPORTING)
-        UA_MonitoredItem_registerSampleCallback(server, mon);
+        return UA_MonitoredItem_registerSampleCallback(server, mon);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -316,7 +340,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
 
     /* Initialize the MonitoredItem */
     UA_MonitoredItem_init(newMon, cmc->sub);
-    newMon->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY;
     newMon->attributeId = request->itemToMonitor.attributeId;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -326,8 +349,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                                        &request->requestedParameters, v.value.type);
     UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "Could not create MonitoredItem "
-                            "with status code %s", UA_StatusCode_name(retval));
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "Subscription %u | Could not create a MonitoredItem "
+                            "with StatusCode %s", cmc->sub ? cmc->sub->subscriptionId : 0,
+                            UA_StatusCode_name(retval));
         result->statusCode = retval;
         UA_MonitoredItem_delete(server, newMon);
         return;
@@ -338,11 +363,11 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
         UA_Subscription_addMonitoredItem(cmc->sub, newMon);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if (newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-        /* insert the monitored item into the node's queue */
-        UA_Server_editNode(server, NULL, &newMon->monitoredNodeId, UA_Server_addMonitoredItemToNodeEditNodeCallback,
-                           newMon);
-    }
+        if(newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+            /* Insert the monitored item into the node's queue */
+            UA_Server_editNode(server, NULL, &newMon->monitoredNodeId,
+                               UA_Server_addMonitoredItemToNodeEditNodeCallback, newMon);
+        }
 #endif
     } else {
         //TODO support events for local monitored items
@@ -363,6 +388,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                                                      targetContext, newMon->attributeId, false);
         newMon->registered = true;
     }
+
+    UA_LOG_INFO_SESSION(server->config.logger, session,
+                        "Subscription %u | MonitoredItem %i | "
+                        "Created the MonitoredItem",
+                        cmc->sub ? cmc->sub->subscriptionId : 0,
+                        newMon->monitoredItemId);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
@@ -438,8 +469,19 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         result->statusCode = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-    UA_StatusCode retval;
-    retval = setMonitoredItemSettings(server, mon, mon->monitoringMode, &request->requestedParameters, NULL);
+
+    /* Read the current value to test if filters are possible.
+     * Can return an empty value (v.value.type == NULL). */
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = mon->monitoredNodeId;
+    rvid.attributeId = mon->attributeId;
+    rvid.indexRange = mon->indexRange;
+    UA_DataValue v = UA_Server_readWithSession(server, session, &rvid, mon->timestampsToReturn);
+    UA_StatusCode retval = setMonitoredItemSettings(server, mon, mon->monitoringMode,
+                                                    &request->requestedParameters,
+                                                    v.value.type);
+    UA_DataValue_deleteMembers(&v);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = retval;
         return;
@@ -449,7 +491,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     result->revisedQueueSize = mon->maxQueueSize;
 
     /* Remove some notifications if the queue is now too small */
-    MonitoredItem_ensureQueueSpace(server, mon);
+    UA_MonitoredItem_ensureQueueSpace(server, mon);
 }
 
 void
@@ -518,7 +560,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
     mon->monitoringMode = smc->monitoringMode;
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
-        UA_MonitoredItem_registerSampleCallback(server, mon);
+        *result = UA_MonitoredItem_registerSampleCallback(server, mon);
     } else {
         UA_MonitoredItem_unregisterSampleCallback(server, mon);
 
@@ -526,7 +568,8 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
-            UA_Notification_delete(smc->sub, mon, notification);
+            UA_Notification_dequeue(server, notification);
+            UA_Notification_delete(notification);
         }
 
         /* Initialize lastSampledValue */

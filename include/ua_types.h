@@ -47,8 +47,8 @@ _UA_BEGIN_DECLS
  * ^^^^^^^
  * A two-state logical value (true or false). */
 typedef bool UA_Boolean;
-#define UA_TRUE true
-#define UA_FALSE false
+#define UA_TRUE true UA_INTERNAL_DEPRECATED
+#define UA_FALSE false UA_INTERNAL_DEPRECATED
 
 /**
  * SByte
@@ -299,8 +299,8 @@ typedef UA_String UA_XmlElement;
  * An identifier for a node in the address space of an OPC UA Server. */
 enum UA_NodeIdType {
     UA_NODEIDTYPE_NUMERIC    = 0, /* In the binary encoding, this can also
-                                     become 1 or 2 (2byte and 4byte encoding of
-                                     small numeric nodeids) */
+                                   * become 1 or 2 (two-byte and four-byte
+                                   * encoding of small numeric nodeids) */
     UA_NODEIDTYPE_STRING     = 3,
     UA_NODEIDTYPE_GUID       = 4,
     UA_NODEIDTYPE_BYTESTRING = 5
@@ -770,7 +770,7 @@ typedef struct UA_DiagnosticInfo {
  * - ``UA_StatusCode T_copy(const T *src, T *dst)``: Copy the content of the
  *   data type. Returns ``UA_STATUSCODE_GOOD`` or
  *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
- * - ``void T_deleteMembers(T *ptr)``: Delete the dynamically allocated content
+ * - ``void T_clear(T *ptr)``: Delete the dynamically allocated content
  *   of the data type and perform a ``T_init`` to reset the type.
  * - ``void T_delete(T *ptr)``: Delete the content of the data type and the
  *   memory for the data type itself.
@@ -816,15 +816,11 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
-UA_Boolean isDataTypeNumeric(const UA_DataType *type);
-
-/* The following is used to exclude type names in the definition of UA_DataType
- * structures if the feature is disabled. */
-#ifdef UA_ENABLE_TYPENAMES
-# define UA_TYPENAME(name) name,
-#else
-# define UA_TYPENAME(name)
-#endif
+/* Test if the data type is a numeric builtin data type. This includes Boolean,
+ * integers and floating point numbers. Not included are DateTime and
+ * StatusCode. */
+UA_Boolean
+UA_DataType_isNumeric(const UA_DataType *type);
 
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
@@ -872,7 +868,9 @@ UA_copy(const void *src, void *dst, const UA_DataType *type);
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable */
-void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *type);
+void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
+
+#define UA_deleteMembers(p, type) UA_clear(p, type)
 
 /* Frees a variable and all of its content.
  *
@@ -892,13 +890,15 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  * In open62541 however, we use ``size_t`` for array lengths. An undefined array
  * has length 0 and the data pointer is ``NULL``. An array of length 0 also has
  * length 0 but a data pointer ``UA_EMPTY_ARRAY_SENTINEL``. */
+
 /* Allocates and initializes an array of variables of a specific type
  *
  * @param size The requested array length
  * @param type The datatype description
  * @return Returns the memory location of the variable or NULL if no memory
            could be allocated */
-void UA_EXPORT * UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
+void UA_EXPORT *
+UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
 /* Allocates and copies an array
  *
@@ -935,6 +935,28 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  * -------------------------------
  *
  * The following data types were auto-generated from a definition in XML format.
+ */
+
+/* The following is used to exclude type names in the definition of UA_DataType
+ * structures if the feature is disabled. */
+#ifdef UA_ENABLE_TYPENAMES
+# define UA_TYPENAME(name) name,
+#else
+# define UA_TYPENAME(name)
+#endif
+
+/* Datatype arrays with custom type definitions can be added in a linked list to
+ * the client or server configuration. Datatype members can point to types in
+ * the same array via the ``memberTypeIndex``. If ``namespaceZero`` is set to
+ * true, the member datatype is looked up in the array of builtin datatypes
+ * instead. */
+typedef struct UA_DataTypeArray {
+    const struct UA_DataTypeArray *next;
+    const size_t typesSize;
+    const UA_DataType *types;
+} UA_DataTypeArray;
+
+/**
  *
  * .. toctree::
  *

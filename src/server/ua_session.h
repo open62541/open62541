@@ -8,12 +8,10 @@
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_securechannel.h"
 #include "ua_util.h"
+
+_UA_BEGIN_DECLS
 
 #define UA_MAXCONTINUATIONPOINTS 5
 
@@ -60,6 +58,7 @@ typedef struct {
     SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
     UA_UInt32        numSubscriptions;
     UA_UInt32        numPublishReq;
+    size_t           totalRetransmissionQueueSize; /* Retransmissions of all subscriptions */
 #endif
 } UA_Session;
 
@@ -82,11 +81,25 @@ void UA_Session_updateLifetime(UA_Session *session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscription);
-UA_Subscription * UA_Session_getSubscriptionById(UA_Session *session, UA_UInt32 subscriptionId);
-UA_StatusCode UA_Session_deleteSubscription(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionId);
-void UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry, UA_Boolean head);
-UA_PublishResponseEntry* UA_Session_dequeuePublishReq(UA_Session *session);
+void
+UA_Session_addSubscription(UA_Session *session,
+                           UA_Subscription *newSubscription);
+
+UA_Subscription *
+UA_Session_getSubscriptionById(UA_Session *session,
+                               UA_UInt32 subscriptionId);
+
+UA_StatusCode
+UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
+                              UA_UInt32 subscriptionId);
+
+void
+UA_Session_queuePublishReq(UA_Session *session,
+                           UA_PublishResponseEntry* entry,
+                           UA_Boolean head);
+
+UA_PublishResponseEntry *
+UA_Session_dequeuePublishReq(UA_Session *session);
 
 #endif
 
@@ -98,68 +111,62 @@ UA_PublishResponseEntry* UA_Session_dequeuePublishReq(UA_Session *session);
  * zero arguments. So we add a dummy argument that is not printed (%.0s is
  * string of length zero). */
 
-#define UA_LOG_TRACE_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
+#define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...) do {  \
+        UA_String idString = UA_STRING_NULL;                            \
+        UA_NodeId_toString(&(SESSION)->sessionId, &idString);           \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
+                       "Connection %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
+                       ((SESSION)->header.channel ?                     \
+                        ((SESSION)->header.channel->connection ?        \
+                         (int)((SESSION)->header.channel->connection->sockfd) : 0) : 0), \
+                       ((SESSION)->header.channel ?                     \
+                        (SESSION)->header.channel->securityToken.channelId : 0), \
+                       (int)idString.length, idString.data, __VA_ARGS__); \
+        UA_String_deleteMembers(&idString);                             \
+    } while(0)
 
+#if UA_LOGLEVEL <= 100
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_TRACE_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_DEBUG_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
-
-#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_DEBUG_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_INFO_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
-
-#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_INFO_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_WARNING_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
-
-#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_WARNING_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_ERROR_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
-
-#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_ERROR_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#define UA_LOG_FATAL_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
-    UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SESSION,                        \
-                 "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG "%.0s", \
-                 ((SESSION)->header.channel ? ((SESSION)->header.channel->connection ? (SESSION)->header.channel->connection->sockfd : 0) : 0), \
-                 ((SESSION)->header.channel ? (SESSION)->header.channel->securityToken.channelId : 0), \
-                 UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
-
-#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_FATAL_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
-
-#ifdef __cplusplus
-} // extern "C"
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, TRACE, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...) do {} while(0)
 #endif
+
+#if UA_LOGLEVEL <= 200
+#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, DEBUG, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 300
+#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, INFO, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 400
+#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, WARNING, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 500
+#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, ERROR, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
+
+#if UA_LOGLEVEL <= 600
+#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
+    UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, FATAL, SESSION, __VA_ARGS__, ""))
+#else
+#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...) do {} while(0)
+#endif
+
+_UA_END_DECLS
 
 #endif /* UA_SESSION_H_ */

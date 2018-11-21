@@ -70,6 +70,7 @@ class Node(object):
         self.userWriteMask = 0
         self.references = set()
         self.hidden = False
+        self.modelUri = None
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -498,7 +499,7 @@ class DataTypeNode(Node):
                             self.__encodable__ = False
                             break
                         else:
-                            self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, 0]
+                            self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
             if len(self.__baseTypeEncoding__) == 0:
                 logger.debug(prefix + "No viable definition for " + str(self.browseName) + " " + str(self.id) + " found.")
                 self.__encodable__ = False
@@ -514,7 +515,6 @@ class DataTypeNode(Node):
 
         isEnum = True
         isSubType = True
-        hasValueRank = 0
 
         # We need to store the definition as ordered data, but can't use orderedDict
         # for backward compatibility with Python 2.6 and 3.4
@@ -527,7 +527,7 @@ class DataTypeNode(Node):
                 fname  = ""
                 fdtype = ""
                 enumVal = ""
-                valueRank = 0
+                valueRank = None
                 for at,av in x.attributes.items():
                     if at == "DataType":
                         fdtype = str(av)
@@ -541,8 +541,6 @@ class DataTypeNode(Node):
                         isSubType = False
                     elif at == "ValueRank":
                         valueRank = int(av)
-                        if valueRank > 0:
-                            logger.warn("Value ranks >0 not fully supported. Further steps may fail")
                     else:
                         logger.warn("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.
@@ -563,9 +561,11 @@ class DataTypeNode(Node):
 
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
-                    if not NodeId(fdtype) in nodeset.nodes:
-                        raise Exception("Node {} not found in nodeset".format(NodeId(fdtype)))
-                    dtnode = nodeset.nodes[NodeId(fdtype)]
+                    fdTypeNodeId = NodeId(fdtype)
+                    fdTypeNodeId.ns = nodeset.namespaceMapping[self.modelUri][fdTypeNodeId.ns]
+                    if not fdTypeNodeId in nodeset.nodes:
+                        raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
+                    dtnode = nodeset.nodes[fdTypeNodeId]
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable
                     typeDict.append([fname, dtnode])

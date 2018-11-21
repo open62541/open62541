@@ -24,7 +24,7 @@
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
-#include "ua_plugin_history_data_service.h"
+#include "ua_plugin_historydatabase.h"
 #endif
 
 _UA_BEGIN_DECLS
@@ -77,9 +77,10 @@ struct UA_ServerConfig {
     UA_String *serverCapabilities;
 #endif
 
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    UA_DataType *customDataTypes;
+    /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
+     * with the configuration. So it is possible to allocate them on ROM. */
+    const UA_DataTypeArray *customDataTypes;
+
     /**
      * .. note:: See the section on :ref:`generic-types`. Examples for working
      *    with custom data types are provided in
@@ -118,6 +119,11 @@ struct UA_ServerConfig {
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;
 
+    /* Relax constraints for the InformationModel */
+    UA_Boolean relaxEmptyValueConstraint; /* Nominally, only variables with data
+                                           * type BaseDataType can have an empty
+                                           * value. */
+
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
     UA_UInt32 maxSecurityTokenLifetime; /* in ms */
@@ -141,7 +147,7 @@ struct UA_ServerConfig {
 
     /* Limits for Subscriptions */
     UA_UInt32 maxSubscriptionsPerSession;
-    UA_DurationRange publishingIntervalLimits;
+    UA_DurationRange publishingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range lifeTimeCountLimits;
     UA_UInt32Range keepAliveCountLimits;
     UA_UInt32 maxNotificationsPerPublish;
@@ -152,7 +158,7 @@ struct UA_ServerConfig {
 
     /* Limits for MonitoredItems */
     UA_UInt32 maxMonitoredItemsPerSubscription;
-    UA_DurationRange samplingIntervalLimits;
+    UA_DurationRange samplingIntervalLimits; /* in ms (must not be less than 5) */
     UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
 
     /* Limits for PublishRequests */
@@ -189,7 +195,7 @@ struct UA_ServerConfig {
 
     /* Historical Access */
 #ifdef UA_ENABLE_HISTORIZING
-    UA_HistoryDataService historyDataService;
+    UA_HistoryDatabase historyDatabase;
     
     UA_Boolean accessHistoryDataCapability;
     UA_UInt32  maxReturnDataValues; /* 0 -> unlimited size */

@@ -193,7 +193,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
                                      size_t certificateTrustListSize,
                                      const UA_ByteString *certificateRevocationList,
                                      size_t certificateRevocationListSize) {
-    CertInfo *ci = (CertInfo*)malloc(sizeof(CertInfo));
+    CertInfo *ci = (CertInfo*)UA_malloc(sizeof(CertInfo));
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     mbedtls_x509_crt_init(&ci->certificateTrustList);

@@ -7,6 +7,7 @@ add_subdirectory(win32)
 add_subdirectory(freertosLWIP)
 add_subdirectory(vxworks)
 add_subdirectory(eCos)
+add_subdirectory(wec7)
 
 SET(UA_ARCH_EXTRA_INCLUDES "" CACHE STRING "Folders to include from the architecture")
 ua_include_directories(${UA_ARCH_EXTRA_INCLUDES})

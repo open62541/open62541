@@ -88,7 +88,7 @@ UA_UInt32_random(void) {
 /* Builtin Types */
 /*****************/
 
-static void deleteMembers_noInit(void *p, const UA_DataType *type);
+static void clear_noInit(void *p, const UA_DataType *type);
 static UA_StatusCode copy_noInit(const void *src, void *dst, const UA_DataType *type);
 
 UA_String
@@ -125,7 +125,7 @@ String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
 }
 
 static void
-String_deleteMembers(UA_String *s, const UA_DataType *_) {
+String_clear(UA_String *s, const UA_DataType *_) {
     UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
@@ -137,8 +137,8 @@ QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst, const UA_
 }
 
 static void
-QualifiedName_deleteMembers(UA_QualifiedName *p, const UA_DataType *_) {
-    String_deleteMembers(&p->name, NULL);
+QualifiedName_clear(UA_QualifiedName *p, const UA_DataType *_) {
+    String_clear(&p->name, NULL);
 }
 
 UA_Boolean
@@ -221,11 +221,11 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
 
 /* NodeId */
 static void
-NodeId_deleteMembers(UA_NodeId *p, const UA_DataType *_) {
+NodeId_clear(UA_NodeId *p, const UA_DataType *_) {
     switch(p->identifierType) {
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
-        String_deleteMembers(&p->identifier.string, NULL);
+        String_clear(&p->identifier.string, NULL);
         break;
     default: break;
     }
@@ -261,25 +261,17 @@ UA_Boolean
 UA_NodeId_isNull(const UA_NodeId *p) {
     if(p->namespaceIndex != 0)
         return false;
-    switch(p->identifierType) {
+    switch (p->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         return (p->identifier.numeric == 0);
+    case UA_NODEIDTYPE_STRING:
+        return UA_String_equal(&p->identifier.string, &UA_STRING_NULL);
     case UA_NODEIDTYPE_GUID:
-        return (p->identifier.guid.data1 == 0 &&
-                p->identifier.guid.data2 == 0 &&
-                p->identifier.guid.data3 == 0 &&
-                p->identifier.guid.data4[0] == 0 &&
-                p->identifier.guid.data4[1] == 0 &&
-                p->identifier.guid.data4[2] == 0 &&
-                p->identifier.guid.data4[3] == 0 &&
-                p->identifier.guid.data4[4] == 0 &&
-                p->identifier.guid.data4[5] == 0 &&
-                p->identifier.guid.data4[6] == 0 &&
-                p->identifier.guid.data4[7] == 0);
-    default:
-        break;
+        return UA_Guid_equal(&p->identifier.guid, &UA_GUID_NULL);
+    case UA_NODEIDTYPE_BYTESTRING:
+        return UA_ByteString_equal(&p->identifier.byteString, &UA_BYTESTRING_NULL);
     }
-    return (p->identifier.string.length == 0);
+    return false;
 }
 
 UA_Boolean
@@ -345,9 +337,9 @@ UA_NodeId_hash(const UA_NodeId *n) {
 
 /* ExpandedNodeId */
 static void
-ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p, const UA_DataType *_) {
-    NodeId_deleteMembers(&p->nodeId, _);
-    String_deleteMembers(&p->namespaceUri, NULL);
+ExpandedNodeId_clear(UA_ExpandedNodeId *p, const UA_DataType *_) {
+    NodeId_clear(&p->nodeId, _);
+    String_clear(&p->namespaceUri, NULL);
 }
 
 static UA_StatusCode
@@ -361,13 +353,13 @@ ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
 
 /* ExtensionObject */
 static void
-ExtensionObject_deleteMembers(UA_ExtensionObject *p, const UA_DataType *_) {
+ExtensionObject_clear(UA_ExtensionObject *p, const UA_DataType *_) {
     switch(p->encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
     case UA_EXTENSIONOBJECT_ENCODED_XML:
-        NodeId_deleteMembers(&p->content.encoded.typeId, NULL);
-        String_deleteMembers(&p->content.encoded.body, NULL);
+        NodeId_clear(&p->content.encoded.typeId, NULL);
+        String_clear(&p->content.encoded.body, NULL);
         break;
     case UA_EXTENSIONOBJECT_DECODED:
         if(p->content.decoded.data)
@@ -409,7 +401,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
 
 /* Variant */
 static void
-Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
+Variant_clear(UA_Variant *p, const UA_DataType *_) {
     if(p->storageType != UA_VARIANT_DATA)
         return;
     if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
@@ -719,7 +711,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
         dst->arrayDimensions =
             (u32*)UA_Array_new(thisrange.dimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
         if(!dst->arrayDimensions) {
-            Variant_deletemembers(dst, NULL);
+            Variant_clear(dst, NULL);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dst->arrayDimensionsSize = thisrange.dimensionsSize;
@@ -758,7 +750,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
     } else {
         for(size_t i = 0; i < block_count; ++i) {
             for(size_t j = 0; j < block; ++j) {
-                deleteMembers_noInit((void*)nextdst, v->type);
+                clear_noInit((void*)nextdst, v->type);
                 retval |= UA_copy((void*)nextsrc, (void*)nextdst, v->type);
                 nextdst += elem_size;
                 nextsrc += elem_size;
@@ -789,9 +781,9 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
 
 /* LocalizedText */
 static void
-LocalizedText_deleteMembers(UA_LocalizedText *p, const UA_DataType *_) {
-    String_deleteMembers(&p->locale, NULL);
-    String_deleteMembers(&p->text, NULL);
+LocalizedText_clear(UA_LocalizedText *p, const UA_DataType *_) {
+    String_clear(&p->locale, NULL);
+    String_clear(&p->text, NULL);
 }
 
 static UA_StatusCode
@@ -804,8 +796,8 @@ LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst,
 
 /* DataValue */
 static void
-DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *_) {
-    Variant_deletemembers(&p->value, NULL);
+DataValue_clear(UA_DataValue *p, const UA_DataType *_) {
+    Variant_clear(&p->value, NULL);
 }
 
 static UA_StatusCode
@@ -815,16 +807,16 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst,
     UA_Variant_init(&dst->value);
     UA_StatusCode retval = Variant_copy(&src->value, &dst->value, NULL);
     if(retval != UA_STATUSCODE_GOOD)
-        DataValue_deleteMembers(dst, NULL);
+        DataValue_clear(dst, NULL);
     return retval;
 }
 
 /* DiagnosticInfo */
 static void
-DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType *_) {
-    String_deleteMembers(&p->additionalInfo, NULL);
+DiagnosticInfo_clear(UA_DiagnosticInfo *p, const UA_DataType *_) {
+    String_clear(&p->additionalInfo, NULL);
     if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
-        DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, NULL);
+        DiagnosticInfo_clear(p->innerDiagnosticInfo, NULL);
         UA_free(p->innerDiagnosticInfo);
     }
 }
@@ -965,46 +957,46 @@ UA_copy(const void *src, void *dst, const UA_DataType *type) {
     memset(dst, 0, type->memSize); /* init */
     UA_StatusCode retval = copy_noInit(src, dst, type);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_deleteMembers(dst, type);
+        UA_clear(dst, type);
     return retval;
 }
 
-static void nopDeleteMembers(void *p, const UA_DataType *type) { }
+static void nopClear(void *p, const UA_DataType *type) { }
 
-typedef void (*UA_deleteMembersSignature)(void *p, const UA_DataType *type);
+typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
 
 static const
-UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (UA_deleteMembersSignature)nopDeleteMembers, // Boolean
-    (UA_deleteMembersSignature)nopDeleteMembers, // SByte
-    (UA_deleteMembersSignature)nopDeleteMembers, // Byte
-    (UA_deleteMembersSignature)nopDeleteMembers, // Int16
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt16
-    (UA_deleteMembersSignature)nopDeleteMembers, // Int32
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt32
-    (UA_deleteMembersSignature)nopDeleteMembers, // Int64
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt64
-    (UA_deleteMembersSignature)nopDeleteMembers, // Float
-    (UA_deleteMembersSignature)nopDeleteMembers, // Double
-    (UA_deleteMembersSignature)String_deleteMembers, // String
-    (UA_deleteMembersSignature)nopDeleteMembers, // DateTime
-    (UA_deleteMembersSignature)nopDeleteMembers, // Guid
-    (UA_deleteMembersSignature)String_deleteMembers, // ByteString
-    (UA_deleteMembersSignature)String_deleteMembers, // XmlElement
-    (UA_deleteMembersSignature)NodeId_deleteMembers,
-    (UA_deleteMembersSignature)ExpandedNodeId_deleteMembers,
-    (UA_deleteMembersSignature)nopDeleteMembers, // StatusCode
-    (UA_deleteMembersSignature)QualifiedName_deleteMembers,
-    (UA_deleteMembersSignature)LocalizedText_deleteMembers,
-    (UA_deleteMembersSignature)ExtensionObject_deleteMembers,
-    (UA_deleteMembersSignature)DataValue_deleteMembers,
-    (UA_deleteMembersSignature)Variant_deletemembers,
-    (UA_deleteMembersSignature)DiagnosticInfo_deleteMembers,
-    (UA_deleteMembersSignature)deleteMembers_noInit,
+UA_clearSignature clearJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+    (UA_clearSignature)nopClear, // Boolean
+    (UA_clearSignature)nopClear, // SByte
+    (UA_clearSignature)nopClear, // Byte
+    (UA_clearSignature)nopClear, // Int16
+    (UA_clearSignature)nopClear, // UInt16
+    (UA_clearSignature)nopClear, // Int32
+    (UA_clearSignature)nopClear, // UInt32
+    (UA_clearSignature)nopClear, // Int64
+    (UA_clearSignature)nopClear, // UInt64
+    (UA_clearSignature)nopClear, // Float
+    (UA_clearSignature)nopClear, // Double
+    (UA_clearSignature)String_clear, // String
+    (UA_clearSignature)nopClear, // DateTime
+    (UA_clearSignature)nopClear, // Guid
+    (UA_clearSignature)String_clear, // ByteString
+    (UA_clearSignature)String_clear, // XmlElement
+    (UA_clearSignature)NodeId_clear,
+    (UA_clearSignature)ExpandedNodeId_clear,
+    (UA_clearSignature)nopClear, // StatusCode
+    (UA_clearSignature)QualifiedName_clear,
+    (UA_clearSignature)LocalizedText_clear,
+    (UA_clearSignature)ExtensionObject_clear,
+    (UA_clearSignature)DataValue_clear,
+    (UA_clearSignature)Variant_clear,
+    (UA_clearSignature)DiagnosticInfo_clear,
+    (UA_clearSignature)clear_noInit,
 };
 
 static void
-deleteMembers_noInit(void *p, const UA_DataType *type) {
+clear_noInit(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;
     for(size_t i = 0; i < membersSize; ++i) {
@@ -1014,7 +1006,7 @@ deleteMembers_noInit(void *p, const UA_DataType *type) {
         if(!m->isArray) {
             ptr += m->padding;
             size_t fi = mt->builtin ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
-            deleteMembersJumpTable[fi]((void*)ptr, mt);
+            clearJumpTable[fi]((void*)ptr, mt);
             ptr += mt->memSize;
         } else {
             ptr += m->padding;
@@ -1027,14 +1019,14 @@ deleteMembers_noInit(void *p, const UA_DataType *type) {
 }
 
 void
-UA_deleteMembers(void *p, const UA_DataType *type) {
-    deleteMembers_noInit(p, type);
+UA_clear(void *p, const UA_DataType *type) {
+    clear_noInit(p, type);
     memset(p, 0, type->memSize); /* init */
 }
 
 void
 UA_delete(void *p, const UA_DataType *type) {
-    deleteMembers_noInit(p, type);
+    clear_noInit(p, type);
     UA_free(p);
 }
 
@@ -1095,7 +1087,7 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     if(!type->pointerFree) {
         uintptr_t ptr = (uintptr_t)p;
         for(size_t i = 0; i < size; ++i) {
-            UA_deleteMembers((void*)ptr, type);
+            UA_clear((void*)ptr, type);
             ptr += type->memSize;
         }
     }
@@ -1103,10 +1095,10 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 }
 
 UA_Boolean
-isDataTypeNumeric(const UA_DataType *type) {
-    // All data types ids between UA_TYPES_SBYTE and UA_TYPES_DOUBLE are numeric
-    for (int i = UA_TYPES_SBYTE; i <= UA_TYPES_DOUBLE; ++i)
-        if (&UA_TYPES[i] == type)
+UA_DataType_isNumeric(const UA_DataType *type) {
+    /* All data types between UA_TYPES_BOOLEAN and UA_TYPES_DOUBLE are numeric */
+    for(size_t i = UA_TYPES_BOOLEAN; i <= UA_TYPES_DOUBLE; ++i)
+        if(&UA_TYPES[i] == type)
             return true;
     return false;
 }

@@ -249,6 +249,9 @@ createDefaultConfig(void) {
     /* Access Control. Anonymous Login only. */
     conf->accessControl = UA_AccessControl_default(true, usernamePasswordsSize, usernamePasswords);
 
+    /* Relax constraints for the InformationModel */
+    conf->relaxEmptyValueConstraint = true; /* Allow empty values */
+
     /* Limits for SecureChannels */
     conf->maxSecureChannels = 40;
     conf->maxSecurityTokenLifetime = 10 * 60 * 1000; /* 10 minutes */
@@ -318,6 +321,8 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 s
 
     conf->networkLayers[0] =
         UA_ServerNetworkLayerTCP(config, portNumber, conf->logger);
+    if (!conf->networkLayers[0].handle)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize = 1;
 
     return UA_STATUSCODE_GOOD;
@@ -617,11 +622,7 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
         config->nodestore.deleteNodestore(config->nodestore.context);
 
     /* Custom DataTypes */
-    for(size_t i = 0; i < config->customDataTypesSize; ++i)
-        UA_free(config->customDataTypes[i].members);
-    UA_free(config->customDataTypes);
-    config->customDataTypes = NULL;
-    config->customDataTypesSize = 0;
+    /* nothing to do */
 
     /* Networking */
     for(size_t i = 0; i < config->networkLayersSize; ++i)
@@ -649,12 +650,43 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
 
     /* Historical data */
 #ifdef UA_ENABLE_HISTORIZING
-    if (config->historyDataService.deleteMembers)
-        config->historyDataService.deleteMembers(&config->historyDataService);
+    if (config->historyDatabase.deleteMembers)
+        config->historyDatabase.deleteMembers(&config->historyDatabase);
 #endif
 
     UA_free(config);
 }
+
+
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+/**
+ * Add a pubsubTransportLayer to the configuration.
+ * Memory is reallocated on demand */
+UA_StatusCode
+UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
+        UA_PubSubTransportLayer *pubsubTransportLayer) {
+
+    if(config->pubsubTransportLayersSize == 0) {
+        config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
+                UA_malloc(sizeof(UA_PubSubTransportLayer));
+    } else {
+        config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
+                UA_realloc(config->pubsubTransportLayers,
+                sizeof(UA_PubSubTransportLayer) * (config->pubsubTransportLayersSize + 1));
+    }
+
+    if (config->pubsubTransportLayers == NULL) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    memcpy(&config->pubsubTransportLayers[config->pubsubTransportLayersSize],
+            pubsubTransportLayer, sizeof(UA_PubSubTransportLayer));
+    config->pubsubTransportLayersSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif /* UA_ENABLE_PUBSUB */
+
 
 /***************************/
 /* Default Client Settings */
@@ -679,7 +711,7 @@ const UA_ClientConfig UA_ClientConfig_default = {
     UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
     UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
     UA_ClientConnectionTCP_poll_callback, /* .pollConnectionFunc (for async connection) */
-    0,    /* .customDataTypesSize */
+
     NULL, /* .customDataTypes */
 
     NULL, /* .stateCallback */

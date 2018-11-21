@@ -31,7 +31,8 @@ static void setup(void) {
     server = UA_Server_new(config);
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
+    UA_SecureChannel_init(&testChannel);
+    UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
 
     testingConnection = createDummyConnection(65535, NULL);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
@@ -39,7 +40,8 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    UA_SecureChannel_deleteMembersCleanup(&testChannel);
+    UA_SecureChannel_close(&testChannel);
+    UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
     testingConnection.close(&testingConnection);
 
@@ -93,9 +95,9 @@ START_TEST(readSpeed) {
     clock_t begin, finish;
     begin = clock();
 
-    for(int i = 0; i < 1000000; i++) {
+    for(size_t i = 0; i < 1000000; i++) {
         size_t offset = 0;
-        retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], 0, NULL);
+        retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
 
         UA_MessageContext_begin(&mc, &testChannel, 0, UA_MESSAGETYPE_MSG);
         retval |= Service_Read(server, &server->adminSession, &mc, &rq, &rh);

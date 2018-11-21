@@ -22,6 +22,10 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_services.h"
 
+#ifdef UA_ENABLE_HISTORIZING
+#include "ua_plugin_historydatabase.h"
+#endif
+
 /******************/
 /* Access Control */
 /******************/
@@ -190,10 +194,10 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
 /* Returns a datavalue that may point into the node via the
  * UA_VARIANT_DATA_NODELETE tag. Don't access the returned DataValue once the
  * node has been released! */
-static void
-Read(const UA_Node *node, UA_Server *server, UA_Session *session,
-     UA_TimestampsToReturn timestampsToReturn,
-     const UA_ReadValueId *id, UA_DataValue *v) {
+void
+ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
+             UA_TimestampsToReturn timestampsToReturn,
+             const UA_ReadValueId *id, UA_DataValue *v) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Read the attribute %i", id->attributeId);
 
@@ -261,8 +265,14 @@ Read(const UA_Node *node, UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
-        setScalarNoDelete(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
-                          &UA_TYPES[UA_TYPES_BYTE]);
+        if(node->nodeClass == UA_NODECLASS_VIEW) {
+            setScalarNoDelete(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
+                              &UA_TYPES[UA_TYPES_BYTE]);
+        }
+        else{
+            setScalarNoDelete(&v->value, &((const UA_ObjectNode*)node)->eventNotifier,
+                              &UA_TYPES[UA_TYPES_BYTE]);
+        }
         break;
     case UA_ATTRIBUTEID_VALUE: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -376,7 +386,7 @@ Operation_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
 
     /* Perform the read operation */
     if(node) {
-        Read(node, server, session, timestampsToReturn, id, &dv);
+        ReadWithNode(node, server, session, timestampsToReturn, id, &dv);
     } else {
         dv.hasStatus = true;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -456,7 +466,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     }
 
     /* Perform the read operation */
-    Read(node, server, session, timestampsToReturn, item, &dv);
+    ReadWithNode(node, server, session, timestampsToReturn, item, &dv);
 
     /* Do we have to copy the result before releasing the node? */
     if(dv.hasValue && dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
@@ -626,16 +636,16 @@ UA_Boolean
 compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize) {
     /* ValueRank invalid */
-    if(valueRank < -3) {
+    if(valueRank < UA_VALUERANK_SCALAR_OR_ONE_DIMENSION) {
         UA_LOG_INFO_SESSION(server->config.logger, session, "The ValueRank is invalid (< -3)");
         return false;
     }
 
-    /* case -3: the value can be a scalar or a one dimensional array */
-    /* case -2: the value can be a scalar or an array with any number of dimensions */
-    /* case -1: the value is a scalar */
-    /* case 0:  the value is an array with one or more dimensions */
-    if(valueRank <= 0) {
+    /* case -3, UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: the value can be a scalar or a one dimensional array */
+    /* case -2, UA_VALUERANK_ANY: the value can be a scalar or an array with any number of dimensions */
+    /* case -1, UA_VALUERANK_SCALAR: the value is a scalar */
+    /* case  0, UA_VALUERANK_ONE_OR_MORE_DIMENSIONS:  the value is an array with one or more dimensions */
+    if(valueRank <= UA_VALUERANK_ONE_OR_MORE_DIMENSIONS) {
         if(arrayDimensionsSize > 0) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "No ArrayDimensions can be defined for a ValueRank <= 0");
@@ -644,7 +654,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
         return true;
     }
     
-    /* case >= 1: the value is an array with the specified number of dimensions */
+    /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the specified number of dimensions */
     if(arrayDimensionsSize != (size_t)valueRank) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "The number of ArrayDimensions is not equal to the (positive) ValueRank");
@@ -657,18 +667,18 @@ UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
     /* Check if the valuerank of the variabletype allows the change. */
     switch(constraintValueRank) {
-    case -3: /* the value can be a scalar or a one dimensional array */
-        if(valueRank != -1 && valueRank != 1)
+    case UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: /* the value can be a scalar or a one dimensional array */
+        if(valueRank != UA_VALUERANK_SCALAR && valueRank != UA_VALUERANK_ONE_DIMENSION)
             return false;
         break;
-    case -2: /* the value can be a scalar or an array with any number of dimensions */
+    case UA_VALUERANK_ANY: /* the value can be a scalar or an array with any number of dimensions */
         break;
-    case -1: /* the value is a scalar */
-        if(valueRank != -1)
+    case UA_VALUERANK_SCALAR: /* the value is a scalar */
+        if(valueRank != UA_VALUERANK_SCALAR)
             return false;
         break;
-    case 0: /* the value is an array with one or more dimensions */
-        if(valueRank < (UA_Int32) 0)
+    case UA_VALUERANK_ONE_OR_MORE_DIMENSIONS: /* the value is an array with one or more dimensions */
+        if(valueRank < (UA_Int32) UA_VALUERANK_ONE_OR_MORE_DIMENSIONS)
             return false;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
@@ -685,7 +695,7 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
 static UA_Boolean
 compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     /* Invalid ValueRank */
-    if(valueRank < -3)
+    if(valueRank < UA_VALUERANK_SCALAR_OR_ONE_DIMENSION)
         return false;
 
     /* Empty arrays (-1) always match */
@@ -699,17 +709,17 @@ compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     /* We cannot simply use compatibleValueRankArrayDimensions since we can have
      * defined ArrayDimensions for the value if the ValueRank is -2 */
     switch(valueRank) {
-    case -3: /* The value can be a scalar or a one dimensional array */
+    case UA_VALUERANK_SCALAR_OR_ONE_DIMENSION: /* The value can be a scalar or a one dimensional array */
         return (arrayDims <= 1);
-    case -2: /* The value can be a scalar or an array with any number of dimensions */
+    case UA_VALUERANK_ANY: /* The value can be a scalar or an array with any number of dimensions */
         return true;
-    case -1: /* The value is a scalar */
+    case UA_VALUERANK_SCALAR: /* The value is a scalar */
         return (arrayDims == 0);
     default:
         break;
     }
 
-    UA_assert(valueRank >= 0);
+    UA_assert(valueRank >= UA_VALUERANK_ONE_OR_MORE_DIMENSIONS);
 
     /* case 0:  the value is an array with one or more dimensions */
     return (arrayDims == (UA_UInt32)valueRank);
@@ -743,11 +753,12 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
     size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
     UA_UInt32 *valueArrayDimensions = value->arrayDimensions;
     UA_UInt32 tempArrayDimensions;
-    if(valueArrayDimensions == 0 && !UA_Variant_isScalar(value)) {
+    if(!valueArrayDimensions && !UA_Variant_isScalar(value)) {
         valueArrayDimensionsSize = 1;
         tempArrayDimensions = (UA_UInt32)value->arrayLength;
         valueArrayDimensions = &tempArrayDimensions;
     }
+    UA_assert(valueArrayDimensionsSize == 0 || valueArrayDimensions != NULL);
     return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
                                      valueArrayDimensionsSize, valueArrayDimensions);
 }
@@ -764,22 +775,19 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
            UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
             return true;
 
-        /* Workaround: Allow empty value if the target data type is abstract */
-        const UA_Node *datatype = UA_Nodestore_get(server, targetDataTypeId);
-        if(datatype && datatype->nodeClass == UA_NODECLASS_DATATYPE) {
-            UA_Boolean isAbstract = ((const UA_DataTypeNode*)datatype)->isAbstract;
-            UA_Nodestore_release(server, datatype);
-            if(isAbstract)
-                return true;
+        /* Allow empty node values since existing information models may have
+         * variables with no value, e.g. OldValues - ns=0;i=3024. See also
+         * #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
+        if(server->config.relaxEmptyValueConstraint) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Only Variables with data type BaseDataType can contain an "
+                                 "empty value. Allow via explicit constraint relaxation.");
+            return true;
         }
 
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Only Variables with data type BaseDataType should contain "
-                    "a null (empty) value");
-        /* we allow addition of the node anyways since existing information models may have
-           variables with no value, e.g. OldValues - ns=0;i=3024.
-           See also #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
-        return true;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "Only Variables with data type BaseDataType can contain an empty value");
+        return false;
     }
 
     /* Has the value a subtype of the required type? BaseDataType (Variant) can
@@ -1104,14 +1112,10 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         /* node is a UA_VariableNode*, but it may also point to a UA_VariableTypeNode */
         /* UA_VariableTypeNode doesn't have the historizing attribute */
         if(retval == UA_STATUSCODE_GOOD && node->nodeClass == UA_NODECLASS_VARIABLE &&
-                server->config.historyDataService.setValue)
-            server->config.historyDataService.setValue(server,
-                                                       server->config.historyDataService.context,
-                                                       &session->sessionId,
-                                                       session->sessionHandle,
-                                                       &node->nodeId,
-                                                       node->historizing,
-                                                       &adjustedValue);
+                server->config.historyDatabase.setValue)
+            server->config.historyDatabase.setValue(server, server->config.historyDatabase.context,
+                                                    &session->sessionId, session->sessionHandle,
+                                                    &node->nodeId, node->historizing, &adjustedValue);
 #endif
         /* Callback after writing */
         if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite)
@@ -1419,9 +1423,6 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
 }
 
 #ifdef UA_ENABLE_HISTORIZING
-
-#include "ua_plugin_history_data_service.h"
-
 void
 Service_HistoryRead(UA_Server *server,
                     UA_Session *session,
@@ -1438,7 +1439,7 @@ Service_HistoryRead(UA_Server *server,
             response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
             return;
         } else {
-            if (server->config.historyDataService.readRaw) {
+            if (server->config.historyDatabase.readRaw) {
                 response->resultsSize = request->nodesToReadSize;
 
                 response->results = (UA_HistoryReadResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
@@ -1450,18 +1451,12 @@ Service_HistoryRead(UA_Server *server,
                     response->results[i].historyData.content.decoded.data = data;
                     historyData[i] = data;
                 }
-                server->config.historyDataService.readRaw(server,
-                                                          server->config.historyDataService.context,
-                                                          &session->sessionId,
-                                                          session->sessionHandle,
-                                                          &request->requestHeader,
-                                                          details,
-                                                          request->timestampsToReturn,
-                                                          request->releaseContinuationPoints,
-                                                          request->nodesToReadSize,
-                                                          request->nodesToRead,
-                                                          response,
-                                                          historyData);
+                server->config.historyDatabase.readRaw(server, server->config.historyDatabase.context,
+                                                       &session->sessionId, session->sessionHandle,
+                                                       &request->requestHeader, details,
+                                                       request->timestampsToReturn, request->releaseContinuationPoints,
+                                                       request->nodesToReadSize, request->nodesToRead,
+                                                       response, historyData);
                 UA_free(historyData);
                 return;
             }

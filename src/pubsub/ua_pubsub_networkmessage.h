@@ -5,15 +5,13 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  */
 
-#ifndef UA_NETWORKMESSAGE_H_
-#define UA_NETWORKMESSAGE_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef UA_PUBSUB_NETWORKMESSAGE_H_
+#define UA_PUBSUB_NETWORKMESSAGE_H_
 
 #include "ua_types.h"
 #include "ua_types_generated.h"
+
+_UA_BEGIN_DECLS
 
 /* DataSet Payload Header */
 typedef struct {
@@ -217,9 +215,6 @@ UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p);
 void
 UA_NetworkMessage_delete(UA_NetworkMessage* p);
 
+_UA_END_DECLS
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-#endif /* UA_NETWORKMESSAGE_H_ */
+#endif /* UA_PUBSUB_NETWORKMESSAGE_H_ */

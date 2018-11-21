@@ -68,8 +68,22 @@ _UA_BEGIN_DECLS
  *                 |    +-----------------+
  *                 +----> UA_DataSetField |  UA_PublishedDataSet_addDataSetField
  *                      +-----------------+
+ * PubSub compile flags
+ * --------------------
+ *
+ * **UA_ENABLE_PUBSUB**
+ *  Enable the experimental OPC UA PubSub support. The option will include the PubSub UDP multicast plugin. Disabled by default.
+ * **UA_ENABLE_PUBSUB_DELTAFRAMES**
+ *  The PubSub messages differentiate between keyframe (all published values contained) and deltaframe (only changed values contained) messages.
+ *  Deltaframe messages creation consumes some additional ressources and can be disabled with this flag. Disabled by default.
+ *  Compile the human-readable name of the StatusCodes into the binary. Disabled by default.
+ * **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
+ *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default.
+ *
  * PubSub Information Model Representation
- * -----------
+ * ----------------------------------------
+ * .. _pubsub_informationmodel:
+ *
  * The complete PubSub configuration is available inside the information model.
  * The entry point is the node 'PublishSubscribe, located under the Server node.
  * The standard defines for PubSub no new Service set. The configuration can optionally
@@ -86,9 +100,15 @@ _UA_BEGIN_DECLS
  * Take a look on the PubSub Tutorials for mor details about the API usage.
  */
 
+typedef enum {
+    UA_PUBSUB_PUBLISHERID_NUMERIC,
+    UA_PUBSUB_PUBLISHERID_STRING
+} UA_PublisherIdType;
+
 typedef struct {
     UA_String name;
     UA_Boolean enabled;
+    UA_PublisherIdType publisherIdType;
     union { /* std: valid types UInt or String */
         UA_UInt32 numeric;
         UA_String string;

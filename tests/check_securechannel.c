@@ -44,7 +44,8 @@ static key_sizes keySizes;
 static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel, &dummyPolicy, &dummyCertificate);
+    UA_SecureChannel_init(&testChannel);
+    UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
     testingConnection = createDummyConnection(65535, &sentData);
     UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
@@ -53,7 +54,8 @@ setup_secureChannel(void) {
 
 static void
 teardown_secureChannel(void) {
-    UA_SecureChannel_deleteMembersCleanup(&testChannel);
+    UA_SecureChannel_close(&testChannel);
+    UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
     testingConnection.close(&testingConnection);
 }
@@ -97,7 +99,8 @@ START_TEST(SecureChannel_initAndDelete)
         UA_StatusCode retval;
 
         UA_SecureChannel channel;
-        retval = UA_SecureChannel_init(&channel, &dummyPolicy, &dummyCertificate);
+        UA_SecureChannel_init(&channel);
+        retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
         ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_FRESH, "Expected state to be fresh");
@@ -105,7 +108,8 @@ START_TEST(SecureChannel_initAndDelete)
         ck_assert_msg(fCalled.makeCertificateThumbprint, "Expected makeCertificateThumbprint to have been called");
         ck_assert_msg(channel.securityPolicy == &dummyPolicy, "SecurityPolicy not set correctly");
 
-        UA_SecureChannel_deleteMembersCleanup(&channel);
+        UA_SecureChannel_close(&channel);
+        UA_SecureChannel_deleteMembers(&channel);
         ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 
         dummyPolicy.deleteMembers(&dummyPolicy);

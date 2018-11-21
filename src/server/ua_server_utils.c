@@ -64,10 +64,10 @@ isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_Nod
              * reference types. */
             if(visitedRefs->depth % 5 == 4) {
                 struct ref_history *last = visitedRefs;
-                UA_Boolean skip = UA_FALSE;
+                UA_Boolean skip = false;
                 while(!skip && last) {
                     if(UA_NodeId_equal(last->id, &refs->targetIds[j].nodeId))
-                        skip = UA_TRUE;
+                        skip = true;
                     last = last->parent;
                 }
                 if(skip)
@@ -400,7 +400,7 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
      0, NULL, 0, NULL},          /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
-    -2,                          /* valueRank */
+    UA_VALUERANK_ANY,            /* valueRank */
     0, NULL,                     /* arrayDimensions */
     UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
     0.0,                         /* minimumSamplingInterval */
@@ -432,7 +432,7 @@ const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
      0, NULL, 0, NULL},          /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
-    -2,                          /* valueRank */
+    UA_VALUERANK_ANY,            /* valueRank */
     0, NULL,                     /* arrayDimensions */
     false                        /* isAbstract */
 };

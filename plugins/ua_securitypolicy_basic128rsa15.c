@@ -219,6 +219,7 @@ asym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
     mbedtls_rsa_context *rsaContext =
         mbedtls_pk_rsa(cc->policyContext->localPrivateKey);
+    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     if(data->length % rsaContext->len != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -520,7 +521,7 @@ sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         if(offset + hashLen > out->length) {
             outSegment.data = NULL;
             outSegment.length = 0;
-            retval |= UA_ByteString_allocBuffer(&outSegment, hashLen);
+            retval = UA_ByteString_allocBuffer(&outSegment, hashLen);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_ByteString_deleteMembers(&A_and_seed);
                 UA_ByteString_deleteMembers(&ANext_and_seed);
@@ -717,16 +718,20 @@ channelContext_compareCertificate_sp_basic128rsa15(const Basic128Rsa15_ChannelCo
     const UA_SecurityPolicy *securityPolicy = cc->policyContext->securityPolicy;
 
     mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
     int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data, certificate->length);
-    UA_MBEDTLS_ERRORHANDLING_RETURN(UA_STATUSCODE_BADSECURITYCHECKSFAILED);
-
-    if(cert.raw.len != cc->remoteCertificate.raw.len)
+    if(mbedErr) {
+        UA_LOG_MBEDERR;
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
 
-    if(memcmp(cert.raw.p, cc->remoteCertificate.raw.p, cert.raw.len) != 0)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(cert.raw.len != cc->remoteCertificate.raw.len ||
+       memcmp(cert.raw.p, cc->remoteCertificate.raw.p, cert.raw.len) != 0)
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    return UA_STATUSCODE_GOOD;
+    mbedtls_x509_crt_free(&cert);
+    return retval;
 }
 
 static void
@@ -754,6 +759,53 @@ deleteMembers_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
 
     UA_free(pc);
     securityPolicy->policyContext = NULL;
+}
+
+static UA_StatusCode
+updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
+                                                const UA_ByteString newCertificate,
+                                                const UA_ByteString newPrivateKey) {
+    if(securityPolicy == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
+
+    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&securityPolicy->localCertificate, newCertificate.length + 1);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    memcpy(securityPolicy->localCertificate.data, newCertificate.data, newCertificate.length);
+    securityPolicy->localCertificate.data[newCertificate.length] = '\0';
+    securityPolicy->localCertificate.length--;
+
+    /* Set the new private key */
+    mbedtls_pk_free(&pc->localPrivateKey);
+    mbedtls_pk_init(&pc->localPrivateKey);
+    int mbedErr = mbedtls_pk_parse_key(&pc->localPrivateKey,
+                                       newPrivateKey.data, newPrivateKey.length,
+                                       NULL, 0);
+    UA_MBEDTLS_ERRORHANDLING(UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    retval = asym_makeThumbprint_sp_basic128rsa15(pc->securityPolicy,
+                                                  &securityPolicy->localCertificate,
+                                                  &pc->localCertThumbprint);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    return retval;
+
+    error:
+    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Could not update certificate and private key");
+    if(securityPolicy->policyContext != NULL)
+        deleteMembers_sp_basic128rsa15(securityPolicy);
+    return retval;
 }
 
 static UA_StatusCode
@@ -961,6 +1013,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
     channelModule->compareCertificate = (UA_StatusCode (*)(const void *, const UA_ByteString *))
         channelContext_compareCertificate_sp_basic128rsa15;
 
+    policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic128rsa15;
     policy->deleteMembers = deleteMembers_sp_basic128rsa15;
 
     return policyContext_newContext_sp_basic128rsa15(policy, localPrivateKey);

@@ -9,11 +9,10 @@
 #ifndef UA_TIMER_H_
 #define UA_TIMER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_util_internal.h"
+#include "ua_workqueue.h"
+
+_UA_BEGIN_DECLS
 
 /* An (event) timer triggers callbacks with a recurring interval. Adding,
  * removing and changing repeated callbacks can be done from independent
@@ -51,11 +50,9 @@ void UA_Timer_init(UA_Timer *t);
 
 /* Add a repated callback. Thread-safe, can be used in parallel and in parallel
  * with UA_Timer_process. */
-typedef void (*UA_TimerCallback)(void *application, void *data);
-
 UA_StatusCode
-UA_Timer_addRepeatedCallback(UA_Timer *t, UA_TimerCallback callback, void *data,
-                             UA_UInt32 interval, UA_UInt64 *callbackId);
+UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
+                             void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
 
 /* Change the callback interval. If this is called from within the callback. The
  * adjustment is made during the next _process call. */
@@ -72,19 +69,18 @@ UA_Timer_removeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId);
  * timestamp of the next scheduled repeated callback. Not thread-safe.
  * Application is a pointer to the client / server environment for the callback.
  * Dispatched is set to true when at least one callback was run / dispatched. */
-typedef void (*UA_TimerDispatchCallback)(void *application, UA_TimerCallback callback,
-                                         void *data);
+typedef void
+(*UA_TimerExecutionCallback)(void *executionApplication, UA_ApplicationCallback cb,
+                             void *callbackApplication, void *data);
 
 UA_DateTime
 UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
-                 UA_TimerDispatchCallback dispatchCallback,
-                 void *application);
+                 UA_TimerExecutionCallback executionCallback,
+                 void *executionApplication);
 
 /* Remove all repeated callbacks. Not thread-safe. */
 void UA_Timer_deleteMembers(UA_Timer *t);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_TIMER_H_ */

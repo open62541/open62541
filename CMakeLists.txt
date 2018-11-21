@@ -32,7 +32,7 @@ set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
                     RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    if(${res_var} EQUAL 0)
+    if(${res_var} EQUAL 0 AND NOT OPEN62541_VER_COMMIT STREQUAL "")
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
@@ -175,7 +175,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
-option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
+option(UA_ENABLE_MULTITHREADING "Enable multithreading (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_MULTITHREADING)
 
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
@@ -184,15 +184,32 @@ if(UA_ENABLE_MULTITHREADING)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
-option(UA_ENABLE_PUBSUB "Enable publish/subscribe (experimental)" OFF)
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
-option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" ON)
+
+option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
+if(UA_ENABLE_PUBSUB_ETH_UADP)
+    if (NOT CMAKE_SYSTEM MATCHES "Linux")
+    message(FATAL_ERROR "UADP over Ethernet is only available on Linux.")
+	endif()
+endif()
+
+option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
+
 option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
+if(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
+    if(NOT UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+        message(FATAL_ERROR "PubSub information model methods cannot be used with disabled PubSub information model.")
+    endif()
+endif()
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(NOT UA_ENABLE_PUBSUB)
-    message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
+        message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
     endif()
 endif()
 
@@ -257,11 +274,19 @@ endif()
 
 if(UA_ENABLE_HISTORIZING)
     set(historizing_exported_headers
-        ${PROJECT_SOURCE_DIR}/include/ua_plugin_history_data_service.h
+        ${PROJECT_SOURCE_DIR}/include/ua_plugin_historydatabase.h
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_backend.h
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_gathering.h
         )
     set(historizing_default_plugin_headers
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.h
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.h
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.h
         )
     set(historizing_default_plugin_sources
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
+        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c
         )
 endif()
 
@@ -287,6 +312,15 @@ if(BUILD_SHARED_LIBS)
   if (UA_ENABLE_DISCOVERY_MULTICAST)
       set(MDNSD_DYNAMIC_LINKING ON)
   endif()
+endif()
+
+# Warn if experimental features are enabled
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+    MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_EVENTS is enabled. The feature is under development and marked as EXPERIMENTAL")
+endif()
+
+if(UA_ENABLE_MULTITHREADING)
+    MESSAGE(WARNING "UA_ENABLE_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
 ######################
@@ -386,6 +420,13 @@ if(MSVC)
   endif()
 endif()
 
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    add_definitions(-DUA_malloc=UA_memoryManager_malloc)
+    add_definitions(-DUA_free=UA_memoryManager_free)
+    add_definitions(-DUA_calloc=UA_memoryManager_calloc)
+    add_definitions(-DUA_realloc=UA_memoryManager_realloc)
+endif()
+
 #########################
 # Generate Main Library #
 #########################
@@ -413,6 +454,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+                     ${PROJECT_SOURCE_DIR}/arch/ua_architecture_base.h
                      ${ua_architecture_headers_beginning}
                      )
 
@@ -464,6 +506,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_workqueue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
@@ -485,6 +528,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
+                ${PROJECT_SOURCE_DIR}/src/ua_workqueue.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
@@ -495,13 +539,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
@@ -553,11 +593,28 @@ if(UA_ENABLE_ENCRYPTION)
                                        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
+if(UA_ENABLE_DISCOVERY)
+    list(INSERT internal_headers 5 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
+endif()
+
 if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
+    if(UA_ENABLE_PUBSUB_ETH_UADP)
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.h)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.c)
+    endif()
 endif()
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                            ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
+                            ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c)
+    endif()
+endif()
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
@@ -575,13 +632,18 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
                          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
                          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h
                          ${internal_headers} )
-    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_mdns_internal.h)
-    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c
+    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery_mdns.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
         ${lib_sources})
+endif()
+
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    set(lib_sources
+        ${lib_sources}
+        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
 #########################
@@ -628,7 +690,7 @@ else()
     if(UA_ENABLE_PUBSUB)
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_pubsub.txt)
         if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-            set(UA_FILE_NSPUBSUB --xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+            set(UA_FILE_NSPUBSUB ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
         endif()
     endif()
 endif()
@@ -637,57 +699,26 @@ if(NOT EXISTS "${UA_FILE_NS0}")
     message(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
 endif()
 
-set(SELECTED_TYPES_TMP "")
-foreach(f ${UA_FILE_DATATYPES})
-    set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
-endforeach()
-
 # standard-defined data types
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --type-csv=${UA_FILE_NODEIDS}
-                           ${SELECTED_TYPES_TMP}
-                           --type-bsd=${UA_FILE_TYPES_BSD}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_types
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${UA_FILE_NODEIDS}
-                           ${UA_FILE_TYPES_BSD}
-                           ${UA_FILE_DATATYPES})
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-types DEPENDS
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h)
+ua_generate_datatypes(
+    BUILTIN
+    NAME "ua_types"
+    TARGET_SUFFIX "types"
+    NAMESPACE_IDX 0
+    FILE_CSV "${UA_FILE_NODEIDS}"
+    FILES_BSD "${UA_FILE_TYPES_BSD}"
+    FILES_SELECTED ${UA_FILE_DATATYPES}
+)
 
 # transport data types
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --namespace=1
-                           --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           --type-bsd=${UA_FILE_TYPES_BSD}
-                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
-                           --no-builtin
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${UA_FILE_TYPES_BSD}
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
-
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-transport DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
+ua_generate_datatypes(
+    NAME "ua_transport"
+    TARGET_SUFFIX "transport"
+    NAMESPACE_IDX 1
+    FILE_CSV "${UA_FILE_NODEIDS}"
+    FILES_BSD "${UA_FILE_TYPES_BSD}" "${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd"
+    FILES_SELECTED "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt"
+)
 
 # statuscode explanation
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
@@ -741,36 +772,19 @@ if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
     set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
 endif()
 
-# generated namespace 0
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                           --generate-ns0
-                           --internal-headers
-                           --encode-binary-size=${UA_NODESET_ENCODE_BINARY_SIZE}
-                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
-                           --xml ${UA_FILE_NS0}
-                           ${UA_FILE_NSPUBSUB}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
-                   DEPENDS ${UA_FILE_NS0}
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
+ua_generate_nodeset(
+    NAME "ns0"
+    FILE "${UA_FILE_NS0}" "${UA_FILE_NSPUBSUB}"
+    INTERNAL
+    IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
+    ENCODE_BINARY_SIZE ${UA_NODESET_ENCODE_BINARY_SIZE}
+    DEPENDS_TARGET "open62541-generator-types"
+)
 
 # stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
 if(NOT MSVC)
     set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
 endif()
-
-# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
-add_custom_target(open62541-generator-namespace DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
 
 #####################
 # Build the Library #

@@ -15,7 +15,11 @@
 #include "ua_config_default.h"
 #include "ua_pubsub.h"
 #include "ua_network_pubsub_udp.h"
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+#include "ua_network_pubsub_ethernet.h"
+#endif
 #include "src_generated/ua_types_generated.h"
+#include <stdio.h>
 #include <signal.h>
 
 UA_Boolean running = true;
@@ -49,7 +53,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
 
     /* Decode the message */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "Message length: %zu", buffer.length);
+                "Message length: %lu", (unsigned long) buffer.length);
     UA_NetworkMessage networkMessage;
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
@@ -92,7 +96,8 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
     UA_NetworkMessage_deleteMembers(&networkMessage);
 }
 
-int main(void) {
+static int
+run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
@@ -100,24 +105,25 @@ int main(void) {
     /* Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_malloc(sizeof(UA_PubSubTransportLayer));
+        UA_calloc(2, sizeof(UA_PubSubTransportLayer));
     if (!config->pubsubTransportLayers) {
         UA_ServerConfig_delete(config);
         return -1;
     }
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+    config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
+    config->pubsubTransportLayersSize++;
+#endif
     UA_Server *server = UA_Server_new(config);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
-    connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
-    connectionConfig.transportProfileUri =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    connectionConfig.name = UA_STRING("UADP Connection 1");
+    connectionConfig.transportProfileUri = *transportProfile;
     connectionConfig.enabled = UA_TRUE;
-    UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+    UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     UA_NodeId connectionIdent;
     UA_StatusCode retval =
@@ -147,4 +153,40 @@ int main(void) {
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     return (int)retval;
+}
+
+
+static void
+usage(char *progname) {
+    printf("usage: %s <uri> [device]\n", progname);
+}
+
+int main(int argc, char **argv) {
+    UA_String transportProfile =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+
+    if (argc > 1) {
+        if (strcmp(argv[1], "-h") == 0) {
+            usage(argv[0]);
+            return 0;
+        } else if (strncmp(argv[1], "opc.udp://", 10) == 0) {
+            networkAddressUrl.url = UA_STRING(argv[1]);
+        } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
+            transportProfile =
+                UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+            if (argc < 3) {
+                printf("Error: UADP/ETH needs an interface name\n");
+                return 1;
+            }
+            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
+            networkAddressUrl.url = UA_STRING(argv[1]);
+        } else {
+            printf("Error: unknown URI\n");
+            return 1;
+        }
+    }
+
+    return run(&transportProfile, &networkAddressUrl);
 }

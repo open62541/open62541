@@ -70,7 +70,9 @@ if(UA_ENABLE_ENCRYPTION)
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
-add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
+add_library(open62541-fuzzplugins OBJECT
+            ${fuzzing_plugin_sources}
+            ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-fuzzplugins open62541)
 
 # the fuzzer test are built directly on the open62541 object files. so they can
@@ -89,6 +91,7 @@ endmacro()
 # Add new fuzzers here
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
+add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 
 file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
 

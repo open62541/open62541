@@ -5,15 +5,13 @@
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#ifndef OPEN62541_UA_PUBSUB_NS0_H
-#define OPEN62541_UA_PUBSUB_NS0_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef UA_PUBSUB_NS0_H_
+#define UA_PUBSUB_NS0_H_
 
 #include "server/ua_server_internal.h"
 #include "ua_pubsub.h"
+
+_UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
@@ -30,7 +28,7 @@ UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
 
 UA_StatusCode
-removeWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
+removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
 
 UA_StatusCode
 addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
@@ -46,8 +44,6 @@ removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *pub
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
-#endif //OPEN62541_UA_PUBSUB_NS0_H
+#endif /* UA_PUBSUB_NS0_H_ */

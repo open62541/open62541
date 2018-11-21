@@ -11,8 +11,13 @@ def generateBooleanCode(value):
         return "true"
     return "false"
 
+# Strip invalid characters to create valid C identifiers (variable names etc):
+def makeCIdentifier(value):
+    return re.sub(r'[^\w]', '', value)
+
+# Escape C strings:
 def makeCLiteral(value):
-    return value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r'')
+    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
 
 def splitStringLiterals(value, splitLength=500):
     """
@@ -22,13 +27,13 @@ def splitStringLiterals(value, splitLength=500):
     """
     value = value.strip()
     if len(value) < splitLength or splitLength == 0:
-        return "\"" + value.replace('"', r'\"') + "\""
+        return "\"" + re.sub(r'(?<!\\)"', r'\\"', value) + "\""
     ret = ""
     tmp = value
     while len(tmp) > splitLength:
         ret += "\"" + tmp[:splitLength].replace('"', r'\"') + "\" "
         tmp = tmp[splitLength:]
-    ret += "\"" + tmp.replace('"', r'\"') + "\" "
+    ret += "\"" + re.sub(r'(?<!\\)"', r'\\"', tmp) + "\" "
     return ret
 
 def generateStringCode(value, alloc=False):

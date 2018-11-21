@@ -36,19 +36,6 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
         UA_BrowseDescription_deleteMembers(&cp->browseDescription);
         UA_free(cp);
     }
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Subscription *sub, *tempsub;
-    LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, tempsub) {
-        UA_Session_deleteSubscription(server, session, sub->subscriptionId);
-    }
-
-    UA_PublishResponseEntry *entry;
-    while((entry = UA_Session_dequeuePublishReq(session))) {
-        UA_PublishResponse_deleteMembers(&entry->response);
-        UA_free(entry);
-    }
-#endif
 }
 
 void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
@@ -106,14 +93,10 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     UA_Subscription_deleteMembers(server, sub);
 
     /* Add a delayed callback to remove the subscription when the currently
-     * scheduled jobs have completed */
-    UA_StatusCode retval = UA_Server_delayedFree(server, sub);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(server->config.logger, session,
-                       "Could not remove subscription with error code %s",
-                       UA_StatusCode_name(retval));
-        return retval; /* Try again next time */
-    }
+     * scheduled jobs have completed. There is no actual delayed callback. Just
+     * free the structure. */
+    sub->delayedFreePointers.callback = NULL;
+    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sub->delayedFreePointers);
 
     /* Remove from the session */
     LIST_REMOVE(sub, listEntry);

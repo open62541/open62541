@@ -13,6 +13,7 @@ environment:
     matrix:
         - CC_NAME: MinGW Makefiles
           CC_SHORTNAME: mingw
+          GENERATOR: MinGW Makefiles
           # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
           # Only use one thread, otherwise appveyor runs out of memory
           MAKE: mingw32-make -j1 2>&1
@@ -21,22 +22,34 @@ environment:
           OUT_DIR_EXAMPLES: bin\examples
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
+          GENERATOR: Visual Studio 9 2008
           MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: ON
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
+          GENERATOR: Visual Studio 12 2013
           MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 14 2015
           CC_SHORTNAME: vs2015
+          GENERATOR: Visual Studio 14 2015
           MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
+        - CC_NAME: Clang
+          CC_SHORTNAME: clang-mingw
+          GENERATOR: MinGW Makefiles
+          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
+          # Only use one thread, otherwise appveyor runs out of memory
+          MAKE: mingw32-make -j1 2>&1
+          FORCE_CXX: OFF
+          OUT_DIR_LIB: bin
+          OUT_DIR_EXAMPLES: bin\examples
 
 cache:
   - C:\ProgramData\chocolatey\bin -> tools/appveyor/install.ps1
@@ -56,12 +69,12 @@ before_build:
   - set PATH=C:\Python27;C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  # Miktex
-  - set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
-  # autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
-  # this adds this to the registry!
-  - initexmf --set-config-value [MPM]AutoInstall=1
-  - initexmf --update-fndb
+  ## Miktex
+  #- set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
+  ## autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
+  ## this adds this to the registry!
+  #- initexmf --set-config-value [MPM]AutoInstall=1
+  #- initexmf --update-fndb
 
 build_script:
 - ps: '& "./tools/appveyor/build.ps1"'

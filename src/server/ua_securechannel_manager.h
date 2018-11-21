@@ -11,18 +11,18 @@
 #ifndef UA_CHANNEL_MANAGER_H_
 #define UA_CHANNEL_MANAGER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_util_internal.h"
 #include "ua_server.h"
+#include "ua_workqueue.h"
 #include "ua_securechannel.h"
 #include "../../deps/queue.h"
 
+_UA_BEGIN_DECLS
+
 typedef struct channel_entry {
-    UA_SecureChannel channel;
+    UA_DelayedCallback cleanupCallback;
     TAILQ_ENTRY(channel_entry) pointers;
+    UA_SecureChannel channel;
 } channel_entry;
 
 typedef struct {
@@ -67,8 +67,6 @@ UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId);
 UA_StatusCode
 UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CHANNEL_MANAGER_H_ */

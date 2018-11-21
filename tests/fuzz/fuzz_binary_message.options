@@ -1,2 +1,2 @@
 [libfuzzer]
-dict = binary.dict
+dict = fuzz_binary_message_header.dict

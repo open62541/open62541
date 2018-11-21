@@ -9,7 +9,6 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
 #include "ua_transport_generated.h"
 #include "ua_transport_generated_handling.h"
@@ -75,27 +74,18 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     }
 
-    retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
+    /* Decode the ACK message */
+    retval = UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Decoding ACK message failed");
         return retval;
     }
-
-    /* Store remote connection settings and adjust local configuration to not
-     * exceed the limits */
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
-    connection->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
-    connection->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
-    connection->remoteConf.protocolVersion = ackMessage.protocolVersion;
-    connection->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
-    connection->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
-    if(connection->remoteConf.recvBufferSize < connection->localConf.sendBufferSize)
-        connection->localConf.sendBufferSize = connection->remoteConf.recvBufferSize;
-    if(connection->remoteConf.sendBufferSize < connection->localConf.recvBufferSize)
-        connection->localConf.recvBufferSize = connection->remoteConf.sendBufferSize;
-    connection->state = UA_CONNECTION_ESTABLISHED;
-    return UA_STATUSCODE_GOOD;
+
+    /* Process the ACK message */
+    return UA_Connection_processHELACK(connection, &client->config.localConnectionConfig,
+                                       (const UA_ConnectionConfig*)&ackMessage);
 }
 
 static UA_StatusCode
@@ -110,23 +100,24 @@ HelAckHandshake(UA_Client *client) {
     /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
     UA_String_copy(&client->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
-    hello.maxChunkCount = conn->localConf.maxChunkCount;
-    hello.maxMessageSize = conn->localConf.maxMessageSize;
-    hello.protocolVersion = conn->localConf.protocolVersion;
-    hello.receiveBufferSize = conn->localConf.recvBufferSize;
-    hello.sendBufferSize = conn->localConf.sendBufferSize;
+    memcpy(&hello, &client->config.localConnectionConfig, sizeof(UA_ConnectionConfig)); /* same struct layout */
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
     retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
     UA_TcpHelloMessage_deleteMembers(&hello);
+    if(retval != UA_STATUSCODE_GOOD) {
+        conn->releaseSendBuffer(conn, &message);
+        return retval;
+    }
+
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32)((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
+    retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
         return retval;
@@ -566,6 +557,8 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         return UA_STATUSCODE_GOOD;
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
+    client->channel.sendSequenceNumber = 0;
+    client->requestId = 0;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
@@ -584,14 +577,27 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     }
 
-    /* Local nonce set and generate sym keys */
-    retval |= UA_SecureChannel_generateLocalNonce(&client->channel);
+    /* Set the channel SecurityMode if not done so far */
+    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
+        client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
+    /* Set the channel SecurityPolicy if not done so far */
+    if(!client->channel.securityPolicy) {
+        UA_ByteString remoteCertificate = UA_BYTESTRING_NULL;
+        retval = UA_SecureChannel_setSecurityPolicy(&client->channel,
+                                                    &client->securityPolicy,
+                                                    &remoteCertificate);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Local nonce set and generate sym keys */
+    retval = UA_SecureChannel_generateLocalNonce(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Open a TCP connection */
-    client->connection.localConf = client->config.localConnectionConfig;
+    client->connection.config = client->config.localConnectionConfig;
     retval = HelAckHandshake(client);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -635,7 +641,7 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
 #endif /* UA_SESSION_RECOVERY */
 
     /* Generate new local and remote key */
-    retval |= UA_SecureChannel_generateNewKeys(&client->channel);
+    retval = UA_SecureChannel_generateNewKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -670,12 +676,12 @@ cleanup:
 
 UA_StatusCode
 UA_Client_connect(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_TRUE);
+    return UA_Client_connectInternal(client, endpointUrl, true, true);
 }
 
 UA_StatusCode
 UA_Client_connect_noSession(UA_Client *client, const char *endpointUrl) {
-    return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_FALSE);
+    return UA_Client_connectInternal(client, endpointUrl, true, false);
 }
 
 UA_StatusCode
@@ -719,7 +725,8 @@ sendCloseSecureChannel(UA_Client *client) {
                                           UA_MESSAGETYPE_CLO, &request,
                                           &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
     UA_CloseSecureChannelRequest_deleteMembers(&request);
-    UA_SecureChannel_deleteMembersCleanup(&client->channel);
+    UA_SecureChannel_close(&client->channel);
+    UA_SecureChannel_deleteMembers(&client->channel);
 }
 
 UA_StatusCode

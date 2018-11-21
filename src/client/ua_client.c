@@ -17,7 +17,6 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -37,20 +36,15 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     /* TODO: Select policy according to the endpoint */
     UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL, config.logger);
-    client->channel.securityPolicy = &client->securityPolicy;
-    client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    UA_SecureChannel_init(&client->channel);
     client->config = config;
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
     /* Catch error during async connection */
     client->connectStatus = UA_STATUSCODE_GOOD;
 
-    /* Needed by async client */
     UA_Timer_init(&client->timer);
-
-#ifndef UA_ENABLE_MULTITHREADING
-    SLIST_INIT(&client->delayedClientCallbacks);
-#endif
+    UA_WorkQueue_init(&client->workQueue);
 }
 
 UA_Client *
@@ -107,11 +101,15 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     }
 
     /* Initiate client security policy */
-    (*securityPolicyFunction)(&client->securityPolicy,
-                              client->securityPolicy.certificateVerification,
-                              certificate, privateKey, config.logger);
-    client->channel.securityPolicy = &client->securityPolicy;
-    client->channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    retval = (*securityPolicyFunction)(&client->securityPolicy,
+                                       client->securityPolicy.certificateVerification,
+                                       certificate, privateKey, config.logger);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_CLIENT,
+                     "Failed to setup the SecurityPolicy with error %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+
     client->config = config;
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
@@ -119,52 +117,14 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     /* Catch error during async connection */
     client->connectStatus = UA_STATUSCODE_GOOD;
 
-    /* Needed by async client */
     UA_Timer_init(&client->timer);
+    UA_WorkQueue_init(&client->workQueue);
 
-#ifndef UA_ENABLE_MULTITHREADING
-    SLIST_INIT(&client->delayedClientCallbacks);
-#endif
-    /* Verify remote certificate if trust list given to the application */
-    if(trustListSize > 0) {
-        retval = client->channel.securityPolicy->certificateVerification->
-                 verifyCertificate(client->channel.securityPolicy->certificateVerification->context,
-                                   remoteCertificate);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Certificate verification failed with error %s", UA_StatusCode_name(retval));
-            return retval;
-        }
-
-    } else {
-        UA_LOG_WARNING(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "No PKI plugin set. Accepting all certificates");
-    }
-
-    const UA_SecurityPolicy *securityPolicy = (UA_SecurityPolicy *) &client->securityPolicy;
-    retval = client->securityPolicy.channelModule.newContext(securityPolicy, remoteCertificate,
-                                                             &client->channel.channelContext);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "New context creation failed with error %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-
-    retval = UA_ByteString_copy(remoteCertificate, &client->channel.remoteCertificate);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Copying byte string failed with error %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-
-    UA_ByteString remoteCertificateThumbprint = {20, client->channel.remoteCertificateThumbprint};
-
-    /* Invoke remote certificate thumbprint */
-    retval = client->securityPolicy.asymmetricModule.
-             makeCertificateThumbprint(securityPolicy, &client->channel.remoteCertificate,
-                                       &remoteCertificateThumbprint);
+    /* Initialize the SecureChannel */
+    UA_SecureChannel_init(&client->channel);
+    client->channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    retval = UA_SecureChannel_setSecurityPolicy(&client->channel, &client->securityPolicy,
+                                                remoteCertificate);
     return retval;
 }
 
@@ -197,7 +157,8 @@ UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
                                                  remoteCertificate, trustList, trustListSize,
                                                  revocationList, revocationListSize,
                                                  securityPolicyFunction);
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(client);
         return NULL;
     }
 
@@ -234,6 +195,9 @@ UA_Client_deleteMembers(UA_Client* client) {
 
     /* Delete the timed work */
     UA_Timer_deleteMembers(&client->timer);
+
+    /* Clean up the work queue */
+    UA_WorkQueue_cleanup(&client->workQueue);
 }
 
 void
@@ -289,9 +253,12 @@ static UA_StatusCode
 sendSymmetricServiceRequest(UA_Client *client, const void *request,
                             const UA_DataType *requestType, UA_UInt32 *requestId) {
     /* Make sure we have a valid session */
-    UA_StatusCode retval = openSecureChannel(client, true);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* FIXME: this is just a dirty workaround. We need to rework some of the sync and async processing
+     * FIXME: in the client. Currently a lot of stuff is semi broken and in dire need of cleaning up.*/
+    /*UA_StatusCode retval = openSecureChannel(client, true);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        return retval;*/
 
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
@@ -358,8 +325,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(responseMessage, offset, response,
-                             responseType, 0, NULL);
+    retval = UA_decodeBinary(responseMessage, offset, response, responseType, NULL);
 
  process:
     if(retval != UA_STATUSCODE_GOOD) {
@@ -370,7 +336,8 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Call the callback */
-    ac->callback(client, ac->userdata, requestId, response);
+    if(ac->callback)
+        ac->callback(client, ac->userdata, requestId, response);
     UA_deleteMembers(response, ac->responseType);
 
     /* Remove the callback */
@@ -382,7 +349,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
 /* Processes the received service response. Either with an async callback or by
  * decoding the message and returning it "upwards" in the
  * SyncResponseDescription. */
-static UA_StatusCode
+static void
 processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        const UA_ByteString *message) {
@@ -393,16 +360,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
        messageType != UA_MESSAGETYPE_MSG) {
         UA_LOG_TRACE_CHANNEL(rd->client->config.logger, channel,
                              "Invalid message type");
-        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        return;
     }
-
-    /* Has the SecureChannel timed out?
-     * TODO: Solve this for client and server together */
-    if(rd->client->state >= UA_CLIENTSTATE_SECURECHANNEL &&
-       (channel->securityToken.createdAt +
-        (channel->securityToken.revisedLifetime * UA_DATETIME_MSEC))
-       < UA_DateTime_nowMonotonic())
-        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
 
     /* Forward declaration for the goto */
     UA_NodeId expectedNodeId = UA_NODEID_NULL;
@@ -432,7 +391,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                          "Received a ServiceFault response");
             UA_init(rd->response, rd->responseType);
             retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], 0, NULL);
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], NULL);
         } else {
             /* Close the connection */
             UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -442,12 +401,16 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
         goto finish;
     }
 
+#ifdef UA_ENABLE_TYPENAMES
+    UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Decode a message of type %s", rd->responseType->typeName);
+#else
     UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Decode a message of type %u", responseId.identifier.numeric);
+#endif
 
     /* Decode the response */
     retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
-                             rd->client->config.customDataTypesSize,
                              rd->client->config.customDataTypes);
 
 finish:
@@ -464,16 +427,16 @@ finish:
             respHeader->serviceResult = retval;
         }
     }
-    return retval;
 }
 
 /* Forward complete chunks directly to the securechannel */
 static UA_StatusCode
 client_processChunk(void *application, UA_Connection *connection, UA_ByteString *chunk) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
-    return UA_SecureChannel_processChunk(&rd->client->channel, chunk,
-                                         processServiceResponse,
-                                         rd);
+    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&rd->client->channel, chunk, true);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    return UA_SecureChannel_persistIncompleteMessages(&rd->client->channel);
 }
 
 /* Receive and process messages until a synchronous message arrives or the
@@ -502,6 +465,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
         retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd, client_processChunk, timeout);
+        UA_SecureChannel_processCompleteMessages(&client->channel, &rd, processServiceResponse);
 
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
@@ -552,11 +516,13 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
 
     UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking(
             &client->connection, &rd, client_processChunk);
+    UA_SecureChannel_processCompleteMessages(&client->channel, &rd, processServiceResponse);
     /*let client run when non critical timeout*/
     if(retval != UA_STATUSCODE_GOOD
             && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
-        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+        }
         UA_Client_disconnect(client);
     }
     return retval;
@@ -567,13 +533,10 @@ receivePacketAsync(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED ||
             UA_Client_getState(client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        retval = UA_Connection_receiveChunksNonBlocking(
-                &client->connection, client, client->ackResponseCallback);
+        retval = UA_Connection_receiveChunksNonBlocking(&client->connection, client, processACKResponseAsync);
     }
     else if(UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
-        retval = UA_Connection_receiveChunksNonBlocking(
-                &client->connection, client,
-                client->openSecureChannelResponseCallback);
+        retval = UA_Connection_receiveChunksNonBlocking(&client->connection, client, processOPNResponseAsync);
     }
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
@@ -592,7 +555,8 @@ UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
     UA_init(resp, ac->responseType);
     ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
 
-    ac->callback(client, ac->userdata, ac->requestId, resp);
+    if(ac->callback)
+        ac->callback(client, ac->userdata, ac->requestId, resp);
 
     /* Clean up the response. Users might move data into it. For whatever reasons. */
     UA_deleteMembers(resp, ac->responseType);
@@ -667,16 +631,16 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
-UA_Client_addRepeatedCallback(UA_Client *Client, UA_ClientCallback callback,
+UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_UInt32 interval,
                               UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&Client->timer,
-                                        (UA_TimerCallback) callback, data,
+    return UA_Timer_addRepeatedCallback(&client->timer,
+                                        (UA_ApplicationCallback) callback, client, data,
                                         interval, callbackId);
 }
 
 
 UA_StatusCode
-UA_Client_removeRepeatedCallback(UA_Client *Client, UA_UInt64 callbackId) {
-    return UA_Timer_removeRepeatedCallback(&Client->timer, callbackId);
+UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId) {
+    return UA_Timer_removeRepeatedCallback(&client->timer, callbackId);
 }

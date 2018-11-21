@@ -41,7 +41,7 @@ SecureChannel
   is established with an *OpenSecureChannel* request and response message pair.
   **Attention!** Even though a SecureChannel is mandatory, encryption might
   still be disabled. The *SecurityMode* of a SecureChannel can be either
-  ``None``, ``Sign``, or ``SignAndEncrypt``. As of version 0.2 of open6251,
+  ``None``, ``Sign``, or ``SignAndEncrypt``. As of version 0.2 of open62541,
   message signing and encryption is still under ongoing development.
 
   With message signing or encryption enabled, the *OpenSecureChannel* messages

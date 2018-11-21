@@ -1,8 +1,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2015-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2015 (c) Chris Iatrou
  *    Copyright 2015, 2017 (c) Florian Palm
@@ -229,37 +229,41 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 
 UA_Node *
 UA_Node_copy_alloc(const UA_Node *src) {
-    // use dstPtr to trick static code analysis in accepting dirty cast
-    void *dstPtr;
+    /* use dstPtr to trick static code analysis in accepting dirty cast */
+    size_t nodesize = 0;
     switch(src->nodeClass) {
         case UA_NODECLASS_OBJECT:
-            dstPtr = UA_malloc(sizeof(UA_ObjectNode));
+            nodesize = sizeof(UA_ObjectNode);
             break;
         case UA_NODECLASS_VARIABLE:
-            dstPtr =UA_malloc(sizeof(UA_VariableNode));
+            nodesize = sizeof(UA_VariableNode);
             break;
         case UA_NODECLASS_METHOD:
-            dstPtr = UA_malloc(sizeof(UA_MethodNode));
+            nodesize = sizeof(UA_MethodNode);
             break;
         case UA_NODECLASS_OBJECTTYPE:
-            dstPtr = UA_malloc(sizeof(UA_ObjectTypeNode));
+            nodesize = sizeof(UA_ObjectTypeNode);
             break;
         case UA_NODECLASS_VARIABLETYPE:
-            dstPtr = UA_malloc(sizeof(UA_VariableTypeNode));
+            nodesize = sizeof(UA_VariableTypeNode);
             break;
         case UA_NODECLASS_REFERENCETYPE:
-            dstPtr = UA_malloc(sizeof(UA_ReferenceTypeNode));
+            nodesize = sizeof(UA_ReferenceTypeNode);
             break;
         case UA_NODECLASS_DATATYPE:
-            dstPtr = UA_malloc(sizeof(UA_DataTypeNode));
+            nodesize = sizeof(UA_DataTypeNode);
             break;
         case UA_NODECLASS_VIEW:
-            dstPtr = UA_malloc(sizeof(UA_ViewNode));
+            nodesize = sizeof(UA_ViewNode);
             break;
         default:
             return NULL;
     }
-    UA_Node *dst = (UA_Node*)dstPtr;
+
+    UA_Node *dst = (UA_Node*)UA_calloc(1,nodesize);
+    if(!dst)
+        return NULL;
+
     dst->nodeClass = src->nodeClass;
 
     UA_StatusCode retval = UA_Node_copy(src, dst);
@@ -327,7 +331,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
                 for(size_t i=0; i<attr->value.arrayLength; i++) {
                     size_t offset =0;
                     const UA_ExtensionObject *curr = &((const UA_ExtensionObject *)attr->value.data)[i];
-                    UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, 0, NULL);
+                    UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, NULL);
                     if(ret != UA_STATUSCODE_GOOD) {
                         return ret;
                     }
@@ -558,11 +562,12 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
             continue;
 
         for(size_t j = refs->targetIdsSize; j > 0; --j) {
-            if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &refs->targetIds[j-1].nodeId))
+            UA_ExpandedNodeId *target = &refs->targetIds[j-1];
+            if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &target->nodeId))
                 continue;
 
             /* Ok, delete the reference */
-            UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j-1]);
+            UA_ExpandedNodeId_deleteMembers(target);
             refs->targetIdsSize--;
 
             /* One matching target remaining */
@@ -570,11 +575,11 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
                 if(j-1 != refs->targetIdsSize) // avoid valgrind error: Source
                                                // and destination overlap in
                                                // memcpy
-                    refs->targetIds[j-1] = refs->targetIds[refs->targetIdsSize];
+                    *target = refs->targetIds[refs->targetIdsSize];
                 return UA_STATUSCODE_GOOD;
             }
 
-            /* Remove refs */
+            /* No target for the ReferenceType remaining. Remove entry. */
             UA_free(refs->targetIds);
             UA_NodeId_deleteMembers(&refs->referenceTypeId);
             node->referencesSize--;
@@ -586,7 +591,7 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
                 return UA_STATUSCODE_GOOD;
             }
 
-            /* Remove the node references */
+            /* No remaining references of any ReferenceType */
             UA_free(node->references);
             node->references = NULL;
             return UA_STATUSCODE_GOOD;
@@ -595,14 +600,51 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
     return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
 }
 
-void UA_Node_deleteReferences(UA_Node *node) {
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        UA_NodeReferenceKind *refs = &node->references[i];
+void
+UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
+                               UA_NodeId* referencesSkip) {
+    /* Nothing to do */
+    if(node->referencesSize == 0 || node->references == NULL)
+        return;
+
+    for(size_t i = node->referencesSize; i > 0; --i) {
+        UA_NodeReferenceKind *refs = &node->references[i-1];
+
+        /* Shall we keep the references of this type? */
+        UA_Boolean skip = false;
+        for(size_t j = 0; j < referencesSkipSize; j++) {
+            if(UA_NodeId_equal(&refs->referenceTypeId, &referencesSkip[j])) {
+                skip = true;
+                break;
+            }
+        }
+        if(skip)
+            continue;
+
+        /* Remove references */
         UA_Array_delete(refs->targetIds, refs->targetIdsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
         UA_NodeId_deleteMembers(&refs->referenceTypeId);
+        node->referencesSize--;
+
+        /* Move last references-kind entry to this position */
+        if(i-1 == node->referencesSize) /* Don't memcpy over the same position */
+            continue;
+        node->references[i-1] = node->references[node->referencesSize];
     }
-    if(node->references)
+
+    if(node->referencesSize == 0) {
+        /* The array is empty. Remove. */
         UA_free(node->references);
-    node->references = NULL;
-    node->referencesSize = 0;
+        node->references = NULL;
+    } else {
+        /* Realloc to save memory */
+        UA_NodeReferenceKind *refs = (UA_NodeReferenceKind*)
+            UA_realloc(node->references, sizeof(UA_NodeReferenceKind) * node->referencesSize);
+        if(refs) /* Do nothing if realloc fails */
+            node->references = refs;
+    }
+}
+
+void UA_Node_deleteReferences(UA_Node *node) {
+    UA_Node_deleteReferencesSubset(node, 0, NULL);
 }

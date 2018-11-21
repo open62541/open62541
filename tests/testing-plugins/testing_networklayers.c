@@ -56,12 +56,11 @@ UA_Connection createDummyConnection(size_t sendBufferSize,
 
     UA_Connection c;
     c.state = UA_CONNECTION_ESTABLISHED;
-    c.localConf = UA_ConnectionConfig_default;
-    c.remoteConf = UA_ConnectionConfig_default;
+    c.config = UA_ConnectionConfig_default;
     c.channel = NULL;
     c.sockfd = 0;
     c.handle = NULL;
-    c.incompleteMessage = UA_BYTESTRING_NULL;
+    c.incompleteChunk = UA_BYTESTRING_NULL;
     c.getSendBuffer = dummyGetSendBuffer;
     c.releaseSendBuffer = dummyReleaseSendBuffer;
     c.send = dummySend;

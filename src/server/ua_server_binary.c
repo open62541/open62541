@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2016 (c) Sten Grüner
@@ -14,7 +14,6 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include "ua_util.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_securechannel_manager.h"
@@ -278,35 +277,32 @@ processHEL(UA_Server *server, UA_Connection *connection,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Parameterize the connection */
-    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount; /* zero -> unlimited */
-    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize; /* zero -> unlimited */
-    connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
-    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
-    if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
-        connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
-    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
-    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
-        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
+    /* Currently not checked */
     UA_String_deleteMembers(&helloMessage.endpointUrl);
 
-    if(connection->remoteConf.recvBufferSize == 0) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | Remote end indicated a receive buffer size of 0. "
-                    "Not able to send any messages.",
-                    connection->sockfd);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    /* TODO: Use the config of the exact NetworkLayer */
+    if(server->config.networkLayersSize == 0)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    const UA_ConnectionConfig *localConfig = &server->config.networkLayers[0].localConnectionConfig;
 
-    connection->state = UA_CONNECTION_ESTABLISHED;
+    /* Parameterize the connection */
+    UA_ConnectionConfig remoteConfig;
+    remoteConfig.protocolVersion = helloMessage.protocolVersion;
+    remoteConfig.sendBufferSize = helloMessage.sendBufferSize;
+    remoteConfig.recvBufferSize = helloMessage.receiveBufferSize;
+    remoteConfig.maxMessageSize = helloMessage.maxMessageSize;
+    remoteConfig.maxChunkCount = helloMessage.maxChunkCount;
+    retval = UA_Connection_processHELACK(connection, localConfig, &remoteConfig);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Error during the HEL/ACK handshake",
+                    (int)(connection->sockfd));
+        return retval;
+    }
 
     /* Build acknowledge response */
     UA_TcpAcknowledgeMessage ackMessage;
-    ackMessage.protocolVersion = connection->localConf.protocolVersion;
-    ackMessage.receiveBufferSize = connection->localConf.recvBufferSize;
-    ackMessage.sendBufferSize = connection->localConf.sendBufferSize;
-    ackMessage.maxMessageSize = connection->localConf.maxMessageSize;
-    ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
+    memcpy(&ackMessage, localConfig, sizeof(UA_TcpAcknowledgeMessage)); /* Same struct layout.. */
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
@@ -314,8 +310,7 @@ processHEL(UA_Server *server, UA_Connection *connection,
     /* Get the send buffer from the network layer */
     UA_ByteString ack_msg;
     UA_ByteString_init(&ack_msg);
-    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
-                                       &ack_msg);
+    retval = connection->getSendBuffer(connection, connection->config.sendBufferSize, &ack_msg);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -345,10 +340,16 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     /* Decode the request */
     size_t offset = 0;
     UA_NodeId requestType;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_OpenSecureChannelRequest openSecureChannelRequest;
-    retval |= UA_NodeId_decodeBinary(msg, &offset, &requestType);
-    retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
+    UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_NodeId_deleteMembers(&requestType);
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not decode the NodeId. Closing the connection");
+        UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
+        return retval;
+    }
+    retval = UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
 
     /* Error occurred */
     if(retval != UA_STATUSCODE_GOOD ||
@@ -385,7 +386,9 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
                             UA_StatusCode_name(retval));
         UA_SecureChannelManager_close(&server->secureChannelManager,
                                       channel->securityToken.channelId);
+        return retval;
     }
+
     return retval;
 }
 
@@ -434,9 +437,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Decode the request */
     UA_STACKARRAY(UA_Byte, request, requestType->memSize);
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
-    retval = UA_decodeBinary(msg, &offset, request, requestType,
-                             server->config.customDataTypesSize,
-                             server->config.customDataTypes);
+    retval = UA_decodeBinary(msg, &offset, request, requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
                              "Could not decode the request");
@@ -550,6 +551,13 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     ((UA_ResponseHeader*)response)->requestHandle = requestHeader->requestHandle;
     ((UA_ResponseHeader*)response)->timestamp = UA_DateTime_now();
 
+    /* Process normal services before initializing the message context.
+     * Some services may initialize new message contexts and to support network
+     * layers only providing one send buffer, only one message context can be
+     * initialized concurrently. */
+    if(serviceType == UA_SERVICETYPE_NORMAL)
+        service(server, session, request, response);
+
     /* Start the message */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, responseType->binaryEncodingId);
     UA_MessageContext mc;
@@ -576,7 +584,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         break;
     case UA_SERVICETYPE_NORMAL:
     default:
-        service(server, session, request, response);
         retval = UA_MessageContext_encode(&mc, response, responseType);
         break;
     }
@@ -601,7 +608,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. */
-static UA_StatusCode
+static void
 processSecureChannelMessage(void *application, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             const UA_ByteString *message) {
@@ -626,7 +633,12 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
         break;
     }
-    return retval;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                            "Processing the message failed with StatusCode %s. "
+                            "Closing the channel.", UA_StatusCode_name(retval));
+        Service_CloseSecureChannel(server, channel);
+    }
 }
 
 static UA_StatusCode
@@ -669,7 +681,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
     /* Process chunk without a channel; must be OPN */
     UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | No channel attached to the connection. "
-                 "Process the chunk directly", connection->sockfd);
+                 "Process the chunk directly", (int)(connection->sockfd));
     size_t offset = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     UA_StatusCode retval =
@@ -685,7 +697,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
     case UA_MESSAGETYPE_OPN:
     {
         UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "Connection %i | Process OPN message", connection->sockfd);
+                     "Connection %i | Process OPN message", (int)(connection->sockfd));
 
         /* Called before HEL */
         if(connection->state != UA_CONNECTION_ESTABLISHED) {
@@ -709,17 +721,18 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        retval = UA_SecureChannel_processChunk(connection->channel, message,
-                                               processSecureChannelMessage,
-                                               server);
+        retval = UA_SecureChannel_decryptAddChunk(connection->channel, message, false);
         if(retval != UA_STATUSCODE_GOOD)
             break;
+
+        UA_SecureChannel_processCompleteMessages(connection->channel, server,
+                                                 processSecureChannelMessage);
         break;
     }
     default:
         UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Connection %i | Expected OPN or HEL message on a connection "
-                     "without a SecureChannel", connection->sockfd);
+                     "without a SecureChannel", (int)(connection->sockfd));
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
         break;
     }
@@ -727,25 +740,22 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
 }
 
 static UA_StatusCode
-processCompleteChunk(void *const application,
-                     UA_Connection *const connection,
-                     UA_ByteString *const chunk) {
-    UA_Server *const server = (UA_Server*)application;
+processCompleteChunk(void *const application, UA_Connection *connection,
+                     UA_ByteString *chunk) {
+    UA_Server *server = (UA_Server*)application;
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
     UA_debug_dumpCompleteChunk(server, connection, chunk);
 #endif
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
-    return UA_SecureChannel_processChunk(connection->channel, chunk,
-                                         processSecureChannelMessage,
-                                         server);
+    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
 }
 
-static void
-processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                     UA_ByteString *message) {
+void
+UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                               UA_ByteString *message) {
     UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                 "Connection %i | Received a packet.", connection->sockfd);
+                 "Connection %i | Received a packet.", (int)(connection->sockfd));
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(message->data, message->length);
 #endif
@@ -755,58 +765,34 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Processing the message failed with "
-                    "error %s", connection->sockfd, UA_StatusCode_name(retval));
+                    "error %s", (int)(connection->sockfd), UA_StatusCode_name(retval));
         /* Send an ERR message and close the connection */
         UA_TcpErrorMessage error;
         error.error = retval;
         error.reason = UA_STRING_NULL;
         UA_Connection_sendError(connection, &error);
         connection->close(connection);
-    }
-}
-
-#ifndef UA_ENABLE_MULTITHREADING
-
-void
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message) {
-    processBinaryMessage(server, connection, message);
-}
-
-#else
-
-typedef struct {
-    UA_Connection *connection;
-    UA_ByteString message;
-} ConnectionMessage;
-
-static void
-workerProcessBinaryMessage(UA_Server *server, ConnectionMessage *cm) {
-    processBinaryMessage(server, cm->connection, &cm->message);
-    UA_free(cm);
-}
-
-void
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message) {
-    /* Allocate the memory for the callback data */
-    ConnectionMessage *cm = (ConnectionMessage*)UA_malloc(sizeof(ConnectionMessage));
-
-    /* If malloc failed, execute immediately */
-    if(!cm) {
-        processBinaryMessage(server, connection, message);
         return;
     }
 
-    /* Dispatch to the workers */
-    cm->connection = connection;
-    cm->message = *message;
-    UA_Server_workerCallback(server, (UA_ServerCallback)workerProcessBinaryMessage, cm);
+    UA_SecureChannel *channel = connection->channel;
+    if(!channel)
+        return;
+
+    /* Process complete messages */
+    UA_SecureChannel_processCompleteMessages(channel, server, processSecureChannelMessage);
+
+    /* Is the channel still open? */
+    if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
+        return;
+
+    /* Store unused decoded chunks internally in the SecureChannel */
+    UA_SecureChannel_persistIncompleteMessages(connection->channel);
 }
 
+#ifdef UA_ENABLE_MULTITHREADING
 static void
-deleteConnectionTrampoline(UA_Server *server, void *data) {
-    UA_Connection *connection = (UA_Connection*)data;
+deleteConnection(UA_Server *server, UA_Connection *connection) {
     connection->free(connection);
 }
 #endif
@@ -817,6 +803,13 @@ UA_Server_removeConnection(UA_Server *server, UA_Connection *connection) {
 #ifndef UA_ENABLE_MULTITHREADING
     connection->free(connection);
 #else
-    UA_Server_delayedCallback(server, deleteConnectionTrampoline, connection);
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_malloc(sizeof(UA_DelayedCallback));
+    if(!dc)
+        return; /* Malloc cannot fail on OS's that support multithreading. They
+                 * rather kill the process. */
+    dc->callback = (UA_ApplicationCallback)deleteConnection;
+    dc->application = server;
+    dc->data = connection;
+    UA_WorkQueue_enqueueDelayed(&server->workQueue, dc);
 #endif
 }

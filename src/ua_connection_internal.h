@@ -11,12 +11,17 @@
 #ifndef UA_CONNECTION_INTERNAL_H_
 #define UA_CONNECTION_INTERNAL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_plugin_network.h"
 #include "ua_transport_generated.h"
+
+_UA_BEGIN_DECLS
+
+/* Process the remote configuration in the HEL/ACK handshake. The connection
+ * config is initialized with the local settings. */
+UA_StatusCode
+UA_Connection_processHELACK(UA_Connection *connection,
+                            const UA_ConnectionConfig *localConfig,
+                            const UA_ConnectionConfig *remoteConfig);
 
 /* The application can be the client or the server */
 typedef UA_StatusCode (*UA_Connection_processChunk)(void *application,
@@ -44,21 +49,6 @@ UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
                             UA_Connection_processChunk processCallback,
                             const UA_ByteString *packet);
-/*
- * @param connection The connection
- * @param message The received message. The content may be overwritten when a
- *        previsouly received buffer is completed.
- * @param realloced The Boolean value is set to true if the outgoing message has
- *        been reallocated from the network layer.
- * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs,
- *         the ingoing message and the current buffer in the connection are
- *         freed. */
-UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection,
-                               UA_ByteString * UA_RESTRICT message,
-                               UA_Boolean * UA_RESTRICT realloced);
-
-
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
  * current thread up to the given timeout.
@@ -91,8 +81,6 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_Connection_attachSecureChannel(UA_Connection *connection,
                                        UA_SecureChannel *channel);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CONNECTION_INTERNAL_H_ */

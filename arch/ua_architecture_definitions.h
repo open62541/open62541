@@ -17,6 +17,9 @@
 #include <stddef.h>
 
 /* Include stdint.h and stdbool.h or workaround for older Visual Studios */
+#ifdef UNDER_CE
+# include "stdint.h"
+#endif
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
 # include <stdbool.h> /* C99 Boolean */
@@ -131,6 +134,25 @@
 # define UA_DEPRECATED __declspec(deprecated)
 #else
 # define UA_DEPRECATED
+#endif
+
+/**
+ * Internal Attributes
+ * -------------------
+ * These attributes are only defined if the macro UA_INTERNAL is defined. That
+ * way public methods can be annotated (e.g. to warn for unused results) but
+ * warnings are only triggered for internal code. */
+
+#if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
+# define UA_INTERNAL_DEPRECATED _Pragma ("GCC warning \"Macro is deprecated for internal use\"")
+#else
+# define UA_INTERNAL_DEPRECATED
+#endif
+
+#if defined(UA_INTERNAL) && (defined(__GNUC__) || defined(__clang__))
+# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+# define UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 #endif
 
 /**

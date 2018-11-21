@@ -14,13 +14,11 @@
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* BSD Queue Macros */
+#define UA_INTERNAL
 #include "ua_types.h"
 #include "../deps/queue.h"
+
+_UA_BEGIN_DECLS
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
@@ -151,6 +149,9 @@ UA_atomic_subSize(volatile size_t *addr, size_t decrease) {
  * up to that point. */
 size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 
+/* Same as UA_ReadNumber but with a base parameter */
+size_t UA_readNumberWithBase(u8 *buf, size_t buflen, u32 *number, u8 base);
+
 #ifndef UA_MIN
 #define UA_MIN(A,B) (A > B ? B : A)
 #endif
@@ -163,8 +164,6 @@ size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_UTIL_H_ */

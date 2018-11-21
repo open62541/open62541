@@ -17,7 +17,6 @@
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  */
 
-#include "ua_types.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -26,6 +25,10 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
+#endif
+
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+#include <valgrind/memcheck.h>
 #endif
 
 /**********************/
@@ -113,10 +116,15 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = parentCopy->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
-        for(size_t j = 0; j<ref->targetIdsSize; j++)
-            retval |= callback(ref->targetIds[j].nodeId, ref->isInverse,
-                               ref->referenceTypeId, handle);
+        for(size_t j = 0; j<ref->targetIdsSize; j++) {
+            retval = callback(ref->targetIds[j].nodeId, ref->isInverse,
+                              ref->referenceTypeId, handle);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
     }
+
+cleanup:
     UA_Node_deleteMembers(parentCopy);
     UA_free(parentCopy);
 
@@ -148,73 +156,14 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-    registeredServer_list_entry *rs, *rs_tmp;
-    LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
-        LIST_REMOVE(rs, pointers);
-        UA_RegisteredServer_deleteMembers(&rs->registeredServer);
-        UA_free(rs);
-    }
-    periodicServerRegisterCallback_entry *ps, *ps_tmp;
-    LIST_FOREACH_SAFE(ps, &server->periodicServerRegisterCallbacks, pointers, ps_tmp) {
-        LIST_REMOVE(ps, pointers);
-        UA_free(ps->callback);
-        UA_free(ps);
-    }
-
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-        destroyMulticastDiscoveryServer(server);
-
-    serverOnNetwork_list_entry *son, *son_tmp;
-    LIST_FOREACH_SAFE(son, &server->serverOnNetwork, pointers, son_tmp) {
-        LIST_REMOVE(son, pointers);
-        UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
-        if(son->pathTmp)
-            UA_free(son->pathTmp);
-        UA_free(son);
-    }
-
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
-        serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
-        while(currHash) {
-            serverOnNetwork_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
-        }
-    }
-
-    mdnsHostnameToIp_list_entry *mhi, *mhi_tmp;
-    LIST_FOREACH_SAFE(mhi, &server->mdnsHostnameToIp, pointers, mhi_tmp) {
-        LIST_REMOVE(mhi, pointers);
-        UA_String_deleteMembers(&mhi->mdnsHostname);
-        UA_free(mhi);
-    }
-
-    for(size_t i = 0; i < MDNS_HOSTNAME_TO_IP_HASH_PRIME; i++) {
-        mdnsHostnameToIp_hash_entry* currHash = server->mdnsHostnameToIpHash[i];
-        while(currHash) {
-            mdnsHostnameToIp_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
-        }
-    }
-# endif
-
+    UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
 
     /* Clean up the Admin Session */
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
 
-#ifdef UA_ENABLE_MULTITHREADING
-    /* Process new delayed callbacks from the cleanup */
-    UA_Server_cleanupDispatchQueue(server);
-    pthread_mutex_destroy(&server->dispatchQueue_accessMutex);
-    pthread_cond_destroy(&server->dispatchQueue_condition);
-    pthread_mutex_destroy(&server->dispatchQueue_conditionMutex);
-#else
-    /* Process new delayed callbacks from the cleanup */
-    UA_Server_cleanupDelayedCallbacks(server);
-#endif
+    /* Clean up the work queue */
+    UA_WorkQueue_cleanup(&server->workQueue);
 
     /* Delete the timed work */
     UA_Timer_deleteMembers(&server->timer);
@@ -244,13 +193,6 @@ UA_Server_new(const UA_ServerConfig *config) {
     if(!config)
         return NULL;
 
-    /* At least one endpoint has to be configured */
-    if(config->endpointsSize == 0) {
-        UA_LOG_FATAL(config->logger, UA_LOGCATEGORY_SERVER,
-                     "There has to be at least one endpoint.");
-        return NULL;
-    }
-
     /* Allocate the server */
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
@@ -271,15 +213,7 @@ UA_Server_new(const UA_ServerConfig *config) {
     /* Initialize the handling of repeated callbacks */
     UA_Timer_init(&server->timer);
 
-    /* Initialized the linked list for delayed callbacks */
-#ifndef UA_ENABLE_MULTITHREADING
-    SLIST_INIT(&server->delayedCallbacks);
-#endif
-
-    /* Initialized the dispatch queue for worker threads */
-#ifdef UA_ENABLE_MULTITHREADING
-    SIMPLEQ_INIT(&server->dispatchQueue);
-#endif
+    UA_WorkQueue_init(&server->workQueue);
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);
@@ -301,37 +235,9 @@ UA_Server_new(const UA_ServerConfig *config) {
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
                                   10000, NULL);
 
-    /* Initialized discovery database */
+    /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    LIST_INIT(&server->registeredServers);
-    server->registeredServersSize = 0;
-    LIST_INIT(&server->periodicServerRegisterCallbacks);
-    server->registerServerCallback = NULL;
-    server->registerServerCallbackData = NULL;
-#endif
-
-    /* Initialize multicast discovery */
-#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
-    server->mdnsDaemon = NULL;
-    server->mdnsSocket = UA_INVALID_SOCKET;
-    server->mdnsMainSrvAdded = UA_FALSE;
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-        initMulticastDiscoveryServer(server);
-
-    LIST_INIT(&server->serverOnNetwork);
-    server->serverOnNetworkSize = 0;
-    server->serverOnNetworkRecordIdCounter = 0;
-    server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-    memset(server->serverOnNetworkHash, 0,
-           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
-
-
-    LIST_INIT(&server->mdnsHostnameToIp);
-    memset(server->mdnsHostnameToIpHash, 0,
-           sizeof(struct mdnsHostnameToIp_hash_entry*) * MDNS_HOSTNAME_TO_IP_HASH_PRIME);
-
-    server->serverOnNetworkCallback = NULL;
-    server->serverOnNetworkCallbackData = NULL;
+    UA_DiscoveryManager_init(&server->discoveryManager, server);
 #endif
 
     /* Initialize namespace 0*/
@@ -344,6 +250,7 @@ UA_Server_new(const UA_ServerConfig *config) {
         UA_Server_delete(server);
         return NULL;
     }
+
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_Server_initPubSubNS0(server);
@@ -360,8 +267,9 @@ UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_UInt32 interval,
                               UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&server->timer, (UA_TimerCallback)callback,
-                                        data, interval, callbackId);
+    return UA_Timer_addRepeatedCallback(&server->timer,
+                                        (UA_ApplicationCallback)callback,
+                                        server, data, interval, callbackId);
 }
 
 UA_StatusCode
@@ -373,4 +281,218 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 UA_StatusCode
 UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId) {
     return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_updateCertificate(UA_Server *server,
+                            const UA_ByteString *oldCertificate,
+                            const UA_ByteString *newCertificate,
+                            const UA_ByteString *newPrivateKey,
+                            UA_Boolean closeSessions,
+                            UA_Boolean closeSecureChannels) {
+
+    if (server == NULL || oldCertificate == NULL
+        || newCertificate == NULL || newPrivateKey == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if (closeSessions) {
+        UA_SessionManager *sm = &server->sessionManager;
+        session_list_entry *current;
+        LIST_FOREACH(current, &sm->sessions, pointers) {
+            if (UA_ByteString_equal(oldCertificate,
+                                    &current->session.header.channel->securityPolicy->localCertificate)) {
+                UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken);
+            }
+        }
+
+    }
+
+    if (closeSecureChannels) {
+        UA_SecureChannelManager *cm = &server->secureChannelManager;
+        channel_entry *entry;
+        TAILQ_FOREACH(entry, &cm->channels, pointers) {
+            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate, oldCertificate)){
+                UA_SecureChannelManager_close(cm, entry->channel.securityToken.channelId);
+            }
+        }
+    }
+
+    size_t i = 0;
+    while (i < server->config.endpointsSize) {
+        UA_EndpointDescription *ed = &server->config.endpoints[i].endpointDescription;
+        if (UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
+            UA_String_deleteMembers(&ed->serverCertificate);
+            UA_String_copy(newCertificate, &ed->serverCertificate);
+            UA_SecurityPolicy *sp = &server->config.endpoints[i].securityPolicy;
+            sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
+        }
+        i++;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/********************/
+/* Main Server Loop */
+/********************/
+
+#define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
+
+/* Start: Spin up the workers and the network layer and sample the server's
+ *        start time.
+ * Iterate: Process repeated callbacks and events in the network layer. This
+ *          part can be driven from an external main-loop in an event-driven
+ *          single-threaded architecture.
+ * Stop: Stop workers, finish all callbacks, stop the network layer, clean up */
+
+UA_StatusCode
+UA_Server_run_startup(UA_Server *server) {
+    UA_Variant var;
+    UA_StatusCode result = UA_STATUSCODE_GOOD;
+	
+	/* At least one endpoint has to be configured */
+    if(server->config.endpointsSize == 0) {
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "There has to be at least one endpoint.");
+    }
+
+    /* Sample the start time and set it to the Server object */
+    server->startTime = UA_DateTime_now();
+    UA_Variant_init(&var);
+    UA_Variant_setScalar(&var, &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Server_writeValue(server,
+                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
+                         var);
+
+    /* Start the networklayers */
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        result |= nl->start(nl, &server->config.customHostname);
+    }
+
+    /* Spin up the worker threads */
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Spinning up %u worker thread(s)", server->config.nThreads);
+    UA_WorkQueue_start(&server->workQueue, server->config.nThreads);
+#endif
+
+    /* Start the multicast discovery server */
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.applicationDescription.applicationType ==
+       UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        startMulticastDiscoveryServer(server);
+#endif
+
+    return result;
+}
+
+static void
+serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
+                        void *callbackApplication, void *data) {
+#ifndef UA_ENABLE_MULTITHREADING
+    cb(callbackApplication, data);
+#else
+    UA_WorkQueue_enqueue(&server->workQueue, cb, callbackApplication, data);
+#endif
+}
+
+UA_UInt16
+UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
+    /* Process repeated work */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextRepeated = UA_Timer_process(&server->timer, now,
+                     (UA_TimerExecutionCallback)serverExecuteRepeatedCallback, server);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
+    if(nextRepeated > latest)
+        nextRepeated = latest;
+
+    UA_UInt16 timeout = 0;
+
+    /* round always to upper value to avoid timeout to be set to 0
+    * if(nextRepeated - now) < (UA_DATETIME_MSEC/2) */
+    if(waitInternal)
+        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
+
+    /* Listen on the networklayer */
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        nl->listen(nl, server, timeout);
+    }
+
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
+    if(server->config.applicationDescription.applicationType ==
+       UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        // TODO multicastNextRepeat does not consider new input data (requests)
+        // on the socket. It will be handled on the next call. if needed, we
+        // need to use select with timeout on the multicast socket
+        // server->mdnsSocket (see example in mdnsd library) on higher level.
+        UA_DateTime multicastNextRepeat = 0;
+        UA_StatusCode hasNext =
+            iterateMulticastDiscoveryServer(server, &multicastNextRepeat, true);
+        if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
+            nextRepeated = multicastNextRepeat;
+    }
+#endif
+
+#ifndef UA_ENABLE_MULTITHREADING
+    UA_WorkQueue_manuallyProcessDelayed(&server->workQueue);
+#endif
+
+    now = UA_DateTime_nowMonotonic();
+    timeout = 0;
+    if(nextRepeated > now)
+        timeout = (UA_UInt16)((nextRepeated - now) / UA_DATETIME_MSEC);
+    return timeout;
+}
+
+UA_StatusCode
+UA_Server_run_shutdown(UA_Server *server) {
+    /* Stop the netowrk layer */
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        nl->stop(nl, server);
+    }
+
+#ifdef UA_ENABLE_MULTITHREADING
+    /* Shut down the workers */
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Shutting down %u worker thread(s)",
+                (UA_UInt32)server->workQueue.workersSize);
+    UA_WorkQueue_stop(&server->workQueue);
+#endif
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    /* Stop multicast discovery */
+    if(server->config.applicationDescription.applicationType ==
+       UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        stopMulticastDiscoveryServer(server);
+#endif
+
+    /* Execute all delayed callbacks */
+    UA_WorkQueue_cleanup(&server->workQueue);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+    size_t loopCount = 0;
+#endif
+    while(*running) {
+#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
+        if(loopCount == 0) {
+            VALGRIND_DO_LEAK_CHECK;
+        }
+        ++loopCount;
+        loopCount %= UA_VALGRIND_INTERACTIVE_INTERVAL;
+#endif
+        UA_Server_run_iterate(server, true);
+    }
+    return UA_Server_run_shutdown(server);
 }

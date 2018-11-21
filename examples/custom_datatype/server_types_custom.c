@@ -18,7 +18,7 @@ add3PointDataType(UA_Server *server) {
     dattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
     dattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
     dattr.dataType = PointType.typeId;
-    dattr.valueRank = -1;
+    dattr.valueRank = UA_VALUERANK_SCALAR;
 
     Point p;
     p.x = 0.0;
@@ -45,7 +45,7 @@ add3DPointVariable(UA_Server *server) {
     vattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
     vattr.dataType = PointType.typeId;
-    vattr.valueRank = -1;
+    vattr.valueRank = UA_VALUERANK_SCALAR;
     UA_Variant_setScalar(&vattr.value, &p, &PointType);
 
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "3D.Point"),
@@ -61,10 +61,18 @@ int main(void) {
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     /* Make your custom datatype known to the stack */
-    UA_DataType types[1];
+    UA_DataType *types = (UA_DataType*)UA_malloc(sizeof(UA_DataType));
+    UA_DataTypeMember *members = (UA_DataTypeMember*)UA_malloc(sizeof(UA_DataTypeMember) * 3);
+    members[0] = Point_members[0];
+    members[1] = Point_members[1];
+    members[2] = Point_members[2];
     types[0] = PointType;
-    config->customDataTypes = types;
-    config->customDataTypesSize = 1;
+    types[0].members = members;
+
+    /* Attention! Here the custom datatypes are allocated on the stack. So they
+     * cannot be accessed from parallel (worker) threads. */
+    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
+    config->customDataTypes = &customDataTypes;
 
     UA_Server *server = UA_Server_new(config);
 

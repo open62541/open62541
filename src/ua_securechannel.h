@@ -11,16 +11,14 @@
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
 #include "../deps/queue.h"
+
+_UA_BEGIN_DECLS
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
@@ -44,17 +42,25 @@ typedef struct UA_SessionHeader {
 } UA_SessionHeader;
 
 /* For chunked requests */
-struct ChunkPayload {
-    SIMPLEQ_ENTRY(ChunkPayload) pointers;
+typedef struct UA_ChunkPayload {
+    SIMPLEQ_ENTRY(UA_ChunkPayload) pointers;
     UA_ByteString bytes;
-};
+    UA_Boolean copied; /* Do the bytes point to a buffer from the network or was
+                          memory allocated for the chunk separately */
+} UA_ChunkPayload;
 
-struct MessageEntry {
-    LIST_ENTRY(MessageEntry) pointers;
+/* Receieved messages. Process them only in order. The Chunk payload has all
+ * headers and the padding stripped out. The payload begins at the
+ * ExtensionObject prefix.*/
+typedef struct UA_Message {
+    TAILQ_ENTRY(UA_Message) pointers;
     UA_UInt32 requestId;
-    SIMPLEQ_HEAD(chunkpayload_pointerlist, ChunkPayload) chunkPayload;
-    size_t chunkPayloadSize;
-};
+    UA_MessageType messageType;
+    SIMPLEQ_HEAD(pp, UA_ChunkPayload) chunkPayloads;
+    size_t chunkPayloadsSize; /* No of chunks received so far */
+    size_t messageSize; /* Total length of the chunks received so far */
+    UA_Boolean final; /* All chunks for the message have been received */
+} UA_Message;
 
 typedef enum {
     UA_SECURECHANNELSTATE_FRESH,
@@ -62,11 +68,21 @@ typedef enum {
     UA_SECURECHANNELSTATE_CLOSED
 } UA_SecureChannelState;
 
+typedef TAILQ_HEAD(UA_MessageQueue, UA_Message) UA_MessageQueue;
+
 struct UA_SecureChannel {
     UA_SecureChannelState   state;
     UA_MessageSecurityMode  securityMode;
+    /* We use three tokens because when switching tokens the client is allowed to accept
+     * messages with the old token for up to 25% of the lifetime after the token would have timed out.
+     * For messages that are sent, the new token is already used, which is contained in the securityToken
+     * variable. The nextSecurityToken variable holds a newly issued token, that will be automatically
+     * revolved into the securityToken variable. This could be done with two variables, but would require
+     * greater changes to the current code. This could be done in the future after the client and networking
+     * structure has been reworked, which would make this easier to implement. */
     UA_ChannelSecurityToken securityToken; /* the channelId is contained in the securityToken */
     UA_ChannelSecurityToken nextSecurityToken;
+    UA_ChannelSecurityToken previousSecurityToken;
 
     /* The endpoint and context of the channel */
     const UA_SecurityPolicy *securityPolicy;
@@ -84,15 +100,23 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    LIST_HEAD(session_pointerlist, UA_SessionHeader) sessions;
-    LIST_HEAD(chunk_pointerlist, MessageEntry) chunks;
+    LIST_HEAD(, UA_SessionHeader) sessions;
+    UA_MessageQueue messages;
 };
 
+void UA_SecureChannel_init(UA_SecureChannel *channel);
+
+void UA_SecureChannel_close(UA_SecureChannel *channel);
+
 UA_StatusCode
-UA_SecureChannel_init(UA_SecureChannel *channel,
-                      const UA_SecurityPolicy *securityPolicy,
-                      const UA_ByteString *remoteCertificate);
-void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
+UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
+                                   const UA_SecurityPolicy *securityPolicy,
+                                   const UA_ByteString *remoteCertificate);
+
+/* Remove (partially) received unprocessed messages */
+void UA_SecureChannel_deleteMessages(UA_SecureChannel *channel);
+
+void UA_SecureChannel_deleteMembers(UA_SecureChannel *channel);
 
 /* Generates new keys and sets them in the channel context */
 UA_StatusCode
@@ -166,31 +190,40 @@ void
 UA_MessageContext_abort(UA_MessageContext *mc);
 
 /**
- * Process Received Chunks
- * ----------------------- */
+ * Receive Message
+ * --------------- */
 
-typedef UA_StatusCode
+/* Decrypt a chunk and add it to the message. Create a new message if necessary. */
+UA_StatusCode
+UA_SecureChannel_decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
+                                 UA_Boolean allowPreviousToken);
+
+/* The network buffer is about to be cleared. Copy all chunks that point into
+ * the network buffer into dedicated memory. */
+UA_StatusCode
+UA_SecureChannel_persistIncompleteMessages(UA_SecureChannel *channel);
+
+typedef void
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
                             UA_MessageType messageType, UA_UInt32 requestId,
                             const UA_ByteString *message);
 
-/* Process a single chunk. This also decrypts the chunk if required. The
- * callback function is called with the complete message body if the message is
- * complete.
+/* Process received complete messages in-order. The callback function is called
+ * with the complete message body if the message is complete. The message is
+ * removed afterwards.
  *
  * Symmetric callback is ERR, MSG, CLO only
  * Asymmetric callback is OPN only
  *
  * @param channel the channel the chunks were received on.
- * @param chunks the memory region where the chunks are stored.
+ * @param application data pointer to application specific data that gets passed
+ *                    on to the callback function.
  * @param callback the callback function that gets called with the complete
  *                 message body, once a final chunk is processed.
- * @param application data pointer to application specific data that gets passed
- *                    on to the callback function. */
+ * @return Returns if an irrecoverable error occured. Maybe close the channel. */
 UA_StatusCode
-UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
-                              UA_ProcessMessageCallback callback,
-                              void *application);
+UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *application,
+                                         UA_ProcessMessageCallback callback);
 
 /**
  * Log Helper
@@ -207,7 +240,7 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
 #define UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Connection %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -216,7 +249,7 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
 #define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Connection %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -225,7 +258,7 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
 #define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
                  "Connection %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -234,7 +267,7 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
 #define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
                  "Connection %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -243,7 +276,7 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
 #define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Connection %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sockfd) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -258,8 +291,6 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
 #define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \
     UA_MACRO_EXPAND(UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SECURECHANNEL_H_ */
