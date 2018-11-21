@@ -229,8 +229,9 @@ getConditionFieldNodeId(UA_Server *server,
                         UA_NodeId *outFieldNodeId) {
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *conditionNodeId, 1, fieldName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+        UA_StatusCode retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return bpr.statusCode;
+        return retval;
     }
 
     *outFieldNodeId = bpr.targets[0].targetId.nodeId;
@@ -1737,8 +1738,9 @@ setConditionVariableCallbacks(UA_Server *server,
     for(size_t i=0; (i<sizeof(conditionVariableName)/sizeof(conditionVariableName[0])) && (retval == UA_STATUSCODE_GOOD); i++) {
         UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, &conditionVariableName[i]);
         if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+            UA_StatusCode retval = bpr.statusCode;
             UA_BrowsePathResult_deleteMembers(&bpr);
-            return bpr.statusCode;
+            return retval;
         }
         UA_ValueCallback callback ;
         callback.onRead = NULL;
@@ -1993,8 +1995,9 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *conditio
     /* Get optional Field NodId from ConditionType -> user should give the correct ConditionType or Subtype!!!! */
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *conditionType, 1, fieldName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+        UA_StatusCode retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
-        return bpr.statusCode;
+        return retval;
     }
 
     /* Get Node */
@@ -2043,8 +2046,9 @@ UA_Server_setConditionField(UA_Server *server, const UA_NodeId *condition,
                             const UA_QualifiedName* fieldName) {
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, fieldName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_BrowsePathResult_deleteMembers(&bpr);
-        return bpr.statusCode;
+            UA_StatusCode retval = bpr.statusCode;
+            UA_BrowsePathResult_deleteMembers(&bpr);
+            return retval;
     }
     UA_Variant value;
     UA_Variant_init(&value);
@@ -2066,14 +2070,16 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId *
     /*1) find Variable Field of the Condition*/
     UA_BrowsePathResult bprConditoinVariableField = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, variableFieldName);
     if(bprConditoinVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditoinVariableField.targetsSize < 1) {
+        UA_StatusCode retval = bprConditoinVariableField.statusCode;
         UA_BrowsePathResult_deleteMembers(&bprConditoinVariableField);
-        return bprConditoinVariableField.statusCode;
+        return retval;
     }
     /*2) find Property of the Variable Field of the Condition*/
     UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditoinVariableField.targets->targetId.nodeId, 1, variablePropertyName);
     if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD || bprVariableFieldProperty.targetsSize < 1) {
+        UA_StatusCode retval = bprVariableFieldProperty.statusCode;
         UA_BrowsePathResult_deleteMembers(&bprVariableFieldProperty);
-        return bprVariableFieldProperty.statusCode;
+        return retval;
     }
 
     UA_Variant value;
