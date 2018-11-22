@@ -475,12 +475,17 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs,
                               UA_UInt16 timeout) {
     /* Every open socket can generate two jobs */
     ServerNetworkLayerTCP *layer = nl->handle;
-    UA_Job *js = malloc(sizeof(UA_Job) * (size_t)((layer->mappingsSize * 2)));
+    size_t totalJobs = (size_t)layer->mappingsSize * 2;
+    if(totalJobs == 0)
+        return 0;
+
+    /* Allocate jobs array */
+    UA_Job *js = malloc(sizeof(UA_Job) * totalJobs);
     if(!js)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return 0; /* Don't receive messages ... */
 
     /* Remove closed sockets */
-    size_t totalJobs = removeClosedConnections(layer, js);
+    totalJobs = removeClosedConnections(layer, js);
 
     /* Listen on open sockets (including the server) */
     fd_set fdset, errset;
