@@ -1152,12 +1152,15 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
  */
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
-    UA_StatusCode retval =
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if (writerGroup->config.publishingInterval > 0) {
+        retval =
             UA_PubSubManager_addRepeatedCallback(server, (UA_ServerCallback) UA_WriterGroup_publishCallback,
                                                  writerGroup, (UA_UInt32) writerGroup->config.publishingInterval,
                                                  &writerGroup->publishCallbackId);
-    if(retval == UA_STATUSCODE_GOOD)
-        writerGroup->publishCallbackIsRegistered = true;
+        if(retval == UA_STATUSCODE_GOOD)
+            writerGroup->publishCallbackIsRegistered = true;
+    }
     //run once after creation
     UA_WriterGroup_publishCallback(server, writerGroup);
     return retval;
