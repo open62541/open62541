@@ -85,20 +85,21 @@ typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
  *
  * @param server The server object.
  * @param callback The callback that shall be added.
- * @param interval The callback shall be repeatedly executed with the given interval
- *        (in ms). The interval must be larger than 5ms. The first execution
+ * @param interval_ms The callback shall be repeatedly executed with the given
+ *        interval (in ms). The interval must be positive. The first execution
  *        occurs at now() + interval at the latest.
- * @param callbackId Set to the identifier of the repeated callback . This can be used to cancel
- *        the callback later on. If the pointer is null, the identifier is not set.
- * @return Upon success, UA_STATUSCODE_GOOD is returned.
- *         An error code otherwise. */
+ * @param callbackId Set to the identifier of the repeated callback . This can
+ *        be used to cancel the callback later on. If the pointer is null, the
+ *        identifier is not set.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
+ *         otherwise. */
 UA_StatusCode UA_EXPORT
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                              void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
+                              void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 UA_StatusCode UA_EXPORT
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                         UA_UInt32 interval);
+                                         UA_Double interval_ms);
 
 /* Remove a repeated callback.
  *
@@ -516,8 +517,8 @@ UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, struct UA_Client *client,
                                             const char* discoveryServerUrl,
-                                            UA_UInt32 intervalMs,
-                                            UA_UInt32 delayFirstRegisterMs,
+                                            UA_Double intervalMs,
+                                            UA_Double delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId);
 
 /* Callback for RegisterServer. Data is passed from the register call */

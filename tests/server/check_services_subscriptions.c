@@ -739,11 +739,12 @@ START_TEST(Server_invalidPublishingInterval) {
 
     UA_CreateSubscriptionRequest_init(&request);
     request.publishingEnabled = true;
-    request.requestedPublishingInterval = 1; // Must be < 5
-printf("BOFFF1 %f\n", server->config.publishingIntervalLimits.min);
+    request.requestedPublishingInterval = -5.0; // Must be positive
     UA_CreateSubscriptionResponse_init(&response);
     Service_CreateSubscription(server, session, &request, &response);
-    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert(response.revisedPublishingInterval ==
+              server->config.publishingIntervalLimits.min);
     UA_CreateSubscriptionResponse_deleteMembers(&response);
 
     server->config.publishingIntervalLimits.min = savedPublishingIntervalLimitsMin;
@@ -771,7 +772,7 @@ START_TEST(Server_invalidSamplingInterval) {
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
     UA_MonitoringParameters params;
     UA_MonitoringParameters_init(&params);
-    params.samplingInterval = 1; // Must be < 5
+    params.samplingInterval = -5.0; // Must be positive
     item.requestedParameters = params;
     request.itemsToCreateSize = 1;
     request.itemsToCreate = &item;
@@ -781,7 +782,9 @@ START_TEST(Server_invalidSamplingInterval) {
     Service_CreateMonitoredItems(server, session, &request, &response);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
-    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(response.results[0].revisedSamplingInterval ==
+              server->config.samplingIntervalLimits.min);
 
     UA_MonitoredItemCreateRequest_deleteMembers(&item);
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);

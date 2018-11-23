@@ -475,16 +475,28 @@ __UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
 
 typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
 
+/* Add a callback for cyclic repetition to the client.
+ *
+ * @param client The client object.
+ * @param callback The callback that shall be added.
+ * @param interval_ms The callback shall be repeatedly executed with the given
+ *        interval (in ms). The interval must be positive. The first execution
+ *        occurs at now() + interval at the latest.
+ * @param callbackId Set to the identifier of the repeated callback . This can
+ *        be used to cancel the callback later on. If the pointer is null, the
+ *        identifier is not set.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
+ *         otherwise. */
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client,
                               UA_ClientCallback callback,
-                              void *data, UA_UInt32 interval,
+                              void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_Client_changeRepeatedCallbackInterval(UA_Client *client,
                                          UA_UInt64 callbackId,
-                                         UA_UInt32 interval);
+                                         UA_Double interval_ms);
 
 UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *client,
                                                UA_UInt64 callbackId);

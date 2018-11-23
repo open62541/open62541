@@ -310,15 +310,15 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 /***********************************/
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                                     void *data, UA_UInt32 interval, UA_UInt64 *callbackId) {
+                                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     return UA_Timer_addRepeatedCallback(&server->timer, (UA_ApplicationCallback)callback,
-                                        server, data, interval, callbackId);
+                                        server, data, interval_ms, callbackId);
 }
 
 UA_StatusCode
 UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                                UA_UInt32 interval) {
-    return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId, interval);
+                                                UA_Double interval_ms) {
+    return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId, interval_ms);
 }
 
 UA_StatusCode

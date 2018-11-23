@@ -231,9 +231,9 @@ UA_Server_new(const UA_ServerConfig *config) {
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
 
-    /* Add a regular callback for cleanup and maintenance */
+    /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
-                                  10000, NULL);
+                                  10000.0, NULL);
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
@@ -265,17 +265,18 @@ UA_Server_new(const UA_ServerConfig *config) {
 
 UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
-                              void *data, UA_UInt32 interval,
+                              void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
     return UA_Timer_addRepeatedCallback(&server->timer,
                                         (UA_ApplicationCallback)callback,
-                                        server, data, interval, callbackId);
+                                        server, data, interval_ms, callbackId);
 }
 
 UA_StatusCode
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
-                                         UA_UInt32 interval) {
-    return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId, interval);
+                                         UA_Double interval_ms) {
+    return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId,
+                                                   interval_ms);
 }
 
 UA_StatusCode
