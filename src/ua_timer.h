@@ -52,13 +52,13 @@ void UA_Timer_init(UA_Timer *t);
  * with UA_Timer_process. */
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
-                             void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
+                             void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 /* Change the callback interval. If this is called from within the callback. The
  * adjustment is made during the next _process call. */
 UA_StatusCode
 UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
-                                        UA_UInt32 interval);
+                                        UA_Double interval_ms);
 
 /* Remove a repated callback. Thread-safe, can be used in parallel and in
  * parallel with UA_Timer_process. */

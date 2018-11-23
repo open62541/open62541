@@ -550,8 +550,8 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 
 struct PeriodicServerRegisterCallback {
     UA_UInt64 id;
-    UA_UInt32 this_interval;
-    UA_UInt32 default_interval;
+    UA_Double this_interval;
+    UA_Double default_interval;
     UA_Boolean registered;
     UA_Client* client;
     const char* discovery_server_url;
@@ -608,7 +608,7 @@ periodicServerRegister(UA_Server *server, void *data) {
 
         /* If the server was previously registered, retry in one second,
          * else, double the previous interval */
-        UA_UInt32 nextInterval = 1000;
+        UA_Double nextInterval = 1000.0;
         if(!cb->registered)
             nextInterval = cb->this_interval * 2;
 
@@ -638,8 +638,8 @@ UA_StatusCode
 UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             struct UA_Client *client,
                                             const char* discoveryServerUrl,
-                                            UA_UInt32 intervalMs,
-                                            UA_UInt32 delayFirstRegisterMs,
+                                            UA_Double intervalMs,
+                                            UA_Double delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId) {
 
     /* No valid server URL */
@@ -680,7 +680,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     /* Start repeating a failed register after 1s, then increase the delay. Set
      * to 500ms, as the delay is doubled before changing the callback
      * interval.*/
-    cb->this_interval = 500;
+    cb->this_interval = 500.0;
     cb->default_interval = intervalMs;
     cb->registered = false;
     cb->client = client;

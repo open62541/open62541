@@ -90,14 +90,14 @@ dequeueChange(UA_Timer *t) {
  * correct place. So that the next execution takes place ät "nextTime". */
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
-                             void *application, void *data, UA_UInt32 interval,
+                             void *application, void *data, UA_Double interval_ms,
                              UA_UInt64 *callbackId) {
     /* A callback method needs to be present */
     if(!callback)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* The interval needs to be at least 5ms */
-    if(interval < 5)
+    /* The interval needs to be positive */
+    if(interval_ms <= 0.0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Allocate the repeated callback structure */
@@ -107,7 +107,7 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated callback */
-    tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
+    tc->interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC); /* in 100ns resolution */
     tc->id = ++t->idCounter;
     tc->callback = callback;
     tc->application = application;
@@ -160,9 +160,9 @@ addTimerCallbackEntry(UA_Timer *t, UA_TimerCallbackEntry * UA_RESTRICT tc) {
 
 UA_StatusCode
 UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
-                                        UA_UInt32 interval) {
-    /* The interval needs to be at least 5ms */
-    if(interval < 5)
+                                        UA_Double interval_ms) {
+    /* The interval needs to be positive */
+    if(interval_ms <= 0.0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Allocate the repeated callback structure */
@@ -172,7 +172,7 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated callback */
-    tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
+    tc->interval = (UA_UInt64)(interval_ms * UA_DATETIME_MSEC); /* in 100ns resolution */
     tc->id = callbackId;
     tc->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)tc->interval;
     tc->callback = (UA_ApplicationCallback)CHANGE_SENTINEL;
