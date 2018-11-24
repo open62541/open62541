@@ -330,7 +330,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                                      &session->sessionHandle);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "ActivateSession: Could not generate a server nonce");
+                            "ActivateSession: The AccessControl plugin "
+                            "denied the access with the status code %s",
+                            UA_StatusCode_name(response->responseHeader.serviceResult));
         return;
     }
 
