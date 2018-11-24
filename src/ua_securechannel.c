@@ -382,7 +382,7 @@ padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *const buf,
     if(securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
         getRemoteKeyLength(securityPolicy, channel->channelContext) > 2048)
         ++paddingBytes; /* extra padding */
-    UA_UInt16 totalPaddingSize =
+    size_t totalPaddingSize =
         (plainTextBlockSize - ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize));
 
     /* Write the padding. This is <= because the paddingSize byte also has to be written */
@@ -645,31 +645,32 @@ checkLimitsSym(UA_MessageContext *const messageContext, size_t *const bodyLength
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+static void
 padChunkSym(UA_MessageContext *messageContext, size_t bodyLength) {
-    /* The bytes for the padding and signature were removed
-     * from buf_end before encoding the payload. So we don't check here. */
-    if(messageContext->channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        size_t bytesToWrite = bodyLength + UA_SEQUENCE_HEADER_LENGTH;
-        UA_Byte paddingSize = 0;
-        UA_Byte extraPaddingSize = 0;
-        UA_UInt16 totalPaddingSize =
-            calculatePaddingSym(messageContext->channel->securityPolicy,
-                                messageContext->channel->channelContext,
-                                bytesToWrite, &paddingSize, &extraPaddingSize);
+    if(messageContext->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return;
 
-        // This is <= because the paddingSize byte also has to be written.
-        for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
-            *messageContext->buf_pos = paddingSize;
-            ++(messageContext->buf_pos);
-        }
-        if(extraPaddingSize > 0) {
-            *messageContext->buf_pos = extraPaddingSize;
-            ++(messageContext->buf_pos);
-        }
+    /* The bytes for the padding and signature were removed from buf_end before
+     * encoding the payload. So we don't have to check if there is enough
+     * space. */
+
+    size_t bytesToWrite = bodyLength + UA_SEQUENCE_HEADER_LENGTH;
+    UA_Byte paddingSize = 0;
+    UA_Byte extraPaddingSize = 0;
+    UA_UInt16 totalPaddingSize =
+        calculatePaddingSym(messageContext->channel->securityPolicy,
+                            messageContext->channel->channelContext,
+                            bytesToWrite, &paddingSize, &extraPaddingSize);
+
+    /* This is <= because the paddingSize byte also has to be written. */
+    for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
+        *messageContext->buf_pos = paddingSize;
+        ++(messageContext->buf_pos);
     }
-
-    return UA_STATUSCODE_GOOD;
+    if(extraPaddingSize > 0) {
+        *messageContext->buf_pos = extraPaddingSize;
+        ++(messageContext->buf_pos);
+    }
 }
 
 static UA_StatusCode
@@ -751,9 +752,8 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 
-    res = padChunkSym(messageContext, bodyLength);
-    if(res != UA_STATUSCODE_GOOD)
-        goto error;
+    /* Add padding */
+    padChunkSym(messageContext, bodyLength);
 
     /* The total message length */
     size_t pre_sig_length = (uintptr_t)(messageContext->buf_pos) -
@@ -1074,35 +1074,35 @@ decryptChunk(const UA_SecureChannel *const channel,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-getPaddingSize(const UA_SecureChannel *const channel,
-               const UA_SecurityPolicyCryptoModule *const cryptoModule,
-               UA_MessageType const messageType, const UA_ByteString *const chunk,
-               size_t const chunkSizeAfterDecryption, size_t sigsize, size_t *const paddingSize) {
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
-       (messageType == UA_MESSAGETYPE_OPN &&
-        channel->securityMode > UA_MESSAGESECURITYMODE_NONE)) {
-        *paddingSize = (size_t)chunk->data[chunkSizeAfterDecryption - sigsize - 1];
+static UA_UInt16
+decodeChunkPaddingSize(const UA_SecureChannel *const channel,
+                       const UA_SecurityPolicyCryptoModule *const cryptoModule,
+                       UA_MessageType const messageType, const UA_ByteString *const chunk,
+                       size_t const chunkSizeAfterDecryption, size_t sigsize) {
+    /* Is padding used? */
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
+       !(messageType == UA_MESSAGETYPE_OPN && channel->securityMode > UA_MESSAGESECURITYMODE_NONE))
+        return 0;
 
-        size_t keyLength = cryptoModule->encryptionAlgorithm.
-            getRemoteKeyLength(channel->securityPolicy, channel->channelContext);
-        if(keyLength > 2048) {
-            *paddingSize <<= 8; /* Extra padding size */
-            *paddingSize += chunk->data[chunkSizeAfterDecryption - sigsize - 2];
-            /* see comment below but for extraPaddingSize */
-            *paddingSize += 1;
-        }
+    size_t paddingSize = chunk->data[chunkSizeAfterDecryption - sigsize - 1];
 
-        /* We need to add one to the padding size since the paddingSize byte
-         * itself need to be removed as well. */
-        // TODO: write unit test for correct padding calculation
-        *paddingSize += 1;
+    /* Extra padding size */
+    size_t keyLength = cryptoModule->encryptionAlgorithm.
+        getRemoteKeyLength(channel->securityPolicy, channel->channelContext);
+    if(keyLength > 2048) {
+        paddingSize <<= 8;
+        paddingSize += 1;
+        paddingSize += chunk->data[chunkSizeAfterDecryption - sigsize - 2];
     }
+
+    /* We need to add one to the padding size since the paddingSize byte itself
+     * need to be removed as well. */
+    paddingSize += 1;
+
     UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
                          "Calculated padding size to be %lu",
-                         (long unsigned int)*paddingSize);
-
-    return UA_STATUSCODE_GOOD;
+                         (long unsigned int)paddingSize);
+    return (UA_UInt16)paddingSize;
 }
 
 static UA_StatusCode
@@ -1110,7 +1110,9 @@ verifyChunk(const UA_SecureChannel *const channel,
             const UA_SecurityPolicyCryptoModule *const cryptoModule,
             const UA_ByteString *const chunk,
             size_t const chunkSizeAfterDecryption, size_t sigsize) {
-    UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel, "Verifying chunk signature");
+    UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
+                         "Verifying chunk signature");
+
     /* Verify the signature */
     const UA_ByteString chunkDataToVerify = {chunkSizeAfterDecryption - sigsize, chunk->data};
     const UA_ByteString signature = {sigsize, chunk->data + chunkSizeAfterDecryption - sigsize};
@@ -1146,8 +1148,8 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
        messageType == UA_MESSAGETYPE_OPN) {
         sigsize = cryptoModule->signatureAlgorithm.
             getRemoteSignatureSize(securityPolicy, channel->channelContext);
-        retval = getPaddingSize(channel, cryptoModule, messageType, chunk,
-                                chunkSizeAfterDecryption, sigsize, &paddingSize);
+        paddingSize = decodeChunkPaddingSize(channel, cryptoModule, messageType, chunk,
+                                             chunkSizeAfterDecryption, sigsize);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
