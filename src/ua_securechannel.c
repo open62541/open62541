@@ -321,36 +321,39 @@ static size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel) {
     size_t asymHeaderLength = UA_ASYMMETRIC_ALG_SECURITY_HEADER_FIXED_LENGTH +
                               channel->securityPolicy->policyUri.length;
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        /* OPN is always encrypted even if mode sign only */
-        asymHeaderLength += 20; /* Thumbprints are always 20 byte long */
-        asymHeaderLength += channel->securityPolicy->localCertificate.length;
-    }
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return asymHeaderLength;
+
+    /* OPN is always encrypted even if the mode is sign only */
+    asymHeaderLength += 20; /* Thumbprints are always 20 byte long */
+    asymHeaderLength += channel->securityPolicy->localCertificate.length;
     return asymHeaderLength;
 }
 
 static void
-hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start, const UA_Byte **buf_end) {
+hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
+              const UA_Byte **buf_end) {
     const UA_SecurityPolicy *securityPolicy = channel->securityPolicy;
     *buf_start += UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + UA_SEQUENCE_HEADER_LENGTH;
 
     /* Add the SecurityHeaderLength */
     *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
-    size_t potentialEncryptionMaxSize = (size_t)(*buf_end - *buf_start) + UA_SEQUENCE_HEADER_LENGTH;
+
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return;
 
     /* Hide bytes for signature and padding */
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        *buf_end -= securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(securityPolicy, channel->channelContext);
-        *buf_end -= 2; /* padding byte and extraPadding byte */
+    size_t potentialEncryptMaxSize = (size_t)(*buf_end - *buf_start) + UA_SEQUENCE_HEADER_LENGTH;
+    *buf_end -= securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
+        getLocalSignatureSize(securityPolicy, channel->channelContext);
+    *buf_end -= 2; /* padding byte and extraPadding byte */
 
-        /* Add some overhead length due to RSA implementations adding a signature themselves */
-        *buf_end -= UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy,
-                                                                                  channel->channelContext,
-                                                                                  potentialEncryptionMaxSize);
-    }
+    /* Add some overhead length due to RSA implementations adding a signature themselves */
+    *buf_end -= UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy,
+                                                                              channel->channelContext,
+                                                                              potentialEncryptMaxSize);
 }
 
 static void
@@ -381,17 +384,18 @@ padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *const buf,
         ++paddingBytes; /* extra padding */
     UA_UInt16 totalPaddingSize =
         (plainTextBlockSize - ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize));
-    UA_Byte paddingSize = (UA_Byte)(totalPaddingSize & 0xff);
-    UA_Byte extraPaddingSize = (UA_Byte)(totalPaddingSize >> 8);
 
     /* Write the padding. This is <= because the paddingSize byte also has to be written */
+    UA_Byte paddingSize = (UA_Byte)(totalPaddingSize & 0xff);
     for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
         **buf_pos = paddingSize;
         ++*buf_pos;
     }
+
     /* Write the extra padding byte if required */
     if(securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
        getRemoteKeyLength(securityPolicy, channel->channelContext) > 2048) {
+        UA_Byte extraPaddingSize = (UA_Byte)(totalPaddingSize >> 8);
         **buf_pos = extraPaddingSize;
         ++*buf_pos;
     }
