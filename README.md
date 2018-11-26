@@ -17,6 +17,8 @@ The library is [available](https://github.com/open62541/open62541/releases) in s
 [![SonarCloud Lines of Code (excl comments)](https://sonarcloud.io/api/badges/measure?key=open62541-main&metric=ncloc)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main)
 [![SonarCloud Duplicated lines](https://sonarcloud.io/api/badges/measure?key=open62541-main&metric=duplicated_lines_density)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main)
 [![SonarCloud Percentage of comments](https://sonarcloud.io/api/badges/measure?key=open62541-main&metric=comment_lines_density)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main)
+[![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
+[![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
 
 ### Features
 
