@@ -20,6 +20,10 @@ import sys
 import logging
 from datatypes import *
 
+__all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
+           'ObjectNode', 'VariableNode', 'VariableTypeNode',
+           'MethodNode', 'ObjectTypeNode', 'DataTypeNode', 'ViewNode']
+
 logger = logging.getLogger(__name__)
 
 if sys.version_info[0] >= 3:
@@ -49,6 +53,9 @@ class Reference(object):
 
     def __eq__(self, other):
         return str(self) == str(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def __hash__(self):
         return hash(str(self))
@@ -191,7 +198,7 @@ class ReferenceTypeNode(Node):
         self.symmetric = False
         self.inverseName = ""
         if xmlelement:
-            self.parseXML(xmlelement)
+            ReferenceTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -213,7 +220,7 @@ class ObjectNode(Node):
         Node.__init__(self)
         self.eventNotifier = 0
         if xmlelement:
-            self.parseXML(xmlelement)
+            ObjectNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -235,7 +242,7 @@ class VariableNode(Node):
         self.value = None
         self.xmlValueDef = None
         if xmlelement:
-            self.parseXML(xmlelement)
+            VariableNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -282,7 +289,7 @@ class VariableNode(Node):
             return False
 
         # FIXME: Don't build at all or allocate "defaults"? I'm for not building at all.
-        if self.xmlValueDef == None:
+        if self.xmlValueDef is None:
             #logger.warn("Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.")
             return False
 
@@ -301,7 +308,7 @@ class VariableTypeNode(VariableNode):
         VariableNode.__init__(self)
         self.isAbstract = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            VariableTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -316,7 +323,7 @@ class MethodNode(Node):
         self.userExecutable = True
         self.methodDecalaration = None
         if xmlelement:
-            self.parseXML(xmlelement)
+            MethodNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -333,7 +340,7 @@ class ObjectTypeNode(Node):
         Node.__init__(self)
         self.isAbstract = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            ObjectTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -383,7 +390,7 @@ class DataTypeNode(Node):
         self.__definition__ = []
         self.__isEnum__     = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            DataTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -484,7 +491,7 @@ class DataTypeNode(Node):
             logger.debug("")
             return self.__baseTypeEncoding__
 
-        if self.__xmlDefinition__ == None:
+        if self.__xmlDefinition__ is None:
             # Check if there is a supertype available
             for ref in self.references:
                 if ref.isForward:
@@ -606,10 +613,10 @@ class DataTypeNode(Node):
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.containsNoLoops == False
-        self.eventNotifier == False
+        self.containsNoLoops = False
+        self.eventNotifier = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            ViewNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)

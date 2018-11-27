@@ -35,14 +35,14 @@ def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
     """
     iter = depth
     processed = []
-    if rootNode == None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
+    if rootNode is None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
         root = nodeset.getRoot()
     else:
         root = rootNode
 
     file = codecs.open(filename, 'w+', encoding='utf-8')
 
-    if root == None:
+    if root is None:
         return
 
     file.write("digraph ns {\n")
@@ -63,13 +63,13 @@ def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
                     if not tgt in processed:
                         file.write(nodePrintDot(tgt))
                         processed.append(tgt)
-                        if ref.isForward == False and followInverse == True:
-                            for ref in tgt.inverseReferences:
-                                refs.append(ref)
+                        if ref.isForward is False and followInverse is True:
+                            for inverseRef in tgt.inverseReferences:
+                                refs.append(inverseRef)
                             tmp = tmp + tgt.references  # + tgt.getInverseReferences()
-                        elif ref.isForward == True:
-                            for ref in tgt.references:
-                                refs.append(ref)
+                        elif ref.isForward:
+                            for targetRef in tgt.references:
+                                refs.append(targetRef)
         refs = tmp
         iter = iter - 1
 
@@ -137,12 +137,12 @@ def addNodeToGraph(nodeset, node, graph, alreadyAdded=set(), relevantReferences=
 
 
 def generateGraphvizCode(nodeset, filename="dependencies", rootNode=None, excludeNodeIds=[]):
-    if rootNode == None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
+    if rootNode is None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
         root = nodeset.getRoot()
     else:
         root = rootNode
 
-    if root == None:
+    if root is None:
         return
 
     g = gv.dot.Digraph(name="NodeSet Dependency", format='pdf', )
