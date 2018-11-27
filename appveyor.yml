@@ -66,15 +66,9 @@ install:
 
 before_build:
   # Add installed tools to PATH
-  - set PATH=C:\Python27;C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
-  # Workaround for CMake not wanting sh.exe on PATH for MinGW
+  - set PATH=C:\msys64\mingw64\bin;%PATH%
+  # Workaround for CMake not wanting sh.exe on PATH for MinGW (necessary for CMake 3.12.2)
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  ## Miktex
-  #- set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
-  ## autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
-  ## this adds this to the registry!
-  #- initexmf --set-config-value [MPM]AutoInstall=1
-  #- initexmf --update-fndb
 
 build_script:
 - ps: '& "./tools/appveyor/build.ps1"'
