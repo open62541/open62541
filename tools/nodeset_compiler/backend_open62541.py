@@ -19,7 +19,6 @@
 ###
 
 from __future__ import print_function
-import string
 from os.path import basename
 import logging
 import codecs
@@ -29,8 +28,15 @@ try:
 except ImportError:
     from io import StringIO
 
+import sys
+if sys.version_info[0] >= 3:
+    # strings are already parsed to unicode
+    def unicode(s):
+        return s
+
 logger = logging.getLogger(__name__)
 
+from datatypes import NodeId
 from nodes import *
 from nodeset import *
 from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode

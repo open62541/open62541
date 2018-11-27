@@ -5,7 +5,6 @@
 
 import sys
 import os
-import shutil
 import socket
 
 if len(sys.argv) < 2:

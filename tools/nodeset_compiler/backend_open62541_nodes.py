@@ -19,7 +19,6 @@
 from nodes import *
 from backend_open62541_datatypes import *
 import re
-import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,8 +28,6 @@ logger = logging.getLogger(__name__)
 #################
 
 def generateNodeIdPrintable(node):
-    CodePrintable = "NODE_"
-
     if isinstance(node.id, NodeId):
         CodePrintable = node.__class__.__name__ + "_" + str(node.id)
     else:
@@ -248,7 +245,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, r
     encFieldIdx = 0
     code.append("{")
     for subv in node.value:
-        encField = node.encodingRule[encFieldIdx]
+        # encField = node.encodingRule[encFieldIdx]
         encFieldIdx = encFieldIdx + 1
         if subv.valueRank is None or subv.valueRank == 0:
             code.append(

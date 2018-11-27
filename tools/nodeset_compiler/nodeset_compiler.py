@@ -24,6 +24,7 @@
 
 import logging
 import argparse
+from datatypes import NodeId
 from nodeset import *
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -149,7 +150,7 @@ for blacklist in args.blacklistFiles:
     for line in blacklist.readlines():
         line = line.replace(" ", "")
         id = line.replace("\n", "")
-        if ns.getNodeByIDString(id) == None:
+        if ns.getNodeByIDString(id) is None:
             logger.info("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
         else:
             ns.removeNodeById(line)

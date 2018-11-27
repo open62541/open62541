@@ -5,8 +5,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import sys
-import os
-import binascii
 import re
 
 # Converts a header file to restructured text documentation

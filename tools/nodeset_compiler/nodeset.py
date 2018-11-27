@@ -19,17 +19,23 @@
 from __future__ import print_function
 import sys
 import xml.dom.minidom as dom
-from struct import pack as structpack
-from time import struct_time, strftime, strptime, mktime
 import logging
 import codecs
 import re
+import six
+
+__all__ = ['NodeSet', 'getSubTypesOf']
 
 logger = logging.getLogger(__name__)
 
+from datatypes import *
 from nodes import *
 from opaque_type_mapping import opaque_type_mapping
-import codecs
+
+if sys.version_info[0] >= 3:
+    # strings are already parsed to unicode
+    def unicode(s):
+        return s
 
 ####################
 # Helper Functions #
@@ -65,12 +71,10 @@ def extractNamespaces(xmlfile):
     infile = codecs.open(xmlfile.name, encoding='utf-8')
     foundURIs = False
     nsline = ""
-    line = infile.readline()
     for line in infile:
         if "<namespaceuris>" in line.lower():
             foundURIs = True
         elif "</namespaceuris>" in line.lower():
-            foundURIs = False
             nsline = nsline + line
             break
         if foundURIs:
@@ -179,7 +183,7 @@ class NodeSet(object):
         if ndtype == 'referencetype':
             node = ReferenceTypeNode(xmlelement)
 
-        if node == None:
+        if node is None:
             return None
 
         node.modelUri = modelUri
@@ -227,7 +231,7 @@ class NodeSet(object):
         try:
             modelTag = nodeset.getElementsByTagName("Models")[0].getElementsByTagName("Model")[0]
             modelUri = modelTag.attributes["ModelUri"].nodeValue
-        except:
+        except Exception:
             # Ignore exception and try to use namespace array
             modelUri = None
 
@@ -278,7 +282,6 @@ class NodeSet(object):
         of the target node is "DefaultBinary"
         """
         node = self.nodes[nodeId]
-        refId = NodeId()
         for ref in node.references:
             if ref.referenceType.ns == 0 and ref.referenceType.i == 38:
                 refNode = self.nodes[ref.target]
