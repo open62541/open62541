@@ -326,6 +326,9 @@ copyCommonVariableAttributes(UA_VariableNode *node,
 
             if(type) {
                 void *dst = UA_Array_new(attr->value.arrayLength, type);
+                if (!dst) {
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
                 uint8_t *tmpPos = (uint8_t *)dst;
 
                 for(size_t i=0; i<attr->value.arrayLength; i++) {
