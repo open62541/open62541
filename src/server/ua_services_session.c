@@ -135,7 +135,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Copy the server's endpointdescriptions into the response */
     for(size_t i = 0; i < server->config.endpointsSize; ++i)
         response->responseHeader.serviceResult |=
-            UA_EndpointDescription_copy(&server->config.endpoints[i].endpointDescription,
+            UA_EndpointDescription_copy(&server->config.endpoints[i],
                                         &response->serverEndpoints[i]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager,

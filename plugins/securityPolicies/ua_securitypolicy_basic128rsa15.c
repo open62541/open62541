@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  */
@@ -212,13 +212,13 @@ asym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 asym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
-                              Basic128Rsa15_ChannelContext *cc,
+                              Basic128Rsa15_PolicyContext *pc,
                               UA_ByteString *data) {
-    if(securityPolicy == NULL || cc == NULL || data == NULL)
+    if(securityPolicy == NULL || pc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     mbedtls_rsa_context *rsaContext =
-        mbedtls_pk_rsa(cc->policyContext->localPrivateKey);
+        mbedtls_pk_rsa(pc->localPrivateKey);
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     if(data->length % rsaContext->len != 0)
@@ -234,7 +234,7 @@ asym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     size_t offset = 0;
     size_t outLength = 0;
     while(lenDataToDecrypt >= rsaContext->len) {
-        int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
+        int mbedErr = mbedtls_pk_decrypt(&pc->localPrivateKey,
                                          data->data + inOffset, rsaContext->len,
                                          decrypted.data + offset, &outLength,
                                          decrypted.length - offset, NULL, NULL);
@@ -927,7 +927,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
 
     UA_SecurityPolicyEncryptionAlgorithm *asym_encryptionAlgorithm =
         &asymmetricModule->cryptoModule.encryptionAlgorithm;
-    asym_encryptionAlgorithm->uri = UA_STRING("TODO: ALG URI");
+    asym_encryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#rsa-1_5");
     asym_encryptionAlgorithm->encrypt =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, UA_ByteString *))asym_encrypt_sp_basic128rsa15;
     asym_encryptionAlgorithm->decrypt =

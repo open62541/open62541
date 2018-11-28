@@ -111,11 +111,12 @@ typedef struct {
      * key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param channelContext the channelContext which contains information about
-     *                       the keys needed to decrypt the message.
+     * @param securityPolicyContext the securityPolicyContext which contains
+     *                              information about the keys needed to decrypt
+     *                              the message.
      * @param data the data to decrypt. The decryption is done in place. */
     UA_StatusCode (*decrypt)(const UA_SecurityPolicy *securityPolicy,
-                             void *channelContext,
+                             void *securityPolicyContext,
                              UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Returns the length of the key used locally to encrypt messages in bits
@@ -366,11 +367,6 @@ struct UA_SecurityPolicy {
     void (*deleteMembers)(UA_SecurityPolicy *policy);
 };
 
-typedef struct {
-    UA_SecurityPolicy securityPolicy;
-    UA_EndpointDescription endpointDescription;
-} UA_Endpoint;
-
 /* Gets the number of bytes that are needed by the encryption function in
  * addition to the length of the plaintext message. This is needed, since
  * most RSA encryption methods have their own padding mechanism included.
@@ -386,6 +382,14 @@ UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityP
                                                               const void *channelContext,
                                                               size_t maxEncryptionLength);
 
+/* Gets the a pointer to the context of a security policy supported by the
+ * server matched by the security policy uri.
+ *
+ * @param server the server context.
+ * @param securityPolicyUri the security policy to get the context of. */
+UA_SecurityPolicy *
+UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
+                                         UA_ByteString *securityPolicyUri);
 
 typedef UA_StatusCode
 (*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,

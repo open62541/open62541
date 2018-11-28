@@ -100,9 +100,13 @@ struct UA_ServerConfig {
     UA_PubSubTransportLayer *pubsubTransportLayers;
 #endif
 
+    /* Available security policies */
+    size_t securityPoliciesSize;
+    UA_SecurityPolicy* securityPolicies;
+
     /* Available endpoints */
     size_t endpointsSize;
-    UA_Endpoint *endpoints;
+    UA_EndpointDescription *endpoints;
 
     /* Node Lifecycle callbacks */
     UA_GlobalNodeLifecycle nodeLifecycle;
