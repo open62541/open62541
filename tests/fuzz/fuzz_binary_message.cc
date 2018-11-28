@@ -40,8 +40,12 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     // we need to copy the message because it will be freed in the processing function
     UA_ByteString msg = UA_ByteString();
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, size);
-    if(retval != UA_STATUSCODE_GOOD)
-        return (int)retval;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(config);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not allocate message buffer");
+        return 0;
+    }
     memcpy(msg.data, data, size);
 
     UA_Server_processBinaryMessage(server, &c, &msg);
