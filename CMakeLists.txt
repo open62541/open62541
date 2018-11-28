@@ -594,7 +594,7 @@ if(UA_ENABLE_ENCRYPTION)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
-    list(INSERT internal_headers 5 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
+    list(INSERT internal_headers 13 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
 endif()
 
