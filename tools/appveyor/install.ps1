@@ -25,7 +25,7 @@ try {
         exit $LASTEXITCODE
     }
 
-    if ($env:CC_SHORTNAME -eq "vs2015" -o $env:CC_SHORTNAME -eq "vs2017") {
+    if ($env:CC_SHORTNAME -eq "vs2015" -or $env:CC_SHORTNAME -eq "vs2017") {
         Write-Host -ForegroundColor Green "`n### Installing libcheck ###`n"
         & appveyor DownloadFile https://github.com/Pro/check/releases/download/0.12.0_dbg/check.zip
         & 7z x check.zip -oc:\ -bso0 -bsp0
