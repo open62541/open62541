@@ -316,12 +316,12 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
     }
 
     /* Allocate the endpoint */
-    conf->endpointsSize = 1;
     conf->endpoints = (UA_Endpoint *)UA_malloc(sizeof(UA_Endpoint));
     if(!conf->endpoints) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
+    conf->endpointsSize = 1;
 
     /* Populate the endpoint */
     UA_ByteString localCertificate = UA_BYTESTRING_NULL;
