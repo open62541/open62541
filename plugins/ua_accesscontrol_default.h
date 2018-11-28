@@ -20,8 +20,8 @@ typedef struct {
 
 /* Default access control. The log-in can be anonymous or username-password. A
  * logged-in user has all access rights. */
-UA_EXPORT UA_AccessControl
-UA_AccessControl_default(UA_Boolean allowAnonymous,
+UA_EXPORT UA_StatusCode
+UA_AccessControl_default(UA_AccessControl *ac, UA_Boolean allowAnonymous,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin);
 

@@ -247,7 +247,11 @@ createDefaultConfig(void) {
     conf->nodeLifecycle.destructor = NULL;
 
     /* Access Control. Anonymous Login only. */
-    conf->accessControl = UA_AccessControl_default(true, usernamePasswordsSize, usernamePasswords);
+    if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
+    		usernamePasswords) != UA_STATUSCODE_GOOD) {
+    	UA_ServerConfig_delete(conf);
+    	return NULL;
+    }
 
     /* Relax constraints for the InformationModel */
     conf->relaxEmptyValueConstraint = true; /* Allow empty values */
