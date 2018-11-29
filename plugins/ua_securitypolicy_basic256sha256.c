@@ -6,6 +6,10 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  */
 
+#include "ua_config.h"
+
+#ifdef UA_ENABLE_ENCRYPTION
+
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
 #include <mbedtls/sha256.h>
@@ -993,3 +997,5 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, UA_CertificateVerifi
 
     return policyContext_newContext_sp_basic256sha256(policy, localPrivateKey);
 }
+
+#endif /* UA_ENABLE_ENCRYPTION */

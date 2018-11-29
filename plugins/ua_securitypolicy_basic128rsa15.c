@@ -5,6 +5,10 @@
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
+#include "ua_config.h"
+
+#ifdef UA_ENABLE_ENCRYPTION
+
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
 #include <mbedtls/x509_crt.h>
@@ -970,3 +974,5 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, UA_CertificateVerific
 
     return policyContext_newContext_sp_basic128rsa15(policy, localPrivateKey);
 }
+
+#endif /* UA_ENABLE_ENCRYPTION */

@@ -422,6 +422,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
@@ -440,13 +442,12 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
-    set(default_plugin_headers ${default_plugin_headers}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.h)
-    set(default_plugin_headers ${default_plugin_headers}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.h)
     set(default_plugin_sources ${default_plugin_sources}
-            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
-    set(default_plugin_sources ${default_plugin_sources}
+            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c
+            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
+else()
+    set(only_amalgamation_sources ${only_amalgamation_sources}
+            ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c
             ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
 endif()
 
@@ -577,6 +578,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                            ${internal_headers} ${lib_sources} ${default_plugin_sources}
+                           ${only_amalgamation_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
                            ${lib_sources} ${default_plugin_sources})
 
