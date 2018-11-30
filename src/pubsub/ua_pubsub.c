@@ -1023,10 +1023,11 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         return;
     }
 
-    //prevent error if the maxEncapsulatedDataSetMessageCount is set to 0->1
-    writerGroup->config.maxEncapsulatedDataSetMessageCount = (UA_UInt16) (writerGroup->config.maxEncapsulatedDataSetMessageCount == 0 ||
-                                                                          writerGroup->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX
-                                                                          ? 1 : writerGroup->config.maxEncapsulatedDataSetMessageCount);
+    /* If the maxEncapsulatedDataSetMessageCount is set to 0->1 */
+    writerGroup->config.maxEncapsulatedDataSetMessageCount = (UA_UInt16)
+        (writerGroup->config.maxEncapsulatedDataSetMessageCount == 0 ||
+         writerGroup->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX
+         ? 1 : writerGroup->config.maxEncapsulatedDataSetMessageCount);
 
     UA_DataSetMessage *dsmStore = (UA_DataSetMessage *) UA_calloc(writerGroup->writersCount, sizeof(UA_DataSetMessage));
     if(!dsmStore) {
