@@ -127,6 +127,10 @@ struct UA_MonitoredItem {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next;
 #endif
+
+#ifdef UA_ENABLE_DA
+    UA_StatusCode lastStatus;
+#endif
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);

@@ -60,6 +60,7 @@ try {
     & cmake $cmake_cnf `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
+            -DUA_ENABLE_DA:BOOL=ON `
             -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
             -DUA_ENABLE_PUBSUB:BOOL=ON `
             -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
@@ -137,6 +138,7 @@ try {
                 -DCMAKE_BUILD_TYPE=Debug `
                 -DUA_BUILD_EXAMPLES=OFF `
                 -DUA_BUILD_UNIT_TESTS=ON `
+                -DUA_ENABLE_DA=ON `
                 -DUA_ENABLE_DISCOVERY=ON `
                 -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
                 -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption `
