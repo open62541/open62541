@@ -1121,22 +1121,22 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                 }
                 //nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
                 nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
-                nmStore->payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
-                nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
+                nmStore[i]payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+                nmStore[i]payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             } else {
                 currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
                 nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) (currentDSMPosition - ((i - 1) * writerGroup->config.maxEncapsulatedDataSetMessageCount)); //attention cast from uint32 to byte
                 nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
-                nmStore->payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
-                nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
+                nmStore[i]payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+                nmStore[i]payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             }
         } else {///create single NetworkMessages (1 DSM per NM)
             nmStore[i].payloadHeader.dataSetPayloadHeader.count = 1;
             currentDSMPosition = (UA_UInt32) combinedNetworkMessageCount + (i - combinedNetworkMessageCount/writerGroup->config.maxEncapsulatedDataSetMessageCount
                                                                             + (combinedNetworkMessageCount % writerGroup->config.maxEncapsulatedDataSetMessageCount) == 0 ? 0 : 1);
             nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
-            nmStore->payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
-            nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
+            nmStore[i]payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+            nmStore[i]payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
         }
         //send the prepared messages
         UA_ByteString buf;
@@ -1152,9 +1152,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             connection->channel->send(connection->channel, NULL, &buf);
         }
         //The stack allocated sizes and dataSetWriterIds field must be set to NULL to prevent invalid free.
-        nmStore[i].payload.dataSetPayload.sizes = NULL;
-        nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = NULL;
         UA_ByteString_deleteMembers(&buf);
+        nmStore[i].payload.dataSetPayload.sizes = NULL;
+        nmStore[i].payloadHeader.dataSetPayloadHeader.dataSetWriterIds = NULL;
         nmStore[i].payload.dataSetPayload.dataSetMessages = NULL;
         nmStore[i].payloadHeader.dataSetPayloadHeader.count = 0;
         UA_NetworkMessage_deleteMembers(&nmStore[i]);
