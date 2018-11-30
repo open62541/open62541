@@ -1053,37 +1053,35 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
      *    +----------------------+-----+
      *    NetworkMessages
      */
-    UA_UInt16 combinedNetworkMessageCount = 0, singleNetworkMessagesCount = 0;
-    UA_DataSetWriter *tmpDataSetWriter;
-    LIST_FOREACH(tmpDataSetWriter, &writerGroup->writers, listEntry){
-        //if promoted fields are contained in the PublishedDataSet, then this DSM must encapsulated in one NM
-        UA_PublishedDataSet *tmpPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, tmpDataSetWriter->connectedDataSet);
-        if(!tmpPublishedDataSet) {
+    UA_UInt32 combinedNetworkMessageCount = 0, singleNetworkMessagesCount = 0;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
+        /* Find the dataset */
+        UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+        if(!pds) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Publish failed. PublishedDataSet not found");
-            return;
+                         "PubSub Publish: PublishedDataSet not found");
+            continue;
         }
-        if(tmpPublishedDataSet->promotedFieldsCount > 0) {
-            if(UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[(writerGroup->writersCount - 1) - singleNetworkMessagesCount],
-                                                       tmpDataSetWriter) != UA_STATUSCODE_GOOD){
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Publish failed. DataSetMessage creation failed");
-                return;
-            };
-            dsWriterIds[(writerGroup->writersCount - 1) - singleNetworkMessagesCount] = tmpDataSetWriter->config.dataSetWriterId;
-            dsmSizes[(writerGroup->writersCount-1) - singleNetworkMessagesCount] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsmStore[(writerGroup->writersCount-1)
-                                                                                                                                          - singleNetworkMessagesCount]);
-            singleNetworkMessagesCount++;
-        } else {
-            if(UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[combinedNetworkMessageCount], tmpDataSetWriter) != UA_STATUSCODE_GOOD){
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Publish failed. DataSetMessage creation failed");
-                return;
-            };
-            dsWriterIds[combinedNetworkMessageCount] = tmpDataSetWriter->config.dataSetWriterId;
-            dsmSizes[combinedNetworkMessageCount] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsmStore[combinedNetworkMessageCount]);
-            combinedNetworkMessageCount++;
+
+        /* If promoted fields are contained in the PublishedDataSet, then this
+         * DSM must encapsulated in one NM */
+        UA_UInt32 *count = &combinedNetworkMessageCount;
+        UA_UInt32 pos = combinedNetworkMessageCount;
+        if(pds->promotedFieldsCount > 0) {
+            count = &singleNetworkMessagesCount;
+            pos = (writerGroup->writersCount - 1) - singleNetworkMessagesCount;
         }
+
+        if(UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[pos], dsw) != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "PubSub Publish: DataSetMessage creation failed");
+            continue;
+        }
+
+        dsWriterIds[pos] = dsw->config.dataSetWriterId;
+        dsmSizes[pos] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsmStore[pos]);
+        *count = *count + 1;
     }
 
     UA_UInt32 networkMessageCount = singleNetworkMessagesCount;
