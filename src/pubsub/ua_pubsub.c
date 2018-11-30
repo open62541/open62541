@@ -1029,17 +1029,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
          writerGroup->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX
          ? 1 : writerGroup->config.maxEncapsulatedDataSetMessageCount);
 
-    UA_DataSetMessage *dsmStore = (UA_DataSetMessage *) UA_calloc(writerGroup->writersCount, sizeof(UA_DataSetMessage));
-    if(!dsmStore) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "DataSetMessage allocation failed");
-        return;
-    }
+    /* The binary DataSetMessage sizes are part of the payload. Allocate some
+     * stack-memory where to put the current messages. */
+    UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
     memset(dsmStore, 0, sizeof(UA_DataSetMessage) * writerGroup->writersCount);
-    //The binary DataSetMessage sizes are part of the payload. Memory is allocated on the stack.
     UA_STACKARRAY(UA_UInt16, dsmSizes, writerGroup->writersCount);
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
     memset(dsmSizes, 0, writerGroup->writersCount * sizeof(UA_UInt16));
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
     memset(dsWriterIds, 0, writerGroup->writersCount * sizeof(UA_UInt16));
 
     /* Calculate the number of needed NetworkMessages. The previous allocated
@@ -1098,11 +1094,10 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         networkMessageCount += combinedNetworkMessageCount;
     }
 
+    /* Nothing to do */
     if(networkMessageCount == 0) {
-        for(size_t i = 0; i < writerGroup->writersCount; i++){
+        for(size_t i = 0; i < writerGroup->writersCount; i++)
             UA_DataSetMessage_free(&dsmStore[i]);
-        }
-        UA_free(dsmStore);
         return;
     }
 
@@ -1160,6 +1155,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         nmStore[i].payload.dataSetPayload.sizes = NULL;
         nmStore->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = NULL;
         UA_ByteString_deleteMembers(&buf);
+        nmStore[i].payload.dataSetPayload.dataSetMessages = NULL;
+        nmStore[i].payloadHeader.dataSetPayloadHeader.count = 0;
         UA_NetworkMessage_deleteMembers(&nmStore[i]);
     }
 }
