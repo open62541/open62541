@@ -769,6 +769,7 @@ set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake)
 set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
 set(open62541_tools_dir share/open62541/tools)
 set(open62541_deps_dir include/open62541/deps)
+set(open62541_include_dir include/open62541)
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
@@ -805,12 +806,29 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
             DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
 endif()
 
-# export amalgamated header open62541.h which is generated due to build of open62541-object
+set(UA_install_tools_dirs "tools/certs"
+    "tools/nodeset_compiler"
+    "tools/schema"
+    "deps/ua-nodeset")
+
+set(UA_install_tools_files "tools/generate_datatypes.py"
+#    "tools/generate_nodeid_header.py"
+    "tools/generate_statuscode_descriptions.py")
+
+install(DIRECTORY ${UA_install_tools_dirs} DESTINATION ${open62541_tools_dir} USE_SOURCE_PERMISSIONS)
+install(FILES ${UA_install_tools_files} DESTINATION ${open62541_tools_dir})
+
+# Export amalgamated header open62541.h which is generated due to build of open62541-object
 if(UA_ENABLE_AMALGAMATION)
-    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
+    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
+else()
+    # Assume no files have identical names and place everything in the include folder
+    install(FILES ${internal_headers}
+                  ${exported_headers}
+                  ${default_plugin_headers}
+                  ${historizing_default_plugin_headers}
+            DESTINATION ${open62541_include_dir})
 endif()
-install(DIRECTORY deps/ DESTINATION ${open62541_deps_dir})
-install(DIRECTORY tools/ DESTINATION ${open62541_tools_dir} USE_SOURCE_PERMISSIONS)
 
 ##########################
 # Packaging (DEB/RPM)    #
