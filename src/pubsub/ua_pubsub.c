@@ -1101,51 +1101,52 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         return;
     }
 
-    //Alloc memory for the NetworkMessages on the stack
-    UA_STACKARRAY(UA_NetworkMessage, nmStore, networkMessageCount);
-    memset(nmStore, 0, networkMessageCount * sizeof(UA_NetworkMessage));
+    /* Prepare, encode and send the NetworkMessages */
     UA_UInt32 currentDSMPosition = 0;
     for(UA_UInt32 i = 0; i < networkMessageCount; i++) {
-        nmStore[i].version = 1;
-        nmStore[i].networkMessageType = UA_NETWORKMESSAGE_DATASET;
-        nmStore[i].payloadHeaderEnabled = true;
+        UA_NetworkMessage nm;
+        memset(&nm, 0, sizeof(UA_NetworkMessage));
+        nm.version = 1;
+        nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+        nm.payloadHeaderEnabled = true;
+
         //create combined NetworkMessages
         if(i < (networkMessageCount-singleNetworkMessagesCount)){
             if(combinedNetworkMessageCount - (i * writerGroup->config.maxEncapsulatedDataSetMessageCount)){
                 if(combinedNetworkMessageCount == 1){
-                    nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) ((writerGroup->writersCount) - singleNetworkMessagesCount);
+                    nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) ((writerGroup->writersCount) - singleNetworkMessagesCount);
                     currentDSMPosition = 0;
                 } else {
-                    nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
+                    nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
                     currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
                 }
-                //nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
-                nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
-                nmStore[i]payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
-                nmStore[i]payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
+                //nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
+                nm.payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
+                nm.payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+                nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             } else {
                 currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
-                nmStore[i].payloadHeader.dataSetPayloadHeader.count = (UA_Byte) (currentDSMPosition - ((i - 1) * writerGroup->config.maxEncapsulatedDataSetMessageCount)); //attention cast from uint32 to byte
-                nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
-                nmStore[i]payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
-                nmStore[i]payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
+                nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) (currentDSMPosition - ((i - 1) * writerGroup->config.maxEncapsulatedDataSetMessageCount)); //attention cast from uint32 to byte
+                nm.payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
+                nm.payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+                nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             }
         } else {///create single NetworkMessages (1 DSM per NM)
-            nmStore[i].payloadHeader.dataSetPayloadHeader.count = 1;
+            nm.payloadHeader.dataSetPayloadHeader.count = 1;
             currentDSMPosition = (UA_UInt32) combinedNetworkMessageCount + (i - combinedNetworkMessageCount/writerGroup->config.maxEncapsulatedDataSetMessageCount
                                                                             + (combinedNetworkMessageCount % writerGroup->config.maxEncapsulatedDataSetMessageCount) == 0 ? 0 : 1);
-            nmStore[i].payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
-            nmStore[i]payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
-            nmStore[i]payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
+            nm.payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
+            nm.payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
+            nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
         }
         //send the prepared messages
         UA_ByteString buf;
-        size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nmStore[i]);
+        size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm);
         if(UA_ByteString_allocBuffer(&buf, msgSize) == UA_STATUSCODE_GOOD) {
             UA_Byte *bufPos = buf.data;
             memset(bufPos, 0, msgSize);
             const UA_Byte *bufEnd = &buf.data[buf.length];
-            if(UA_NetworkMessage_encodeBinary(&nmStore[i], &bufPos, bufEnd) != UA_STATUSCODE_GOOD){
+            if(UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd) != UA_STATUSCODE_GOOD){
                 UA_ByteString_deleteMembers(&buf);
                 return;
             };
@@ -1153,11 +1154,11 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         }
         //The stack allocated sizes and dataSetWriterIds field must be set to NULL to prevent invalid free.
         UA_ByteString_deleteMembers(&buf);
-        nmStore[i].payload.dataSetPayload.sizes = NULL;
-        nmStore[i].payloadHeader.dataSetPayloadHeader.dataSetWriterIds = NULL;
-        nmStore[i].payload.dataSetPayload.dataSetMessages = NULL;
-        nmStore[i].payloadHeader.dataSetPayloadHeader.count = 0;
-        UA_NetworkMessage_deleteMembers(&nmStore[i]);
+        nm.payload.dataSetPayload.sizes = NULL;
+        nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = NULL;
+        nm.payload.dataSetPayload.dataSetMessages = NULL;
+        nm.payloadHeader.dataSetPayloadHeader.count = 0;
+        UA_NetworkMessage_deleteMembers(&nm);
     }
 }
 
