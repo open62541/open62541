@@ -9,6 +9,8 @@
 #ifndef UA_SECURITYPOLICY_BASIC256SHA256_H_
 #define UA_SECURITYPOLICY_BASIC256SHA256_H_
 
+#include "ua_config.h"
+
 #ifdef UA_ENABLE_ENCRYPTION
 
 #ifdef __cplusplus

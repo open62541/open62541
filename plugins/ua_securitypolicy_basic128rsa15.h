@@ -8,6 +8,8 @@
 #ifndef UA_SECURITYPOLICY_BASIC128RSA15_H_
 #define UA_SECURITYPOLICY_BASIC128RSA15_H_
 
+#include "ua_config.h"
+
 #ifdef UA_ENABLE_ENCRYPTION
 
 #ifdef __cplusplus
