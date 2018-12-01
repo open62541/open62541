@@ -1137,20 +1137,22 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             nm.payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
             nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
         }
-        //send the prepared messages
+
+        /* Send the prepared messages */
         UA_ByteString buf;
         size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm);
         if(UA_ByteString_allocBuffer(&buf, msgSize) == UA_STATUSCODE_GOOD) {
             UA_Byte *bufPos = buf.data;
             memset(bufPos, 0, msgSize);
             const UA_Byte *bufEnd = &buf.data[buf.length];
-            if(UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd) != UA_STATUSCODE_GOOD){
+            if(UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd) == UA_STATUSCODE_GOOD)
+                connection->channel->send(connection->channel, NULL, &buf);
+            else
                 UA_ByteString_deleteMembers(&buf);
-                return;
-            };
-            connection->channel->send(connection->channel, NULL, &buf);
         }
-        //The stack allocated sizes and dataSetWriterIds field must be set to NULL to prevent invalid free.
+
+        /* The stack allocated sizes and dataSetWriterIds field must be set to
+         * NULL to prevent invalid free */
         UA_ByteString_deleteMembers(&buf);
         nm.payload.dataSetPayload.sizes = NULL;
         nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = NULL;
