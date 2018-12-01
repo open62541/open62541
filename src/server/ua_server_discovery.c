@@ -34,7 +34,7 @@ register_server_with_discovery_server(UA_Server *server,
         request.server.semaphoreFilePath =
             UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
 #else
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
                        "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
@@ -104,7 +104,7 @@ register_server_with_discovery_server(UA_Server *server,
     }
 
     if(serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer/RegisterServer2 failed with statuscode %s",
                      UA_StatusCode_name(serviceResult));
     }

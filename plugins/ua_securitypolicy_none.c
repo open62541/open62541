@@ -126,8 +126,9 @@ policy_deletemembers_none(UA_SecurityPolicy *policy) {
 }
 
 UA_StatusCode
-UA_SecurityPolicy_None(UA_SecurityPolicy *policy, UA_CertificateVerification *certificateVerification,
-                       const UA_ByteString localCertificate, UA_Logger logger) {
+UA_SecurityPolicy_None(UA_SecurityPolicy *policy,
+                       UA_CertificateVerification *certificateVerification,
+                       const UA_ByteString localCertificate, const UA_Logger *logger) {
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;

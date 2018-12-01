@@ -69,7 +69,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to create session");
+    UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Trying to create session");
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
@@ -113,7 +113,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult =
         UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Processing CreateSessionRequest failed");
         return;
     }
@@ -201,7 +201,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+    UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                          "Session " UA_PRINTF_GUID_FORMAT " created",
                          UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
@@ -252,10 +252,10 @@ void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Execute ActivateSession");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
 
     if(session->validTill < UA_DateTime_nowMonotonic()) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "ActivateSession: SecureChannel %i wants "
                             "to activate, but the session has timed out",
                             channel->securityToken.channelId);
@@ -268,7 +268,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * to the client */
     response->responseHeader.serviceResult = checkSignature(server, channel, session, request);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "Signature check failed with status code %s",
                             UA_StatusCode_name(response->responseHeader.serviceResult));
         return;
@@ -329,7 +329,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                                      &request->userIdentityToken,
                                                      &session->sessionHandle);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "ActivateSession: The AccessControl plugin "
                             "denied the access with the status code %s",
                             UA_StatusCode_name(response->responseHeader.serviceResult));
@@ -337,7 +337,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     if(session->header.channel && session->header.channel != channel) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "ActivateSession: Detach from old channel");
         /* Detach the old SecureChannel and attach the new */
         UA_Session_detachFromSecureChannel(session);
@@ -355,12 +355,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_detachFromSecureChannel(session);
         session->activated = false;
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "ActivateSession: Could not generate a server nonce");
         return;
     }
 
-    UA_LOG_INFO_SESSION(server->config.logger, session,
+    UA_LOG_INFO_SESSION(&server->config.logger, session,
                         "ActivateSession: Session activated");
 }
 
@@ -368,7 +368,7 @@ void
 Service_CloseSession(UA_Server *server, UA_Session *session,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
-    UA_LOG_INFO_SESSION(server->config.logger, session, "CloseSession");
+    UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
 
     /* Callback into userland access control */
     server->config.accessControl.closeSession(server, &server->config.accessControl,

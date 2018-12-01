@@ -77,7 +77,7 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
         /* Session has timed out? */
         if(sentry->session.validTill >= nowMonotonic)
             continue;
-        UA_LOG_INFO_SESSION(sm->server->config.logger, &sentry->session,
+        UA_LOG_INFO_SESSION(&sm->server->config.logger, &sentry->session,
                             "Session has timed out");
         sm->server->config.accessControl.closeSession(sm->server,
                                                       &sm->server->config.accessControl,
@@ -97,7 +97,7 @@ UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *toke
 
         /* Session has timed out */
         if(UA_DateTime_nowMonotonic() > current->session.validTill) {
-            UA_LOG_INFO_SESSION(sm->server->config.logger, &current->session,
+            UA_LOG_INFO_SESSION(&sm->server->config.logger, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
         }
@@ -109,7 +109,7 @@ UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *toke
     /* Session not found */
     UA_String nodeIdStr = UA_STRING_NULL;
     UA_NodeId_toString(token, &nodeIdStr);
-    UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_INFO(&sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                 "Try to use Session with token %.*s but is not found",
                 (int)nodeIdStr.length, nodeIdStr.data);
     UA_String_deleteMembers(&nodeIdStr);
@@ -126,7 +126,7 @@ UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *session
 
         /* Session has timed out */
         if(UA_DateTime_nowMonotonic() > current->session.validTill) {
-            UA_LOG_INFO_SESSION(sm->server->config.logger, &current->session,
+            UA_LOG_INFO_SESSION(&sm->server->config.logger, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
         }
@@ -138,7 +138,7 @@ UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *session
     /* Session not found */
     UA_String sessionIdStr = UA_STRING_NULL;
     UA_NodeId_toString(sessionId, &sessionIdStr);
-    UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_INFO(&sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                 "Try to use Session with identifier %.*s but is not found",
                 (int)sessionIdStr.length, sessionIdStr.data);
     UA_String_deleteMembers(&sessionIdStr);

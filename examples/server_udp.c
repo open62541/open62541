@@ -5,8 +5,6 @@
 #include "open62541.h"
 #include <signal.h>
 
-UA_Logger logger = UA_Log_Stdout;
-
 UA_Boolean running = 1;
 static void stopHandler(int sign) {
     printf("Received Ctrl-C\n");

@@ -479,7 +479,8 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
         currentWriterGroup->config.publishingInterval = config->publishingInterval;
         UA_WriterGroup_addPublishCallback(server, currentWriterGroup);
     } else if (currentWriterGroup->config.priority != config->priority) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "No or unsupported WriterGroup update.");
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "No or unsupported WriterGroup update.");
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -899,7 +900,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     if(dataSetWriterMessageDataType->networkMessageNumber != 0 ||
        dataSetWriterMessageDataType->dataSetOffset != 0 ||
        dataSetWriterMessageDataType->configuredSize !=0 ) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Static DSM configuration not supported. Using defaults");
         dataSetWriterMessageDataType->networkMessageNumber = 0;
         dataSetWriterMessageDataType->dataSetOffset = 0;
@@ -998,20 +999,22 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
  */
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
-    if(!writerGroup){
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Publish failed. WriterGroup not found");
+    if(!writerGroup) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Publish failed. WriterGroup not found");
         return;
     }
     if(writerGroup->writersCount <= 0)
         return;
 
     if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Unknown encoding type.");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unknown encoding type.");
         return;
     }
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, writerGroup->linkedConnection);
-    if(!connection){
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Publish failed. PubSubConnection invalid.");
+    if(!connection) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Publish failed. PubSubConnection invalid.");
         return;
     }
     //prevent error if the maxEncapsulatedDataSetMessageCount is set to 0->1
@@ -1021,7 +1024,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     UA_DataSetMessage *dsmStore = (UA_DataSetMessage *) UA_calloc(writerGroup->writersCount, sizeof(UA_DataSetMessage));
     if(!dsmStore) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetMessage allocation failed");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "DataSetMessage allocation failed");
         return;
     }
     memset(dsmStore, 0, sizeof(UA_DataSetMessage) * writerGroup->writersCount);
@@ -1050,13 +1054,15 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         //if promoted fields are contained in the PublishedDataSet, then this DSM must encapsulated in one NM
         UA_PublishedDataSet *tmpPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, tmpDataSetWriter->connectedDataSet);
         if(!tmpPublishedDataSet) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Publish failed. PublishedDataSet not found");
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Publish failed. PublishedDataSet not found");
             return;
         }
         if(tmpPublishedDataSet->promotedFieldsCount > 0) {
             if(UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[(writerGroup->writersCount - 1) - singleNetworkMessagesCount],
                                                        tmpDataSetWriter) != UA_STATUSCODE_GOOD){
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Publish failed. DataSetMessage creation failed");
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Publish failed. DataSetMessage creation failed");
                 return;
             };
             dsWriterIds[(writerGroup->writersCount - 1) - singleNetworkMessagesCount] = tmpDataSetWriter->config.dataSetWriterId;
@@ -1065,7 +1071,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             singleNetworkMessagesCount++;
         } else {
             if(UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[combinedNetworkMessageCount], tmpDataSetWriter) != UA_STATUSCODE_GOOD){
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Publish failed. DataSetMessage creation failed");
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Publish failed. DataSetMessage creation failed");
                 return;
             };
             dsWriterIds[combinedNetworkMessageCount] = tmpDataSetWriter->config.dataSetWriterId;

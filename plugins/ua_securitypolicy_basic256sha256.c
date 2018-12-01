@@ -908,9 +908,10 @@ error:
 }
 
 UA_StatusCode
-UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, UA_CertificateVerification *certificateVerification,
-                                 const UA_ByteString localCertificate, const UA_ByteString localPrivateKey,
-                                 UA_Logger logger) {
+UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
+                                 UA_CertificateVerification *certificateVerification,
+                                 const UA_ByteString localCertificate,
+                                 const UA_ByteString localPrivateKey, const UA_Logger *logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
 

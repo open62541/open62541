@@ -66,7 +66,7 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
                                  const UA_ByteString localCertificate) {
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
-    UA_SecurityPolicy_None(&endpoint->securityPolicy, NULL, localCertificate, conf->logger);
+    UA_SecurityPolicy_None(&endpoint->securityPolicy, NULL, localCertificate, &conf->logger);
     endpoint->endpointDescription.securityMode = UA_MESSAGESECURITYMODE_NONE;
     endpoint->endpointDescription.securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
@@ -110,7 +110,7 @@ createSecurityPolicyBasic128Rsa15Endpoint(UA_ServerConfig *const conf,
 
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic128Rsa15(&endpoint->securityPolicy, &conf->certificateVerification,
-                                        localCertificate, localPrivateKey, conf->logger);
+                                        localCertificate, localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);
         return retval;
@@ -148,8 +148,9 @@ createSecurityPolicyBasic256Sha256Endpoint(UA_ServerConfig *const conf,
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
     UA_StatusCode retval =
-        UA_SecurityPolicy_Basic256Sha256(&endpoint->securityPolicy, &conf->certificateVerification, localCertificate,
-                                         localPrivateKey, conf->logger);
+        UA_SecurityPolicy_Basic256Sha256(&endpoint->securityPolicy,
+                                         &conf->certificateVerification, localCertificate,
+                                         localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         endpoint->securityPolicy.deleteMembers(&endpoint->securityPolicy);
         return retval;
@@ -196,7 +197,7 @@ createDefaultConfig(void) {
 
     /* --> Start setting the default static config <-- */
     conf->nThreads = 1;
-    conf->logger = UA_Log_Stdout;
+    conf->logger = UA_Log_Stdout_;
 
     /* Server Description */
     conf->buildInfo.productUri = UA_STRING_ALLOC(PRODUCT_URI);
@@ -324,7 +325,7 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 s
         config.recvBufferSize = recvBufferSize;
 
     conf->networkLayers[0] =
-        UA_ServerNetworkLayerTCP(config, portNumber, conf->logger);
+        UA_ServerNetworkLayerTCP(config, portNumber, &conf->logger);
     if (!conf->networkLayers[0].handle)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     conf->networkLayersSize = 1;
@@ -700,11 +701,10 @@ static UA_INLINE void UA_ClientConnectionTCP_poll_callback(UA_Client *client, vo
     UA_ClientConnectionTCP_poll(client, data);
 }
 
-
 const UA_ClientConfig UA_ClientConfig_default = {
     5000, /* .timeout, 5 seconds */
     10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
-    UA_Log_Stdout, /* .logger */
+    {UA_Log_Stdout_log, NULL, UA_Log_Stdout_clear}, /* .logger */
     { /* .localConnectionConfig */
         0, /* .protocolVersion */
         65535, /* .sendBufferSize, 64k per chunk */
