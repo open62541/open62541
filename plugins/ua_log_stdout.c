@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
- *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2016-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
@@ -31,11 +31,6 @@
 # define ANSI_COLOR_RESET   ""
 #endif
 
-#ifdef UA_ENABLE_MULTITHREADING
-#include <pthread.h>
-static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
 const char *logLevelNames[6] = {"trace", "debug",
                                 ANSI_COLOR_GREEN "info",
                                 ANSI_COLOR_YELLOW "warn",
@@ -44,12 +39,17 @@ const char *logLevelNames[6] = {"trace", "debug",
 const char *logCategoryNames[7] = {"network", "channel", "session", "server",
                                    "client", "userland", "securitypolicy"};
 
+#ifdef UA_ENABLE_MULTITHREADING
+#include <pthread.h>
+static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 #ifdef __clang__
-__attribute__((__format__(__printf__, 3 , 0)))
+__attribute__((__format__(__printf__, 4 , 0)))
 #endif
 void
-UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
-              const char *msg, va_list args) {
+UA_Log_Stdout_log(void *_, UA_LogLevel level, UA_LogCategory category,
+                  const char *msg, va_list args) {
     UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
     UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
 
@@ -68,3 +68,11 @@ UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
     pthread_mutex_unlock(&printf_mutex);
 #endif
 }
+
+void
+UA_Log_Stdout_clear(void *logContext) {
+
+}
+
+const UA_Logger UA_Log_Stdout_ = {UA_Log_Stdout_log, NULL, UA_Log_Stdout_clear};
+const UA_Logger *UA_Log_Stdout = &UA_Log_Stdout_;

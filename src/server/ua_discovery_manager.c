@@ -61,7 +61,7 @@ initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server) {
 
     if((server->discoveryManager.mdnsSocket = discovery_createMulticastSocket()) == UA_INVALID_SOCKET) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create multicast socket. Error: %s", errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }

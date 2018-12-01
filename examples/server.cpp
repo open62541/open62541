@@ -11,10 +11,9 @@
 using namespace std;
 
 UA_Boolean running = true;
-UA_Logger logger = UA_Log_Stdout;
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 

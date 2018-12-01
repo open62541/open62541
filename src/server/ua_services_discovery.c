@@ -117,7 +117,7 @@ setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing FindServersRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing FindServersRequest");
 
     /* Return the server itself? */
     UA_Boolean foundSelf = false;
@@ -217,11 +217,11 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
        not, clone the endpoints with the discovery url of all networklayers. */
     const UA_String *endpointUrl = &request->endpointUrl;
     if(endpointUrl->length > 0) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Processing GetEndpointsRequest with endpointUrl "
                              UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(*endpointUrl));
     } else {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Processing GetEndpointsRequest with an empty endpointUrl");
     }
 
@@ -365,8 +365,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         char* filePath = (char*)
             UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
         if(!filePath) {
-            UA_LOG_ERROR_SESSION(server->config.logger, session,
-                                   "Cannot allocate memory for semaphore path. Out of memory.");
+            UA_LOG_ERROR_SESSION(&server->config.logger, session,
+                                 "Cannot allocate memory for semaphore path. Out of memory.");
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
         }
@@ -379,7 +379,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
         UA_free(filePath);
 #else
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
                        "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
@@ -402,7 +402,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         // server is shutting down. Remove it from the registered servers list
         if(!registeredServer_entry) {
             // server not found, show warning
-            UA_LOG_WARNING_SESSION(server->config.logger, session,
+            UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                    "Could not unregister server %.*s. Not registered.",
                                    (int)requestServer->serverUri.length, requestServer->serverUri.data);
             responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -432,7 +432,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!registeredServer_entry) {
         // server not yet registered, register it by adding it to the list
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Registering new server: %.*s",
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Registering new server: %.*s",
                              (int)requestServer->serverUri.length, requestServer->serverUri.data);
 
         registeredServer_entry =
@@ -466,7 +466,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RegisterServerRequest");
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
                            NULL, &response->responseHeader, 0, NULL, 0, NULL);
@@ -475,7 +475,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RegisterServer2Request");
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
@@ -511,7 +511,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                 semaphoreDeleted = UA_fileExists(filePath) == false;
                 UA_free(filePath);
             } else {
-                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                              "Cannot check registration semaphore. Out of memory");
             }
         }
@@ -520,7 +520,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
         if(semaphoreDeleted || (server->config.discoveryCleanupTimeout &&
                                 current->lastSeen < timedOut)) {
             if(semaphoreDeleted) {
-                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "Registration of server with URI %.*s is removed because "
                             "the semaphore file '%.*s' was deleted.",
                             (int)current->registeredServer.serverUri.length,
@@ -529,7 +529,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                             current->registeredServer.semaphoreFilePath.data);
             } else {
                 // cppcheck-suppress unreadVariable
-                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "Registration of server with URI %.*s has timed out and is removed.",
                             (int)current->registeredServer.serverUri.length,
                             current->registeredServer.serverUri.data);
@@ -594,14 +594,14 @@ periodicServerRegister(UA_Server *server, void *data) {
     if (cb->client->state == UA_CLIENTSTATE_CONNECTED) {
         UA_StatusCode retval1 = UA_Client_disconnect(cb->client);
         if(retval1 != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Could not disconnect client from register server. StatusCode %s",
                          UA_StatusCode_name(retval));
         }
     }
     /* Registering failed */
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not register server with discovery server. "
                      "Is the discovery server started? StatusCode %s",
                      UA_StatusCode_name(retval));
@@ -622,7 +622,7 @@ periodicServerRegister(UA_Server *server, void *data) {
     }
 
     /* Registering succeeded */
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Server successfully registered. Next periodical register will be in %d seconds",
                  (int)(cb->default_interval/1000));
 
@@ -644,7 +644,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
 
     /* No valid server URL */
     if(!discoveryServerUrl) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "No discovery server URL provided");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -659,7 +659,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         LIST_FOREACH_SAFE(rs, &server->discoveryManager.
                           periodicServerRegisterCallbacks, pointers, rs_tmp) {
             if(strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
-                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                             "There is already a register callback for '%s' in place. Removing the older one.", discoveryServerUrl);
                 UA_Server_removeRepeatedCallback(server, rs->callback->id);
                 LIST_REMOVE(rs, pointers);
@@ -693,7 +693,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         UA_Server_addRepeatedCallback(server, periodicServerRegister,
                                       cb, delayFirstRegisterMs, &cb->id);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. "
                      "StatusCode %s", UA_StatusCode_name(retval));
         UA_free(cb);

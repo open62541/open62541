@@ -74,7 +74,8 @@ int main(void) {
     UA_NodeId connectionIdentifier;
     UA_StatusCode retval = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     if(retval == UA_STATUSCODE_GOOD){
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The PubSub Connection was created successfully!");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                    "The PubSub Connection was created successfully!");
     }
 
     retval |= UA_Server_run(server, &running);

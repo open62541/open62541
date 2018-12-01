@@ -54,7 +54,7 @@ UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
     generatedId->length = 16;
     generatedId->data = (UA_Byte *) UA_malloc(16 * sizeof(UA_Byte));
     if(!generatedId->data) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Server unable to allocate memory for EventId data.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -72,7 +72,7 @@ UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
 UA_StatusCode
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
     if(!outNodeId) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -80,7 +80,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     if(!isNodeInTree(&server->config.nodestore, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -102,7 +102,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
                                 &newNodeId);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Adding event failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
@@ -167,7 +167,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) ||
        isNodeInTree(&server->config.nodestore, tEventType,
     		         &conditionTypeId, &hasSubtypeId, 1)){
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Alarms and Conditions are not supported yet!");
         UA_BrowsePathResult_deleteMembers(&bpr);
         UA_Variant_deleteMembers(&tOutVariant);
@@ -194,7 +194,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
 /*     } */
 
 /*     /\* where clauses were specified *\/ */
-/*     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND, */
+/*     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND, */
 /*                    "Where clauses are not supported by the server."); */
 /*     *result = true; */
 /*     return UA_STATUSCODE_BADNOTSUPPORTED; */
@@ -440,14 +440,14 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     UA_Boolean isInObjectsFolder = isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentTypeHierachy, parentTypeHierachySize);
     UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
     if (!isInObjectsFolder) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     UA_StatusCode retval = eventSetStandardFields(server, &eventNodeId, &origin, outEventId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not set the standard event fields with StatusCode %s",
                        UA_StatusCode_name(retval));
         return retval;
@@ -460,9 +460,9 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     LIST_INIT(&parentHandle.nodes);
     retval = getParentsNodeIteratorCallback(origin, true, parentReferences_events[1], &parentHandle);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Events: Could not create the list of nodes listening on the event with StatusCode %s",
-                       UA_StatusCode_name(retval));
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Events: Could not create the list of nodes listening on the "
+                       "event with StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
 
@@ -474,7 +474,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
             for(UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
                 retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
                 if(retval != UA_STATUSCODE_GOOD) {
-                    UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                    "Events: Could not add the event to a listening node with StatusCode %s",
                                    UA_StatusCode_name(retval));
                 }
@@ -491,7 +491,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     if(deleteEventNode) {
         retval = UA_Server_deleteNode(server, eventNodeId, true);
         if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Attempt to remove event using deleteNode failed. StatusCode %s",
                            UA_StatusCode_name(retval));
             return retval;

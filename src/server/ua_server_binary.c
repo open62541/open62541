@@ -294,7 +294,7 @@ processHEL(UA_Server *server, UA_Connection *connection,
     remoteConfig.maxChunkCount = helloMessage.maxChunkCount;
     retval = UA_Connection_processHELACK(connection, localConfig, &remoteConfig);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Error during the HEL/ACK handshake",
                     (int)(connection->sockfd));
         return retval;
@@ -345,7 +345,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeId_deleteMembers(&requestType);
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not decode the NodeId. Closing the connection");
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+                            "Could not decode the NodeId. Closing the connection");
         UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
         return retval;
     }
@@ -356,7 +357,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
        requestType.identifier.numeric != UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId) {
         UA_NodeId_deleteMembers(&requestType);
         UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not decode the OPN message. Closing the connection.");
         UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
         return retval;
@@ -369,7 +370,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     Service_OpenSecureChannel(server, channel, &openSecureChannelRequest, &openScResponse);
     UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
     if(openScResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not open a SecureChannel. "
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "Could not open a SecureChannel. "
                             "Closing the connection.");
         UA_SecureChannelManager_close(&server->secureChannelManager,
                                       channel->securityToken.channelId);
@@ -381,7 +382,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
                                                        &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
     UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not send the OPN answer with error code %s",
                             UA_StatusCode_name(retval));
         UA_SecureChannelManager_close(&server->secureChannelManager,
@@ -421,11 +422,11 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                        &responseType, &service, &serviceInsitu, &sessionRequired, &serviceType);
     if(!requestType) {
         if(requestTypeId.identifier.numeric == 787) {
-            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+            UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                                 "Client requested a subscription, " \
                                 "but those are not enabled in the build");
         } else {
-            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+            UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                                 "Unknown request with type identifier %i",
                                 requestTypeId.identifier.numeric);
         }
@@ -439,7 +440,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
     retval = UA_decodeBinary(msg, &offset, request, requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                              "Could not decode the request");
         return sendServiceFault(channel, msg, requestPos, responseType, requestId, retval);
     }
@@ -479,7 +480,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
         if(!session) {
-            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+            UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                                  "Trying to activate a session that is " \
                                  "not known in the server");
             UA_deleteMembers(request, requestType);
@@ -496,7 +497,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_Session anonymousSession;
     if(!session) {
         if(sessionRequired) {
-            UA_LOG_WARNING_CHANNEL(server->config.logger, channel,
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                    "Service request %i without a valid session",
                                    requestType->binaryEncodingId);
             UA_deleteMembers(request, requestType);
@@ -512,7 +513,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Trying to use a non-activated session? */
     if(sessionRequired && !session->activated) {
-        UA_LOG_WARNING_SESSION(server->config.logger, session,
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "Calling service %i on a non-activated session",
                                requestType->binaryEncodingId);
         UA_SessionManager_removeSession(&server->sessionManager,
@@ -524,7 +525,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* The session is bound to another channel */
     if(session != &anonymousSession && session->header.channel != channel) {
-        UA_LOG_WARNING_CHANNEL(server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Client tries to use a Session that is not "
                                "bound to this SecureChannel");
         UA_deleteMembers(request, requestType);
@@ -598,7 +599,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
  cleanup:
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not send the message over the SecureChannel "
                             "with StatusCode %s", UA_StatusCode_name(retval));
     /* Clean up */
@@ -616,25 +617,25 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(messagetype) {
     case UA_MESSAGETYPE_OPN:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
+        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel,
                              "Process an OPN on an open channel");
         retval = processOPN(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_MSG:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Process a MSG");
+        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a MSG");
         retval = processMSG(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_CLO:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Process a CLO");
+        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a CLO");
         Service_CloseSecureChannel(server, channel);
         break;
     default:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Invalid message type");
+        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Invalid message type");
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
         break;
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Processing the message failed with StatusCode %s. "
                             "Closing the channel.", UA_StatusCode_name(retval));
         Service_CloseSecureChannel(server, channel);
@@ -679,7 +680,7 @@ static UA_StatusCode
 processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
                                    UA_ByteString *message) {
     /* Process chunk without a channel; must be OPN */
-    UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | No channel attached to the connection. "
                  "Process the chunk directly", (int)(connection->sockfd));
     size_t offset = 0;
@@ -696,7 +697,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         break;
     case UA_MESSAGETYPE_OPN:
     {
-        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Connection %i | Process OPN message", (int)(connection->sockfd));
 
         /* Called before HEL */
@@ -730,7 +731,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         break;
     }
     default:
-        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Connection %i | Expected OPN or HEL message on a connection "
                      "without a SecureChannel", (int)(connection->sockfd));
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
@@ -754,7 +755,7 @@ processCompleteChunk(void *const application, UA_Connection *connection,
 void
 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                UA_ByteString *message) {
-    UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | Received a packet.", (int)(connection->sockfd));
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(message->data, message->length);
@@ -763,7 +764,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
     UA_StatusCode retval = UA_Connection_processChunks(connection, server,
                                                        processCompleteChunk, message);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Processing the message failed with "
                     "error %s", (int)(connection->sockfd), UA_StatusCode_name(retval));
         /* Send an ERR message and close the connection */

@@ -80,7 +80,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
             entry->channel.securityToken.createdAt +
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
         if(timeout < nowMonotonic) {
-            UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
+            UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
             removeSecureChannel(cm, entry);
             continue;
@@ -99,7 +99,7 @@ purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &cm->channels, pointers) {
         if(LIST_EMPTY(&entry->channel.sessions)) {
-            UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
+            UA_LOG_INFO_CHANNEL(&cm->server->config.logger, &entry->channel,
                                 "Channel was purged since maxSecureChannels was "
                                 "reached and channel had no session attached");
             removeSecureChannel(cm, entry);
@@ -124,7 +124,7 @@ UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection 
        !purgeFirstChannelWithoutSession(cm))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_LOG_INFO(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+    UA_LOG_INFO(&cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                 "Creating a new SecureChannel");
 
     channel_entry *entry = (channel_entry *)UA_malloc(sizeof(channel_entry));
@@ -159,7 +159,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *chan
                              const UA_OpenSecureChannelRequest *request,
                              UA_OpenSecureChannelResponse *response) {
     if(channel->state != UA_SECURECHANNELSTATE_FRESH) {
-        UA_LOG_ERROR_CHANNEL(cm->server->config.logger, channel,
+        UA_LOG_ERROR_CHANNEL(&cm->server->config.logger, channel,
                              "Called open on already open or closed channel");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -217,7 +217,7 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_SecureChannel *cha
                               const UA_OpenSecureChannelRequest *request,
                               UA_OpenSecureChannelResponse *response) {
     if(channel->state != UA_SECURECHANNELSTATE_OPEN) {
-        UA_LOG_ERROR_CHANNEL(cm->server->config.logger, channel,
+        UA_LOG_ERROR_CHANNEL(&cm->server->config.logger, channel,
                              "Called renew on channel which is not open");
         return UA_STATUSCODE_BADINTERNALERROR;
     }

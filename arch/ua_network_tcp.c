@@ -166,7 +166,7 @@ typedef struct ConnectionEntry {
 } ConnectionEntry;
 
 typedef struct {
-    UA_Logger logger;
+    const UA_Logger *logger;
     UA_UInt16 port;
     UA_SOCKET serverSockets[FD_SETSIZE];
     UA_UInt16 serverSocketsSize;
@@ -410,7 +410,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
     if (UA_select(highestfd+1, &fdset, NULL, &errset, &tmptv) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                                  "Socket select failed with %s", errno_str));
+                           "Socket select failed with %s", errno_str));
         // we will retry, so do not return bad
         return UA_STATUSCODE_GOOD;
     }
@@ -522,7 +522,8 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger logger) {
+UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
+                         const UA_Logger *logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
@@ -613,18 +614,18 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     connection->sockfd = (UA_Int32) clientsockfd; /* cast for win32 */
 
     if(clientsockfd == UA_INVALID_SOCKET) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                            "Could not create client socket: %s", strerror(UA_ERRNO));
-            ClientNetworkLayerTCP_close(connection);
-            return UA_STATUSCODE_BADDISCONNECT;
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not create client socket: %s", strerror(UA_ERRNO));
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
     }
 
     /* Non blocking connect to be able to timeout */
-    if (UA_socket_set_nonblocking(clientsockfd) != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                            "Could not set the client socket to nonblocking");
-            ClientNetworkLayerTCP_close(connection);
-            return UA_STATUSCODE_BADDISCONNECT;
+    if(UA_socket_set_nonblocking(clientsockfd) != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not set the client socket to nonblocking");
+        ClientNetworkLayerTCP_close(connection);
+        return UA_STATUSCODE_BADDISCONNECT;
     }
 
     /* Non blocking connect */
@@ -634,7 +635,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     if ((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
             ClientNetworkLayerTCP_close(connection);
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                            "Connection to  failed with error: %s", strerror(UA_ERRNO));
+                           "Connection to  failed with error: %s", strerror(UA_ERRNO));
             return UA_STATUSCODE_BADDISCONNECT;
     }
 
@@ -732,9 +733,9 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 
 }
 
-UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig config,
-		const char *endpointUrl, const UA_UInt32 timeout,
-                UA_Logger logger) {
+UA_Connection
+UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const char *endpointUrl,
+                            const UA_UInt32 timeout, const UA_Logger *logger) {
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
 
@@ -793,10 +794,8 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig config,
 }
 
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig config,
-                       const char *endpointUrl, const UA_UInt32 timeout,
-                       UA_Logger logger) {
-
+UA_ClientConnectionTCP(UA_ConnectionConfig config, const char *endpointUrl,
+                       const UA_UInt32 timeout, const UA_Logger *logger) {
     UA_initialize_architecture_network();
 
     if(logger == NULL) {

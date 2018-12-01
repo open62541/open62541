@@ -185,7 +185,7 @@ getInterfaces(UA_Server *server) {
         /* todo: malloc may fail: return a statuscode */
         adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
         if(!adapter_addresses) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "GetAdaptersAddresses out of memory");
             adapter_addresses = NULL;
             break;
@@ -207,7 +207,7 @@ getInterfaces(UA_Server *server) {
         }
 
         /* Unexpected error */
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "GetAdaptersAddresses returned an unexpected error. "
                      "Not setting mDNS A records.");
         UA_free(adapter_addresses);
@@ -245,14 +245,14 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
 #ifdef _WIN32
     IP_ADAPTER_ADDRESSES* adapter_addresses = getInterfaces(server);
     if(!adapter_addresses) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
         return false;
     }
 #else
     struct ifaddrs *ifaddr, *ifa;
     if(getifaddrs(&ifaddr) == -1) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
         return false;
     }
@@ -493,7 +493,7 @@ setSrv(UA_Server *server, const struct resource *r,
             char ipinput[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &(hostnameEntry->addr), ipinput, INET_ADDRSTRLEN);
             UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                              "Multicast: Can not resolve IP address to hostname: "
                              "%s - %s. Using IP instead",ipinput, errno_str));
 
@@ -515,7 +515,7 @@ setSrv(UA_Server *server, const struct resource *r,
     }
 
 
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %s", newUrl);
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
     UA_free(newUrl);
@@ -574,7 +574,7 @@ mdns_record_received(const struct resource *r, void *data) {
 
     /* Check that the ttl is positive */
     if(r->ttl == 0) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Multicast DNS: remove server (TTL=0): %.*s",
                     (int)entry->serverOnNetwork.discoveryUrl.length,
                     entry->serverOnNetwork.discoveryUrl.data);
@@ -760,7 +760,7 @@ mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                         const char *localDomain) {
     struct ifaddrs *ifaddr, *ifa;
     if(getifaddrs(&ifaddr) == -1) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
         return;
     }

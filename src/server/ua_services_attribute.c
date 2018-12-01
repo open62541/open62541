@@ -198,7 +198,7 @@ void
 ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
              UA_TimestampsToReturn timestampsToReturn,
              const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Read the attribute %i", id->attributeId);
 
     /* Only Binary Encoding is supported */
@@ -403,7 +403,7 @@ Operation_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
 
 UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
                            const UA_ReadRequest *request, UA_ResponseHeader *responseHeader) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing ReadRequest");
 
     /* Check if the timestampstoreturn is valid */
@@ -637,7 +637,8 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
                                    UA_Int32 valueRank, size_t arrayDimensionsSize) {
     /* ValueRank invalid */
     if(valueRank < UA_VALUERANK_SCALAR_OR_ONE_DIMENSION) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "The ValueRank is invalid (< -3)");
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
+                            "The ValueRank is invalid (< -3)");
         return false;
     }
 
@@ -647,7 +648,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
     /* case  0, UA_VALUERANK_ONE_OR_MORE_DIMENSIONS:  the value is an array with one or more dimensions */
     if(valueRank <= UA_VALUERANK_ONE_OR_MORE_DIMENSIONS) {
         if(arrayDimensionsSize > 0) {
-            UA_LOG_INFO_SESSION(server->config.logger, session,
+            UA_LOG_INFO_SESSION(&server->config.logger, session,
                                 "No ArrayDimensions can be defined for a ValueRank <= 0");
             return false;
         }
@@ -656,7 +657,7 @@ compatibleValueRankArrayDimensions(UA_Server *server, UA_Session *session,
     
     /* case >= 1, UA_VALUERANK_ONE_DIMENSION: the value is an array with the specified number of dimensions */
     if(arrayDimensionsSize != (size_t)valueRank) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "The number of ArrayDimensions is not equal to the (positive) ValueRank");
         return false;
     }
@@ -779,13 +780,13 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
          * variables with no value, e.g. OldValues - ns=0;i=3024. See also
          * #1889, https://github.com/open62541/open62541/pull/1889#issuecomment-403506538 */
         if(server->config.relaxEmptyValueConstraint) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                                  "Only Variables with data type BaseDataType can contain an "
                                  "empty value. Allow via explicit constraint relaxation.");
             return true;
         }
 
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "Only Variables with data type BaseDataType can contain an empty value");
         return false;
     }
@@ -853,14 +854,14 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
      * when we do the change */
     if(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
        UA_Node_hasSubTypeOrInstances((UA_Node*)node)) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Cannot change a variable type with existing instances");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Check that the array dimensions match with the valuerank */
     if(!compatibleValueRankArrayDimensions(server, session, node->valueRank, arrayDimensionsSize)) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Cannot write the ArrayDimensions. The ValueRank does not match.");
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
@@ -870,7 +871,7 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
     if(type->arrayDimensions &&
        !compatibleArrayDimensions(type->arrayDimensionsSize, type->arrayDimensions,
                                   arrayDimensionsSize, arrayDimensions)) {
-       UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+       UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Array dimensions in the variable type do not match");
        return UA_STATUSCODE_BADTYPEMISMATCH;
     }
@@ -886,7 +887,7 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
             retval = UA_STATUSCODE_BADTYPEMISMATCH;
         UA_DataValue_deleteMembers(&value);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Array dimensions in the current value do not match");
             return retval;
         }
@@ -983,7 +984,7 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
             retval = UA_STATUSCODE_BADTYPEMISMATCH;
         UA_DataValue_deleteMembers(&value);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "The current value does not match the new data type");
             return retval;
         }
@@ -1352,7 +1353,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         break;
     }
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_INFO_SESSION(server->config.logger, session,
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "WriteRequest returned status code %s",
                             UA_StatusCode_name(retval));
     return retval;
@@ -1369,7 +1370,7 @@ void
 Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request,
               UA_WriteResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing WriteRequest");
 
     if(server->config.maxNodesPerWrite != 0 &&

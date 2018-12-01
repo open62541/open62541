@@ -1,4 +1,3 @@
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
@@ -243,7 +242,7 @@ UA_Server_new(const UA_ServerConfig *config) {
     /* Initialize namespace 0*/
     UA_StatusCode retVal = UA_Server_initNS0(server);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(config->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
                      "Namespace 0 could not be bootstrapped with error %s. "
                      "Shutting down the server.",
                      UA_StatusCode_name(retVal));
@@ -354,7 +353,7 @@ UA_Server_run_startup(UA_Server *server) {
 	
 	/* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "There has to be at least one endpoint.");
     }
 
@@ -374,7 +373,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Spin up the worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Spinning up %u worker thread(s)", server->config.nThreads);
     UA_WorkQueue_start(&server->workQueue, server->config.nThreads);
 #endif
@@ -458,7 +457,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
 #ifdef UA_ENABLE_MULTITHREADING
     /* Shut down the workers */
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Shutting down %u worker thread(s)",
                 (UA_UInt32)server->workQueue.workersSize);
     UA_WorkQueue_stop(&server->workQueue);

@@ -35,9 +35,10 @@ static void
 UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     /* TODO: Select policy according to the endpoint */
-    UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL, config.logger);
-    UA_SecureChannel_init(&client->channel);
     client->config = config;
+    UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL,
+                           &client->config.logger);
+    UA_SecureChannel_init(&client->channel);
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
     /* Catch error during async connection */
@@ -103,7 +104,7 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     /* Initiate client security policy */
     retval = (*securityPolicyFunction)(&client->securityPolicy,
                                        client->securityPolicy.certificateVerification,
-                                       certificate, privateKey, config.logger);
+                                       certificate, privateKey, &config.logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_CLIENT,
                      "Failed to setup the SecurityPolicy with error %s", UA_StatusCode_name(retval));
@@ -269,7 +270,7 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
 
     /* Send the request */
     UA_UInt32 rqId = ++client->requestId;
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Sending a request of type %i", requestType->typeId.identifier.numeric);
 
     if (client->channel.nextSecurityToken.tokenId != 0) // Change to the new security token if the secure channel has been renewed.
@@ -312,12 +313,12 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
         UA_init(response, ac->responseType);
         if(UA_NodeId_equal(responseTypeId, &serviceFaultId)) {
             /* Decode as a ServiceFault, i.e. only the response header */
-            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Received a ServiceFault response");
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Received a ServiceFault response");
             responseType = &UA_TYPES[UA_TYPES_SERVICEFAULT];
         } else {
             /* Close the connection */
-            UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply contains the wrong service response");
             retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
             goto process;
@@ -329,7 +330,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
 
  process:
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Could not decode the response with id %u due to %s",
                     requestId, UA_StatusCode_name(retval));
         ((UA_ResponseHeader*)response)->serviceResult = retval;
@@ -358,7 +359,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     /* Must be OPN or MSG */
     if(messageType != UA_MESSAGETYPE_OPN &&
        messageType != UA_MESSAGETYPE_MSG) {
-        UA_LOG_TRACE_CHANNEL(rd->client->config.logger, channel,
+        UA_LOG_TRACE_CHANNEL(&rd->client->config.logger, channel,
                              "Invalid message type");
         return;
     }
@@ -387,14 +388,14 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
     if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
-            UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Received a ServiceFault response");
             UA_init(rd->response, rd->responseType);
             retval = UA_decodeBinary(message, &offset, rd->response,
                                      &UA_TYPES[UA_TYPES_SERVICEFAULT], NULL);
         } else {
             /* Close the connection */
-            UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_ERROR(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply contains the wrong service response");
             retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
         }
@@ -402,10 +403,10 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_TYPENAMES
-    UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Decode a message of type %s", rd->responseType->typeName);
 #else
-    UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Decode a message of type %u", responseId.identifier.numeric);
 #endif
 
@@ -418,7 +419,7 @@ finish:
     if(retval != UA_STATUSCODE_GOOD) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             retval = UA_STATUSCODE_BADRESPONSETOOLARGE;
-        UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Error receiving the response with status code %s",
                     UA_StatusCode_name(retval));
 
@@ -622,7 +623,7 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
                            const UA_DataType *responseType, void *userdata,
                            UA_UInt32 *requestId) {
     if (UA_Client_getState(client) < UA_CLIENTSTATE_SECURECHANNEL) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Cient must be connected to send high-level requests");
         return UA_STATUSCODE_GOOD;
     }

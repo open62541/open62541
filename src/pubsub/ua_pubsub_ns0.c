@@ -111,7 +111,8 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                         UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric, &UA_TYPES[UA_TYPES_UINT32]);
                     break;
                 default:
-                    UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Read error! Unknown property.");
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Read error! Unknown property.");
             }
             break;
         case UA_NS0ID_WRITERGROUPTYPE:
@@ -124,11 +125,13 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                     UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval, &UA_TYPES[UA_TYPES_DURATION]);
                     break;
                 default:
-                    UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Read error! Unknown property.");
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Read error! Unknown property.");
             }
             break;
         default:
-            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Read error! Unknown parent element.");
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown parent element.");
     }
     UA_Server_writeValue(server, *nodeid, value);
 }
@@ -160,11 +163,13 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                     UA_WriterGroupConfig_deleteMembers(&writerGroupConfig);
                     break;
                 default:
-                    UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Write error! Unknown property element.");
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "Write error! Unknown property element.");
             }
             break;
         default:
-            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Read error! Unknown parent element.");
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown parent element.");
     }
 }
 
@@ -638,7 +643,7 @@ connectionTypeDestructor(UA_Server *server,
                          const UA_NodeId *sessionId, void *sessionContext,
                          const UA_NodeId *typeId, void *typeContext,
                          const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_USERLAND, "Connection destructor called!");
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Connection destructor called!");
     UA_NodeId publisherIdNode;
     publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
@@ -655,7 +660,7 @@ writerGroupTypeDestructor(UA_Server *server,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *typeId, void *typeContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_USERLAND, "WriterGroup destructor called!");
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "WriterGroup destructor called!");
     UA_NodeId intervalNode;
     intervalNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
@@ -671,7 +676,7 @@ dataSetWriterTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_USERLAND, "DataSetWriter destructor called!");
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "DataSetWriter destructor called!");
 }
 
 UA_StatusCode

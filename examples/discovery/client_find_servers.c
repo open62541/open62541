@@ -7,8 +7,6 @@
 
 #include "open62541.h"
 
-UA_Logger logger = UA_Log_Stdout;
-
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
 int main(void) {
@@ -25,7 +23,7 @@ int main(void) {
         UA_StatusCode retval = UA_Client_findServersOnNetwork(client, DISCOVERY_SERVER_ENDPOINT, 0, 0,
                                                               0, NULL, &serverOnNetworkSize, &serverOnNetwork);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "Could not call FindServersOnNetwork service. "
                          "Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
@@ -65,7 +63,7 @@ int main(void) {
         UA_Client_delete(client);
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
                 "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
         return (int) retval;
     }
@@ -117,7 +115,7 @@ int main(void) {
     for(size_t i = 0; i < applicationDescriptionArraySize; i++) {
         UA_ApplicationDescription *description = &applicationDescriptionArray[i];
         if(description->discoveryUrlsSize == 0) {
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
                         "[GetEndpoints] Server %.*s did not provide any discovery urls. Skipping.",
                         (int)description->applicationUri.length, description->applicationUri.data);
             continue;
