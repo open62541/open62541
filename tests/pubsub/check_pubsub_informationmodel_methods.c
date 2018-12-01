@@ -199,7 +199,7 @@ START_TEST(AddAndRemovePublishedDataSetFolders){
         ck_assert_int_eq(1, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
 
-        UA_NodeId createdFolder;
+        UA_NodeId createdFolder = UA_NODEID_NULL;
         if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             createdFolder = *((UA_NodeId *) result.outputArguments->data);
         UA_LocalizedText connectionDisplayName;
@@ -226,7 +226,7 @@ START_TEST(AddAndRemovePublishedDataSetFolders){
         result = UA_Server_call(server, &callMethodRequest);
         ck_assert_int_eq(1, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
-        UA_NodeId createdFolder2;
+        UA_NodeId createdFolder2 = UA_NODEID_NULL;
         if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             createdFolder2 = *((UA_NodeId *) result.outputArguments->data);
         UA_LocalizedText_init(&connectionDisplayName);
@@ -346,7 +346,7 @@ START_TEST(AddAndRemoveWriterGroups){
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
         ck_assert_int_eq(1, result.outputArgumentsSize);
 
-        UA_NodeId createdWriterGroup;
+        UA_NodeId createdWriterGroup = UA_NODEID_NULL;
         if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             createdWriterGroup = *((UA_NodeId *) result.outputArguments->data);
         UA_LocalizedText writerGroupDisplayName;
