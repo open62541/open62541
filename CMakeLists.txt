@@ -767,9 +767,38 @@ add_custom_target(cpplint cpplint
 
 set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake)
 set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
-set(open62541_tools_dir share/open62541/tools)
-set(open62541_deps_dir include/open62541/deps)
-set(open62541_include_dir include/open62541)
+set(open62541_install_tools_dir share/open62541/tools)
+set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
+set(open62541_install_include_dir include/open62541)
+
+# This list of components allows to define a find_package requirement.
+# E.g.:
+# find_package(open62541 0.4.0 REQUIRED COMPONENTS Events Methods FullNamespace)
+set(open62541_enabled_components "")
+if(UA_ENABLE_FULL_NS0)
+    list(APPEND open62541_enabled_components "FullNamespace")
+endif()
+if(UA_ENABLE_METHODCALLS)
+    list(APPEND open62541_enabled_components "Methods")
+endif()
+if(UA_ENABLE_SUBSCRIPTIONS)
+    list(APPEND open62541_enabled_components "Subscriptions")
+endif()
+if(UA_ENABLE_ENCRYPTION)
+    list(APPEND open62541_enabled_components "Encryption")
+endif()
+if(UA_ENABLE_AMALGAMATION)
+    list(APPEND open62541_enabled_components "Amalgamation")
+endif()
+if(UA_ENABLE_MULTITHREADING)
+    list(APPEND open62541_enabled_components "Multithreading")
+endif()
+if(UA_ENABLE_DISCOVERY)
+    list(APPEND open62541_enabled_components "Discovery")
+endif()
+if(UA_ENABLE_DISCOVERY_MULTICAST)
+    list(APPEND open62541_enabled_components "DiscoveryMulticast")
+endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
@@ -777,13 +806,17 @@ install(TARGETS open62541
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
-        INCLUDES DESTINATION include/open62541 ${open62541_deps_dir})
+        INCLUDES DESTINATION include/open62541 include)
 
 include(CMakePackageConfigHelpers)
-configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541-config.cmake.in"
-                              "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
+configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
+                              "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
-                              PATH_VARS target_install_dest_name open62541_tools_dir)
+                              PATH_VARS target_install_dest_name
+                                        open62541_install_tools_dir
+                                        open62541_install_nodeset_dir
+                                        open62541_enabled_components
+                              )
 
 set(open62541_VERSION)
 get_target_property(open62541_VERSION open62541 VERSION)
@@ -796,7 +829,7 @@ install(EXPORT open62541Targets
         FILE open62541Targets.cmake
         DESTINATION "${cmake_configfile_install}")
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541Config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
         DESTINATION "${cmake_configfile_install}")
 
@@ -815,38 +848,21 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
 #    "tools/generate_nodeid_header.py"
     "tools/generate_statuscode_descriptions.py")
 
-install(DIRECTORY ${UA_install_tools_dirs} DESTINATION ${open62541_tools_dir} USE_SOURCE_PERMISSIONS)
-install(FILES ${UA_install_tools_files} DESTINATION ${open62541_tools_dir})
+install(DIRECTORY ${UA_install_tools_dirs} DESTINATION ${open62541_install_tools_dir} USE_SOURCE_PERMISSIONS)
+install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
+install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 # Export amalgamated header open62541.h which is generated due to build of open62541-object
-if(UA_ENABLE_AMALGAMATION)
-    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
-else()
+if(NOT UA_ENABLE_AMALGAMATION)
     # Assume no files have identical names and place everything in the include folder
     install(FILES ${internal_headers}
                   ${exported_headers}
                   ${default_plugin_headers}
                   ${historizing_default_plugin_headers}
-            DESTINATION ${open62541_include_dir})
+            DESTINATION ${open62541_install_include_dir})
 endif()
 
-##########################
-# Packaging (DEB/RPM)    #
-##########################
-# invoke via `make package`
-
-set(CPACK_GENERATOR "TGZ;DEB;RPM")
-set(CPACK_PACKAGE_VENDOR "open62541 team")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OPC UA implementation")
-set(CPACK_PACKAGE_DESCRIPTION "open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications.")
-set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-set(CPACK_PACKAGE_VERSION_MAJOR "0")
-set(CPACK_PACKAGE_VERSION_MINOR "2")
-set(CPACK_PACKAGE_VERSION_PATCH "0")
-set(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") #required
-
-include(CPack)
+add_subdirectory(tools/packaging)
 
 ##################################
 # Visual studio solution folders #
