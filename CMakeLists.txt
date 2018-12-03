@@ -739,6 +739,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
 ua_generate_nodeid_header(
     NAME "ua_nodeids"
     ID_PREFIX "NS0"
+    TARGET_SUFFIX "ids-ns0"
     FILE_CSV "${UA_FILE_NODEIDS}"
 )
 

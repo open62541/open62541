@@ -14,20 +14,35 @@
 #   Arguments taking one value:
 #
 #   NAME            Full name of the generated files, e.g. di_nodeids
+#   TARGET_SUFFIX   Suffix for the resulting target. e.g. ids-di
+#   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
 #   ID_PREFIX       Prefix for the generated node ID defines, e.g. NS_DI
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
 #   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #
 function(ua_generate_nodeid_header)
     set(options )
-    set(oneValueArgs NAME ID_PREFIX OUTPUT_DIR FILE_CSV)
+    set(oneValueArgs NAME ID_PREFIX OUTPUT_DIR FILE_CSV TARGET_SUFFIX TARGET_PREFIX)
     set(multiValueArgs )
     cmake_parse_arguments(UA_GEN_ID "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
+    if(NOT UA_GEN_ID_TARGET_SUFFIX OR "${UA_GEN_ID_TARGET_SUFFIX}" STREQUAL "")
+        message(FATAL_ERROR "ua_generate_nodeid_header function requires a value for the TARGET_SUFFIX argument")
+    endif()
+
     # Set default value for output dir
-    if(NOT UA_GEN_ID_OUTPUT_DIR)
+    if(NOT UA_GEN_ID_OUTPUT_DIR OR "${UA_GEN_ID_OUTPUT_DIR}" STREQUAL "")
         set(UA_GEN_ID_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
     endif()
+    # Set default target prefix
+    if(NOT UA_GEN_ID_TARGET_PREFIX OR "${UA_GEN_ID_TARGET_PREFIX}" STREQUAL "")
+        set(UA_GEN_ID_TARGET_PREFIX "open62541-generator")
+    endif()
+
+
+    add_custom_target(${UA_GEN_ID_TARGET_PREFIX}-${UA_GEN_ID_TARGET_SUFFIX} DEPENDS
+        ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
+    )
 
     # Header containing defines for all NodeIds
     add_custom_command(OUTPUT ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
@@ -64,6 +79,7 @@ endfunction()
 #
 #   NAME            Full name of the generated files, e.g. ua_types_di
 #   TARGET_SUFFIX   Suffix for the resulting target. e.g. types-di
+#   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
 #   NAMESPACE_IDX   Namespace index of the nodeset, when it is loaded into the server. This index
 #                   is used for the node ids withing the types array and is currently not determined automatically.
 #                   Make sure that it matches the namespace index in the server.
@@ -80,7 +96,7 @@ endfunction()
 #
 function(ua_generate_datatypes)
     set(options BUILTIN)
-    set(oneValueArgs NAME TARGET_SUFFIX NAMESPACE_IDX OUTPUT_DIR FILE_CSV)
+    set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX NAMESPACE_IDX OUTPUT_DIR FILE_CSV)
     set(multiValueArgs FILES_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -106,9 +122,14 @@ function(ua_generate_datatypes)
     endif()
 
     # Set default value for output dir
-    if(NOT UA_GEN_DT_OUTPUT_DIR)
+    if(NOT UA_GEN_DT_OUTPUT_DIR OR "${UA_GEN_DT_OUTPUT_DIR}" STREQUAL "")
         set(UA_GEN_DT_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
     endif()
+    # Set default target prefix
+    if(NOT UA_GEN_DT_TARGET_PREFIX OR "${UA_GEN_DT_TARGET_PREFIX}" STREQUAL "")
+        set(UA_GEN_DT_TARGET_PREFIX "open62541-generator")
+    endif()
+
 
     # ------ Add custom command and target -----
 
@@ -144,7 +165,7 @@ function(ua_generate_datatypes)
         ${UA_GEN_DT_FILES_BSD}
         ${UA_GEN_DT_FILE_CSV}
         ${UA_GEN_DT_FILES_SELECTED})
-    add_custom_target(open62541-generator-${UA_GEN_DT_TARGET_SUFFIX} DEPENDS
+    add_custom_target(${UA_GEN_DT_TARGET_PREFIX}-${UA_GEN_DT_TARGET_SUFFIX} DEPENDS
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
@@ -186,6 +207,7 @@ endfunction()
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
 #   [ENCODE_BINARY_SIZE]    Optional array size for binary encoding extension objects.
 #   [IGNORE]        Optional file containing a list of node ids which should be ignored. The file should have one id per line.
+#   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
 #
 #   Arguments taking multiple values:
 #
@@ -198,7 +220,7 @@ endfunction()
 function(ua_generate_nodeset)
 
     set(options INTERNAL )
-    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR ENCODE_BINARY_SIZE IGNORE)
+    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR ENCODE_BINARY_SIZE IGNORE TARGET_PREFIX)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -217,7 +239,7 @@ function(ua_generate_nodeset)
     endif()
 
     # Set default value for output dir
-    if(NOT UA_GEN_NS_OUTPUT_DIR)
+    if(NOT UA_GEN_NS_OUTPUT_DIR OR "${UA_GEN_NS_OUTPUT_DIR}" STREQUAL "")
         set(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
     endif()
 
@@ -226,6 +248,11 @@ function(ua_generate_nodeset)
 
     if(NOT DEPENDS_TYPES_LEN EQUAL DEPENDS_NS_LEN)
         message(FATAL_ERROR "ua_generate_nodeset parameters DEPENDS_NS and DEPENDS_TYPES must have the same number of list elements")
+    endif()
+
+    # Set default target prefix
+    if(NOT UA_GEN_NS_TARGET_PREFIX OR "${UA_GEN_NS_TARGET_PREFIX}" STREQUAL "")
+        set(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
     endif()
 
     # ------ Add custom command and target -----
@@ -298,12 +325,12 @@ function(ua_generate_nodeset)
                        ${UA_GEN_NS_DEPENDS_NS}
                        )
 
-    add_custom_target(open62541-generator-${TARGET_SUFFIX}
+    add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}
                       DEPENDS
                       ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c
                       ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.h)
     if (UA_GEN_NS_DEPENDS_TARGET)
-        add_dependencies(open62541-generator-${TARGET_SUFFIX} ${UA_GEN_NS_DEPENDS_TARGET})
+        add_dependencies(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX} ${UA_GEN_NS_DEPENDS_TARGET})
     endif()
 
     if(UA_COMPILE_AS_CXX)
@@ -316,7 +343,7 @@ function(ua_generate_nodeset)
     string(TOUPPER "${UA_GEN_NS_NAME}" GEN_NAME_UPPER)
     set(UA_NODESET_${GEN_NAME_UPPER}_SOURCES "${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c" CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} source files")
     set(UA_NODESET_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.h" CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} header files")
-    set(UA_NODESET_${GEN_NAME_UPPER}_TARGET "open62541-generator-${TARGET_SUFFIX}" CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} target")
+    set(UA_NODESET_${GEN_NAME_UPPER}_TARGET "${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}" CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} target")
 
 endfunction()
 
@@ -356,6 +383,7 @@ endfunction()
 #                   passed which will all combined to one resulting code.
 #   [NAMESPACE_IDX] Optional namespace index of the nodeset, when it is loaded into the server. This parameter is mandatory if FILE_CSV
 #                   or FILE_BSD is set. See ua_generate_datatypes function.
+#   [TARGET_PREFIX] Optional prefix for the resulting targets. Default `open62541-generator`
 #
 #   Arguments taking multiple values:
 #   [DEPENDS]       Optional list of nodeset names on which this nodeset depends. These names must match any name from a previous
@@ -365,10 +393,9 @@ endfunction()
 function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL)
-    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD NAMESPACE_IDX OUTPUT_DIR)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD NAMESPACE_IDX OUTPUT_DIR TARGET_PREFIX)
     set(multiValueArgs DEPENDS)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
-
 
     if(NOT DEFINED open62541_TOOLS_DIR)
         message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
@@ -407,8 +434,12 @@ function(ua_generate_nodeset_and_datatypes)
     endif()
 
     # Set default value for output dir
-    if(NOT UA_GEN_OUTPUT_DIR)
+    if(NOT UA_GEN_OUTPUT_DIR OR "${UA_GEN_OUTPUT_DIR}" STREQUAL "")
         set(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+    endif()
+    # Set default target prefix
+    if(NOT UA_GEN_TARGET_PREFIX OR "${UA_GEN_TARGET_PREFIX}" STREQUAL "")
+        set(UA_GEN_TARGET_PREFIX "open62541-generator")
     endif()
 
     set(NODESET_DEPENDS_TARGET "")
@@ -416,16 +447,16 @@ function(ua_generate_nodeset_and_datatypes)
 
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
         # Generate Datatypes for nodeset
-
         ua_generate_datatypes(
             NAME "ua_types_${UA_GEN_NAME}"
+            TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
             TARGET_SUFFIX "types-${UA_GEN_NAME}"
             NAMESPACE_IDX ${UA_GEN_NAMESPACE_IDX}
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"
             OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
         )
-        set(NODESET_DEPENDS_TARGET "open62541-generator-types-${UA_GEN_NAME}")
+        set(NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}")
         set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
 
         ua_generate_nodeid_header(
@@ -433,7 +464,10 @@ function(ua_generate_nodeset_and_datatypes)
             ID_PREFIX "${GEN_NAME_UPPER}"
             FILE_CSV "${UA_GEN_FILE_CSV}"
             OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
+            TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
+            TARGET_SUFFIX "ids-${UA_GEN_NAME}"
         )
+        set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET} "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
     endif()
 
     # Create a list of nodesets on which this nodeset depends on
@@ -450,7 +484,7 @@ function(ua_generate_nodeset_and_datatypes)
             set(NODESET_DEPENDS ${NODESET_DEPENDS} "${DEPENDS_FILE}")
             get_property(DEPENDS_TYPES GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_TYPES_${f}")
             set(TYPES_DEPENDS ${TYPES_DEPENDS} "${DEPENDS_TYPES}")
-            set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET} "open62541-generator-ns-${f}")
+            set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET} "${UA_GEN_TARGET_PREFIX}-ns-${f}")
         endforeach()
     endif()
 
@@ -469,6 +503,7 @@ function(ua_generate_nodeset_and_datatypes)
         DEPENDS_NS ${NODESET_DEPENDS}
         DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
         OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
+        TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
     )
 
 endfunction()
