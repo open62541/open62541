@@ -230,8 +230,6 @@ be visible in the cmake GUIs.
 **UA_ENABLE_FULL_NS0**
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
-**UA_ENABLE_NONSTANDARD_UDP**
-   Enable udp extension
 
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^

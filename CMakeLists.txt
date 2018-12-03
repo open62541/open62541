@@ -248,9 +248,6 @@ mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
 option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
-option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension (non-standard)" OFF)
-mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
-
 option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
        "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
@@ -624,10 +621,6 @@ endif()
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
-endif()
-
-if(UA_ENABLE_NONSTANDARD_UDP)
-    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/ua_network_udp.h)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
