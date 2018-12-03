@@ -13,7 +13,7 @@
  * The state of a component is represented through a condition. So the values of all the condition children (Fields)
  * are the actual state of the component.
  *
- * Emitting Alarm events by changing States
+ * Trigger Alarm events by changing States
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * The following example will be based on the server events tutorial. Please make sure to understand the principle
  * of normal events before proceeding with this example!
@@ -24,7 +24,7 @@ static UA_NodeId conditionInstance_1;
 static UA_NodeId conditionInstance_2;
 
 static UA_StatusCode
-addConditoinSourceObject(UA_Server *server) {
+addConditionSourceObject(UA_Server *server) {
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.eventNotifier = 1;
 
@@ -55,12 +55,12 @@ addConditoinSourceObject(UA_Server *server) {
 
 /**
  * create a condition instance from OffNormalAlarmType. The condition source is the Object created in
- * addConditoinSourceObject(). The condition will be exposed in Address Space through the HasComponent
+ * addConditionSourceObject(). The condition will be exposed in Address Space through the HasComponent
  * reference to the condition source.
  */
 static UA_StatusCode
-addConditoin_1(UA_Server *server) {
-    UA_StatusCode retval = addConditoinSourceObject(server);
+addCondition_1(UA_Server *server) {
+    UA_StatusCode retval = addConditionSourceObject(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "creating Condition Source failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -78,7 +78,7 @@ addConditoin_1(UA_Server *server) {
  * The condition won't be exposed in Address Space.
  */
 static UA_StatusCode
-addConditoin_2(UA_Server *server) {
+addCondition_2(UA_Server *server) {
     UA_StatusCode retval = UA_Server_createCondition(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
                                        UA_QUALIFIEDNAME(0, "Condition 2"), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                        UA_NODEID_NULL, &conditionInstance_2);
@@ -104,7 +104,7 @@ addVariable_1_triggerAlarmOfCondition_1(UA_Server *server, UA_NodeId* outNodeId)
 }
 
 static void
-addVariable_2_changeSeverityOfCondtion_2(UA_Server *server, UA_NodeId* outNodeId) {
+addVariable_2_changeSeverityOfCondition_2(UA_Server *server, UA_NodeId* outNodeId) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en", "Change Severity Condition 2");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -317,7 +317,7 @@ enteringEnabledStateCallback(UA_Server *server, const UA_NodeId *condition) {
  */
 static UA_StatusCode
 enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
-    /* set ActiveState/Id to false*/
+    /* deactivate Alarm when acknowledging*/
     UA_Boolean activeStateId = false;
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
@@ -336,7 +336,7 @@ enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
 
 static UA_StatusCode
 enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
-    /* set ActiveState/Id to false*/
+	/* deactivate Alarm and put it out of the interesting state (by writing false to Retain field) when confirming*/
     UA_Boolean activeStateId = false;
     UA_Boolean retain = false;
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
@@ -373,7 +373,7 @@ setUpEnvironment(UA_Server *server) {
        * exposed condition 1. We will add to it user specific callbacks when entering enabled state,
        * when acknowledging and when confirming
        */
-    UA_StatusCode retval = addConditoin_1(server);
+    UA_StatusCode retval = addCondition_1(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "adding condition 1 failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -417,7 +417,7 @@ setUpEnvironment(UA_Server *server) {
      * notifications (we cannot call enable method on unexposed condition using a
      * client like UaExpert or Softing).
      */
-    retval = addConditoin_2(server);
+    retval = addCondition_2(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "adding condition 2 failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -458,7 +458,7 @@ setUpEnvironment(UA_Server *server) {
      * severity can change internally also when the condition disabled and retain is false. However,
      * in this case no events will be generated.
      */
-    addVariable_2_changeSeverityOfCondtion_2(server, &variable_2);
+    addVariable_2_changeSeverityOfCondition_2(server, &variable_2);
 
     callback.onWrite = afterWriteCallbackVariable_2;
     retval = UA_Server_setVariableNode_valueCallback(server, variable_2, callback);
@@ -484,7 +484,7 @@ setUpEnvironment(UA_Server *server) {
 
 /** It follows the main server code, making use of the above definitions. */
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 static void stopHandler(int sig) {
     running = false;
 }

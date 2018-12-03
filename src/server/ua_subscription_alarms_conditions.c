@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Sameer AL-Qadasi)
+ *    Copyright 2018 (c) Hilscher Gesellschaft fï¿½r Systemautomation mbH (Author: Sameer AL-Qadasi)
  */
 
 /*****************************************************************************/
@@ -400,7 +400,7 @@ updateConditionLastEventId(UA_Server *server,
             /* Get Condition Entry */
             UA_Condition_nodeListElement *conditionEntryTmp;
             LIST_FOREACH(conditionEntryTmp, &conditionSourceEntryTmp->conditionHead, listEntry) {
-                if(UA_NodeId_equal(&conditionEntryTmp->conditionId, triggeredEvent)) {// found ConditoinId -> branch == NULL
+                if(UA_NodeId_equal(&conditionEntryTmp->conditionId, triggeredEvent)) {// found ConditionId -> branch == NULL
                     UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
                     LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
                         if(conditionBranchEntryTmp->conditionBranchId == NULL) // update main condition branch
@@ -1393,30 +1393,30 @@ static UA_StatusCode
 setConditionInConditionList(UA_Server *server,
                             const UA_NodeId *conditionNodeId,
                             UA_ConditionSource_nodeListElement *conditionSourceEntry) {
-    UA_Condition_nodeListElement *condtionListEntry = NULL;
-    condtionListEntry = (UA_Condition_nodeListElement*) UA_malloc(sizeof(UA_Condition_nodeListElement));
-    if(!condtionListEntry)
+    UA_Condition_nodeListElement *conditionListEntry = NULL;
+    conditionListEntry = (UA_Condition_nodeListElement*) UA_malloc(sizeof(UA_Condition_nodeListElement));
+    if(!conditionListEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(condtionListEntry, 0, sizeof(UA_Condition_nodeListElement));
+    memset(conditionListEntry, 0, sizeof(UA_Condition_nodeListElement));
 
     /* Set ConditionId with given ConditionNodeId */
-    UA_StatusCode retval = UA_NodeId_copy(conditionNodeId, &condtionListEntry->conditionId);
+    UA_StatusCode retval = UA_NodeId_copy(conditionNodeId, &conditionListEntry->conditionId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(condtionListEntry);
+        UA_free(conditionListEntry);
         return retval;
     }
 
-    UA_ConditionBranch_nodeListElement *condtionBranchListEntry;
-    condtionBranchListEntry = (UA_ConditionBranch_nodeListElement*) UA_malloc(sizeof(UA_ConditionBranch_nodeListElement));
-    if(!condtionBranchListEntry)
+    UA_ConditionBranch_nodeListElement *conditionBranchListEntry;
+    conditionBranchListEntry = (UA_ConditionBranch_nodeListElement*) UA_malloc(sizeof(UA_ConditionBranch_nodeListElement));
+    if(!conditionBranchListEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(condtionBranchListEntry, 0, sizeof(UA_ConditionBranch_nodeListElement));
+    memset(conditionBranchListEntry, 0, sizeof(UA_ConditionBranch_nodeListElement));
 
     /* append to list */
-    LIST_INSERT_HEAD(&conditionSourceEntry->conditionHead, condtionListEntry, listEntry);
-    LIST_INSERT_HEAD(&condtionListEntry->conditionBranchHead, condtionBranchListEntry, listEntry);
+    LIST_INSERT_HEAD(&conditionSourceEntry->conditionHead, conditionListEntry, listEntry);
+    LIST_INSERT_HEAD(&conditionListEntry->conditionBranchHead, conditionBranchListEntry, listEntry);
 
     return retval;
 }
@@ -1434,24 +1434,24 @@ appendConditionEntry(UA_Server *server,
             }
         }
     }
-    /* ConditoinSource not found in list, so we create a new ConditionSource Entry */
-    UA_ConditionSource_nodeListElement *condtionSourceListEntry;
-    condtionSourceListEntry = (UA_ConditionSource_nodeListElement*) UA_malloc(sizeof(UA_ConditionSource_nodeListElement));
-    if(!condtionSourceListEntry)
+    /* ConditionSource not found in list, so we create a new ConditionSource Entry */
+    UA_ConditionSource_nodeListElement *conditionSourceListEntry;
+    conditionSourceListEntry = (UA_ConditionSource_nodeListElement*) UA_malloc(sizeof(UA_ConditionSource_nodeListElement));
+    if(!conditionSourceListEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(condtionSourceListEntry, 0, sizeof(UA_ConditionSource_nodeListElement));
+    memset(conditionSourceListEntry, 0, sizeof(UA_ConditionSource_nodeListElement));
 
     /* Set ConditionSourceId with given ConditionSourceNodeId */
-    UA_StatusCode retval = UA_NodeId_copy(conditionSourceNodeId, &condtionSourceListEntry->conditionSourceId);
+    UA_StatusCode retval = UA_NodeId_copy(conditionSourceNodeId, &conditionSourceListEntry->conditionSourceId);
     if(retval != UA_STATUSCODE_GOOD) {
-      UA_free(condtionSourceListEntry);
+      UA_free(conditionSourceListEntry);
       return retval;
     }
     /* append to list */
-    LIST_INSERT_HEAD(&server->headConditionSource, condtionSourceListEntry, listEntry);
+    LIST_INSERT_HEAD(&server->headConditionSource, conditionSourceListEntry, listEntry);
 
-    retval = setConditionInConditionList(server, conditionNodeId, condtionSourceListEntry);
+    retval = setConditionInConditionList(server, conditionNodeId, conditionSourceListEntry);
 
     return retval;
 }
@@ -1860,7 +1860,7 @@ UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* Make sure the conditionType is a Subtype of ConditoinType */
+    /* Make sure the conditionType is a Subtype of ConditionType */
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(!isNodeInTree(&server->config.nodestore, &conditionType, &conditionTypeId, &hasSubtypeId, 1)) {
@@ -1898,8 +1898,8 @@ UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
                                      &newNodeId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Condition failed");
 
-    /* create HasCondition Reference (HasCondition should be forward from the ConditoinSourceNode to the Condition.
-     * else, HasCondition should be forward from the ConditoinSourceNode to the ConditionType Node) */
+    /* create HasCondition Reference (HasCondition should be forward from the ConditionSourceNode to the Condition.
+     * else, HasCondition should be forward from the ConditionSourceNode to the ConditionType Node) */
     UA_NodeId nodIdNull = UA_NODEID_NULL;
     UA_ExpandedNodeId hasConditionTarget;
     if(!UA_NodeId_equal(&hierarchialReferenceType, &nodIdNull)) {
@@ -2070,14 +2070,14 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId *
                                             const UA_QualifiedName* variableFieldName,
                                             const UA_QualifiedName* variablePropertyName) {
     /*1) find Variable Field of the Condition*/
-    UA_BrowsePathResult bprConditoinVariableField = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, variableFieldName);
-    if(bprConditoinVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditoinVariableField.targetsSize < 1) {
-        UA_StatusCode retval = bprConditoinVariableField.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bprConditoinVariableField);
+    UA_BrowsePathResult bprConditionVariableField = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, variableFieldName);
+    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditionVariableField.targetsSize < 1) {
+        UA_StatusCode retval = bprConditionVariableField.statusCode;
+        UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
         return retval;
     }
     /*2) find Property of the Variable Field of the Condition*/
-    UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditoinVariableField.targets->targetId.nodeId, 1, variablePropertyName);
+    UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditionVariableField.targets->targetId.nodeId, 1, variablePropertyName);
     if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD || bprVariableFieldProperty.targetsSize < 1) {
         UA_StatusCode retval = bprVariableFieldProperty.statusCode;
         UA_BrowsePathResult_deleteMembers(&bprVariableFieldProperty);
@@ -2089,7 +2089,7 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId *
     UA_Variant_setScalar(&value, (void*)(uintptr_t)variantValue, &UA_TYPES[type]);
     UA_StatusCode retval = UA_Server_writeValue(server, bprVariableFieldProperty.targets[0].targetId.nodeId, value);
 
-    UA_BrowsePathResult_deleteMembers(&bprConditoinVariableField);
+    UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
     UA_BrowsePathResult_deleteMembers(&bprVariableFieldProperty);
 
     return retval;
@@ -2300,7 +2300,7 @@ copyAllConditionFieldsToBranch(UA_Server *server,
 //          if(UA_NodeId_equal(&conditionSourceEntryTmp->conditionSourceId, &conditionSourceNodeId)) {
 //            Condition_nodeListElement *conditionEntryTmp;
 //            LIST_FOREACH(conditionEntryTmp, &conditionSourceEntryTmp->conditionHead, listEntry) {
-//            if(UA_NodeId_equal(&conditionEntryTmp->conditionId, &conditionNodeId)) {// found ConditoinId -> next step search for branch
+//            if(UA_NodeId_equal(&conditionEntryTmp->conditionId, &conditionNodeId)) {// found ConditionId -> next step search for branch
 //              ConditionBranch_nodeListElement *conditionBranchEntryTmp1, *conditionBranchEntryTmp2;
 //              LIST_FOREACH(conditionBranchEntryTmp1, &conditionEntryTmp->conditionBranchHead, listEntry)
 //              {
