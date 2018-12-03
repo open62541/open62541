@@ -7,8 +7,12 @@
 
 #include <stdio.h>
 #include "ua_log_stdout.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
+#include "ua_types.h"
+
+#ifdef UA_ENABLE_MULTITHREADING
+#include <pthread.h>
+static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif
 
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
@@ -38,11 +42,6 @@ const char *logLevelNames[6] = {"trace", "debug",
                                 ANSI_COLOR_MAGENTA "fatal"};
 const char *logCategoryNames[7] = {"network", "channel", "session", "server",
                                    "client", "userland", "securitypolicy"};
-
-#ifdef UA_ENABLE_MULTITHREADING
-#include <pthread.h>
-static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
