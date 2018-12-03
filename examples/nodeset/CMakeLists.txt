@@ -16,6 +16,7 @@ ua_generate_nodeset_and_datatypes(
 ua_generate_nodeid_header(
     NAME "example_nodeids"
     ID_PREFIX "EXAMPLE_NS"
+    TARGET_SUFFIX "ids_example"
     FILE_CSV "${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.csv"
 )
 
