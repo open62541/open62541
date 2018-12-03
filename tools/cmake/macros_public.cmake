@@ -1,58 +1,42 @@
-#Add a new architecture to to the lists of available architectures
-FUNCTION(ua_add_architecture)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURES ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_add_architecture)
 
-#Include folders to the compilation
-FUNCTION(ua_include_directories)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_INCLUDE_DIRECTORIES ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_include_directories)
+# --------------- Generate NodeIDs header ---------------------
+#
+# Generates header file from .csv which contains defines for every
+# node id to be used instead of numeric node ids.
+#
+# The resulting files will be put into OUTPUT_DIR with the names:
+# - NAME.h
+#
+#
+# The following arguments are accepted:
+#   Options:
+#
+#   Arguments taking one value:
+#
+#   NAME            Full name of the generated files, e.g. di_nodeids
+#   ID_PREFIX       Prefix for the generated node ID defines, e.g. NS_DI
+#   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
+#   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
+#
+function(ua_generate_nodeid_header)
+    set(options )
+    set(oneValueArgs NAME ID_PREFIX OUTPUT_DIR FILE_CSV)
+    set(multiValueArgs )
+    cmake_parse_arguments(UA_GEN_ID "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
-#Add a new header file to the architecture group
-FUNCTION(ua_add_architecture_header)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURE_HEADERS ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_add_architecture_header)
+    # Set default value for output dir
+    if(NOT UA_GEN_ID_OUTPUT_DIR)
+        set(UA_GEN_ID_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+    endif()
 
-#Add a new header file to the architecture group at the beginning of it
-FUNCTION(ua_add_architecture_header_beginning)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURE_HEADERS_BEGINNING ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_add_architecture_header_beginning)
-
-#Add a new source file to the architecture group
-FUNCTION(ua_add_architecture_file)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURE_SOURCES ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_add_architecture_file)
-
-#Add definitions to the compilations that are exclusive for the selected architecture
-FUNCTION(ua_architecture_add_definitions)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURE_ADD_DEFINITIONS ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_architecture_add_definitions)
-
-#Remove definitions from the compilations that are exclusive for the selected architecture
-FUNCTION(ua_architecture_remove_definitions)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURE_REMOVE_DEFINITIONS ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_architecture_remove_definitions)
-
-#Add libraries to be linked to the comnpilation that are exclusive for the selected architecture
-FUNCTION(ua_architecture_append_to_library)
-    FOREACH(ARG ${ARGV})
-        set_property(GLOBAL APPEND PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY ${ARG})
-    ENDFOREACH(ARG)
-ENDFUNCTION(ua_architecture_append_to_library)
+    # Header containing defines for all NodeIds
+    add_custom_command(OUTPUT ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_nodeid_header.py
+        ${UA_GEN_ID_FILE_CSV}  ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME} ${UA_GEN_ID_ID_PREFIX}
+        DEPENDS ${open62541_TOOLS_DIR}/generate_nodeid_header.py
+        ${UA_GEN_ID_FILE_CSV})
+endfunction()
 
 
 # --------------- Generate Datatypes ---------------------
@@ -100,6 +84,9 @@ function(ua_generate_datatypes)
     set(multiValueArgs FILES_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
+    if(NOT DEFINED open62541_TOOLS_DIR)
+        message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
+    endif()
 
     # ------ Argument checking -----
     if(NOT DEFINED UA_GEN_DT_NAMESPACE_IDX AND NOT "${UA_GEN_DT_NAMESPACE_IDX}" STREQUAL "0")
@@ -142,27 +129,27 @@ function(ua_generate_datatypes)
     endforeach()
 
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
-                       ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
-                       ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
-                       ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
-                       PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       --namespace=${UA_GEN_DT_NAMESPACE_IDX}
-                       ${SELECTED_TYPES_TMP}
-                       ${BSD_FILES_TMP}
-                       --type-csv=${UA_GEN_DT_FILE_CSV}
-                       ${UA_GEN_DT_NO_BUILTIN}
-                       ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}
-                       DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                       ${UA_GEN_DT_FILES_BSD}
-                       ${UA_GEN_DT_FILE_CSV}
-                       ${UA_GEN_DT_FILES_SELECTED})
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
+        --namespace=${UA_GEN_DT_NAMESPACE_IDX}
+        ${SELECTED_TYPES_TMP}
+        ${BSD_FILES_TMP}
+        --type-csv=${UA_GEN_DT_FILE_CSV}
+        ${UA_GEN_DT_NO_BUILTIN}
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}
+        DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
+        ${UA_GEN_DT_FILES_BSD}
+        ${UA_GEN_DT_FILE_CSV}
+        ${UA_GEN_DT_FILES_SELECTED})
     add_custom_target(open62541-generator-${UA_GEN_DT_TARGET_SUFFIX} DEPENDS
-                      ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
-                      ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
-                      ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
-                      ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
-                      )
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
+        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_encoding_binary.h
+        )
 
     string(TOUPPER "${UA_GEN_DT_NAME}" GEN_NAME_UPPER)
     set(${GEN_NAME_UPPER}_SOURCES "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c" CACHE INTERNAL "${UA_GEN_DT_NAME} source files")
@@ -216,6 +203,9 @@ function(ua_generate_nodeset)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
 
+    if(NOT DEFINED open62541_TOOLS_DIR)
+        message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
+    endif()
 
     # ------ Argument checking -----
     if(NOT UA_GEN_NS_NAME OR "${UA_GEN_NS_NAME}" STREQUAL "")
@@ -287,7 +277,7 @@ function(ua_generate_nodeset)
     add_custom_command(OUTPUT ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c
                        ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.h
                        PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                       COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                        ${GEN_INTERNAL_HEADERS}
                        ${GEN_NS0}
                        ${GEN_BIN_SIZE}
@@ -297,13 +287,13 @@ function(ua_generate_nodeset)
                        ${FILE_LIST}
                        ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}
                        DEPENDS
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                       ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
+                       ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
+                       ${open62541_TOOLS_DIR}/nodeset_compiler/nodes.py
+                       ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset.py
+                       ${open62541_TOOLS_DIR}/nodeset_compiler/datatypes.py
+                       ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541.py
+                       ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_nodes.py
+                       ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
                        ${UA_GEN_NS_FILE}
                        ${UA_GEN_NS_DEPENDS_NS}
                        )
@@ -336,7 +326,8 @@ endfunction()
 # Generates C code for the given NodeSet2.xml and Datatype file.
 # This C code can be used to initialize the server.
 #
-# This is a combination of the ua_generate_datatypes and ua_generate_nodeset macros.
+# This is a combination of the ua_generate_datatypes, ua_generate_nodeset, and
+# ua_generate_nodeid_header macros.
 # This function can also be used to just create a nodeset without datatypes by
 # omitting the CSV, BSD, and NAMESPACE_IDX parameter.
 # If only one of the previous parameters is given, all of them are required.
@@ -374,38 +365,51 @@ endfunction()
 function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL)
-    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD NAMESPACE_IDX)
+    set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD NAMESPACE_IDX OUTPUT_DIR)
     set(multiValueArgs DEPENDS)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
+
+    if(NOT DEFINED open62541_TOOLS_DIR)
+        message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
+    endif()
+
+    if(NOT DEFINED open62541_NODESET_DIR)
+        message(FATAL_ERROR "open62541_NODESET_DIR must point to the open62541/deps/ua-nodeset directory")
+    endif()
 
     # ------ Argument checking -----
     if(NOT UA_GEN_NAME OR "${UA_GEN_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires a value for the NAME argument")
     endif()
+    string(TOUPPER "${UA_GEN_NAME}" GEN_NAME_UPPER)
 
     if(NOT UA_GEN_FILE_NS OR "${UA_GEN_FILE_NS}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires a value for the FILE_NS argument")
     endif()
 
     if((NOT UA_GEN_FILE_CSV OR "${UA_GEN_FILE_CSV}" STREQUAL "") AND
-        (NOT "${UA_GEN_FILE_BSD}" STREQUAL "" OR
+    (NOT "${UA_GEN_FILE_BSD}" STREQUAL "" OR
         NOT "${UA_GEN_NAMESPACE_IDX}" STREQUAL ""))
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if any of FILE_BSD or NAMESPACE_IDX are set")
     endif()
 
     if((NOT UA_GEN_FILE_BSD OR "${UA_GEN_FILE_BSD}" STREQUAL "") AND
-        (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
+    (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
         NOT "${UA_GEN_NAMESPACE_IDX}" STREQUAL ""))
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_BSD argument if any of FILE_CSV or NAMESPACE_IDX are set")
     endif()
-        
+
     if(NOT UA_GEN_NAMESPACE_IDX OR "${UA_GEN_NAMESPACE_IDX}" STREQUAL "" AND
-        (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
+    (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
         NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires NAMESPACE_IDX argument if any of FILE_CSV or FILE_BSD are set")
     endif()
 
+    # Set default value for output dir
+    if(NOT UA_GEN_OUTPUT_DIR)
+        set(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+    endif()
 
     set(NODESET_DEPENDS_TARGET "")
     set(NODESET_TYPES_ARRAY "UA_TYPES")
@@ -419,15 +423,22 @@ function(ua_generate_nodeset_and_datatypes)
             NAMESPACE_IDX ${UA_GEN_NAMESPACE_IDX}
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"
+            OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
         )
         set(NODESET_DEPENDS_TARGET "open62541-generator-types-${UA_GEN_NAME}")
-        string(TOUPPER "${UA_GEN_NAME}" GEN_UPPER_NAME)
-        set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_UPPER_NAME}")
+        set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
+
+        ua_generate_nodeid_header(
+            NAME "${UA_GEN_NAME}_nodeids"
+            ID_PREFIX "${GEN_NAME_UPPER}"
+            FILE_CSV "${UA_GEN_FILE_CSV}"
+            OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
+        )
     endif()
 
     # Create a list of nodesets on which this nodeset depends on
     if (NOT UA_GEN_DEPENDS OR "${UA_GEN_DEPENDS}" STREQUAL "" )
-        set(NODESET_DEPENDS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml")
+        set(NODESET_DEPENDS "${open62541_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml")
         set(TYPES_DEPENDS "UA_TYPES")
     else()
         foreach(f ${UA_GEN_DEPENDS})
@@ -457,6 +468,7 @@ function(ua_generate_nodeset_and_datatypes)
         DEPENDS_TYPES ${TYPES_DEPENDS}
         DEPENDS_NS ${NODESET_DEPENDS}
         DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
+        OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
     )
 
 endfunction()
