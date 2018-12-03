@@ -11,9 +11,6 @@
 
 #include <stdarg.h>
 #include "ua_config.h"
-#include "ua_types.h"
-#include "ua_types_generated_handling.h"
-#include "base64.h"
 
 _UA_BEGIN_DECLS
 
