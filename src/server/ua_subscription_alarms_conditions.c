@@ -2363,7 +2363,7 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
     UA_QualifiedName enabledState = UA_QUALIFIEDNAME(0, "EnabledState");
     UA_ByteString eventId = UA_BYTESTRING_NULL;
 
-    /* Check if enabled TODO */
+    /* Check if enabled */
     if(isTwoStateVariableInTrueState(server, &condition, &enabledState)) {
         /* TODO Check if an alarm already exists but not acknowledged -> create branch as new node and generate event with same ConditionId and new BranchId */
 
