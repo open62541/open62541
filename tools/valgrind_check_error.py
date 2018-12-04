@@ -13,6 +13,7 @@ import sys
 import subprocess
 import os.path
 import re
+import os
 
 logfile = sys.argv[1]
 
@@ -20,7 +21,18 @@ valgrind_command = ' '.join('"' + item + '"' for item in sys.argv[2:])
 
 # Execute a command and output its stdout text
 def execute(command):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    my_env = os.environ.copy()
+    my_env["TEMP"] = my_env["TRAVIS_BUILD_DIR"] + "/tmp"
+    my_env["TMPDIR"] = my_env["TRAVIS_BUILD_DIR"] + "/tmp"
+
+    print("Temp Dir: " + my_env["TMPDIR"])
+
+    f= open(my_env["TMPDIR"] + "/test.txt","w+")
+    f.write("This is line %d\r\n")
+    f.close()
+
+    process = subprocess.Popen(command, env=my_env, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     # Poll process for new output until finished
     while True:

@@ -224,7 +224,11 @@ matrix:
     - os: osx
       compiler: clang
       # disable homebrew auto update which takes a lot of time
-      env: HOMEBREW_NO_AUTO_UPDATE=1
+      env:
+        - HOMEBREW_NO_AUTO_UPDATE=1
+        # libcheck needs custom temp dir, otherwise it fails since it does not can create the pipe
+        # check_msg.c:317: Unable to create temporary file for communication; may not have permissions to do so
+        - TEMP=${TRAVIS_BUILD_DIR}/tmp
       cache:
         directories:
           - $HOME/Library/Caches/Homebrew
