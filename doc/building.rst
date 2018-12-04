@@ -245,3 +245,30 @@ needed in embedded scenarios. Setting ``UA_LOGLEVEL`` to a value above 600
 ``UA_ENABLE_TYPENAMES`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
 information to the binary that is only used for human-readable logging and
 debugging.
+
+The RAM requirements of a server are mostly due to the following settings:
+
+- The size of the information model
+- The number of connected clients
+- The configured maximum message size that is preallocated
+
+
+Installation and packaging
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can install open62541 using the well known `make install` command.
+This allows you to use pre-built libraries and headers for your own project.
+
+To override the default installation directory use ``cmake -DCMAKE_INSTALL_PREFIX=/some/path``.
+Based on the SDK Features you selected, as described above, these features will also
+be included in the installation. Thus we recommend to enable as many features as possible
+for the installed binary.
+
+In your own CMake project you can then include the open62541 library using:
+
+
+.. code-block:: cmake
+
+   find_package(open62541 0.4.0 REQUIRED COMPONENTS Events DiscoveryMulticast)
+   add_executable(main main.cpp )
+   target_link_libraries(main open62541)
