@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2018 (c) Hilscher Gesellschaft f�r Systemautomation mbH (Author: Sameer AL-Qadasi)
+ *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Sameer AL-Qadasi)
  */
 
 /*****************************************************************************/
@@ -10,13 +10,13 @@
 /*****************************************************************************/
 
 #include "ua_server_internal.h"
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 /*****************************************************************************/
 /* defines                                                                 */
 /*****************************************************************************/
 // #define CONDITIONBRANCH_SUPPORT
 #define CONDITIONOPTIONALFIELDS_SUPPORT
-#define CONDITION_STATECHANGE_CALLBACKS_ENABLE
 
 /* Condition Field Names */
 #define CONDITION_FIELD_EVENTID                                "EventId"
@@ -229,15 +229,13 @@ getConditionFieldNodeId(UA_Server *server,
                         UA_NodeId *outFieldNodeId) {
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *conditionNodeId, 1, fieldName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_StatusCode retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
-        return retval;
+        return bpr.statusCode;
     }
 
-    *outFieldNodeId = bpr.targets[0].targetId.nodeId;
+    UA_StatusCode retval = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, outFieldNodeId);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /**
@@ -249,24 +247,20 @@ getConditionFieldPropertyNodeId(UA_Server *server,
                                 const UA_QualifiedName* variableFieldName,
                                 const UA_QualifiedName* variablePropertyName,
                                 UA_NodeId *outFieldPropertyNodeId) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* 1) Find Variable Field of the Condition */
     UA_BrowsePathResult bprConditionVariableField = UA_Server_browseSimplifiedBrowsePath(server, *originCondition, 1, variableFieldName);
     if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditionVariableField.targetsSize < 1) {
-        retval = bprConditionVariableField.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
-        return retval;
+        return bprConditionVariableField.statusCode;
     }
     /* 2) Find Property of the Variable Field of the Condition */
     UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditionVariableField.targets->targetId.nodeId,
                                                                                         1, variablePropertyName);
     if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD || bprVariableFieldProperty.targetsSize < 1) {
-        retval = bprVariableFieldProperty.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bprVariableFieldProperty);
-        return retval;
+        UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
+        return bprVariableFieldProperty.statusCode;
     }
 
-    *outFieldPropertyNodeId = bprVariableFieldProperty.targets[0].targetId.nodeId;
+    UA_StatusCode retval = UA_NodeId_copy(&bprVariableFieldProperty.targets[0].targetId.nodeId, outFieldPropertyNodeId);
 
     UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
     UA_BrowsePathResult_deleteMembers(&bprVariableFieldProperty);
@@ -392,7 +386,7 @@ static UA_StatusCode
 updateConditionLastEventId(UA_Server *server,
                            const UA_NodeId *triggeredEvent,
                            const UA_NodeId *ConditionSource,
-                           UA_ByteString *lastEventId) {
+                           const UA_ByteString *lastEventId) {
     /* Get ConditionSource Entry */
     UA_ConditionSource_nodeListElement *conditionSourceEntryTmp;
     LIST_FOREACH(conditionSourceEntryTmp, &server->headConditionSource, listEntry) {
@@ -403,15 +397,19 @@ updateConditionLastEventId(UA_Server *server,
                 if(UA_NodeId_equal(&conditionEntryTmp->conditionId, triggeredEvent)) {// found ConditionId -> branch == NULL
                     UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
                     LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
-                        if(conditionBranchEntryTmp->conditionBranchId == NULL) // update main condition branch
+                        if(conditionBranchEntryTmp->conditionBranchId == NULL) { // update main condition branch
+                            UA_ByteString_deleteMembers(&conditionBranchEntryTmp->lastEventId);
                             return UA_ByteString_copy(lastEventId, &conditionBranchEntryTmp->lastEventId);
+                        }
                     }
                 }
                 else { // update branch (TODO not used in first implementation)
                     UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
                     LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
-                        if(UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, triggeredEvent))
+                        if(UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, triggeredEvent)) {
+                            UA_ByteString_deleteMembers(&conditionBranchEntryTmp->lastEventId);
                             return UA_ByteString_copy(lastEventId, &conditionBranchEntryTmp->lastEventId);
+                        }
                     }
                 }
             }
@@ -538,14 +536,15 @@ enteringDisabledState(UA_Server *server,
                         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Retain failed");
 
                         /* Trigger event */
-                        UA_ByteString lastEventId;
+                        UA_ByteString lastEventId = UA_BYTESTRING_NULL;
                         /* Trigger the event for Condition or its Branch */
                         retval = UA_Server_triggerEvent(server, triggeredNode, conditionSourceEntryTmp->conditionSourceId,
                                                         &lastEventId, false); //Condition Nodes should not be deleted after triggering the event
                         CONDITION_ASSERT_RETURN_RETVAL(retval, "Triggering condition event failed");
 
-                        /* Update list TODO no need to call this function here, we can set lastEventId value directly!*/
+                        /* Update list */
                         retval = updateConditionLastEventId(server, &triggeredNode, &conditionSourceEntryTmp->conditionSourceId, &lastEventId);
+                        UA_ByteString_deleteMembers(&lastEventId);
                         CONDITION_ASSERT_RETURN_RETVAL(retval, "updating condition event failed");
                     }
 
@@ -599,9 +598,8 @@ enteringEnabledState(UA_Server *server,
                         CONDITION_ASSERT_RETURN_RETVAL(retval, "calling condition callback failed");
 
                         /* Trigger event */
-                        UA_ByteString lastEventId;
                         retval = UA_Server_triggerConditionEvent(server, triggeredNode, *conditionSource,
-                                                                 &lastEventId); //Condition Nodes should not be deleted after triggering the event
+                                                                 NULL); //Condition Nodes should not be deleted after triggering the event
                         CONDITION_ASSERT_RETURN_RETVAL(retval, "triggering condition event failed");
                     }
 
@@ -713,9 +711,8 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
              */
 
             /* Trigger event */
-            UA_ByteString lastEventId;
             retval = UA_Server_triggerConditionEvent(server, conditionNode, conditionSource,
-                                                     &lastEventId); //Condition Nodes should not be deleted after triggering the event
+                                                     NULL); //Condition Nodes should not be deleted after triggering the event
             CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed");
         }
         else {
@@ -796,9 +793,8 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
              */
 
             /* Trigger event */
-            UA_ByteString lastEventId;
             retval = UA_Server_triggerConditionEvent(server, conditionNode, conditionSource,
-                                                    &lastEventId); //Condition Nodes should not be deleted after triggering the event
+                                                     NULL); //Condition Nodes should not be deleted after triggering the event
             CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed");
         }
         else {
@@ -851,12 +847,12 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
           /* Set activating time */
           retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME),
                                                &data->sourceTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
-          CONDITION_ASSERT_RETURN_VOID(retval, "Set Confirming Time failed");
+          CONDITION_ASSERT_RETURN_VOID(retval, "Set activating Time failed");
 
           /* Set ActiveState text */
           text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_TEXT);
           retval = UA_Server_setConditionField(server, &conditionNode, &text, UA_TYPES_LOCALIZEDTEXT, &fieldActiveState);
-          CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ConfirmedState failed");
+          CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ActiveState failed");
 
           /* User callback*/
           UA_Boolean removeBranch = false;//not used
@@ -893,13 +889,13 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
   }
 }
 
-static void
-afterWriteCallbackConditionVariableChange(UA_Server *server,
-                                          const UA_NodeId *sessionId, void *sessionContext,
-                                          const UA_NodeId *nodeId, void *nodeContext,
-                                          const UA_NumericRange *range, const UA_DataValue *data) {
-    //TODO
-}
+//static void
+//afterWriteCallbackConditionVariableChange(UA_Server *server,
+//                                          const UA_NodeId *sessionId, void *sessionContext,
+//                                          const UA_NodeId *nodeId, void *nodeContext,
+//                                          const UA_NumericRange *range, const UA_DataValue *data) {
+//    //TODO
+//}
 
 static void
 afterWriteCallbackQualityChange(UA_Server *server,
@@ -967,9 +963,8 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     /* Check if retained */
     if(isRetained(server, &condition)) {
         /* Trigger event */
-        UA_ByteString lastEventId;
         retval = UA_Server_triggerConditionEvent(server, condition, conditionSource,
-                                                 &lastEventId); //Condition Nodes should not be deleted after triggering the event
+                                                 NULL); //Condition Nodes should not be deleted after triggering the event
         CONDITION_ASSERT_RETURN_VOID(retval, "Triggering condition event failed");
     }
 }
@@ -1098,9 +1093,8 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         }
 
         /* Trigger event */
-        UA_ByteString lastEventId;
         retval = UA_Server_triggerConditionEvent(server, triggerEvent, conditionSource,
-                                                 &lastEventId); //Condition Nodes should not be deleted after triggering the event
+                                                 NULL); //Condition Nodes should not be deleted after triggering the event
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Triggering condition event failed");
     }
     else
@@ -1248,7 +1242,7 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
     UA_QualifiedName fieldEventId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_EVENTID);
     UA_String sourceNameString = UA_STRING("Server"); //server is the source of Refresh Events
     UA_UInt16 severityValue = REFRESHEVENT_SEVERITY_DEFAULT;
-    UA_ByteString eventId;
+    UA_ByteString eventId  = UA_BYTESTRING_NULL;
 
     /* Set Severity */
     UA_StatusCode retval = UA_Server_setConditionField(server, refreshEventNodId, &severityValue, UA_TYPES_UINT16, &fieldSeverity);
@@ -1269,6 +1263,8 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
 
     retval = UA_Server_setConditionField(server, refreshEventNodId, &eventId, UA_TYPES_BYTESTRING, &fieldEventId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent EventId failed");
+
+    UA_ByteString_deleteMembers(&eventId);
 
     return retval;
 }
@@ -1464,6 +1460,10 @@ UA_ConditionList_delete(UA_Server *server) {
         LIST_FOREACH_SAFE(conditionEntry, &conditionSourceEntry->conditionHead, listEntry, conditionEntryTmp) {
             UA_ConditionBranch_nodeListElement *conditionBranchEntry, *conditionBranchEntryTmp;
             LIST_FOREACH_SAFE(conditionBranchEntry, &conditionEntry->conditionBranchHead, listEntry, conditionBranchEntryTmp) {
+                if(conditionBranchEntry->conditionBranchId != NULL)
+                    UA_NodeId_deleteMembers(conditionBranchEntry->conditionBranchId);
+
+                UA_ByteString_deleteMembers(&conditionBranchEntry->lastEventId);
                 LIST_REMOVE(conditionBranchEntry, listEntry);
                 UA_free(conditionBranchEntry);
             }
@@ -1738,9 +1738,7 @@ setConditionVariableCallbacks(UA_Server *server,
     for(size_t i=0; (i<sizeof(conditionVariableName)/sizeof(conditionVariableName[0])) && (retval == UA_STATUSCODE_GOOD); i++) {
         UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, &conditionVariableName[i]);
         if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-            retval = bpr.statusCode;
-            UA_BrowsePathResult_deleteMembers(&bpr);
-            return retval;
+            return bpr.statusCode;
         }
         UA_ValueCallback callback ;
         callback.onRead = NULL;
@@ -1753,8 +1751,8 @@ setConditionVariableCallbacks(UA_Server *server,
                 break;
                 //TODO add other callbacks here
             default:
-                callback.onWrite = afterWriteCallbackConditionVariableChange;//TODO implement function
-                break;
+                UA_BrowsePathResult_deleteMembers(&bpr);
+                return UA_STATUSCODE_BADNOTSUPPORTED;
         }
 
         retval = UA_Server_setVariableNode_valueCallback(server, bpr.targets[0].targetId.nodeId, callback);
@@ -1814,8 +1812,7 @@ setConditionMethodCallbacks(UA_Server *server,
 #endif//CONDITIONOPTIONALFIELDS_SUPPORT
                 //TODO add other callbacks here
             default:
-                //TODO Error Handling here
-                break;
+                return UA_STATUSCODE_BADNOTSUPPORTED;
         }
 
         retval = UA_Server_setMethodNode_callback(server, methodId[i], methodCallback);
@@ -1967,15 +1964,17 @@ addOptionalVariableField(UA_Server *server,
                                   referenceToParent,
                                   *fieldName,
                                   type->nodeId,   /* the type of the Field */
-                                  vAttr,          /* default attributes are fine */
+                                  vAttr,
                                   NULL,           /* no node context */
                                   outOptionalVariable);
 
         UA_Nodestore_release(server, type);
+        UA_VariableAttributes_deleteMembers(&vAttr);
     }
     else {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND,
                            "Invalid VariableType. StatusCode %s", UA_StatusCode_name(UA_STATUSCODE_BADTYPEDEFINITIONINVALID));
+        UA_VariableAttributes_deleteMembers(&vAttr);
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     }
 
@@ -1992,14 +1991,11 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *conditio
                                     UA_NodeId *outOptionalVariable) {
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
-    UA_StatusCode retval;
     /* Get optional Field NodId from ConditionType -> user should give the correct ConditionType or Subtype!!!! */
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *conditionType, 1, fieldName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
-        return retval;
-    }
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1)
+        return bpr.statusCode;
+
 
     /* Get Node */
     UA_NodeId optionalFieldNodeId = bpr.targets[0].targetId.nodeId;
@@ -2007,35 +2003,38 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *conditio
     if(NULL == optionalFieldNode) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_USERLAND,
                        "Couldn't find optional Field Node in ConditionType. StatusCode %s", UA_StatusCode_name(UA_STATUSCODE_BADNOTFOUND));
+        UA_BrowsePathResult_deleteMembers(&bpr);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
     switch(optionalFieldNode->nodeClass) {
         case UA_NODECLASS_VARIABLE: {
-            retval = addOptionalVariableField(server, condition, fieldName,
+            UA_StatusCode retval = addOptionalVariableField(server, condition, fieldName,
                                               (const UA_VariableNode *)optionalFieldNode, outOptionalVariable);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
                              "Adding Condition Optional Variable Field failed. StatusCode %s", UA_StatusCode_name(retval));
             }
+            UA_BrowsePathResult_deleteMembers(&bpr);
             UA_Nodestore_release(server, optionalFieldNode);
             return retval;
         }
         case UA_NODECLASS_METHOD:
             /*TODO method: Check first logic of creating methods at all (should we create a new method or just reference it from the ConditionType?)*/
+            UA_BrowsePathResult_deleteMembers(&bpr);
             UA_Nodestore_release(server, optionalFieldNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         default:
+            UA_BrowsePathResult_deleteMembers(&bpr);
             UA_Nodestore_release(server, optionalFieldNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
 #else
     UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_USERLAND,
-                         "Adding Condition Optional Fields disabled. StatusCode %s", UA_StatusCode_name(retval));
+                         "Adding Condition Optional Fields disabled. StatusCode %s", UA_StatusCode_name(UA_STATUSCODE_BADNOTSUPPORTED));
+    return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif//CONDITIONOPTIONALFIELDS_SUPPORT
-
-    return UA_STATUSCODE_GOOD;
 }
 
 /**
@@ -2045,17 +2044,13 @@ UA_StatusCode
 UA_Server_setConditionField(UA_Server *server, const UA_NodeId *condition,
                             const void* variantValue, UA_UInt16 type,
                             const UA_QualifiedName* fieldName) {
-    UA_StatusCode retval;
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, fieldName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-            retval = bpr.statusCode;
-            UA_BrowsePathResult_deleteMembers(&bpr);
-            return retval;
-    }
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1)
+        return bpr.statusCode;
+
     UA_Variant value;
-    UA_Variant_init(&value);
     UA_Variant_setScalar(&value, (void*)(uintptr_t)variantValue, &UA_TYPES[type]);
-    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    UA_StatusCode retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     return retval;
@@ -2071,21 +2066,17 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId *
                                             const UA_QualifiedName* variablePropertyName) {
     /*1) find Variable Field of the Condition*/
     UA_BrowsePathResult bprConditionVariableField = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, variableFieldName);
-    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditionVariableField.targetsSize < 1) {
-        UA_StatusCode retval = bprConditionVariableField.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
-        return retval;
-    }
+    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditionVariableField.targetsSize < 1)
+        return bprConditionVariableField.statusCode;
+
     /*2) find Property of the Variable Field of the Condition*/
     UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditionVariableField.targets->targetId.nodeId, 1, variablePropertyName);
     if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD || bprVariableFieldProperty.targetsSize < 1) {
-        UA_StatusCode retval = bprVariableFieldProperty.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bprVariableFieldProperty);
-        return retval;
+        UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
+        return bprVariableFieldProperty.statusCode;
     }
 
     UA_Variant value;
-    UA_Variant_init(&value);
     UA_Variant_setScalar(&value, (void*)(uintptr_t)variantValue, &UA_TYPES[type]);
     UA_StatusCode retval = UA_Server_writeValue(server, bprVariableFieldProperty.targets[0].targetId.nodeId, value);
 
@@ -2363,7 +2354,7 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
     UA_QualifiedName enabledState = UA_QUALIFIEDNAME(0, "EnabledState");
     UA_ByteString eventId = UA_BYTESTRING_NULL;
 
-    /* Check if enabled */
+    /* Check if enabled TODO */
     if(isTwoStateVariableInTrueState(server, &condition, &enabledState)) {
         /* TODO Check if an alarm already exists but not acknowledged -> create branch as new node and generate event with same ConditionId and new BranchId */
 
@@ -2388,3 +2379,5 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
 
     return retval;
 }
+#endif//UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
