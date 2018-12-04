@@ -25,6 +25,7 @@ cmake \
     -DUA_BUILD_EXAMPLES=ON \
     -DUA_NAMESPACE_ZERO=FULL ..
 make -j
+if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm -rf build
 echo -en 'travis_fold:end:script.build.ns0\\r'
 
@@ -36,7 +37,9 @@ cmake \
     -DUA_BUILD_EXAMPLES=ON \
     -DUA_ENABLE_AMALGAMATION=OFF ..
 make -j
+if [ $? -ne 0 ] ; then exit 1 ; fi
 make install
+if [ $? -ne 0 ] ; then exit 1 ; fi
 cd ..
 tar -pczf open62541-osx.tar.gz LICENSE AUTHORS README.md ${TRAVIS_BUILD_DIR}/open62541-osx/*
 rm -rf build
@@ -48,6 +51,7 @@ cmake \
     -DUA_BUILD_EXAMPLES=ON \
     -DUA_ENABLE_MULTITHREADING=ON ..
 make -j
+if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm -rf build
 echo -en 'travis_fold:end:script.build.multithread\\r'
 
@@ -58,11 +62,12 @@ cmake \
     -DCMAKE_BUILD_TYPE=Debug \
     -DUA_BUILD_EXAMPLES=ON \
     -DUA_BUILD_UNIT_TESTS=ON \
-    -DUA_ENABLE_COVERAGE=ON \
+    -DUA_ENABLE_COVERAGE=OFF \
     -DUA_ENABLE_DISCOVERY=ON \
     -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
     -DUA_ENABLE_ENCRYPTION=ON \
     -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
 make -j && make test ARGS="-V"
+if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm -rf build
 echo -en 'travis_fold:end:script.build.unit_test\\r'
