@@ -7,7 +7,7 @@
 #ifndef UA_NETWORK_PUBSUB_ETHERNET_H_
 #define UA_NETWORK_PUBSUB_ETHERNET_H_
 
-#include "ua_plugin_pubsub.h"
+#include "../../include/ua_plugin_pubsub.h"
 
 _UA_BEGIN_DECLS
 
