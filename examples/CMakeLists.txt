@@ -163,3 +163,7 @@ if(UA_ENABLE_PUBSUB)
         add_example(tutorial_pubsub_subscribe pubsub/tutorial_pubsub_subscribe.c)
     endif()
 endif()
+
+if(UA_ENABLE_GDS)
+    add_example(gds_server gds/server.c)
+endif()

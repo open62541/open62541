@@ -190,6 +190,14 @@ if(UA_ENABLE_MULTITHREADING)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
+option(UA_ENABLE_GDS "Enable GDS - Registration Manager (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_GDS)
+if(UA_ENABLE_GDS)
+    if (NOT (UA_NAMESPACE_ZERO STREQUAL "FULL"))
+        message(FATAL_ERROR "GDS requires full namespace zero")
+    endif()
+endif()
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
@@ -460,6 +468,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies
                     ${PROJECT_SOURCE_DIR}/deps
                     ${PROJECT_SOURCE_DIR}/src/pubsub
+                    ${PROJECT_SOURCE_DIR}/src/gds
                     ${PROJECT_BINARY_DIR}
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
@@ -608,6 +617,13 @@ endif()
 if(UA_ENABLE_DISCOVERY)
     list(INSERT internal_headers 13 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
+endif()
+
+if(UA_ENABLE_GDS)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_record_datatype.h)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_registration_manager.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/gds/ua_gds_ns.c
+                            ${PROJECT_SOURCE_DIR}/src/gds/ua_registration_manager.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)

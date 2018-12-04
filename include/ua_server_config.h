@@ -71,7 +71,7 @@ struct UA_ServerConfig {
     UA_ByteString serverCertificate;
 
     /* MDNS Discovery */
-#ifdef UA_ENABLE_DISCOVERY
+#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_GDS)
     UA_String mdnsServerName;
     size_t serverCapabilitiesSize;
     UA_String *serverCapabilities;

@@ -26,6 +26,7 @@
 #include "ua_subscription.h"
 #endif
 
+
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
 #include <valgrind/memcheck.h>
 #endif
@@ -154,6 +155,11 @@ void UA_Server_delete(UA_Server *server) {
     UA_PubSubManager_delete(server, &server->pubSubManager);
 #endif
 
+#ifdef UA_ENABLE_GDS
+    UA_GDS_RegistrationManager_close(server);
+    UA_GDS_deinitNS(server);
+#endif
+
 #ifdef UA_ENABLE_DISCOVERY
     UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
@@ -253,6 +259,11 @@ UA_Server_new(const UA_ServerConfig *config) {
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_Server_initPubSubNS0(server);
+#endif
+
+#ifdef UA_ENABLE_GDS
+    UA_GDS_initNS(server);
+    UA_GDS_RegistrationManager_init(server);
 #endif
 
     return server;
