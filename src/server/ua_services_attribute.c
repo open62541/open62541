@@ -1433,49 +1433,82 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
 
 #ifdef UA_ENABLE_HISTORIZING
 void
-Service_HistoryRead(UA_Server *server,
-                    UA_Session *session,
+Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
                     UA_HistoryReadResponse *response) {
-    if (request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
+    if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
     }
-    if (request->historyReadDetails.content.decoded.type == &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
-        UA_ReadRawModifiedDetails * details = (UA_ReadRawModifiedDetails*)request->historyReadDetails.content.decoded.data;
-        if (details->isReadModified) {
-            // TODO add server->config.historyReadService.read_modified
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
-            return;
-        } else {
-            if (server->config.historyDatabase.readRaw) {
-                response->resultsSize = request->nodesToReadSize;
 
-                response->results = (UA_HistoryReadResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
-                UA_HistoryData ** historyData = (UA_HistoryData **)UA_calloc(response->resultsSize, sizeof(UA_HistoryData*));
-                for (size_t i = 0; i < response->resultsSize; ++i) {
-                    UA_HistoryData * data = UA_HistoryData_new();
-                    response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
-                    response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
-                    response->results[i].historyData.content.decoded.data = data;
-                    historyData[i] = data;
-                }
-                server->config.historyDatabase.readRaw(server, server->config.historyDatabase.context,
-                                                       &session->sessionId, session->sessionHandle,
-                                                       &request->requestHeader, details,
-                                                       request->timestampsToReturn, request->releaseContinuationPoints,
-                                                       request->nodesToReadSize, request->nodesToRead,
-                                                       response, historyData);
-                UA_free(historyData);
-                return;
-            }
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
-            return;
-        }
+    if(request->historyReadDetails.content.decoded.type != &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
+        /* TODO handle more request->historyReadDetails.content.decoded.type types */
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+        return;
     }
-    // TODO handle more request->historyReadDetails.content.decoded.type types
-    response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
-    return;
+
+    /* History read with ReadRawModifiedDetails */
+    UA_ReadRawModifiedDetails * details = (UA_ReadRawModifiedDetails*)
+        request->historyReadDetails.content.decoded.data;
+    if(details->isReadModified) {
+        // TODO add server->config.historyReadService.read_modified
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+        return;
+    }
+
+    /* Something to do? */
+    if(request->nodesToReadSize == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    /* Check if there are too many operations */
+    if(server->config.maxNodesPerRead != 0 &&
+       request->nodesToReadSize > server->config.maxNodesPerRead) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
+    /* The history database is not configured */
+    if(!server->config.historyDatabase.readRaw) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+        return;
+    }
+
+    /* Allocate a temporary array to forward the result pointers to the
+     * backend */
+    UA_HistoryData ** historyData = (UA_HistoryData **)
+        UA_calloc(request->nodesToReadSize, sizeof(UA_HistoryData*));
+    if(!historyData) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+
+    /* Allocate the results array */
+    response->results = (UA_HistoryReadResult*)UA_Array_new(request->nodesToReadSize,
+                                                            &UA_TYPES[UA_TYPES_HISTORYREADRESULT]);
+    if(!response->results) {
+        UA_free(historyData);
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    response->resultsSize = request->nodesToReadSize;
+
+    for(size_t i = 0; i < response->resultsSize; ++i) {
+        UA_HistoryData * data = UA_HistoryData_new();
+        response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
+        response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
+        response->results[i].historyData.content.decoded.data = data;
+        historyData[i] = data;
+    }
+    server->config.historyDatabase.readRaw(server, server->config.historyDatabase.context,
+                                           &session->sessionId, session->sessionHandle,
+                                           &request->requestHeader, details,
+                                           request->timestampsToReturn,
+                                           request->releaseContinuationPoints,
+                                           request->nodesToReadSize, request->nodesToRead,
+                                           response, historyData);
+    UA_free(historyData);
 }
 #endif
 
