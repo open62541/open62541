@@ -449,6 +449,8 @@ endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins
+                    ${PROJECT_SOURCE_DIR}/plugins/networking
+                    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies
                     ${PROJECT_SOURCE_DIR}/deps
                     ${PROJECT_SOURCE_DIR}/src/pubsub
                     ${PROJECT_BINARY_DIR}
@@ -578,7 +580,7 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_defaul
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicies.h
+                           ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicies.h
 )
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
@@ -587,12 +589,13 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
+                           ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
-    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c
-                                       ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
+    list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
@@ -601,11 +604,11 @@ if(UA_ENABLE_DISCOVERY)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.h)
-    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_udp.c)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_udp.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_udp.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
-        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.h)
-        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_ethernet.c)
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_ethernet.h)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_ethernet.c)
     endif()
 endif()
 

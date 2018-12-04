@@ -59,14 +59,14 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
-        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
+        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
     set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic128rsa15.c)
+        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c)
     set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_basic256sha256.c)
+        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
 add_library(open62541-fuzzplugins OBJECT
