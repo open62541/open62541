@@ -504,7 +504,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     UA_StatusCode retval =
         connection->getSendBuffer(connection, connection->config.sendBufferSize, &buf);
     if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+        return retval;
 
     /* Restrict buffer to the available space for the payload */
     UA_Byte *buf_pos = buf.data;
@@ -513,15 +513,14 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 
     /* Encode the message type and content */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, contentType->binaryEncodingId);
-    retval = UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID],
-                             &buf_pos, &buf_end, NULL, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    retval = UA_encodeBinary(content, contentType,
-                             &buf_pos, &buf_end, NULL, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+    retval |= UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID],
+                              &buf_pos, &buf_end, NULL, NULL);
+    retval |= UA_encodeBinary(content, contentType,
+                              &buf_pos, &buf_end, NULL, NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &buf);
+        return retval;
+    }
 
     const size_t securityHeaderLength = calculateAsymAlgSecurityHeaderLength(channel);
 
