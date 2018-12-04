@@ -207,6 +207,11 @@ Detailed SDK Features
    Enable Discovery Service with multicast support (LDS-ME)
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
+**UA_ENABLE_GDS (EXPERIMENTAL)**
+   Enable Global Discovery Server. This is a new feature and currently marked as EXPERIMENTAL.
+**UA_ENABLE_GDS_CM (EXPERIMENTAL)**
+   Enable Certificate Manager which is an additional part of the Global Discovery Server.
+   This is a new feature and currently marked as EXPERIMENTAL. (GnuTLS required)
 
 **UA_NAMESPACE_ZERO**
 

@@ -24,6 +24,7 @@
 #cmakedefine UA_ENABLE_AMALGAMATION
 #endif
 #cmakedefine UA_ENABLE_GDS
+#cmakedefine UA_ENABLE_GDS_CM
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
