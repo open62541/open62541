@@ -9,7 +9,9 @@
 #ifndef OPEN62541_UA_PLUGIN_SOCKET_H
 #define OPEN62541_UA_PLUGIN_SOCKET_H
 
+#include <queue.h>
 #include "ua_types.h"
+#include "ua_plugin_log.h"
 
 typedef struct UA_Socket UA_Socket;
 
@@ -36,6 +38,11 @@ struct UA_Socket {
      * The socket id. Used by the NetworkManager to map to an internal representation (e.g. file descriptor)
      */
     UA_UInt64 id;
+
+    /**
+     * The discovery url that can be used to connect to the server on this socket.
+     */
+    UA_String *discoveryUrl;
 
     /**
      * Starts/Opens the socket for operation. This step is separate from the initialization
@@ -73,7 +80,7 @@ struct UA_Socket {
      * @param socket
      * @return
      */
-    UA_StatusCode (*deleteMembers)(UA_Socket *socket);
+    UA_StatusCode (*free)(UA_Socket *socket);
 
     /**
      * This function can be called to process data pending on the socket.
@@ -101,6 +108,30 @@ struct UA_Socket {
     UA_Socket_DataCallback dataCallback;
 
     /**
+     * Sends the data contained in the data buffer. The buffer will be deallocated
+     * by the socket.
+     * @param socket the socket to perform the operation on.
+     * @param data the pointer to the data buffer that contains the data to send.
+     *             The length of the buffer is the amount of bytes that will be sent.
+     * @return
+     */
+    UA_StatusCode (*send)(UA_Socket *socket, UA_ByteString *data);
+
+    /**
+     * This function can be used to get a send buffer from the socket implementation.
+     * Directly writing to this buffer and passing the pointer to the socket might
+     * be faster on some implementations than allocating an own buffer and passing
+     * it to the socket.
+     * It is advised to always allocate the send buffer with this function and pass
+     * that buffer to the send function.
+     *
+     * @param socket the socket to perform the operation on.
+     * @param buffer the pointer the the allocated buffer
+     * @return
+     */
+    UA_StatusCode (*getSendBuffer)(UA_Socket *socket, UA_ByteString **p_buffer);
+
+    /**
      * This opaque pointer points to implementation specific internal data.
      * It is initialized and allocated when a new socket is created and deallocated
      * when the socket is deleted.
@@ -108,11 +139,72 @@ struct UA_Socket {
     void *internalData;
 };
 
+typedef struct {
+    UA_StatusCode (*hook)(UA_Socket *socket, void *hookContext);
+
+    void *hookContext;
+} UA_SocketHook;
+
+typedef struct UA_DataSocketFactory UA_DataSocketFactory;
+
+typedef struct HookListEntry {
+    UA_SocketHook hook;
+    LIST_ENTRY(HookListEntry) pointers;
+} HookListEntry;
+
+struct UA_DataSocketFactory {
+    LIST_HEAD(, HookListEntry) creationHooks;
+    LIST_HEAD(, HookListEntry) deletionHooks;
+
+    UA_Logger *logger;
+
+    /**
+     * This function can be used to build a socket.
+     * After the socket is built, the creation hooks are called and the socket is also passed
+     * the deletion hooks, which it will then later call when it is deleted, in order to perform
+     * proper cleanup.
+     *
+     * @param factory the factory to perform the operation on.
+     * @param socket the socket the DataSocket is created from (accepted from)
+     * @return
+     */
+    UA_StatusCode (*buildSocket)(UA_DataSocketFactory *factory, UA_Socket *socket);
+
+    UA_Socket_DataCallback socketDataCallback;
+};
+
+static inline UA_StatusCode
+UA_DataSocketFactory_addCreationHook(UA_DataSocketFactory *factory, UA_SocketHook hook) {
+    HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
+    if(hookListEntry == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    hookListEntry->hook = hook;
+
+    LIST_INSERT_HEAD(&factory->creationHooks, hookListEntry, pointers);
+    UA_LOG_TRACE(factory->logger, UA_LOGCATEGORY_NETWORK, "Added deletion hook.");
+    return UA_STATUSCODE_GOOD;
+}
+
+static inline UA_StatusCode
+UA_DataSocketFactory_addDeletionHook(UA_DataSocketFactory *factory, UA_SocketHook hook) {
+    HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
+    if(hookListEntry == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    hookListEntry->hook = hook;
+
+    LIST_INSERT_HEAD(&factory->deletionHooks, hookListEntry, pointers);
+    UA_LOG_TRACE(factory->logger, UA_LOGCATEGORY_NETWORK, "Added deletion hook");
+    return UA_STATUSCODE_GOOD;
+}
+
+
 /**
  * Convenience Wrapper for calling the dataCallback of a socket.
  */
 inline UA_StatusCode
 UA_Socket_dataCallback(UA_Socket *socket, UA_ByteString *data) {
+    if (socket == NULL || socket->dataCallback.callback == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     return socket->dataCallback.callback(socket, data, socket->dataCallback.callbackContext);
 }
 

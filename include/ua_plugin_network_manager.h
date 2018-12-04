@@ -13,7 +13,15 @@
 typedef struct UA_NetworkManager UA_NetworkManager;
 
 struct UA_NetworkManager {
-    void (*registerSocket)(UA_NetworkManager *networkManager, UA_Socket *socket);
+    UA_StatusCode (*registerSocket)(UA_NetworkManager *networkManager, UA_Socket *socket);
+
+    UA_StatusCode (*unregisterSocket)(UA_NetworkManager *networkManager, UA_Socket *socket);
+
+    UA_StatusCode (*process)(UA_NetworkManager *networkManager, UA_UInt16 timeout);
+
+    UA_StatusCode (*deleteMembers)(UA_NetworkManager *networkManager);
+
+    void *internalData;
 };
 
 #endif //OPEN62541_UA_PLUGIN_NETWORK_MANAGER_H
