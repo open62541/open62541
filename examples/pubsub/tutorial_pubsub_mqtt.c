@@ -51,6 +51,8 @@ UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 UA_Server *server;
 UA_Client *client;
 
+UA_NetworkAddressUrlDataType networkAddressUrl;
+
 static void
 addPubSubConnection(UA_Server *server){
     /* Details about the connection configuration and handling are located
@@ -61,8 +63,6 @@ addPubSubConnection(UA_Server *server){
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     connectionConfig.enabled = UA_TRUE;    
-    UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL , UA_STRING("opc.mqtt://192.168.56.1:1883/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.numeric = UA_UInt32_random();
@@ -143,7 +143,7 @@ addDataSetField(UA_Server *server) {
 
     dataSetFieldConfig2.field.variable.fieldNameAlias = UA_STRING("x-axis");
     dataSetFieldConfig2.field.variable.promotedField = UA_FALSE;
-    dataSetFieldConfig2.field.variable.publishParameters.publishedVariable = UA_NODEID_STRING(1, "x");
+    dataSetFieldConfig2.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, 42);
     dataSetFieldConfig2.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig2, &dataSetFieldIdent2);
 }
@@ -299,89 +299,15 @@ addSubscription(UA_Server *server, UA_PubSubConnection *connection){
     return; 
 }
 
-static void
-deleteSubscriptionCallback(UA_Client *c, UA_UInt32 subscriptionId, void *subscriptionContext) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "Subscription Id %u was deleted", subscriptionId);
-}
-
-static void
-handler_XChanged(UA_Client *c, UA_UInt32 subId, void *subContext,
-                 UA_UInt32 monId, void *monContext, UA_DataValue *value) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "x axis has changed!");
-    UA_Server_writeValue(server, UA_NODEID_STRING(1, "x"), value->value);
-}
-
-static void
-processClientCallback(UA_Server *server, void *data) {
-    UA_Client_run_iterate(client, 1);
-}
-
-static void
-addVariable2(UA_Server *server) {
-    /* Define the attribute of the myInteger variable node */
-    UA_VariableAttributes attr = UA_VariableAttributes_default;
-    UA_Float x = 0.0;
-    UA_Variant_setScalar(&attr.value, &x, &UA_TYPES[UA_TYPES_FLOAT]);
-    attr.description = UA_LOCALIZEDTEXT("en-US","x");
-    attr.displayName = UA_LOCALIZEDTEXT("en-US","x");
-    attr.dataType = UA_TYPES[UA_TYPES_FLOAT].typeId;
-    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-
-    /* Add the variable node to the information model */
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "x");
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "x");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
-                              parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
-}
-
-static void
-addClientSubscription(UA_Server *server) {
-    addVariable2(server);
-
-    UA_ClientConfig cconfig = UA_ClientConfig_default;
-    /* Set stateCallback */
-    //cconfig.stateCallback = stateCallback;
-    //cconfig.subscriptionInactivityCallback = subscriptionInactivityCallback;
-
-    client = UA_Client_new(cconfig);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://192.168.56.1:16664");
-
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not connect to the client");
-
-    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    UA_CreateSubscriptionResponse response =
-        UA_Client_Subscriptions_create(client, request,
-                                       NULL, NULL, deleteSubscriptionCallback);
-
-    UA_MonitoredItemCreateRequest monRequest =
-        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, 50510));
-        //        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
-    UA_MonitoredItemCreateResult monResponse =
-        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
-                                                  UA_TIMESTAMPSTORETURN_BOTH,
-                                                  monRequest, NULL, handler_XChanged, NULL);
-    if(monResponse.statusCode == UA_STATUSCODE_GOOD)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
-                    monResponse.monitoredItemId);
-    else
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Monitoring the x axis");
-
-    retval = UA_Server_addRepeatedCallback(server, processClientCallback, NULL, 200, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "cannot iterate client %s",
-                    UA_StatusCode_name(retval));
-}
-
-int main(void) {
+int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
+
+    networkAddressUrl.networkInterface = UA_STRING_NULL;
+    networkAddressUrl.url = UA_STRING("opc.mqtt://127.0.0.1:1883/");
+    if(argc > 1 && strncmp(argv[1], "opc.mqtt://", 11) == 0) {
+        networkAddressUrl.url = UA_STRING(argv[1]);
+    }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_ServerConfig_new_default();
@@ -412,7 +338,7 @@ int main(void) {
         addSubscription(server, connection);
     }
 
-    addClientSubscription(server);
+    //addClientSubscription(server);
     
     retval |= UA_Server_run(server, &running);
     UA_Server_delete(server);
