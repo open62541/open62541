@@ -67,8 +67,8 @@ typedef size_t (*calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_Da
 
 /* Jumptables for de-/encoding and computing the buffer length. The methods in
  * the decoding jumptable do not all clean up their allocated memory when an
- * error occurs. So a final _deleteMembers needs to be called before returning
- * to the user. */
+ * error occurs. So a final _clear needs to be called before returning to the
+ * user. */
 extern const encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 extern const decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 extern const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
@@ -944,7 +944,7 @@ DECODE_BINARY(ExtensionObject) {
     ret |= DECODE_DIRECT(&binTypeId, NodeId);
     ret |= DECODE_DIRECT(&encoding, Byte);
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_NodeId_deleteMembers(&binTypeId);
+        UA_NodeId_clear(&binTypeId);
         return ret;
     }
 
@@ -963,10 +963,10 @@ DECODE_BINARY(ExtensionObject) {
         dst->content.encoded.typeId = binTypeId; /* move to dst */
         ret = DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
         if(ret != UA_STATUSCODE_GOOD)
-            UA_NodeId_deleteMembers(&dst->content.encoded.typeId);
+            UA_NodeId_clear(&dst->content.encoded.typeId);
         break;
     default:
-        UA_NodeId_deleteMembers(&binTypeId);
+        UA_NodeId_clear(&binTypeId);
         ret = UA_STATUSCODE_BADDECODINGERROR;
         break;
     }
@@ -1080,7 +1080,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
     u8 encoding;
     ret = DECODE_DIRECT(&encoding, Byte);
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_clear(&typeId);
         return ret;
     }
 
@@ -1093,7 +1093,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
         /* Reset and decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         ctx->pos = old_pos;
-        UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_clear(&typeId);
     }
 
     /* Allocate memory */
@@ -1544,7 +1544,7 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
         *offset = (size_t)(ctx.pos - src->data) / sizeof(u8);
     } else {
         /* Clean up */
-        UA_deleteMembers(dst, type);
+        UA_clear(dst, type);
         memset(dst, 0, type->memSize);
     }
     return ret;
