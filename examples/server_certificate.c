@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     /* deallocate certificate's memory */
-    UA_ByteString_deleteMembers(&config->serverCertificate);
+    UA_ByteString_clear(&config->serverCertificate);
 
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);

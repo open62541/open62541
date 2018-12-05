@@ -81,8 +81,8 @@ int main(int argc, char *argv[]) {
             /* TODO: distinguish further types */
         }
     }
-    UA_BrowseRequest_deleteMembers(&bReq);
-    UA_BrowseResponse_deleteMembers(&bResp);
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bResp);
 
     /* Same thing, this time using the node iterator... */
     UA_NodeId *parent = UA_NodeId_new();
@@ -144,8 +144,8 @@ int main(int argc, char *argv[]) {
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
             printf("the new value is: %i\n", value);
-    UA_WriteRequest_deleteMembers(&wReq);
-    UA_WriteResponse_deleteMembers(&wResp);
+    UA_WriteRequest_clear(&wReq);
+    UA_WriteResponse_clear(&wResp);
 
     /* Write node attribute (using the highlevel API) */
     value++;
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Method call was unsuccessful, and %x returned values available.\n", retval);
     }
-    UA_Variant_deleteMembers(&input);
+    UA_Variant_clear(&input);
 #endif
 
 #ifdef UA_ENABLE_NODEMANAGEMENT

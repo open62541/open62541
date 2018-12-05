@@ -65,12 +65,12 @@ int main(void) {
                         "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
                         dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
         }
-        UA_Variant_deleteMembers(&value);
+        UA_Variant_clear(&value);
         UA_sleep_ms(1000);
     };
 
     /* Clean up */
-    UA_Variant_deleteMembers(&value);
+    UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
     return UA_STATUSCODE_GOOD;
 }

@@ -39,9 +39,9 @@ int main() {
                               UA_NODEID_NULL, attr, NULL, NULL);
 
     /* allocations on the heap need to be freed */
-    UA_VariableAttributes_deleteMembers(&attr);
-    UA_NodeId_deleteMembers(&myIntegerNodeId);
-    UA_QualifiedName_deleteMembers(&myIntegerName);
+    UA_VariableAttributes_clear(&attr);
+    UA_NodeId_clear(&myIntegerNodeId);
+    UA_QualifiedName_clear(&myIntegerName);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);

@@ -212,6 +212,8 @@ UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage* p);
 void
 UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p);
 
+#define UA_NetworkMessage_clear(p) UA_NetworkMessage_deleteMembers(p)
+
 void
 UA_NetworkMessage_delete(UA_NetworkMessage* p);
 
