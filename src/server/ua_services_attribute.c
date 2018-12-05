@@ -348,8 +348,10 @@ Read(const UA_Node *node, UA_Server *server, UA_Session *session,
     /* Create server timestamp */
     if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
        timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
-        v->serverTimestamp = UA_DateTime_now();
-        v->hasServerTimestamp = true;
+        if (!v->hasServerTimestamp) {
+            v->serverTimestamp = UA_DateTime_now();
+            v->hasServerTimestamp = true;
+        }
     }
 
     /* Handle source time stamp */
@@ -1061,9 +1063,15 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     }
 
     /* Set the source timestamp if there is none */
+    UA_DateTime now = UA_DateTime_now();
     if(!adjustedValue.hasSourceTimestamp) {
-        adjustedValue.sourceTimestamp = UA_DateTime_now();
+        adjustedValue.sourceTimestamp = now;
         adjustedValue.hasSourceTimestamp = true;
+    }
+
+    if(!adjustedValue.hasServerTimestamp) {
+        adjustedValue.serverTimestamp = now;
+        adjustedValue.hasServerTimestamp = true;
     }
 
     /* Ok, do it */
