@@ -48,7 +48,7 @@ helloWorldMethodCallback(UA_Server *server,
         tmp.length += inputStr->length;
     }
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
-    UA_String_deleteMembers(&tmp);
+    UA_String_clear(&tmp);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Hello World was called");
     return UA_STATUSCODE_GOOD;
 }

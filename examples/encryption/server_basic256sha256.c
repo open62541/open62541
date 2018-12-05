@@ -43,10 +43,10 @@ int main(int argc, char* argv[]) {
         UA_ServerConfig_new_basic256sha256(4840, &certificate, &privateKey,
                                           trustList, trustListSize,
                                           revocationList, revocationListSize);
-    UA_ByteString_deleteMembers(&certificate);
-    UA_ByteString_deleteMembers(&privateKey);
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_deleteMembers(&trustList[i]);
+        UA_ByteString_clear(&trustList[i]);
 
     if(!config) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,

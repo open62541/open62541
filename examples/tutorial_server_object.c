@@ -288,7 +288,7 @@ pumpTypeConstructor(UA_Server *server,
     UA_Variant value;
     UA_Variant_setScalar(&value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
 
     /* At this point we could replace the node context .. */
 

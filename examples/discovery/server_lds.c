@@ -20,7 +20,7 @@ int main(void) {
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    UA_String_deleteMembers(&config->applicationDescription.applicationUri);
+    UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
             UA_String_fromChars("urn:open62541.example.local_discovery_server");
     config->mdnsServerName = UA_String_fromChars("LDS");

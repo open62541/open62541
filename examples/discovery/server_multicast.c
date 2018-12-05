@@ -164,7 +164,7 @@ static UA_ByteString loadFile(const char *const path) {
         fseek(fp, 0, SEEK_SET);
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
         if (read != fileContents.length)
-            UA_ByteString_deleteMembers(&fileContents);
+            UA_ByteString_clear(&fileContents);
     } else {
         fileContents.length = 0;
     }
@@ -226,8 +226,8 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
         trustListSize = (size_t) argc - 3;
         UA_StatusCode retval = UA_ByteString_allocBuffer(trustList, trustListSize);
         if (retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_deleteMembers(&certificate);
-            UA_ByteString_deleteMembers(&privateKey);
+            UA_ByteString_clear(&certificate);
+            UA_ByteString_clear(&privateKey);
             return NULL;
         }
 
@@ -244,10 +244,10 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
                                           trustList, trustListSize,
                                           revocationList, revocationListSize,
                                           UA_SecurityPolicy_Basic128Rsa15);
-    UA_ByteString_deleteMembers(&certificate);
-    UA_ByteString_deleteMembers(&privateKey);
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
     for (size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
-        UA_ByteString_deleteMembers(&trustList[deleteCount]);
+        UA_ByteString_clear(&trustList[deleteCount]);
     }
 
     return clientRegister;
@@ -263,7 +263,7 @@ int main(int argc, char **argv) {
     UA_ServerConfig *config = UA_ServerConfig_new_minimal(16600, NULL);
     // To enable mDNS discovery, set application type to discovery server.
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    UA_String_deleteMembers(&config->applicationDescription.applicationUri);
+    UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_multicast");
     config->mdnsServerName = UA_String_fromChars("Sample Multicast Server");

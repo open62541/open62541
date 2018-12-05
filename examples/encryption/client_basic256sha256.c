@@ -115,10 +115,10 @@ int main(int argc, char* argv[]) {
         return FAILURE;
     }
 
-    UA_ByteString_deleteMembers(&certificate);
-    UA_ByteString_deleteMembers(&privateKey);
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
-        UA_ByteString_deleteMembers(&trustList[deleteCount]);
+        UA_ByteString_clear(&trustList[deleteCount]);
     }
 
     /* Secure client connect */
@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
     }
 
     /* Clean up */
-    UA_Variant_deleteMembers(&value);
+    UA_Variant_clear(&value);
     cleanupClient(client, remoteCertificate);
     return (int)retval;
 }

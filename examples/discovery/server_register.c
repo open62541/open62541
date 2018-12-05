@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_String_deleteMembers(&config->applicationDescription.applicationUri);
+    UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_register");
     config->mdnsServerName = UA_String_fromChars("Sample Server");
