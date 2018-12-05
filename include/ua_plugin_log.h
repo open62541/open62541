@@ -18,10 +18,14 @@ _UA_BEGIN_DECLS
  * Logging Plugin API
  * ==================
  *
- * Servers and clients must define a logger in their configuration. The logger
- * is just a function pointer. Every log-message consists of a log-level, a
- * log-category and a string message content. The timestamp of the log-message
- * is created within the logger. */
+ * Servers and clients define a logger in their configuration. The logger is a
+ * plugin. A default plugin that logs to ``stdout`` is provided as an example.
+ * The logger plugin is stateful and can point to custom data. So it is possible
+ * to keep open file handlers in the logger context.
+ *
+ * Every log-message consists of a log-level, a log-category and a string
+ * message content. The timestamp of the log-message is created within the
+ * logger. */
 
 typedef enum {
     UA_LOGLEVEL_TRACE,
@@ -43,13 +47,16 @@ typedef enum {
 } UA_LogCategory;
 
 typedef struct {
-    /* The message string and following varargs are formatted according to the
-     * rules of the printf command. Use the convenience macros below that take
-     * the minimum log-level defined in ua_config.h into account. */
+    /* Log a message. The message string and following varargs are formatted
+     * according to the rules of the printf command. Use the convenience macros
+     * below that take the minimum log-level defined in ua_config.h into
+     * account. */
     void (*log)(void *logContext, UA_LogLevel level, UA_LogCategory category,
                 const char *msg, va_list args);
-    void *logContext;
-    void (*clear)(void *logContext);
+
+    void *context; /* Logger state */
+
+    void (*clear)(void *context); /* Clean up the logger plugin */
 } UA_Logger;
 
 static UA_INLINE UA_FORMAT(3,4) void
@@ -58,7 +65,7 @@ UA_LOG_TRACE(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     if(!logger || !logger->log)
         return;
     va_list args; va_start(args, msg);
-    logger->log(logger->logContext, UA_LOGLEVEL_TRACE, category, msg, args);
+    logger->log(logger->context, UA_LOGLEVEL_TRACE, category, msg, args);
     va_end(args);
 #endif
 }
@@ -69,7 +76,7 @@ UA_LOG_DEBUG(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     if(!logger || !logger->log)
         return;
     va_list args; va_start(args, msg);
-    logger->log(logger->logContext, UA_LOGLEVEL_DEBUG, category, msg, args);
+    logger->log(logger->context, UA_LOGLEVEL_DEBUG, category, msg, args);
     va_end(args);
 #endif
 }
@@ -80,7 +87,7 @@ UA_LOG_INFO(const UA_Logger *logger, UA_LogCategory category, const char *msg, .
     if(!logger || !logger->log)
         return;
     va_list args; va_start(args, msg);
-    logger->log(logger->logContext, UA_LOGLEVEL_INFO, category, msg, args);
+    logger->log(logger->context, UA_LOGLEVEL_INFO, category, msg, args);
     va_end(args);
 #endif
 }
@@ -91,7 +98,7 @@ UA_LOG_WARNING(const UA_Logger *logger, UA_LogCategory category, const char *msg
     if(!logger || !logger->log)
         return;
     va_list args; va_start(args, msg);
-    logger->log(logger->logContext, UA_LOGLEVEL_WARNING, category, msg, args);
+    logger->log(logger->context, UA_LOGLEVEL_WARNING, category, msg, args);
     va_end(args);
 #endif
 }
@@ -102,7 +109,7 @@ UA_LOG_ERROR(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     if(!logger || !logger->log)
         return;
     va_list args; va_start(args, msg);
-    logger->log(logger->logContext, UA_LOGLEVEL_ERROR, category, msg, args);
+    logger->log(logger->context, UA_LOGLEVEL_ERROR, category, msg, args);
     va_end(args);
 #endif
 }
@@ -113,7 +120,7 @@ UA_LOG_FATAL(const UA_Logger *logger, UA_LogCategory category, const char *msg, 
     if(!logger || !logger->log)
         return;
     va_list args; va_start(args, msg);
-    logger->log(logger->logContext, UA_LOGLEVEL_FATAL, category, msg, args);
+    logger->log(logger->context, UA_LOGLEVEL_FATAL, category, msg, args);
     va_end(args);
 #endif
 }
