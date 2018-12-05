@@ -131,8 +131,8 @@ try {
     Remove-Item -Path pack_tmp -Recurse -Force
     Remove-Item -Path build -Recurse -Force
 
-    # Only execute unit tests on vs2015 and vs2017 to save compilation time
-    if ($env:CC_SHORTNAME -eq "vs2015" -or $env:CC_SHORTNAME -eq "vs2017") {
+    # Only execute unit tests on vs2017 to save compilation time
+    if ($env:CC_SHORTNAME -eq "vs2017") {
         Write-Host -ForegroundColor Green "`n###################################################################"
         Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
         New-Item -ItemType directory -Path "build"
