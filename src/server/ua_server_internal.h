@@ -35,6 +35,9 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_GDS
 #include "ua_registration_manager.h"
+#ifdef UA_ENABLE_GDS_CM
+#include "ua_certificate_manager.h"
+#endif
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -80,6 +83,9 @@ struct UA_Server {
 #ifdef UA_ENABLE_GDS
     LIST_HEAD(gds_list, gds_registeredServer_entry) gds_registeredServers_list;
     size_t gds_registeredServersSize;
+#ifdef UA_ENABLE_GDS_CM
+    UA_GDS_CertificateManager certificateManager;
+#endif
 #endif
 
     /* Discovery */

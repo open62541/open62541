@@ -20,6 +20,11 @@
 #include "ua_securitypolicies.h"
 #include "ua_plugin_securitypolicy.h"
 
+#ifdef UA_ENABLE_GDS_CM
+#include "ua_ca_gnutls.h"
+#endif
+
+
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
  * heterogeneous across the three. */
@@ -181,6 +186,32 @@ createSecurityPolicyBasic256Sha256Endpoint(UA_ServerConfig *const conf,
 
 #endif
 
+#ifdef UA_ENABLE_GDS_CM
+static UA_StatusCode createDefaultCertificateGroup(UA_ServerConfig *conf){
+
+    conf->gds_certificateGroupSize = 1;
+    conf->gds_certificateGroups = (UA_GDS_CertificateGroup *)UA_malloc(sizeof(UA_GDS_CertificateGroup));
+    conf->gds_certificateGroups[0].certificateGroupId = UA_NODEID_NUMERIC(2, 615);
+    conf->gds_certificateGroups[0].trustListId = UA_NODEID_NUMERIC(2, 616);
+    conf->gds_certificateGroups[0].ca = (UA_GDS_CA *)UA_malloc(sizeof(UA_GDS_CA));
+    conf->gds_certificateGroups[0].certificateTypesSize = 2;
+    conf->gds_certificateGroups[0].certificateTypes =  (UA_NodeId *)UA_malloc(2 * sizeof(UA_NodeId));
+    conf->gds_certificateGroups[0].certificateTypes[0] =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    conf->gds_certificateGroups[0].certificateTypes[1] =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_String name = UA_STRING("O=open62541,CN=GDS@localhost");
+    char serialNumber[2] = {0, 127};
+
+    UA_initCA(conf->gds_certificateGroups->ca,
+              name, (60 * 60 * 24 * 365 * 10),
+              2, serialNumber, 2048, &conf->logger);
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
+
 const size_t usernamePasswordsSize = 2;
 UA_UsernamePasswordLogin usernamePasswords[2] = {
     {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
@@ -276,7 +307,9 @@ createDefaultConfig(void) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */
 #endif
-
+#ifdef UA_ENABLE_GDS_CM
+    createDefaultCertificateGroup(conf);
+#endif
     /* Limits for MonitoredItems */
     conf->samplingIntervalLimits = UA_DURATIONRANGE(50.0, 24.0 * 3600.0 * 1000.0);
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
@@ -616,7 +649,7 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     /* Server Description */
     UA_BuildInfo_deleteMembers(&config->buildInfo);
     UA_ApplicationDescription_deleteMembers(&config->applicationDescription);
-#ifdef UA_ENABLE_DISCOVERY
+#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_GDS)
     UA_String_deleteMembers(&config->mdnsServerName);
     UA_Array_delete(config->serverCapabilities, config->serverCapabilitiesSize,
                     &UA_TYPES[UA_TYPES_STRING]);
@@ -664,6 +697,16 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     /* Logger */
     if(config->logger.clear)
         config->logger.clear(config->logger.context);
+
+#ifdef UA_ENABLE_GDS_CM
+    for(size_t i = 0; i < config->gds_certificateGroupSize; ++i) {
+        UA_free(config->gds_certificateGroups[i].certificateTypes);
+        UA_GDS_CA *ca = config->gds_certificateGroups[i].ca;
+        ca->deleteMembers(ca);
+        UA_free(ca);
+    }
+    UA_free(config->gds_certificateGroups);
+#endif
 
     UA_free(config);
 }

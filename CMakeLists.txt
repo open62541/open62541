@@ -636,13 +636,18 @@ if(UA_ENABLE_DISCOVERY)
 endif()
 
 if(UA_ENABLE_GDS)
-    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_record_datatype.h
-                                 ${PROJECT_SOURCE_DIR}/include/ua_plugin_ca.h)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_record_datatype.h)
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_registration_manager.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/gds/ua_gds_ns.c
                             ${PROJECT_SOURCE_DIR}/src/gds/ua_registration_manager.c)
-    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_ca_gnutls.h)
-    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_ca_gnutls.c)
+    if(UA_ENABLE_GDS_CM)
+        #has to be inserted before ua_server_config.h
+        list(INSERT exported_headers 18 ${PROJECT_SOURCE_DIR}/include/ua_plugin_ca.h)
+        list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_certificate_manager.h)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/gds/ua_certificate_manager.c)
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_ca_gnutls.h)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_ca_gnutls.c)
+    endif()
 endif()
 
 if(UA_ENABLE_PUBSUB)

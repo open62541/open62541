@@ -9,7 +9,204 @@
 #include "ua_registration_manager.h"
 #include "server/ua_server_internal.h"
 
-#ifdef  UA_ENABLE_GDS
+#ifdef UA_ENABLE_GDS
+
+
+#ifdef UA_ENABLE_GDS_CM
+#include "ua_certificate_manager.h"
+
+
+/**********************************************/
+/*         CertificateManager-Callbacks       */
+/**********************************************/
+
+static UA_StatusCode
+openMethodCallback(UA_Server *server,
+                   const UA_NodeId *sessionId, void *sessionHandle,
+                   const UA_NodeId *methodId, void *methodContext,
+                   const UA_NodeId *objectId, void *objectContext,
+                   size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output) {
+    UA_UInt32 fileHandle;
+    UA_StatusCode retval = UA_GDS_OpenTrustList(server,
+                                             sessionId,
+                                             objectId,
+                                             (UA_Byte *) input[0].data,
+                                             &fileHandle);
+
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_Variant_setScalarCopy(output, &fileHandle, &UA_TYPES[UA_TYPES_UINT32]);
+
+    return retval;
+}
+
+static UA_StatusCode
+readTrustListMethodCallback(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionHandle,
+                            const UA_NodeId *methodId, void *methodContext,
+                            const UA_NodeId *objectId, void *objectContext,
+                            size_t inputSize, const UA_Variant *input,
+                            size_t outputSize, UA_Variant *output) {
+    UA_TrustListDataType tl;
+    UA_StatusCode retval = UA_GDS_ReadTrustList(server,
+                                             sessionId,
+                                             objectId,
+                                             (UA_UInt32 *) input[0].data,
+                                             (UA_Int32 *) input[1].data,
+                                             &tl);
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_Variant_setScalarCopy(output, &tl, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE]);
+
+    return retval;
+}
+
+
+static UA_StatusCode
+closeMethodCallback(UA_Server *server,
+                    const UA_NodeId *sessionId, void *sessionHandle,
+                    const UA_NodeId *methodId, void *methodContext,
+                    const UA_NodeId *objectId, void *objectContext,
+                    size_t inputSize, const UA_Variant *input,
+                    size_t outputSize, UA_Variant *output) {
+    UA_StatusCode retval = UA_GDS_CloseTrustList(server,
+                                              sessionId,
+                                              objectId,
+                                              (UA_UInt32 *) input[0].data);
+
+    return retval;
+}
+
+static UA_StatusCode
+startGetTrustListMethodCallback(UA_Server *server,
+                                const UA_NodeId *sessionId, void *sessionHandle,
+                                const UA_NodeId *methodId, void *methodContext,
+                                const UA_NodeId *objectId, void *objectContext,
+                                size_t inputSize, const UA_Variant *input,
+                                size_t outputSize, UA_Variant *output) {
+    UA_NodeId trustListId;
+    UA_StatusCode retval = UA_GDS_GetTrustList(server,
+                                            sessionId,
+                                            (UA_NodeId *) input[0].data,
+                                            (UA_NodeId *) input[1].data,
+                                            &trustListId);
+
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_Variant_setScalarCopy(output, &trustListId, &UA_TYPES[UA_TYPES_NODEID]);
+
+    return retval;
+}
+
+static UA_StatusCode
+finishRequestMethodCallback(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionHandle,
+                            const UA_NodeId *methodId, void *methodContext,
+                            const UA_NodeId *objectId, void *objectContext,
+                            size_t inputSize, const UA_Variant *input,
+                            size_t outputSize, UA_Variant *output) {
+
+    UA_ByteString certificate;
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    size_t issuerCertificateSize = 0;
+    UA_ByteString *issuerCertificates;
+    UA_StatusCode retval =
+            UA_GDS_FinishRequest(server,
+                              (UA_NodeId *) input[0].data,
+                              (UA_NodeId *) input[1].data,
+                              &certificate, &privateKey, &issuerCertificateSize, &issuerCertificates);
+
+    if (retval == UA_STATUSCODE_GOOD){
+        UA_Variant_setScalarCopy(&output[0], &certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        if (!UA_ByteString_equal(&privateKey, &UA_BYTESTRING_NULL)){
+            UA_Variant_setScalarCopy(&output[1], &privateKey, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        }
+        UA_Variant_setArrayCopy(&output[2], issuerCertificates, issuerCertificateSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+        UA_ByteString_deleteMembers(&certificate);
+        if (!UA_ByteString_equal(&privateKey, &UA_BYTESTRING_NULL)){
+            UA_ByteString_deleteMembers(&privateKey);
+        }
+        size_t index = 0;
+        while (index < issuerCertificateSize){
+            UA_ByteString_deleteMembers(&issuerCertificates[index]);
+            index++;
+        }
+        UA_free(issuerCertificates);
+    }
+
+    return retval;
+}
+
+static UA_StatusCode
+startSigningRequestMethodCallback(UA_Server *server,
+                                  const UA_NodeId *sessionId, void *sessionHandle,
+                                  const UA_NodeId *methodId, void *methodContext,
+                                  const UA_NodeId *objectId, void *objectContext,
+                                  size_t inputSize, const UA_Variant *input,
+                                  size_t outputSize, UA_Variant *output) {
+
+    UA_NodeId requestId;
+    UA_StatusCode retval = UA_GDS_StartSigningRequest(server,
+                                                   (UA_NodeId *) input[0].data,
+                                                   (UA_NodeId *) input[1].data,
+                                                   (UA_NodeId *) input[2].data,
+                                                   (UA_String *) input[3].data,
+                                                   &requestId);
+
+
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_Variant_setScalarCopy(output, &requestId, &UA_TYPES[UA_TYPES_NODEID]);
+
+
+    return retval;
+}
+
+static UA_StatusCode
+startNewKeyPairRequestMethodCallback(UA_Server *server,
+                                     const UA_NodeId *sessionId, void *sessionHandle,
+                                     const UA_NodeId *methodId, void *methodContext,
+                                     const UA_NodeId *objectId, void *objectContext,
+                                     size_t inputSize, const UA_Variant *input,
+                                     size_t outputSize, UA_Variant *output) {
+    UA_NodeId requestId;
+    UA_StatusCode retval = UA_GDS_StartNewKeyPairRequest(server,
+                                                      (UA_NodeId *) input[0].data,
+                                                      (UA_NodeId *) input[1].data,
+                                                      (UA_NodeId *) input[2].data,
+                                                      (UA_String*) input[3].data,
+                                                      input[4].arrayLength,
+                                                      (UA_String*) input[4].data,
+                                                      (UA_String*) input[5].data,
+                                                      (UA_String*) input[6].data,
+                                                      &requestId);
+
+
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_Variant_setScalarCopy(output, &requestId, &UA_TYPES[UA_TYPES_NODEID]);
+
+    return retval;
+}
+
+static UA_StatusCode
+getCertificateGroupsMethodCallback(UA_Server *server,
+                                   const UA_NodeId *sessionId, void *sessionHandle,
+                                   const UA_NodeId *methodId, void *methodContext,
+                                   const UA_NodeId *objectId, void *objectContext,
+                                   size_t inputSize, const UA_Variant *input,
+                                   size_t outputSize, UA_Variant *output) {
+    size_t length = 0;
+    UA_NodeId *array;
+    UA_StatusCode retval =
+            UA_GDS_GetCertificateGroups(server,(UA_NodeId*)input->data, &length,  &array);
+
+    if (length > 0){
+        UA_Variant_setArrayCopy(output, array, length, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_free(array);
+    }
+
+    return retval;
+}
+
+#endif // UA_ENABLE_GDS_CM - Callbacks
 
 /**********************************************/
 /*         RegistrationManager-Callbacks      */
@@ -111,7 +308,7 @@ addStartSigningRequestMethod(UA_Server *server, UA_UInt16 ns_index, UA_NodeId di
                             directoryTypeId,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(ns_index, "StartSigningRequest"),
-                            mAttr, NULL,
+                            mAttr, &startSigningRequestMethodCallback,
                             4, inputArguments, 1, &outputArgument, NULL, NULL);
 
     UA_Server_addReference(server, UA_NODEID_NUMERIC(ns_index, 157),
@@ -180,7 +377,7 @@ addStartNewKeyPairRequestMethod(UA_Server *server, UA_UInt16 ns_index, UA_NodeId
                             directoryTypeId,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(ns_index, "StartNewKeyPairRequest"),
-                            mAttr, NULL,
+                            mAttr, &startNewKeyPairRequestMethodCallback,
                             7, inputArguments, 1, &outputArgument, NULL, NULL);
 
     UA_Server_addReference(server, UA_NODEID_NUMERIC(ns_index, 154),
@@ -232,7 +429,7 @@ addFinishRequestMethod(UA_Server *server, UA_UInt16 ns_index, UA_NodeId director
                             directoryTypeId,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(ns_index, "FinishRequest"),
-                            mAttr, NULL,
+                            mAttr, &finishRequestMethodCallback,
                             2, inputArguments, 3, outputArguments, NULL, NULL);
 
     UA_Server_addReference(server, UA_NODEID_NUMERIC(ns_index, 163),
@@ -264,7 +461,7 @@ addGetCertificateGroupsMethod(UA_Server *server, UA_UInt16 ns_index, UA_NodeId d
                             directoryTypeId,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(ns_index, "GetCertificateGroups"),
-                            mAttr, NULL,
+                            mAttr, &getCertificateGroupsMethodCallback,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);
 
     UA_Server_addReference(server, UA_NODEID_NUMERIC(ns_index, 508),
@@ -303,7 +500,7 @@ addGetTrustListMethod(UA_Server *server, UA_UInt16 ns_index, UA_NodeId directory
                             directoryTypeId,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(ns_index, "GetTrustList"),
-                            mAttr, NULL,
+                            mAttr, &startGetTrustListMethodCallback,
                             2, inputArguments, 1, &outputArgument, NULL, NULL);
 
     UA_Server_addReference(server, UA_NODEID_NUMERIC(ns_index, 204),
@@ -794,9 +991,9 @@ createDirectoryObject(UA_Server *server, UA_UInt16 ns_index){
     UA_Server_addNode_finish(server,
                              UA_NODEID_NUMERIC(ns_index, 616));
     UA_Server_addNode_finish(server, defaultApplicationGroup);
-    //   UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_OPEN), &openMethodCallback);
-    //   UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_READ), &readTrustListMethodCallback);
-    //   UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_CLOSE), &closeMethodCallback);
+    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_OPEN), &openMethodCallback);
+    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_READ), &readTrustListMethodCallback);
+    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_CLOSE), &closeMethodCallback);
 
 #else //Information model for the Certificate Manager is not required
     UA_ObjectAttributes directory = UA_ObjectAttributes_default;

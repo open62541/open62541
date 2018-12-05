@@ -26,6 +26,9 @@
 #include "ua_subscription.h"
 #endif
 
+#ifdef UA_ENABLE_GDS_CM
+#include "ua_certificate_manager.h"
+#endif
 
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
 #include <valgrind/memcheck.h>
@@ -157,6 +160,9 @@ void UA_Server_delete(UA_Server *server) {
 
 #ifdef UA_ENABLE_GDS
     UA_GDS_RegistrationManager_close(server);
+#ifdef UA_ENABLE_GDS_CM
+    UA_GDS_CertificateManager_close(server);
+#endif
     UA_GDS_deinitNS(server);
 #endif
 
@@ -264,6 +270,9 @@ UA_Server_new(const UA_ServerConfig *config) {
 #ifdef UA_ENABLE_GDS
     UA_GDS_initNS(server);
     UA_GDS_RegistrationManager_init(server);
+#ifdef UA_ENABLE_GDS_CM
+    UA_GDS_CertificateManager_init(server);
+#endif
 #endif
 
     return server;
