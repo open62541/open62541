@@ -655,9 +655,13 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
 
     /* Historical data */
 #ifdef UA_ENABLE_HISTORIZING
-    if (config->historyDatabase.deleteMembers)
+    if(config->historyDatabase.deleteMembers)
         config->historyDatabase.deleteMembers(&config->historyDatabase);
 #endif
+
+    /* Logger */
+    if(config->logger.clear)
+        config->logger.clear(config->logger.context);
 
     UA_free(config);
 }
