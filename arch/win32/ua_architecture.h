@@ -145,7 +145,7 @@
 #include "../ua_architecture_functions.h"
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
-#ifdef SLIST_ENTRY
+#if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)
 # undef SLIST_ENTRY
 #endif
 
