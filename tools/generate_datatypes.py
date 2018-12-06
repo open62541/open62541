@@ -61,7 +61,7 @@ whitelistFuncAttrWarnUnusedResult = [  ] # for instances [ "String", "ByteString
 type_aliases = { "CharArray" : "String" }
 def getTypeName(xmlTypeName):
    typeName = xmlTypeName[xmlTypeName.find(":")+1:]
-   return type_aliases.get(typeName, typeName);
+   return type_aliases.get(typeName, typeName)
 
 # Escape C strings:
 def makeCLiteral(value):
@@ -191,7 +191,7 @@ class Type(object):
             for entry in whitelistFuncAttrWarnUnusedResult:
                 if idName == entry:
                     funcs += "UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT "
-                    break;
+                    break
             
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (idName, idName, idName, self.datatype_ptr())
             funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (idName, idName, self.datatype_ptr())
