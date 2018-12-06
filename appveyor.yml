@@ -6,6 +6,10 @@ clone_depth: 20
 # Avoid building branch if it is part of a PR and built anyways
 skip_branch_with_pr: true
 
+# Fast finish (stop other builds if one fails) to speed up appveyor builds
+matrix:
+  fast_finish: true
+
 environment:
     global:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
