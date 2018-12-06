@@ -144,10 +144,8 @@ class Type(object):
             return "#define %s_members NULL" % (idName)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(self.members))
         before = None
-        i = 0
         size = len(self.members)
-        for index, member in enumerate(self.members):
-            i += 1
+        for i, member in enumerate(self.members):
             memberName = makeCIdentifier(member.name)
             memberNameCapital = memberName
             if len(memberName) > 0:
