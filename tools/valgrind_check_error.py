@@ -22,17 +22,7 @@ valgrind_command = ' '.join('"' + item + '"' for item in sys.argv[2:])
 # Execute a command and output its stdout text
 def execute(command):
 
-    my_env = os.environ.copy()
-    my_env["TEMP"] = my_env["TRAVIS_BUILD_DIR"] + "/tmp"
-    my_env["TMPDIR"] = my_env["TRAVIS_BUILD_DIR"] + "/tmp"
-
-    print("Temp Dir: " + my_env["TMPDIR"])
-
-    f= open(my_env["TMPDIR"] + "/test.txt","w+")
-    f.write("This is line %d\r\n")
-    f.close()
-
-    process = subprocess.Popen(command, env=my_env, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     # Poll process for new output until finished
     while True:
@@ -58,9 +48,19 @@ if len(log_content) == 0:
     print("### PYTHON ERROR: Valgrind logfile is empty: " + logfile)
     exit(1)
 
+# Remove output of possible bug in OSX
+# --16672-- run: /usr/bin/dsymutil "/Users/travis/build/Pro/open62541/build/bin/tests/check_utils"
+# --16672-- WARNING: unhandled amd64-darwin syscall: unix:464
+# --16672-- You may be able to write your own handler.
+# --16672-- Read the file README_MISSING_SYSCALL_OR_IOCTL.
+# --16672-- Nevertheless we consider this a bug.  Please report
+# --16672-- it at http://valgrind.org/support/bug_reports.html.
+replace_re = re.compile(r"^--(\d+)--\s+run: .*-- it at http://valgrind.org/support/bug_reports.html\.$\n", re.MULTILINE | re.DOTALL)
+log_content = replace_re.sub('', log_content)
+
 # Try to parse the output. Look for the following line:
 # ==17054== FILE DESCRIPTORS: 5 open at exit.
-descriptors_re = re.compile(r"^==(\d+)==\s+FILE DESCRIPTORS: (\d+) open at exit.$", re.MULTILINE)
+descriptors_re = re.compile(r".*==(\d+)==\s+FILE DESCRIPTORS: (\d+) open at exit\..*", re.DOTALL)
 m = descriptors_re.match(log_content)
 
 if not m:
@@ -95,7 +95,7 @@ if ret_code != 0:
     exit(ret_code)
 
 # No issues by valgrind
-if log_content.isspace():
+if len(log_content) == 0 or log_content.isspace():
     exit(0)
 
 # There is something fishy in the valgrind output, so error-exit
