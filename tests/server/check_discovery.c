@@ -312,9 +312,15 @@ FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerName
         ck_assert_ptr_ne(serverOnNetwork, NULL);
 
     if(serverOnNetwork != NULL) {
-        for(size_t i = 0; i < expectedServerNamesSize; i++)
-            ck_assert(UA_String_equal(&serverOnNetwork[i].serverName,
-                                      &expectedServerNames[i]));
+        for(size_t i = 0; i < expectedServerNamesSize; i++) {
+            UA_Boolean expectedServerNameInServerOnNetwork = false;
+            for(size_t j = 0; j < expectedServerNamesSize && !expectedServerNameInServerOnNetwork; j++) {
+                expectedServerNameInServerOnNetwork = UA_String_equal(&serverOnNetwork[j].serverName,
+                                        &expectedServerNames[i]);
+            }
+            ck_assert_msg(expectedServerNameInServerOnNetwork, "Expected %.*s in serverOnNetwork list, but not found",
+                expectedServerNames[i].length, expectedServerNames[i].data);
+        }
     }
 
     UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
@@ -510,8 +516,8 @@ END_TEST
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 START_TEST(Util_wait_mdns) {
-    UA_fakeSleep(1000);
-    UA_realSleep(1000);
+    UA_fakeSleep(5000);
+    UA_realSleep(5000);
 }
 END_TEST
 #endif
