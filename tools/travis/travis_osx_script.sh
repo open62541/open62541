@@ -66,7 +66,7 @@ cmake \
     -DUA_ENABLE_DISCOVERY=ON \
     -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
     -DUA_ENABLE_ENCRYPTION=ON \
-    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF ..
 make -j && make test ARGS="-V"
 if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm -rf build
