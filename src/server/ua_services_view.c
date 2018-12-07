@@ -321,14 +321,14 @@ Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
 
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing BrowseRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing BrowseRequest");
 
     if(server->config.maxNodesPerBrowse != 0 &&
        request->nodesToBrowseSize > server->config.maxNodesPerBrowse) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-	
+
     /* No views supported at the moment */
     if(!UA_NodeId_isNull(&request->view.viewId)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
@@ -391,7 +391,7 @@ void
 Service_BrowseNext(UA_Server *server, UA_Session *session,
                    const UA_BrowseNextRequest *request,
                    UA_BrowseNextResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing BrowseNextRequest");
     UA_Boolean releaseContinuationPoints = request->releaseContinuationPoints; /* request is const */
     response->responseHeader.serviceResult =
@@ -728,7 +728,7 @@ void
 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                       const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                       UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest");
 
     if(server->config.maxNodesPerTranslateBrowsePathsToNodeIds != 0 &&
@@ -778,7 +778,7 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                            const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RegisterNodesRequest");
 
     //TODO: hang the nodeids to the session if really needed
@@ -803,7 +803,7 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing UnRegisterNodesRequest");
 
     //TODO: remove the nodeids from the session if really needed

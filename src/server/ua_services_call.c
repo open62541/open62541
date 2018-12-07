@@ -264,7 +264,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing CallRequest");
 
     if(server->config.maxNodesPerMethodCall != 0 &&
