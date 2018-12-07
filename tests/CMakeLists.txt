@@ -178,9 +178,9 @@ add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open625
 target_link_libraries(check_nodestore ${LIBS})
 add_test_valgrind(nodestore ${TESTS_BINARY_DIR}/check_nodestore)
 
-add_executable(check_historical_data server/check_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-target_link_libraries(check_historical_data ${LIBS})
-add_test_valgrind(historical_data ${TESTS_BINARY_DIR}/check_historical_data)
+add_executable(check_server_historical_data server/check_server_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_server_historical_data ${LIBS})
+add_test_valgrind(server_historical_data ${TESTS_BINARY_DIR}/check_server_historical_data)
 
 add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_session ${LIBS})
@@ -278,6 +278,10 @@ add_test_valgrind(client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscrip
 add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})
 add_test_valgrind(client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
+
+add_executable(check_client_historical_data client/check_client_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_historical_data ${LIBS})
+add_test_valgrind(client_historical_data ${TESTS_BINARY_DIR}/check_client_historical_data)
 
 # Test Encryption
 

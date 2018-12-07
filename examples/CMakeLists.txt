@@ -84,13 +84,15 @@ install(PROGRAMS $<TARGET_FILE:server_ctt>
 
 add_example(client client.c)
 
+if(UA_ENABLE_HISTORIZING)
+    add_example(client_historical client_historical.c)
+endif()
+
 install(PROGRAMS $<TARGET_FILE:client>
         DESTINATION bin
         RENAME ua_client)
 
 add_example(client_async client_async.c)
-
-add_example(client_historical client_historical.c)
 
 add_example(client_connect_loop client_connect_loop.c)
 
