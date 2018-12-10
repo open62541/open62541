@@ -610,6 +610,7 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_defaul
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicies.h
                            ${PROJECT_SOURCE_DIR}/plugins/networking/ua_sockets.h
+                           ${PROJECT_SOURCE_DIR}/plugins/networking/ua_networkmanagers.h
 )
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
@@ -620,6 +621,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
                            ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_listener_socket.c
+                           ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
 )
 
 if(UA_ENABLE_ENCRYPTION)

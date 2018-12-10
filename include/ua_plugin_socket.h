@@ -41,8 +41,17 @@ struct UA_Socket {
 
     /**
      * The discovery url that can be used to connect to the server on this socket.
+     * Data sockets have discovery urls as well, because it needs to be checked,
+     * if the discovery url in a hello message is the same as the one used to connect
+     * to the listener socket. That means the discovery url is inherited
+     * from the listener socket.
      */
-    UA_String *discoveryUrl;
+    UA_String discoveryUrl;
+
+    /**
+     * This flag indicates if the socket is a listener socket that accepts new connections.
+     */
+    UA_Boolean isListener;
 
     /**
      * Starts/Opens the socket for operation. This step is separate from the initialization

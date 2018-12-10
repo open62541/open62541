@@ -19,6 +19,15 @@ struct UA_NetworkManager {
 
     UA_StatusCode (*process)(UA_NetworkManager *networkManager, UA_UInt16 timeout);
 
+    /**
+     * Gets all known discovery urls of listener sockets registered with the network manager.
+     * This function will allocate an array of strings, which needs to be freed by the caller.
+     *
+     * @param networkManager the network manager to perform the operation on.
+     * @param discoveryUrls the newly allocated array of discoveryUrls.
+     */
+    UA_StatusCode (*getDiscoveryUrls)(UA_NetworkManager *networkManager, UA_String *discoveryUrls[]);
+
     UA_StatusCode (*deleteMembers)(UA_NetworkManager *networkManager);
 
     void *internalData;

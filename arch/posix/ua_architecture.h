@@ -82,6 +82,13 @@
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
+// TODO: other platforms
+#define UA_SHUT_RD SHUT_RD
+// TODO: other platforms
+#define UA_SHUT_WR SHUT_WR
+// TODO: other platforms
+#define UA_SHUT_RDWR SHUT_RDWR
+
 #define UA_ENABLE_LOG_COLORS
 
 #define UA_getnameinfo getnameinfo
@@ -91,6 +98,10 @@
 #define UA_recvfrom recvfrom
 #define UA_htonl htonl
 #define UA_ntohl ntohl
+// TODO: other platforms
+#define UA_ntohs ntohs
+// TODO: other platforms
+#define UA_htons htons
 #define UA_close close
 #define UA_select select
 #define UA_shutdown shutdown

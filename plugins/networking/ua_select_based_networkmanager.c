@@ -5,8 +5,9 @@
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <ua_plugin_log.h>
 #include <queue.h>
+#include "ua_plugin_log.h"
+#include "ua_types_generated_handling.h"
 #include "ua_networkmanagers.h"
 
 typedef struct SocketListEntry {
@@ -15,8 +16,9 @@ typedef struct SocketListEntry {
 } SocketListEntry;
 
 typedef struct {
-    UA_Logger logger;
+    UA_Logger *logger;
     LIST_HEAD(, SocketListEntry) sockets;
+    size_t numListenerSockets;
 } SelectNMData;
 
 
@@ -69,7 +71,6 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     SelectNMData *internalData = (SelectNMData *)networkManager->internalData;
 
-    /* Listen on open sockets (including the server) */
     fd_set fdset, errset;
     UA_Int32 highestfd = setFDSet(internalData, &fdset);
     setFDSet(internalData, &errset);
@@ -118,8 +119,41 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
 }
 
 static UA_StatusCode
+select_nm_getDiscoveryUrls(UA_NetworkManager *networkManager, UA_String *discoveryUrls[]) {
+    SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
+
+    UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                 "Getting discovery urls from network manager");
+
+    UA_String *const urls = (UA_String *const)UA_malloc(sizeof(UA_String) * internalData->numListenerSockets);
+    if(urls == NULL) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    size_t position = 0;
+    SocketListEntry *socketListEntry, *e_tmp;
+    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets, pointers, e_tmp) {
+        if(socketListEntry->socket->isListener) {
+            if(position >= internalData->numListenerSockets) {
+                UA_LOG_ERROR(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                             "Mismatch between found listener sockets and maximum array size.");
+                UA_free(urls);
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+            UA_ByteString_copy(&socketListEntry->socket->discoveryUrl, &urls[position]);
+            ++position;
+        }
+    }
+
+    *discoveryUrls = urls;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+
+static UA_StatusCode
 select_nm_deleteMembers(UA_NetworkManager *networkManager) {
-    SelectNMData *internalData = networkManager->internalData;
+    SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
     // TODO: check return values
     UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK, "Deleting select based network manager");
 
@@ -142,9 +176,9 @@ select_nm_deleteMembers(UA_NetworkManager *networkManager) {
 
 
 UA_StatusCode
-UA_SelectBasedNetworkManager(UA_NetworkManager **p_networkManager) {
+UA_SelectBasedNetworkManager(UA_Logger *logger, UA_NetworkManager **p_networkManager) {
 
-    UA_NetworkManager *networkManager = UA_malloc(sizeof(UA_NetworkManager));
+    UA_NetworkManager *const networkManager = (UA_NetworkManager *const)UA_malloc(sizeof(UA_NetworkManager));
     if(networkManager == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(networkManager, 0, sizeof(UA_NetworkManager));
@@ -152,6 +186,7 @@ UA_SelectBasedNetworkManager(UA_NetworkManager **p_networkManager) {
     networkManager->registerSocket = select_nm_registerSocket;
     networkManager->unregisterSocket = select_nm_unregisterSocket;
     networkManager->process = select_nm_process;
+    networkManager->getDiscoveryUrls = select_nm_getDiscoveryUrls;
     networkManager->deleteMembers = select_nm_deleteMembers;
 
     networkManager->internalData = UA_malloc(sizeof(SelectNMData));
@@ -160,6 +195,8 @@ UA_SelectBasedNetworkManager(UA_NetworkManager **p_networkManager) {
         UA_free(networkManager);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+
+    internalData->logger = logger;
 
     *p_networkManager = networkManager;
 

@@ -10,6 +10,6 @@
 #define OPEN62541_UA_NETWORKMANAGERS_H
 
 UA_StatusCode
-UA_SelectBasedNetworkManager(UA_NetworkManager **p_networkManager);
+UA_SelectBasedNetworkManager(UA_Logger *logger, UA_NetworkManager **p_networkManager);
 
 #endif //OPEN62541_UA_NETWORKMANAGERS_H
