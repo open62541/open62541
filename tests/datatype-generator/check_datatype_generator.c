@@ -55,7 +55,7 @@ START_TEST(Datatypes_check_encoding_mask_size) {
 }
 END_TEST
 
-START_TEST(Datatypes_check_encoding_mask_encoding) {
+START_TEST(Datatypes_check_encoding_mask_serialize) {
     UA_ObjectWithNineBits *item = UA_ObjectWithNineBits_new();
 
     size_t buflen = UA_calcSizeBinary(item, &TEST_TYPES[TEST_TYPES_OBJECTWITHNINEBITS]);
@@ -83,6 +83,34 @@ START_TEST(Datatypes_check_encoding_mask_encoding) {
 }
 END_TEST
 
+START_TEST(Datatypes_check_encoding_mask_deserialize) {
+    UA_Byte data[] = {
+                0x89, // 0b10001001
+                0x00, // 0b00000000
+                0x12, // Data 18
+            };
+    UA_ByteString src    = { 3, data };
+
+    UA_ObjectWithNineBits item;
+    UA_ObjectWithNineBits_init(&item);
+
+    size_t posDecode = 0;
+    UA_StatusCode retval = UA_ObjectWithNineBits_decodeBinary(&src, &posDecode, &item);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(item.bitField0);
+    ck_assert(!item.bitField1);
+    ck_assert(!item.bitField2);
+    ck_assert(item.bitField3);
+    ck_assert(!item.bitField4);
+    ck_assert(!item.bitField5);
+    ck_assert(!item.bitField6);
+    ck_assert(item.bitField7);
+    ck_assert(!item.bitField8);
+    ck_assert_int_eq(item.data, 18);
+}
+END_TEST
+
 // START_TEST(Datatypes_bitField_serialization) {
 //     // TODO: create type
 //     // serialize
@@ -98,8 +126,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_members);
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_size);
-    tcase_add_test(tc_server, Datatypes_check_encoding_mask_encoding);
-    // tcase_add_test(tc_server, Datatypes_bitField_serialization);
+    tcase_add_test(tc_server, Datatypes_check_encoding_mask_serialize);
+    tcase_add_test(tc_server, Datatypes_check_encoding_mask_deserialize);
     suite_add_tcase(s, tc_server);
     return s;
 }

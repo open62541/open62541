@@ -1407,9 +1407,8 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
 
         if(flagCount > 0) {
             for(size_t x = 0; x <= flagCount/8; ++x) {
-                *ctx->pos = *(const u8*)ptr;
-                ++ctx->pos;
-                ptr += sizeof(UA_Boolean);
+                Byte_encodeBinary((const UA_Byte*)ptr, membertype, ctx);
+                ptr += sizeof(UA_Byte);
             }
             flagCount = 0;
         }
@@ -1516,11 +1515,28 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
 
+    size_t flagCount = 0;
+
     /* Loop over members */
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         ptr += member->padding;
+
+        /* Encoding flags */
+        if(member->isFlag) {
+            flagCount++;
+            continue;
+        }
+
+        if(flagCount > 0) {
+            // Decode all encoding mask bytes
+            for(size_t x = 0; x <= flagCount/8; ++x) {
+                Byte_decodeBinary((UA_Byte *UA_RESTRICT)ptr, membertype, ctx);
+                ptr += sizeof(UA_Byte);
+            }
+            flagCount = 0;
+        }
 
         /* Array */
         if(member->isArray) {
