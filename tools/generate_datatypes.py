@@ -341,7 +341,7 @@ class StructType(Type):
             if len(memberName) > 0:
                 memberNameCapital = memberName[0].upper() + memberName[1:]
             data = VerbatimType(textwrap.dedent(bitflag_template.format(typeName=memberNameCapital, padding="0")))
-            self.members.append(data)
+            self.members.insert(0, data)
         return super(StructType, self).members_c()
 
     def typedef_h(self):

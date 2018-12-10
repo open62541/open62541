@@ -55,27 +55,33 @@ START_TEST(Datatypes_check_encoding_mask_size) {
 }
 END_TEST
 
-// START_TEST(Datatypes_check_object_with_bitfield_size) {
-//     UA_ObjectWithBitField *item = UA_ObjectWithBitField_new();
+START_TEST(Datatypes_check_encoding_mask_encoding) {
+    UA_ObjectWithNineBits *item = UA_ObjectWithNineBits_new();
 
-//     size_t buflen = UA_calcSizeBinary(item, &TEST_TYPES[TEST_TYPES_OBJECTWITHBITFIELD]);
-//     UA_ByteString buf;
-//     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
-//     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    size_t buflen = UA_calcSizeBinary(item, &TEST_TYPES[TEST_TYPES_OBJECTWITHNINEBITS]);
+    UA_ByteString buf;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-//     item->bitField = true;
-//     item->data = 1337;
+    item->bitField0 = true;
+    item->bitField2 = true;
+    item->bitField4 = true;
+    item->bitField6 = true;
+    item->bitField8 = true;
+    item->data = 42;
 
-//     UA_Byte *bufPos = buf.data;
-//     const UA_Byte *bufEnd = &buf.data[buf.length];
+    UA_Byte *bufPos = buf.data;
+    const UA_Byte *bufEnd = &buf.data[buf.length];
 
-//     retval = UA_ObjectWithBitField_encodeBinary(item, &bufPos, bufEnd);
-//     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-//     UA_ObjectWithBitField_delete(item);
+    retval = UA_ObjectWithNineBits_encodeBinary(item, &bufPos, bufEnd);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ObjectWithNineBits_delete(item);
 
-//     ck_assert_uint_eq(sizeof(*item), 1);
-// }
-// END_TEST
+    ck_assert_uint_eq(buf.data[0], 0x55); // 0b10101010 first encoding mask byte
+    ck_assert_uint_eq(buf.data[1], 0x01); // 0b00000001 second encoding mask byte
+    ck_assert_uint_eq(buf.data[2], 42); // Byte payload as set
+}
+END_TEST
 
 // START_TEST(Datatypes_bitField_serialization) {
 //     // TODO: create type
@@ -92,7 +98,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_members);
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_size);
-    // tcase_add_test(tc_server, Datatypes_check_object_with_bitfield_size);
+    tcase_add_test(tc_server, Datatypes_check_encoding_mask_encoding);
     // tcase_add_test(tc_server, Datatypes_bitField_serialization);
     suite_add_tcase(s, tc_server);
     return s;

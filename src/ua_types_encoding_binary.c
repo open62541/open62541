@@ -1391,11 +1391,28 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
 
+    size_t flagCount = 0;
+
     /* Loop over members */
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         ptr += member->padding;
+
+        /* Encoding mask flags must not appear after a proper member, just count and write out the bytes */
+        if(member->isFlag) {
+            flagCount += 1;
+            continue;
+        }
+
+        if(flagCount > 0) {
+            for(size_t x = 0; x <= flagCount/8; ++x) {
+                *ctx->pos = *(const u8*)ptr;
+                ++ctx->pos;
+                ptr += sizeof(UA_Boolean);
+            }
+            flagCount = 0;
+        }
 
         /* Array. Buffer-exchange is done inside Array_encodeBinary if required. */
         if(member->isArray) {
