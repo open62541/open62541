@@ -1770,6 +1770,7 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1
 size_t
 UA_calcSizeBinary(const void *p, const UA_DataType *type) {
     size_t s = 0;
+    size_t bitFlags = 0;
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
@@ -1779,6 +1780,13 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         ptr += member->padding;
+
+        /* Encoding mask flags */
+        if(member->isFlag) {
+            ptr += sizeof(UA_Boolean);
+            bitFlags += 1;
+            continue;
+        }
 
         /* Array */
         if(member->isArray) {
@@ -1794,6 +1802,9 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
         s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
         ptr += membertype->memSize;
     }
+
+    // Reserve enough bytes to fit all bitflags and pad to next byte
+    s += (bitFlags / 8) + 1;
 
     return s;
 }

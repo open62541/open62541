@@ -177,7 +177,9 @@ class Type(object):
                         m += " - sizeof(UA_%s)," % makeCIdentifier(before.memberType.name)
                 m += " /* .padding */\n"
                 m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
-                m += ("    true" if member.isArray else "    false") + " /* .isArray */\n}"
+                m += ("    true" if member.isArray else "    false") + ", /* .isArray */\n"
+                m += "    false /* .isFlag */"
+                m+= "\n}"
                 if i != size:
                     m += ","
                 members += m
@@ -328,7 +330,8 @@ class StructType(Type):
             UA_BUILTIN_TYPES_COUNT + 1, /* HACK! FIXME! .memberTypeIndex */
             {padding}, /* .padding */
             true, /* .namespaceZero */
-            false /* .isArray */
+            false, /* .isArray */
+            true /* .isFlag */
         }},
         """
         # Generate encoding mask members, if there are any

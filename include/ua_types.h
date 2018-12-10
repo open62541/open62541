@@ -795,6 +795,7 @@ typedef struct {
                                      members from the same namespace or
                                      namespace zero only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
+    UA_Boolean isFlag        : 1; /* The member is a flag and will be encoded in the encoding mask*/
 } UA_DataTypeMember;
 
 struct UA_DataType {
