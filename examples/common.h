@@ -26,7 +26,7 @@ loadFile(const char *const path) {
         fseek(fp, 0, SEEK_SET);
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
         if(read != fileContents.length)
-            UA_ByteString_deleteMembers(&fileContents);
+            UA_ByteString_clear(&fileContents);
     } else {
         fileContents.length = 0;
     }

@@ -15,7 +15,7 @@ import xml.etree.ElementTree as etree
 import itertools
 import argparse
 import csv
-from nodeset_compiler.opaque_type_mapping import opaque_type_mapping, get_base_type_for_opaque
+from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
@@ -61,7 +61,7 @@ whitelistFuncAttrWarnUnusedResult = [  ] # for instances [ "String", "ByteString
 type_aliases = { "CharArray" : "String" }
 def getTypeName(xmlTypeName):
    typeName = xmlTypeName[xmlTypeName.find(":")+1:]
-   return type_aliases.get(typeName, typeName);
+   return type_aliases.get(typeName, typeName)
 
 # Escape C strings:
 def makeCLiteral(value):
@@ -93,9 +93,14 @@ def getNodeidTypeAndId(nodeId):
 
 class Type(object):
     def __init__(self, outname, xml, namespace):
-        self.name = xml.get("Name")
+        self.name = None
+        if xml is not None:
+            self.name = xml.get("Name")
+            self.typeIndex = makeCIdentifier(outname.upper() + "_" + self.name.upper())
+        else:
+            self.typeIndex = makeCIdentifier(outname.upper())
+
         self.ns0 = ("true" if namespace == 0 else "false")
-        self.typeIndex = makeCIdentifier(outname.upper() + "_" + self.name.upper())
         self.outname = outname
         self.description = ""
         self.pointerfree = "false"
@@ -105,18 +110,19 @@ class Type(object):
         else:
             self.builtin = "false"
         self.members = [StructMember("", self, False)] # Returns one member: itself. Overwritten by some types.
-        for child in xml:
-            if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-                self.description = child.text
-                break
+        if xml is not None:
+            for child in xml:
+                if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
+                    self.description = child.text
+                    break
 
     def datatype_c(self):
-        xmlEncodingId = "0"
+        # xmlEncodingId = "0"
         binaryEncodingId = "0"
         if self.name in typedescriptions:
             description = typedescriptions[self.name]
             typeid = "{%s, %s}" % (description.namespaceid, getNodeidTypeAndId(description.nodeid))
-            xmlEncodingId = description.xmlEncodingId
+            # xmlEncodingId = description.xmlEncodingId
             binaryEncodingId = description.binaryEncodingId
         else:
             typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
@@ -138,10 +144,8 @@ class Type(object):
             return "#define %s_members NULL" % (idName)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(self.members))
         before = None
-        i = 0
         size = len(self.members)
-        for index, member in enumerate(self.members):
-            i += 1
+        for i, member in enumerate(self.members):
             memberName = makeCIdentifier(member.name)
             memberNameCapital = memberName
             if len(memberName) > 0:
@@ -185,7 +189,7 @@ class Type(object):
             for entry in whitelistFuncAttrWarnUnusedResult:
                 if idName == entry:
                     funcs += "UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT "
-                    break;
+                    break
             
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (idName, idName, idName, self.datatype_ptr())
             funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (idName, idName, self.datatype_ptr())
@@ -202,6 +206,7 @@ class Type(object):
 
 class BuiltinType(Type):
     def __init__(self, name):
+        Type.__init__(self, name, None, 0)
         self.name = name
         self.ns0 = "true"
         self.typeIndex = makeCIdentifier("UA_TYPES_" + self.name.upper())

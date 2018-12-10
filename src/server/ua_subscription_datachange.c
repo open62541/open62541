@@ -140,7 +140,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Subscription *sub, UA_Monitore
     }
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(server->config.logger, sub ? sub->session : &server->adminSession,
+        UA_LOG_WARNING_SESSION(&server->config.logger, sub ? sub->session : &server->adminSession,
                                "Subscription %u | MonitoredItem %i | "
                                "Could not encode the value the MonitoredItem with status %s",
                                sub ? sub->subscriptionId : 0, mon->monitoredItemId,
@@ -164,7 +164,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Subscription *sub, UA_Monitore
     if(valueEncoding.data == stackValueEncoding) {
         retval = UA_ByteString_copy(&valueEncoding, encoding);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub ? sub->session : &server->adminSession,
+            UA_LOG_WARNING_SESSION(&server->config.logger, sub ? sub->session : &server->adminSession,
                                    "Subscription %u | MonitoredItem %i | "
                                    "Detected change, but could not allocate memory for the notification"
                                    "with status %s", sub ? sub->subscriptionId : 0,
@@ -219,7 +219,7 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
         /* Allocate a new notification */
         UA_Notification *newNotification = (UA_Notification *)UA_malloc(sizeof(UA_Notification));
         if(!newNotification) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub ? sub->session : &server->adminSession,
+            UA_LOG_WARNING_SESSION(&server->config.logger, sub ? sub->session : &server->adminSession,
                                    "Subscription %u | MonitoredItem %i | "
                                    "Item for the publishing queue could not be allocated",
                                    sub->subscriptionId, monitoredItem->monitoredItemId);
@@ -302,7 +302,7 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
         session = sub->session;
 
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
                              "MonitoredItem %i | Not a data change notification",
                              sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId);
         return;

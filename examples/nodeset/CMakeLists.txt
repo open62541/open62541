@@ -13,15 +13,14 @@ ua_generate_nodeset_and_datatypes(
 )
 
 # The .csv file can be created from within UaModeler or manually
+ua_generate_nodeid_header(
+    NAME "example_nodeids"
+    ID_PREFIX "EXAMPLE_NS"
+    TARGET_SUFFIX "ids_example"
+    FILE_CSV "${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.csv"
+)
 
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
-                   ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.csv  ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids EXAMPLE_NS
-                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_nodeid_header.py
-                   ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.csv)
-
-add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_example.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeset_ids.h)
+add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_example.c ${PROJECT_BINARY_DIR}/src_generated/example_nodeids.h)
 if(UA_COMPILE_AS_CXX)
     set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace_example.c PROPERTIES LANGUAGE CXX)
 endif()

@@ -59,7 +59,7 @@ int main(void) {
     printf("deleteNode returned: %s\n", UA_StatusCode_name(retCode));
 
     /* Clean up */
-    UA_VariableAttributes_deleteMembers(&newVariableAttributes);
+    UA_VariableAttributes_clear(&newVariableAttributes);
     UA_Client_delete(client); /* Disconnects the client internally */
     return UA_STATUSCODE_GOOD;
 }

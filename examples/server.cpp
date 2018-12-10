@@ -11,10 +11,9 @@
 using namespace std;
 
 UA_Boolean running = true;
-UA_Logger logger = UA_Log_Stdout;
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 
@@ -40,9 +39,9 @@ int main() {
                               UA_NODEID_NULL, attr, NULL, NULL);
 
     /* allocations on the heap need to be freed */
-    UA_VariableAttributes_deleteMembers(&attr);
-    UA_NodeId_deleteMembers(&myIntegerNodeId);
-    UA_QualifiedName_deleteMembers(&myIntegerName);
+    UA_VariableAttributes_clear(&attr);
+    UA_NodeId_clear(&myIntegerNodeId);
+    UA_QualifiedName_clear(&myIntegerName);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);

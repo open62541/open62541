@@ -51,7 +51,7 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Decoding ACK message failed");
         return retval;
     }
@@ -66,7 +66,7 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
         UA_StatusCode error = *(UA_StatusCode*)(&chunk->data[offset]);
         UA_UInt32 len = *((UA_UInt32*)&chunk->data[offset + 4]);
         UA_Byte *data = (UA_Byte*)&chunk->data[offset + 4+4];
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Received ERR response. %s - %.*s", UA_StatusCode_name(error), len, data);
         return error;
     }
@@ -77,11 +77,11 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     /* Decode the ACK message */
     retval = UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Decoding ACK message failed");
         return retval;
     }
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
 
     /* Process the ACK message */
     return UA_Connection_processHELACK(connection, &client->config.localConnectionConfig,
@@ -127,18 +127,18 @@ HelAckHandshake(UA_Client *client) {
     message.length = messageHeader.messageSize;
     retval = conn->send(conn, &message);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Sending HEL failed");
         return retval;
     }
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Sent HEL message");
 
     /* Loop until we have a complete chunk */
     retval = UA_Connection_receiveChunksBlocking(conn, client, processACKResponse,
                                                  client->config.timeout);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Receiving ACK message failed with %s", UA_StatusCode_name(retval));
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             client->state = UA_CLIENTSTATE_DISCONNECTED;
@@ -161,10 +161,10 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
     UA_ByteString_init(&response->serverNonce);
 
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "SecureChannel in the server renewed");
     else
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Opened SecureChannel acknowledged by the server");
 
     /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
@@ -192,11 +192,11 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
     if(renew) {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to renew the SecureChannel");
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to open a SecureChannel");
     }
 
@@ -212,13 +212,13 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId, &opnSecRq,
                                                   &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Sending OPN message failed with error %s", UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
         return retval;
     }
 
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
 
     /* Increase nextChannelRenewal to avoid that we re-start renewal when
      * publish responses are received before the OPN response arrives. */
@@ -376,7 +376,7 @@ activateSession(UA_Client *client) {
                         &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
 
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "ActivateSession failed with error code %s",
                      UA_StatusCode_name(response.responseHeader.serviceResult));
     }
@@ -404,7 +404,7 @@ UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSi
 
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_StatusCode retval = response.responseHeader.serviceResult;
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "GetEndpointRequest failed with error code %s",
                      UA_StatusCode_name(retval));
         UA_GetEndpointsResponse_deleteMembers(&response);
@@ -475,11 +475,11 @@ getEndpoints(UA_Client *client) {
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     if(!endpointFound) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable endpoint found");
         retval = UA_STATUSCODE_BADINTERNALERROR;
     } else if(!tokenFound) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable UserTokenPolicy found for the possible endpoints");
         retval = UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -564,7 +564,7 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     client->connection =
         client->config.connectionFunc(client->config.localConnectionConfig,
                                       endpointUrl, client->config.timeout,
-                                      client->config.logger);
+                                      &client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;

@@ -49,7 +49,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
         LIST_REMOVE(mon, listEntry);
-        UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+        UA_LOG_INFO_SESSION(&server->config.logger, sub->session,
                             "Subscription %u | MonitoredItem %i | "
                             "Deleted the MonitoredItem", sub->subscriptionId,
                             mon->monitoredItemId);
@@ -68,7 +68,7 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
     }
     UA_assert(sub->retransmissionQueueSize == 0);
 
-    UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+    UA_LOG_INFO_SESSION(&server->config.logger, sub->session,
                         "Subscription %u | Deleted the Subscription",
                         sub->subscriptionId);
 }
@@ -95,7 +95,7 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
-    UA_LOG_INFO_SESSION(server->config.logger, sub->session,
+    UA_LOG_INFO_SESSION(&server->config.logger, sub->session,
                         "Subscription %u | MonitoredItem %i | "
                         "Delete the MonitoredItem", sub->subscriptionId,
                         mon->monitoredItemId);
@@ -148,7 +148,7 @@ UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub
     /* Release the oldest entry if there is not enough space */
     if(server->config.maxRetransmissionQueueSize > 0 &&
        sub->session->totalRetransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
-        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
+        UA_LOG_WARNING_SESSION(&server->config.logger, sub->session, "Subscription %u | "
                                "Retransmission queue overflow", sub->subscriptionId);
         removeOldestRetransmissionMessage(sub->session);
     }
@@ -350,20 +350,20 @@ publishCallback(UA_Server *server, UA_Subscription *sub) {
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+    UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session, "Subscription %u | "
                          "Publish Callback", sub->subscriptionId);
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = UA_Session_dequeuePublishReq(sub->session);
     if(pre) {
         sub->currentLifetimeCount = 0; /* Reset the LifetimeCounter */
     } else {
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+        UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                              "Subscription %u | The publish queue is empty",
                              sub->subscriptionId);
         ++sub->currentLifetimeCount;
 
         if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+            UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                                  "Subscription %u | End of lifetime "
                                  "for subscription", sub->subscriptionId);
             UA_Session_deleteSubscription(server, sub->session, sub->subscriptionId);
@@ -395,7 +395,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
             return;
         }
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+        UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                              "Subscription %u | Sending a KeepAlive",
                              sub->subscriptionId);
     }
@@ -403,7 +403,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     /* We want to send a response. Is the channel open? */
     UA_SecureChannel *channel = sub->session->header.channel;
     if(!channel || !pre) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+        UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                              "Subscription %u | Want to send a publish response but can't. "
                              "The subscription is late.", sub->subscriptionId);
         sub->state = UA_SUBSCRIPTIONSTATE_LATE;
@@ -420,7 +420,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         /* Allocate the retransmission entry */
         retransmission = (UA_NotificationMessageEntry*)UA_malloc(sizeof(UA_NotificationMessageEntry));
         if(!retransmission) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+            UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
                                    "Subscription %u | Could not allocate memory for retransmission. "
                                    "The subscription is late.", sub->subscriptionId);
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
@@ -431,7 +431,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         /* Prepare the response */
         UA_StatusCode retval = prepareNotificationMessage(server, sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+            UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the notification message. "
                                    "The subscription is late.", sub->subscriptionId);
             UA_free(retransmission);
@@ -484,7 +484,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Send the response */
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                          "Subscription %u | Sending out a publish response "
                          "with %u notifications", sub->subscriptionId,
                          (UA_UInt32)notifications);
@@ -507,14 +507,15 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
 UA_Boolean
 UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Reached number of publish request limit");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                         "Reached number of publish request limit");
 
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = UA_Session_dequeuePublishReq(session);
 
     /* Cannot publish without a response */
     if(!pre) {
-        UA_LOG_FATAL_SESSION(server->config.logger, session, "No publish requests available");
+        UA_LOG_FATAL_SESSION(&server->config.logger, session, "No publish requests available");
         return false;
     }
 
@@ -533,7 +534,7 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     response->availableSequenceNumbersSize = 0;
 
     /* Send the response */
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Sending out a publish response triggered by too many publish requests");
     UA_SecureChannel_sendSymmetricMessage(session->header.channel, pre->requestId,
                      UA_MESSAGETYPE_MSG, response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
@@ -547,7 +548,7 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
 
 UA_StatusCode
 Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                          "Subscription %u | Register subscription "
                          "publishing callback", sub->subscriptionId);
 
@@ -566,7 +567,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
 
 UA_StatusCode
 Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+    UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session, "Subscription %u | "
                          "Unregister subscription publishing callback", sub->subscriptionId);
 
     if(!sub->publishCallbackIsRegistered)

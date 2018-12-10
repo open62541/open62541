@@ -120,7 +120,7 @@ UA_debug_dump_setName_withoutChannel(UA_Server *server, UA_Connection *connectio
 
     if ((tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) == UA_MESSAGETYPE_MSG) {
         // this should not happen in normal operation
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Got MSG package without channel.");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Got MSG package without channel.");
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     return UA_STATUSCODE_GOOD;
@@ -183,7 +183,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
         cnt++;
     }
 
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Dumping package %s", dumpOutputFile);
 
     FILE *write_ptr = fopen(dumpOutputFile, "ab");

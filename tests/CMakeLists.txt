@@ -9,6 +9,7 @@ endif()
 
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
     link_directories(/usr/local/lib)
+    add_definitions(-Wno-gnu-zero-variadic-macro-arguments)
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/include)

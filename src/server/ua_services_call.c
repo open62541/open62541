@@ -221,8 +221,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Call the method */
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
-                                        &method->nodeId, (void*)(uintptr_t)method->context,
-                                        &object->nodeId, (void*)(uintptr_t)&object->context,
+                                        &method->nodeId, method->context,
+                                        &object->nodeId, object->context,
                                         request->inputArgumentsSize, request->inputArguments,
                                         result->outputArgumentsSize, result->outputArguments);
     /* TODO: Verify Output matches the argument definition */
@@ -264,7 +264,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing CallRequest");
 
     if(server->config.maxNodesPerMethodCall != 0 &&

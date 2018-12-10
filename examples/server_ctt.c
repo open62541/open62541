@@ -67,7 +67,7 @@ helloWorld(UA_Server *server,
     memcpy(greet.data, hello.data, hello.length);
     memcpy(greet.data + hello.length, name->data, name->length);
     UA_Variant_setScalarCopy(output, &greet, &UA_TYPES[UA_TYPES_STRING]);
-    UA_String_deleteMembers(&greet);
+    UA_String_clear(&greet);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -264,7 +264,7 @@ setInformationModel(UA_Server *server) {
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                   qualifiedName, baseDataVariableType, attr, NULL, NULL);
-        UA_Variant_deleteMembers(&attr.value);
+        UA_Variant_clear(&attr.value);
 
         /* add an array node for every built-in type */
         UA_UInt32 arrayDims = 0;
@@ -275,7 +275,7 @@ setInformationModel(UA_Server *server) {
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, ARRAYID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
                                   baseDataVariableType, attr, NULL, NULL);
-        UA_Variant_deleteMembers(&attr.value);
+        UA_Variant_clear(&attr.value);
 
         /* add an matrix node for every built-in type */
         attr.valueRank = UA_VALUERANK_TWO_DIMENSIONS;
@@ -292,10 +292,10 @@ setInformationModel(UA_Server *server) {
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id), UA_NODEID_NUMERIC(1, MATRIXID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
                                   baseDataVariableType, attr, NULL, NULL);
-        UA_Variant_deleteMembers(&attr.value);
+        UA_Variant_clear(&attr.value);
 #ifdef UA_ENABLE_TYPENAMES
-        UA_LocalizedText_deleteMembers(&attr.displayName);
-        UA_QualifiedName_deleteMembers(&qualifiedName);
+        UA_LocalizedText_clear(&attr.displayName);
+        UA_QualifiedName_clear(&qualifiedName);
 #endif
     }
 
@@ -453,10 +453,10 @@ int main(int argc, char **argv) {
         config = UA_ServerConfig_new_allSecurityPolicies(4840, &certificate, &privateKey,
                                                          trustList, trustListSize,
                                                          revocationList, revocationListSize);
-        UA_ByteString_deleteMembers(&certificate);
-        UA_ByteString_deleteMembers(&privateKey);
+        UA_ByteString_clear(&certificate);
+        UA_ByteString_clear(&privateKey);
         for(size_t i = 0; i < trustListSize; i++)
-            UA_ByteString_deleteMembers(&trustList[i]);
+            UA_ByteString_clear(&trustList[i]);
     }
 #else
     UA_ByteString certificate = UA_BYTESTRING_NULL;
@@ -467,7 +467,7 @@ int main(int argc, char **argv) {
         certificate = loadFile(argv[1]);
     }
     config = UA_ServerConfig_new_minimal(4840, &certificate);
-    UA_ByteString_deleteMembers(&certificate);
+    UA_ByteString_clear(&certificate);
 #endif
 
     if(!config) {

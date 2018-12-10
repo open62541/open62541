@@ -6,9 +6,6 @@
 
 from __future__ import print_function
 import sys
-import platform
-import getpass
-import time
 import argparse
 from io import open
 

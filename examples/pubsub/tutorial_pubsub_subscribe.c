@@ -47,7 +47,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
          * TODO: Return an error code in 'receive' instead of setting the buf
          * length to zero. */
         buffer.length = 512;
-        UA_ByteString_deleteMembers(&buffer);
+        UA_ByteString_clear(&buffer);
         return;
     }
 
@@ -58,7 +58,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
     UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &networkMessage);
-    UA_ByteString_deleteMembers(&buffer);
+    UA_ByteString_clear(&buffer);
 
     /* Is this the correct message type? */
     if(networkMessage.networkMessageType != UA_NETWORKMESSAGE_DATASET)
@@ -93,7 +93,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
     }
 
  cleanup:
-    UA_NetworkMessage_deleteMembers(&networkMessage);
+    UA_NetworkMessage_clear(&networkMessage);
 }
 
 static int

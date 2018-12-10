@@ -78,7 +78,6 @@ setupSelectClauses(void) {
     selectClauses[1].browsePath = (UA_QualifiedName*)
         UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
     if(!selectClauses[1].browsePath) {
-        UA_SimpleAttributeOperand_deleteMembers(selectClauses);
         UA_SimpleAttributeOperand_delete(selectClauses);
         return NULL;
     }
@@ -161,7 +160,7 @@ int main(int argc, char *argv[]) {
 
     /* Delete the subscription */
  cleanup:
-    UA_MonitoredItemCreateResult_deleteMembers(&result);
+    UA_MonitoredItemCreateResult_clear(&result);
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
     UA_Array_delete(filter.selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
 #endif

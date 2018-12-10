@@ -7,7 +7,7 @@
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
 #include "ua_namespace_example.h"
-#include "example_nodeset_ids.h"
+#include "example_nodeids.h"
 
 UA_Boolean running = true;
 

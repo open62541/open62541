@@ -63,11 +63,11 @@ processACKResponseAsync(void *application, UA_Connection *connection,
     client->connectStatus |= UA_TcpAcknowledgeMessage_decodeBinary(
             chunk, &offset, &ackMessage);
     if (client->connectStatus != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Decoding ACK message failed");
         return client->connectStatus;
     }
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
 
     client->connectStatus =
         UA_Connection_processHELACK(connection, &client->config.localConnectionConfig,
@@ -125,11 +125,11 @@ sendHELMessage(UA_Client *client) {
     client->connectStatus = conn->send (conn, &message);
 
     if (client->connectStatus != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Sending HEL failed");
         return client->connectStatus;
     }
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Sent HEL message");
     setClientState(client, UA_CLIENTSTATE_WAITING_FOR_ACK);
     return client->connectStatus;
@@ -188,9 +188,9 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
     client->channel.remoteNonce = response.serverNonce;
     UA_ResponseHeader_deleteMembers(&response.responseHeader); /* the other members were moved */
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel renewed");
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel renewed");
     else
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened");
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened");
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
 
     if(client->state < UA_CLIENTSTATE_SECURECHANNEL)
@@ -256,11 +256,11 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
     /*if(renew) {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to renew the SecureChannel");
     } else {*/
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to open a SecureChannel");
     //}
     opnSecRq.securityMode = client->channel.securityMode;
@@ -290,7 +290,7 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
 
     if(retval != UA_STATUSCODE_GOOD) {
         client->connectStatus = retval;
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                       "Sending OPN message failed with error %s",
                       UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
@@ -299,8 +299,8 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
         return retval;
     }
 
-    UA_LOG_DEBUG (client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                  "OPN message sent");
+    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                 "OPN message sent");
 
     /* Store the entry for async processing and return */
     /*if(renew) {
@@ -316,11 +316,9 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_ActivateSessionResponse *activateResponse =
             (UA_ActivateSessionResponse *) response;
     if(activateResponse->responseHeader.serviceResult) {
-        UA_LOG_ERROR(
-                client->config.logger,
-                UA_LOGCATEGORY_CLIENT,
-                "ActivateSession failed with error code %s",
-                UA_StatusCode_name(activateResponse->responseHeader.serviceResult));
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "ActivateSession failed with error code %s",
+                     UA_StatusCode_name(activateResponse->responseHeader.serviceResult));
     }
     client->connection.state = UA_CONNECTION_ESTABLISHED;
     setClientState(client, UA_CLIENTSTATE_SESSION);
@@ -393,9 +391,9 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
     if (resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         client->connectStatus = resp->responseHeader.serviceResult;
-        UA_LOG_ERROR (client->config.logger, UA_LOGCATEGORY_CLIENT,
-                      "GetEndpointRequest failed with error code %s",
-                      UA_StatusCode_name (client->connectStatus));
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "GetEndpointRequest failed with error code %s",
+                     UA_StatusCode_name (client->connectStatus));
         UA_GetEndpointsResponse_deleteMembers(resp);
         return;
     }
@@ -455,13 +453,12 @@ responseGetEndpoints(UA_Client *client, void *userdata, UA_UInt32 requestId,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     if(!endpointFound) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                      "No suitable endpoint found");
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "No suitable endpoint found");
         client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
     } else if(!tokenFound) {
-        UA_LOG_ERROR(
-                client->config.logger, UA_LOGCATEGORY_CLIENT,
-                "No suitable UserTokenPolicy found for the possible endpoints");
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "No suitable UserTokenPolicy found for the possible endpoints");
         client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
     }
     requestSession(client, &requestId);
@@ -536,7 +533,7 @@ requestSession(UA_Client *client, UA_UInt32 *requestId) {
 
 UA_StatusCode
 UA_Client_connect_iterate(UA_Client *client) {
-    UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
     if (client->connection.state == UA_CONNECTION_ESTABLISHED){
         if (client->state < UA_CLIENTSTATE_WAITING_FOR_ACK)
@@ -546,7 +543,7 @@ UA_Client_connect_iterate(UA_Client *client) {
     /* If server is not connected */
     if (client->connection.state == UA_CONNECTION_CLOSED) {
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "No connection to server.");
     }
 
@@ -557,7 +554,7 @@ UA_StatusCode
 UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
                         UA_ClientAsyncServiceCallback callback,
                         void *userdata) {
-    UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client internal async");
 
     if(client->state >= UA_CLIENTSTATE_WAITING_FOR_ACK)
@@ -572,9 +569,9 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection = client->config.initConnectionFunc(
             client->config.localConnectionConfig, endpointUrl,
-            client->config.timeout, client->config.logger);
+            client->config.timeout, &client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
-        UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Could not init async connection");
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
@@ -605,7 +602,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->asyncConnectCall.userdata = userdata;
 
     if(!client->connection.connectCallbackID) {
-        UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Adding async connection callback");
         retval = UA_Client_addRepeatedCallback(
                      client, client->config.pollConnectionFunc, &client->connection, 100.0,
@@ -635,7 +632,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     return retval;
 
  cleanup:
-    UA_LOG_TRACE(client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Failure during async connect");
     UA_Client_disconnect(client);
     return retval;

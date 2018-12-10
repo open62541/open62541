@@ -354,7 +354,7 @@ struct UA_SecurityPolicy {
     UA_SecurityPolicyChannelModule channelModule;
     UA_CertificateVerification *certificateVerification;
 
-    UA_Logger logger;
+    const UA_Logger *logger;
 
     /*Updates the ApplicationInstanceCertificate and the corresponding
     * private key at runtime. */
@@ -387,11 +387,12 @@ UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityP
                                                               size_t maxEncryptionLength);
 
 
-typedef UA_StatusCode (*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,
-                                                UA_CertificateVerification *certificateVerification,
-                                                const UA_ByteString localCertificate,
-                                                const UA_ByteString localPrivateKey,
-                                                UA_Logger logger);
+typedef UA_StatusCode
+(*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,
+                          UA_CertificateVerification *certificateVerification,
+                          const UA_ByteString localCertificate,
+                          const UA_ByteString localPrivateKey,
+                          const UA_Logger *logger);
 
 _UA_END_DECLS
 

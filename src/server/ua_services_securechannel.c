@@ -25,10 +25,10 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
         /* Logging */
         if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+            UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                                  "SecureChannel renewed");
         } else {
-            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+            UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
                                  "Renewing SecureChannel failed");
         }
         return;
@@ -47,10 +47,10 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Logging */
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Opened SecureChannel");
     } else {
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Opening a SecureChannel failed");
     }
 }
@@ -58,7 +58,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 /* The server does not send a CloseSecureChannel response */
 void
 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
-    UA_LOG_INFO_CHANNEL(server->config.logger, channel, "CloseSecureChannel");
+    UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "CloseSecureChannel");
     UA_SecureChannelManager_close(&server->secureChannelManager,
                                   channel->securityToken.channelId);
 }

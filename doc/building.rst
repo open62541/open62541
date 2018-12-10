@@ -230,8 +230,6 @@ be visible in the cmake GUIs.
 **UA_ENABLE_FULL_NS0**
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
-**UA_ENABLE_NONSTANDARD_UDP**
-   Enable udp extension
 
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
@@ -288,3 +286,24 @@ The RAM requirements of a server are mostly due to the following settings:
 - The size of the information model
 - The number of connected clients
 - The configured maximum message size that is preallocated
+
+
+Installation and packaging
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can install open62541 using the well known `make install` command.
+This allows you to use pre-built libraries and headers for your own project.
+
+To override the default installation directory use ``cmake -DCMAKE_INSTALL_PREFIX=/some/path``.
+Based on the SDK Features you selected, as described above, these features will also
+be included in the installation. Thus we recommend to enable as many features as possible
+for the installed binary.
+
+In your own CMake project you can then include the open62541 library using:
+
+
+.. code-block:: cmake
+
+   find_package(open62541 0.4.0 REQUIRED COMPONENTS Events DiscoveryMulticast)
+   add_executable(main main.cpp )
+   target_link_libraries(main open62541)
