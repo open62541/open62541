@@ -44,18 +44,19 @@ static UA_DataTypeMember members[3] = {
         false,            /* .isArray */
         false,            /* .isFlag */
         -1,               /* .switchField */
+        0,
     },
 
     /* y */
     {
         UA_TYPENAME("y")
-        UA_TYPES_FLOAT, padding_y, true, false, false, -1
+        UA_TYPES_FLOAT, padding_y, true, false, false, -1, 0
     },
 
     /* z */
     {
         UA_TYPENAME("y")
-        UA_TYPES_FLOAT, padding_z, true, false, false, -1
+        UA_TYPES_FLOAT, padding_z, true, false, false, -1, 0
     }
 };
 
