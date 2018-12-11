@@ -28,4 +28,15 @@
         <opc:Field TypeName="opc:Byte" Name="OptionalByteOne" SwitchField="OptionOne"/>
         <opc:Field TypeName="opc:Byte" Name="OptionalByteTwo" SwitchField="OptionTwo"/>
     </opc:StructuredType>
+
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="SwitchValueObject">
+        <opc:Field TypeName="opc:Bit" Name="OptionOne"/>
+        <opc:Field TypeName="opc:Bit" Name="OptionTwo"/>
+        <opc:Field Length="6" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:Byte" Name="NotOne" SwitchField="OptionOne" SwitchValue="0"/>
+        <opc:Field TypeName="opc:Byte" Name="NotTwo" SwitchField="OptionTwo" SwitchValue="0"/>
+        <opc:Field TypeName="opc:Byte" Name="YesTwo" SwitchField="OptionTwo" SwitchValue="1"/>
+        <opc:Field TypeName="opc:Byte" Name="AlsoNotOne" SwitchField="OptionOne" SwitchValue="0"/>
+    </opc:StructuredType>
+
 </opc:TypeDictionary>
