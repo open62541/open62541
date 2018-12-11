@@ -274,13 +274,13 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
 
     size_t offset = 0;
     if (hostnameLen > 0) {
-        UA_snprintf(outServiceDomain, maxLen - 1, "%.*s-%.*s",
+        UA_snprintf(outServiceDomain, maxLen + 1, "%.*s-%.*s",
                     (int) servernameLen, (char *) servername->data,
                     (int) hostnameLen, (char *) hostname->data);
         offset = servernameLen + hostnameLen + 1;
     }
     else {
-        UA_snprintf(outServiceDomain, maxLen - 1, "%.*s",
+        UA_snprintf(outServiceDomain, maxLen + 1, "%.*s",
                     (int) servernameLen, (char *) servername->data);
         offset = servernameLen;
     }
