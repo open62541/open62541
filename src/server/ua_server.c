@@ -332,7 +332,7 @@ UA_Server_updateCertificate(UA_Server *server,
         if (UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
             UA_String_deleteMembers(&ed->serverCertificate);
             UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp = UA_SecurityPolicy_getSecurityPolicyByUri(&server->config.endpoints[i].securityPolicyUri);
+            UA_SecurityPolicy *sp = UA_SecurityPolicy_getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
             sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
         }
         i++;
