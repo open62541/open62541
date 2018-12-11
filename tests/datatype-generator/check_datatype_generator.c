@@ -174,7 +174,7 @@ START_TEST(Datatypes_check_optional_fields_decoding) {
     UA_ObjectWithBitsOptionalFields_init(&option_item);
 
     // if serialized into a buffer to hold the encoding mask and optional fields only
-    UA_Byte singleData[] = { 0x01, 0x55 }; // Option one enabled
+    UA_Byte singleData[] = { 0x01, 0x54 }; // Option one enabled
     UA_ByteString singleSrc = { 2, singleData };
 
     size_t offset = 0;
@@ -184,8 +184,88 @@ START_TEST(Datatypes_check_optional_fields_decoding) {
 
     ck_assert(option_item.optionOne);
     ck_assert(!option_item.optionTwo);
-    ck_assert_int_eq(option_item.optionalByteOne, 0x55);
+    ck_assert_int_eq(option_item.optionalByteOne, 0x54);
     ck_assert_int_eq(option_item.optionalByteTwo, 0);
+
+    // switch fields
+    singleSrc.data[0] = 2; // Option two enabled
+    offset = 0;
+    UA_ObjectWithBitsOptionalFields_init(&option_item); // clear the item
+    retval = UA_ObjectWithBitsOptionalFields_decodeBinary(&singleSrc, &offset, &option_item);
+    // decoding should succeed
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(!option_item.optionOne);
+    ck_assert(option_item.optionTwo);
+    ck_assert_int_eq(option_item.optionalByteOne, 0);
+    ck_assert_int_eq(option_item.optionalByteTwo, 0x54);
+
+    // Test decoding of two optional fields
+    UA_Byte dualData[] = { 0x03, 0x12, 0x34 };
+    UA_ByteString doubleSrc = { 3, dualData };
+
+    offset = 0;
+    UA_ObjectWithBitsOptionalFields_init(&option_item); // clear the item
+    retval = UA_ObjectWithBitsOptionalFields_decodeBinary(&doubleSrc, &offset, &option_item);
+    // decoding should succeed
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(option_item.optionOne);
+    ck_assert(option_item.optionTwo);
+    ck_assert_int_eq(option_item.optionalByteOne, 0x12);
+    ck_assert_int_eq(option_item.optionalByteTwo, 0x34);
+}
+END_TEST
+
+START_TEST(Datatypes_check_optional_fields_fieldValue) {
+    // given an object with enabled and disabled options and fieldValue 0
+    UA_SwitchValueObject option_item;
+    UA_SwitchValueObject_init(&option_item);
+
+    option_item.optionOne = false;
+    option_item.optionTwo = false;
+    option_item.notOne = 0x12;
+    option_item.notTwo = 0x23;
+    option_item.yesTwo = 0x45;
+    option_item.alsoNotOne = 0x67;
+
+    size_t buflen = UA_SwitchValueObject_calcSizeBinary(&option_item);
+    ck_assert_int_eq(buflen, 4);
+
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55 };
+    UA_ByteString dst = { 4, data };
+
+    UA_Byte *bufPos = dst.data;
+    const UA_Byte *bufEnd = &dst.data[dst.length];
+
+    UA_StatusCode retval = UA_SwitchValueObject_encodeBinary(&option_item, &bufPos, bufEnd);
+    // encoding should succeed
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(dst.data[0], 0x00); // Encoding mask is empty
+    ck_assert_int_eq(dst.data[1], 0x12); // notOne
+    ck_assert_int_eq(dst.data[2], 0x23); // notTwo
+    ck_assert_int_eq(dst.data[3], 0x67); // alsoNotOne
+
+    // Alter the options and encode again
+    option_item.optionOne = true;
+    option_item.optionTwo = true;
+
+    buflen = UA_SwitchValueObject_calcSizeBinary(&option_item);
+    ck_assert_int_eq(buflen, 2); // encoding mask and yesTwo
+
+    UA_Byte data2[] = { 0x55, 0x55 };
+    UA_ByteString dst2 = { 2, data2 };
+
+    UA_Byte *bufPos2 = dst2.data;
+    const UA_Byte *bufEnd2 = &dst2.data[dst2.length];
+
+    retval = UA_SwitchValueObject_encodeBinary(&option_item, &bufPos2, bufEnd2);
+    // encoding should succeed
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(dst2.data[0], 0x03); // Encoding mask
+    ck_assert_int_eq(dst2.data[1], 0x45); // yesTwo
 }
 END_TEST
 
@@ -200,6 +280,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_deserialize);
     tcase_add_test(tc_server, Datatypes_check_optional_fields_encoding);
     tcase_add_test(tc_server, Datatypes_check_optional_fields_decoding);
+    tcase_add_test(tc_server, Datatypes_check_optional_fields_fieldValue);
     suite_add_tcase(s, tc_server);
     return s;
 }
