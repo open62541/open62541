@@ -1426,8 +1426,13 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
         /* Optional */
         if(member->switchField >= 0) {
             const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
-            const UA_Byte mask = (UA_Byte)(member->switchValue << (member->switchField % 8));
-            enabled = ((const UA_Byte *)src)[offset] & mask;
+            const UA_Byte mask = (UA_Byte)(1 << (member->switchField % 8));
+            UA_Byte compare = ((const UA_Byte *)src)[offset];
+            if(member->switchValue == 0) {
+                // Invert the compare mask
+                compare = (UA_Byte)~compare;
+            }
+            enabled = compare & mask;
         }
         /* Scalar */
         size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
@@ -1560,8 +1565,12 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
         /* Optional */
         if(member->switchField >= 0) {
             const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
-            const UA_Byte mask = (UA_Byte)(member->switchValue << (member->switchField % 8));
-            enabled = ((const UA_Byte *)dst)[offset] & mask;
+            const UA_Byte mask = (UA_Byte)(1 << (member->switchField % 8));
+            UA_Byte compare = ((const UA_Byte *)dst)[offset];
+            if(member->switchValue == 0) {
+                compare = (UA_Byte)~compare;
+            }
+            enabled = compare & mask;
         }
 
         /* Scalar */
@@ -1853,8 +1862,12 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
         /* Optional field check */
         if(member->switchField >= 0) {
             const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
-            const UA_Byte mask = (u8)(member->switchValue << (member->switchField % 8));
-            enabled = ((const UA_Byte *)p)[offset] & mask;
+            const UA_Byte mask = (UA_Byte)(1 << (member->switchField % 8));
+            UA_Byte compare = ((const UA_Byte *)p)[offset];
+            if(member->switchValue == 0) {
+                compare = (UA_Byte)~compare;
+            }
+            enabled = compare & mask;
         }
         /* Scalar */
         if(enabled) {
