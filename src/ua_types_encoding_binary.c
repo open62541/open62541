@@ -1406,7 +1406,7 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
         }
 
         if(flagCount > 0) {
-            for(size_t x = 0; x <= flagCount/8; ++x) {
+            for(size_t x = 0; x <= flagCount / 8; ++x) {
                 Byte_encodeBinary((const UA_Byte*)ptr, membertype, ctx);
                 ptr += sizeof(UA_Byte);
             }
@@ -1531,7 +1531,7 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
 
         if(flagCount > 0) {
             // Decode all encoding mask bytes
-            for(size_t x = 0; x <= flagCount/8; ++x) {
+            for(size_t x = 0; x <= flagCount / 8; ++x) {
                 Byte_decodeBinary((UA_Byte *UA_RESTRICT)ptr, membertype, ctx);
                 ptr += sizeof(UA_Byte);
             }
