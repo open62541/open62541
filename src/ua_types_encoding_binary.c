@@ -1422,11 +1422,20 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
             continue;
         }
 
+        bool enabled = true;
+        /* Optional */
+        if(member->switchField >= 0) {
+            const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
+            const UA_Byte mask = (UA_Byte)(member->switchValue << (member->switchField % 8));
+            enabled = ((const UA_Byte *)src)[offset] & mask;
+        }
         /* Scalar */
         size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
         size_t memSize = membertype->memSize;
         u8 *oldpos = ctx->pos;
-        ret = encodeBinaryJumpTable[encode_index]((const void*)ptr, membertype, ctx);
+        if(enabled) {
+            ret = encodeBinaryJumpTable[encode_index]((const void*)ptr, membertype, ctx);
+        }
         ptr += memSize;
 
         /* Exchange/send the buffer */
@@ -1547,10 +1556,20 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
             continue;
         }
 
+        bool enabled = true;
+        /* Optional */
+        if(member->switchField >= 0) {
+            const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
+            const UA_Byte mask = (UA_Byte)(member->switchValue << (member->switchField % 8));
+            enabled = ((const UA_Byte *)dst)[offset] & mask;
+        }
+
         /* Scalar */
         size_t fi = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
         size_t memSize = membertype->memSize;
-        ret = decodeBinaryJumpTable[fi]((void *UA_RESTRICT)ptr, membertype, ctx);
+        if(enabled) {
+            ret = decodeBinaryJumpTable[fi]((void *UA_RESTRICT)ptr, membertype, ctx);
+        }
         ptr += memSize;
     }
 
@@ -1816,10 +1835,10 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
 
         /* Encoding mask flags */
         if(member->isFlag) {
-            ptr += sizeof(UA_Boolean);
             bitFlags += 1;
             continue;
         }
+        ptr += bitFlags / 8 + 1;
 
         /* Array */
         if(member->isArray) {
@@ -1830,9 +1849,18 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
             continue;
         }
 
+        bool enabled = true;
+        /* Optional field check */
+        if(member->switchField >= 0) {
+            const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
+            const UA_Byte mask = (u8)(member->switchValue << (member->switchField % 8));
+            enabled = ((const UA_Byte *)p)[offset] & mask;
+        }
         /* Scalar */
-        size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
-        s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
+        if(enabled) {
+            size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
+        }
         ptr += membertype->memSize;
     }
 

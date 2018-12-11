@@ -41,19 +41,21 @@ static UA_DataTypeMember members[3] = {
                             .namespaceZero is true */
         0,               /* .padding */
         true,            /* .namespaceZero, see .memberTypeIndex */
-        false            /* .isArray */
+        false,            /* .isArray */
+        false,            /* .isFlag */
+        -1,               /* .switchField */
     },
 
     /* y */
     {
         UA_TYPENAME("y")
-        UA_TYPES_FLOAT, padding_y, true, false
+        UA_TYPES_FLOAT, padding_y, true, false, false, -1
     },
 
     /* z */
     {
         UA_TYPENAME("y")
-        UA_TYPES_FLOAT, padding_z, true, false
+        UA_TYPES_FLOAT, padding_z, true, false, false, -1
     }
 };
 

@@ -79,10 +79,12 @@ def makeCIdentifier(value):
 ################
 
 class StructMember(object):
-    def __init__(self, name, memberType, isArray):
+    def __init__(self, name, memberType, isArray, switchField = -1, switchValue = 1):
         self.name = name
         self.memberType = memberType
         self.isArray = isArray
+        self.switchField = switchField
+        self.switchValue = switchValue
 
 def getNodeidTypeAndId(nodeId):
     if not '=' in nodeId:
@@ -178,8 +180,10 @@ class Type(object):
                 m += " /* .padding */\n"
                 m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
                 m += ("    true" if member.isArray else "    false") + ", /* .isArray */\n"
-                m += "    false /* .isFlag */"
-                m+= "\n}"
+                m += "    false, /* .isFlag */\n"
+                m += "    %s, /* .switchField */\n" % member.switchField
+                m += "    %s, /* .switchValue */\n" % member.switchValue
+                m+= "}"
                 if i != size:
                     m += ","
                 members += m
@@ -292,6 +296,20 @@ class StructType(Type):
                 continue
             if child.get("Name") in lengthfields:
                 continue
+            switchField = child.get("SwitchField")
+            if switchField != None:
+                switchValue = child.get("SwitchValue")
+                if switchValue == None:
+                    switchValue = 1
+                memberName = switchField[:1].lower() + switchField[1:]
+                if memberName in self.bitFlags:
+                    # Assume all flags have already been seen as they must appear first
+                    switchField = self.bitFlags.index(memberName)
+                else:
+                    assert("Union Switchfields are not yet supported")
+            else:
+                switchField = -1
+                switchValue = 0
             memberName = child.get("Name")
             memberName = memberName[:1].lower() + memberName[1:]
             memberTypeName = getTypeName(child.get("TypeName"))
@@ -305,7 +323,7 @@ class StructType(Type):
                 continue
             memberType = types[memberTypeName]
             isArray = True if child.get("LengthField") else False
-            self.members.append(StructMember(memberName, memberType, isArray))
+            self.members.append(StructMember(memberName, memberType, isArray, switchField, switchValue))
 
         self.pointerfree = "true"
         self.overlayable = "true"
@@ -331,17 +349,19 @@ class StructType(Type):
             {padding}, /* .padding */
             true, /* .namespaceZero */
             false, /* .isArray */
-            true /* .isFlag */
+            true, /* .isFlag */
+            -1, /* .switchField */
+            0, /* .switchValue */
         }},
         """
         # Generate encoding mask members, if there are any
-        for flag in self.bitFlags:
+        for i, flag in enumerate(self.bitFlags):
             memberName = makeCIdentifier(flag)
             memberNameCapital = memberName
             if len(memberName) > 0:
                 memberNameCapital = memberName[0].upper() + memberName[1:]
             data = VerbatimType(textwrap.dedent(bitflag_template.format(typeName=memberNameCapital, padding="0")))
-            self.members.insert(0, data)
+            self.members.insert(i, data)
         return super(StructType, self).members_c()
 
     def typedef_h(self):
@@ -440,7 +460,7 @@ def parseTypeDescriptions(f, namespaceid):
     csvreader = csv.reader(f, delimiter=',')
     delay_init = []
 
-    for index, row in enumerate(csvreader):
+    for row in csvreader:
         if len(row) < 3:
             continue
         if row[2] == "Object":

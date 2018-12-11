@@ -796,6 +796,8 @@ typedef struct {
                                      namespace zero only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
     UA_Boolean isFlag        : 1; /* The member is a flag and will be encoded in the encoding mask*/
+    UA_SByte switchField;         /* The position of a switch flag if the parameter is optional, a negative value means non-optional */
+    UA_UInt32 switchValue;        /* The value for union and bit switches */
 } UA_DataTypeMember;
 
 struct UA_DataType {

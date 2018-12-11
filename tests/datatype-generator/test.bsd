@@ -18,15 +18,14 @@
         <opc:Field TypeName="opc:Bit" Name="BitField7"/>
         <opc:Field TypeName="opc:Bit" Name="BitField8"/>
         <opc:Field Length="7" TypeName="opc:Bit" Name="Reserved1"/>
-        <opc:Field TypeName="opc:Byte" Name="Data"/>
+        <opc:Field TypeName="opc:Byte" Name="Data" SwitchField="BitField8"/>
     </opc:StructuredType>
 
     <opc:StructuredType BaseType="ua:ExtensionObject" Name="ObjectWithBitsOptionalFields">
         <opc:Field TypeName="opc:Bit" Name="OptionOne"/>
         <opc:Field TypeName="opc:Bit" Name="OptionTwo"/>
         <opc:Field Length="6" TypeName="opc:Bit" Name="Reserved1"/>
-        <opc:Field TypeName="ua:NodeId" Name="Handle"/>
-        <opc:Field TypeName="opc:Int32" Name="Major" SwitchField="OptionOne"/>
-        <opc:Field TypeName="opc:Int32" Name="Minor" SwitchField="OptionTwo"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteOne" SwitchField="OptionOne"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteTwo" SwitchField="OptionTwo"/>
     </opc:StructuredType>
 </opc:TypeDictionary>
