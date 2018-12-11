@@ -9,7 +9,7 @@ The library is [available](https://github.com/open62541/open62541/releases) in s
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://img.shields.io/travis/open62541/open62541/master.svg)](https://travis-ci.org/open62541/open62541)
-[![Build Status](https://ci.appveyor.com/api/projects/status/9e5sw7smlssrmjkl/branch/master?svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/master)
+[![Build Status](https://ci.appveyor.com/api/projects/status/github/open62541/open62541/branch/master?svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/master)
 [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
