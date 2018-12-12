@@ -1,0 +1,17 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:tns="http://opcfoundation.org/UA/Test"
+    DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/"
+    xmlns:ua="http://opcfoundation.org/UA/"
+    TargetNamespace="http://opcfoundation.org/UA/TestNamespace">
+    
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="OptionObject">
+        <opc:Field TypeName="opc:Bit" Name="OptionOne"/>
+        <opc:Field TypeName="opc:Bit" Name="OptionTwo"/>
+        <opc:Field Length="6" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteOne" SwitchField="OptionOne"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteTwo" SwitchField="OptionTwo"/>
+    </opc:StructuredType>
+
+</opc:TypeDictionary>
