@@ -31,6 +31,8 @@ static void teardown(void) {
     UA_ServerConfig_delete(config);
 }
 
+// Note: the check for builtin types verifies, that calculated sizes do not change arbitrarily
+
 START_TEST(Datatypes_check_encoding_mask_members) {
     // Ensure all bitfield members are accounted for
     int memberCount = TEST_TYPES[TEST_TYPES_OBJECTWITHBITFIELD].membersSize;

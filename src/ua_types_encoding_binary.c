@@ -1406,6 +1406,7 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
         }
 
         if(flagCount > 0) {
+            // Encode all encoding mask bytes. This block should only ever be triggered once
             for(size_t x = 0; x <= flagCount / 8; ++x) {
                 Byte_encodeBinary((const UA_Byte*)ptr, membertype, ctx);
                 ptr += sizeof(UA_Byte);
@@ -1544,7 +1545,7 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
         }
 
         if(flagCount > 0) {
-            // Decode all encoding mask bytes
+            // Decode all encoding mask bytes. This block should only ever be triggered once
             for(size_t x = 0; x <= flagCount / 8; ++x) {
                 Byte_decodeBinary((UA_Byte *UA_RESTRICT)ptr, membertype, ctx);
                 ptr += sizeof(UA_Byte);
@@ -1848,7 +1849,9 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
             continue;
         }
         if(flagCount > 0) {
-            ptr += flagCount / 8 + 1;
+            // Reserve enough space for encoding mask bytes. This block should only ever be triggered once
+            ptr += (flagCount / 8) + 1;
+            s += (flagCount / 8) + 1;
             flagCount = 0;
         }
 
@@ -1878,11 +1881,6 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
             s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
         }
         ptr += membertype->memSize;
-    }
-
-    if(flagCount > 0) {
-        // Reserve enough bytes to fit all flagCount and pad to next byte
-        s += (flagCount / 8) + 1;
     }
 
     return s;
