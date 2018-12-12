@@ -1057,8 +1057,6 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
 install(DIRECTORY ${UA_install_tools_dirs} DESTINATION ${open62541_install_tools_dir} USE_SOURCE_PERMISSIONS)
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
-install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
-# Export amalgamated header open62541.h which is generated due to build of open62541-object
 if(NOT UA_ENABLE_AMALGAMATION)
     # Assume no files have identical names and place everything in the include folder
     install(FILES ${internal_headers}
@@ -1066,6 +1064,10 @@ if(NOT UA_ENABLE_AMALGAMATION)
                   ${default_plugin_headers}
                   ${historizing_default_plugin_headers}
             DESTINATION ${open62541_install_include_dir})
+else()
+    # Export amalgamated header open62541.h which is generated due to build of 
+    # open62541-object
+    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()
 
 add_subdirectory(tools/packaging)
