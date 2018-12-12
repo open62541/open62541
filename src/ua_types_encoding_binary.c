@@ -1401,7 +1401,7 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
 
         /* Encoding mask flags must not appear after a proper member, just count and write out the bytes */
         if(member->isFlag) {
-            flagCount += 1;
+            flagCount++;
             continue;
         }
 
@@ -1831,7 +1831,7 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1
 size_t
 UA_calcSizeBinary(const void *p, const UA_DataType *type) {
     size_t s = 0;
-    size_t bitFlags = 0;
+    size_t flagCount = 0;
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
@@ -1844,11 +1844,12 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
 
         /* Encoding mask flags */
         if(member->isFlag) {
-            bitFlags += 1;
+            flagCount++;
             continue;
         }
-        if(bitFlags > 0) {
-            ptr += bitFlags / 8 + 1;
+        if(flagCount > 0) {
+            ptr += flagCount / 8 + 1;
+            flagCount = 0;
         }
 
         /* Array */
@@ -1879,9 +1880,9 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
         ptr += membertype->memSize;
     }
 
-    if(bitFlags > 0) {
-        // Reserve enough bytes to fit all bitflags and pad to next byte
-        s += (bitFlags / 8) + 1;
+    if(flagCount > 0) {
+        // Reserve enough bytes to fit all flagCount and pad to next byte
+        s += (flagCount / 8) + 1;
     }
 
     return s;
