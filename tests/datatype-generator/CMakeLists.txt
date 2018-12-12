@@ -20,4 +20,4 @@ add_executable(check_datatype_generator
                $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 add_dependencies(check_datatype_generator open62541-generator-test-types)
 target_link_libraries(check_datatype_generator ${LIBS})
-add_test_valgrind(check_datatype_generator ${TESTS_BINARY_DIR}/check_datatype_generator)
+add_test_valgrind(datatype_generator ${TESTS_BINARY_DIR}/check_datatype_generator)
