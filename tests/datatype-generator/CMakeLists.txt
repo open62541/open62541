@@ -15,9 +15,9 @@ ua_generate_datatypes(
 )
 
 add_executable(check_datatype_generator
-                check_datatype_generator.c
-                ${CMAKE_CURRENT_BINARY_DIR}/test_types_generated.c
-                $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+               check_datatype_generator.c
+               ${CMAKE_CURRENT_BINARY_DIR}/test_types_generated.c
+               $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 add_dependencies(check_datatype_generator open62541-generator-test-types)
 target_link_libraries(check_datatype_generator ${LIBS})
 add_test_valgrind(check_datatype_generator ${TESTS_BINARY_DIR}/check_datatype_generator)
