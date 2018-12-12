@@ -588,7 +588,7 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
                     (TCPClientConnection*) connection->handle;
 
     UA_DateTime connStart = UA_DateTime_nowMonotonic();
-    UA_SOCKET clientsockfd;
+    UA_SOCKET clientsockfd = connection->sockfd;
 
     UA_ClientConfig *config = UA_Client_getConfig(client);
 
@@ -610,10 +610,12 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     /* Thus use a loop and retry until timeout is reached */
 
     /* Get a socket */
-    clientsockfd = UA_socket(tcpConnection->server->ai_family,
-                    tcpConnection->server->ai_socktype,
-                    tcpConnection->server->ai_protocol);
-    connection->sockfd = (UA_Int32) clientsockfd; /* cast for win32 */
+    if(clientsockfd <= 0) {
+        clientsockfd = UA_socket(tcpConnection->server->ai_family,
+                                 tcpConnection->server->ai_socktype,
+                                 tcpConnection->server->ai_protocol);
+        connection->sockfd = (UA_Int32)clientsockfd; /* cast for win32 */
+    }
 
     if(clientsockfd == UA_INVALID_SOCKET) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_NETWORK,
