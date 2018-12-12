@@ -1847,7 +1847,9 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
             bitFlags += 1;
             continue;
         }
-        ptr += bitFlags / 8 + 1;
+        if(bitFlags > 0) {
+            ptr += bitFlags / 8 + 1;
+        }
 
         /* Array */
         if(member->isArray) {
@@ -1877,8 +1879,10 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
         ptr += membertype->memSize;
     }
 
-    // Reserve enough bytes to fit all bitflags and pad to next byte
-    s += (bitFlags / 8) + 1;
+    if(bitFlags > 0) {
+        // Reserve enough bytes to fit all bitflags and pad to next byte
+        s += (bitFlags / 8) + 1;
+    }
 
     return s;
 }
