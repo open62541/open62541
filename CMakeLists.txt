@@ -801,12 +801,21 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
+if(NOT UA_ENABLE_AMALGAMATION)
 install(TARGETS open62541
         EXPORT open62541Targets
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
         INCLUDES DESTINATION include/open62541 include)
+else()
+install(TARGETS open62541
+        EXPORT open62541Targets
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
+        INCLUDES DESTINATION include)
+endif()
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
