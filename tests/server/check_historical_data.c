@@ -23,19 +23,24 @@
 #include "ua_plugin_history_data_gathering.h"
 #include "ua_historydatabackend_memory.h"
 #include "ua_historydatagathering_default.h"
+#ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
+#endif
 #include <stddef.h>
 
-UA_Server *server;
-UA_ServerConfig *config;
-UA_HistoryDataGathering *gathering;
-UA_Boolean running;
-THREAD_HANDLE server_thread;
 
-UA_Client *client;
-UA_NodeId parentNodeId;
-UA_NodeId parentReferenceNodeId;
-UA_NodeId outNodeId;
+static UA_Server *server;
+static UA_ServerConfig *config;
+#ifdef UA_ENABLE_HISTORIZING
+static UA_HistoryDataGathering *gathering;
+#endif
+static UA_Boolean running;
+static THREAD_HANDLE server_thread;
+
+static UA_Client *client;
+static UA_NodeId parentNodeId;
+static UA_NodeId parentReferenceNodeId;
+static UA_NodeId outNodeId;
 
 THREAD_CALLBACK(serverloop)
 {
@@ -49,9 +54,11 @@ setup(void)
 {
     running = true;
     config = UA_ServerConfig_new_default();
+#ifdef UA_ENABLE_HISTORIZING
     gathering = (UA_HistoryDataGathering*)UA_calloc(1, sizeof(UA_HistoryDataGathering));
     *gathering = UA_HistoryDataGathering_Default(1);
     config->historyDatabase = UA_HistoryDatabase_default(*gathering);
+#endif
     server = UA_Server_new(config);
     UA_StatusCode retval = UA_Server_run_startup(server);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
@@ -105,7 +112,9 @@ teardown(void)
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
+#ifdef UA_ENABLE_HISTORIZING
     UA_free(gathering);
+#endif
 }
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -189,6 +198,8 @@ fillHistoricalDataBackend(UA_HistoryDataBackend backend)
         UA_Variant_setScalarCopy(&value.value, &d, &UA_TYPES[UA_TYPES_INT64]);
         value.hasSourceTimestamp = true;
         value.sourceTimestamp = currentDateTime;
+        value.hasServerTimestamp = true;
+        value.serverTimestamp = currentDateTime;
         value.hasStatus = true;
         value.status = UA_STATUSCODE_GOOD;
         if (backend.serverSetHistoryData(server, backend.context, NULL, NULL, &outNodeId, UA_FALSE, &value) != UA_STATUSCODE_GOOD) {
@@ -233,7 +244,7 @@ requestHistory(UA_DateTime start,
     request.historyReadDetails.content.decoded.type = &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS];
     request.historyReadDetails.content.decoded.data = details;
 
-    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_SOURCE;
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
 
     request.nodesToReadSize = 1;
     request.nodesToRead = valueId;
@@ -425,6 +436,8 @@ START_TEST(Server_HistorizingStrategyUser)
         UA_Variant_setScalarCopy(&value.value, &i, &UA_TYPES[UA_TYPES_UINT32]);
         value.hasSourceTimestamp = true;
         value.sourceTimestamp = start + (i * UA_DATETIME_SEC);
+        value.hasServerTimestamp = true;
+        value.serverTimestamp = value.sourceTimestamp;
         retval = setting.historizingBackend.serverSetHistoryData(server,
                                                                  setting.historizingBackend.context,
                                                                  NULL,
