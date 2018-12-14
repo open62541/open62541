@@ -212,6 +212,9 @@ Detailed SDK Features
 **UA_ENABLE_GDS_CM (EXPERIMENTAL)**
    Enable Certificate Manager which is an additional part of the Global Discovery Server.
    This is a new feature and currently marked as EXPERIMENTAL. (GnuTLS required)
+**UA_ENABLE_GDS_CLIENT (EXPERIMENTAL)**
+   Enable functions to access the Global Discovery Server.
+   This is a new feature and currently marked as EXPERIMENTAL.
 
 **UA_NAMESPACE_ZERO**
 

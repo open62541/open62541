@@ -25,6 +25,10 @@
 #include "ua_securitypolicies.h"
 #include "ua_pki_certificate.h"
 
+#ifdef UA_ENABLE_GDS_CLIENT
+#include "ua_gds_client.h"
+#endif
+
 #define STATUS_CODE_BAD_POINTER 0x01
 
 /********************/
@@ -43,6 +47,10 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
         client->config.stateCallback(client, client->state);
     /* Catch error during async connection */
     client->connectStatus = UA_STATUSCODE_GOOD;
+
+#ifdef UA_ENABLE_GDS_CLIENT
+    UA_GDS_Client_init(client);
+#endif
 
     UA_Timer_init(&client->timer);
     UA_WorkQueue_init(&client->workQueue);
@@ -217,6 +225,10 @@ UA_Client_delete(UA_Client* client) {
             client->securityPolicy.certificateVerification->deleteMembers(client->securityPolicy.certificateVerification);
         UA_free(client->securityPolicy.certificateVerification);
     }
+
+#ifdef UA_ENABLE_GDS_CLIENT
+    UA_GDS_Client_deinit(client);
+#endif
 
     UA_Client_deleteMembers(client);
     UA_free(client);

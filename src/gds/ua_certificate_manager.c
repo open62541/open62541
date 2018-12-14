@@ -277,8 +277,10 @@ UA_GDS_StartNewKeyPairRequest(UA_Server *server,
 
     if (retval == UA_STATUSCODE_GOOD){
         *requestId = newEntry->requestId = UA_NODEID_GUID(2, UA_Guid_random());
-        printf("RequestID: " UA_PRINTF_GUID_FORMAT "\n",
-               UA_PRINTF_GUID_DATA(requestId->identifier.guid));
+        UA_LOG_INFO(&server->config.logger,
+                    UA_LOGCATEGORY_SERVER,
+                    "RequestID: " UA_PRINTF_GUID_FORMAT "",
+                    UA_PRINTF_GUID_DATA(requestId->identifier.guid));
         newEntry->applicationId = *applicationId;
         newEntry->isApproved = UA_TRUE;
         LIST_INSERT_HEAD(&server->certificateManager.gds_cm_list, newEntry, pointers);
