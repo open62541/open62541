@@ -119,6 +119,9 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3
    cmake ..
    make
 
+
+.. _build_options:
+
 Build Options
 -------------
 
@@ -183,7 +186,7 @@ Detailed SDK Features
    Enable dynamic addition and removal of nodes at runtime
 
 **UA_ENABLE_AMALGAMATION**
-   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`
+   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not receommended for installation.
 
 **UA_ENABLE_MULTITHREADING (EXPERIMENTAL)**
    Enable multi-threading support. Work is distributed to a number of worker threads.
@@ -286,24 +289,3 @@ The RAM requirements of a server are mostly due to the following settings:
 - The size of the information model
 - The number of connected clients
 - The configured maximum message size that is preallocated
-
-
-Installation and packaging
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-You can install open62541 using the well known `make install` command.
-This allows you to use pre-built libraries and headers for your own project.
-
-To override the default installation directory use ``cmake -DCMAKE_INSTALL_PREFIX=/some/path``.
-Based on the SDK Features you selected, as described above, these features will also
-be included in the installation. Thus we recommend to enable as many features as possible
-for the installed binary.
-
-In your own CMake project you can then include the open62541 library using:
-
-
-.. code-block:: cmake
-
-   find_package(open62541 0.4.0 REQUIRED COMPONENTS Events DiscoveryMulticast)
-   add_executable(main main.cpp )
-   target_link_libraries(main open62541)

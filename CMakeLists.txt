@@ -1005,6 +1005,9 @@ install(TARGETS open62541
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
         INCLUDES DESTINATION include)
+# Our default way of installation is the non-amalgamated version.
+# See also https://github.com/open62541/open62541/pull/2292#discussion_r241106424
+install(CODE "MESSAGE(WARNING \"Installation with UA_ENABLE_AMALGAMATION=ON is not recommended.\")")
 endif()
 
 include(CMakePackageConfigHelpers)
