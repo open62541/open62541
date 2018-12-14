@@ -88,11 +88,9 @@ sendHELMessage(UA_Client *client) {
     /* Get a buffer */
     UA_ByteString message;
     UA_Connection *conn = &client->connection;
-    client->connectStatus = conn->getSendBuffer(conn, UA_MINMESSAGESIZE,
-                                                &message);
-
-    if (client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
+    UA_StatusCode retval = conn->getSendBuffer(conn, UA_MINMESSAGESIZE, &message);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
@@ -101,38 +99,30 @@ sendHELMessage(UA_Client *client) {
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
-    client->connectStatus = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos,
-                                                            bufEnd);
+    client->connectStatus = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
     UA_TcpHelloMessage_deleteMembers (&hello);
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
-    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL
-            + UA_MESSAGETYPE_HEL;
-    messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos
-            - (uintptr_t)message.data);
+    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
+    messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    client->connectStatus |= UA_TcpMessageHeader_encodeBinary(&messageHeader,
-                                                              &bufPos,
-                                                              bufEnd);
-    if (client->connectStatus != UA_STATUSCODE_GOOD) {
+    retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
-        return client->connectStatus;
+        return retval;
     }
 
     /* Send the HEL message */
     message.length = messageHeader.messageSize;
-    client->connectStatus = conn->send (conn, &message);
+    retval = conn->send (conn, &message);
 
-    if (client->connectStatus != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Sending HEL failed");
-        return client->connectStatus;
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Sent HEL message");
+    } else {
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Sending HEL failed");
     }
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                 "Sent HEL message");
-    setClientState(client, UA_CLIENTSTATE_WAITING_FOR_ACK);
-    return client->connectStatus;
+    return retval;
 }
 
 static void
@@ -536,15 +526,28 @@ UA_Client_connect_iterate(UA_Client *client) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
     if (client->connection.state == UA_CONNECTION_ESTABLISHED){
-        if (client->state < UA_CLIENTSTATE_WAITING_FOR_ACK)
-            return sendHELMessage(client);
+        if(client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
+            client->connectStatus = sendHELMessage(client);
+            if(client->connectStatus == UA_STATUSCODE_GOOD) {
+                setClientState(client, UA_CLIENTSTATE_WAITING_FOR_ACK);
+            } else {
+                client->connection.close(&client->connection);
+                client->connection.free(&client->connection);
+            }
+            return client->connectStatus;
+        }
     }
 
     /* If server is not connected */
-    if (client->connection.state == UA_CONNECTION_CLOSED) {
+    if(client->connection.state == UA_CONNECTION_CLOSED) {
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "No connection to server.");
+    }
+
+    if(client->connectStatus != UA_STATUSCODE_GOOD) {
+        client->connection.close(&client->connection);
+        client->connection.free(&client->connection);
     }
 
     return client->connectStatus;
