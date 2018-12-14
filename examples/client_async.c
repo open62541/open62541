@@ -1,19 +1,10 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifndef _XOPEN_SOURCE
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
-#include "open62541.h"
+#include <ua_config_default.h>
+#include <ua_client_subscriptions.h>
+#include <ua_log_stdout.h>
+#include <ua_client_highlevel_async.h>
 
 #define NODES_EXIST
 /* async connection callback, it only gets called after the completion of the whole

@@ -7,7 +7,12 @@
  * (i.e., LDS-ME).
  */
 
-#include "open62541.h"
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_types.h>
+#include <ua_log_stdout.h>
+#include <ua_securitypolicies.h>
+
 #include <signal.h>
 
 UA_Boolean running = true;

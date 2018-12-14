@@ -8,6 +8,7 @@
 #else
 #include "open62541.h"
 #endif
+
 #include <signal.h>
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the

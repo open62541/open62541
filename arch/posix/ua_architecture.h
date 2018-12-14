@@ -34,6 +34,7 @@
 #include <sys/types.h>
 #include <net/if.h>
 #ifndef UA_sleep_ms
+# include <unistd.h>
 # define UA_sleep_ms(X) usleep(X * 1000)
 #endif
 

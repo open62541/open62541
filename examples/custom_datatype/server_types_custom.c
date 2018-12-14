@@ -1,8 +1,11 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "open62541.h"
+#include <ua_server.h>
+#include <ua_log_stdout.h>
+#include <ua_config_default.h>
 #include "custom_datatype.h"
+
 #include <signal.h>
 
 UA_Boolean running = true;
