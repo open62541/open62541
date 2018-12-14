@@ -9,7 +9,7 @@
 #ifndef OPEN62541_UA_PLUGIN_SOCKET_H
 #define OPEN62541_UA_PLUGIN_SOCKET_H
 
-#include <queue.h>
+#include "open62541_queue.h"
 #include "ua_types.h"
 #include "ua_plugin_log.h"
 
@@ -210,7 +210,7 @@ UA_DataSocketFactory_addDeletionHook(UA_DataSocketFactory *factory, UA_SocketHoo
 /**
  * Convenience Wrapper for calling the dataCallback of a socket.
  */
-inline UA_StatusCode
+static inline UA_StatusCode
 UA_Socket_dataCallback(UA_Socket *socket, UA_ByteString *data) {
     if (socket == NULL || socket->dataCallback.callback == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;

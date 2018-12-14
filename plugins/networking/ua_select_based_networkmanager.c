@@ -5,7 +5,7 @@
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <queue.h>
+#include "open62541_queue.h"
 #include "ua_plugin_log.h"
 #include "ua_types_generated_handling.h"
 #include "ua_networkmanagers.h"
