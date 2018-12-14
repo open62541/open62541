@@ -781,9 +781,9 @@ ua_generate_nodeset(
     DEPENDS_TARGET "open62541-generator-types"
 )
 
-# stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
+# stack protector and optimization needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
 if(NOT MSVC)
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
 endif()
 
 #####################

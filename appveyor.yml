@@ -7,8 +7,8 @@ clone_depth: 20
 skip_branch_with_pr: true
 
 # Fast finish (stop other builds if one fails) to speed up appveyor builds
-matrix:
-  fast_finish: true
+# matrix:
+#  fast_finish: true
 
 environment:
     global:
@@ -18,43 +18,24 @@ environment:
         - CC_NAME: MinGW Makefiles
           CC_SHORTNAME: mingw
           GENERATOR: MinGW Makefiles
-          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
-          # Only use one thread, otherwise appveyor runs out of memory
-          MAKE: mingw32-make -j1 2>&1
           FORCE_CXX: OFF
-          OUT_DIR_LIB: bin
-          OUT_DIR_EXAMPLES: bin\examples
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
           GENERATOR: Visual Studio 9 2008
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: ON
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
           GENERATOR: Visual Studio 12 2013
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 15 2017
           CC_SHORTNAME: vs2017
           APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
           GENERATOR: Visual Studio 15 2017
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
-          OUT_DIR_LIB: bin\Debug
-          OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Clang
           CC_SHORTNAME: clang-mingw
           GENERATOR: MinGW Makefiles
-          # We need to redirect stderr to stdout otherwise powershell will fail if there is an output during amalgamation.
-          # Only use one thread, otherwise appveyor runs out of memory
-          MAKE: mingw32-make -j1 2>&1
           FORCE_CXX: OFF
-          OUT_DIR_LIB: bin
-          OUT_DIR_EXAMPLES: bin\examples
 
 cache:
   - C:\ProgramData\chocolatey\bin -> tools/appveyor/install.ps1
@@ -79,5 +60,6 @@ build_script:
 - ps: '& "./tools/appveyor/build.ps1"'
 
 after_build:
+  # Only push artifact if make install is defined
   - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-static.zip
   - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-dynamic.zip

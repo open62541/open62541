@@ -14,6 +14,10 @@ set(examples_headers
 #############################
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR}/bin/examples)
 
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN} ${examples_headers})
@@ -65,11 +69,31 @@ endif()
 
 add_example(server_ctt server_ctt.c)
 
+if (WIN32)
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/server_ctt.exe
+            DESTINATION bin
+            RENAME ua_server_ctt.exe)
+else()
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/server_ctt
+            DESTINATION bin
+            RENAME ua_server_ctt)
+endif()
+
 ##################
 # Example Client #
 ##################
 
 add_example(client client.c)
+
+if (WIN32)
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/client.exe
+            DESTINATION bin
+            RENAME ua_client.exe)
+else()
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/client
+            DESTINATION bin
+            RENAME ua_client)
+endif()
 
 add_example(client_async client_async.c)
 

@@ -24,13 +24,12 @@ echo -en 'travis_fold:end:script.build.ns0\\r'
 
 echo "Compile release build for OS X" && echo -en 'travis_fold:start:script.build.osx\\r'
 mkdir -p build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
+cmake -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=OFF -DUA_BUILD_EXAMPLES=ON -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-osx ..
 make -j
-tar -pczf open62541-osx.tar.gz ../LICENSE ../AUTHORS ../README.md ./bin/examples/server_ctt ./bin/examples/client ./bin/libopen62541.a open62541.h open62541.c
-cp open62541-osx.tar.gz ..
-cp open62541.h .. #copy single file-release
-cp open62541.c .. #copy single file-release
-cd .. && rm -rf build
+make install
+cd ..
+tar -pczf open62541-osx.tar.gz LICENSE AUTHORS README.md ${TRAVIS_BUILD_DIR}/open62541-osx/*
+rm -rf build
 echo -en 'travis_fold:end:script.build.osx\\r'
 
 echo "Compile multithreaded version" && echo -en 'travis_fold:start:script.build.multithread\\r'
