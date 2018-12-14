@@ -113,6 +113,7 @@ START_TEST(Datatypes_check_encoding_mask_serialize) {
     ck_assert_uint_eq(buf.data[0], 0x55); // 0b10101010 first encoding mask byte
     ck_assert_uint_eq(buf.data[1], 0x01); // 0b00000001 second encoding mask byte
     ck_assert_uint_eq(buf.data[2], 42); // Byte payload as set
+    UA_ByteString_deleteMembers(&buf);
 }
 END_TEST
 
@@ -271,6 +272,73 @@ START_TEST(Datatypes_check_optional_fields_fieldValue) {
 }
 END_TEST
 
+START_TEST(Datatypes_check_clear_object_with_option) {
+    UA_ObjectWithNineBits o;
+    UA_ObjectWithNineBits_init(&o);
+
+    o.bitField0 = true;
+    o.bitField1 = true;
+    o.bitField2 = true;
+    o.bitField3 = true;
+    o.bitField4 = true;
+    o.bitField5 = true;
+    o.bitField6 = true;
+    o.bitField7 = true;
+    o.bitField8 = true;
+    o.data = 0x55;
+
+    UA_ObjectWithNineBits_clear(&o);
+
+    ck_assert(!o.bitField0);
+    ck_assert(!o.bitField1);
+    ck_assert(!o.bitField2);
+    ck_assert(!o.bitField3);
+    ck_assert(!o.bitField4);
+    ck_assert(!o.bitField5);
+    ck_assert(!o.bitField6);
+    ck_assert(!o.bitField7);
+    ck_assert(!o.bitField8);
+    ck_assert_int_eq(o.data, 0x00);
+
+    UA_ObjectWithNineBits_deleteMembers(&o);
+}
+END_TEST
+
+START_TEST(Datatypes_check_copy_object_with_option) {
+    UA_ObjectWithNineBits source;
+    UA_ObjectWithNineBits_init(&source);
+
+    source.bitField0 = true;
+    source.bitField1 = true;
+    source.bitField5 = true;
+    source.bitField7 = true;
+    source.bitField8 = true;
+
+    source.data = 0x55;
+
+    UA_ObjectWithNineBits dest;
+    UA_ObjectWithNineBits_init(&dest);
+
+    ck_assert_int_eq(dest.data, 0x00);
+
+    UA_ObjectWithNineBits_copy(&source, &dest);
+
+    ck_assert(dest.bitField0);
+    ck_assert(dest.bitField1);
+    ck_assert(!dest.bitField2);
+    ck_assert(!dest.bitField3);
+    ck_assert(!dest.bitField4);
+    ck_assert(dest.bitField5);
+    ck_assert(!dest.bitField6);
+    ck_assert(dest.bitField7);
+    ck_assert(dest.bitField8);
+    ck_assert_int_eq(dest.data, 0x55);
+
+    UA_ObjectWithNineBits_deleteMembers(&source);
+    UA_ObjectWithNineBits_deleteMembers(&dest);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Datatype generator test");
     TCase *tc_server = tcase_create("Optional field test");
@@ -283,6 +351,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Datatypes_check_optional_fields_encoding);
     tcase_add_test(tc_server, Datatypes_check_optional_fields_decoding);
     tcase_add_test(tc_server, Datatypes_check_optional_fields_fieldValue);
+    tcase_add_test(tc_server, Datatypes_check_copy_object_with_option);
+    tcase_add_test(tc_server, Datatypes_check_clear_object_with_option);
     suite_add_tcase(s, tc_server);
     return s;
 }

@@ -923,11 +923,24 @@ copy_noInit(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
     u8 membersSize = type->membersSize;
+    size_t flagCount = 0;
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isArray) {
+        if(m->isFlag) {
+            flagCount++;
+            continue;
+        }
+        if(flagCount > 0){
+            // Copy all encoding mask bytes
+            for(size_t x = 0; x <= flagCount / 8; ++x) {
+                retval |= copyByte((const UA_Byte*)ptrs, (UA_Byte*)ptrd, 0);
+                ptrs++;
+                ptrd++;
+            }
+            flagCount = 0;
+        } else if(!m->isArray) {
             ptrs += m->padding;
             ptrd += m->padding;
             size_t fi = mt->builtin ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
@@ -1000,11 +1013,18 @@ static void
 clear_noInit(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;
+    size_t flagCount = 0;
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(!m->isArray) {
+        if(m->isFlag) {
+            flagCount++;
+            continue;
+        }
+        if(flagCount > 0){
+            ptr += (flagCount / 8) + 1;
+        } else if(!m->isArray) {
             ptr += m->padding;
             size_t fi = mt->builtin ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
             clearJumpTable[fi]((void*)ptr, mt);
