@@ -14,8 +14,8 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "freertosLWIP")
         if(UA_ARCH_FREERTOS_USE_OWN_MEMORY_FUNCTIONS)
           ua_architecture_add_definitions("-DOPEN62541_FEERTOS_USE_OWN_MEM")
         endif(UA_ARCH_FREERTOS_USE_OWN_MEMORY_FUNCTIONS)
-        ua_add_architecture_header_beginning(${CMAKE_CURRENT_SOURCE_DIR}/../common/freeRTOS62541.h
-                                             ${CMAKE_CURRENT_SOURCE_DIR}/../common/lwip62541.h
-                                                                                                  ) 
+        ua_add_architecture_header_beginning(${CMAKE_CURRENT_SOURCE_DIR}/../common/ua_freeRTOS.h
+                                             ${CMAKE_CURRENT_SOURCE_DIR}/../common/ua_lwip.h
+                                             )
     endif()
 endif()
