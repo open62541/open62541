@@ -18,7 +18,7 @@
 #define UA_WORKQUEUE_H_
 
 #include "ua_util_internal.h"
-#include "../../deps/queue.h"
+#include "open62541_queue.h"
 
 #ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>

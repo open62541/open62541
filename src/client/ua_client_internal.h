@@ -20,7 +20,7 @@
 #include "ua_client_highlevel.h"
 #include "ua_client_subscriptions.h"
 #include "ua_timer.h"
-#include "../../deps/queue.h"
+#include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
 

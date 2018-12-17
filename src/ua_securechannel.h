@@ -16,7 +16,7 @@
 #include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
-#include "../deps/queue.h"
+#include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
 
