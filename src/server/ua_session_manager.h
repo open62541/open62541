@@ -16,7 +16,7 @@
 #include "ua_workqueue.h"
 #include "ua_util_internal.h"
 #include "ua_session.h"
-#include "../../deps/queue.h"
+#include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
 

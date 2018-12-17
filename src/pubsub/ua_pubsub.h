@@ -12,7 +12,7 @@
 #include "ua_pubsub_networkmessage.h"
 #include "ua_server.h"
 #include "ua_server_pubsub.h"
-#include "../deps/queue.h"
+#include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
 
