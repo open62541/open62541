@@ -460,6 +460,11 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/arch/ua_architecture_base.h
                      ${ua_architecture_headers_beginning}
                      )
+if (NOT UA_ENABLE_AMALGAMATION)
+set(exported_headers ${exported_headers}
+                     ${PROJECT_SOURCE_DIR}/arch/ua_architecture_functions.h
+                     )
+endif()
 
 if(NOT "${UA_AMALGAMATION_ARCHITECTURES}" STREQUAL "")
     foreach(arch ${UA_AMALGAMATION_ARCHITECTURES})
