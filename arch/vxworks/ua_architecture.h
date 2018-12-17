@@ -107,7 +107,7 @@
     LOG; \
 }
 
-#include "../ua_architecture_functions.h"
+#include "ua_architecture_functions.h"
 
 #endif /* PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_ */
 
