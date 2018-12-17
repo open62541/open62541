@@ -158,6 +158,8 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
 """ % (outfilebase.upper(), outfilebase.upper()))
     if internal_headers:
         writeh("""
+# include "ua_config.h"
+
 #ifdef UA_NO_AMALGAMATION
 # include "ua_server.h"
 # include "ua_types_encoding_binary.h"

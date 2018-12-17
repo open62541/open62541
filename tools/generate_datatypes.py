@@ -540,6 +540,8 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifndef ''' + outname.upper() + '''_GENERATED_H_
 #define ''' + outname.upper() + '''_GENERATED_H_
 
+#include "ua_config.h"
+
 #ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
 ''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''

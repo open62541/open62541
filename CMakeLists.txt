@@ -58,6 +58,14 @@ endif()
 
 
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
+
+
+if(NOT UA_ENABLE_AMALGAMATION)
+set(UA_NO_AMALGAMATION CACHE STRING "Definition to fix a includes of a normal build" ON)
+mark_as_advanced(UA_NO_AMALGAMATION)
+endif()
+
+
 set(UA_AMALGAMATION_ARCHITECTURES "" CACHE STRING "List of architectures to include in amalgamation")
 mark_as_advanced(UA_AMALGAMATION_ARCHITECTURES)
 
@@ -748,6 +756,7 @@ add_custom_target(open62541-generator-statuscode DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
 
 # single-file release
+if(UA_ENABLE_AMALGAMATION)
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
@@ -770,6 +779,7 @@ add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/op
 add_dependencies(open62541-amalgamation-header open62541-generator-types)
 add_dependencies(open62541-amalgamation-source open62541-generator-types
                  open62541-generator-transport open62541-generator-statuscode)
+endif()
 
 if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
     set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
@@ -819,10 +829,8 @@ if(UA_ENABLE_AMALGAMATION)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
     endif()
 else()
-    add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     add_dependencies(open62541-object
-                     open62541-amalgamation-header
                      open62541-generator-types
                      open62541-generator-transport
                      open62541-generator-statuscode)
@@ -843,8 +851,10 @@ else()
     endif()
 endif()
 
+if(UA_ENABLE_AMALGAMATION)
 add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
 add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
+endif()
 if(NOT UA_ENABLE_AMALGAMATION)
     add_dependencies(open62541-object open62541-generator-namespace)
 endif()
@@ -922,7 +932,6 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   -I${PROJECT_SOURCE_DIR}/src/server
                   -I${PROJECT_SOURCE_DIR}/src/client
                   -I${PROJECT_BINARY_DIR}/src_generated
-                  -DUA_NO_AMALGAMATION
                   DEPENDS ${lib_sources}
                   COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)
@@ -1086,8 +1095,10 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
+if(UA_ENABLE_AMALGAMATION)
 set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
+endif()
 
 set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
