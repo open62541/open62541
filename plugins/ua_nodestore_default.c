@@ -8,8 +8,6 @@
 
 #include "ua_nodestore_default.h"
 
-#include "ua_util_internal.h" /* TOOO: Move atomic operations to arch definitions */
-
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
