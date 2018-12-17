@@ -469,10 +469,9 @@ else()
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h)
 endif()
 
-list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h)
-
 set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
+                     ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
