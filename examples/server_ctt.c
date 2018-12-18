@@ -5,10 +5,15 @@
 #define _CRT_SECURE_NO_WARNINGS /* disable fopen deprication warning in msvs */
 #endif
 
-#include <ua_server.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
-#include "common.h"
+#ifdef UA_ENABLE_AMALGAMATION
+# include <open62541.h>
+#else
+# include <ua_server.h>
+# include <ua_config_default.h>
+# include <ua_log_stdout.h>
+#endif
+
+# include "common.h"
 
 #include <signal.h>
 

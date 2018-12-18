@@ -158,10 +158,7 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
 """ % (outfilebase.upper(), outfilebase.upper()))
     if internal_headers:
         writeh("""
-#ifdef UA_NO_AMALGAMATION
-# include "ua_server.h"
-# include "ua_types_encoding_binary.h"
-#else
+#ifdef UA_ENABLE_AMALGAMATION
 # include "open62541.h"
 
 /* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
@@ -190,13 +187,20 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 
 # endif // UA_Nodestore_remove
 
+#else // UA_ENABLE_AMALGAMATION
+# include "ua_server.h"
+# include "ua_types_encoding_binary.h"
 #endif
 
 %s
 """ % (additionalHeaders))
     else:
         writeh("""
-#include "ua_server.h"
+#ifdef UA_ENABLE_AMALGAMATION
+# include "open62541.h"
+#else
+# include "ua_server.h"
+#endif
 """)
     writeh("""
 _UA_BEGIN_DECLS

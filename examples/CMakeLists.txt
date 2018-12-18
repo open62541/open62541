@@ -9,6 +9,11 @@ set(examples_headers
     ${PROJECT_SOURCE_DIR}/examples/common.h
     )
 
+
+if(UA_ENABLE_AMALGAMATION)
+    add_definitions(-DUA_ENABLE_AMALGAMATION)
+endif()
+
 #############################
 # Compiled binaries folders #
 #############################

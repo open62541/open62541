@@ -11,7 +11,7 @@
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-#ifdef UA_NO_AMALGAMATION
+#ifndef UA_ENABLE_AMALGAMATION
 #include "mdnsd/libmdnsd/xht.h"
 #include "mdnsd/libmdnsd/sdtxt.h"
 #endif
