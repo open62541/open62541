@@ -28,6 +28,8 @@ matrix:
             - build-essential
             - check
             - cmake
+            - debhelper
+            - fakeroot
             - gcc-multilib
             - g++-mingw-w64-i686
             - g++-mingw-w64-x86-64
@@ -51,6 +53,7 @@ matrix:
         - CXX=g++-4.8
         - PYTHON=python2
         - MINGW=true
+        - DEBIAN=true
     - os: linux
       addons:
         apt:
@@ -58,6 +61,8 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
+            - debhelper
+            - fakeroot
             - gcc-8
             - gcc-8-multilib
             - g++-8
@@ -85,6 +90,8 @@ matrix:
             - check
             - clang-6.0
             - clang-tidy-6.0
+            - debhelper
+            - fakeroot
             - graphviz
             - python-six
             - texlive-fonts-recommended
@@ -106,6 +113,8 @@ matrix:
             - check
             - clang-6.0
             - clang-tidy-6.0
+            - debhelper
+            - fakeroot
             - graphviz
             - python3-six
             - texlive-fonts-recommended
@@ -123,6 +132,8 @@ matrix:
           packages:
             - check
             - graphviz
+            - debhelper
+            - fakeroot
             - python-six
             - python3-six
             - texlive-fonts-recommended
@@ -329,8 +340,10 @@ deploy:
     - open62541-raspberrypi.tar.gz
     - open62541.c
     - open62541.h
+    - open62541*.deb
+  file_glob: true
   skip_cleanup: true
   on:
     repo: open62541/open62541
     tags: true
-    condition: $CC = gcc && $ANALYZE = false
+    condition: $CC = gcc-4.8 && $ANALYZE = false

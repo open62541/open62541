@@ -56,6 +56,8 @@
 #define UA_VALGRIND_INTERACTIVE_INTERVAL ${UA_VALGRIND_INTERACTIVE_INTERVAL}
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO
 
+#cmakedefine UA_PACK_DEBIAN
+
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS
