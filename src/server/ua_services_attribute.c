@@ -665,7 +665,7 @@ compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
         return true;
 
     size_t arrayDims = value->arrayDimensionsSize;
-    if(!UA_Variant_isScalar(value))
+    if(!arrayDims && !UA_Variant_isScalar(value))
         arrayDims = 1; /* array but no arraydimensions -> implicit array dimension 1 */
 
     /* We cannot simply use compatibleValueRankArrayDimensions since we can have
