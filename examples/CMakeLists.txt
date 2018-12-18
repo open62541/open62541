@@ -74,15 +74,9 @@ endif()
 
 add_example(server_ctt server_ctt.c)
 
-if (WIN32)
-    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/server_ctt.exe
-            DESTINATION bin
-            RENAME ua_server_ctt.exe)
-else()
-    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/server_ctt
-            DESTINATION bin
-            RENAME ua_server_ctt)
-endif()
+install(PROGRAMS $<TARGET_FILE:server_ctt>
+        DESTINATION bin
+        RENAME ua_server_ctt.exe)
 
 ##################
 # Example Client #
@@ -90,15 +84,9 @@ endif()
 
 add_example(client client.c)
 
-if (WIN32)
-    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/client.exe
-            DESTINATION bin
-            RENAME ua_client.exe)
-else()
-    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/client
-            DESTINATION bin
-            RENAME ua_client)
-endif()
+install(PROGRAMS $<TARGET_FILE:client>
+        DESTINATION bin
+        RENAME ua_client)
 
 add_example(client_async client_async.c)
 

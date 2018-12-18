@@ -72,4 +72,7 @@ Nightly single file releases for Linux and Windows of the last 50 commits can be
 OS Specific packages
 ^^^^^^^^^^^^^^^^^^^^
 
-This is currently work in progress and we will provide prebuilt .deb packages soon.
+Debian packages can be found in our official PPA:
+
+ * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
+ * Release Builds (starting with Version 0.4): https://launchpad.net/~open62541-team/+archive/ubuntu/ppa

@@ -206,9 +206,11 @@ createDefaultConfig(void) {
     conf->buildInfo.softwareVersion =
         UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
                                 UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
-    conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__
-                                                      " "
-                                                      __TIME__);
+    #ifdef UA_PACK_DEBIAN
+    conf->buildInfo.buildNumber = UA_STRING_ALLOC("deb");
+	#else
+    conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
+	#endif
     conf->buildInfo.buildDate = 0;
 
     conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);

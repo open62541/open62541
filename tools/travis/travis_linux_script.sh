@@ -245,14 +245,6 @@ else
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.discovery\\r'
 
-    echo -e "\r\n== Compile discovery without multicast version ==" && echo -en 'travis_fold:start:script.build.multicast\\r'
-    mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
-    make -j
-    if [ $? -ne 0 ] ; then exit 1 ; fi
-    cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.multicast\\r'
-
     if [ "$CC" != "tcc" ]; then
         echo -e "\r\n== Compile multithreaded version with discovery ==" && echo -en 'travis_fold:start:script.build.multithread_discovery\\r'
         mkdir -p build && cd build
@@ -274,6 +266,17 @@ else
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.unit_test_ns0_full\\r'
+
+    if ! [ -z ${DEBIAN+x} ]; then
+        echo -e "\r\n== Building the Debian package =="  && echo -en 'travis_fold:start:script.build.debian\\r'
+        dpkg-buildpackage -b
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        cp ../open62541*.deb .
+        # Copy for github release script
+        cp ../open62541*.deb ../..
+        echo -en 'travis_fold:end:script.build.debian\\r'
+    fi
+
 
     if [ "$CC" != "tcc" ]; then
         echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
