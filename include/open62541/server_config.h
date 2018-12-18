@@ -140,6 +140,15 @@ struct UA_ServerConfig {
     size_t endpointsSize;
     UA_EndpointDescription *endpoints;
 
+    /* Only allow the following discovery services to be executed on a
+     * SecureChannel with SecurityPolicyNone: GetEndpointsRequest,
+     * FindServersRequest and FindServersOnNetworkRequest.
+     *
+     * Only enable this option if there is no endpoint with SecurityPolicy#None
+     * in the endpoints list. The SecurityPolicy#None must be present in the
+     * securityPolicies list. */
+    UA_Boolean securityPolicyNoneDiscoveryOnly;
+
     /* Node Lifecycle callbacks */
     UA_GlobalNodeLifecycle nodeLifecycle;
 
