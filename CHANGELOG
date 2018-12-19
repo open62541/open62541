@@ -1,6 +1,26 @@
 This changelog reports changes to the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2018-12-19 pro <profanter at fortiss.org>
+
+ * 0.3.0 release
+
+   This is the final release of the 0.3.0 version after four release candidates.
+
+   Future bugfix releases on the 0.3 branch will not change the publich API.
+
+   The most important changes compared to the 0.2 branch are as follows.
+
+       Support for encrypted SecureChannels
+       Support for node-based access control
+       Support for client-side subscriptions handling in the background
+       Support for custom storage layers for the information model
+       Improved lifecycle handling for nodes (constructors and destructors)
+       Improved documentation
+
+   A full list of changes from 0.2 to 0.3.0 can be found here:
+   https://github.com/open62541/open62541/compare/0.2...v0.3.0
+
 2018-02-05 pro <profanter at fortiss.org>
 
  * Also pass client to monitoredItem/Events callback
