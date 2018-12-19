@@ -1078,6 +1078,7 @@ if(NOT UA_ENABLE_AMALGAMATION)
                   ${exported_headers}
                   ${default_plugin_headers}
                   ${historizing_default_plugin_headers}
+                  ${ua_architecture_headers}
             DESTINATION ${open62541_install_include_dir})
 else()
     # Export amalgamated header open62541.h which is generated due to build of 
