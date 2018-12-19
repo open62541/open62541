@@ -478,6 +478,11 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
         return;
 
     UA_ReadResponse rr = *(UA_ReadResponse *) response;
+    if ((rr.resultsSize == 0) || (rr.results == NULL))
+    {
+        return;
+    }
+
     if (rr.results[0].status != UA_STATUSCODE_GOOD)
         UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
 
