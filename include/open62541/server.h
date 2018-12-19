@@ -1368,7 +1368,7 @@ typedef UA_StatusCode
 UA_StatusCode UA_EXPORT
 UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
                           UA_QualifiedName conditionName, const UA_NodeId conditionSource,
-                          const UA_NodeId hierarchialReferenceType, UA_NodeId *outNodeId);
+                          const UA_NodeId hierarchialReferenceType, UA_NodeId *outConditionId);
 
 /**
  * set the value of condition field.
@@ -1379,9 +1379,9 @@ UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
  * @param fieldName Name of the Field in which the value should be written
  * @return The StatusCode of the UA_Server_triggerEvent method*/
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionField(UA_Server *server, const UA_NodeId *condition,
+UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
                             const void* variantValue, UA_UInt16 type,
-                            const UA_QualifiedName* fieldName);
+                            const UA_QualifiedName fieldName);
 
 /**
  * set the value of property of condition field.
@@ -1393,10 +1393,10 @@ UA_Server_setConditionField(UA_Server *server, const UA_NodeId *condition,
  * @param variablePropertyName Name of the Field Property in which the value should be written
  * @return The StatusCode of the UA_Server_triggerEvent method*/
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId *condition,
+UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId condition,
                                             const void *variantValue, UA_UInt16 type,
-                                            const UA_QualifiedName* variableFieldName,
-                                            const UA_QualifiedName* variablePropertyName);
+                                            const UA_QualifiedName variableFieldName,
+                                            const UA_QualifiedName variablePropertyName);
 
 /**
  * triggers an event only for an enabled condition. The condition list is updated then with the
@@ -1421,8 +1421,8 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
  * @param outOptionalVariable The NodeId of the created field (Variable Node)
  * @return The StatusCode of the UA_Server_triggerEvent method*/
 UA_StatusCode UA_EXPORT
-UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *condition,
-                                    const UA_NodeId *conditionType, const UA_QualifiedName* fieldName,
+UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
+                                    const UA_NodeId conditionType, const UA_QualifiedName fieldName,
                                     UA_NodeId *outOptionalVariable);
 
 /**
@@ -1438,8 +1438,8 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId *conditio
  * @param callback Callback function type, indicates where it should be called
  * @return The StatusCode of the UA_Server_triggerEvent method*/
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *condition,
-                                               const UA_NodeId *conditionSource, UA_Boolean removeBranch,
+UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId condition,
+                                               const UA_NodeId conditionSource, UA_Boolean removeBranch,
                                                UA_TwoStateVariableChangeCallback callback,
                                                UA_TwoStateVariableCallbackType callbackType);
 
