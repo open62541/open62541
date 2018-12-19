@@ -2,7 +2,7 @@ Source: open62541
 Priority: optional
 Maintainer: open62541 Team <open62541-core@googlegroups.com>
 Build-Depends: debhelper (>= 7.0.50~),
- cmake (>= 3.0),
+ cmake (>= 2.8),
  git,
  graphviz,
  python (>= 2.7),
