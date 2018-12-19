@@ -540,11 +540,11 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifndef ''' + outname.upper() + '''_GENERATED_H_
 #define ''' + outname.upper() + '''_GENERATED_H_
 
-#ifdef UA_NO_AMALGAMATION
+#ifdef UA_ENABLE_AMALGAMATION
+#include "open62541.h"
+#else
 #include "ua_types.h"
 ''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
-#else
-#include "open62541.h"
 #endif
 
 _UA_BEGIN_DECLS
@@ -644,8 +644,14 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "ua_types_encoding_binary.h"
-#include "''' + outname + '''_generated.h"''')
+#ifdef UA_ENABLE_AMALGAMATION
+# include "open62541.h"
+#else
+# include "ua_types_encoding_binary.h"
+# include "''' + outname + '''_generated.h"
+#endif
+
+''')
 
 for t in filtered_types:
     printe("\n/* " + t.name + " */")

@@ -5,7 +5,9 @@
  * and then calls GetEndpoints on the returned list of servers.
  */
 
-#include "open62541.h"
+#include <ua_client.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 

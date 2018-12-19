@@ -5,6 +5,7 @@ open62541 Documentation
 
    index
    building
+   installing
    tutorials
    protocol
    types

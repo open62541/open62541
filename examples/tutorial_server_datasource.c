@@ -25,7 +25,10 @@
  * new value arrives from the underlying process, we can just write into the
  * variable. */
 
-#include "open62541.h"
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
+
 #include <signal.h>
 
 static void

@@ -6,7 +6,9 @@
  * find servers service to get all registered servers (see client_find_servers.c).
  */
 
-#include "open62541.h"
+#include <ua_server.h>
+#include <ua_config_default.h>
+
 #include <signal.h>
 
 UA_Boolean running = true;

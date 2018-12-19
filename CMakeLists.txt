@@ -742,29 +742,31 @@ add_custom_target(open62541-generator-statuscode DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
         ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
 
-# single-file release
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers})
+if (UA_ENABLE_AMALGAMATION)
+    # single-file release
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
+                       PRE_BUILD
+                       COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                               ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
+                               ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers}
+                       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                               ${exported_headers} ${default_plugin_headers} ${ua_architecture_headers})
 
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                           ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                           ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources} )
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
+                       PRE_BUILD
+                       COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                               ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                               ${internal_headers} ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources}
+                       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
+                               ${lib_sources} ${default_plugin_sources} ${ua_architecture_sources} )
 
-add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
-add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
+    add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
+    add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
 
-add_dependencies(open62541-amalgamation-header open62541-generator-types)
-add_dependencies(open62541-amalgamation-source open62541-generator-types
-                 open62541-generator-transport open62541-generator-statuscode)
+    add_dependencies(open62541-amalgamation-header open62541-generator-types)
+    add_dependencies(open62541-amalgamation-source open62541-generator-types
+                     open62541-generator-transport open62541-generator-statuscode)
+endif()
 
 if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
     set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
@@ -779,9 +781,9 @@ ua_generate_nodeset(
     DEPENDS_TARGET "open62541-generator-types"
 )
 
-# stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
+# stack protector and optimization needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
 if(NOT MSVC)
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
 endif()
 
 #####################
@@ -813,14 +815,17 @@ if(UA_ENABLE_AMALGAMATION)
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
     endif()
+
+    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
+    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
 else()
-    add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     add_dependencies(open62541-object
-                     open62541-amalgamation-header
                      open62541-generator-types
                      open62541-generator-transport
-                     open62541-generator-statuscode)
+                     open62541-generator-statuscode
+                     open62541-generator-namespace
+                     )
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
@@ -836,12 +841,7 @@ else()
         set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
         set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
-endif()
 
-add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
-add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
-if(NOT UA_ENABLE_AMALGAMATION)
-    add_dependencies(open62541-object open62541-generator-namespace)
 endif()
 
 # Export Symbols
@@ -883,6 +883,10 @@ target_link_libraries(open62541 ${open62541_LIBRARIES})
 add_subdirectory(doc)
 
 if(UA_BUILD_EXAMPLES)
+    if(UA_ENABLE_AMALGAMATION)
+        # Cannot compile tests with amalgamation. Not prepared for single header include
+        message(FATAL_ERROR "Examples cannot be built with source amalgamation enabled")
+    endif()
     add_subdirectory(examples)
 endif()
 
@@ -917,7 +921,6 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   -I${PROJECT_SOURCE_DIR}/src/server
                   -I${PROJECT_SOURCE_DIR}/src/client
                   -I${PROJECT_BINARY_DIR}/src_generated
-                  -DUA_NO_AMALGAMATION
                   DEPENDS ${lib_sources}
                   COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)
@@ -1005,6 +1008,9 @@ install(TARGETS open62541
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
         INCLUDES DESTINATION include)
+# Our default way of installation is the non-amalgamated version.
+# See also https://github.com/open62541/open62541/pull/2292#discussion_r241106424
+install(CODE "MESSAGE(WARNING \"Installation with UA_ENABLE_AMALGAMATION=ON is not recommended.\")")
 endif()
 
 include(CMakePackageConfigHelpers)
@@ -1081,8 +1087,10 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
-set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
-set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
+if (UA_ENABLE_AMALGAMATION)
+    set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
+    set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
+endif()
 
 set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")

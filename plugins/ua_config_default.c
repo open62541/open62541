@@ -10,7 +10,6 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
-#include "ua_plugin_securitypolicy.h"
 #include "ua_config_default.h"
 #include "ua_client_config.h"
 #include "ua_log_stdout.h"
@@ -19,6 +18,7 @@
 #include "ua_pki_certificate.h"
 #include "ua_nodestore_default.h"
 #include "ua_securitypolicies.h"
+#include "ua_plugin_securitypolicy.h"
 
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is

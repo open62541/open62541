@@ -77,7 +77,7 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build-6.0 cmake -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build-6.0 cmake -DUA_ENABLE_AMALGAMATION=OFF ..
         scan-build-6.0 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
@@ -130,64 +130,73 @@ else
     if ! [ -z ${MINGW+x} ]; then
         echo -e "\r\n== Cross compile release build for MinGW 32 bit =="  && echo -en 'travis_fold:start:script.build.cross_mingw32\\r'
         mkdir -p build && cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-win32 -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        cp ../LICENSE ../AUTHORS ../README.md .
-        zip -r open62541-win32.zip ../../doc_latex/open62541.pdf LICENSE AUTHORS README.md ./bin/examples/server_ctt.exe ./bin/examples/client.exe ./bin/libopen62541.* open62541.h open62541.c
-        cp open62541-win32.zip ..
-        cd .. && rm build -rf
+        make install
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        cd ..
+        zip -r open62541-win32.zip ../doc_latex/open62541.pdf LICENSE AUTHORS README.md open62541-win32/*
+        rm build -rf
         echo -en 'travis_fold:end:script.build.cross_mingw32\\r'
 
         echo -e "\r\n== Cross compile release build for MinGW 64 bit =="  && echo -en 'travis_fold:start:script.build.cross_mingw64\\r'
         mkdir -p build && cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-win64 -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        cp ../LICENSE ../AUTHORS ../README.md .
-        zip -r open62541-win64.zip ../../doc_latex/open62541.pdf LICENSE AUTHORS README.md ./bin/examples/server_ctt.exe ./bin/examples/client.exe ./bin/libopen62541.* open62541.h open62541.c
-        cp open62541-win64.zip ..
-        cd .. && rm build -rf
+        make install
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        cd ..
+        zip -r open62541-win64.zip ../doc_latex/open62541.pdf LICENSE AUTHORS README.md open62541-win64/*
+        rm build -rf
         echo -en 'travis_fold:end:script.build.cross_mingw64\\r'
 
         echo -e "\r\n== Cross compile release build for 32-bit linux =="  && echo -en 'travis_fold:start:script.build.cross_linux\\r'
         mkdir -p build && cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux32 -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        tar -pczf open62541-linux32.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md bin/examples/server_ctt bin/examples/client bin/libopen62541.* open62541.h open62541.c
-        cp open62541-linux32.tar.gz ..
-        cd .. && rm build -rf
+        make install
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        cd ..
+        tar -pczf open62541-linux32.tar.gz ../doc_latex/open62541.pdf LICENSE AUTHORS README.md open62541-linux32/*
+        rm build -rf
         echo -en 'travis_fold:end:script.build.cross_linux\\r'
 
         echo -e "\r\n== Cross compile release build for RaspberryPi =="  && echo -en 'travis_fold:start:script.build.cross_raspi\\r'
         mkdir -p build && cd build
         git clone https://github.com/raspberrypi/tools
         export PATH=$PATH:./tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-raspberrypi -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
-        tar -pczf open62541-raspberrypi.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md bin/examples/server_ctt bin/examples/client bin/libopen62541.* open62541.h open62541.c
-        cp open62541-raspberrypi.tar.gz ..
-        cd .. && rm build -rf
+        make install
+        if [ $? -ne 0 ] ; then exit 1 ; fi
+        cd ..
+        tar -pczf open62541-raspberrypi.tar.gz ../doc_latex/open62541.pdf LICENSE AUTHORS README.md open62541-raspberrypi/*
+        rm build -rf
         echo -en 'travis_fold:end:script.build.cross_raspi\\r'
     fi
 
     echo -e "\r\n== Compile release build for 64-bit linux =="  && echo -en 'travis_fold:start:script.build.linux_64\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux64 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_ENABLE_AMALGAMATION=OFF -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
-    tar -pczf open62541-linux64.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md bin/examples/server_ctt bin/examples/client bin/libopen62541.* open62541.h open62541.c
-    cp open62541-linux64.tar.gz ..
-    cp open62541.h ../.. # copy single file-release
-    cp open62541.c ../.. # copy single file-release
-    cd .. && rm build -rf
+    make install
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd ..
+    tar -pczf open62541-linux64.tar.gz ../doc_latex/open62541.pdf LICENSE AUTHORS README.md open62541-linux64/*
+    rm build -rf
     echo -en 'travis_fold:end:script.build.linux_64\\r'
 
     echo -e "\r\n== Building the C++ example =="  && echo -en 'travis_fold:start:script.build.example\\r'
     mkdir -p build && cd build
-    cp ../../open62541.* .
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux64 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=ON ..
+    make -j
+    cp open62541.h ../.. # copy single file-release
+    cp open62541.c ../.. # copy single file-release
     gcc -std=c99 -c open62541.c
     g++ ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
     if [ $? -ne 0 ] ; then exit 1 ; fi
@@ -196,11 +205,19 @@ else
 
     echo "Compile as shared lib version" && echo -en 'travis_fold:start:script.build.shared_libs\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_AMALGAMATION=OFF -DUA_BUILD_EXAMPLES=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.shared_libs\\r'
+
+    echo "Compile as shared lib version with amalgamation" && echo -en 'travis_fold:start:script.build.shared_libs_amalgamate\\r'
+    mkdir -p build && cd build
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=OFF ..
+    make -j
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.shared_libs_amalgamate\\r'
 
     if [ "$CC" != "tcc" ]; then
         echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'

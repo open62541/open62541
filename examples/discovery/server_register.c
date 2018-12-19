@@ -5,8 +5,10 @@
  * Before shutdown it has to unregister itself.
  */
 
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
 
-#include "open62541.h"
 #include <signal.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"

@@ -7,7 +7,12 @@
  * (i.e., LDS-ME).
  */
 
-#include "open62541.h"
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_types.h>
+#include <ua_log_stdout.h>
+#include <ua_securitypolicies.h>
+
 #include <signal.h>
 
 UA_Boolean running = true;
@@ -111,7 +116,7 @@ UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServe
         return NULL;
     }
 
-    UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Server has %zu endpoints", endpointArraySize);
+    UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Server has %lu endpoints", (unsigned long)endpointArraySize);
     UA_EndpointDescription *foundEndpoint = NULL;
     for (size_t i = 0; i < endpointArraySize; i++) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "\tURL = %.*s, SecurityMode = %s",

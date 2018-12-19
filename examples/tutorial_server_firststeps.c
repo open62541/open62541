@@ -20,7 +20,10 @@
  * you have the ``open62541.c/.h`` files in the current folder. Now create a new
  * C source-file called ``myServer.c`` with the following content: */
 
-#include "open62541.h"
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
+
 #include <signal.h>
 
 UA_Boolean running = true;

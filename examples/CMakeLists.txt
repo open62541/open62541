@@ -9,17 +9,26 @@ set(examples_headers
     ${PROJECT_SOURCE_DIR}/examples/common.h
     )
 
+
+if(UA_ENABLE_AMALGAMATION)
+    add_definitions(-DUA_ENABLE_AMALGAMATION)
+endif()
+
 #############################
 # Compiled binaries folders #
 #############################
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR}/bin/examples)
 
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN} ${examples_headers})
   target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
   assign_source_group(${EXAMPLE_SOURCE})
-  add_dependencies(${EXAMPLE_NAME} open62541-amalgamation-header open62541-amalgamation-source)
+  add_dependencies(${EXAMPLE_NAME} open62541-object)
   set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
   set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
   if(UA_COMPILE_AS_CXX)
@@ -65,11 +74,31 @@ endif()
 
 add_example(server_ctt server_ctt.c)
 
+if (WIN32)
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/server_ctt.exe
+            DESTINATION bin
+            RENAME ua_server_ctt.exe)
+else()
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/server_ctt
+            DESTINATION bin
+            RENAME ua_server_ctt)
+endif()
+
 ##################
 # Example Client #
 ##################
 
 add_example(client client.c)
+
+if (WIN32)
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/client.exe
+            DESTINATION bin
+            RENAME ua_client.exe)
+else()
+    install(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/client
+            DESTINATION bin
+            RENAME ua_client)
+endif()
 
 add_example(client_async client_async.c)
 

@@ -1,7 +1,13 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "open62541.h"
+
+#ifdef UA_ENABLE_AMALGAMATION
+# include <open62541.h>
+#else
+# include "ua_types.h"
+# include "ua_types_generated_handling.h"
+#endif
 
 /* loadFile parses the certificate file.
  *
