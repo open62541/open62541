@@ -478,42 +478,32 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
         return;
 
     UA_ReadResponse rr = *(UA_ReadResponse *) response;
-    if ((rr.resultsSize == 0) || (rr.results == NULL))
-    {
-        return;
-    }
-
-    if (rr.results[0].status != UA_STATUSCODE_GOOD)
-        UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
-
-    UA_Variant out;
-    UA_Variant_init(&out);
     UA_DataValue *res = rr.results;
-    if (!res->hasValue) {
-        return;
-    }
-
-    /*__UA_Client_readAttribute*/
-    memcpy(&out, &res->value, sizeof(UA_Variant));
-    /* Copy value into out */
-    if (cc->attributeId == UA_ATTRIBUTEID_VALUE) {
+    if ((rr.resultsSize > 0) && (res != NULL) && (res->hasValue)) {
+        UA_Variant out;
+        UA_Variant_init(&out);
+        /*__UA_Client_readAttribute*/
         memcpy(&out, &res->value, sizeof(UA_Variant));
-        UA_Variant_init(&res->value);
-    } else if (cc->attributeId == UA_ATTRIBUTEID_NODECLASS) {
-        memcpy(&out, (UA_NodeClass*) res->value.data, sizeof(UA_NodeClass));
-    } else if (UA_Variant_isScalar(&res->value)
-            && res->value.type == cc->outDataType) {
-        memcpy(&out, res->value.data, res->value.type->memSize);
-        UA_free(res->value.data);
-        res->value.data = NULL;
-    }
+        /* Copy value into out */
+        if (cc->attributeId == UA_ATTRIBUTEID_VALUE) {
+            memcpy(&out, &res->value, sizeof(UA_Variant));
+            UA_Variant_init(&res->value);
+        } else if (cc->attributeId == UA_ATTRIBUTEID_NODECLASS) {
+            memcpy(&out, (UA_NodeClass*) res->value.data, sizeof(UA_NodeClass));
+        } else if (UA_Variant_isScalar(&res->value)
+                && res->value.type == cc->outDataType) {
+            memcpy(&out, res->value.data, res->value.type->memSize);
+            UA_free(res->value.data);
+            res->value.data = NULL;
+        }
 
-    //use callbackId to find the right custom callback
-    cc->callback(client, userdata, requestId, &out);
+        //use callbackId to find the right custom callback
+        cc->callback(client, userdata, requestId, &out);
+        UA_Variant_deleteMembers(&out);
+    }
     LIST_REMOVE(cc, pointers);
     UA_free(cc);
     UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
-    UA_Variant_deleteMembers(&out);
 }
 
 /*Read Attributes*/
