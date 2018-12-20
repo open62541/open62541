@@ -54,6 +54,36 @@ if ! [ -z ${FUZZER+x} ]; then
     exit 0
 fi
 
+# INSTALL build test
+if ! [ -z ${INSTALL+x} ]; then
+
+    # Use make install to deploy files and then test if we can build an example based on the installed files
+    mkdir -p build
+    cd build
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_INSTALL_PREFIX=$TRAVIS_BUILD_DIR/open62541_install ..
+    make install
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+
+    cd .. && rm build -rf
+
+    # Now create a simple CMake Project which uses the installed file
+    mkdir compile && cd compile
+cat > CMakeLists.txt <<- EOM
+cmake_minimum_required(VERSION 2.8)
+project(install-test)
+find_package(open62541 REQUIRED COMPONENTS FullNamespace)
+add_executable(install-test-example ../examples/tutorial_server_firststeps.c)
+target_link_libraries(install-test-example open62541)
+EOM
+    cmake -DCMAKE_PREFIX_PATH=$TRAVIS_BUILD_DIR/open62541_install .
+    make -j
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd ..
+    rm -rf compile
+    exit 0
+fi
+
 if [ $ANALYZE = "true" ]; then
     echo "=== Running static code analysis ===" && echo -en 'travis_fold:start:script.analyze\\r'
     if ! case $CC in clang*) false;; esac; then
