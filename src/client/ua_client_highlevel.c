@@ -456,54 +456,50 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     UA_ReadResponse_deleteMembers(&response);
     return retval;
 }
-/*Async Functions*/
 
-/*highlevel callbacks
- * used to hide response handling details*/
+/* Async Functions */
+
 static
-void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
-        void *response) {
-
-    if (response == NULL) {
+void ValueAttributeRead(UA_Client *client, void *userdata,
+                        UA_UInt32 requestId, void *response) {
+    if(!response)
         return;
-    }
 
+    /* Find the callback for the response */
     CustomCallback *cc;
-    LIST_FOREACH(cc, &client->customCallbacks, pointers)
-    {
-        if (cc->callbackId == requestId)
+    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
+        if(cc->callbackId == requestId)
             break;
     }
-    if (!cc)
+    if(!cc)
         return;
 
-    UA_ReadResponse rr = *(UA_ReadResponse *) response;
-    UA_DataValue *res = rr.results;
-    if ((rr.resultsSize > 0) && (res != NULL) && (res->hasValue)) {
-        UA_Variant out;
-        UA_Variant_init(&out);
-        /*__UA_Client_readAttribute*/
-        memcpy(&out, &res->value, sizeof(UA_Variant));
-        /* Copy value into out */
-        if (cc->attributeId == UA_ATTRIBUTEID_VALUE) {
-            memcpy(&out, &res->value, sizeof(UA_Variant));
-            UA_Variant_init(&res->value);
-        } else if (cc->attributeId == UA_ATTRIBUTEID_NODECLASS) {
-            memcpy(&out, (UA_NodeClass*) res->value.data, sizeof(UA_NodeClass));
-        } else if (UA_Variant_isScalar(&res->value)
-                && res->value.type == cc->outDataType) {
-            memcpy(&out, res->value.data, res->value.type->memSize);
-            UA_free(res->value.data);
-            res->value.data = NULL;
+    UA_ReadResponse *rr = (UA_ReadResponse *) response;
+    UA_DataValue *res = rr->results;
+    UA_Boolean done = false;
+    if(rr->resultsSize == 1 && res != NULL && res->hasValue) {
+        if(cc->attributeId == UA_ATTRIBUTEID_VALUE) {
+            /* Call directly with the variant */
+            cc->callback(client, userdata, requestId, &res->value);
+            done = true;
+        } else if(UA_Variant_isScalar(&res->value) &&
+                  res->value.type == cc->outDataType) {
+            /* Unpack the value */
+            UA_STACKARRAY(UA_Byte, value, cc->outDataType->memSize);
+            memcpy(&value, res->value.data, cc->outDataType->memSize);
+            cc->callback(client, userdata, requestId, &value);
+            done = true;
         }
-
-        //use callbackId to find the right custom callback
-        cc->callback(client, userdata, requestId, &out);
-        UA_Variant_deleteMembers(&out);
     }
+
+    /* Could not process, delete the callback anyway */
+    if(!done)
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Cannot process the response to the async read "
+                    "request %u", requestId);
+
     LIST_REMOVE(cc, pointers);
     UA_free(cc);
-    UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
 }
 
 /*Read Attributes*/
@@ -521,8 +517,8 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
     request.nodesToReadSize = 1;
 
     __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-            ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE], userdata,
-            reqId);
+                             ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE],
+                             userdata, reqId);
 
     CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
     if (!cc)
