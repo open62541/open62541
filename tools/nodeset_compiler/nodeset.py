@@ -227,7 +227,6 @@ class NodeSet(object):
 
 
         # Extract the modelUri
-        modelUri = None
         try:
             modelTag = nodeset.getElementsByTagName("Models")[0].getElementsByTagName("Model")[0]
             modelUri = modelTag.attributes["ModelUri"].nodeValue
@@ -238,12 +237,11 @@ class NodeSet(object):
 
         # Create the namespace mapping
         orig_namespaces = extractNamespaces(xmlfile)  # List of namespaces used in the xml file
-        if modelUri is None and len(orig_namespaces) > 0:
-            modelUri = orig_namespaces[0]
+        if modelUri is None and len(orig_namespaces) > 1:
+            modelUri = orig_namespaces[1]
 
         if modelUri is None:
             raise Exception(self, self.originXML + " does not define the nodeset URI in Models/Model/ModelUri or NamespaceUris array.")
-
 
         for ns in orig_namespaces:
             self.addNamespace(ns)
