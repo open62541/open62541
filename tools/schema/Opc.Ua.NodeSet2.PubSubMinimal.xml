@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2016-12-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <Models>
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2016-12-31T00:00:00Z" />
+  </Models>
   <UAObjectType NodeId="i=15906" BrowseName="PubSubKeyServiceType">
     <DisplayName>PubSubKeyServiceType</DisplayName>
     <References>

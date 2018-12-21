@@ -122,6 +122,8 @@ else:
 # Parse the XML files
 ns = NodeSet()
 nsCount = 0
+loadedFiles = list()
+
 
 def getTypesArray(nsIdx):
     if nsIdx < len(args.typesArray):
@@ -130,10 +132,18 @@ def getTypesArray(nsIdx):
         return "UA_TYPES"
 
 for xmlfile in args.existing:
+    if xmlfile.name in loadedFiles:
+        logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
+        continue
+    loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) " + str(xmlfile.name))
     ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
     nsCount +=1
 for xmlfile in args.infiles:
+    if xmlfile.name in loadedFiles:
+        logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
+        continue
+    loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing " + str(xmlfile.name))
     ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
     nsCount +=1
