@@ -565,20 +565,16 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+void
 Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session, "Subscription %u | "
                          "Unregister subscription publishing callback", sub->subscriptionId);
 
     if(!sub->publishCallbackIsRegistered)
-        return UA_STATUSCODE_GOOD;
+        return;
 
-    UA_StatusCode retval = UA_Server_removeRepeatedCallback(server, sub->publishCallbackId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
+    UA_Server_removeRepeatedCallback(server, sub->publishCallbackId);
     sub->publishCallbackIsRegistered = false;
-    return UA_STATUSCODE_GOOD;
 }
 
 /* When the session has publish requests stored but the last subscription is

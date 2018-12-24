@@ -308,6 +308,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 /***********************************/
 /*      PubSub Jobs abstraction    */
 /***********************************/
+
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                                      void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
@@ -321,9 +322,9 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 cal
     return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId, interval_ms);
 }
 
-UA_StatusCode
+void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
-    return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
+    UA_Timer_removeCallback(&server->timer, callbackId);
 }
 
 #endif /* UA_ENABLE_PUBSUB */

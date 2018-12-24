@@ -373,12 +373,12 @@ UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon
     return retval;
 }
 
-UA_StatusCode
+void
 UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     if(!mon->sampleCallbackIsRegistered)
-        return UA_STATUSCODE_GOOD;
+        return;
+    UA_Server_removeRepeatedCallback(server, mon->sampleCallbackId);
     mon->sampleCallbackIsRegistered = false;
-    return UA_Server_removeRepeatedCallback(server, mon->sampleCallbackId);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

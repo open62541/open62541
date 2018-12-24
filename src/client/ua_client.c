@@ -631,13 +631,18 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
                                     responseType, userdata, requestId);
 }
 
+UA_StatusCode UA_EXPORT
+UA_Client_addTimedCallback(UA_Client *client, UA_ClientCallback callback,
+                           void *data, UA_DateTime date, UA_UInt64 *callbackId) {
+    return UA_Timer_addTimedCallback(&client->timer, (UA_ApplicationCallback) callback,
+                                     client, data, date, callbackId);
+}
+
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
-                              void *data, UA_Double interval_ms,
-                              UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&client->timer,
-                                        (UA_ApplicationCallback) callback, client, data,
-                                        interval_ms, callbackId);
+                              void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback(&client->timer, (UA_ApplicationCallback) callback,
+                                        client, data, interval_ms, callbackId);
 }
 
 UA_StatusCode
@@ -647,7 +652,7 @@ UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId
                                                    interval_ms);
 }
 
-UA_StatusCode
-UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId) {
-    return UA_Timer_removeRepeatedCallback(&client->timer, callbackId);
+void
+UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
+    UA_Timer_removeCallback(&client->timer, callbackId);
 }
