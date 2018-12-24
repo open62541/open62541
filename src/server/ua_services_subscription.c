@@ -34,13 +34,7 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_UInt32 requestedMaxKeepAliveCount,
                         UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
     /* deregister the callback if required */
-    UA_StatusCode retval = Subscription_unregisterPublishCallback(server, subscription);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, subscription->session,
-                             "Subscription %u | Could not unregister publish callback with error code %s",
-                             subscription->subscriptionId, UA_StatusCode_name(retval));
-        return retval;
-    }
+    Subscription_unregisterPublishCallback(server, subscription);
 
     /* re-parameterize the subscription */
     subscription->publishingInterval = requestedPublishingInterval;
@@ -61,7 +55,7 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
         subscription->notificationsPerPublish = server->config.maxNotificationsPerPublish;
     subscription->priority = priority;
 
-    retval = Subscription_registerPublishCallback(server, subscription);
+    UA_StatusCode retval = Subscription_registerPublishCallback(server, subscription);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, subscription->session,
                              "Subscription %u | Could not register publish callback with error code %s",

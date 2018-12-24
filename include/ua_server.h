@@ -77,14 +77,32 @@ UA_StatusCode UA_EXPORT
 UA_Server_run_shutdown(UA_Server *server);
 
 /**
- * Repeated Callbacks
- * ------------------ */
+ * Timed Callbacks
+ * --------------- */
 typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
+/* Add a callback for execution at a specified time. If the indicated time lies
+ * in the past, then the callback is executed at the next iteration of the
+ * server's main loop.
+ *
+ * @param server The server object.
+ * @param callback The callback that shall be added.
+ * @param data Data that is forwarded to the callback.
+ * @param date The timestamp for the execution time.
+ * @param callbackId Set to the identifier of the repeated callback . This can
+ *        be used to cancel the callback later on. If the pointer is null, the
+ *        identifier is not set.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
+ *         otherwise. */
+UA_StatusCode UA_EXPORT
+UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
+                           void *data, UA_DateTime date, UA_UInt64 *callbackId);
 
 /* Add a callback for cyclic repetition to the server.
  *
  * @param server The server object.
  * @param callback The callback that shall be added.
+ * @param data Data that is forwarded to the callback.
  * @param interval_ms The callback shall be repeatedly executed with the given
  *        interval (in ms). The interval must be positive. The first execution
  *        occurs at now() + interval at the latest.
@@ -101,14 +119,15 @@ UA_StatusCode UA_EXPORT
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms);
 
-/* Remove a repeated callback.
+/* Remove a repeated callback. Does nothing if the callback is not found.
  *
  * @param server The server object.
- * @param callbackId The id of the callback that shall be removed.
- * @return Upon success, UA_STATUSCODE_GOOD is returned.
- *         An error code otherwise. */
-UA_StatusCode UA_EXPORT
-UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
+ * @param callbackId The id of the callback */
+void UA_EXPORT
+UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
+
+#define UA_Server_removeRepeatedCallback(server, callbackId) \
+    UA_Server_removeCallback(server, callbackId);
 
 /**
  * Reading and Writing Node Attributes

@@ -258,9 +258,17 @@ UA_Server_new(const UA_ServerConfig *config) {
     return server;
 }
 
-/*****************/
-/* Repeated Jobs */
-/*****************/
+/*******************/
+/* Timed Callbacks */
+/*******************/
+
+UA_StatusCode
+UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
+                           void *data, UA_DateTime date, UA_UInt64 *callbackId) {
+    return UA_Timer_addTimedCallback(&server->timer,
+                                     (UA_ApplicationCallback)callback,
+                                     server, data, date, callbackId);
+}
 
 UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
@@ -278,9 +286,9 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
                                                    interval_ms);
 }
 
-UA_StatusCode
-UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId) {
-    return UA_Timer_removeRepeatedCallback(&server->timer, callbackId);
+void
+UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
+    UA_Timer_removeCallback(&server->timer, callbackId);
 }
 
 UA_StatusCode UA_EXPORT
