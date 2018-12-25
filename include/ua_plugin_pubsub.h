@@ -85,7 +85,6 @@ typedef struct {
     UA_PubSubChannel * (*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
 } UA_PubSubTransportLayer;
 
-
 /**
  * The UA_ServerConfig_addPubSubTransportLayer is used to add a transport
  * layer to the server configuration. The list memory is allocated and will be freed with
@@ -96,7 +95,7 @@ typedef struct {
  *
  * .. note:: This has to be done before the server is started with UA_Server_run.
  */
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
         UA_PubSubTransportLayer *pubsubTransportLayer);
 
