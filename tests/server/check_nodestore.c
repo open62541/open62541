@@ -10,6 +10,7 @@
 #include "ua_plugin_nodestore.h"
 #include "ua_nodestore_default.h"
 #include "ua_util.h"
+#include "ziptree.h"
 #include "check.h"
 
 /* container_of */
@@ -22,16 +23,23 @@
 
 /* Dirty redifinition from ua_nodestore_default.c to check that all nodes were
  * released */
-typedef struct UA_NodeMapEntry {
-    struct UA_NodeMapEntry *orig; /* the version this is a copy from (or NULL) */
+struct NodeEntry;
+typedef struct NodeEntry NodeEntry;
+
+struct NodeEntry {
+    ZIP_ENTRY(NodeEntry) zipfields;
+    UA_UInt32 nodeIdHash;
     UA_UInt16 refCount; /* How many consumers have a reference to the node? */
     UA_Boolean deleted; /* Node was marked as deleted and can be deleted when refCount == 0 */
-    UA_Node node;
-} UA_NodeMapEntry;
+    NodeEntry *orig;    /* If a copy is made to replace a node, track that we
+                         * replace only the node from which the copy was made.
+                         * Important for concurrent operations. */
+    UA_NodeId nodeId; /* This is actually a UA_Node that also starts with a NodeId */
+};
 
 static void checkAllReleased(void *context, const UA_Node* node) {
-    UA_NodeMapEntry *entry = container_of(node, UA_NodeMapEntry, node);
-    ck_assert_int_eq(entry->refCount, 1); /* The count is increased when the visited node is checked out */
+    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
+    ck_assert_int_eq(entry->refCount, 0); /* The count is increased when the visited node is checked out */
 }
 
 UA_Nodestore ns;
