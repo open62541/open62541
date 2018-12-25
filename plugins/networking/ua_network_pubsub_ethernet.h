@@ -11,7 +11,7 @@
 
 _UA_BEGIN_DECLS
 
-UA_PubSubTransportLayer
+UA_PubSubTransportLayer UA_EXPORT
 UA_PubSubTransportLayerEthernet(void);
 
 _UA_END_DECLS
