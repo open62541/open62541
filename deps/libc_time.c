@@ -114,10 +114,11 @@ long long __year_to_secs(long long year, int *is_leap)
         }
 	cycles = (int)((year-100) / 400);
 	rem = (int)((year-100) % 400);
+	/* Comparison is always false because rem >= 0.
 	if (rem < 0) {
 		cycles--;
 		rem += 400;
-	}
+	} */
 	if (!rem) {
 		*is_leap = 1;
 		centuries = 0;
