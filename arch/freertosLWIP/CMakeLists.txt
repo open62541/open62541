@@ -2,7 +2,7 @@ SET(SOURCE_GROUP ${SOURCE_GROUP}\\freertosLWIP)
 
 ua_add_architecture("freertosLWIP")
 
-list (FIND UA_AMALGAMATION_ARCHITECUTRES "freertosLWIP" _index)
+list (FIND UA_AMALGAMATION_ARCHITECTURES "freertosLWIP" _index)
 if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "freertosLWIP")
 
     ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_clock.c)
