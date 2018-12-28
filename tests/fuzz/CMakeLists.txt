@@ -92,6 +92,11 @@ add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 
+if(UA_ENABLE_JSON_ENCODING)
+    add_fuzzer(fuzz_json_decode fuzz_json_decode.cc)
+    add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
+endif()
+
 file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
 
 SET(CORPUS_CMDS "")
