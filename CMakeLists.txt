@@ -219,6 +219,9 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     endif()
 endif()
 
+option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
+mark_as_advanced(UA_ENABLE_JSON_ENCODING)
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -618,6 +621,24 @@ if(UA_ENABLE_PUBSUB)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_ethernet.c)
     endif()
+endif()
+
+if(UA_ENABLE_JSON_ENCODING)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.h
+                                 ${PROJECT_SOURCE_DIR}/deps/string_escape.h
+                                 ${PROJECT_SOURCE_DIR}/deps/itoa.h
+                                 ${PROJECT_SOURCE_DIR}/deps/atoi.h
+                                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/jsmn/jsmn.c
+                            ${PROJECT_SOURCE_DIR}/deps/string_escape.c
+                            ${PROJECT_SOURCE_DIR}/deps/itoa.c
+                            ${PROJECT_SOURCE_DIR}/deps/atoi.c
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
+endif()
+
+if(UA_ENABLE_CUSTOM_LIBC)
+     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/musl/floatscan.c
+                             ${PROJECT_SOURCE_DIR}/deps/musl/vfprintf.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
@@ -1108,3 +1129,4 @@ set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
+
