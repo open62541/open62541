@@ -88,9 +88,9 @@ sendHELMessage(UA_Client *client) {
     /* Get a buffer */
     UA_ByteString message;
     UA_Connection *conn = &client->connection;
-    UA_StatusCode status = conn->getSendBuffer(conn, UA_MINMESSAGESIZE, &message);
-    if(status != UA_STATUSCODE_GOOD)
-        return status;
+    UA_StatusCode retval = conn->getSendBuffer(conn, UA_MINMESSAGESIZE, &message);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
@@ -107,22 +107,22 @@ sendHELMessage(UA_Client *client) {
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos - (uintptr_t)message.data);
     bufPos = message.data;
-    status = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
-    if(status != UA_STATUSCODE_GOOD) {
+    retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
         conn->releaseSendBuffer(conn, &message);
-        return status;
+        return retval;
     }
 
     /* Send the HEL message */
     message.length = messageHeader.messageSize;
-    status = conn->send (conn, &message);
+    retval = conn->send (conn, &message);
 
-    if(status == UA_STATUSCODE_GOOD) {
+    if(retval == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Sent HEL message");
     } else {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Sending HEL failed");
     }
-    return status;
+    return retval;
 }
 
 static void
