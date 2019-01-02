@@ -297,9 +297,9 @@ class StructType(Type):
             if child.get("Name") in lengthfields:
                 continue
             switchField = child.get("SwitchField")
-            if switchField != None:
+            if switchField is not None:
                 switchValue = child.get("SwitchValue")
-                if switchValue == None:
+                if switchValue is None:
                     switchValue = 1
                 memberName = switchField[:1].lower() + switchField[1:]
                 if memberName in self.bitFlags:
