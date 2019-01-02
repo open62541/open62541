@@ -71,6 +71,9 @@ typedef struct {
     * 0 = background task disabled */
     UA_UInt32 connectivityCheckInterval;
 
+    /* session timeout in ms */
+    UA_UInt32 requestedSessionTimeout;
+
     /* When connectivityCheckInterval is greater than 0, every
      * connectivityCheckInterval (in ms), a async read request is performed on
      * the server. inactivityCallback is called when the client receive no
