@@ -1,11 +1,12 @@
-open62541
-=========
+# open62541
 
-open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture) written in the common subset of the C99 and C++98 languages. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. open62541 library is platform independent. All platform-specific functionality is implemented via exchangeable plugins. Plugin implementations are provided for the major operating systems.
+open62541 (<http://open62541.org>) is an open source and free implementation of OPC UA (OPC Unified Architecture) written in the common subset of the C99 and C++98 languages. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. open62541 library is platform independent. All platform-specific functionality is implemented via exchangeable plugins. Plugin implementations are provided for the major operating systems.
 
 open62541 is licensed under the Mozilla Public License v2.0. So the *open62541 library can be used in projects that are not open source*. Only changes to the open62541 library itself need to published under the same license. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
 
 The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
+
+## Project Information
 
 Build Status:
 
@@ -16,16 +17,15 @@ Code Quality:
 
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/68ad08e897624c77a64fc2be66ca7b50)](https://www.codacy.com/app/open62541/open62541?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=open62541/open62541&amp;utm_campaign=Badge_Grade)
 [![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
-
 [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
-
 [![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
 
 General Project Info:
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
+
 
 ### Features
 
@@ -97,6 +97,8 @@ Jointly with the overall open62541 community, the core maintainers steer the lon
 - Julius Pfrommer (Fraunhofer IOSB, Karlsruhe)
 - Stefan Profanter (fortiss, Munich)
 
+## Support & Development
+
 ### Commercial Support
 
 The open62541 community handles support requests for the open source library and its development. Custom development and individual support is provided by commercial partners that are affiliated with open62541:
@@ -113,6 +115,8 @@ As an open source project, new contributors are encouraged to help improve open6
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
+
+## Examples
 
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.

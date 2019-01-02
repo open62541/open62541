@@ -75,9 +75,9 @@ The following points will be especially looked at during the review.
 
 These labels can be used for the PR title to indicate its status.
 
-- [WIP]: The PR is work in progress and at this point simply informative.
-- [Review]: The PR is ready from the developers perspective. He requests a review from a core-maintainer.
-- [Discussion]: The PR is a contribution to ongoing technical discussions. The PR may be incomplete and is not intended to be merged before the discussion has concluded.
+- `[WIP]`: The PR is work in progress and at this point simply informative.
+- `[Review]`: The PR is ready from the developers perspective. He requests a review from a core-maintainer.
+- `[Discussion]`: The PR is a contribution to ongoing technical discussions. The PR may be incomplete and is not intended to be merged before the discussion has concluded.
 
 The core-maintainers are busy people. If they take especially long to react,
 feel free to trigger them by additional comments in the PR thread. Again, small
