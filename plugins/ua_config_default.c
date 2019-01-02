@@ -727,6 +727,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
     NULL, /* .stateCallback */
     0,    /* .connectivityCheckInterval */
 
+    1200000, /* requestedSessionTimeout */
+
     NULL, /* .inactivityCallback */
     NULL, /* .clientContext */
 
