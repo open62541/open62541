@@ -161,9 +161,16 @@ typedef struct HookListEntry {
     LIST_ENTRY(HookListEntry) pointers;
 } HookListEntry;
 
+/**
+ * Convenience alias for passing the list as parameter.
+ */
+typedef struct HookList {
+    LIST_HEAD(, HookListEntry) list;
+} HookList;
+
 struct UA_DataSocketFactory {
-    LIST_HEAD(, HookListEntry) creationHooks;
-    LIST_HEAD(, HookListEntry) deletionHooks;
+    HookList creationHooks;
+    HookList deletionHooks;
 
     UA_Logger *logger;
 
@@ -189,7 +196,7 @@ UA_DataSocketFactory_addCreationHook(UA_DataSocketFactory *factory, UA_SocketHoo
         return UA_STATUSCODE_BADOUTOFMEMORY;
     hookListEntry->hook = hook;
 
-    LIST_INSERT_HEAD(&factory->creationHooks, hookListEntry, pointers);
+    LIST_INSERT_HEAD(&factory->creationHooks.list, hookListEntry, pointers);
     UA_LOG_TRACE(factory->logger, UA_LOGCATEGORY_NETWORK, "Added deletion hook.");
     return UA_STATUSCODE_GOOD;
 }
@@ -201,7 +208,7 @@ UA_DataSocketFactory_addDeletionHook(UA_DataSocketFactory *factory, UA_SocketHoo
         return UA_STATUSCODE_BADOUTOFMEMORY;
     hookListEntry->hook = hook;
 
-    LIST_INSERT_HEAD(&factory->deletionHooks, hookListEntry, pointers);
+    LIST_INSERT_HEAD(&factory->deletionHooks.list, hookListEntry, pointers);
     UA_LOG_TRACE(factory->logger, UA_LOGCATEGORY_NETWORK, "Added deletion hook");
     return UA_STATUSCODE_GOOD;
 }

@@ -38,6 +38,7 @@ UA_TCP_ListenerSockets(UA_UInt32 port,
                        size_t *sockets_size);
 
 UA_StatusCode
-UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Socket **p_socket);
+UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Socket **p_socket, HookList creationHooks,
+                             HookList deletionHooks, UA_Logger *logger);
 
 #endif //OPEN62541_UA_SOCKETS_H
