@@ -13,17 +13,12 @@ Fill out the sections and checklist below (add text at the end of each line).
 --------------------------------------------------------------------------------
 -->
 
-Description
-===========
+## Description
 
+## Background Information / Reproduction Steps
 
-Background Information / Reproduction Steps
-===========================================
+## Checklist
 
-
-
-Checklist
-=========
 Please provide the following information:
 
  - [ ] open62541 Version (release number or git tag):
