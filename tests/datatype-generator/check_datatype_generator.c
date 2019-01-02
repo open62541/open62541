@@ -5,16 +5,11 @@
 #include "ua_server.h"
 #include "ua_config_default.h"
 
-#include "ua_types.h"
-
 #include "test_types_generated.h"
 #include "test_types_generated_handling.h"
 #include "test_types_generated_encoding_binary.h"
 
 #include "check.h"
-#include "testing_clock.h"
-
-#include "unistd.h"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
