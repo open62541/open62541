@@ -306,7 +306,7 @@ class StructType(Type):
                     # Assume all flags have already been seen as they must appear first
                     switchField = self.bitFlags.index(memberName)
                 else:
-                    assert("Union Switchfields are not yet supported")
+                    raise Exception("Union Switchfields are not yet supported")
             else:
                 switchField = -1
                 switchValue = 0
