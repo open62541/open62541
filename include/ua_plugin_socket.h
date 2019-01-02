@@ -174,10 +174,10 @@ struct UA_DataSocketFactory {
      * proper cleanup.
      *
      * @param factory the factory to perform the operation on.
-     * @param socket the socket the DataSocket is created from (accepted from)
+     * @param listenerSocket the socket the DataSocket is created from (accepted from)
      * @return
      */
-    UA_StatusCode (*buildSocket)(UA_DataSocketFactory *factory, UA_Socket *socket);
+    UA_StatusCode (*buildSocket)(UA_DataSocketFactory *factory, UA_Socket *listenerSocket);
 
     UA_Socket_DataCallback socketDataCallback;
 };

@@ -34,6 +34,10 @@ UA_TCP_ListenerSockets(UA_UInt32 port,
                        UA_DataSocketFactory *dataSocketFactory,
                        UA_Logger *logger,
                        UA_ByteString *customHostname,
-                       UA_Socket **sockets[]);
+                       UA_Socket **sockets[],
+                       size_t *sockets_size);
+
+UA_StatusCode
+UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Socket **p_socket);
 
 #endif //OPEN62541_UA_SOCKETS_H

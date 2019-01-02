@@ -247,7 +247,8 @@ UA_TCP_ListenerSockets(UA_UInt32 port,
                        UA_DataSocketFactory *dataSocketFactory,
                        UA_Logger *logger,
                        UA_ByteString *customHostname,
-                       UA_Socket **p_sockets[]) {
+                       UA_Socket **p_sockets[],
+                       size_t *sockets_size) {
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(dataSocketFactory == NULL || logger == NULL || p_sockets == NULL) {
@@ -267,17 +268,21 @@ UA_TCP_ListenerSockets(UA_UInt32 port,
 
     /* There might be serveral addrinfos (for different network cards,
      * IPv4/IPv6). Add a server socket for all of them. */
-    size_t numSockets = 0;
-    for(struct addrinfo *ai = res; numSockets < FD_SETSIZE && ai != NULL; ai = ai->ai_next, ++numSockets);
-    UA_Socket **sockets = (UA_Socket **)UA_malloc(sizeof(UA_Socket *));
+    *sockets_size = 0;
+    for(struct addrinfo *ai = res;
+        *sockets_size < FD_SETSIZE && ai != NULL;
+        ai = ai->ai_next, ++*sockets_size) {/* counting */}
+    UA_Socket **sockets = (UA_Socket **)UA_malloc(sizeof(UA_Socket *) * *sockets_size);
     if(sockets == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    for(struct addrinfo *ai = res; numSockets > 0 && ai != NULL; --numSockets, ai = ai->ai_next) {
+    for(struct addrinfo *ai = res; *sockets_size > 0 && ai != NULL; --*sockets_size, ai = ai->ai_next) {
         retval = UA_TCP_ListenerSocketFromAddrinfo(ai, dataSocketFactory, logger,
-                                                   customHostname, &sockets[numSockets - 1]);
+                                                   customHostname, &sockets[*sockets_size - 1]);
     }
     UA_freeaddrinfo(res);
+
+    *p_sockets = sockets;
 
     return retval;
 }
