@@ -1,0 +1,491 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/test/Types.xsd" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <NamespaceUris>
+        <Uri>http://yourorganisation.org/test/</Uri>
+    </NamespaceUris>
+    <Aliases>
+        <Alias Alias="Int32">i=6</Alias>
+        <Alias Alias="UInt32">i=7</Alias>
+        <Alias Alias="Double">i=11</Alias>
+        <Alias Alias="Organizes">i=35</Alias>
+        <Alias Alias="HasModellingRule">i=37</Alias>
+        <Alias Alias="HasEncoding">i=38</Alias>
+        <Alias Alias="HasTypeDefinition">i=40</Alias>
+        <Alias Alias="HasSubtype">i=45</Alias>
+        <Alias Alias="HasComponent">i=47</Alias>
+        <Alias Alias="IdType">i=256</Alias>
+        <Alias Alias="Argument">i=296</Alias>
+        <Alias Alias="Point3D">ns=1;i=3002</Alias>
+        <Alias Alias="Point">ns=1;i=10001</Alias>
+    </Aliases>
+    <Extensions>
+        <Extension>
+            <ua:ModelInfo Tool="UaModeler" Hash="NY/CbF6sk/OjLXFpjvfTAA==" Version="1.6.2"/>
+        </Extension>
+    </Extensions>
+    <!-->Struct with builtin members<-->
+    <UADataType NodeId="ns=1;i=10001" BrowseName="1:Point">
+        <DisplayName>Point</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+        </References>
+        <Definition Name="1:Point">
+            <Field DataType="Double" Name="x"/>
+            <Field DataType="Double" Name="y"/>
+        </Definition>
+    </UADataType>
+    <UADataType NodeId="ns=1;i=10008" BrowseName="1:NestedPoint">
+        <DisplayName>NestedPoint</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+        </References>
+        <Definition Name="1:Point">
+            <Field DataType="Double" Name="x"/>
+            <Field DataType="Double" Name="y"/>
+            <Field DataType="ns=1;i=10001" Name="Point1" />
+        </Definition>
+    </UADataType>
+    <UAObject SymbolicName="DefaultBinary" NodeId="ns=1;i=5002" BrowseName="Default Binary">
+        <DisplayName>Default Binary</DisplayName>
+        <References>
+            <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=10001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+        </References>
+    </UAObject>    
+    <UAObject NodeId="ns=1;i=5100" BrowseName="1:BuiltinTypes">
+        <DisplayName>BuiltinTypes</DisplayName>
+        <References>
+            <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+        </References>
+    </UAObject>
+    <UAVariable DataType="ByteString" NodeId="ns=1;i=16002" BrowseName="1:ByteString_scalar_init" AccessLevel="3">
+        <DisplayName>ByteString_scalar_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <ByteString>SGVsbG9Xb3JsZA==</ByteString>
+        </Value>
+    </UAVariable>
+    <!--ValueRank>
+    OPC UA spec part 3, NodeClass Variable
+    -3: Scalar or 1-dim
+    -2: Any, value can be a scalar or an array with any number of dimensions
+    -1: scalar
+     0: value is array with one or more dimensions
+     1: array with one dimension
+     n>1: array with with the specified numbers of dimensions
+    <-->
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8001" BrowseName="1:Int32_scalar_noInit_withoutValueRank" AccessLevel="3">
+        <DisplayName>Int32_scalar_noInit_withoutValueRank</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>        
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8002" BrowseName="1:Int32_scalar_Init_ValueRank=-3" AccessLevel="3" ValueRank="-3">
+        <DisplayName>Int32_scalar_Init_ValueRank=-3</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>            
+            <Int32>1</Int32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8003" BrowseName="1:Int32_1dim_Init_ValueRank=-3" AccessLevel="3" ValueRank="-3">
+        <DisplayName>Int32_1dim_Init_ValueRank=-3</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <ListOfInt32>
+                <Int32>1</Int32>
+                <Int32>2</Int32>
+            </ListOfInt32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8004" BrowseName="1:Int32_scalar_noInit_ValueRank=-2" AccessLevel="3" ValueRank="-2">
+        <DisplayName>Int32_scalar_noInit_ValueRank=-2</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>        
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8005" BrowseName="1:Int32_scalar_noInit_ValueRank=-1" AccessLevel="3" ValueRank="-1">
+        <DisplayName>Int32_scalar_noInit_ValueRank=-1</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <ListOfInt32>
+                <Int32>1</Int32>
+                <Int32>2</Int32>
+            </ListOfInt32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8006" BrowseName="1:Int32_OneOrMoreDim_noInit_ValueRank=0" AccessLevel="3" ValueRank="0">
+        <DisplayName>Int32_scalar_noInit_ValueRank=0</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>        
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8007" BrowseName="1:Int32_1dim_noInit_ValueRank=1" AccessLevel="3" ValueRank="1">
+        <DisplayName>Int32_1dim_noInit_ValueRank=1</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>        
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8008" BrowseName="1:Int32_2dim_noInit_ValueRank=2" AccessLevel="3" ValueRank="2">
+        <DisplayName>Int32_2dim_noInit_ValueRank=2</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>        
+    </UAVariable>
+    <UAVariable DataType="Int32" NodeId="ns=1;i=8009" BrowseName="1:Int32_3dim_noInit_ValueRank=2" AccessLevel="3" ValueRank="3">
+        <DisplayName>Int32_3dim_noInit_ValueRank=2</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>        
+    </UAVariable>
+    <UAVariable DataType="String" NodeId="ns=1;i=16001" BrowseName="1:String_scalar_init" AccessLevel="3">
+        <DisplayName>String_scalar_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <uax:String>Hello World</uax:String>
+        </Value>
+    </UAVariable>
+    <UAObject NodeId="ns=1;i=5001" BrowseName="1:NotBuiltinTypes">
+        <DisplayName>NotBuiltinTypes</DisplayName>
+        <References>            
+            <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+        </References>
+    </UAObject>   
+    <UAVariable DataType="Argument" NodeId="ns=1;i=11493" BrowseName="InputArguments_scalar_init">
+        <DisplayName>InputArguments_scalar_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=297</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <Argument xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                        <Name>argName</Name>
+                        <DataType>
+                            <Identifier>i=1</Identifier>
+                        </DataType>
+                        <ValueRank>-1</ValueRank>                        
+                        <ArrayDimensions>0</ArrayDimensions>
+                        <Description>
+                            <Locale>en</Locale>
+                            <Text>myDescritipon</Text>
+                        </Description>
+                    </Argument>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Point" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=10002" BrowseName="1:Point_scalar_init" AccessLevel="3">
+        <DisplayName>Point_scalar_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>            
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                        <x>1</x>
+                        <y>2</y>
+                    </Point>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <!-->uninitialized scalar point<-->
+    <UAVariable DataType="Point" ParentNodeId="ns=1;i=5001" ValueRank="-1" NodeId="ns=1;i=10005" BrowseName="1:Point_scalar_noInit" AccessLevel="3">
+        <DisplayName>Point_scalar_noInit</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Point" ParentNodeId="ns=1;i=5001" ValueRank="1" NodeId="ns=1;i=10007" BrowseName="1:Point_1dim_noInit" AccessLevel="3">
+        <DisplayName>Point_1dim_noInit</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Point" ParentNodeId="ns=1;i=5001" ValueRank="1" NodeId="ns=1;i=10004" ArrayDimensions="4" BrowseName="1:Point_1dim_init" AccessLevel="3">
+        <DisplayName>Point_1dim_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=0</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>1</x>
+                            <y>2</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=0</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>3</x>
+                            <y>4</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=0</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>5</x>
+                            <y>6</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=0</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>7</x>
+                            <y>8</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="Point" ParentNodeId="ns=1;i=5001" ValueRank="2" NodeId="ns=1;i=10006" ArrayDimensions="2,2" BrowseName="1:Point_2dim_init" AccessLevel="3">
+        <DisplayName>Point_2dim_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>1</x>
+                            <y>2</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>3</x>
+                            <y>4</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>5</x>
+                            <y>6</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                            <x>7</x>
+                            <y>8</y>
+                        </Point>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>    
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5100" NodeId="ns=1;i=5101" BrowseName="1:Double_init" AccessLevel="3">
+        <DisplayName>Double_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+        </References>
+        <Value>
+            <uax:Double>42</uax:Double>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=5100" ValueRank="1" NodeId="ns=1;i=5102" ArrayDimensions="3" BrowseName="1:UInt32_init" AccessLevel="3">
+        <DisplayName>UInt32_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+        </References>
+        <Value>
+            <uax:ListOfUInt32>
+                <uax:UInt32>1</uax:UInt32>
+                <uax:UInt32>2</uax:UInt32>
+                <uax:UInt32>3</uax:UInt32>
+            </uax:ListOfUInt32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="IdType" ParentNodeId="ns=1;i=5001" ValueRank="1" NodeId="ns=1;i=15962" ArrayDimensions="7" BrowseName="Enum_1dim_init">
+        <DisplayName>Enum_init</DisplayName>
+        <Description>A list of IdTypes for nodes which are the same in every server that exposes them.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+        <Value>
+            <uax:ListOfInt32>
+                <uax:Int32>0</uax:Int32>
+                <uax:Int32>1</uax:Int32>
+                <uax:Int32>3</uax:Int32>
+                <uax:Int32>4</uax:Int32>
+                <uax:Int32>5</uax:Int32>
+                <uax:Int32>6</uax:Int32>
+                <uax:Int32>7</uax:Int32>
+            </uax:ListOfInt32>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="IdType" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=15963" BrowseName="Enum_scalar_noInit">
+        <DisplayName>Enum_scalar_noInit</DisplayName>
+        <Description>A list of IdTypes for nodes which are the same in every server that exposes them.</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="i=307" NodeId="ns=1;i=16003" BrowseName="1:ApplicationTye_1dim_noInit" UserAccessLevel="3" AccessLevel="3" ValueRank="1">
+        <DisplayName>ApplicationTye_1dim_noInit</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <ListOfInt32 xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <Int32>0</Int32>
+                <Int32>1</Int32>
+                <Int32>2</Int32>
+                <Int32>3</Int32>
+            </ListOfInt32>
+        </Value>
+    </UAVariable>
+    
+    <UAVariable DataType="Int32" ValueRank="2" NodeId="ns=1;i=6003" ArrayDimensions="3,2" BrowseName="1:Int32_2dim_init" AccessLevel="3">
+        <DisplayName>Int32_2dim_init</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
+        </References>
+        <Value>
+            <uax:ListOfInt32>
+                <uax:Int32>11</uax:Int32>
+                <uax:Int32>21</uax:Int32>
+                <uax:Int32>31</uax:Int32>
+                <uax:Int32>12</uax:Int32>
+                <uax:Int32>22</uax:Int32>
+                <uax:Int32>32</uax:Int32>
+            </uax:ListOfInt32>
+        </Value>
+    </UAVariable>
+    <UADataType NodeId="ns=1;i=3003" BrowseName="1:PointWithArray">
+        <DisplayName>PointWithArray</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+        </References>
+        <Definition Name="1:PointWithArray">
+            <Field DataType="Double" Name="x"/>
+            <Field DataType="Double" Name="y"/>
+            <Field DataType="Double" Name="z"/>
+            <Field DataType="UInt32" Name="array1Size"/>
+            <Field DataType="Double" ValueRank="1" Name="array1"/>
+        </Definition>
+    </UADataType>
+    <UAVariable DataType="ns=1;i=3003" NodeId="ns=1;i=6008" BrowseName="1:PointWithArray_scalar_noInit" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>PointWithArray_scalar_noInit</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <!-->
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>ns=1;i=3003</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <PointWithArray xmlns="http://yourorganisation.org/exported2/Types.xsd">
+                        <x>1.1</x>
+                        <y>2.2</y>
+                        <z>3.3</z>
+                        <array1Size>1</array1Size>
+                        <array1><Double>1.1</Double></array1>
+                    </PointWithArray>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>-->
+    </UAVariable>
+    <UAVariable DataType="ns=1;i=10008" NodeId="ns=1;i=6009" BrowseName="1:NestedPoint_scalar_noInit" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>NestedPoint_scalar_noInit</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <!-->
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>ns=1;i=3003</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <PointWithArray xmlns="http://yourorganisation.org/exported2/Types.xsd">
+                        <x>1.1</x>
+                        <y>2.2</y>
+                        <z>3.3</z>
+                        <array1Size>1</array1Size>
+                        <array1><Double>1.1</Double></array1>
+                    </PointWithArray>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>-->
+    </UAVariable>
+</UANodeSet>
