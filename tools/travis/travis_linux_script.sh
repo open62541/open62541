@@ -13,9 +13,13 @@ if ! [ -z ${SONAR+x} ]; then
     fi
     git fetch --unshallow
 	mkdir -p build && cd build
-	build-wrapper-linux-x86-64 --out-dir ../bw-output cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-    -DUA_ENABLE_ENCRYPTION .. \
+	build-wrapper-linux-x86-64 --out-dir ../bw-output cmake \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+	    -DUA_BUILD_EXAMPLES=ON \
+        -DUA_ENABLE_DISCOVERY=ON \
+        -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+        -DUA_ENABLE_ENCRYPTION .. \
     && make -j
 	cd ..
 	sonar-scanner
@@ -60,8 +64,13 @@ if ! [ -z ${INSTALL+x} ]; then
     # Use make install to deploy files and then test if we can build an example based on the installed files
     mkdir -p build
     cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_INSTALL_PREFIX=$TRAVIS_BUILD_DIR/open62541_install ..
+    cmake \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DUA_NAMESPACE_ZERO=FULL \
+        -DUA_ENABLE_AMALGAMATION=OFF \
+        -DCMAKE_INSTALL_PREFIX=$TRAVIS_BUILD_DIR/open62541_install ..
     make install
     if [ $? -ne 0 ] ; then exit 1 ; fi
 
@@ -76,7 +85,8 @@ find_package(open62541 REQUIRED COMPONENTS FullNamespace)
 add_executable(install-test-example ../examples/tutorial_server_firststeps.c)
 target_link_libraries(install-test-example open62541)
 EOM
-    cmake -DCMAKE_PREFIX_PATH=$TRAVIS_BUILD_DIR/open62541_install .
+    cmake \
+        -DCMAKE_PREFIX_PATH=$TRAVIS_BUILD_DIR/open62541_install .
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd ..
@@ -89,7 +99,9 @@ if [ $ANALYZE = "true" ]; then
     if ! case $CC in clang*) false;; esac; then
         mkdir -p build
         cd build
-        scan-build-6.0 cmake -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        scan-build-6.0 cmake \
+            -DUA_BUILD_EXAMPLES=ON \
+            -DUA_BUILD_UNIT_TESTS=ON ..
         scan-build-6.0 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
@@ -98,7 +110,10 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build-6.0 cmake -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON ..
+        scan-build-6.0 cmake \
+            -DUA_ENABLE_PUBSUB=ON \
+            -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+            -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON ..
         scan-build-6.0 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
@@ -107,7 +122,8 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build-6.0 cmake -DUA_ENABLE_AMALGAMATION=OFF ..
+        scan-build-6.0 cmake \
+            -DUA_ENABLE_AMALGAMATION=OFF ..
         scan-build-6.0 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
@@ -136,7 +152,11 @@ else
     echo -e "\r\n== Documentation and certificate build =="  && echo -en 'travis_fold:start:script.build.doc\\r'
     mkdir -p build
     cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
+    cmake \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
     make doc
     make doc_pdf
     make selfsigned
@@ -149,8 +169,12 @@ else
     echo -e "\r\n== Full Namespace 0 Generation ==" && echo -en 'travis_fold:start:script.build.ns0\\r'
     mkdir -p build
     cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_BUILD_TYPE=Debug -DUA_NAMESPACE_ZERO=FULL -DUA_BUILD_EXAMPLES=ON  \
-    -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON ..
+    cmake \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+        -DUA_NAMESPACE_ZERO=FULL ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -160,7 +184,13 @@ else
     if ! [ -z ${MINGW+x} ]; then
         echo -e "\r\n== Cross compile release build for MinGW 32 bit =="  && echo -en 'travis_fold:start:script.build.cross_mingw32\\r'
         mkdir -p build && cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-win32 -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-win32 \
+            -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake \
+            -DUA_BUILD_EXAMPLES=ON \
+            -DUA_ENABLE_AMALGAMATION=OFF ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
         make install
@@ -172,7 +202,13 @@ else
 
         echo -e "\r\n== Cross compile release build for MinGW 64 bit =="  && echo -en 'travis_fold:start:script.build.cross_mingw64\\r'
         mkdir -p build && cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-win64 -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-win64 \
+            -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake \
+            -DUA_BUILD_EXAMPLES=ON \
+            -DUA_ENABLE_AMALGAMATION=OFF ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
         make install
@@ -184,7 +220,13 @@ else
 
         echo -e "\r\n== Cross compile release build for 32-bit linux =="  && echo -en 'travis_fold:start:script.build.cross_linux\\r'
         mkdir -p build && cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux32 -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux32 \
+            -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake \
+            -DUA_BUILD_EXAMPLES=ON \
+            -DUA_ENABLE_AMALGAMATION=OFF ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
         make install
@@ -198,7 +240,13 @@ else
         mkdir -p build && cd build
         git clone https://github.com/raspberrypi/tools
         export PATH=$PATH:./tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
-        cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-raspberrypi -DUA_ENABLE_AMALGAMATION=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+        cmake \
+            -DBUILD_SHARED_LIBS=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-raspberrypi \
+            -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake \
+            -DUA_BUILD_EXAMPLES=ON \
+            -DUA_ENABLE_AMALGAMATION=OFF ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
         make install
@@ -211,7 +259,13 @@ else
 
     echo -e "\r\n== Compile release build for 64-bit linux =="  && echo -en 'travis_fold:start:script.build.linux_64\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux64 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_ENABLE_AMALGAMATION=OFF -DUA_BUILD_EXAMPLES=ON -DBUILD_SHARED_LIBS=ON ..
+    cmake \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux64 \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_ENABLE_AMALGAMATION=OFF ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     make install
@@ -223,7 +277,13 @@ else
 
     echo -e "\r\n== Building the C++ example =="  && echo -en 'travis_fold:start:script.build.example\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux64 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=OFF -DBUILD_SHARED_LIBS=ON ..
+    cmake \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux64 \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=OFF \
+        -DUA_ENABLE_AMALGAMATION=ON ..
     make -j
     cp open62541.h ../.. # copy single file-release
     cp open62541.c ../.. # copy single file-release
@@ -235,7 +295,11 @@ else
 
     echo "Compile as shared lib version" && echo -en 'travis_fold:start:script.build.shared_libs\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_AMALGAMATION=OFF -DUA_BUILD_EXAMPLES=ON ..
+    cmake \
+        -DBUILD_SHARED_LIBS=ON \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_ENABLE_AMALGAMATION=OFF ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -243,7 +307,11 @@ else
 
     echo "Compile as shared lib version with amalgamation" && echo -en 'travis_fold:start:script.build.shared_libs_amalgamate\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=OFF ..
+    cmake \
+        -DBUILD_SHARED_LIBS=ON \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=OFF \
+        -DUA_ENABLE_AMALGAMATION=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -252,7 +320,10 @@ else
     if [ "$CC" != "tcc" ]; then
         echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'
         mkdir -p build && cd build
-        cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
+        cmake \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_ENABLE_MULTITHREADING=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
         cd .. && rm build -rf
@@ -261,7 +332,10 @@ else
 
     echo -e "\r\n== Compile with encryption ==" && echo -en 'travis_fold:start:script.build.encryption\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_ENCRYPTION=ON -DUA_BUILD_EXAMPLES=ON ..
+    cmake \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_ENABLE_ENCRYPTION=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -269,7 +343,11 @@ else
 
     echo -e "\r\n== Compile without discovery version ==" && echo -en 'travis_fold:start:script.build.discovery\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_DISCOVERY=OFF -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
+    cmake \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_ENABLE_DISCOVERY=OFF \
+        -DUA_ENABLE_DISCOVERY_MULTICAST=OFF ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -278,7 +356,12 @@ else
     if [ "$CC" != "tcc" ]; then
         echo -e "\r\n== Compile multithreaded version with discovery ==" && echo -en 'travis_fold:start:script.build.multithread_discovery\\r'
         mkdir -p build && cd build
-        cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_MULTITHREADING=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_EXAMPLES=ON ..
+        cmake \
+            -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+            -DUA_BUILD_EXAMPLES=ON \
+            -DUA_ENABLE_DISCOVERY=ON \
+            -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+            -DUA_ENABLE_MULTITHREADING=ON ..
         make -j
         if [ $? -ne 0 ] ; then exit 1 ; fi
         cd .. && rm build -rf
@@ -287,7 +370,9 @@ else
 
     echo -e "\r\n== Compile JSON encoding ==" && echo -en 'travis_fold:start:script.build.json\\r'
     mkdir -p build && cd build
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_ENABLE_JSON_ENCODING=ON ..
+    cmake \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_ENABLE_JSON_ENCODING=ON ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -296,10 +381,23 @@ else
     echo -e "\r\n== Unit tests (full NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_full\\r'
     mkdir -p build && cd build
     # Valgrind cannot handle the full NS0 because the generated file is too big. Thus run NS0 full without valgrind
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON -DUA_NAMESPACE_ZERO=FULL \
-    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
-    -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=OFF \
-    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF -DUA_ENABLE_SUBSCRIPTIONS=ON -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON -DUA_ENABLE_JSON_ENCODING=ON ..
+    cmake \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_BUILD_EXAMPLES=ON \
+        -DUA_BUILD_UNIT_TESTS=ON \
+        -DUA_ENABLE_COVERAGE=OFF \
+        -DUA_ENABLE_DISCOVERY=ON \
+        -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+        -DUA_ENABLE_ENCRYPTION=ON \
+        -DUA_ENABLE_JSON_ENCODING=ON \
+        -DUA_ENABLE_PUBSUB=ON \
+        -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+        -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+        -DUA_ENABLE_SUBSCRIPTIONS=ON \
+        -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+        -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF \
+        -DUA_NAMESPACE_ZERO=FULL ..
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -319,10 +417,19 @@ else
     if [ "$CC" != "tcc" ]; then
         echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
         mkdir -p build && cd build
-        cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-        -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON -DUA_ENABLE_ENCRYPTION=ON -DUA_ENABLE_DISCOVERY=ON \
-        -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON \
-        -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+        cmake \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+            -DUA_BUILD_EXAMPLES=ON \
+            -DUA_BUILD_UNIT_TESTS=ON \
+            -DUA_ENABLE_COVERAGE=ON \
+            -DUA_ENABLE_DISCOVERY=ON \
+            -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+            -DUA_ENABLE_ENCRYPTION=ON \
+            -DUA_ENABLE_PUBSUB=ON \
+            -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+            -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+            -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
         make -j && make test ARGS="-V"
         if [ $? -ne 0 ] ; then exit 1 ; fi
         echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
