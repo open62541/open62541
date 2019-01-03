@@ -28,6 +28,8 @@ try {
         New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
     }
 
+    $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX"
+
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
     Copy-Item LICENSE pack
@@ -38,9 +40,11 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with amalgamation #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    & cmake  $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES:BOOL=OFF -DUA_ENABLE_AMALGAMATION:BOOL=ON `
-        -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-        -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DCMAKE_BUILD_TYPE=RelWithDebInfo -G"$env:GENERATOR" ..
+    & cmake $cmake_cnf `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DUA_BUILD_EXAMPLES:BOOL=OFF  `
+            -DUA_ENABLE_AMALGAMATION:BOOL=ON `
+            -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption ..
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -53,9 +57,15 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    & cmake -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_NAMESPACE_ZERO:STRING=FULL `
-            -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON -DUA_ENABLE_JSON_ENCODING:BOOL=ON`
-            -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DCMAKE_BUILD_TYPE=RelWithDebInfo -G"$env:GENERATOR"  ..
+    & cmake $cmake_cnf `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DUA_BUILD_EXAMPLES:BOOL=ON `
+            -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
+            -DUA_ENABLE_PUBSUB:BOOL=ON `
+            -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
+            -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
+            -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
+            -DUA_NAMESPACE_ZERO:STRING=FULL ..
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -68,10 +78,13 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME without amalgamation #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    & cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=OFF `
-            -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -G"$env:GENERATOR" `
-            -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-static" ..
+    & cmake $cmake_cnf `
+            -DBUILD_SHARED_LIBS:BOOL=OFF `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-static" `
+            -DUA_BUILD_EXAMPLES:BOOL=ON `
+            -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
     & cmake --build . --target install --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
@@ -91,10 +104,13 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME (.dll) #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
-    & cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=OFF `
-        -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX -DBUILD_SHARED_LIBS:BOOL=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-        -G"$env:GENERATOR" `
-        -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-dynamic" ..
+    & cmake $cmake_cnf `
+            -DBUILD_SHARED_LIBS:BOOL=ON `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-dynamic" `
+            -DUA_BUILD_EXAMPLES:BOOL=ON `
+            -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
     & cmake --build . --target install --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
@@ -116,11 +132,19 @@ try {
         Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
         New-Item -ItemType directory -Path "build"
         cd build
-        & cmake $vcpkg_toolchain $vcpkg_triplet -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON `
-               -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption -DUA_BUILD_UNIT_TESTS=ON `
-               -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON -DUA_ENABLE_JSON_ENCODING:BOOL=ON`
-               -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON -DCHECK_PREFIX=c:\check -DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX `
-               -DCMAKE_BUILD_TYPE=Debug -G"$env:CC_NAME" ..
+        & cmake $cmake_cnf `
+                -DCHECK_PREFIX=c:\check `
+                -DCMAKE_BUILD_TYPE=Debug `
+                -DUA_BUILD_EXAMPLES=OFF `
+                -DUA_BUILD_UNIT_TESTS=ON `
+                -DUA_ENABLE_DISCOVERY=ON `
+                -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
+                -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption `
+                -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
+                -DUA_ENABLE_PUBSUB:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
+                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
         & cmake --build . --config Debug
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
