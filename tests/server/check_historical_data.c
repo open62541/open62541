@@ -36,22 +36,44 @@ static UA_HistoryDataGathering *gathering;
 #endif
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
+static MUTEX_HANDLE serverMutex;
 
 static UA_Client *client;
 static UA_NodeId parentNodeId;
 static UA_NodeId parentReferenceNodeId;
 static UA_NodeId outNodeId;
 
+static void serverMutexLock(void) {
+    if (!(MUTEX_LOCK(serverMutex))) {
+        fprintf(stderr, "Mutex cannot be locked.\n");
+        exit(1);
+    }
+}
+
+static void serverMutexUnlock(void) {
+    if (!(MUTEX_UNLOCK(serverMutex))) {
+        fprintf(stderr, "Mutex cannot be unlocked.\n");
+        exit(1);
+    }
+}
+
 THREAD_CALLBACK(serverloop)
 {
-    while(running)
-        UA_Server_run_iterate(server, true);
+    while(running) {
+        serverMutexLock();
+        UA_Server_run_iterate(server, false);
+        serverMutexUnlock();
+    }
     return 0;
 }
 
 static void
 setup(void)
 {
+    if (!(MUTEX_INIT(serverMutex))) {
+        fprintf(stderr, "Server mutex was not created correctly.\n");
+        exit(1);
+    }
     running = true;
     config = UA_ServerConfig_new_default();
 #ifdef UA_ENABLE_HISTORIZING
@@ -61,7 +83,11 @@ setup(void)
 #endif
     server = UA_Server_new(config);
     UA_StatusCode retval = UA_Server_run_startup(server);
-    ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        fprintf(stderr, "Error while calling Server_run_startup. %s\n", UA_StatusCode_name(retval));
+        exit(1);
+    }
     THREAD_CREATE(server_thread, serverloop);
     /* Define the attribute of the uint32 variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -79,7 +105,7 @@ setup(void)
     parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId_init(&outNodeId);
-    ck_assert_uint_eq(UA_Server_addVariableNode(server,
+    retval = UA_Server_addVariableNode(server,
                                                 uint32NodeId,
                                                 parentNodeId,
                                                 parentReferenceNodeId,
@@ -87,12 +113,20 @@ setup(void)
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                                 attr,
                                                 NULL,
-                                                &outNodeId)
-                      , UA_STATUSCODE_GOOD);
+                                                &outNodeId);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        fprintf(stderr, "Error adding variable node. %s\n", UA_StatusCode_name(retval));
+        exit(1);
+    }
 
     client = UA_Client_new(UA_ClientConfig_default);
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s\n", UA_StatusCode_name(retval));
+        exit(1);
+    }
 
     UA_Client_recv = client->connection.recv;
     client->connection.recv = UA_Client_recvTesting;
@@ -104,17 +138,21 @@ teardown(void)
     /* cleanup */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    running = false;
+    THREAD_JOIN(server_thread);
     UA_NodeId_deleteMembers(&parentNodeId);
     UA_NodeId_deleteMembers(&parentReferenceNodeId);
     UA_NodeId_deleteMembers(&outNodeId);
-    running = false;
-    THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 #ifdef UA_ENABLE_HISTORIZING
     UA_free(gathering);
 #endif
+    if (!MUTEX_DESTROY(serverMutex)) {
+        fprintf(stderr, "Server mutex was not destroyed correctly.\n");
+        exit(1);
+    }
 }
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -491,12 +529,16 @@ START_TEST(Server_HistorizingStrategyPoll)
     setting.maxHistoryDataResponseSize = 100;
     setting.pollingInterval = 100;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_POLL;
+    serverMutexLock();
     retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
     UA_DateTime start = UA_DateTime_now();
+    serverMutexLock();
     retval = gathering->startPoll(server, gathering->context, &outNodeId);
+    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
@@ -504,7 +546,9 @@ START_TEST(Server_HistorizingStrategyPoll)
         UA_fakeSleep(50);
         UA_realSleep(50);
         if (k == 5) {
+            serverMutexLock();
             gathering->stopPoll(server, gathering->context, &outNodeId);
+            serverMutexUnlock();
         }
         setUInt32(client, outNodeId, (unsigned int)k);
     }
@@ -557,7 +601,9 @@ START_TEST(Server_HistorizingStrategyValueSet)
     setting.historizingBackend = UA_HistoryDataBackend_Memory(3, 100);
     setting.maxHistoryDataResponseSize = 100;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
+    serverMutexLock();
     retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
@@ -607,7 +653,9 @@ START_TEST(Server_HistorizingBackendMemory)
     setting.historizingBackend = backend;
     setting.maxHistoryDataResponseSize = 1000;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    serverMutexLock();
     UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
     ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // empty backend should not crash
