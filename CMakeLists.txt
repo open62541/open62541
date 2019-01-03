@@ -388,10 +388,12 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
 
     # Debug
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # add_definitions(-fsanitize=address)
-        # list(APPEND open62541_LIBRARIES asan)
-        # add_definitions(-fsanitize=undefined)
-        # list(APPEND open62541_LIBRARIES ubsan)
+        if ("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+            # Add default sanitizer settings when using clang and Debug build.
+            # This allows e.g. CLion to find memory locations for SegFaults
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
+        endif()
     endif()
 
     # Strip release builds
@@ -415,6 +417,8 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         endif()
     endif()
 endif()
+
+
 
 if(APPLE)
     set(CMAKE_MACOSX_RPATH 1)
