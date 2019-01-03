@@ -17,7 +17,7 @@
 
 static UA_Server *server;
 static UA_ServerConfig *config;
-static UA_Boolean *running;
+static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 static MUTEX_HANDLE serverMutex;
 
@@ -148,17 +148,23 @@ removeSubscription(void) {
 }
 
 static void serverMutexLock(void) {
-    ck_assert_uint_eq(MUTEX_LOCK(serverMutex), true);
+    if (!(MUTEX_LOCK(serverMutex))) {
+        fprintf(stderr, "Mutex cannot be locked.\n");
+        exit(1);
+    }
 }
 
 static void serverMutexUnlock(void) {
-    ck_assert_uint_eq(MUTEX_UNLOCK(serverMutex), true);
+    if (!(MUTEX_UNLOCK(serverMutex))) {
+        fprintf(stderr, "Mutex cannot be unlocked.\n");
+        exit(1);
+    }
 }
 
 THREAD_CALLBACK(serverloop) {
-    while (*running) {
+    while (running) {
         serverMutexLock();
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, false);
         serverMutexUnlock();
     }
     return 0;
@@ -166,9 +172,11 @@ THREAD_CALLBACK(serverloop) {
 
 static void
 setup(void) {
-    ck_assert_uint_eq(MUTEX_INIT(serverMutex), true);
-    running = UA_Boolean_new();
-    *running = true;
+    if (!MUTEX_INIT(serverMutex)) {
+        fprintf(stderr, "Server mutex was not created correctly.");
+        exit(1);
+    }
+    running = true;
     config = UA_ServerConfig_new_default();
     config->maxPublishReqPerSession = 5;
     server = UA_Server_new(config);
@@ -176,28 +184,33 @@ setup(void) {
     addNewEventType();
     setupSelectClauses();
     THREAD_CREATE(server_thread, serverloop);
-
     client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s", UA_StatusCode_name(retval));
+        exit(1);
+    }
     setupSubscription();
     UA_comboSleep((UA_UInt32) publishingInterval + 100);
 }
 
 static void
 teardown(void) {
-    removeSubscription();
-    *running = false;
+    running = false;
     THREAD_JOIN(server_thread);
+    removeSubscription();
     UA_Server_run_shutdown(server);
-    UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    ck_assert_uint_eq(MUTEX_DESTROY(serverMutex), true);
+    if (!MUTEX_DESTROY(serverMutex)) {
+        fprintf(stderr, "Server mutex was not destroyed correctly.");
+        exit(1);
+    }
 }
 
 static UA_StatusCode triggerEventLocked(const UA_NodeId eventNodeId, const UA_NodeId origin,

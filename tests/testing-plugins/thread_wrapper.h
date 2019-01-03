@@ -34,7 +34,7 @@
 #define MUTEX_HANDLE pthread_mutex_t
 
 /* Will return UA_TRUE when zero */
-#define MUTEX_INIT(name) pthread_mutex_init(&(name), NULL) == 0
+#define MUTEX_INIT(name) (pthread_mutex_init(&(name), NULL) == 0)
 #define MUTEX_LOCK(name) (pthread_mutex_lock(&(name)) == 0)
 #define MUTEX_UNLOCK(name) (pthread_mutex_unlock(&(name)) == 0)
 #define MUTEX_DESTROY(name) (pthread_mutex_destroy(&(name)) == 0)
