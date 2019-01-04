@@ -30,21 +30,6 @@
 # include <netdb.h> // for recvfrom in cygwin
 #endif
 
-#ifndef UA_STRDUP
-# if defined(__MINGW32__)
-static char *ua_strdup(const char *s) {
-    char *p = (char*)UA_malloc(strlen(s) + 1);
-    if(p) { strcpy(p, s); }
-    return p;
-}
-#  define UA_STRDUP ua_strdup
-# elif defined(_WIN32)
-#  define UA_STRDUP _strdup
-# else
-#  define UA_STRDUP strdup
-# endif
-#endif
-
 /* FIXME: Is this a required algorithm? Otherwise, reuse hashing for nodeids */
 /* Generates a hash code for a string.
  * This function uses the ELF hashing algorithm as reprinted in
@@ -115,59 +100,6 @@ mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record, const char *
 
     LIST_INSERT_HEAD(&dm->serverOnNetwork, listEntry, pointers);
 
-    return listEntry;
-}
-
-static struct mdnsHostnameToIp_list_entry *
-mdns_hostname_add_or_get(UA_DiscoveryManager *dm, const char *hostname,
-                         struct in_addr addr, UA_Boolean createNew) {
-    int hashIdx = mdns_hash_record(hostname) % MDNS_HOSTNAME_TO_IP_HASH_PRIME;
-    struct mdnsHostnameToIp_hash_entry *hash_entry = dm->mdnsHostnameToIpHash[hashIdx];
-
-    size_t hostnameLen = strlen(hostname);
-    if (hostnameLen == 0)
-        return NULL;
-
-    if(hostname[hostnameLen - 1] == '.')
-        /* cut off last dot */
-        hostnameLen--;
-
-    while (hash_entry) {
-        if (hash_entry->entry->mdnsHostname.length == hostnameLen &&
-            strncmp((char *) hash_entry->entry->mdnsHostname.data, hostname, hostnameLen) == 0)
-            return hash_entry->entry;
-        hash_entry = hash_entry->next;
-    }
-
-    if(!createNew)
-        return NULL;
-
-    /* not yet in list, create new one */
-    struct mdnsHostnameToIp_list_entry *listEntry =
-        (mdnsHostnameToIp_list_entry*)UA_malloc(sizeof(struct mdnsHostnameToIp_list_entry));
-    if (!listEntry)
-        return NULL;
-    listEntry->mdnsHostname.data = (UA_Byte*)UA_malloc(hostnameLen);
-    if (!listEntry->mdnsHostname.data) {
-        UA_free(listEntry);
-        return NULL;
-    }
-    memcpy(listEntry->mdnsHostname.data, hostname, hostnameLen);
-    listEntry->mdnsHostname.length = hostnameLen;
-    listEntry->addr = addr;
-
-    /* add to hash */
-    struct mdnsHostnameToIp_hash_entry *newHashEntry = (struct mdnsHostnameToIp_hash_entry*)
-        UA_malloc(sizeof(struct mdnsHostnameToIp_hash_entry));
-    if (!newHashEntry) {
-        UA_String_deleteMembers(&listEntry->mdnsHostname);
-        UA_free(listEntry);
-        return NULL;
-    }
-    newHashEntry->next = dm->mdnsHostnameToIpHash[hashIdx];
-    dm->mdnsHostnameToIpHash[hashIdx] = newHashEntry;
-    newHashEntry->entry = listEntry;
-    LIST_INSERT_HEAD(&dm->mdnsHostnameToIp, listEntry, pointers);
     return listEntry;
 }
 
@@ -352,7 +284,7 @@ static void
 mdns_record_remove(UA_Server *server, const char *record,
                    struct serverOnNetwork_list_entry *entry) {
     UA_DiscoveryManager *dm = &server->discoveryManager;
-    
+
     /* remove from hash */
     int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
     struct serverOnNetwork_hash_entry *hash_entry = dm->serverOnNetworkHash[hashIdx];
@@ -402,18 +334,27 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
 }
 
 static void
-setTxt(const struct resource *r,
+setTxt(UA_Server *server, const struct resource *r,
        struct serverOnNetwork_list_entry *entry) {
     entry->txtSet = true;
     xht_t *x = txt2sd(r->rdata, r->rdlength);
     char *path = (char *) xht_get(x, "path");
     char *caps = (char *) xht_get(x, "caps");
 
-    if(path && strlen(path) > 1) {
+    size_t pathLen = strlen(path);
+
+    if(path && pathLen > 1) {
         if(!entry->srvSet) {
             /* txt arrived before SRV, thus cache path entry */
-            /* todo: malloc in strdup may fail: return a statuscode */
-            entry->pathTmp = UA_STRDUP(path);
+            if (!entry->pathTmp) {
+                entry->pathTmp = (char*)UA_malloc(pathLen+1);
+                if (!entry->pathTmp) {
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot alloc memory for mDNS srv path");
+                    return;
+                }
+                memcpy(&(entry->pathTmp), &path, pathLen);
+                entry->pathTmp[pathLen] = '\0';
+            }
         } else {
             /* SRV already there and discovery URL set. Add path to discovery URL */
             mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, path);
@@ -459,60 +400,20 @@ setSrv(UA_Server *server, const struct resource *r,
     /* The specification Part 12 says: The hostname maps onto the SRV record
      * target field. If the hostname is an IPAddress then it must be converted
      * to a domain name. If this cannot be done then LDS shall report an
-     * error.
+     * error. */
 
-     * The correct way would be:
-     * 1. Take the target field (known.srv.name), which is something like my-host.local.
-     * 2. Check additional mdns Answers, which resolve the target to an IP address
-     * 3. Use that IP address to get a hostname (as the spec says) */
-
-    /* just a dummy, not used */
-    struct in_addr tmp = {0};
-
-    mdnsHostnameToIp_list_entry *hostnameEntry =
-        mdns_hostname_add_or_get(&server->discoveryManager,
-                                 r->known.srv.name, tmp, false);
-
-    char *newUrl;
-    if (hostnameEntry) {
-        char remote_name[NI_MAXHOST];
-        struct sockaddr_in sockaddr;
-        sockaddr.sin_family = AF_INET;
-        sockaddr.sin_addr = hostnameEntry->addr;
-        int res = getnameinfo((struct sockaddr*)&sockaddr,
-                              sizeof(struct sockaddr_storage),
-                              remote_name, sizeof(remote_name),
-                              NULL, 0, NI_NAMEREQD);
-        newUrl = (char*)UA_malloc(10 + NI_MAXHOST + 8);
-        if (!newUrl)
-            return; /* TODO show error message */
-        if(res == 0) {
-            UA_snprintf(newUrl, 10 + NI_MAXHOST + 8, "opc.tcp://%s:%d",
-                        remote_name, r->known.srv.port);
-        } else {
-            char ipinput[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &(hostnameEntry->addr), ipinput, INET_ADDRSTRLEN);
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Multicast: Can not resolve IP address to hostname: "
-                             "%s - %s. Using IP instead",ipinput, errno_str));
-
-            UA_snprintf(newUrl, 10 + INET_ADDRSTRLEN + 8, "opc.tcp://%s:%d",
-                        ipinput, r->known.srv.port);
-        }
-    } else {
-        /* fallback to just using the given target name */
-        size_t srvNameLen = strlen(r->known.srv.name);
-        if(srvNameLen > 0 && r->known.srv.name[srvNameLen - 1] == '.')
-            /* cut off last dot */
-            srvNameLen--;
-        /* opc.tcp://[servername]:[port][path] */
-        newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
-        if (!newUrl)
-            return; /* TODO show error message */
-        UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
-                 r->known.srv.name, r->known.srv.port);
+    size_t srvNameLen = strlen(r->known.srv.name);
+    if(srvNameLen > 0 && r->known.srv.name[srvNameLen - 1] == '.')
+        /* cut off last dot */
+        srvNameLen--;
+    /* opc.tcp://[servername]:[port][path] */
+    char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
+    if (!newUrl) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot allocate char for discovery url. Out of memory.");
+        return;
     }
+    UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
+             r->known.srv.name, r->known.srv.port);
 
 
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -526,19 +427,6 @@ setSrv(UA_Server *server, const struct resource *r,
     }
 }
 
-
-/* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
-static void
-setAddress(UA_Server *server, const struct resource *r) {
-    if(r->type != QTYPE_A)
-        return;
-
-    if(!mdns_hostname_add_or_get(&server->discoveryManager,
-                                 r->name, r->known.a.ip, true)) {
-        /* should we log an error? */
-    }
-}
-
 /* This will be called by the mDNS library on every record which is received */
 void
 mdns_record_received(const struct resource *r, void *data) {
@@ -546,13 +434,8 @@ mdns_record_received(const struct resource *r, void *data) {
     /* we only need SRV and TXT records */
     /* TODO: remove magic number */
     if((r->clazz != QCLASS_IN && r->clazz != QCLASS_IN + 32768) ||
-       (r->type != QTYPE_SRV && r->type != QTYPE_TXT && r->type != QTYPE_A))
+       (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
         return;
-
-    if (r->type == QTYPE_A) {
-        setAddress(server, r);
-        return;
-    }
 
     /* we only handle '_opcua-tcp._tcp.' records */
     char *opcStr = strstr(r->name, "_opcua-tcp._tcp.");
@@ -591,7 +474,7 @@ mdns_record_received(const struct resource *r, void *data) {
 
     /* Add the resources */
     if(r->type == QTYPE_TXT && !entry->txtSet)
-        setTxt(r, entry);
+        setTxt(server, r, entry);
     else if (r->type == QTYPE_SRV && !entry->srvSet)
         setSrv(server, r, entry);
 
@@ -615,15 +498,21 @@ mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *pa
         xht_set(h, "path", "/");
     } else {
         /* path does not contain slash, so add it here */
-        if(path[0] == '/')
-            /* todo: malloc in strdup may fail: return a statuscode */
-            allocPath = UA_STRDUP(path);
-        else {
+        size_t pathLen = strlen(path);
+        if(path[0] == '/') {
+            allocPath = (char*)UA_malloc(pathLen+1);
+            if (!allocPath) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot alloc memory for txt path");
+                return;
+            }
+            memcpy(&allocPath, &path, pathLen);
+            allocPath[pathLen] = '\0';
+        } else {
             /* todo: malloc may fail: return a statuscode */
-            allocPath = (char*)UA_malloc(strlen(path) + 2);
+            allocPath = (char*)UA_malloc(pathLen + 2);
             allocPath[0] = '/';
-            memcpy(allocPath + 1, path, strlen(path));
-            allocPath[strlen(path) + 1] = '\0';
+            memcpy(allocPath + 1, path, pathLen);
+            allocPath[pathLen + 1] = '\0';
         }
         xht_set(h, "path", allocPath);
     }

@@ -104,10 +104,6 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
     memset(dm->serverOnNetworkHash, 0,
            sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
 
-    LIST_INIT(&dm->mdnsHostnameToIp);
-    memset(dm->mdnsHostnameToIpHash, 0,
-           sizeof(struct mdnsHostnameToIp_hash_entry*) * MDNS_HOSTNAME_TO_IP_HASH_PRIME);
-
     dm->serverOnNetworkCallback = NULL;
     dm->serverOnNetworkCallbackData = NULL;
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
@@ -150,21 +146,6 @@ UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
         }
     }
 
-    mdnsHostnameToIp_list_entry *mhi, *mhi_tmp;
-    LIST_FOREACH_SAFE(mhi, &dm->mdnsHostnameToIp, pointers, mhi_tmp) {
-        LIST_REMOVE(mhi, pointers);
-        UA_String_deleteMembers(&mhi->mdnsHostname);
-        UA_free(mhi);
-    }
-
-    for(size_t i = 0; i < MDNS_HOSTNAME_TO_IP_HASH_PRIME; i++) {
-        mdnsHostnameToIp_hash_entry* currHash = dm->mdnsHostnameToIpHash[i];
-        while(currHash) {
-            mdnsHostnameToIp_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
-        }
-    }
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 }
 

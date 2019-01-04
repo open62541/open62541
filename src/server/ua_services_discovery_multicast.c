@@ -343,6 +343,10 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
                        const UA_String *path, const UA_DiscoveryProtocol protocol,
                        UA_Boolean createTxt, const UA_String* capabilites,
                        size_t *capabilitiesSize) {
+    // we assume that the hostname is not an IP address, but a valid domain name
+    // It is required by the OPC UA spec (see Part 12, DiscoveryURL to DNS SRV mapping)
+    // to always use the hostname instead of the IP address
+
     if(!capabilitiesSize || (*capabilitiesSize > 0 && !capabilites))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
