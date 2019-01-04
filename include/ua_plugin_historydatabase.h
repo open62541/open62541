@@ -13,7 +13,6 @@
 
 _UA_BEGIN_DECLS
 
-struct UA_HistoryDatabase;
 typedef struct UA_HistoryDatabase UA_HistoryDatabase;
 
 struct UA_HistoryDatabase {

@@ -28,7 +28,6 @@ typedef struct {
     void * userContext;
 } UA_HistorizingNodeIdSettings;
 
-struct UA_HistoryDataGathering;
 typedef struct UA_HistoryDataGathering UA_HistoryDataGathering;
 struct UA_HistoryDataGathering {
     void *context;
