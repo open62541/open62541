@@ -1,6 +1,7 @@
 ---
 Language:        Cpp
 BasedOnStyle:    llvm
+IndentWidth:     4
 ColumnLimit:     120
 ForEachMacros:   [ foreach, LIST_FOREACH, LIST_FOREACH_SAFE ]
 DisableFormat:   false
