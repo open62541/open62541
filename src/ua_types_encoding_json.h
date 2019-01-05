@@ -18,7 +18,6 @@ extern "C" {
 #include "ua_types_encoding_json.h"
 #include "ua_types.h"
 #include "../deps/jsmn/jsmn.h"
-#include "assert.h"
  
 #define TOKENCOUNT 1000
     
