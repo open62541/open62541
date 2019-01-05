@@ -92,7 +92,7 @@ UA_StatusCode calcJsonNull(CtxJson *ctx);
 typedef struct {
     jsmntok_t *tokenArray;
     UA_Int32 tokenCount;
-    UA_UInt16 *index;
+    UA_UInt16 index;
 } ParseCtx;
 
 typedef UA_StatusCode
@@ -128,11 +128,9 @@ decodeJsonInternal(void *dst, const UA_DataType *type,
 
 /* workaround: TODO generate functions for UA_xxx_decodeJson */
 decodeJsonSignature getDecodeSignature(u8 index);
-UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx, ParseCtx *parseCtx,
-                              size_t *resultIndex);
+UA_StatusCode lookAheadForKey(const char* search, CtxJson *ctx, ParseCtx *parseCtx, size_t *resultIndex);
 jsmntype_t getJsmnType(const ParseCtx *parseCtx);
-UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx,
-                       const UA_ByteString *src, UA_UInt16 *tokenIndex);
+UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src);
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
 
 #ifdef __cplusplus
