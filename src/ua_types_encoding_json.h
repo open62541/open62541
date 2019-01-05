@@ -27,7 +27,6 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
                 UA_String *serverUris, size_t serverUriSize,
                 UA_Boolean useReversible) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-
 UA_StatusCode
 UA_encodeJson(const void *src, const UA_DataType *type,
               uint8_t **bufPos, const uint8_t **bufEnd,
@@ -48,15 +47,16 @@ typedef struct {
     uint8_t *pos;
     const uint8_t *end;
 
+    uint16_t depth; /* How often did we en-/decoding recurse? */
+    UA_Boolean commaNeeded[UA_JSON_ENCODING_MAX_RECURSION];
+    UA_Boolean useReversible;
+    UA_Boolean calcOnly; /* Only compute the length of the decoding */
+
     size_t namespacesSize;
     UA_String *namespaces;
     
     size_t serverUrisSize;
     UA_String *serverUris;
-    
-    uint16_t depth; /* How often did we en-/decoding recurse? */
-    UA_Boolean useReversible;
-    UA_Boolean commaNeeded[UA_JSON_ENCODING_MAX_RECURSION];
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);
@@ -74,19 +74,43 @@ UA_StatusCode writeJsonCommaIfNeeded(CtxJson *ctx);
 UA_StatusCode writeJsonNull(CtxJson *ctx);
 
 /* The encoding length is returned in ctx->pos */
-UA_StatusCode calcJsonObjStart(CtxJson *ctx);
-UA_StatusCode calcJsonObjElm(CtxJson *ctx, UA_String *key,
-                             const void *value, const UA_DataType *type);
-UA_StatusCode calcJsonObjEnd(CtxJson *ctx);
+static UA_INLINE UA_StatusCode
+calcJsonObjStart(CtxJson *ctx) {
+    UA_assert(ctx->calcOnly);
+    return writeJsonObjStart(ctx);
+}
 
-UA_StatusCode calcJsonArrStart(CtxJson *ctx);
-UA_StatusCode calcJsonArrElm(CtxJson *ctx, const void *value,
-                             const UA_DataType *type);
-UA_StatusCode calcJsonArrEnd(CtxJson *ctx);
+static UA_INLINE UA_StatusCode
+calcJsonObjElm(CtxJson *ctx, UA_String *key,
+               const void *value, const UA_DataType *type) {
+    UA_assert(ctx->calcOnly);
+    return writeJsonObjElm(ctx, key, value, type);
+}
 
-UA_StatusCode calcJsonKey(CtxJson *ctx, const char* key);
-UA_StatusCode calcJsonCommaIfNeeded(CtxJson *ctx);
-UA_StatusCode calcJsonNull(CtxJson *ctx);
+static UA_INLINE UA_StatusCode
+calcJsonObjEnd(CtxJson *ctx) {
+    UA_assert(ctx->calcOnly);
+    return writeJsonObjEnd(ctx);
+}
+
+static UA_INLINE UA_StatusCode
+calcJsonArrStart(CtxJson *ctx) {
+    UA_assert(ctx->calcOnly);
+    return writeJsonArrStart(ctx);
+}
+
+static UA_INLINE UA_StatusCode
+calcJsonArrElm(CtxJson *ctx, const void *value,
+               const UA_DataType *type) {
+    UA_assert(ctx->calcOnly);
+    return writeJsonArrElm(ctx, value, type);
+}
+
+static UA_INLINE UA_StatusCode
+calcJsonArrEnd(CtxJson *ctx) {
+    UA_assert(ctx->calcOnly);
+    return writeJsonArrEnd(ctx);
+}
 
 typedef struct {
     jsmntok_t *tokenArray;
@@ -98,12 +122,8 @@ typedef UA_StatusCode
 (*encodeJsonSignature)(const void *src, const UA_DataType *type, CtxJson *ctx);
 
 typedef UA_StatusCode
-(*calcSizeJsonSignature)(const void *src, const UA_DataType *type, CtxJson *ctx);
-
-typedef UA_StatusCode
-(*decodeJsonSignature)(void *dst, const UA_DataType *type,
-                       CtxJson *ctx, ParseCtx *parseCtx,
-                       UA_Boolean moveToken);
+(*decodeJsonSignature)(void *dst, const UA_DataType *type, CtxJson *ctx,
+                       ParseCtx *parseCtx, UA_Boolean moveToken);
 
 /* Map for decoding a Json Object. An array of this is passed to the
  * decodeFields function. If the key "fieldName" is found in the json object

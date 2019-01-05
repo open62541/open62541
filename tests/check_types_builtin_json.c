@@ -77,29 +77,6 @@ START_TEST(UA_Boolean_false_json_encode) {
 }
 END_TEST
 
-START_TEST(UA_Boolean_null_json_encode) {
-   
-    UA_Boolean *src = NULL;
-    const UA_DataType *type = &UA_TYPES[UA_TYPES_BOOLEAN];
-
-    UA_ByteString buf;
-
-    size_t size = UA_calcSizeJson((void *) src, type, NULL, 0, NULL, 0, UA_TRUE);
-    
-    UA_ByteString_allocBuffer(&buf, size+1+1);
-
-    UA_Byte *bufPos = &buf.data[0];
-    const UA_Byte *bufEnd = &buf.data[size+1];
-
-    status s = UA_encodeJson((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
-
-    *bufPos = 0;
-    
-    ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGERROR);
-    UA_ByteString_deleteMembers(&buf);
-}
-END_TEST
-
 START_TEST(UA_Boolean_true_bufferTooSmall_json_encode) {
    
     UA_Boolean *src = UA_Boolean_new();
@@ -1234,14 +1211,13 @@ END_TEST
 
 
 START_TEST(UA_LocText_smallBuffer_json_encode) {
-
     UA_LocalizedText *src = UA_LocalizedText_new();
     UA_LocalizedText_init(src);
     src->locale = UA_STRING_ALLOC("theLocale");
     src->text = UA_STRING_ALLOC("theText");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
-    UA_ByteString buf;
 
+    UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, 4);
 
     UA_Byte *bufPos = &buf.data[0];
@@ -1249,7 +1225,6 @@ START_TEST(UA_LocText_smallBuffer_json_encode) {
 
     status s = UA_encodeJson((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
 
-    *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     UA_ByteString_deleteMembers(&buf);
@@ -3498,37 +3473,6 @@ START_TEST(UA_VariableAttributes_json_encode) {
 }
 END_TEST
 
-
-START_TEST(UA_null_json_encode) {
-    UA_ByteString buf;
-    UA_ByteString_allocBuffer(&buf, 100);
-    UA_Byte *bufPos = &buf.data[0];
-    const UA_Byte *bufEnd = &buf.data[100];
-
-    void* src = NULL;
-    char* result = "null";
-    
-    const UA_DataType *type;
-    status s;
-
-    int i;
-    for (i = 1; i < 25; i++) {
-        bufPos = &buf.data[0];
-        src = NULL;
-        type = &UA_TYPES[i];
-        s = UA_encodeJson((void *) src, type, &bufPos, &bufEnd, NULL, 0, NULL, 0, UA_TRUE);
-        *bufPos = 0;
-        ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-        ck_assert_str_eq(result, (char*)buf.data);
-    }
-
-    UA_ByteString_deleteMembers(&buf);
-}
-END_TEST
-
-
-
-
 // ---------------------------DECODE-------------------------------------
 
 START_TEST(UA_Byte_Min_json_decode) {
@@ -5679,6 +5623,9 @@ START_TEST(UA_JsonHelper) {
     ck_assert_int_eq(writeJsonObjEnd(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     ck_assert_int_eq(writeJsonArrEnd(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     ck_assert_int_eq(writeJsonNull(&ctx), UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+
+    ctx.calcOnly = true;
+    ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ck_assert_int_eq(calcJsonArrStart(&ctx), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(calcJsonObjStart(&ctx), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(calcJsonObjEnd(&ctx), UA_STATUSCODE_GOOD);
@@ -5693,7 +5640,6 @@ static Suite *testSuite_builtin_json(void) {
     TCase *tc_json_encode = tcase_create("json_encode");
     tcase_add_test(tc_json_encode, UA_Boolean_true_json_encode);
     tcase_add_test(tc_json_encode, UA_Boolean_false_json_encode);
-    tcase_add_test(tc_json_encode, UA_Boolean_null_json_encode);
     tcase_add_test(tc_json_encode, UA_Boolean_true_bufferTooSmall_json_encode);
     
     tcase_add_test(tc_json_encode, UA_String_json_encode);
@@ -5873,8 +5819,6 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_encode, UA_WriteRequest_json_encode);
     tcase_add_test(tc_json_encode, UA_VariableAttributes_json_encode);
 
-    tcase_add_test(tc_json_encode, UA_null_json_encode);
-    
     suite_add_tcase(s, tc_json_encode);
     
     TCase *tc_json_decode = tcase_create("json_decode");
