@@ -11,14 +11,12 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_plugin_log.h"
-#include "assert.h"
-#include "../deps/musl/floatscan.h"
 
 #include <math.h>
 #include <float.h>
 
 #ifdef UA_ENABLE_CUSTOM_LIBC
-
+#include "../deps/musl/floatscan.h"
 #include "../deps/musl/vfprintf.h"
 #endif
 
