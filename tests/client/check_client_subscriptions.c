@@ -19,19 +19,18 @@
 
 UA_Server *server;
 UA_ServerConfig *config;
-UA_Boolean *running;
+UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(*running)
+    while(running)
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = UA_Boolean_new();
-    *running = true;
+    running = true;
     config = UA_ServerConfig_new_default();
     config->maxPublishReqPerSession = 5;
     server = UA_Server_new(config);
@@ -40,10 +39,9 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    *running = false;
+    running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
-    UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 }

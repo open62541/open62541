@@ -22,19 +22,18 @@
 
 UA_Server *server;
 UA_ServerConfig *config;
-UA_Boolean *running;
+UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(*running)
+    while(running)
         UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
-    running = UA_Boolean_new();
-    *running = true;
+    running = true;
 
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -74,10 +73,9 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    *running = false;
+    running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
-    UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 }
