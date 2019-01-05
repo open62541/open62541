@@ -65,7 +65,7 @@ getNewNodeIdContext_backend_memory(UA_MemoryStoreContext* context,
         ctx->dataStore = (UA_NodeIdStoreContextItem_backend_memory*)UA_realloc(ctx->dataStore,  (newStoreSize * sizeof(UA_NodeIdStoreContextItem_backend_memory)));
         if (!ctx->dataStore) {
             ctx->storeSize = 0;
-            return false;
+            return NULL;
         }
         ctx->storeSize = newStoreSize;
     }
