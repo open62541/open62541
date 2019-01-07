@@ -9,7 +9,13 @@
 #ifndef OPEN62541_UA_NETWORKMANAGERS_H
 #define OPEN62541_UA_NETWORKMANAGERS_H
 
+/**
+ * Initializes a network manager that uses select for processing.
+ *
+ * @param logger The logger to be used by the networkManager
+ * @param networkManager pointer to an empty networkManager struct, that will be initialized.
+ */
 UA_StatusCode
-UA_SelectBasedNetworkManager(UA_Logger *logger, UA_NetworkManager **p_networkManager);
+UA_SelectBasedNetworkManager(const UA_Logger *logger, UA_NetworkManager *networkManager);
 
 #endif //OPEN62541_UA_NETWORKMANAGERS_H

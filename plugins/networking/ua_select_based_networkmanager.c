@@ -16,7 +16,7 @@ typedef struct SocketListEntry {
 } SocketListEntry;
 
 typedef struct {
-    UA_Logger *logger;
+    const UA_Logger *logger;
     LIST_HEAD(, SocketListEntry) sockets;
     size_t numListenerSockets;
 } SelectNMData;
@@ -119,7 +119,8 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
 }
 
 static UA_StatusCode
-select_nm_getDiscoveryUrls(UA_NetworkManager *networkManager, UA_String *discoveryUrls[]) {
+select_nm_getDiscoveryUrls(const UA_NetworkManager *networkManager, UA_String *discoveryUrls[],
+                           size_t *discoveryUrlsSize) {
     SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
 
     UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK,
@@ -146,23 +147,41 @@ select_nm_getDiscoveryUrls(UA_NetworkManager *networkManager, UA_String *discove
     }
 
     *discoveryUrls = urls;
+    *discoveryUrlsSize = internalData->numListenerSockets;
 
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+select_nm_shutdown(UA_NetworkManager *networkManager) {
+    if(networkManager == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
+    SocketListEntry *socketListEntry;
+    LIST_FOREACH(socketListEntry, &internalData->sockets, pointers) {
+        UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                     "Closing remaining socket with id %lu", socketListEntry->socket->id);
+        socketListEntry->socket->close(socketListEntry->socket);
+    }
+
+    networkManager->process(networkManager, 0);
+
+    return UA_STATUSCODE_GOOD;
+}
 
 static UA_StatusCode
 select_nm_deleteMembers(UA_NetworkManager *networkManager) {
     SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
     // TODO: check return values
-    UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK, "Deleting select based network manager");
+    UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK, "Deleting select based network manager");
+
+    networkManager->shutdown(networkManager);
 
     SocketListEntry *socketListEntry, *e_tmp;
-
     LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets, pointers, e_tmp) {
-        UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
                      "Removing remaining socket with id %lu", socketListEntry->socket->id);
-        socketListEntry->socket->close(socketListEntry->socket);
         socketListEntry->socket->free(socketListEntry->socket);
         LIST_REMOVE(socketListEntry, pointers);
         UA_free(socketListEntry);
@@ -176,29 +195,25 @@ select_nm_deleteMembers(UA_NetworkManager *networkManager) {
 
 
 UA_StatusCode
-UA_SelectBasedNetworkManager(UA_Logger *logger, UA_NetworkManager **p_networkManager) {
-
-    UA_NetworkManager *const networkManager = (UA_NetworkManager *const)UA_malloc(sizeof(UA_NetworkManager));
+UA_SelectBasedNetworkManager(const UA_Logger *logger, UA_NetworkManager *networkManager) {
     if(networkManager == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return UA_STATUSCODE_BADINTERNALERROR;
     memset(networkManager, 0, sizeof(UA_NetworkManager));
 
     networkManager->registerSocket = select_nm_registerSocket;
     networkManager->unregisterSocket = select_nm_unregisterSocket;
     networkManager->process = select_nm_process;
     networkManager->getDiscoveryUrls = select_nm_getDiscoveryUrls;
+    networkManager->shutdown = select_nm_shutdown;
     networkManager->deleteMembers = select_nm_deleteMembers;
 
     networkManager->internalData = UA_malloc(sizeof(SelectNMData));
     SelectNMData *internalData = (SelectNMData *)networkManager->internalData;
-    if(internalData == NULL) {
-        UA_free(networkManager);
+    if(internalData == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    memset(internalData, 0, sizeof(SelectNMData));
 
     internalData->logger = logger;
-
-    *p_networkManager = networkManager;
 
     return UA_STATUSCODE_GOOD;
 }

@@ -14,6 +14,9 @@
 #include "ua_plugin_log.h"
 
 typedef struct UA_Socket UA_Socket;
+typedef struct UA_SocketHook UA_SocketHook;
+typedef struct UA_SocketConfig UA_SocketConfig;
+typedef struct UA_SocketFactory UA_SocketFactory;
 
 typedef struct {
     /**
@@ -52,6 +55,14 @@ struct UA_Socket {
      * This flag indicates if the socket is a listener socket that accepts new connections.
      */
     UA_Boolean isListener;
+
+    /**
+     * If the socket is able to create new sockets (e.g. by accepting),
+     * the socketFactory is used to create the child sockets.
+     * The factory may be NULL, in which case no new sockets will be created,
+     * even if it were possible.
+     */
+    UA_SocketFactory *socketFactory;
 
     /**
      * Starts/Opens the socket for operation. This step is separate from the initialization
@@ -147,20 +158,30 @@ struct UA_Socket {
 };
 
 /**
- * Configuration parameters for the socket.
+ * Configuration parameters for sockets created at startup.
  */
-typedef struct {
+struct UA_SocketConfig {
     UA_UInt32 recvBufferSize;
     UA_UInt32 sendBufferSize;
-} UA_SocketConfig;
+    UA_UInt16 port;
+    UA_Logger *logger;
+    UA_ByteString customHostname;
 
-typedef struct {
+    /**
+     * This function is called by the server to create all configured listener sockets.
+     * The delayed configuration makes sure, that initialization is done during
+     * server startup. Also, only the server will have ownership of the Sockets.
+     * @param config
+     * @param socketHook The socketHook is called once for each socket that is created.
+     */
+    UA_StatusCode (*createSocket)(UA_SocketConfig *config, UA_SocketHook socketHook);
+};
+
+struct UA_SocketHook {
     UA_StatusCode (*hook)(UA_Socket *socket, void *hookContext);
 
     void *hookContext;
-} UA_SocketHook;
-
-typedef struct UA_DataSocketFactory UA_DataSocketFactory;
+};
 
 typedef struct HookListEntry {
     UA_SocketHook hook;
@@ -174,7 +195,7 @@ typedef struct HookList {
     LIST_HEAD(, HookListEntry) list;
 } HookList;
 
-struct UA_DataSocketFactory {
+struct UA_SocketFactory {
     HookList creationHooks;
     HookList deletionHooks;
 
@@ -188,15 +209,17 @@ struct UA_DataSocketFactory {
      *
      * @param factory the factory to perform the operation on.
      * @param listenerSocket the socket the DataSocket is created from (accepted from)
+     * @param additionalData Any data that needs to be passed from listener to data sockets.
      * @return
      */
-    UA_StatusCode (*buildSocket)(UA_DataSocketFactory *factory, UA_Socket *listenerSocket);
+    UA_StatusCode (*buildSocket)(UA_SocketFactory *factory, UA_Socket *listenerSocket,
+                                 void *additionalData);
 
     UA_Socket_DataCallback socketDataCallback;
 };
 
 static inline UA_StatusCode
-UA_DataSocketFactory_addCreationHook(UA_DataSocketFactory *factory, UA_SocketHook hook) {
+UA_DataSocketFactory_addCreationHook(UA_SocketFactory *factory, UA_SocketHook hook) {
     HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
     if(hookListEntry == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -208,7 +231,7 @@ UA_DataSocketFactory_addCreationHook(UA_DataSocketFactory *factory, UA_SocketHoo
 }
 
 static inline UA_StatusCode
-UA_DataSocketFactory_addDeletionHook(UA_DataSocketFactory *factory, UA_SocketHook hook) {
+UA_DataSocketFactory_addDeletionHook(UA_SocketFactory *factory, UA_SocketHook hook) {
     HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
     if(hookListEntry == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -216,6 +239,22 @@ UA_DataSocketFactory_addDeletionHook(UA_DataSocketFactory *factory, UA_SocketHoo
 
     LIST_INSERT_HEAD(&factory->deletionHooks.list, hookListEntry, pointers);
     UA_LOG_TRACE(factory->logger, UA_LOGCATEGORY_NETWORK, "Added deletion hook");
+    return UA_STATUSCODE_GOOD;
+}
+
+static inline UA_StatusCode
+UA_DataSocketFactory_deleteMembers(UA_SocketFactory *factory) {
+    HookListEntry *hookListEntry;
+    HookListEntry *tmp;
+    LIST_FOREACH_SAFE(hookListEntry, &factory->creationHooks.list, pointers, tmp) {
+        LIST_REMOVE(hookListEntry, pointers);
+        UA_free(hookListEntry);
+    }
+    LIST_FOREACH_SAFE(hookListEntry, &factory->deletionHooks.list, pointers, tmp) {
+        LIST_REMOVE(hookListEntry, pointers);
+        UA_free(hookListEntry);
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 

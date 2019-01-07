@@ -24,7 +24,6 @@ typedef struct {
      * the amount of data that is to be sent.
      */
     UA_ByteString sendBufferOut;
-    UA_SocketConfig config;
 } TCPDataSocketData;
 
 static UA_StatusCode
@@ -199,8 +198,9 @@ UA_TCP_DataSocket_logPeerName(UA_Socket *sock, struct sockaddr_storage *remote) 
 }
 
 UA_StatusCode
-UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_SocketConfig socketConfig,
-                             HookList creationHooks, HookList deletionHooks, UA_Socket **p_sock) {
+UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UInt32 sendBufferSize,
+                             UA_UInt32 recvBufferSize, HookList creationHooks, HookList deletionHooks,
+                             UA_Socket_DataCallback dataCallback) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     UA_Socket *sock = (UA_Socket *)UA_malloc(sizeof(UA_Socket));
@@ -219,6 +219,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_So
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     sock->internalData = internalData;
+    sock->dataCallback = dataCallback;
 
     // TODO: do we need to copy this here? or can we just copy the head pointer?
     internalData->deletionHooks = deletionHooks;
@@ -233,9 +234,8 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_So
 
     internalData->logger = logger;
     internalData->flaggedForDeletion = false;
-    internalData->config = socketConfig;
 
-    retval = UA_ByteString_allocBuffer(&internalData->receiveBuffer, socketConfig.recvBufferSize);
+    retval = UA_ByteString_allocBuffer(&internalData->receiveBuffer, recvBufferSize);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate receive buffer for socket with error %s",
@@ -244,7 +244,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_So
     }
     internalData->receiveBufferOut = internalData->receiveBuffer;
 
-    retval = UA_ByteString_allocBuffer(&internalData->sendBuffer, socketConfig.sendBufferSize);
+    retval = UA_ByteString_allocBuffer(&internalData->sendBuffer, sendBufferSize);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate receive buffer for socket with error %s",
@@ -297,8 +297,6 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_So
     sock->send = UA_TCP_DataSocket_send;
     sock->open = UA_TCP_DataSocket_open;
     sock->getSendBuffer = UA_TCP_DataSocket_getSendBuffer;
-
-    *p_sock = sock;
 
     HookListEntry *hookListEntry;
     LIST_FOREACH(hookListEntry, &creationHooks.list, pointers) {

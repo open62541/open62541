@@ -25,8 +25,12 @@ struct UA_NetworkManager {
      *
      * @param networkManager the network manager to perform the operation on.
      * @param discoveryUrls the newly allocated array of discoveryUrls.
+     * @param discoveryUrlsSize the size of the discoveryUrls array.
      */
-    UA_StatusCode (*getDiscoveryUrls)(UA_NetworkManager *networkManager, UA_String *discoveryUrls[]);
+    UA_StatusCode (*getDiscoveryUrls)(const UA_NetworkManager *networkManager, UA_String *discoveryUrls[],
+                                      size_t *discoveryUrlsSize);
+
+    UA_StatusCode (*shutdown)(UA_NetworkManager *networkManager);
 
     UA_StatusCode (*deleteMembers)(UA_NetworkManager *networkManager);
 

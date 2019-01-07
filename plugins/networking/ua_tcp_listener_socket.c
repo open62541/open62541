@@ -19,7 +19,8 @@ typedef enum {
 typedef struct {
     UA_Logger *logger;
     SocketState state;
-    UA_DataSocketFactory *socketFactory;
+    UA_UInt32 recvBufferSize;
+    UA_UInt32 sendBufferSize;
 } TcpSocketData;
 
 static UA_StatusCode
@@ -102,6 +103,8 @@ tcp_sock_free(UA_Socket *sock) {
 
     UA_ByteString_deleteMembers(&sock->discoveryUrl);
 
+    UA_DataSocketFactory_deleteMembers(sock->socketFactory);
+    UA_free(sock->socketFactory);
     UA_free(socketData);
     UA_free(sock);
 
@@ -115,7 +118,23 @@ tcp_sock_activity(UA_Socket *sock) {
     }
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
 
-    return socketData->socketFactory->buildSocket(socketData->socketFactory, sock);
+    if(sock->socketFactory != NULL) {
+        return sock->socketFactory->buildSocket(sock->socketFactory, sock, NULL);
+    } else {
+        UA_LOG_WARNING(socketData->logger, UA_LOGCATEGORY_NETWORK,
+                       "No socket factory configured. Cannot create new socket");
+        return UA_STATUSCODE_GOODDATAIGNORED;
+    }
+}
+
+static UA_StatusCode
+tcp_sock_buildSocket(UA_SocketFactory *factory, UA_Socket *listenerSocket, void *additionalData) {
+    TcpSocketData *const socketData = (TcpSocketData *const)listenerSocket->internalData;
+    return UA_TCP_DataSocket_AcceptFrom(listenerSocket, factory->logger,
+                                        socketData->sendBufferSize,
+                                        socketData->recvBufferSize,
+                                        factory->creationHooks, factory->deletionHooks,
+                                        factory->socketDataCallback);
 }
 
 static UA_StatusCode
@@ -137,26 +156,23 @@ tcp_sock_getSendBuffer(UA_Socket *sock, UA_ByteString **p_buffer) {
 }
 
 static UA_StatusCode
-tcp_sock_set_func_pointers(UA_Socket *socket) {
-    socket->open = tcp_sock_open;
-    socket->close = tcp_sock_close;
-    socket->mayDelete = tcp_sock_mayDelete;
-    socket->free = tcp_sock_free;
-    socket->activity = tcp_sock_activity;
-    socket->send = tcp_sock_send;
-    socket->getSendBuffer = tcp_sock_getSendBuffer;
+tcp_sock_set_func_pointers(UA_Socket *sock) {
+    sock->open = tcp_sock_open;
+    sock->close = tcp_sock_close;
+    sock->mayDelete = tcp_sock_mayDelete;
+    sock->free = tcp_sock_free;
+    sock->activity = tcp_sock_activity;
+    sock->send = tcp_sock_send;
+    sock->getSendBuffer = tcp_sock_getSendBuffer;
+    sock->socketFactory->buildSocket = tcp_sock_buildSocket;
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo,
-                                  UA_DataSocketFactory *dataSocketFactory,
-                                  UA_Logger *logger,
-                                  UA_ByteString *customHostname,
-                                  UA_Socket **p_socket) {
+UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *socketConfig, UA_Socket **p_socket) {
     UA_StatusCode retval;
-    if(logger == NULL || dataSocketFactory == NULL) {
+    if(socketConfig == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_Socket *sock = (UA_Socket *)UA_malloc(sizeof(UA_Socket));
@@ -171,10 +187,16 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo,
         UA_free(sock);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    sock->socketFactory = (UA_SocketFactory *)UA_malloc(sizeof(UA_SocketFactory));
+    if(sock->socketFactory == NULL) {
+        UA_free(sock);
+        UA_free(sock->internalData);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
     memset(socketData, 0, sizeof(TcpSocketData));
-    socketData->logger = logger;
-    socketData->socketFactory = dataSocketFactory;
+    socketData->logger = socketConfig->logger;
     socketData->state = UA_SOCKSTATE_NEW;
 
     in_port_t port;
@@ -182,11 +204,11 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo,
         port = (((struct sockaddr_in *)addrinfo->ai_addr)->sin_port);
     else
         port = (((struct sockaddr_in6 *)addrinfo->ai_addr)->sin6_port);
-    tcp_sock_setDiscoveryUrl(sock, port, customHostname);
+    tcp_sock_setDiscoveryUrl(sock, port, &socketConfig->customHostname);
 
     UA_SOCKET socket_fd = UA_socket(addrinfo->ai_family, addrinfo->ai_socktype, addrinfo->ai_protocol);
     if(socket_fd == UA_INVALID_SOCKET) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                        "Error opening the listener socket");
         goto error;
     }
@@ -197,27 +219,27 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo,
     if(addrinfo->ai_family == AF_INET6 &&
        UA_setsockopt(socket_fd, IPPROTO_IPV6, IPV6_V6ONLY,
                      (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set an IPv6 socket to IPv6 only");
         goto error;
     }
 #endif
     if(UA_setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR,
                      (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not make the socket reusable");
         goto error;
     }
 
     if(UA_socket_set_nonblocking(socket_fd) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the server socket to nonblocking");
         goto error;
     }
 
     if(UA_bind(socket_fd, addrinfo->ai_addr, (socklen_t)addrinfo->ai_addrlen) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                            "Error binding a server socket: %s", errno_str));
         goto error;
     }
@@ -229,7 +251,7 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo,
 
     *p_socket = sock;
 
-    UA_LOG_TRACE(logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_TRACE(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                  "Created new listener socket %p", (void *)sock);
     return UA_STATUSCODE_GOOD;
 
@@ -243,20 +265,15 @@ error:
 
 
 UA_StatusCode
-UA_TCP_ListenerSockets(UA_UInt32 port,
-                       UA_DataSocketFactory *dataSocketFactory,
-                       UA_Logger *logger,
-                       UA_ByteString *customHostname,
-                       UA_Socket **p_sockets[],
-                       size_t *sockets_size) {
+UA_TCP_ListenerSockets(UA_SocketConfig *socketConfig, UA_SocketHook creationHook) {
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(dataSocketFactory == NULL || logger == NULL || p_sockets == NULL) {
+    if(socketConfig == NULL) {
         return retval;
     }
 
     char portno[6];
-    UA_snprintf(portno, 6, "%d", port);
+    UA_snprintf(portno, 6, "%d", socketConfig->port);
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
@@ -268,21 +285,17 @@ UA_TCP_ListenerSockets(UA_UInt32 port,
 
     /* There might be serveral addrinfos (for different network cards,
      * IPv4/IPv6). Add a server socket for all of them. */
-    *sockets_size = 0;
+    size_t sockets_size = 0;
     for(struct addrinfo *ai = res;
-        *sockets_size < FD_SETSIZE && ai != NULL;
-        ai = ai->ai_next, ++*sockets_size) {/* counting */}
-    UA_Socket **sockets = (UA_Socket **)UA_malloc(sizeof(UA_Socket *) * *sockets_size);
-    if(sockets == NULL) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    for(struct addrinfo *ai = res; *sockets_size > 0 && ai != NULL; --*sockets_size, ai = ai->ai_next) {
-        retval = UA_TCP_ListenerSocketFromAddrinfo(ai, dataSocketFactory, logger,
-                                                   customHostname, &sockets[*sockets_size - 1]);
+        sockets_size < FD_SETSIZE && ai != NULL;
+        ai = ai->ai_next, ++sockets_size) {
+        UA_Socket *sock;
+        UA_TCP_ListenerSocketFromAddrinfo(ai, socketConfig,
+                                          &sock);
+        /* Instead of allocating an array to return the sockets, we call a hook for each one */
+        creationHook.hook(sock, creationHook.hookContext);
     }
     UA_freeaddrinfo(res);
-
-    *p_sockets = sockets;
 
     return retval;
 }
