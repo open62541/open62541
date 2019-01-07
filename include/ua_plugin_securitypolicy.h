@@ -111,12 +111,11 @@ typedef struct {
      * key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
-     * @param securityPolicyContext the securityPolicyContext which contains
-     *                              information about the keys needed to decrypt
-     *                              the message.
+     * @param channelContext the channelContext which contains information about
+     *                       the keys needed to decrypt the message.
      * @param data the data to decrypt. The decryption is done in place. */
     UA_StatusCode (*decrypt)(const UA_SecurityPolicy *securityPolicy,
-                             void *securityPolicyContext,
+                             void *channelContext,
                              UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
     /* Returns the length of the key used locally to encrypt messages in bits

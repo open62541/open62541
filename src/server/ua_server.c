@@ -333,6 +333,8 @@ UA_Server_updateCertificate(UA_Server *server,
             UA_String_deleteMembers(&ed->serverCertificate);
             UA_String_copy(newCertificate, &ed->serverCertificate);
             UA_SecurityPolicy *sp = UA_SecurityPolicy_getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
+            if(!sp)
+                return UA_STATUSCODE_BADINTERNALERROR;
             sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
         }
         i++;

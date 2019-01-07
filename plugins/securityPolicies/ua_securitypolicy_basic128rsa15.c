@@ -212,13 +212,13 @@ asym_encrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 asym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
-                              Basic128Rsa15_PolicyContext *pc,
+                              Basic128Rsa15_ChannelContext *cc,
                               UA_ByteString *data) {
-    if(securityPolicy == NULL || pc == NULL || data == NULL)
+    if(securityPolicy == NULL || cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     mbedtls_rsa_context *rsaContext =
-        mbedtls_pk_rsa(pc->localPrivateKey);
+        mbedtls_pk_rsa(cc->policyContext->localPrivateKey);
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, 0);
 
     if(data->length % rsaContext->len != 0)
@@ -234,7 +234,7 @@ asym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     size_t offset = 0;
     size_t outLength = 0;
     while(lenDataToDecrypt >= rsaContext->len) {
-        int mbedErr = mbedtls_pk_decrypt(&pc->localPrivateKey,
+        int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
                                          data->data + inOffset, rsaContext->len,
                                          decrypted.data + offset, &outLength,
                                          decrypted.length - offset, NULL, NULL);

@@ -658,6 +658,9 @@ createSecureChannel(void *application, UA_Connection *connection,
             continue;
         securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server,
                                                                   (UA_ByteString*)&endpointCandidate->securityPolicyUri);
+        if(!securityPolicy)
+            return UA_STATUSCODE_BADINTERNALERROR;
+
         retval = securityPolicy->asymmetricModule.
             compareCertificateThumbprint(securityPolicy,
                                          &asymHeader->receiverCertificateThumbprint);

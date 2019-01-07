@@ -227,13 +227,13 @@ asym_encrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
 /* AsymmetricEncryptionAlgorithm_RSA-OAEP-SHA1 */
 static UA_StatusCode
 asym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
-                               Basic256Sha256_PolicyContext *pc,
+                               Basic256Sha256_ChannelContext *cc,
                                UA_ByteString *data) {
-    if(securityPolicy == NULL || pc == NULL || data == NULL)
+    if(securityPolicy == NULL || cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     mbedtls_rsa_context *rsaContext =
-        mbedtls_pk_rsa(pc->localPrivateKey);
+        mbedtls_pk_rsa(cc->policyContext->localPrivateKey);
 
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1);
 
@@ -250,6 +250,7 @@ asym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
     size_t offset = 0;
     size_t outLength = 0;
     const unsigned char *label = NULL;
+    Basic256Sha256_PolicyContext *pc = cc->policyContext;
 
     while(lenDataToDecrypt >= rsaContext->len) {
         int mbedErr = mbedtls_rsa_rsaes_oaep_decrypt(rsaContext, mbedtls_ctr_drbg_random,
