@@ -109,10 +109,13 @@ if(UA_ENABLE_JSON_ENCODING)
     add_test_valgrind(types_builtin_json ${TESTS_BINARY_DIR}/check_types_builtin_json)
 
     if(UA_ENABLE_PUBSUB)
-        #later batch
-        #add_executable(check_pubsub_encoding_json pubsub/check_pubsub_encoding_json.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-        #target_link_libraries(check_pubsub_encoding_json ${LIBS})
-        #add_test_valgrind(pubsub_encoding_json ${TESTS_BINARY_DIR}/check_pubsub_encoding_json)
+        add_executable(check_pubsub_encoding_json pubsub/check_pubsub_encoding_json.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+        target_link_libraries(check_pubsub_encoding_json ${LIBS})
+        add_test_valgrind(pubsub_encoding_json ${TESTS_BINARY_DIR}/check_pubsub_encoding_json)
+
+        add_executable(check_pubsub_publish_json pubsub/check_pubsub_publish_json.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_pubsub_publish_json ${LIBS})
+        add_test_valgrind(pubsub_publish_json ${TESTS_BINARY_DIR}/check_pubsub_publish_json)
     endif()
 endif()
 

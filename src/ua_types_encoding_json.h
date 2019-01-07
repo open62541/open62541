@@ -112,10 +112,19 @@ calcJsonArrEnd(CtxJson *ctx) {
     return writeJsonArrEnd(ctx);
 }
 
+status
+encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
+
 typedef struct {
     jsmntok_t *tokenArray;
     UA_Int32 tokenCount;
     UA_UInt16 index;
+
+    /* Additonal data for special cases such as networkmessage/datasetmessage
+     * Currently only used for dataSetWriterIds */
+    size_t numCustom;
+    void * custom;
+    size_t* currentCustomIndex;
 } ParseCtx;
 
 typedef UA_StatusCode

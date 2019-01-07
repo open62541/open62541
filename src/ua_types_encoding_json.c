@@ -84,7 +84,6 @@ extern const encodeJsonSignature encodeJsonJumpTable[UA_BUILTIN_TYPES_COUNT + 1]
 extern const decodeJsonSignature decodeJsonJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
 /* Forward declarations */
-static status encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx);
 UA_String UA_DateTime_toJSON(UA_DateTime t);
 ENCODE_JSON(ByteString);
 
@@ -142,6 +141,16 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
                 const UA_DataType *type) {
     status ret = writeJsonCommaIfNeeded(ctx);
     ctx->commaNeeded[ctx->depth] = true;
+    ret |= encodeJsonInternal(value, type, ctx);
+    return ret;
+}
+
+status writeJsonObjElm(CtxJson *ctx, UA_String *key,
+                       const void *value, const UA_DataType *type){
+    UA_STACKARRAY(char, out, key->length + 1);
+    memcpy(out, key->data, key->length);
+    out[key->length] = 0;
+    status ret = writeJsonKey(ctx, out);
     ret |= encodeJsonInternal(value, type, ctx);
     return ret;
 }
@@ -1405,7 +1414,7 @@ const encodeJsonSignature encodeJsonJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (encodeJsonSignature) encodeJsonInternal,
 };
 
-static status
+status
 encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
     /* Check the recursion limit */
     if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
@@ -1480,7 +1489,6 @@ UA_encodeJson(const void *src, const UA_DataType *type,
 /************/
 /* CalcSize */
 /************/
-
 size_t
 UA_calcSizeJson(const void *src, const UA_DataType *type,
                 UA_String *namespaces, size_t namespaceSize,

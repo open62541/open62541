@@ -71,6 +71,8 @@ UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
 typedef struct {
     UA_UInt16 fieldCount;
     UA_DataValue* dataSetFields;
+    /* Json keys for the dataSetFields: TODO: own dataSetMessageType for json? */
+    UA_String* fieldNames;
 } UA_DataSetMessage_DataKeyFrameData;
 
 typedef struct {
@@ -156,6 +158,8 @@ typedef struct {
  * ^^^^^^^^^^^^^^^^^ */
 typedef struct {
     UA_Byte version;
+    UA_Boolean messageIdEnabled;
+    UA_String messageId; /* For Json NetworkMessage */
     UA_Boolean publisherIdEnabled;
     UA_Boolean groupHeaderEnabled;
     UA_Boolean payloadHeaderEnabled;
@@ -216,6 +220,23 @@ UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p);
 
 void
 UA_NetworkMessage_delete(UA_NetworkMessage* p);
+
+
+#ifdef UA_ENABLE_JSON_ENCODING
+UA_StatusCode
+UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
+                             UA_Byte **bufPos, const UA_Byte **bufEnd, UA_String *namespaces,
+                             size_t namespaceSize, UA_String *serverUris,
+                             size_t serverUriSize, UA_Boolean useReversible);
+
+size_t
+UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
+                               UA_String *namespaces, size_t namespaceSize,
+                               UA_String *serverUris, size_t serverUriSize,
+                               UA_Boolean useReversible);
+
+UA_StatusCode UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, UA_ByteString *src);
+#endif
 
 _UA_END_DECLS
 

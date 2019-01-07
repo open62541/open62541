@@ -751,10 +751,25 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
     if(!dataSetMessage->data.keyFrameData.dataSetFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+#ifdef UA_ENABLE_JSON_ENCODING
+    /* json: insert fieldnames used as json keys */
+       dataSetMessage->data.keyFrameData.fieldNames =
+               (UA_String *)UA_Array_new(currentDataSet->fieldSize, &UA_TYPES[UA_TYPES_STRING]);
+       if(!dataSetMessage->data.keyFrameData.fieldNames)
+           return UA_STATUSCODE_BADOUTOFMEMORY;
+#endif
+
     /* Loop over the fields */
     size_t counter = 0;
     UA_DataSetField *dsf;
     LIST_FOREACH(dsf, &currentDataSet->fields, listEntry) {
+
+#ifdef UA_ENABLE_JSON_ENCODING
+        /* json: store the fieldNameAlias*/
+        UA_String_copy(&dsf->config.field.variable.fieldNameAlias,
+              &dataSetMessage->data.keyFrameData.fieldNames[counter]);
+#endif
+
         /* Sample the value */
         UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
         UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
@@ -879,7 +894,11 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
 
-    /* Currently is only UADP supported. The configuration Flags are included
+    /* store messageType to switch between json or uadp (default) */
+    UA_UInt16 messageType = UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE;
+    UA_JsonDataSetWriterMessageDataType *jsonDataSetWriterMessageDataType = NULL;
+
+    /* The configuration Flags are included
      * inside the std. defined UA_UadpDataSetWriterMessageDataType */
     UA_UadpDataSetWriterMessageDataType defaultUadpConfiguration;
     UA_UadpDataSetWriterMessageDataType *dataSetWriterMessageDataType = NULL;
@@ -888,7 +907,18 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
        (dataSetWriter->config.messageSettings.content.decoded.type == &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE])) {
         dataSetWriterMessageDataType = (UA_UadpDataSetWriterMessageDataType *)
             dataSetWriter->config.messageSettings.content.decoded.data;
-    } else {
+
+        /* type is UADP */
+        messageType = UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE;
+    } else if((dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
+        dataSetWriter->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+       (dataSetWriter->config.messageSettings.content.decoded.type == &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE])) {
+        jsonDataSetWriterMessageDataType = (UA_JsonDataSetWriterMessageDataType *)
+            dataSetWriter->config.messageSettings.content.decoded.data;
+
+            /* type is JSON */
+            messageType = UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE;
+    }else {
         /* create default flag configuration if no
          * UadpDataSetWriterMessageDataType was passed in */
         memset(&defaultUadpConfiguration, 0, sizeof(UA_UadpDataSetWriterMessageDataType));
@@ -921,41 +951,72 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
     }
 
-    /* Std: 'The DataSetMessageContentMask defines the flags for the content of the DataSetMessage header.' */
-    if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION){
-        dataSetMessage->header.configVersionMajorVersionEnabled = true;
-        dataSetMessage->header.configVersionMajorVersion =
-            currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
-    }
-    if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION){
-        dataSetMessage->header.configVersionMinorVersionEnabled = true;
-        dataSetMessage->header.configVersionMinorVersion =
-            currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
-    }
+    if(messageType == UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE){
+        /* Std: 'The DataSetMessageContentMask defines the flags for the content of the DataSetMessage header.' */
+        if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION){
+            dataSetMessage->header.configVersionMajorVersionEnabled = true;
+            dataSetMessage->header.configVersionMajorVersion =
+                currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
+        }
+        if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION){
+            dataSetMessage->header.configVersionMinorVersionEnabled = true;
+            dataSetMessage->header.configVersionMinorVersion =
+                currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
+        }
 
-    if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
-        dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
-        dataSetMessage->header.dataSetMessageSequenceNr =
-            dataSetWriter->actualDataSetMessageSequenceCount;
-    }
+        if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
+            dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
+            dataSetMessage->header.dataSetMessageSequenceNr =
+                dataSetWriter->actualDataSetMessageSequenceCount;
+        }
 
-    if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
-        dataSetMessage->header.timestampEnabled = true;
-        dataSetMessage->header.timestamp = UA_DateTime_now();
-    }
-    /* TODO: Picoseconds resolution not supported atm */
-    if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
-        dataSetMessage->header.picoSecondsIncluded = false;
-    }
+        if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
+            dataSetMessage->header.timestampEnabled = true;
+            dataSetMessage->header.timestamp = UA_DateTime_now();
+        }
+        /* TODO: Picoseconds resolution not supported atm */
+        if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS) {
+            dataSetMessage->header.picoSecondsIncluded = false;
+        }
 
-    /* TODO: Statuscode not supported yet */
-    if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_STATUS){
-        dataSetMessage->header.statusEnabled = false;
+        /* TODO: Statuscode not supported yet */
+        if(dataSetWriterMessageDataType->dataSetMessageContentMask & UA_UADPDATASETMESSAGECONTENTMASK_STATUS){
+            dataSetMessage->header.statusEnabled = false;
+        }
+    }else if(messageType == UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE){
+        if(jsonDataSetWriterMessageDataType->dataSetMessageContentMask & UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION){
+            dataSetMessage->header.configVersionMajorVersionEnabled = true;
+            dataSetMessage->header.configVersionMajorVersion =
+                currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
+        }
+        if(jsonDataSetWriterMessageDataType->dataSetMessageContentMask & UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION){
+            dataSetMessage->header.configVersionMinorVersionEnabled = true;
+            dataSetMessage->header.configVersionMinorVersion =
+                currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
+        }
+
+        if(jsonDataSetWriterMessageDataType->dataSetMessageContentMask & UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
+            dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
+            dataSetMessage->header.dataSetMessageSequenceNr =
+                dataSetWriter->actualDataSetMessageSequenceCount;
+        }
+
+        if(jsonDataSetWriterMessageDataType->dataSetMessageContentMask & UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP) {
+            dataSetMessage->header.timestampEnabled = true;
+            dataSetMessage->header.timestamp = UA_DateTime_now();
+        }
+
+        /* TODO: Statuscode not supported yet */
+        if(jsonDataSetWriterMessageDataType->dataSetMessageContentMask & UA_JSONDATASETMESSAGECONTENTMASK_STATUS){
+            dataSetMessage->header.statusEnabled = false;
+        }
     }
 
     /* Set the sequence count. Automatically rolls over to zero */
     dataSetWriter->actualDataSetMessageSequenceCount++;
 
+    /* JSON does not differ between deltaframes and keyframes, only keyframes are currently used. */
+    if(messageType != UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE){
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     /* Check if the PublishedDataSet version has changed -> if yes flush the lastValue store and send a KeyFrame */
     if(dataSetWriter->connectedDataSetVersion.majorVersion != currentDataSet->dataSetMetaData.configurationVersion.majorVersion ||
@@ -991,9 +1052,59 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 
     dataSetWriter->deltaFrameCounter = 1;
 #endif
+    }
 
     UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage, dataSetWriter);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
+                   UA_UInt16 *writerIds, UA_Byte dsmCount) {
+   UA_StatusCode retval = UA_STATUSCODE_BADNOTSUPPORTED;
+#ifdef UA_ENABLE_JSON_ENCODING
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+    nm.version = 1;
+    nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    nm.payloadHeaderEnabled = true;
+
+    nm.payloadHeader.dataSetPayloadHeader.count = dsmCount;
+    nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
+    nm.payload.dataSetPayload.dataSetMessages = dsm;
+
+    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
+    UA_ByteString buf;
+    size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, NULL, 0, NULL, 0, true);
+    size_t stackSize = 1;
+    if(msgSize <= UA_MAX_STACKBUF)
+        stackSize = msgSize;
+    UA_STACKARRAY(UA_Byte, stackBuf, stackSize);
+    buf.data = stackBuf;
+    buf.length = msgSize;
+    if(msgSize > UA_MAX_STACKBUF) {
+        retval = UA_ByteString_allocBuffer(&buf, msgSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Encode the message */
+    UA_Byte *bufPos = buf.data;
+    memset(bufPos, 0, msgSize);
+    const UA_Byte *bufEnd = &buf.data[buf.length];
+    retval = UA_NetworkMessage_encodeJson(&nm, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(msgSize > UA_MAX_STACKBUF)
+            UA_ByteString_deleteMembers(&buf);
+        return retval;
+    }
+
+    /* Send the prepared messages */
+    retval = connection->channel->send(connection->channel, NULL, &buf);
+    if(msgSize > UA_MAX_STACKBUF)
+        UA_ByteString_deleteMembers(&buf);
+#endif
+    return retval;
 }
 
 static UA_StatusCode
@@ -1065,8 +1176,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(writerGroup->writersCount <= 0)
         return;
 
-    /* Binary encoding? */
-    if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
+    /* Binary or Json encoding?  */
+    if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP
+            && writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_JSON) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Publish failed: Unknown encoding type.");
         return;
@@ -1119,8 +1231,14 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
          * are contained in the PublishedDataSet, then this DSM must go into a
          * dedicated NM as well. */
         if(pds->promotedFieldsCount > 0 || maxDSM == 1) {
-            res = sendNetworkMessage(connection, &dsmStore[dsmCount],
-                                     &dsw->config.dataSetWriterId, 1);
+            if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+                res = sendNetworkMessage(connection, &dsmStore[dsmCount],
+                                         &dsw->config.dataSetWriterId, 1);
+            }else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
+                res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
+                                         &dsw->config.dataSetWriterId, 1);
+            }
+
             if(res != UA_STATUSCODE_GOOD)
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub Publish: Could not send a NetworkMessage");
@@ -1138,8 +1256,16 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_Byte nmDsmCount = maxDSM;
         if(i == nmCount - 1)
             nmDsmCount = (UA_Byte)dsmCount % maxDSM;
-        UA_StatusCode res3 = sendNetworkMessage(connection, &dsmStore[i * maxDSM],
-                                                &dsWriterIds[i * maxDSM], nmDsmCount);
+
+        UA_StatusCode res3 = UA_STATUSCODE_GOOD;
+        if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
+            res3 = sendNetworkMessage(connection, &dsmStore[i * maxDSM],
+                                                            &dsWriterIds[i * maxDSM], nmDsmCount);
+        }else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
+            res3 = sendNetworkMessageJson(connection, &dsmStore[i * maxDSM],
+                                                            &dsWriterIds[i * maxDSM], nmDsmCount);
+        }
+
         if(res3 != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub Publish: Sending a NetworkMessage failed");
