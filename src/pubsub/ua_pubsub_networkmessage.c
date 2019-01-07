@@ -810,6 +810,14 @@ UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p) {
     if(p->securityHeader.securityFooterEnabled && (p->securityHeader.securityFooterSize > 0))
         UA_ByteString_deleteMembers(&p->securityFooter);
 
+    if(p->messageIdEnabled){
+           UA_String_deleteMembers(&p->messageId);
+    }
+
+    if(p->publisherIdEnabled && p->publisherIdType == UA_PUBLISHERDATATYPE_STRING){
+       UA_String_deleteMembers(&p->publisherId.publisherIdString);
+    }
+
     memset(p, 0, sizeof(UA_NetworkMessage));
 }
 
@@ -1264,6 +1272,11 @@ void UA_DataSetMessage_free(const UA_DataSetMessage* p) {
         if(p->data.keyFrameData.dataSetFields != NULL)
             UA_Array_delete(p->data.keyFrameData.dataSetFields, p->data.keyFrameData.fieldCount,
                             &UA_TYPES[UA_TYPES_DATAVALUE]);
+        /* Json keys */
+        if(p->data.keyFrameData.fieldNames != NULL){
+            UA_Array_delete(p->data.keyFrameData.fieldNames, p->data.keyFrameData.fieldCount,
+                            &UA_TYPES[UA_TYPES_STRING]);
+        }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
         if(p->data.deltaFrameData.deltaFrameFields != NULL) {
             for(UA_UInt16 i = 0; i < p->data.deltaFrameData.fieldCount; i++) {
@@ -1277,5 +1290,4 @@ void UA_DataSetMessage_free(const UA_DataSetMessage* p) {
         }
     }
 }
-
 #endif /* UA_ENABLE_PUBSUB */

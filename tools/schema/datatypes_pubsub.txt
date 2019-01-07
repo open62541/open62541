@@ -25,3 +25,6 @@ ReaderGroupDataType
 DataSetWriterDataType
 DataSetReaderDataType
 PubSubState
+JsonDataSetWriterMessageDataType
+JsonDataSetMessageContentMask
+JsonNetworkMessageContentMask
