@@ -7,7 +7,6 @@ if [ $MINGW = "true" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ] && [
     # List branches where the doc should be pushed to the webpage
     if [ "${TRAVIS_BRANCH}" = "master" ] || [ "${TRAVIS_BRANCH}" = "0.3" ]; then
         sh ./tools/travis/travis_push_doc.sh
-        sh ./tools/travis/travis_push_coverity.sh
     fi
     sh ./tools/travis/travis_push_release.sh;
 else
