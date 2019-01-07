@@ -7,9 +7,6 @@ env:
   global:
     # GITAUTH:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
-    # COVERITY_SCAN_TOKEN:
-    - secure: C7LLWmOCdRYJGiXjFYDHWwBB6XGjs9Hio4kkvDehLRredRgp1UJ73g6Av9L7xrTUide6GiPrSd+RJw7py/twx5qaeIjOWPy+XvtmabDEQBquLjEkvS+LP2EycaMe92kHMo1ItFfRomgj1FyNYPVnUFgdyedGWv+p553ziDbrMas=
-
 
 dist: trusty
 
@@ -232,15 +229,6 @@ matrix:
       cache:
         directories:
           - '$HOME/.sonar/cache'
-addons:
-  coverity_scan:
-    project:
-      name: "open62541/open62541"
-      description: "Build submitted by Travis"
-    notification_email: noreply@open62541.org
-    build_command_prepend: "mkdir build && cd build && cmake .."
-    build_command: "make"
-    branch_pattern: coverity_scan
 
 cache:
   pip: true
@@ -286,8 +274,6 @@ before_install: |
  export PATH=$PATH:$HOME/Library/Python #OS X
  export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
 
- # Exit travis if on coverity_scan branch and not first build
- test $TRAVIS_BRANCH != coverity_scan -o ${TRAVIS_JOB_NUMBER##*.} = 1 || exit 0
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 

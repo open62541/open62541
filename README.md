@@ -17,7 +17,6 @@ Code Quality:
 
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/68ad08e897624c77a64fc2be66ca7b50)](https://www.codacy.com/app/open62541/open62541?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=open62541/open62541&amp;utm_campaign=Badge_Grade)
 [![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
-[![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
 
@@ -72,7 +71,7 @@ We emphasize code quality. The following quality metrics are continuously checke
 - Zero errors indicated by the Compliance Testing Tool (CTT) of the OPC Foundation for the supported features
 - Zero compiler warnings from GCC/Clang/MSVC with very strict compilation flags
 - Zero issues indicated by unit tests (more than 80% coverage)
-- Zero issues indicated by clang-analyzer, clang-tidy, cpp-check and the Coverity static code analysis tools
+- Zero issues indicated by clang-analyzer, clang-tidy, cpp-check and the Codacy static code analysis tools
 - Zero unresolved issues from fuzzing the library in Google's oss-fuzz infrastructure
 - Zero issues indicated by Valgrind (Linux), DrMemory (Windows) and Clang AddressSanitizer / MemorySanitizer for the CTT tests, unit tests and fuzzing
 
