@@ -68,7 +68,7 @@ createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
     UA_EndpointDescription_init(endpoint);
 
     endpoint->securityMode = securityMode;
-    endpoint->securityPolicyUri = securityPolicy->policyUri;
+    UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
     endpoint->transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
