@@ -117,22 +117,20 @@ struct UA_Socket {
     UA_Socket_DataCallback dataCallback;
 
     /**
-     * Sends the data contained in the data buffer. The buffer will be deallocated
-     * by the socket.
+     * Sends the data contained in the send buffer. The data in the buffer is lost
+     * after calling send.
+     * Always call getSendBuffer to get a buffer and write the data to that buffer.
+     * The length needs to be set to the amount of bytes to send.
+     * The length may not exceed the originally allocated length.
      * @param socket the socket to perform the operation on.
-     * @param data the pointer to the data buffer that contains the data to send.
-     *             The length of the buffer is the amount of bytes that will be sent.
      * @return
      */
-    UA_StatusCode (*send)(UA_Socket *socket, UA_ByteString *data);
+    UA_StatusCode (*send)(UA_Socket *socket);
 
     /**
      * This function can be used to get a send buffer from the socket implementation.
-     * Directly writing to this buffer and passing the pointer to the socket might
-     * be faster on some implementations than allocating an own buffer and passing
-     * it to the socket.
-     * It is advised to always allocate the send buffer with this function and pass
-     * that buffer to the send function.
+     * To send data, directly write to this buffer. Calling send, will send the
+     * contained data. The length of the buffer determines the bytes sent.
      *
      * @param socket the socket to perform the operation on.
      * @param buffer the pointer the the allocated buffer
@@ -147,6 +145,14 @@ struct UA_Socket {
      */
     void *internalData;
 };
+
+/**
+ * Configuration parameters for the socket.
+ */
+typedef struct {
+    UA_UInt32 recvBufferSize;
+    UA_UInt32 sendBufferSize;
+} UA_SocketConfig;
 
 typedef struct {
     UA_StatusCode (*hook)(UA_Socket *socket, void *hookContext);

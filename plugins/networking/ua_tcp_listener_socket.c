@@ -119,7 +119,7 @@ tcp_sock_activity(UA_Socket *sock) {
 }
 
 static UA_StatusCode
-tcp_sock_send(UA_Socket *sock, UA_ByteString *data) {
+tcp_sock_send(UA_Socket *sock) {
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
     UA_LOG_ERROR(socketData->logger, UA_LOGCATEGORY_NETWORK,
                  "Sending is not supported on listener sockets");

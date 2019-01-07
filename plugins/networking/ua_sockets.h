@@ -37,8 +37,17 @@ UA_TCP_ListenerSockets(UA_UInt32 port,
                        UA_Socket **sockets[],
                        size_t *sockets_size);
 
+/**
+ * Creates a data socket by accepting an incoming connection from the listenerSocket.
+ *
+ * @param listenerSocket
+ * @param p_sock
+ * @param creationHooks
+ * @param deletionHooks
+ * @param logger
+ */
 UA_StatusCode
-UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Socket **p_socket, HookList creationHooks,
-                             HookList deletionHooks, UA_Logger *logger);
+UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_SocketConfig socketConfig,
+                             HookList creationHooks, HookList deletionHooks, UA_Socket **p_sock);
 
 #endif //OPEN62541_UA_SOCKETS_H
