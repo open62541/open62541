@@ -341,7 +341,7 @@ setTxt(UA_Server *server, const struct resource *r,
     char *path = (char *) xht_get(x, "path");
     char *caps = (char *) xht_get(x, "caps");
 
-    size_t pathLen = strlen(path);
+    size_t pathLen = path ? strlen(path) : 0;
 
     if(path && pathLen > 1) {
         if(!entry->srvSet) {
