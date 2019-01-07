@@ -438,6 +438,13 @@ else
         # We only want to build coveralls once, so we just take the travis run where MINGW=true which is only enabled once
         echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
         if [ $MINGW = "true" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+            echo -en "\r\n==   Building codecov.io for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.codecov\\r'
+            cd ..
+            /bin/bash -c "bash <(curl -s https://codecov.io/bash)"
+            if [ $? -ne 0 ] ; then exit 1 ; fi
+            cd build
+            echo -en 'travis_fold:end:script.build.codecov\\r'
+
             echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
             coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
             echo -en 'travis_fold:end:script.build.coveralls\\r'
