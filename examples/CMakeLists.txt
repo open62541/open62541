@@ -3,6 +3,7 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/examples)
 include_directories(${PROJECT_SOURCE_DIR}/arch)
+include_directories(${PROJECT_SOURCE_DIR}/plugins/historydata)
 
 set(examples_headers
     ${examples_headers}
@@ -109,6 +110,10 @@ add_example(server_instantiation server_instantiation.c)
 add_example(server_repeated_job server_repeated_job.c)
 
 add_example(server_inheritance server_inheritance.c)
+
+if(UA_ENABLE_HISTORIZING)
+    add_example(tutorial_server_historicaldata tutorial_server_historicaldata.c)
+endif()
 
 if(UA_ENABLE_ENCRYPTION)
     add_example(server_basic128rsa15 encryption/server_basic128rsa15.c)
