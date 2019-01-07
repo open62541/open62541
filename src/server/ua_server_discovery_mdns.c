@@ -153,11 +153,19 @@ getInterfaces(UA_Server *server) {
 
 static UA_Boolean
 mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entry) {
-    for (size_t i=0; i<server->config.networkLayersSize; i++) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+    UA_String *discoveryUrls;
+    size_t discoveryUrlsSize;
+    UA_StatusCode retval =
+        server->networkManager.getDiscoveryUrls(&server->networkManager, &discoveryUrls, &discoveryUrlsSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return false;
+
+    for(size_t i = 0; i < discoveryUrlsSize; ++i) {
         if(UA_String_equal(&entry->serverOnNetwork.discoveryUrl,
-                           &nl->discoveryUrl))
+                           &discoveryUrls[i])) {
+            UA_free(discoveryUrls);
             return true;
+        }
     }
 
     /* The discovery URL may also just contain the IP address, but in our
@@ -166,11 +174,11 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
     UA_String hostnameRemote = UA_STRING_NULL;
     UA_UInt16 portRemote = 4840;
     UA_String pathRemote = UA_STRING_NULL;
-    UA_StatusCode retval =
-        UA_parseEndpointUrl(&entry->serverOnNetwork.discoveryUrl,
-                            &hostnameRemote, &portRemote, &pathRemote);
+    retval = UA_parseEndpointUrl(&entry->serverOnNetwork.discoveryUrl,
+                                 &hostnameRemote, &portRemote, &pathRemote);
     if(retval != UA_STATUSCODE_GOOD) {
         /* skip invalid url */
+        UA_free(discoveryUrls);
         return false;
     }
 
@@ -186,6 +194,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
     if(getifaddrs(&ifaddr) == -1) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
+        UA_free(discoveryUrls);
         return false;
     }
 #endif
@@ -193,14 +202,13 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
 
     UA_Boolean isSelf = false;
 
-    for (size_t i=0; i<server->config.networkLayersSize; i++) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+    for (size_t i=0; i<discoveryUrlsSize; i++) {
 
         UA_String hostnameSelf = UA_STRING_NULL;
         UA_UInt16 portSelf = 4840;
         UA_String pathSelf = UA_STRING_NULL;
 
-        retval = UA_parseEndpointUrl(&nl->discoveryUrl, &hostnameSelf,
+        retval = UA_parseEndpointUrl(&discoveryUrls[i], &hostnameSelf,
                                      &portSelf, &pathSelf);
         if(retval != UA_STATUSCODE_GOOD) {
             /* skip invalid url */
@@ -277,6 +285,7 @@ mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entr
     freeifaddrs(ifaddr);
 #endif
 
+    UA_free(discoveryUrls);
     return isSelf;
 }
 

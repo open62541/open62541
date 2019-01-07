@@ -52,6 +52,9 @@ struct UA_Server {
     UA_ServerConfig config;
     UA_DateTime startTime;
 
+    /* Networking */
+    UA_NetworkManager networkManager;
+
     /* Security */
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
@@ -61,6 +64,7 @@ struct UA_Server {
 
     /* Namespaces */
     size_t namespacesSize;
+
     UA_String *namespaces;
 
     /* Callbacks with a repetition interval */

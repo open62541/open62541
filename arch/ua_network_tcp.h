@@ -15,8 +15,9 @@ extern "C" {
 #include "ua_client.h"
 #include "ua_plugin_log.h"
 
-UA_ServerNetworkLayer UA_EXPORT
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port, const UA_Logger *logger);
+// TODO: Remove comments
+//UA_ServerNetworkLayer UA_EXPORT
+//UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port, const UA_Logger *logger);
 
 UA_Connection UA_EXPORT
 UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,

@@ -21,8 +21,8 @@ typedef struct UA_Connection UA_Connection;
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
 
-struct UA_ServerNetworkLayer;
-typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
+//struct UA_ServerNetworkLayer;
+//typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
 
 /**
  * .. _networking:
@@ -147,45 +147,45 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 void UA_EXPORT
 UA_Server_removeConnection(UA_Server *server, UA_Connection *connection);
 
-struct UA_ServerNetworkLayer {
-    void *handle; /* Internal data */
-
-    UA_String discoveryUrl;
-
-    UA_ConnectionConfig localConnectionConfig;
-
-    /* Start listening on the networklayer.
-     *
-     * @param nl The network layer
-     * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, const UA_String *customHostname);
-
-    /* Listen for new and closed connections and arriving packets. Calls
-     * UA_Server_processBinaryMessage for the arriving packets. Closed
-     * connections are picked up here and forwarded to
-     * UA_Server_removeConnection where they are cleaned up and freed.
-     *
-     * @param nl The network layer
-     * @param server The server for processing the incoming packets and for
-     *               closing connections. 
-     * @param timeout The timeout during which an event must arrive in
-     *                milliseconds
-     * @return A statuscode for the status of the network layer. */
-    UA_StatusCode (*listen)(UA_ServerNetworkLayer *nl, UA_Server *server,
-                            UA_UInt16 timeout);
-
-    /* Close the network socket and all open connections. Afterwards, the
-     * network layer can be safely deleted.
-     *
-     * @param nl The network layer
-     * @param server The server that processes the incoming packets and for
-     *               closing connections before deleting them.
-     * @return A statuscode for the status of the closing operation. */
-    void (*stop)(UA_ServerNetworkLayer *nl, UA_Server *server);
-
-    /* Deletes the network layer context. Call only after stopping. */
-    void (*deleteMembers)(UA_ServerNetworkLayer *nl);
-};
+//struct UA_ServerNetworkLayer {
+//    void *handle; /* Internal data */
+//
+//    UA_String discoveryUrl;
+//
+//    UA_ConnectionConfig localConnectionConfig;
+//
+//    /* Start listening on the networklayer.
+//     *
+//     * @param nl The network layer
+//     * @return Returns UA_STATUSCODE_GOOD or an error code. */
+//    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, const UA_String *customHostname);
+//
+//    /* Listen for new and closed connections and arriving packets. Calls
+//     * UA_Server_processBinaryMessage for the arriving packets. Closed
+//     * connections are picked up here and forwarded to
+//     * UA_Server_removeConnection where they are cleaned up and freed.
+//     *
+//     * @param nl The network layer
+//     * @param server The server for processing the incoming packets and for
+//     *               closing connections.
+//     * @param timeout The timeout during which an event must arrive in
+//     *                milliseconds
+//     * @return A statuscode for the status of the network layer. */
+//    UA_StatusCode (*listen)(UA_ServerNetworkLayer *nl, UA_Server *server,
+//                            UA_UInt16 timeout);
+//
+//    /* Close the network socket and all open connections. Afterwards, the
+//     * network layer can be safely deleted.
+//     *
+//     * @param nl The network layer
+//     * @param server The server that processes the incoming packets and for
+//     *               closing connections before deleting them.
+//     * @return A statuscode for the status of the closing operation. */
+//    void (*stop)(UA_ServerNetworkLayer *nl, UA_Server *server);
+//
+//    /* Deletes the network layer context. Call only after stopping. */
+//    void (*deleteMembers)(UA_ServerNetworkLayer *nl);
+//};
 
 /**
  * Client Network Layer

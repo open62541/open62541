@@ -10,6 +10,8 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
+#include <networking/ua_networkmanagers.h>
+#include <networking/ua_sockets.h>
 #include "ua_config_default.h"
 #include "ua_client_config.h"
 #include "ua_log_stdout.h"
@@ -93,8 +95,10 @@ void
 UA_ServerConfig_set_customHostname(UA_ServerConfig *config, const UA_String customHostname) {
     if(!config)
         return;
-    UA_String_deleteMembers(&config->customHostname);
-    UA_String_copy(&customHostname, &config->customHostname);
+    for(size_t i = 0; i < config->socketConfigsSize; ++i) {
+        UA_String_deleteMembers(&config->socketConfigs[i].customHostname);
+        UA_String_copy(&customHostname, &config->socketConfigs[i].customHostname);
+    }
 }
 
 const size_t usernamePasswordsSize = 2;
@@ -228,26 +232,47 @@ createDefaultConfig(void) {
     return conf;
 }
 
+/**
+ * The default select based network manager doesn't need any configuration.
+ * It suffices to just initialize it.
+ */
 static UA_StatusCode
-addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Add a network layer */
-    conf->networkLayers = (UA_ServerNetworkLayer *)
-        UA_malloc(sizeof(UA_ServerNetworkLayer));
-    if(!conf->networkLayers)
+configureNetworkManager_default(const UA_ServerConfig *config, UA_NetworkManager *networkManager) {
+    /* Instead of calling this function here, you could also directly pass the pointer.
+     * This just illustrates, that additional configuration steps may be performed by user code.
+     */
+    return UA_SelectBasedNetworkManager(&config->logger, networkManager);
+}
+
+/**
+ * This function is called by the server when creating a socket.
+ * Different socket configs can have different createSocket functions.
+ */
+static UA_StatusCode
+createSocket_default(UA_SocketConfig *config, UA_SocketHook creationHook) {
+    /* Instead of calling this function here, you could also directly pass the pointer.
+     * This just illustrates, that additional configuration steps may be performed by user code.
+     */
+    return UA_TCP_ListenerSockets(config, creationHook);
+}
+
+static UA_StatusCode
+configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 sendBufferSize,
+                            UA_UInt32 recvBufferSize) {
+
+    conf->socketConfigs = (UA_SocketConfig *)UA_malloc(sizeof(UA_SocketConfig));
+    if(conf->socketConfigs == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
+    conf->socketConfigsSize = 1;
+    conf->socketConfigs[0].logger = &conf->logger;
+    conf->socketConfigs[0].sendBufferSize = sendBufferSize;
+    conf->socketConfigs[0].recvBufferSize = recvBufferSize;
+    conf->socketConfigs[0].port = portNumber;
+    conf->socketConfigs[0].createSocket = createSocket_default;
+    conf->socketConfigs[0].customHostname = UA_STRING_NULL;
 
-    conf->networkLayers[0] =
-        UA_ServerNetworkLayerTCP(config, portNumber, &conf->logger);
-    if (!conf->networkLayers[0].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize = 1;
-
+    conf->configureNetworkManager = configureNetworkManager_default;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -264,7 +289,7 @@ UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber, sendBufferSize, recvBufferSize) != UA_STATUSCODE_GOOD) {
+    if(configureNetworking_default(conf, portNumber, sendBufferSize, recvBufferSize) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -334,7 +359,7 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
+    if(configureNetworking_default(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -435,7 +460,7 @@ UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
+    if(configureNetworking_default(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -535,7 +560,7 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
         return NULL;
     }
 
-    if(addDefaultNetworkLayers(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
+    if(configureNetworking_default(conf, portNumber, 0, 0) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -662,13 +687,11 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     /* nothing to do */
 
     /* Networking */
-    for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].deleteMembers(&config->networkLayers[i]);
-    UA_free(config->networkLayers);
-    config->networkLayers = NULL;
-    config->networkLayersSize = 0;
-    UA_String_deleteMembers(&config->customHostname);
-    config->customHostname = UA_STRING_NULL;
+    for(size_t i = 0; i < config->socketConfigsSize; ++i) {
+        UA_String_deleteMembers(&config->socketConfigs[i].customHostname);
+        config->socketConfigs[i].customHostname = UA_STRING_NULL;
+    }
+    UA_free(config->socketConfigs);
 
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];

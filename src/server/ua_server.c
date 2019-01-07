@@ -158,6 +158,8 @@ void UA_Server_delete(UA_Server *server) {
     UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
 
+    server->networkManager.deleteMembers(&server->networkManager);
+
     /* Clean up the Admin Session */
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
 
@@ -225,6 +227,10 @@ UA_Server_new(const UA_ServerConfig *config) {
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
+
+    /* Initialize networking */
+    config->configureNetworkManager(config, &server->networkManager);
+    // TODO: create sockets
 
     /* Initialized SecureChannel and Session managers */
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
@@ -392,11 +398,7 @@ UA_Server_run_startup(UA_Server *server) {
                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                          var);
 
-    /* Start the networklayers */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        result |= nl->start(nl, &server->config.customHostname);
-    }
+    // TODO: socket initialization here? or at server init?
 
     /* Spin up the worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
@@ -442,11 +444,8 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     if(waitInternal)
         timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-    /* Listen on the networklayer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->listen(nl, server, timeout);
-    }
+    /* Listen for network activity */
+    server->networkManager.process(&server->networkManager, timeout);
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
     if(server->config.applicationDescription.applicationType ==
@@ -476,11 +475,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
-    /* Stop the netowrk layer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->stop(nl, server);
-    }
+    server->networkManager.shutdown(&server->networkManager);
 
 #ifdef UA_ENABLE_MULTITHREADING
     /* Shut down the workers */

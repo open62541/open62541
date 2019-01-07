@@ -281,9 +281,8 @@ processHEL(UA_Server *server, UA_Connection *connection,
     UA_String_deleteMembers(&helloMessage.endpointUrl);
 
     /* TODO: Use the config of the exact NetworkLayer */
-    if(server->config.networkLayersSize == 0)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    const UA_ConnectionConfig *localConfig = &server->config.networkLayers[0].localConnectionConfig;
+    /* TODO: What exactly is going on here? Need to maybe revise the whole function a bit. */
+    const UA_ConnectionConfig *localConfig = &connection->config;
 
     /* Parameterize the connection */
     UA_ConnectionConfig remoteConfig;

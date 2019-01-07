@@ -25,6 +25,7 @@
 
 #ifdef UA_ENABLE_HISTORIZING
 #include "ua_plugin_historydatabase.h"
+#include "ua_plugin_network_manager.h"
 #endif
 
 _UA_BEGIN_DECLS
@@ -90,9 +91,23 @@ struct UA_ServerConfig {
     UA_Nodestore nodestore;
 
     /* Networking */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
-    UA_String customHostname;
+    /**
+     * This function is called by the server to create a networkManager.
+     * This enables configuration to be done on the user side in the config.
+     * The delayed configuration makes sure, that initialization is done during
+     * server startup. Also, only the server will have ownership of the NetworkManager.
+     *
+     * @param config The configuration.
+     * @param networkManager The networkManager to initialize.
+     */
+    UA_StatusCode (*configureNetworkManager)(const UA_ServerConfig *config, UA_NetworkManager *networkManager);
+
+    /**
+     * One ore more sockets will be created for each socket config depending on the
+     * createSocket function.
+     */
+    UA_SocketConfig *socketConfigs;
+    size_t socketConfigsSize;
 
 #ifdef UA_ENABLE_PUBSUB
     /*PubSub network layer */
