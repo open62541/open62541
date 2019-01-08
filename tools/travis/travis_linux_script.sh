@@ -166,20 +166,6 @@ else
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.doc\\r'
 
-    echo -e "\r\n== Full Namespace 0 Generation ==" && echo -en 'travis_fold:start:script.build.ns0\\r'
-    mkdir -p build
-    cd build
-    cmake \
-        -DCMAKE_BUILD_TYPE=Debug \
-        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-        -DUA_BUILD_EXAMPLES=ON \
-        -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-        -DUA_NAMESPACE_ZERO=FULL ..
-    make -j
-    if [ $? -ne 0 ] ; then exit 1 ; fi
-    cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.ns0\\r'
-
     # cross compilation only with gcc
     if ! [ -z ${MINGW+x} ]; then
         echo -e "\r\n== Cross compile release build for MinGW 32 bit =="  && echo -en 'travis_fold:start:script.build.cross_mingw32\\r'
