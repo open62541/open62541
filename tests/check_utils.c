@@ -237,7 +237,7 @@ END_TEST
 
 static void assertNodeIdString(const UA_String *gotStr, const char* expectedStr) {
     size_t expectedStringLength = strlen(expectedStr);
-    ck_assert_uint_ge(gotStr->length, expectedStringLength);
+    ck_assert_uint_eq(gotStr->length, expectedStringLength);
     char *gotChars = (char*)UA_malloc(gotStr->length+1);
     memcpy(gotChars, gotStr->data, gotStr->length);
     gotChars[gotStr->length] = 0;

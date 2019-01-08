@@ -205,11 +205,16 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
         return UA_STATUSCODE_GOOD;
 
     char *nsStr = NULL;
+    long snprintfLen = 0;
     size_t nsLen = 0;
     if (nodeId->namespaceIndex != 0) {
         nsStr = (char*)UA_malloc(9+1); // strlen("ns=XXXXX;") = 9 + Nullbyte
-        UA_snprintf(nsStr, 10, "ns=%d;", nodeId->namespaceIndex);
-        nsLen = strlen(nsStr);
+        snprintfLen = UA_snprintf(nsStr, 10, "ns=%d;", nodeId->namespaceIndex);
+        if (snprintfLen < 0 || snprintfLen >= 10) {
+            UA_free(nsStr);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        nsLen = (size_t)(snprintfLen);
     }
 
 
@@ -224,7 +229,7 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
                 UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%si=%lu",
+            snprintfLen =UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%si=%lu",
                         nsLen > 0 ? nsStr : "",
                         (unsigned long )nodeId->identifier.numeric);
             break;
@@ -237,7 +242,7 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
                 UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%ss=%.*s",
+            snprintfLen =UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%ss=%.*s",
                         nsLen > 0 ? nsStr : "",
                         (int)nodeId->identifier.string.length, nodeId->identifier.string.data);
             break;
@@ -250,7 +255,7 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
                 UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sg=" UA_PRINTF_GUID_FORMAT,
+            snprintfLen = UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sg=" UA_PRINTF_GUID_FORMAT,
                         nsLen > 0 ? nsStr : "",
                         UA_PRINTF_GUID_DATA(nodeId->identifier.guid));
             break;
@@ -265,13 +270,22 @@ UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr) {
                 UA_free(nsStr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
-            UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sb=%.*s",
+            snprintfLen = UA_snprintf((char*)nodeIdStr->data, nodeIdStr->length, "%sb=%.*s",
                         nsLen > 0 ? nsStr : "",
                         (int)byteStr.length, byteStr.data);
             UA_String_deleteMembers(&byteStr);
             break;
     }
     UA_free(nsStr);
+
+    if (snprintfLen < 0 || snprintfLen >= (long) nodeIdStr->length) {
+        UA_free(nodeIdStr->data);
+        nodeIdStr->data = NULL;
+        nodeIdStr->length = 0;
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    nodeIdStr->length = (size_t)snprintfLen;
+
     return UA_STATUSCODE_GOOD;
 }
 
