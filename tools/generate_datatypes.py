@@ -15,10 +15,13 @@ import xml.etree.ElementTree as etree
 import itertools
 import argparse
 import csv
+import textwrap
 from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
+
+special_types = ["Bit"]
 
 excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
                   "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
@@ -76,10 +79,12 @@ def makeCIdentifier(value):
 ################
 
 class StructMember(object):
-    def __init__(self, name, memberType, isArray):
+    def __init__(self, name, memberType, isArray, switchField = -1, switchValue = 1):
         self.name = name
         self.memberType = memberType
         self.isArray = isArray
+        self.switchField = switchField
+        self.switchValue = switchValue
 
 def getNodeidTypeAndId(nodeId):
     if not '=' in nodeId:
@@ -90,6 +95,9 @@ def getNodeidTypeAndId(nodeId):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
+class VerbatimType(object):
+    def __init__(self, content = ""):
+        self.verbatim = content
 
 class Type(object):
     def __init__(self, outname, xml, namespace):
@@ -140,38 +148,46 @@ class Type(object):
 
     def members_c(self):
         idName = makeCIdentifier(self.name)
-        if len(self.members)==0:
+        if len(self.members) == 0:
             return "#define %s_members NULL" % (idName)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(self.members))
         before = None
         size = len(self.members)
         for i, member in enumerate(self.members):
-            memberName = makeCIdentifier(member.name)
-            memberNameCapital = memberName
-            if len(memberName) > 0:
-                memberNameCapital = memberName[0].upper() + memberName[1:]
-            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % memberNameCapital
-            m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), makeCIdentifier(member.memberType.name.upper()))
-            m += "    "
-            if not before:
-                m += "0,"
+            if isinstance(member, VerbatimType):
+                # For injected verbatim members like bit flags
+                members += member.verbatim
             else:
-                if member.isArray:
-                    m += "offsetof(UA_%s, %sSize)" % (idName, memberName)
+                memberName = makeCIdentifier(member.name)
+                memberNameCapital = memberName
+                if len(memberName) > 0:
+                    memberNameCapital = memberName[0].upper() + memberName[1:]
+                m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % memberNameCapital
+                m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), makeCIdentifier(member.memberType.name.upper()))
+                m += "    "
+                if not before:
+                    m += "0,"
                 else:
-                    m += "offsetof(UA_%s, %s)" % (idName, memberName)
-                m += " - offsetof(UA_%s, %s)" % (idName, makeCIdentifier(before.name))
-                if before.isArray:
-                    m += " - sizeof(void*),"
-                else:
-                    m += " - sizeof(UA_%s)," % makeCIdentifier(before.memberType.name)
-            m += " /* .padding */\n"
-            m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
-            m += ("    true" if member.isArray else "    false") + " /* .isArray */\n}"
-            if i != size:
-                m += ","
-            members += m
-            before = member
+                    if member.isArray:
+                        m += "offsetof(UA_%s, %sSize)" % (idName, memberName)
+                    else:
+                        m += "offsetof(UA_%s, %s)" % (idName, memberName)
+                    m += " - offsetof(UA_%s, %s)" % (idName, makeCIdentifier(before.name))
+                    if before.isArray:
+                        m += " - sizeof(void*),"
+                    else:
+                        m += " - sizeof(UA_%s)," % makeCIdentifier(before.memberType.name)
+                m += " /* .padding */\n"
+                m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
+                m += ("    true" if member.isArray else "    false") + ", /* .isArray */\n"
+                m += "    false, /* .isFlag */\n"
+                m += "    %s, /* .switchField */\n" % member.switchField
+                m += "    %s, /* .switchValue */\n" % member.switchValue
+                m+= "}"
+                if i != size:
+                    m += ","
+                members += m
+                before = member
         return members + "};"
 
     def datatype_ptr(self):
@@ -203,6 +219,18 @@ class Type(object):
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, NULL);\n}"
         return enc % tuple(list(itertools.chain(*itertools.repeat([idName, idName, self.datatype_ptr()], 3))))
+
+class BitType(Type):
+    def __init__(self, name):
+        Type.__init__(self, "Bit", None, 0)
+        self.name = "Bit"
+        self.ns0 = "true"
+        self.typeIndex = makeCIdentifier("UA_TYPES_" + self.name.upper())
+        self.outname = "ua_types"
+        self.description = ""
+        self.pointerfree = "true"
+        self.builtin = "false"
+        self.members = [StructMember("", self, False)]
 
 class BuiltinType(Type):
     def __init__(self, name):
@@ -257,6 +285,8 @@ class StructType(Type):
     def __init__(self, outname, xml, namespace):
         Type.__init__(self, outname, xml, namespace)
         self.members = []
+        self.encodingMaskLength = 0
+        self.bitFlags = []
         lengthfields = [] # lengthfields of arrays are not included as members
         for child in xml:
             if child.get("LengthField"):
@@ -266,12 +296,34 @@ class StructType(Type):
                 continue
             if child.get("Name") in lengthfields:
                 continue
+            switchField = child.get("SwitchField")
+            if switchField is not None:
+                switchValue = child.get("SwitchValue")
+                if switchValue is None:
+                    switchValue = 1
+                memberName = switchField[:1].lower() + switchField[1:]
+                if memberName in self.bitFlags:
+                    # Assume all flags have already been seen as they must appear first
+                    switchField = self.bitFlags.index(memberName)
+                else:
+                    raise Exception("Union Switchfields are not yet supported")
+            else:
+                switchField = -1
+                switchValue = 0
             memberName = child.get("Name")
             memberName = memberName[:1].lower() + memberName[1:]
             memberTypeName = getTypeName(child.get("TypeName"))
+            if memberTypeName == "Bit":
+                self.encodingMaskLength += 1
+                length = child.get("Length")
+                if length:
+                    self.encodingMaskLength += int(length) - 1
+                if not memberName.startswith("reserved"): # Ignore reserved fields for the struct definition
+                    self.bitFlags.append(memberName)
+                continue
             memberType = types[memberTypeName]
             isArray = True if child.get("LengthField") else False
-            self.members.append(StructMember(memberName, memberType, isArray))
+            self.members.append(StructMember(memberName, memberType, isArray, switchField, switchValue))
 
         self.pointerfree = "true"
         self.overlayable = "true"
@@ -289,10 +341,35 @@ class StructType(Type):
                 self.overlayable = "false"
             before = m
 
+    def members_c(self):
+        bitflag_template = """
+        {{
+            UA_TYPENAME("{typeName}") /* .memberName */
+            UA_BUILTIN_TYPES_COUNT + 1, /* HACK! FIXME! .memberTypeIndex */
+            {padding}, /* .padding */
+            true, /* .namespaceZero */
+            false, /* .isArray */
+            true, /* .isFlag */
+            -1, /* .switchField */
+            0, /* .switchValue */
+        }},
+        """
+        # Generate encoding mask members, if there are any
+        for i, flag in enumerate(self.bitFlags):
+            memberName = makeCIdentifier(flag)
+            memberNameCapital = memberName
+            if len(memberName) > 0:
+                memberNameCapital = memberName[0].upper() + memberName[1:]
+            data = VerbatimType(textwrap.dedent(bitflag_template.format(typeName=memberNameCapital, padding="0")))
+            self.members.insert(i, data)
+        return super(StructType, self).members_c()
+
     def typedef_h(self):
         if len(self.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(self.name)
         returnstr =  "typedef struct {\n"
+        for flag in self.bitFlags:
+            returnstr += "    UA_Boolean %s : 1;\n" % makeCIdentifier(flag)
         for member in self.members:
             if member.isArray:
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
@@ -311,7 +388,7 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
         for child in element:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
                 childname = getTypeName(child.get("TypeName"))
-                if childname not in types:
+                if childname not in types and childname not in special_types:
                     return False
         return True
 
@@ -383,7 +460,7 @@ def parseTypeDescriptions(f, namespaceid):
     csvreader = csv.reader(f, delimiter=',')
     delay_init = []
 
-    for index, row in enumerate(csvreader):
+    for row in csvreader:
         if len(row) < 3:
             continue
         if row[2] == "Object":
@@ -560,8 +637,7 @@ printh('''/**
 printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
 printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
-i = 0
-for t in filtered_types:
+for i, t in enumerate(filtered_types):
     printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
@@ -571,7 +647,6 @@ for t in filtered_types:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + makeCIdentifier(outname.upper() + "_" + t.name.upper()) + " " + str(i))
-    i += 1
 
 printh('''
 
@@ -631,7 +706,6 @@ for t in filtered_types:
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in filtered_types:
-#    printc("")
     printc("/* " + t.name + " */")
     printc(t.datatype_c() + ",")
 printc("};\n")

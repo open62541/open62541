@@ -1,0 +1,4 @@
+ObjectWithBitField,3002,DataType
+ObjectWithNineBits,3003,DataType
+ObjectWithBitsOptionalFields,3004,DataType
+SwitchValueObject,3002,DataType

@@ -297,3 +297,5 @@ endif()
 
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
+
+add_subdirectory(datatype-generator)
