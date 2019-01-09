@@ -56,8 +56,9 @@ UA_TCP_DataSocket_free(UA_Socket *sock) {
 
     UA_LOG_DEBUG(sockData->logger, UA_LOGCATEGORY_NETWORK, "Freeing socket %i", (int)sock->id);
 
-    UA_ByteString_deleteMembers(&sock->discoveryUrl);
+    UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&sockData->receiveBuffer);
+    UA_ByteString_deleteMembers(&sockData->sendBuffer);
     UA_free(sockData);
     UA_free(sock);
     return UA_STATUSCODE_GOOD;
@@ -75,7 +76,7 @@ UA_TCP_DataSocket_activity(UA_Socket *sock) {
     // the code called in the callback is responsible for disassembling the data
     // into e.g. chunks and copying it.
     ssize_t bytesReceived = UA_recv((int)sock->id,
-                                    (char *)&sockData->receiveBuffer.data[sockData->receiveBufferOut.length],
+                                    (char *)sockData->receiveBuffer.data,
                                     sockData->receiveBuffer.length, 0);
 
     if(bytesReceived < 0) {
@@ -326,6 +327,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     return retval;
 
 error:
+    UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&internalData->receiveBuffer);
     UA_ByteString_deleteMembers(&internalData->sendBuffer);
     UA_free(internalData);
