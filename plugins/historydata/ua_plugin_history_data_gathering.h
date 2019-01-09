@@ -15,17 +15,25 @@
 _UA_BEGIN_DECLS
 
 typedef enum {
-    UA_HISTORIZINGUPDATESTRATEGY_USER     = 0x00,
-    UA_HISTORIZINGUPDATESTRATEGY_VALUESET = 0x01,
-    UA_HISTORIZINGUPDATESTRATEGY_POLL     = 0x02
+    UA_HISTORIZINGUPDATESTRATEGY_USER     = 0x00, /* The user of the api stores the values to the database himself.
+                                                     The api will not store any value to the database. */
+    UA_HISTORIZINGUPDATESTRATEGY_VALUESET = 0x01, /* Values will be stored when a node's value is set.
+                                                     The values will be stored when a node is updated via write service.*/
+    UA_HISTORIZINGUPDATESTRATEGY_POLL     = 0x02  /* The value of the node will be read periodically.
+                                                     This is mainly relevant for datasource nodes which do
+                                                     not use the write service.
+                                                     Values will not be stored if the value is
+                                                     equal to the old value. */
 } UA_HistorizingUpdateStrategy;
 
 typedef struct {
-    UA_HistoryDataBackend historizingBackend;
-    size_t maxHistoryDataResponseSize;
-    UA_HistorizingUpdateStrategy historizingUpdateStrategy;
-    size_t pollingInterval;
-    void * userContext;
+    UA_HistoryDataBackend historizingBackend; /* The database backend used for this node. */
+    size_t maxHistoryDataResponseSize; /* The maximum number of values returned by the server in one response.
+                                          If the result has more values, continuation points will be used. */
+    UA_HistorizingUpdateStrategy historizingUpdateStrategy; /* Defines how the values in the database will be updated.
+                                                               See UA_HistorizingUpdateStrategy for details. */
+    size_t pollingInterval; /* The polling interval for UA_HISTORIZINGUPDATESTRATEGY_POLL. */
+    void *userContext; /* A pointer to store your own settings. */
 } UA_HistorizingNodeIdSettings;
 
 typedef struct UA_HistoryDataGathering UA_HistoryDataGathering;
