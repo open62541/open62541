@@ -35,6 +35,7 @@ UA_TCP_DataSocket_close(UA_Socket *sock) {
     if(sockData->flaggedForDeletion)
         return UA_STATUSCODE_GOOD;
 
+    UA_LOG_DEBUG(sockData->logger, UA_LOGCATEGORY_NETWORK, "Shutting down socket %i", (int)sock->id);
     UA_shutdown((UA_SOCKET)sock->id, 2);
     sockData->flaggedForDeletion = true;
     return UA_STATUSCODE_GOOD;
@@ -52,6 +53,8 @@ UA_TCP_DataSocket_free(UA_Socket *sock) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     TCPDataSocketData *const sockData = (TCPDataSocketData *const)sock->internalData;
+
+    UA_LOG_DEBUG(sockData->logger, UA_LOGCATEGORY_NETWORK, "Freeing socket %i", (int)sock->id);
 
     UA_ByteString_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&sockData->receiveBuffer);
@@ -75,6 +78,12 @@ UA_TCP_DataSocket_activity(UA_Socket *sock) {
                                     (char *)&sockData->receiveBuffer.data[sockData->receiveBufferOut.length],
                                     sockData->receiveBuffer.length, 0);
 
+    if(bytesReceived < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
+                         "Cannot receive: %s", errno_str));
+        return UA_STATUSCODE_GOODSHUTDOWNEVENT;
+    }
 
     if(bytesReceived < 0) {
         if(UA_ERRNO == UA_WOULDBLOCK || UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_INTERRUPTED) {
@@ -89,6 +98,8 @@ UA_TCP_DataSocket_activity(UA_Socket *sock) {
     UA_LOG_DEBUG(sockData->logger, UA_LOGCATEGORY_NETWORK,
                  "Received %i bytes", (int)bytesReceived);
 
+    if(sock->dataCallback.callback == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     sock->dataCallback.callback(sock, &sockData->receiveBufferOut, sock->dataCallback.callbackContext);
 
     return UA_STATUSCODE_GOOD;
@@ -266,6 +277,9 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     UA_SOCKET newsockfd = UA_accept((int)listenerSocket->id,
                                     (struct sockaddr *)&remote, &remote_size);
     if(newsockfd == UA_INVALID_SOCKET) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                           "Accept failed with %s", errno_str));
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Error accepting socket. Got invalid file descriptor");
         goto error;
@@ -300,7 +314,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
 
     HookListEntry *hookListEntry;
     LIST_FOREACH(hookListEntry, &creationHooks.list, pointers) {
-        retval = hookListEntry->hook.hook(sock, hookListEntry->hook.hookContext);
+        retval = UA_SocketHook_call(hookListEntry->hook, sock);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                          "Creation hook returned error %s. "

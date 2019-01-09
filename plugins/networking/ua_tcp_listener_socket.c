@@ -33,7 +33,7 @@ tcp_sock_setDiscoveryUrl(UA_Socket *socket, in_port_t port, UA_ByteString *custo
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
     char hostnameBuffer[256];
-    if(customHostname != NULL) {
+    if(!UA_ByteString_equal(customHostname, &UA_BYTESTRING_NULL)) {
         du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
                                         (int)customHostname->length,
                                         customHostname->data,
@@ -103,7 +103,7 @@ tcp_sock_free(UA_Socket *sock) {
 
     UA_ByteString_deleteMembers(&sock->discoveryUrl);
 
-    UA_DataSocketFactory_deleteMembers(sock->socketFactory);
+    UA_SocketFactory_deleteMembers(sock->socketFactory);
     UA_free(sock->socketFactory);
     UA_free(socketData);
     UA_free(sock);
@@ -118,7 +118,7 @@ tcp_sock_activity(UA_Socket *sock) {
     }
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
 
-    if(sock->socketFactory != NULL) {
+    if(sock->socketFactory != NULL && sock->socketFactory->buildSocket != NULL) {
         return sock->socketFactory->buildSocket(sock->socketFactory, sock, NULL);
     } else {
         UA_LOG_WARNING(socketData->logger, UA_LOGCATEGORY_NETWORK,
@@ -198,6 +198,8 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     memset(socketData, 0, sizeof(TcpSocketData));
     socketData->logger = socketConfig->logger;
     socketData->state = UA_SOCKSTATE_NEW;
+    socketData->recvBufferSize = socketConfig->recvBufferSize;
+    socketData->sendBufferSize = socketConfig->sendBufferSize;
 
     in_port_t port;
     if(addrinfo->ai_addr->sa_family == AF_INET)
@@ -213,6 +215,10 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
         goto error;
     }
     sock->id = (UA_UInt64)socket_fd;
+
+    retval = UA_SocketFactory_init(sock->socketFactory, socketConfig->logger);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
 
     int optval = 1;
 #if UA_IPV6

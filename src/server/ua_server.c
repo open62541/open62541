@@ -230,7 +230,7 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     /* Initialize networking */
     config->configureNetworkManager(config, &server->networkManager);
-    // TODO: create sockets
+    /* Sockets are created during server run_startup */
 
     /* Initialized SecureChannel and Session managers */
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
@@ -372,18 +372,65 @@ UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
 
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
+static UA_StatusCode
+createConnection(UA_Socket *sock, void *userData) {
+    UA_Server *const server = (UA_Server *const)userData;
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "New data socket created. Adding corresponding connection");
+
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+registerSocket(UA_Socket *sock, void *userData) {
+    UA_Server *const server = (UA_Server *const)userData;
+    return server->networkManager.registerSocket(&server->networkManager, sock);
+}
+
+static UA_StatusCode
+addListenerSocket(UA_Socket *sock, void *userData) {
+    UA_Server *const server = (UA_Server *const)userData;
+
+    UA_StatusCode retval = server->networkManager.registerSocket(&server->networkManager, sock);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    sock->socketFactory->socketDataCallback.callbackContext = server;
+    sock->socketFactory->socketDataCallback.callback = NULL; // TODO: set callback
+
+    UA_SocketHook createConnectionHook;
+    createConnectionHook.hookContext = server;
+    createConnectionHook.hook = createConnection;
+    retval = UA_SocketFactory_addCreationHook(sock->socketFactory, createConnectionHook);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_SocketHook registerSocketHook;
+    registerSocketHook.hookContext = server;
+    registerSocketHook.hook = registerSocket;
+    retval = UA_SocketFactory_addCreationHook(sock->socketFactory, registerSocketHook);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = sock->open(sock);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Start: Spin up the workers and the network layer and sample the server's
  *        start time.
  * Iterate: Process repeated callbacks and events in the network layer. This
  *          part can be driven from an external main-loop in an event-driven
  *          single-threaded architecture.
  * Stop: Stop workers, finish all callbacks, stop the network layer, clean up */
-
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
     UA_Variant var;
     UA_StatusCode result = UA_STATUSCODE_GOOD;
-	
+
 	/* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -398,7 +445,13 @@ UA_Server_run_startup(UA_Server *server) {
                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                          var);
 
-    // TODO: socket initialization here? or at server init?
+    /* Delayed creation of the server sockets. */
+    UA_SocketHook creationHook;
+    creationHook.hook = addListenerSocket;
+    creationHook.hookContext = server;
+    for(size_t i = 0; i < server->config.socketConfigsSize; ++i) {
+        server->config.socketConfigs[i].createSocket(&server->config.socketConfigs[i], creationHook);
+    }
 
     /* Spin up the worker threads */
 #ifdef UA_ENABLE_MULTITHREADING

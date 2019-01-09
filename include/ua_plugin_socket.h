@@ -36,6 +36,15 @@ typedef struct {
     void *callbackContext;
 } UA_Socket_DataCallback;
 
+typedef struct UA_SocketListEntry {
+    UA_Socket *socket;
+    LIST_ENTRY(UA_SocketListEntry) pointers;
+} UA_SocketListEntry;
+
+typedef struct UA_SocketList {
+    LIST_HEAD(, UA_SocketListEntry) list;
+} UA_SocketList;
+
 struct UA_Socket {
     /**
      * The socket id. Used by the NetworkManager to map to an internal representation (e.g. file descriptor)
@@ -183,6 +192,20 @@ struct UA_SocketHook {
     void *hookContext;
 };
 
+/**
+ * Convenience wrapper for calling socket hooks.
+ * Does a sanity check before calling the hook.
+ *
+ * @param hook the hook to call
+ * @param sock the socket parameter of the hook.
+ */
+static inline UA_StatusCode
+UA_SocketHook_call(UA_SocketHook hook, UA_Socket *sock) {
+    if(hook.hook == NULL || sock == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return hook.hook(sock, hook.hookContext);
+}
+
 typedef struct HookListEntry {
     UA_SocketHook hook;
     LIST_ENTRY(HookListEntry) pointers;
@@ -219,7 +242,7 @@ struct UA_SocketFactory {
 };
 
 static inline UA_StatusCode
-UA_DataSocketFactory_addCreationHook(UA_SocketFactory *factory, UA_SocketHook hook) {
+UA_SocketFactory_addCreationHook(UA_SocketFactory *factory, UA_SocketHook hook) {
     HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
     if(hookListEntry == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -231,7 +254,7 @@ UA_DataSocketFactory_addCreationHook(UA_SocketFactory *factory, UA_SocketHook ho
 }
 
 static inline UA_StatusCode
-UA_DataSocketFactory_addDeletionHook(UA_SocketFactory *factory, UA_SocketHook hook) {
+UA_SocketFactory_addDeletionHook(UA_SocketFactory *factory, UA_SocketHook hook) {
     HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
     if(hookListEntry == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -243,7 +266,15 @@ UA_DataSocketFactory_addDeletionHook(UA_SocketFactory *factory, UA_SocketHook ho
 }
 
 static inline UA_StatusCode
-UA_DataSocketFactory_deleteMembers(UA_SocketFactory *factory) {
+UA_SocketFactory_init(UA_SocketFactory *factory, UA_Logger *logger) {
+    memset(factory, 0, sizeof(UA_SocketFactory));
+    factory->logger = logger;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static inline UA_StatusCode
+UA_SocketFactory_deleteMembers(UA_SocketFactory *factory) {
     HookListEntry *hookListEntry;
     HookListEntry *tmp;
     LIST_FOREACH_SAFE(hookListEntry, &factory->creationHooks.list, pointers, tmp) {

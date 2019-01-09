@@ -10,28 +10,23 @@
 #include "ua_types_generated_handling.h"
 #include "ua_networkmanagers.h"
 
-typedef struct SocketListEntry {
-    UA_Socket *socket;
-    LIST_ENTRY(SocketListEntry) pointers;
-} SocketListEntry;
-
 typedef struct {
     const UA_Logger *logger;
-    LIST_HEAD(, SocketListEntry) sockets;
+    UA_SocketList sockets;
     size_t numListenerSockets;
 } SelectNMData;
 
 
 static UA_StatusCode
 select_nm_registerSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
-    SocketListEntry *socketListEntry = (SocketListEntry *)UA_malloc(sizeof(SocketListEntry));
+    UA_SocketListEntry *socketListEntry = (UA_SocketListEntry *)UA_malloc(sizeof(UA_SocketListEntry));
     if(socketListEntry == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     socketListEntry->socket = socket;
 
     SelectNMData *internalData = (SelectNMData *)networkManager->internalData;
 
-    LIST_INSERT_HEAD(&internalData->sockets, socketListEntry, pointers);
+    LIST_INSERT_HEAD(&internalData->sockets.list, socketListEntry, pointers);
     UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK, "Registered socket with id %lu", socket->id);
     return UA_STATUSCODE_GOOD;
 }
@@ -39,9 +34,9 @@ select_nm_registerSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
 static UA_StatusCode
 select_nm_unregisterSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
     SelectNMData *internalData = (SelectNMData *)networkManager->internalData;
-    SocketListEntry *socketListEntry, *tmp;
+    UA_SocketListEntry *socketListEntry, *tmp;
 
-    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets, pointers, tmp) {
+    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, tmp) {
         if(socketListEntry->socket == socket) {
             LIST_REMOVE(socketListEntry, pointers);
             UA_free(socketListEntry);
@@ -56,8 +51,8 @@ setFDSet(SelectNMData *nmData, fd_set *fdset) {
     FD_ZERO(fdset);
     UA_Int32 highestfd = 0;
 
-    SocketListEntry *socketListEntry;
-    LIST_FOREACH(socketListEntry, &nmData->sockets, pointers) {
+    UA_SocketListEntry *socketListEntry;
+    LIST_FOREACH(socketListEntry, &nmData->sockets.list, pointers) {
         UA_fd_set(socketListEntry->socket->id, fdset);
         if((UA_Int32)socketListEntry->socket->id > highestfd)
             highestfd = (UA_Int32)socketListEntry->socket->id;
@@ -68,14 +63,20 @@ setFDSet(SelectNMData *nmData, fd_set *fdset) {
 
 static UA_StatusCode
 select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
+    if(networkManager == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     SelectNMData *internalData = (SelectNMData *)networkManager->internalData;
 
-    fd_set fdset, errset;
+    UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                 "Processing sockets in select based network manager");
+
+    fd_set fdset;
+    // fd_set errset;
     UA_Int32 highestfd = setFDSet(internalData, &fdset);
-    setFDSet(internalData, &errset);
+    // setFDSet(internalData, &errset);
     struct timeval tmptv = {0, timeout * 1000};
-    if(UA_select(highestfd + 1, &fdset, NULL, &errset, &tmptv) < 0) {
+    if(UA_select(highestfd + 1, &fdset, NULL, NULL, &tmptv) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(internalData->logger, UA_LOGCATEGORY_NETWORK,
                            "Socket select failed with %s", errno_str));
@@ -84,11 +85,13 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
     }
 
     /* Read from established sockets */
-    SocketListEntry *socketListEntry, *e_tmp;
-    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets, pointers, e_tmp) {
+    UA_SocketListEntry *socketListEntry, *e_tmp;
+    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, e_tmp) {
         UA_Socket *const socket = socketListEntry->socket;
-        if(!UA_fd_isset(socket->id, &errset) &&
-           !UA_fd_isset(socket->id, &fdset)) {
+        /*
+        if((!UA_fd_isset(socket->id, &errset) && !UA_fd_isset(socket->id, &fdset)) ||
+           ((!UA_fd_isset(socket->id, &fdset) || !UA_fd_isset(socket->id, &errset)) && socket->isListener)) {*/
+        if(!UA_fd_isset(socket->id, &fdset)) {
             // Check deletion for all not selected sockets to clean them up if necessary.
             if(socket->mayDelete(socket)) {
                 socket->free(socket);
@@ -123,7 +126,7 @@ select_nm_getDiscoveryUrls(const UA_NetworkManager *networkManager, UA_String *d
                            size_t *discoveryUrlsSize) {
     SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
 
-    UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
                  "Getting discovery urls from network manager");
 
     UA_String *const urls = (UA_String *const)UA_malloc(sizeof(UA_String) * internalData->numListenerSockets);
@@ -132,8 +135,8 @@ select_nm_getDiscoveryUrls(const UA_NetworkManager *networkManager, UA_String *d
     }
 
     size_t position = 0;
-    SocketListEntry *socketListEntry, *e_tmp;
-    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets, pointers, e_tmp) {
+    UA_SocketListEntry *socketListEntry, *e_tmp;
+    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, e_tmp) {
         if(socketListEntry->socket->isListener) {
             if(position >= internalData->numListenerSockets) {
                 UA_LOG_ERROR(internalData->logger, UA_LOGCATEGORY_NETWORK,
@@ -157,9 +160,12 @@ select_nm_shutdown(UA_NetworkManager *networkManager) {
     if(networkManager == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
     SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
-    SocketListEntry *socketListEntry;
-    LIST_FOREACH(socketListEntry, &internalData->sockets, pointers) {
+    UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK, "Shutting down network manager");
+
+    UA_SocketListEntry *socketListEntry;
+    LIST_FOREACH(socketListEntry, &internalData->sockets.list, pointers) {
         UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
                      "Closing remaining socket with id %lu", socketListEntry->socket->id);
         socketListEntry->socket->close(socketListEntry->socket);
@@ -178,8 +184,8 @@ select_nm_deleteMembers(UA_NetworkManager *networkManager) {
 
     networkManager->shutdown(networkManager);
 
-    SocketListEntry *socketListEntry, *e_tmp;
-    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets, pointers, e_tmp) {
+    UA_SocketListEntry *socketListEntry, *e_tmp;
+    LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, e_tmp) {
         UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
                      "Removing remaining socket with id %lu", socketListEntry->socket->id);
         socketListEntry->socket->free(socketListEntry->socket);
@@ -199,6 +205,7 @@ UA_SelectBasedNetworkManager(const UA_Logger *logger, UA_NetworkManager *network
     if(networkManager == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     memset(networkManager, 0, sizeof(UA_NetworkManager));
+    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK, "Setting up select based network manager");
 
     networkManager->registerSocket = select_nm_registerSocket;
     networkManager->unregisterSocket = select_nm_unregisterSocket;
