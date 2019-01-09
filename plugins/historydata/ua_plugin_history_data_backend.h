@@ -14,11 +14,15 @@
 _UA_BEGIN_DECLS
 
 typedef enum {
-    MATCH_EQUAL,
-    MATCH_AFTER,
-    MATCH_EQUAL_OR_AFTER,
-    MATCH_BEFORE,
-    MATCH_EQUAL_OR_BEFORE
+    MATCH_EQUAL, /* Match with the exact timestamp. */
+    MATCH_AFTER, /* Match the value with the timestamp in the
+                    database that is the first later in time from the provided timestamp. */
+    MATCH_EQUAL_OR_AFTER, /* Match exactly if possible, or the first timestamp
+                             later in time from the provided timestamp. */
+    MATCH_BEFORE, /* Match the first timestamp in the database that is earlier
+                     in time from the provided timestamp. */
+    MATCH_EQUAL_OR_BEFORE /* Match exactly if possible, or the first timestamp
+                             that is earlier in time from the provided timestamp. */
 } MatchStrategy;
 
 typedef struct UA_HistoryDataBackend UA_HistoryDataBackend;
