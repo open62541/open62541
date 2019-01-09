@@ -35,10 +35,52 @@
             <Field DataType="Double" Name="y"/>
         </Definition>
     </UADataType>
+    <UAVariable NodeId="ns=1;i=12213" BrowseName="1:Point" ParentNodeId="ns=1;i=7617" DataType="String">
+        <DisplayName>Point</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=7617</Reference>
+        </References>
+        <Value>
+            <String xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">Point</String>
+        </Value>
+    </UAVariable>
+    <UAVariable NodeId="ns=1;i=12214" BrowseName="1:NestedPoint" ParentNodeId="ns=1;i=7617" DataType="String">
+        <DisplayName>NestedPoint</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=7617</Reference>
+        </References>
+        <Value>
+            <String xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">NestedPoint</String>
+        </Value>
+    </UAVariable>
+    <UAVariable NodeId="ns=1;i=12215" BrowseName="1:PointWithArray" ParentNodeId="ns=1;i=7617" DataType="String">
+        <DisplayName>PointWithArray</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=7617</Reference>
+        </References>
+        <Value>
+            <String xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">PointWithArray</String>
+        </Value>
+    </UAVariable>
+    <UAVariable NodeId="ns=1;i=7617" BrowseName="1:Opc.Ua.Testnodeset" SymbolicName="OpcUa_BinarySchema" DataType="ByteString">
+        <DisplayName>Opc.Ua.Testnodeset</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=93</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=72</Reference>
+        </References>
+        <Value>
+        <!-- This is the Base64 Encoded content of testtypes.bsd -->
+        <ByteString xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">PG9wYzpUeXBlRGljdGlvbmFyeQogIHhtbG5zOm9wYz0iaHR0cDovL29wY2ZvdW5kYXRpb24ub3JnL0JpbmFyeVNjaGVtYS8iCiAgeG1sbnM6eHNpPSJodHRwOi8vd3d3LnczLm9yZy8yMDAxL1hNTFNjaGVtYS1pbnN0YW5jZSIKICB4bWxuczp1YT0iaHR0cDovL29wY2ZvdW5kYXRpb24ub3JnL1VBLyIKICB4bWxuczp0bnM9Imh0dHA6Ly95b3Vyb3JnYW5pc2F0aW9uLm9yZy90ZXN0LyIKICBEZWZhdWx0Qnl0ZU9yZGVyPSJMaXR0bGVFbmRpYW4iCiAgVGFyZ2V0TmFtZXNwYWNlPSJodHRwOi8veW91cm9yZ2FuaXNhdGlvbi5vcmcvdGVzdC8iCj4KICA8b3BjOkltcG9ydCBOYW1lc3BhY2U9Imh0dHA6Ly9vcGNmb3VuZGF0aW9uLm9yZy9VQS8iIExvY2F0aW9uPSJPcGMuVWEuQmluYXJ5U2NoZW1hLmJzZCIvPgoKICA8b3BjOlN0cnVjdHVyZWRUeXBlIE5hbWU9IlBvaW50IiBCYXNlVHlwZT0idWE6RXh0ZW5zaW9uT2JqZWN0Ij4KICAgIDxvcGM6RmllbGQgTmFtZT0ieCIgVHlwZU5hbWU9Im9wYzpEb3VibGUiIC8+CiAgICA8b3BjOkZpZWxkIE5hbWU9InkiIFR5cGVOYW1lPSJvcGM6RG91YmxlIiAvPgogIDwvb3BjOlN0cnVjdHVyZWRUeXBlPgoKICA8b3BjOlN0cnVjdHVyZWRUeXBlIE5hbWU9Ik5lc3RlZFBvaW50IiBCYXNlVHlwZT0idWE6RXh0ZW5zaW9uT2JqZWN0Ij4KICAgIDxvcGM6RmllbGQgTmFtZT0ieCIgVHlwZU5hbWU9Im9wYzpEb3VibGUiIC8+CiAgICA8b3BjOkZpZWxkIE5hbWU9InkiIFR5cGVOYW1lPSJvcGM6RG91YmxlIiAvPgogICAgPG9wYzpGaWVsZCBOYW1lPSJwb2ludDEiIFR5cGVOYW1lPSJ0bnM6UG9pbnQiIC8+CiAgPC9vcGM6U3RydWN0dXJlZFR5cGU+CgogICA8b3BjOlN0cnVjdHVyZWRUeXBlIE5hbWU9IlBvaW50V2l0aEFycmF5IiBCYXNlVHlwZT0idWE6RXh0ZW5zaW9uT2JqZWN0Ij4KICAgIDxvcGM6RmllbGQgTmFtZT0ieCIgVHlwZU5hbWU9Im9wYzpEb3VibGUiIC8+CiAgICA8b3BjOkZpZWxkIE5hbWU9InkiIFR5cGVOYW1lPSJvcGM6RG91YmxlIiAvPgogICAgPG9wYzpGaWVsZCBOYW1lPSJ6IiBUeXBlTmFtZT0ib3BjOkRvdWJsZSIgLz4KICAgIDxvcGM6RmllbGQgTmFtZT0iYXJyYXkxU2l6ZSIgVHlwZU5hbWU9Im9wYzpVSW50MzIiIC8+CiAgICA8b3BjOkZpZWxkIE5hbWU9ImFycmF5MSIgVHlwZU5hbWU9Im9wYzpEb3VibGUiIExlbmd0aEZpZWxkPSJhcnJheTFTaXplIiAvPgogIDwvb3BjOlN0cnVjdHVyZWRUeXBlPgoKPC9vcGM6VHlwZURpY3Rpb25hcnk+</ByteString>
+        </Value>
+    </UAVariable>    
     <UADataType NodeId="ns=1;i=10008" BrowseName="1:NestedPoint">
         <DisplayName>NestedPoint</DisplayName>
         <References>
             <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+            <!--<Reference ReferenceType="HasDescription">ns=1;i=12213</Reference><-->
         </References>
         <Definition Name="1:Point">
             <Field DataType="Double" Name="x"/>
@@ -51,6 +93,23 @@
         <References>
             <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=10001</Reference>
             <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+            <Reference ReferenceType="HasDescription">ns=1;i=12213</Reference>
+        </References>
+    </UAObject>
+     <UAObject SymbolicName="DefaultBinary" NodeId="ns=1;i=5003" BrowseName="Default Binary">
+        <DisplayName>Default Binary</DisplayName>
+        <References>
+            <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=10008</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+            <Reference ReferenceType="HasDescription">ns=1;i=12214</Reference>
+        </References>
+    </UAObject>
+    <UAObject SymbolicName="DefaultBinary" NodeId="ns=1;i=5004" BrowseName="Default Binary">
+        <DisplayName>Default Binary</DisplayName>
+        <References>
+            <Reference ReferenceType="HasEncoding" IsForward="false">ns=1;i=3003</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=76</Reference>
+            <Reference ReferenceType="HasDescription">ns=1;i=12215</Reference>
         </References>
     </UAObject>    
     <UAObject NodeId="ns=1;i=5100" BrowseName="1:BuiltinTypes">
