@@ -87,4 +87,38 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
     target_link_libraries(check_nodeset_compiler_plc ${LIBS})
     add_test_valgrind(nodeset_compiler_plc ${TESTS_BINARY_DIR}/check_nodeset_compiler_plc)
+
+    
+endif()
+
+#generate testnodeset
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    
+    ua_generate_datatypes(
+        NAME "ua_types_testnodeset"
+        TARGET_SUFFIX "tests-types-testnodeset"
+        NAMESPACE_IDX 2
+        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
+        FILES_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
+    )
+   
+    ua_generate_nodeset(
+        NAME "tests-testnodeset"
+        FILE "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
+        TYPES_ARRAY "UA_TYPES_TESTNODESET"
+        INTERNAL
+        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
+        DEPENDS_TYPES "UA_TYPES"
+        DEPENDS_NS    "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
+        DEPENDS_TARGET "open62541-generator-tests-types-testnodeset"
+    )   
+
+    add_executable(check_nodeset_compiler_testnodeset check_nodeset_compiler_testnodeset.c
+                ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_testnodeset.c
+                ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_testnodeset_generated.c
+                $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
+    target_link_libraries(check_nodeset_compiler_testnodeset ${LIBS})
+    add_test_valgrind(nodeset_compiler_testnodeset ${TESTS_BINARY_DIR}/check_nodeset_compiler_testnodeset)
 endif()

@@ -189,7 +189,6 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 
 #else // UA_ENABLE_AMALGAMATION
 # include "ua_server.h"
-# include "ua_types_encoding_binary.h"
 #endif
 
 %s
@@ -201,7 +200,8 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 #else
 # include "ua_server.h"
 #endif
-""")
+%s
+""" % (additionalHeaders))
     writeh("""
 _UA_BEGIN_DECLS
 
