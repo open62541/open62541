@@ -226,6 +226,12 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_HISTORYREADREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_HISTORYREADRESPONSE];
         break;
+        /* For History update */
+    case UA_NS0ID_HISTORYUPDATEREQUEST_ENCODING_DEFAULTBINARY:
+        *service = (UA_Service)Service_HistoryUpdate;
+        *requestType = &UA_TYPES[UA_TYPES_HISTORYUPDATEREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE];
+        break;
 #endif
 
 #ifdef UA_ENABLE_METHODCALLS

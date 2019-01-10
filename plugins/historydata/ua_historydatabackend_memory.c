@@ -385,6 +385,168 @@ copyDataValues_backend_memory(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+insertDataValue_backend_memory(UA_Server *server,
+                   void *hdbContext,
+                   const UA_NodeId *sessionId,
+                   void *sessionContext,
+                   const UA_NodeId *nodeId,
+                   const UA_DataValue *value)
+{
+    if (!value->hasSourceTimestamp && !value->hasServerTimestamp)
+        return UA_STATUSCODE_BADINVALIDTIMESTAMP;
+    const UA_DateTime timestamp = value->hasSourceTimestamp ? value->sourceTimestamp : value->serverTimestamp;
+    UA_NodeIdStoreContextItem_backend_memory* item = getNodeIdStoreContextItem_backend_memory((UA_MemoryStoreContext*)hdbContext, server, nodeId);
+
+    size_t index = getDateTimeMatch_backend_memory(server,
+                                    hdbContext,
+                                    sessionId,
+                                    sessionContext,
+                                    nodeId,
+                                    timestamp,
+                                    MATCH_EQUAL_OR_AFTER);
+    if (item->storeEnd != index && item->dataStore[index]->timestamp == timestamp)
+        return UA_STATUSCODE_BADENTRYEXISTS;
+
+    if (item->storeEnd >= item->storeSize) {
+        size_t newStoreSize = item->storeSize == 0 ? INITIAL_MEMORY_STORE_SIZE : item->storeSize * 2;
+        item->dataStore = (UA_DataValueMemoryStoreItem **)UA_realloc(item->dataStore,  (newStoreSize * sizeof(UA_DataValueMemoryStoreItem*)));
+        if (!item->dataStore) {
+            item->storeSize = 0;
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        item->storeSize = newStoreSize;
+    }
+    UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
+    newItem->timestamp = timestamp;
+    UA_DataValue_copy(value, &newItem->value);
+    if (item->storeEnd > 0 && index < item->storeEnd) {
+        memmove(&item->dataStore[index+1], &item->dataStore[index], sizeof(UA_DataValueMemoryStoreItem*) * (item->storeEnd - index));
+    }
+    item->dataStore[index] = newItem;
+    ++item->storeEnd;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+replaceDataValue_backend_memory(UA_Server *server,
+                    void *hdbContext,
+                    const UA_NodeId *sessionId,
+                    void *sessionContext,
+                    const UA_NodeId *nodeId,
+                    const UA_DataValue *value)
+{
+    if (!value->hasSourceTimestamp && !value->hasServerTimestamp)
+        return UA_STATUSCODE_BADINVALIDTIMESTAMP;
+    const UA_DateTime timestamp = value->hasSourceTimestamp ? value->sourceTimestamp : value->serverTimestamp;
+    UA_NodeIdStoreContextItem_backend_memory* item = getNodeIdStoreContextItem_backend_memory((UA_MemoryStoreContext*)hdbContext, server, nodeId);
+
+    size_t index = getDateTimeMatch_backend_memory(server,
+                                    hdbContext,
+                                    sessionId,
+                                    sessionContext,
+                                    nodeId,
+                                    timestamp,
+                                    MATCH_EQUAL);
+    if (index == item->storeEnd)
+        return UA_STATUSCODE_BADNOENTRYEXISTS;
+    UA_DataValue_deleteMembers(&item->dataStore[index]->value);
+    UA_DataValue_copy(value, &item->dataStore[index]->value);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+updateDataValue_backend_memory(UA_Server *server,
+                   void *hdbContext,
+                   const UA_NodeId *sessionId,
+                   void *sessionContext,
+                   const UA_NodeId *nodeId,
+                   const UA_DataValue *value)
+{
+    // we first try to replace, because it is cheap
+    UA_StatusCode ret = replaceDataValue_backend_memory(server,
+                                                        hdbContext,
+                                                        sessionId,
+                                                        sessionContext,
+                                                        nodeId,
+                                                        value);
+    if (ret == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOODENTRYREPLACED;
+
+    ret = insertDataValue_backend_memory(server,
+                                          hdbContext,
+                                          sessionId,
+                                          sessionContext,
+                                          nodeId,
+                                          value);
+    if (ret == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOODENTRYINSERTED;
+
+    return ret;
+}
+
+static UA_StatusCode
+removeDataValue_backend_memory(UA_Server *server,
+                               void *hdbContext,
+                               const UA_NodeId *sessionId,
+                               void *sessionContext,
+                               const UA_NodeId *nodeId,
+                               UA_DateTime startTimestamp,
+                               UA_DateTime endTimestamp)
+{
+    UA_NodeIdStoreContextItem_backend_memory* item = getNodeIdStoreContextItem_backend_memory((UA_MemoryStoreContext*)hdbContext, server, nodeId);
+    size_t storeEnd = item->storeEnd;
+    // The first index which will be deleted
+    size_t index1;
+    // the first index which is not deleted
+    size_t index2;
+    if (startTimestamp > endTimestamp) {
+        return UA_STATUSCODE_BADTIMESTAMPNOTSUPPORTED;
+    }
+    if (startTimestamp == endTimestamp) {
+        index1 = getDateTimeMatch_backend_memory(server,
+                                        hdbContext,
+                                        sessionId,
+                                        sessionContext,
+                                        nodeId,
+                                        startTimestamp,
+                                        MATCH_EQUAL);
+        if (index1 == storeEnd)
+            return UA_STATUSCODE_BADNODATA;
+        index2 = index1 + 1;
+    } else {
+        index1 = getDateTimeMatch_backend_memory(server,
+                                        hdbContext,
+                                        sessionId,
+                                        sessionContext,
+                                        nodeId,
+                                        startTimestamp,
+                                        MATCH_EQUAL_OR_AFTER);
+        index2 = getDateTimeMatch_backend_memory(server,
+                                        hdbContext,
+                                        sessionId,
+                                        sessionContext,
+                                        nodeId,
+                                        endTimestamp,
+                                        MATCH_BEFORE);
+        if (index2 == storeEnd || index1 == storeEnd || index1 > index2 )
+            return UA_STATUSCODE_BADNODATA;
+        ++index2;
+    }
+#ifndef __clang_analyzer__
+    for (size_t i = index1; i < index2; ++i) {
+        UA_DataValueMemoryStoreItem_deleteMembers(item->dataStore[i]);
+        UA_free(item->dataStore[i]);
+    }
+    memmove(&item->dataStore[index1], &item->dataStore[index2], sizeof(UA_DataValueMemoryStoreItem*) * (item->storeEnd - index2));
+    item->storeEnd -= index2 - index1;
+#else
+    (void)index1;
+    (void)index2;
+#endif
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 deleteMembers_backend_memory(UA_HistoryDataBackend *backend)
 {
@@ -420,7 +582,11 @@ UA_HistoryDataBackend_Memory(size_t initialNodeIdStoreSize, size_t initialDataSt
     result.getDataValue = &getDataValue_backend_memory;
     result.boundSupported = &boundSupported_backend_memory;
     result.timestampsToReturnSupported = &timestampsToReturnSupported_backend_memory;
-    result.deleteMembers = deleteMembers_backend_memory;
+    result.insertDataValue =  &insertDataValue_backend_memory;
+    result.updateDataValue =  &updateDataValue_backend_memory;
+    result.replaceDataValue =  &replaceDataValue_backend_memory;
+    result.removeDataValue =  &removeDataValue_backend_memory;
+    result.deleteMembers = &deleteMembers_backend_memory;
     result.getHistoryData = NULL;
     result.context = ctx;
     return result;
