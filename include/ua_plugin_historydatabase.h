@@ -73,6 +73,24 @@ struct UA_HistoryDatabase {
                UA_HistoryReadResponse *response,
                UA_HistoryData * const * const historyData);
 
+    void
+    (*updateData)(UA_Server *server,
+                  void *hdbContext,
+                  const UA_NodeId *sessionId,
+                  void *sessionContext,
+                  const UA_RequestHeader *requestHeader,
+                  const UA_UpdateDataDetails *details,
+                  UA_HistoryUpdateResult *result);
+
+    void
+    (*deleteRawModified)(UA_Server *server,
+                         void *hdbContext,
+                         const UA_NodeId *sessionId,
+                         void *sessionContext,
+                         const UA_RequestHeader *requestHeader,
+                         const UA_DeleteRawModifiedDetails *details,
+                         UA_HistoryUpdateResult *result);
+
     /* Add more function pointer here.
      * For example for read_event, read_modified, read_processed, read_at_time */
 };

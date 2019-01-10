@@ -1511,6 +1511,59 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                                            response, historyData);
     UA_free(historyData);
 }
+
+void
+Service_HistoryUpdate(UA_Server *server, UA_Session *session,
+                    const UA_HistoryUpdateRequest *request,
+                    UA_HistoryUpdateResponse *response) {
+    response->resultsSize = request->historyUpdateDetailsSize;
+    response->results = (UA_HistoryUpdateResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYUPDATERESULT]);
+    if (!response->results) {
+        response->resultsSize = 0;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    for (size_t i = 0; i < request->historyUpdateDetailsSize; ++i) {
+        UA_HistoryUpdateResult_init(&response->results[i]);
+        if(request->historyUpdateDetails[i].encoding != UA_EXTENSIONOBJECT_DECODED) {
+            response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            continue;
+        }
+        if (request->historyUpdateDetails[i].content.decoded.type
+                == &UA_TYPES[UA_TYPES_UPDATEDATADETAILS]) {
+            if (server->config.historyDatabase.updateData) {
+                server->config.historyDatabase.updateData(server,
+                                                          server->config.historyDatabase.context,
+                                                          &session->sessionId, session->sessionHandle,
+                                                          &request->requestHeader,
+                                                          (UA_UpdateDataDetails*)request->historyUpdateDetails[i].content.decoded.data,
+                                                          &response->results[i]);
+            } else {
+                response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            }
+            continue;
+        } else
+        if (request->historyUpdateDetails[i].content.decoded.type
+                == &UA_TYPES[UA_TYPES_DELETERAWMODIFIEDDETAILS]) {
+            if (server->config.historyDatabase.deleteRawModified) {
+                server->config.historyDatabase.deleteRawModified(server,
+                                                                 server->config.historyDatabase.context,
+                                                                 &session->sessionId, session->sessionHandle,
+                                                                 &request->requestHeader,
+                                                                 (UA_DeleteRawModifiedDetails*)request->historyUpdateDetails[i].content.decoded.data,
+                                                                 &response->results[i]);
+            } else {
+                response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            }
+            continue;
+        } else {
+            response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            continue;
+        }
+    }
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+}
+
 #endif
 
 UA_StatusCode UA_EXPORT

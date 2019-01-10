@@ -290,6 +290,148 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
 }
 
 static void
+updateData_service_default(UA_Server *server,
+                           void *hdbContext,
+                           const UA_NodeId *sessionId,
+                           void *sessionContext,
+                           const UA_RequestHeader *requestHeader,
+                           const UA_UpdateDataDetails *details,
+                           UA_HistoryUpdateResult *result)
+{
+    UA_HistoryDatabaseContext_default *ctx = (UA_HistoryDatabaseContext_default*)hdbContext;
+    UA_Byte accessLevel = 0;
+    UA_Server_readAccessLevel(server,
+                              details->nodeId,
+                              &accessLevel);
+    if (!(accessLevel & UA_ACCESSLEVELMASK_HISTORYWRITE)) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
+    UA_Boolean historizing = false;
+    UA_Server_readHistorizing(server,
+                              details->nodeId,
+                              &historizing);
+    if (!historizing) {
+        result->statusCode = UA_STATUSCODE_BADHISTORYOPERATIONINVALID;
+        return;
+    }
+    const UA_HistorizingNodeIdSettings *setting = ctx->gathering.getHistorizingSetting(
+                server,
+                ctx->gathering.context,
+                &details->nodeId);
+
+    if (!setting) {
+        result->statusCode = UA_STATUSCODE_BADHISTORYOPERATIONINVALID;
+        return;
+    }
+
+    result->operationResultsSize = details->updateValuesSize;
+    result->operationResults = (UA_StatusCode*)UA_Array_new(result->operationResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    for (size_t i = 0; i < details->updateValuesSize; ++i) {
+        switch (details->performInsertReplace) {
+        case UA_PERFORMUPDATETYPE_INSERT:
+            if (!setting->historizingBackend.insertDataValue) {
+                result->operationResults[i] = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+                continue;
+            }
+            result->operationResults[i]
+                    = setting->historizingBackend.insertDataValue(server,
+                                                                  setting->historizingBackend.context,
+                                                                  sessionId,
+                                                                  sessionContext,
+                                                                  &details->nodeId,
+                                                                  &details->updateValues[i]);
+            continue;
+        case UA_PERFORMUPDATETYPE_REPLACE:
+            if (!setting->historizingBackend.replaceDataValue) {
+                result->operationResults[i] = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+                continue;
+            }
+            result->operationResults[i]
+                    = setting->historizingBackend.replaceDataValue(server,
+                                                                   setting->historizingBackend.context,
+                                                                   sessionId,
+                                                                   sessionContext,
+                                                                   &details->nodeId,
+                                                                   &details->updateValues[i]);
+            continue;
+        case UA_PERFORMUPDATETYPE_UPDATE:
+            if (!setting->historizingBackend.updateDataValue) {
+                result->operationResults[i] = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+                continue;
+            }
+            result->operationResults[i]
+                    = setting->historizingBackend.updateDataValue(server,
+                                                                  setting->historizingBackend.context,
+                                                                  sessionId,
+                                                                  sessionContext,
+                                                                  &details->nodeId,
+                                                                  &details->updateValues[i]);
+            continue;
+        default:
+            result->operationResults[i] = UA_STATUSCODE_BADHISTORYOPERATIONINVALID;
+            continue;
+        }
+    }
+}
+
+
+static void
+deleteRawModified_service_default(UA_Server *server,
+                                  void *hdbContext,
+                                  const UA_NodeId *sessionId,
+                                  void *sessionContext,
+                                  const UA_RequestHeader *requestHeader,
+                                  const UA_DeleteRawModifiedDetails *details,
+                                  UA_HistoryUpdateResult *result)
+{
+    if (details->isDeleteModified) {
+        result->statusCode = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+        return;
+    }
+    UA_HistoryDatabaseContext_default *ctx = (UA_HistoryDatabaseContext_default*)hdbContext;
+    UA_Byte accessLevel = 0;
+    UA_Server_readAccessLevel(server,
+                              details->nodeId,
+                              &accessLevel);
+    if (!(accessLevel & UA_ACCESSLEVELMASK_HISTORYWRITE)) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
+    UA_Boolean historizing = false;
+    UA_Server_readHistorizing(server,
+                              details->nodeId,
+                              &historizing);
+    if (!historizing) {
+        result->statusCode = UA_STATUSCODE_BADHISTORYOPERATIONINVALID;
+        return;
+    }
+    const UA_HistorizingNodeIdSettings *setting = ctx->gathering.getHistorizingSetting(
+                server,
+                ctx->gathering.context,
+                &details->nodeId);
+
+    if (!setting) {
+        result->statusCode = UA_STATUSCODE_BADHISTORYOPERATIONINVALID;
+        return;
+    }
+    if (!setting->historizingBackend.removeDataValue) {
+        result->statusCode = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
+        return;
+    }
+    result->statusCode
+            = setting->historizingBackend.removeDataValue(server,
+                                                          setting->historizingBackend.context,
+                                                          sessionId,
+                                                          sessionContext,
+                                                          &details->nodeId,
+                                                          details->startTime,
+                                                          details->endTime);
+}
+
+static void
 readRaw_service_default(UA_Server *server,
                         void *context,
                         const UA_NodeId *sessionId,
@@ -454,6 +596,8 @@ UA_HistoryDatabase_default(UA_HistoryDataGathering gathering)
     hdb.context = context;
     hdb.readRaw = &readRaw_service_default;
     hdb.setValue = &setValue_service_default;
+    hdb.updateData = &updateData_service_default;
+    hdb.deleteRawModified = &deleteRawModified_service_default;
     hdb.deleteMembers = &deleteMembers_service_default;
     return hdb;
 }

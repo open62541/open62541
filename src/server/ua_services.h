@@ -336,7 +336,10 @@ void Service_HistoryRead(UA_Server *server, UA_Session *session,
  * Used to update historical values or Events of one or more Nodes. Several
  * request parameters indicate how the Server is to update the historical value
  * or Event. Valid actions are Insert, Replace or Delete. */
-/* Not Implemented */
+void
+Service_HistoryUpdate(UA_Server *server, UA_Session *session,
+                      const UA_HistoryUpdateRequest *request,
+                      UA_HistoryUpdateResponse *response);
 
 /**
  * .. _method-services:
