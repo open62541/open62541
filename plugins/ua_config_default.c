@@ -501,7 +501,7 @@ UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
     }
 
     ++conf->endpointsSize;
-    retval = createEndpoint(conf, &conf->endpoints[1], &conf->securityPolicies[1],
+    retval = createEndpoint(conf, &conf->endpoints[2], &conf->securityPolicies[1],
                             UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
