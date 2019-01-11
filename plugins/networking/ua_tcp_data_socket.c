@@ -80,18 +80,12 @@ UA_TCP_DataSocket_activity(UA_Socket *sock) {
                                     sockData->receiveBuffer.length, 0);
 
     if(bytesReceived < 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
-                         "Cannot receive: %s", errno_str));
-        return UA_STATUSCODE_GOODSHUTDOWNEVENT;
-    }
-
-    if(bytesReceived < 0) {
         if(UA_ERRNO == UA_WOULDBLOCK || UA_ERRNO == UA_EAGAIN || UA_ERRNO == UA_INTERRUPTED) {
             return UA_STATUSCODE_GOOD;
         }
-        UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
-                     "Error while receiving data from socket");
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
+                         "Error while receiving data from socket: %s", errno_str));
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
@@ -155,12 +149,18 @@ UA_TCP_DataSocket_open(UA_Socket *sock) {
 }
 
 static UA_StatusCode
-UA_TCP_DataSocket_getSendBuffer(UA_Socket *sock, UA_ByteString **p_buffer) {
+UA_TCP_DataSocket_getSendBuffer(UA_Socket *sock, size_t bufferSize, UA_ByteString **p_buffer) {
     if(sock == NULL || p_buffer == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     TCPDataSocketData *const sockData = (TCPDataSocketData *const)sock->internalData;
+
+    if(bufferSize > sockData->sendBuffer.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     sockData->sendBufferOut = sockData->sendBuffer;
+    if(bufferSize > 0)
+        sockData->sendBufferOut.length = bufferSize;
     *p_buffer = &sockData->sendBufferOut;
 
     return UA_STATUSCODE_GOOD;

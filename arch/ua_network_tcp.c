@@ -745,13 +745,19 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const char *endpointUrl,
 
     connection.state = UA_CONNECTION_OPENING;
     connection.config = config;
-    connection.send = connection_write;
-    connection.recv = connection_recv;
+    // TODO: Fix client connections
+    // connection.send = connection_write;
+    // connection.recv = connection_recv;
+    (void)connection_write;
+    (void)connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
     connection.free = ClientNetworkLayerTCP_free;
-    connection.getSendBuffer = connection_getsendbuffer;
-    connection.releaseSendBuffer = connection_releasesendbuffer;
-    connection.releaseRecvBuffer = connection_releaserecvbuffer;
+    // connection.getSendBuffer = connection_getsendbuffer;
+    // connection.releaseSendBuffer = connection_releasesendbuffer;
+    // connection.releaseRecvBuffer = connection_releaserecvbuffer;
+    (void)connection_getsendbuffer;
+    (void)connection_releasesendbuffer;
+    (void)connection_releaserecvbuffer;
 
     TCPClientConnection *tcpClientConnection = (TCPClientConnection*) UA_malloc(
                     sizeof(TCPClientConnection));
@@ -806,13 +812,14 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const char *endpointUrl,
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTION_CLOSED;
     connection.config = config;
-    connection.send = connection_write;
-    connection.recv = connection_recv;
+    // TODO: fix client connections
+    // connection.send = connection_write;
+    // connection.recv = connection_recv;
     connection.close = ClientNetworkLayerTCP_close;
     connection.free = ClientNetworkLayerTCP_free;
-    connection.getSendBuffer = connection_getsendbuffer;
-    connection.releaseSendBuffer = connection_releasesendbuffer;
-    connection.releaseRecvBuffer = connection_releaserecvbuffer;
+    // connection.getSendBuffer = connection_getsendbuffer;
+    // connection.releaseSendBuffer = connection_releasesendbuffer;
+    // connection.releaseRecvBuffer = connection_releaserecvbuffer;
     connection.handle = NULL;
 
     UA_String endpointUrlString = UA_STRING((char*)(uintptr_t)endpointUrl);

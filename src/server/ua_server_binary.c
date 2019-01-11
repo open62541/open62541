@@ -307,29 +307,25 @@ processHEL(UA_Server *server, UA_Connection *connection,
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
 
     /* Get the send buffer from the network layer */
-    UA_ByteString ack_msg;
-    UA_ByteString_init(&ack_msg);
-    retval = connection->getSendBuffer(connection, connection->config.sendBufferSize, &ack_msg);
+    UA_ByteString *ackBuffer = NULL;
+    retval = connection->sock->getSendBuffer(connection->sock, connection->config.sendBufferSize,
+                                             &ackBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Encode and send the response */
-    UA_Byte *bufPos = ack_msg.data;
-    const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
+    UA_Byte *bufPos = ackBuffer->data;
+    const UA_Byte *bufEnd = &ackBuffer->data[ackBuffer->length];
 
     retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, bufEnd);
-    if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseSendBuffer(connection, &ack_msg);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
     retval = UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, bufEnd);
-    if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseSendBuffer(connection, &ack_msg);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
-    ack_msg.length = ackHeader.messageSize;
-    return connection->send(connection, &ack_msg);
+    ackBuffer->length = ackHeader.messageSize;
+    return connection->sock->send(connection->sock);
 }
 
 /* OPN -> Open up/renew the securechannel */
@@ -566,8 +562,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         goto cleanup;
 
     /* Assert's required for clang-analyzer */
-    UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
-    UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
+    UA_assert(mc.buf_pos == &mc.messageBuffer->data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
+    UA_assert(mc.buf_end <= &mc.messageBuffer->data[mc.messageBuffer->length]);
 
     retval = UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)

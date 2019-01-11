@@ -147,7 +147,7 @@ tcp_sock_send(UA_Socket *sock) {
 }
 
 static UA_StatusCode
-tcp_sock_getSendBuffer(UA_Socket *sock, UA_ByteString **p_buffer) {
+tcp_sock_getSendBuffer(UA_Socket *sock, size_t bufferSize, UA_ByteString **p_buffer) {
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
     UA_LOG_ERROR(socketData->logger, UA_LOGCATEGORY_NETWORK,
                  "Getting a send buffer is not supported on listener sockets");

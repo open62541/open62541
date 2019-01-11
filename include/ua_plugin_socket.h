@@ -156,7 +156,7 @@ struct UA_Socket {
      * @param buffer the pointer the the allocated buffer
      * @return
      */
-    UA_StatusCode (*getSendBuffer)(UA_Socket *socket, UA_ByteString **p_buffer);
+    UA_StatusCode (*getSendBuffer)(UA_Socket *socket, size_t bufferSize, UA_ByteString **p_buffer);
 
     /**
      * This opaque pointer points to implementation specific internal data.

@@ -91,9 +91,9 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
 static UA_StatusCode
 HelAckHandshake(UA_Client *client) {
     /* Get a buffer */
-    UA_ByteString message;
+    UA_ByteString *message = NULL;
     UA_Connection *conn = &client->connection;
-    UA_StatusCode retval = conn->getSendBuffer(conn, UA_MINMESSAGESIZE, &message);
+    UA_StatusCode retval = conn->sock->getSendBuffer(conn->sock, UA_MINMESSAGESIZE, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -102,30 +102,26 @@ HelAckHandshake(UA_Client *client) {
     UA_String_copy(&client->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
     memcpy(&hello, &client->config.localConnectionConfig, sizeof(UA_ConnectionConfig)); /* same struct layout */
 
-    UA_Byte *bufPos = &message.data[8]; /* skip the header */
-    const UA_Byte *bufEnd = &message.data[message.length];
+    UA_Byte *bufPos = &message->data[8]; /* skip the header */
+    const UA_Byte *bufEnd = &message->data[message->length];
     retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
     UA_TcpHelloMessage_deleteMembers(&hello);
-    if(retval != UA_STATUSCODE_GOOD) {
-        conn->releaseSendBuffer(conn, &message);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
-    messageHeader.messageSize = (UA_UInt32)((uintptr_t)bufPos - (uintptr_t)message.data);
-    bufPos = message.data;
+    messageHeader.messageSize = (UA_UInt32)((uintptr_t)bufPos - (uintptr_t)message->data);
+    bufPos = message->data;
     retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
-    if(retval != UA_STATUSCODE_GOOD) {
-        conn->releaseSendBuffer(conn, &message);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
     /* Send the HEL message */
-    message.length = messageHeader.messageSize;
-    retval = conn->send(conn, &message);
+    message->length = messageHeader.messageSize;
+    retval = conn->sock->send(conn->sock);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Sending HEL failed");

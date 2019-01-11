@@ -159,7 +159,7 @@ typedef struct {
     UA_UInt16 chunksSoFar;
     size_t messageSizeSoFar;
 
-    UA_ByteString messageBuffer;
+    UA_ByteString *messageBuffer;
     UA_Byte *buf_pos;
     const UA_Byte *buf_end;
 

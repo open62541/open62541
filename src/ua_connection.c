@@ -78,18 +78,18 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     header.messageSize = 8 + (4 + 4 + (UA_UInt32)error->reason.length);
 
     /* Get the send buffer from the network layer */
-    UA_ByteString msg = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = connection->getSendBuffer(connection, header.messageSize, &msg);
+    UA_ByteString *sendBuffer = NULL;
+    UA_StatusCode retval = connection->sock->getSendBuffer(connection->sock, header.messageSize, &sendBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return;
 
     /* Encode and send the response */
-    UA_Byte *bufPos = msg.data;
-    const UA_Byte *bufEnd = &msg.data[msg.length];
+    UA_Byte *bufPos = sendBuffer->data;
+    const UA_Byte *bufEnd = &sendBuffer->data[sendBuffer->length];
     UA_TcpMessageHeader_encodeBinary(&header, &bufPos, bufEnd);
     UA_TcpErrorMessage_encodeBinary(error, &bufPos, bufEnd);
-    msg.length = header.messageSize;
-    connection->send(connection, &msg);
+    sendBuffer->length = header.messageSize;
+    connection->sock->send(connection->sock);
 }
 
 static UA_StatusCode
@@ -214,14 +214,17 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
     while(true) {
         /* Listen for messages to arrive */
         UA_ByteString packet = UA_BYTESTRING_NULL;
-        retval = connection->recv(connection, &packet, timeout);
+        // TODO: Do we still need the receiveChunksBlocking function?
+        // TODO: We now handle data via callbacks...
+        // retval = connection->recv(connection, &packet, timeout);
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
         /* Try to process one complete chunk */
         retval = UA_Connection_processChunks(connection, &data,
                                              completeChunkTrampoline, &packet);
-        connection->releaseRecvBuffer(connection, &packet);
+        // TODO: fix, see above
+        // connection->releaseRecvBuffer(connection, &packet);
         if(data.called)
             break;
 
@@ -250,14 +253,17 @@ UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *applicat
 
     /* Listen for messages to arrive */
     UA_ByteString packet = UA_BYTESTRING_NULL;
-    UA_StatusCode retval = connection->recv(connection, &packet, 1);
+    // TODO: Do we still need receiveChunksNonBlocking now? We use callbacks now...
+    // UA_StatusCode retval = connection->recv(connection, &packet, 1);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT))
         return retval;
 
     /* Try to process one complete chunk */
     retval = UA_Connection_processChunks(connection, &data, completeChunkTrampoline, &packet);
-    connection->releaseRecvBuffer(connection, &packet);
+    // TODO: see above
+    // connection->releaseRecvBuffer(connection, &packet);
 
     return retval;
 }
