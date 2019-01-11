@@ -194,17 +194,17 @@ UA_TCP_DataSocket_logPeerName(UA_Socket *sock, struct sockaddr_storage *remote) 
                              NULL, 0, NI_NUMERICHOST);
     if(res == 0) {
         UA_LOG_INFO(sockData->logger, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | New connection over TCP from %s",
+                    "Socket %i | New connection over TCP from %s",
                     (int)sock->id, remote_name);
     } else {
         UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(sockData->logger, UA_LOGCATEGORY_NETWORK,
-                                                "Connection %i | New connection over TCP, "
+                                                "Socket %i | New connection over TCP, "
                                                 "getnameinfo failed with error: %s",
                                                 (int)sock->id, errno_str));
     }
 #else
     UA_LOG_INFO(sockData->logger, UA_LOGCATEGORY_NETWORK,
-                "Connection %i | New connection over TCP",
+                "Socket %i | New connection over TCP",
                 (int)sock->id);
 #endif
 }

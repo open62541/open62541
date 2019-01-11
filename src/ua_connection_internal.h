@@ -13,20 +13,25 @@
 
 #include "ua_plugin_network.h"
 #include "ua_transport_generated.h"
+#include "ua_connection.h"
 
 _UA_BEGIN_DECLS
 
 /* Process the remote configuration in the HEL/ACK handshake. The connection
  * config is initialized with the local settings. */
 UA_StatusCode
-UA_Connection_processHELACK(UA_Connection *connection,
-                            const UA_ConnectionConfig *localConfig,
-                            const UA_ConnectionConfig *remoteConfig);
+UA_Connection_old_processHELACK(UA_Connection_old *connection,
+                                const UA_ConnectionConfig *localConfig,
+                                const UA_ConnectionConfig *remoteConfig);
 
 /* The application can be the client or the server */
-typedef UA_StatusCode (*UA_Connection_processChunk)(void *application,
-                                                    UA_Connection *connection,
-                                                    UA_ByteString *chunk);
+typedef UA_StatusCode (*UA_Connection_old_processChunk)(void *application,
+                                                        UA_Connection_old *connection,
+                                                        UA_ByteString *chunk);
+
+typedef UA_StatusCode (*UA_Connection_processChunkFunction)(void *application,
+                                                            UA_Connection *connection,
+                                                            UA_ByteString *chunk);
 
 /* The network layer may receive chopped up messages since TCP is a streaming
  * protocol. This method calls the processChunk callback on all full chunks that
@@ -46,8 +51,13 @@ typedef UA_StatusCode (*UA_Connection_processChunk)(void *application,
  *         the ingoing message and the current buffer in the connection are
  *         freed. */
 UA_StatusCode
+UA_Connection_old_processChunks(UA_Connection_old *connection, void *application,
+                                UA_Connection_old_processChunk processCallback,
+                                const UA_ByteString *packet);
+
+UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
-                            UA_Connection_processChunk processCallback,
+                            UA_Connection_processChunkFunction processCallback,
                             const UA_ByteString *packet);
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
@@ -60,13 +70,13 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
  * @return Returns UA_STATUSCODE_GOOD or an error code. When an timeout occurs,
  *         UA_STATUSCODE_GOODNONCRITICALTIMEOUT is returned. */
 UA_StatusCode
-UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application,
-                                    UA_Connection_processChunk processCallback,
-                                    UA_UInt32 timeout);
+UA_Connection_old_receiveChunksBlocking(UA_Connection_old *connection, void *application,
+                                        UA_Connection_old_processChunk processCallback,
+                                        UA_UInt32 timeout);
 
 UA_StatusCode
-UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *application,
-                                    UA_Connection_processChunk processCallback);
+UA_Connection_old_receiveChunksNonBlocking(UA_Connection_old *connection, void *application,
+                                           UA_Connection_old_processChunk processCallback);
 
 /* When a fatal error occurs the Server shall send an Error Message to the
  * Client and close the socket. When a Client encounters one of these errors, it
@@ -74,11 +84,18 @@ UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *applicat
  * socket is closed a Client shall try to reconnect automatically using the
  * mechanisms described in [...]. */
 void
+UA_Connection_old_sendError(UA_Connection_old *connection,
+                            UA_TcpErrorMessage *error);
+
+void
 UA_Connection_sendError(UA_Connection *connection,
                         UA_TcpErrorMessage *error);
 
-void UA_Connection_detachSecureChannel(UA_Connection *connection);
-void UA_Connection_attachSecureChannel(UA_Connection *connection,
+void
+UA_Connection_old_detachSecureChannel(UA_Connection_old *connection);
+
+void
+UA_Connection_old_attachSecureChannel(UA_Connection_old *connection,
                                        UA_SecureChannel *channel);
 
 _UA_END_DECLS

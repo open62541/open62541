@@ -15,16 +15,12 @@ extern "C" {
 #include "ua_client.h"
 #include "ua_plugin_log.h"
 
-// TODO: Remove comments
-//UA_ServerNetworkLayer UA_EXPORT
-//UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port, const UA_Logger *logger);
-
-UA_Connection UA_EXPORT
+UA_Connection_old UA_EXPORT
 UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
                        const UA_UInt32 timeout, const UA_Logger *logger);
 
 UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data);
-UA_Connection UA_EXPORT
+UA_Connection_old UA_EXPORT
 UA_ClientConnectionTCP_init(UA_ConnectionConfig conf, const char *endpointUrl,
                             const UA_UInt32 timeout, const UA_Logger *logger);
 #ifdef __cplusplus

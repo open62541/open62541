@@ -176,7 +176,7 @@ UA_Client_deleteMembers(UA_Client* client) {
     //UA_SecureChannel_deleteMembersCleanup(&client->channel);
     if (client->connection.free)
         client->connection.free(&client->connection);
-    UA_Connection_deleteMembers(&client->connection);
+    UA_Connection_old_deleteMembers(&client->connection);
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
@@ -432,7 +432,7 @@ finish:
 
 /* Forward complete chunks directly to the securechannel */
 static UA_StatusCode
-client_processChunk(void *application, UA_Connection *connection, UA_ByteString *chunk) {
+client_processChunk(void *application, UA_Connection_old *connection, UA_ByteString *chunk) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
     UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&rd->client->channel, chunk, true);
     if(retval != UA_STATUSCODE_GOOD)
@@ -465,7 +465,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
          * if(maxDate - now) < (UA_DATETIME_MSEC/2) */
         UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-        retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd, client_processChunk, timeout);
+        retval = UA_Connection_old_receiveChunksBlocking(&client->connection, &rd, client_processChunk, timeout);
         UA_SecureChannel_processCompleteMessages(&client->channel, &rd, processServiceResponse);
 
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
@@ -515,7 +515,7 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
                              const UA_DataType *responseType) {
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 
-    UA_StatusCode retval = UA_Connection_receiveChunksNonBlocking(
+    UA_StatusCode retval = UA_Connection_old_receiveChunksNonBlocking(
             &client->connection, &rd, client_processChunk);
     UA_SecureChannel_processCompleteMessages(&client->channel, &rd, processServiceResponse);
     /*let client run when non critical timeout*/
@@ -534,10 +534,10 @@ receivePacketAsync(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED ||
             UA_Client_getState(client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        retval = UA_Connection_receiveChunksNonBlocking(&client->connection, client, processACKResponseAsync);
+        retval = UA_Connection_old_receiveChunksNonBlocking(&client->connection, client, processACKResponseAsync);
     }
     else if(UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
-        retval = UA_Connection_receiveChunksNonBlocking(&client->connection, client, processOPNResponseAsync);
+        retval = UA_Connection_old_receiveChunksNonBlocking(&client->connection, client, processOPNResponseAsync);
     }
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)

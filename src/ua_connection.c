@@ -17,15 +17,20 @@
 #include "ua_types_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_securechannel.h"
+#include "ua_connection.h"
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
+    UA_ByteString_deleteMembers(&connection->chunkBuffer);
+}
+
+void UA_Connection_old_deleteMembers(UA_Connection_old *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteChunk);
 }
 
 UA_StatusCode
-UA_Connection_processHELACK(UA_Connection *connection,
-                            const UA_ConnectionConfig *localConfig,
-                            const UA_ConnectionConfig *remoteConfig) {
+UA_Connection_old_processHELACK(UA_Connection_old *connection,
+                                const UA_ConnectionConfig *localConfig,
+                                const UA_ConnectionConfig *remoteConfig) {
     connection->config = *remoteConfig;
 
     /* The lowest common version is used by both sides */
@@ -69,6 +74,30 @@ hideErrors(UA_TcpErrorMessage *const error) {
 }
 
 void
+UA_Connection_old_sendError(UA_Connection_old *connection, UA_TcpErrorMessage *error) {
+    hideErrors(error);
+
+    UA_TcpMessageHeader header;
+    header.messageTypeAndChunkType = UA_MESSAGETYPE_ERR + UA_CHUNKTYPE_FINAL;
+    // Header + ErrorMessage (error + reasonLength_field + length)
+    header.messageSize = 8 + (4 + 4 + (UA_UInt32)error->reason.length);
+
+    /* Get the send buffer from the network layer */
+    UA_ByteString msg = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = connection->getSendBuffer(connection, header.messageSize, &msg);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Encode and send the response */
+    UA_Byte *bufPos = msg.data;
+    const UA_Byte *bufEnd = &msg.data[msg.length];
+    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, bufEnd);
+    UA_TcpErrorMessage_encodeBinary(error, &bufPos, bufEnd);
+    msg.length = header.messageSize;
+    connection->send(connection, &msg);
+}
+
+void
 UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     hideErrors(error);
 
@@ -93,7 +122,7 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
 }
 
 static UA_StatusCode
-bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos,
+bufferIncompleteChunk(UA_Connection_old *connection, const UA_Byte *pos,
                       const UA_Byte *end) {
     UA_assert(pos < end);
     size_t length = (uintptr_t)end - (uintptr_t)pos;
@@ -105,8 +134,8 @@ bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos,
 }
 
 static UA_StatusCode
-processChunk(UA_Connection *connection, void *application,
-             UA_Connection_processChunk processCallback,
+processChunk(UA_Connection_old *connection, void *application,
+             UA_Connection_old_processChunk processCallback,
              const UA_Byte **posp, const UA_Byte *end, UA_Boolean *done) {
     const UA_Byte *pos = *posp;
     const size_t remaining = (uintptr_t)end - (uintptr_t)pos;
@@ -157,9 +186,9 @@ processChunk(UA_Connection *connection, void *application,
 }
 
 UA_StatusCode
-UA_Connection_processChunks(UA_Connection *connection, void *application,
-                            UA_Connection_processChunk processCallback,
-                            const UA_ByteString *packet) {
+UA_Connection_old_processChunks(UA_Connection_old *connection, void *application,
+                                UA_Connection_old_processChunk processCallback,
+                                const UA_ByteString *packet) {
     /* The connection has already prepended any incomplete chunk during recv */
     UA_assert(connection->incompleteChunk.length == 0);
 
@@ -186,11 +215,11 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
 struct completeChunkTrampolineData {
     UA_Boolean called;
     void *application;
-    UA_Connection_processChunk processCallback;
+    UA_Connection_old_processChunk processCallback;
 };
 
 static UA_StatusCode
-completeChunkTrampoline(void *application, UA_Connection *connection,
+completeChunkTrampoline(void *application, UA_Connection_old *connection,
                         UA_ByteString *chunk) {
     struct completeChunkTrampolineData *data =
         (struct completeChunkTrampolineData*)application;
@@ -199,9 +228,9 @@ completeChunkTrampoline(void *application, UA_Connection *connection,
 }
 
 UA_StatusCode
-UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application,
-                                    UA_Connection_processChunk processCallback,
-                                    UA_UInt32 timeout) {
+UA_Connection_old_receiveChunksBlocking(UA_Connection_old *connection, void *application,
+                                        UA_Connection_old_processChunk processCallback,
+                                        UA_UInt32 timeout) {
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime maxDate = now + (timeout * UA_DATETIME_MSEC);
 
@@ -221,8 +250,8 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
             break;
 
         /* Try to process one complete chunk */
-        retval = UA_Connection_processChunks(connection, &data,
-                                             completeChunkTrampoline, &packet);
+        retval = UA_Connection_old_processChunks(connection, &data,
+                                                 completeChunkTrampoline, &packet);
         // TODO: fix, see above
         // connection->releaseRecvBuffer(connection, &packet);
         if(data.called)
@@ -244,8 +273,8 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
 }
 
 UA_StatusCode
-UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *application,
-                                    UA_Connection_processChunk processCallback) {
+UA_Connection_old_receiveChunksNonBlocking(UA_Connection_old *connection, void *application,
+                                           UA_Connection_old_processChunk processCallback) {
     struct completeChunkTrampolineData data;
     data.called = false;
     data.application = application;
@@ -261,14 +290,15 @@ UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *applicat
         return retval;
 
     /* Try to process one complete chunk */
-    retval = UA_Connection_processChunks(connection, &data, completeChunkTrampoline, &packet);
+    retval = UA_Connection_old_processChunks(connection, &data, completeChunkTrampoline, &packet);
     // TODO: see above
     // connection->releaseRecvBuffer(connection, &packet);
 
     return retval;
 }
 
-void UA_Connection_detachSecureChannel(UA_Connection *connection) {
+void
+UA_Connection_old_detachSecureChannel(UA_Connection_old *connection) {
     UA_SecureChannel *channel = connection->channel;
     if(channel)
         /* only replace when the channel points to this connection */
@@ -276,9 +306,64 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection) {
     UA_atomic_xchg((void**)&connection->channel, NULL);
 }
 
-// TODO: Return an error code
 void
-UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
+UA_Connection_old_attachSecureChannel(UA_Connection_old *connection, UA_SecureChannel *channel) {
     if(UA_atomic_cmpxchg((void**)&channel->connection, NULL, connection) == NULL)
         UA_atomic_xchg((void**)&connection->channel, (void*)channel);
+}
+
+UA_StatusCode
+UA_Connection_processChunks(UA_Connection *connection, void *application,
+                            UA_Connection_processChunkFunction processCallback, const UA_ByteString *packet) {
+    return 0;
+}
+
+UA_StatusCode
+UA_Connection_detachSecureChannel(UA_Connection *connection) {
+    UA_SecureChannel *channel = connection->channel;
+    if(channel)
+        /* only replace when the channel points to this connection */
+        UA_atomic_cmpxchg((void **)&channel->connection, connection, NULL);
+    UA_atomic_xchg((void **)&connection->channel, NULL);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+// TODO: Return an error code
+UA_StatusCode
+UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
+    if(UA_atomic_cmpxchg((void **)&channel->connection, NULL, connection) == NULL)
+        UA_atomic_xchg((void **)&connection->channel, (void *)channel);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Connection_adjustParameters(UA_Connection *connection, const UA_ConnectionConfig *remoteConfig) {
+
+    /* The lowest common version is used by both sides */
+    if(connection->config.protocolVersion > remoteConfig->protocolVersion)
+        connection->config.protocolVersion = remoteConfig->protocolVersion;
+
+    // connection->config = *remoteConfig;
+
+    /* Clamp the buffer if we can receive more than the remote can send */
+    if(connection->config.recvBufferSize > remoteConfig->sendBufferSize)
+        connection->config.recvBufferSize = remoteConfig->sendBufferSize;
+
+    /* Clamp the send buffer to the maximum recv buffer size of the remote to avoid abortion of chunks. */
+    if(connection->config.sendBufferSize > remoteConfig->recvBufferSize)
+        connection->config.sendBufferSize = remoteConfig->recvBufferSize;
+
+    /* Chunks of at least 8192 bytes must be permissible.
+     * See Part 6, Clause 6.7.1 */
+    if(connection->config.recvBufferSize < 8192 ||
+       connection->config.sendBufferSize < 8192 ||
+       (connection->config.maxMessageSize != 0 &&
+        connection->config.maxMessageSize < 8192))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    connection->state = UA_CONNECTION_ESTABLISHED;
+
+    return UA_STATUSCODE_GOOD;
 }
