@@ -299,7 +299,7 @@ UA_TCP_ListenerSockets(UA_SocketConfig *socketConfig, UA_SocketHook creationHook
         UA_TCP_ListenerSocketFromAddrinfo(ai, socketConfig,
                                           &sock);
         /* Instead of allocating an array to return the sockets, we call a hook for each one */
-        creationHook.hook(sock, creationHook.hookContext);
+        creationHook.hook(creationHook.hookContext, sock);
     }
     UA_freeaddrinfo(res);
 

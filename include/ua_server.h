@@ -17,6 +17,7 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_nodeids.h"
+#include "ua_plugin_socket.h"
 
 _UA_BEGIN_DECLS
 
@@ -44,6 +45,15 @@ struct UA_Client;
 
 UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig *config);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
+
+/**
+ * Adds a listener socket to the server.
+ * @param sock
+ * @param server
+ * @return
+ */
+UA_StatusCode
+UA_Server_addListenerSocket(UA_Server *server, UA_Socket *sock);
 
 /* Runs the main loop of the server. In each iteration, this calls into the
  * networklayers to see if messages have arrived.

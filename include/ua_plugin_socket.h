@@ -186,8 +186,10 @@ struct UA_SocketConfig {
     UA_StatusCode (*createSocket)(UA_SocketConfig *config, UA_SocketHook socketHook);
 };
 
+typedef UA_StatusCode (*UA_SocketHookFunction)(void *, UA_Socket *);
+
 struct UA_SocketHook {
-    UA_StatusCode (*hook)(UA_Socket *socket, void *hookContext);
+    UA_SocketHookFunction hook;
 
     void *hookContext;
 };
@@ -203,7 +205,7 @@ static inline UA_StatusCode
 UA_SocketHook_call(UA_SocketHook hook, UA_Socket *sock) {
     if(hook.hook == NULL || sock == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return hook.hook(sock, hook.hookContext);
+    return hook.hook(hook.hookContext, sock);
 }
 
 typedef struct HookListEntry {

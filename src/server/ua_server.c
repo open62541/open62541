@@ -373,7 +373,7 @@ UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
 static UA_StatusCode
-createConnection(UA_Socket *sock, void *userData) {
+createConnection(void *userData, UA_Socket *sock) {
     UA_Server *const server = (UA_Server *const)userData;
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "New data socket created. Adding corresponding connection");
@@ -382,34 +382,26 @@ createConnection(UA_Socket *sock, void *userData) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-registerSocket(UA_Socket *sock, void *userData) {
-    UA_Server *const server = (UA_Server *const)userData;
-    return server->networkManager.registerSocket(&server->networkManager, sock);
-}
-
-static UA_StatusCode
-addListenerSocket(UA_Socket *sock, void *userData) {
-    UA_Server *const server = (UA_Server *const)userData;
+UA_StatusCode
+UA_Server_addListenerSocket(UA_Server *server, UA_Socket *sock) {
 
     UA_StatusCode retval = server->networkManager.registerSocket(&server->networkManager, sock);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    sock->socketFactory->socketDataCallback.callbackContext = server;
-    sock->socketFactory->socketDataCallback.callback = NULL; // TODO: set callback
+    /* After creating a data socket, we want to add it to the network manager */
+    UA_SocketHook registerSocketHook;
+    registerSocketHook.hookContext = &server->networkManager;
+    registerSocketHook.hook = (UA_SocketHookFunction)server->networkManager.registerSocket;
+    retval = UA_SocketFactory_addCreationHook(sock->socketFactory, registerSocketHook);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
+    /* Additionally we want to create a new connection */
     UA_SocketHook createConnectionHook;
     createConnectionHook.hookContext = server;
     createConnectionHook.hook = createConnection;
     retval = UA_SocketFactory_addCreationHook(sock->socketFactory, createConnectionHook);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    UA_SocketHook registerSocketHook;
-    registerSocketHook.hookContext = server;
-    registerSocketHook.hook = registerSocket;
-    retval = UA_SocketFactory_addCreationHook(sock->socketFactory, registerSocketHook);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -447,7 +439,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Delayed creation of the server sockets. */
     UA_SocketHook creationHook;
-    creationHook.hook = addListenerSocket;
+    creationHook.hook = (UA_SocketHookFunction)UA_Server_addListenerSocket;
     creationHook.hookContext = server;
     for(size_t i = 0; i < server->config.socketConfigsSize; ++i) {
         server->config.socketConfigs[i].createSocket(&server->config.socketConfigs[i], creationHook);
