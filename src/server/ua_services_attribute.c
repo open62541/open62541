@@ -741,9 +741,10 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
     if(testArrayDimensionsSize != constraintArrayDimensionsSize)
         return false;
 
-    /* Dimension lengths must match; zero in the constraint is a wildcard */
+    /* Dimension lengths must not be larger than the constraint. Zero in the
+     * constraint indicates a wildcard. */
     for(size_t i = 0; i < constraintArrayDimensionsSize; ++i) {
-        if(constraintArrayDimensions[i] != testArrayDimensions[i] &&
+        if(constraintArrayDimensions[i] < testArrayDimensions[i] &&
            constraintArrayDimensions[i] != 0)
             return false;
     }
