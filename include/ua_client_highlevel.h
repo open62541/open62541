@@ -249,6 +249,28 @@ UA_Client_HistoryRead_modified(UA_Client *client, const UA_NodeId *nodeId,
                                   UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 numValuesPerNode,
                                   UA_TimestampsToReturn timestampsToReturn, void *callbackContext);
 #endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
+
+UA_StatusCode UA_EXPORT
+UA_Client_HistoryUpdate_insert(UA_Client *client,
+                               const UA_NodeId *nodeId,
+                               UA_DataValue *value);
+
+UA_StatusCode UA_EXPORT
+UA_Client_HistoryUpdate_replace(UA_Client *client,
+                                const UA_NodeId *nodeId,
+                                UA_DataValue *value);
+
+UA_StatusCode UA_EXPORT
+UA_Client_HistoryUpdate_update(UA_Client *client,
+                               const UA_NodeId *nodeId,
+                               UA_DataValue *value);
+
+UA_StatusCode UA_EXPORT
+UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
+                                  const UA_NodeId *nodeId,
+                                  UA_DateTime startTimestamp,
+                                  UA_DateTime endTimestamp);
+
 #endif // UA_ENABLE_HISTORIZING
 /**
  * Write Attributes

@@ -268,6 +268,14 @@ UA_Client_Service_historyRead(UA_Client *client, const UA_HistoryReadRequest req
         &response, &UA_TYPES[UA_TYPES_HISTORYREADRESPONSE]);
     return response;
 }
+
+static UA_INLINE UA_HistoryUpdateResponse
+UA_Client_Service_historyUpdate(UA_Client *client, const UA_HistoryUpdateRequest request) {
+    UA_HistoryUpdateResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_HISTORYUPDATEREQUEST],
+        &response, &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]);
+    return response;
+}
 #endif
 
 /*
