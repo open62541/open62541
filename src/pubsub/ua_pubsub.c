@@ -19,6 +19,8 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#define UA_MAX_STACKBUF 512 /* Max size of network messages on the stack */
+
 /* Forward declaration */
 static void
 UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup);
@@ -1012,12 +1014,21 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     nm.payload.dataSetPayload.sizes = dsmLengths;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
 
-    /* Allocate the buffer */
+    /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
     size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm);
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, msgSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    size_t stackSize = 1;
+    if(msgSize <= UA_MAX_STACKBUF)
+        stackSize = msgSize;
+    UA_STACKARRAY(UA_Byte, stackBuf, stackSize);
+    buf.data = stackBuf;
+    buf.length = msgSize;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(msgSize > UA_MAX_STACKBUF) {
+        retval = UA_ByteString_allocBuffer(&buf, msgSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
         
     /* Encode the message */
     UA_Byte *bufPos = buf.data;
@@ -1025,13 +1036,15 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     const UA_Byte *bufEnd = &buf.data[buf.length];
     retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&buf);
+        if(msgSize > UA_MAX_STACKBUF)
+            UA_ByteString_deleteMembers(&buf);
         return retval;
     }
 
     /* Send the prepared messages */
     retval = connection->channel->send(connection->channel, NULL, &buf);
-    UA_ByteString_deleteMembers(&buf);
+    if(msgSize > UA_MAX_STACKBUF)
+        UA_ByteString_deleteMembers(&buf);
     return retval;
 }
 
