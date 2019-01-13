@@ -1162,19 +1162,19 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 }
 
-/*
- * Add new publishCallback. The first execution is triggered directly after creation.
- * @Warning - The duration (double) is currently casted to int. -> intervals smaller 1ms are not possible.
- */
+/* Add new publishCallback. The first execution is triggered directly after
+ * creation. */
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_StatusCode retval =
-            UA_PubSubManager_addRepeatedCallback(server, (UA_ServerCallback) UA_WriterGroup_publishCallback,
+            UA_PubSubManager_addRepeatedCallback(server,
+                                                 (UA_ServerCallback) UA_WriterGroup_publishCallback,
                                                  writerGroup, writerGroup->config.publishingInterval,
                                                  &writerGroup->publishCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
         writerGroup->publishCallbackIsRegistered = true;
-    //run once after creation
+
+    /* Run once after creation */
     UA_WriterGroup_publishCallback(server, writerGroup);
     return retval;
 }
