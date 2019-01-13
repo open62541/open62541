@@ -1023,11 +1023,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         return;
     }
 
+    /* How many dsm to encapsulate in one nm */
+    UA_Byte maxDSM = (UA_Byte)writerGroup->config.maxEncapsulatedDataSetMessageCount;
+    if(writerGroup->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX)
+        maxDSM = UA_BYTE_MAX;
     /* If the maxEncapsulatedDataSetMessageCount is set to 0->1 */
-    writerGroup->config.maxEncapsulatedDataSetMessageCount = (UA_UInt16)
-        (writerGroup->config.maxEncapsulatedDataSetMessageCount == 0 ||
-         writerGroup->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX
-         ? 1 : writerGroup->config.maxEncapsulatedDataSetMessageCount);
+    if(maxDSM == 0)
+        maxDSM = 1;
 
     /* The binary DataSetMessage sizes are part of the payload. Allocate some
      * stack-memory where to put the current messages. */
@@ -1057,7 +1059,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
         /* Find the dataset */
-        UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+        UA_PublishedDataSet *pds =
+            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
         if(!pds) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Publish: PublishedDataSet not found");
@@ -1073,7 +1076,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             pos = (writerGroup->writersCount - 1) - singleNetworkMessagesCount;
         }
 
-        if(UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[pos], dsw) != UA_STATUSCODE_GOOD) {
+        UA_StatusCode res =
+            UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[pos], dsw);
+        if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "PubSub Publish: DataSetMessage creation failed");
             continue;
@@ -1085,10 +1090,10 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     UA_UInt32 networkMessageCount = singleNetworkMessagesCount;
-    if(combinedNetworkMessageCount != 0){
-        combinedNetworkMessageCount = (UA_UInt16) (
-                combinedNetworkMessageCount / writerGroup->config.maxEncapsulatedDataSetMessageCount +
-                (combinedNetworkMessageCount % writerGroup->config.maxEncapsulatedDataSetMessageCount) == 0 ? 0 : 1);
+    if(combinedNetworkMessageCount != 0) {
+        combinedNetworkMessageCount = (UA_UInt16)
+            (combinedNetworkMessageCount / maxDSM +
+             (combinedNetworkMessageCount % maxDSM) == 0 ? 0 : 1);
         networkMessageCount += combinedNetworkMessageCount;
     }
 
@@ -1108,31 +1113,32 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
         nm.payloadHeaderEnabled = true;
 
-        //create combined NetworkMessages
         if(i < (networkMessageCount-singleNetworkMessagesCount)){
-            if(combinedNetworkMessageCount - (i * writerGroup->config.maxEncapsulatedDataSetMessageCount)){
-                if(combinedNetworkMessageCount == 1){
+            /* Create combined NetworkMessages */
+            if(combinedNetworkMessageCount - (i * maxDSM)) {
+                if(combinedNetworkMessageCount == 1) {
                     nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) ((writerGroup->writersCount) - singleNetworkMessagesCount);
                     currentDSMPosition = 0;
                 } else {
-                    nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
-                    currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
+                    nm.payloadHeader.dataSetPayloadHeader.count = maxDSM;
+                    currentDSMPosition = i * maxDSM;
                 }
-                //nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) writerGroup->config.maxEncapsulatedDataSetMessageCount;
                 nm.payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
                 nm.payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
                 nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             } else {
-                currentDSMPosition = i * writerGroup->config.maxEncapsulatedDataSetMessageCount;
-                nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) (currentDSMPosition - ((i - 1) * writerGroup->config.maxEncapsulatedDataSetMessageCount)); //attention cast from uint32 to byte
+                currentDSMPosition = i * maxDSM;
+                nm.payloadHeader.dataSetPayloadHeader.count = (UA_Byte) (currentDSMPosition - ((i - 1) * maxDSM)); //attention cast from uint32 to byte
                 nm.payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
                 nm.payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
                 nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
             }
-        } else {///create single NetworkMessages (1 DSM per NM)
+        } else {
+            /* Create single NetworkMessages (1 DSM per NM) */
             nm.payloadHeader.dataSetPayloadHeader.count = 1;
-            currentDSMPosition = (UA_UInt32) combinedNetworkMessageCount + (i - combinedNetworkMessageCount/writerGroup->config.maxEncapsulatedDataSetMessageCount
-                                                                            + (combinedNetworkMessageCount % writerGroup->config.maxEncapsulatedDataSetMessageCount) == 0 ? 0 : 1);
+            currentDSMPosition = (UA_UInt32)
+                combinedNetworkMessageCount + (i - combinedNetworkMessageCount / maxDSM
+                                               + (combinedNetworkMessageCount % maxDSM) == 0 ? 0 : 1);
             nm.payload.dataSetPayload.dataSetMessages = &dsmStore[currentDSMPosition];
             nm.payload.dataSetPayload.sizes = &dsmSizes[currentDSMPosition];
             nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = &dsWriterIds[currentDSMPosition];
