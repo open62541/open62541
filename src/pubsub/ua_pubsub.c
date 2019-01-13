@@ -1053,9 +1053,11 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
  * contained DataSetMessages. */
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Publish Callback");
+
     if(!writerGroup) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Publish failed. WriterGroup not found");
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Publish failed. WriterGroup not found");
         return;
     }
 
@@ -1065,8 +1067,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     /* Binary encoding? */
     if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Unknown encoding type.");
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Publish failed: Unknown encoding type.");
         return;
     }
 
@@ -1074,8 +1076,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_PubSubConnection *connection =
         UA_PubSubConnection_findConnectionbyId(server, writerGroup->linkedConnection);
     if(!connection) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Publish failed. PubSubConnection invalid.");
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Publish failed. PubSubConnection invalid.");
         return;
     }
 
@@ -1099,35 +1101,30 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_PublishedDataSet *pds =
             UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
         if(!pds) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Publish: PublishedDataSet not found");
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PubSub Publish: PublishedDataSet not found");
             continue;
         }
 
-        /* If promoted fields are contained in the PublishedDataSet, then this
-         * DSM must encapsulated in one NM. Send it right away. */
-        if(pds->promotedFieldsCount > 0 || maxDSM == 1) {
-            UA_DataSetMessage dsm;
-            UA_StatusCode res = UA_DataSetWriter_generateDataSetMessage(server, &dsm, dsw);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub Publish: DataSetMessage creation failed");
-                continue;
-            }
-
-            res = sendNetworkMessage(connection, &dsm, &dsw->config.dataSetWriterId, 1);
-            if(res != UA_STATUSCODE_GOOD)
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "PubSub Publish: Could not send a NetworkMessage");
-            UA_DataSetMessage_free(&dsm);
-            continue;
-        }
-
-        UA_StatusCode res2 =
+        /* Generate the DSM */
+        UA_StatusCode res =
             UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
-        if(res2 != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Publish: DataSetMessage creation failed");
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PubSub Publish: DataSetMessage creation failed");
+            continue;
+        }
+
+        /* Send right away if there is only this DSM in a NM. If promoted fields
+         * are contained in the PublishedDataSet, then this DSM must go into a
+         * dedicated NM as well. */
+        if(pds->promotedFieldsCount > 0 || maxDSM == 1) {
+            res = sendNetworkMessage(connection, &dsmStore[dsmCount],
+                                     &dsw->config.dataSetWriterId, 1);
+            if(res != UA_STATUSCODE_GOOD)
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub Publish: Could not send a NetworkMessage");
+            UA_DataSetMessage_free(&dsmStore[dsmCount]);
             continue;
         }
 
@@ -1144,8 +1141,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_StatusCode res3 = sendNetworkMessage(connection, &dsmStore[i * maxDSM],
                                                 &dsWriterIds[i * maxDSM], nmDsmCount);
         if(res3 != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "PubSub Publish: Sending a NetworkMessage failed");
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PubSub Publish: Sending a NetworkMessage failed");
     }
 
     /* Clean up DSM */
