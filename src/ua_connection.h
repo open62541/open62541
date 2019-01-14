@@ -17,8 +17,6 @@
 _UA_BEGIN_DECLS
 
 /* Forward declarations */
-struct UA_Connection;
-typedef struct UA_Connection UA_Connection;
 typedef struct UA_ConnectionManager UA_ConnectionManager;
 
 //struct UA_SecureChannel;
@@ -41,9 +39,20 @@ typedef struct UA_ConnectionManager UA_ConnectionManager;
  * users on embedded (or otherwise exotic) systems implement their own
  * networking plugins with a clear interface to the main open62541 library. */
 
+typedef UA_StatusCode (*UA_ProcessChunkCallbackFunction)(void *userData, UA_Connection *connection,
+                                                         UA_ByteString *chunk);
+
+typedef struct {
+    void *callbackContext;
+    UA_ProcessChunkCallbackFunction function;
+} UA_ProcessChunkCallback;
+
 struct UA_Connection {
     UA_ConnectionState state;
     UA_ConnectionConfig config;
+    UA_Logger *logger;
+    UA_ProcessChunkCallback chunkCallback;
+
     /**
      * If a connection manager is used, this points to the used connection manager.
      * The connection will remove itself when it is freed.
@@ -51,20 +60,13 @@ struct UA_Connection {
     UA_ConnectionManager *connectionManager;
     UA_SecureChannel *channel;       /* The securechannel that is attached to
                                       * this connection */
-    UA_DateTime openingDate;         /* The date the connection was created */
-    void *internalData;                    /* A pointer to internal data */
-    UA_ByteString chunkBuffer;   /* A half-received chunk (TCP is a
+    UA_DateTime creationDate;         /* The date the connection was created */
+    void *internalData;              /* A pointer to internal data */
+    UA_ByteString chunkBuffer;       /* A half-received chunk (TCP is a
                                       * streaming protocol) is stored here */
-    UA_UInt64 connectCallbackID;     /* Callback Id, for the connect-loop */
+    size_t currentChunkSize;
 
-    /* Close the connection. The network layer closes the socket. This is picked
-     * up during the next 'listen' and the connection is freed in the network
-     * layer. */
-    void (*close)(UA_Connection *connection);
 
-    /* To be called only from within the server (and not the network layer).
-     * Frees up the connection's memory. */
-    void (*free)(UA_Connection *connection);
 };
 
 UA_StatusCode
@@ -88,22 +90,10 @@ UA_StatusCode
 UA_Connection_adjustParameters(UA_Connection *connection, const UA_ConnectionConfig *remoteConfig);
 
 UA_StatusCode
-UA_Connection_free(UA_Connection *connection);
+UA_Connection_close(UA_Connection *connection);
 
-
-// TODO: needed?
-/* Process a binary message (TCP packet). The message can contain partial
- * chunks. (TCP is a streaming protocol and packets may be split/merge during
- * transport.) After processing, the message is freed with
- * connection->releaseRecvBuffer. */
 UA_StatusCode
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message);
-
-/* The server internally cleans up the connection and then calls
- * connection->free. */
-void UA_EXPORT
-UA_Server_removeConnection(UA_Server *server, UA_Connection *connection);
+UA_Connection_free(UA_Connection *connection);
 
 /**
  * Connection Manager

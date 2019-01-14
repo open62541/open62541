@@ -276,6 +276,13 @@ configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt
     conf->socketConfigs[0].createSocket = createSocket_default;
     conf->socketConfigs[0].customHostname = UA_STRING_NULL;
 
+    conf->connectionConfig.sendBufferSize = sendBufferSize;
+    if(conf->connectionConfig.sendBufferSize <= 0)
+        conf->connectionConfig.sendBufferSize = 65535;
+    conf->connectionConfig.recvBufferSize = recvBufferSize;
+    if(conf->connectionConfig.recvBufferSize <= 0)
+        conf->connectionConfig.recvBufferSize = 65535;
+
     conf->configureNetworkManager = configureNetworkManager_default;
     return UA_STATUSCODE_GOOD;
 }

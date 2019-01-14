@@ -379,6 +379,7 @@ static UA_StatusCode
 removeConnection(void *userData, UA_Socket *sock) {
     (void)sock;
     UA_Connection *const connection = (UA_Connection *const)userData;
+    printf("\n\nremove connection\n\n");
     return UA_Connection_free(connection);
 }
 
@@ -389,8 +390,12 @@ createConnection(void *userData, UA_Socket *sock) {
                  "New data socket created. Adding corresponding connection");
 
     UA_Connection *connection;
-    UA_Connection_new(server->config.connectionConfig, sock, NULL, &connection);
+    UA_StatusCode retval = UA_Connection_new(server->config.connectionConfig, sock, NULL, &connection);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     connection->connectionManager = &server->connectionManager;
+    connection->chunkCallback.callbackContext = server;
+    connection->chunkCallback.function = (UA_ProcessChunkCallbackFunction)UA_Server_processChunk;
 
     sock->dataCallback.callbackContext = connection;
     sock->dataCallback.callback = (UA_Socket_dataCallbackFunction)UA_Connection_assembleChunk;

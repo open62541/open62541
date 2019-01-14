@@ -28,6 +28,9 @@ typedef struct UA_ServerConfig UA_ServerConfig;
 struct UA_Server;
 typedef struct UA_Server UA_Server;
 
+struct UA_Connection;
+typedef struct UA_Connection UA_Connection;
+
 struct UA_Client;
 
 /**
@@ -54,6 +57,18 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
  */
 UA_StatusCode
 UA_Server_addListenerSocket(UA_Server *server, UA_Socket *sock);
+
+/**
+ * Processes a single chunk received from the connection.
+ * This function is registered as callback when a connection is created.
+ * @param server
+ * @param connection
+ * @param chunk
+ * @return
+ */
+UA_StatusCode
+UA_Server_processChunk(UA_Server *server, UA_Connection *connection,
+                       UA_ByteString *chunk);
 
 /* Runs the main loop of the server. In each iteration, this calls into the
  * networklayers to see if messages have arrived.

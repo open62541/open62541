@@ -19,6 +19,9 @@
 #include "ua_securechannel.h"
 #include "ua_connection.h"
 
+#define UA_BITMASK_MESSAGETYPE 0x00ffffff
+#define UA_BITMASK_CHUNKTYPE 0xff000000
+
 typedef struct {
     UA_Socket *sock;
 } UA_Connection_internalData;
@@ -28,9 +31,14 @@ UA_StatusCode
 UA_Connection_free(UA_Connection *connection) {
     if(connection == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOG_DEBUG(connection->logger, UA_LOGCATEGORY_NETWORK,
+                 "Freeing connection %p", (void *)connection);
     if(connection->connectionManager != NULL)
         UA_ConnectionManager_remove(connection->connectionManager, connection);
+    if(connection->channel != NULL)
+        UA_SecureChannel_close(connection->channel);
     UA_ByteString_deleteMembers(&connection->chunkBuffer);
+    UA_free(connection->internalData);
     UA_free(connection);
     return UA_STATUSCODE_GOOD;
 }
@@ -329,12 +337,6 @@ UA_Connection_old_attachSecureChannel(UA_Connection_old *connection, UA_SecureCh
 }
 
 UA_StatusCode
-UA_Connection_processChunks(UA_Connection *connection, void *application,
-                            UA_Connection_processChunkFunction processCallback, const UA_ByteString *packet) {
-    return 0;
-}
-
-UA_StatusCode
 UA_Connection_detachSecureChannel(UA_Connection *connection) {
     UA_SecureChannel *channel = connection->channel;
     if(channel)
@@ -439,10 +441,34 @@ UA_ConnectionManager_deleteMembers(UA_ConnectionManager *connectionManager) {
     return UA_STATUSCODE_GOOD;
 }
 
+#define NOHELLOTIMEOUT 120000 /* Timeout in ms before the connection is closed,
+                               * if server does not receive a HEL message. */
+
 UA_StatusCode
 UA_ConnectionManager_cleanupTimedOut(UA_ConnectionManager *connectionManager, UA_DateTime nowMonotonic) {
-    // TODO: Implement
-    return 0;
+
+    UA_ConnectionEntry *connectionEntry;
+    UA_ConnectionEntry *tmp;
+    TAILQ_FOREACH_SAFE(connectionEntry, &connectionManager->connections, pointers, tmp) {
+        int sockid = (int)(UA_Connection_getSocket(connectionEntry->connection)->id);
+        if((connectionEntry->connection->state == UA_CONNECTION_OPENING) &&
+           (nowMonotonic > (connectionEntry->connection->creationDate + (NOHELLOTIMEOUT * UA_DATETIME_MSEC)))) {
+            UA_LOG_INFO(connectionEntry->connection->logger, UA_LOGCATEGORY_NETWORK,
+                        "Freeing connection with associated socket %i (no Hello Message).", sockid);
+            TAILQ_REMOVE(&connectionManager->connections, connectionEntry, pointers);
+            UA_Connection_free(connectionEntry->connection);
+            UA_free(connectionEntry);
+        }
+        if(connectionEntry->connection->state == UA_CONNECTION_CLOSED) {
+            UA_LOG_DEBUG(connectionEntry->connection->logger, UA_LOGCATEGORY_NETWORK,
+                         "Freeing connection with associated socket %i (closed).", sockid);
+            TAILQ_REMOVE(&connectionManager->connections, connectionEntry, pointers);
+            UA_Connection_free(connectionEntry->connection);
+            UA_free(connectionEntry);
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -457,18 +483,165 @@ UA_Connection_new(UA_ConnectionConfig config, UA_Socket *sock,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(connection, 0, sizeof(UA_Connection));
 
-    connection->connectionManager = connectionManager;
+    connection->config = config;
+    connection->state = UA_CONNECTION_OPENING;
+    connection->creationDate = UA_DateTime_nowMonotonic();
+    connection->logger = sock->logger;
 
-    // TODO
+    connection->internalData = UA_malloc(sizeof(UA_Connection_internalData));
+    UA_Connection_internalData *const internalData = (UA_Connection_internalData *const)connection->internalData;
+    if(internalData == NULL) {
+        UA_free(connection);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    connection->connectionManager = connectionManager;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(connection->config.recvBufferSize < 8) {
+        retval = UA_STATUSCODE_BADCONFIGURATIONERROR;
+        UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
+                     "Receive buffer has to be at least 8 bytes large.");
+        goto error;
+    }
+    retval = UA_ByteString_allocBuffer(&connection->chunkBuffer, connection->config.recvBufferSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+    connection->chunkBuffer.length = 0;
+
+    internalData->sock = sock;
 
     if(connectionManager != NULL)
         UA_ConnectionManager_add(connectionManager, connection);
 
-    return 0;
+    *p_connection = connection;
+
+    return UA_STATUSCODE_GOOD;
+
+error:
+    UA_ByteString_deleteMembers(&connection->chunkBuffer);
+    UA_free(internalData);
+    UA_free(connection);
+    return retval;
+}
+
+#define UA_MESSAGE_HEADER_SIZE 8
+
+static UA_StatusCode
+UA_Connection_resetChunkBuffer(UA_Connection *connection) {
+    connection->currentChunkSize = 0;
+    connection->chunkBuffer.length = 0;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_Connection_validateChunkHeader(UA_Connection *connection, UA_TcpMessageHeader *messageHeader) {
+    if(messageHeader->messageSize > connection->config.recvBufferSize) {
+        UA_LOG_ERROR(connection->logger, UA_LOGCATEGORY_NETWORK,
+                     "The size of the received chunk is too large to be processed.");
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }
+    if(messageHeader->messageSize < 16) {
+        UA_LOG_ERROR(connection->logger, UA_LOGCATEGORY_NETWORK,
+                     "The size of the received chunk is too small to be processed.");
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }
+
+    UA_MessageType messageType = (UA_MessageType)
+        (messageHeader->messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+    UA_ChunkType chunkType = (UA_ChunkType)
+        (messageHeader->messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+
+    if(messageType != UA_MESSAGETYPE_MSG && messageType != UA_MESSAGETYPE_ERR &&
+       messageType != UA_MESSAGETYPE_OPN && messageType != UA_MESSAGETYPE_HEL &&
+       messageType != UA_MESSAGETYPE_ACK && messageType != UA_MESSAGETYPE_CLO) {
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+
+    if(chunkType != UA_CHUNKTYPE_ABORT &&
+       chunkType != UA_CHUNKTYPE_FINAL &&
+       chunkType != UA_CHUNKTYPE_INTERMEDIATE) {
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock) {
-    // TODO
-    return 0;
+    size_t alreadyCopied = 0;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    while(alreadyCopied < buffer->length) {
+        if(connection->chunkBuffer.length < UA_MESSAGE_HEADER_SIZE) {
+            size_t bytesToCopy = UA_MESSAGE_HEADER_SIZE - connection->chunkBuffer.length;
+            if(buffer->length < bytesToCopy)
+                bytesToCopy = buffer->length;
+            memcpy(connection->chunkBuffer.data + connection->chunkBuffer.length,
+                   buffer->data, bytesToCopy);
+            connection->chunkBuffer.length += bytesToCopy;
+            alreadyCopied += bytesToCopy;
+        }
+
+        if(connection->chunkBuffer.length < UA_MESSAGE_HEADER_SIZE) {
+            // not enough data to assemble chunk. Skip until next receive
+            return UA_STATUSCODE_GOOD;
+        }
+
+        if(connection->currentChunkSize == 0) {
+            UA_TcpMessageHeader messageHeader;
+            size_t offset = 0;
+            retval = UA_TcpMessageHeader_decodeBinary(&connection->chunkBuffer, &offset, &messageHeader);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto error;
+            retval = UA_Connection_validateChunkHeader(connection, &messageHeader);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto error;
+            connection->currentChunkSize = messageHeader.messageSize;
+        }
+
+        size_t bytesToCopy = connection->currentChunkSize - connection->chunkBuffer.length;
+        if((buffer->length - alreadyCopied) < bytesToCopy)
+            bytesToCopy = buffer->length - alreadyCopied;
+        memcpy(connection->chunkBuffer.data + connection->chunkBuffer.length,
+               buffer->data + alreadyCopied, bytesToCopy);
+        connection->chunkBuffer.length += bytesToCopy;
+        alreadyCopied += bytesToCopy;
+
+        if(connection->chunkBuffer.length == connection->currentChunkSize) {
+            if(connection->chunkCallback.function != NULL) {
+                // TODO: check retvals.
+                retval = connection->chunkCallback.function(connection->chunkCallback.callbackContext,
+                                                            connection, &connection->chunkBuffer);
+                if(retval != UA_STATUSCODE_GOOD)
+                    goto error;
+            } else {
+                UA_LOG_WARNING(connection->logger, UA_LOGCATEGORY_NETWORK,
+                               "Discarding chunk, because no chunk callback is set");
+            }
+
+            UA_Connection_resetChunkBuffer(connection);
+        }
+    }
+    return retval;
+
+error:
+    UA_Connection_resetChunkBuffer(connection);
+    UA_LOG_ERROR(connection->logger, UA_LOGCATEGORY_NETWORK,
+                 "Socket %i | Processing the message failed with "
+                 "error %s", (int)(sock->id), UA_StatusCode_name(retval));
+    /* Send an ERR message and close the connection */
+    UA_TcpErrorMessage error;
+    error.error = retval;
+    error.reason = UA_STRING_NULL;
+    UA_Connection_sendError(connection, &error);
+    UA_Connection_close(connection);
+    return retval;
+}
+
+UA_StatusCode
+UA_Connection_close(UA_Connection *connection) {
+    connection->state = UA_CONNECTION_CLOSED;
+    if(connection->channel != NULL)
+        UA_SecureChannel_close(connection->channel);
+    printf("\n\nconnection close\n\n");
+    return UA_STATUSCODE_GOOD;
 }

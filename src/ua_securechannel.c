@@ -143,9 +143,10 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
-        if(channel->connection->state != UA_CONNECTION_CLOSED)
-            channel->connection->close(channel->connection);
-        UA_Connection_detachSecureChannel(channel->connection);
+        UA_Connection *connection = channel->connection;
+        UA_Connection_detachSecureChannel(connection);
+        if(connection->state != UA_CONNECTION_CLOSED)
+            UA_Connection_close(connection);
     }
 
     /* Remove session pointers (not the sessions) and NULL the pointers back to
@@ -1346,8 +1347,10 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     /* The wrong ChannelId. Non-opened channels have the id zero. */
     if(messageHeader.secureChannelId != channel->securityToken.channelId &&
-       channel->state != UA_SECURECHANNELSTATE_FRESH)
+       channel->state != UA_SECURECHANNELSTATE_FRESH) {
+        printf("\n\n\n\n ERROR \n\n\n\n");
         return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+    }
 #endif
 
     UA_MessageType messageType = (UA_MessageType)

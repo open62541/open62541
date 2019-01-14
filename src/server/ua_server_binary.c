@@ -746,81 +746,30 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
     return retval;
 }
 
-static UA_StatusCode
-processCompleteChunk(void *const application, UA_Connection *connection,
-                     UA_ByteString *chunk) {
-    UA_Server *server = (UA_Server*)application;
+UA_StatusCode
+UA_Server_processChunk(UA_Server *server, UA_Connection *connection, UA_ByteString *chunk) {
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
     UA_debug_dumpCompleteChunk(server, connection, chunk);
 #endif
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
-    return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
-}
+    else
+        retval = UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
 
-UA_StatusCode
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               UA_ByteString *message) {
-    UA_Socket *const sock = UA_Connection_getSocket(connection);
-    if(sock == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    UA_LOG_TRACE(&server->config.logger, UA_LOGCATEGORY_NETWORK,
-                 "Socket %i | Received a packet.", (int)(sock->id));
-#ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(message->data, message->length);
-#endif
+    retval = UA_SecureChannel_processCompleteMessages(connection->channel, server,
+                                                      processSecureChannelMessage);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-    UA_StatusCode retval = UA_Connection_processChunks(connection, server,
-                                                       processCompleteChunk, message);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Socket %i | Processing the message failed with "
-                    "error %s", (int)(sock->id), UA_StatusCode_name(retval));
-        /* Send an ERR message and close the connection */
-        UA_TcpErrorMessage error;
-        error.error = retval;
-        error.reason = UA_STRING_NULL;
-        UA_Connection_sendError(connection, &error);
-        connection->close(connection);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(connection->channel == NULL)
+        return UA_STATUSCODE_GOOD;
 
-    UA_SecureChannel *channel = connection->channel;
-    if(!channel)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(connection->channel->state == UA_SECURECHANNELSTATE_CLOSED)
+        return UA_STATUSCODE_GOOD;
 
-    /* Process complete messages */
-    UA_SecureChannel_processCompleteMessages(channel, server, processSecureChannelMessage);
-
-    /* Is the channel still open? */
-    if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* Store unused decoded chunks internally in the SecureChannel */
     return UA_SecureChannel_persistIncompleteMessages(connection->channel);
-}
-
-#ifdef UA_ENABLE_MULTITHREADING
-static void
-deleteConnection(UA_Server *server, UA_Connection *connection) {
-    connection->free(connection);
-}
-#endif
-
-void
-UA_Server_removeConnection(UA_Server *server, UA_Connection *connection) {
-    UA_Connection_detachSecureChannel(connection);
-#ifndef UA_ENABLE_MULTITHREADING
-    connection->free(connection);
-#else
-    UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_malloc(sizeof(UA_DelayedCallback));
-    if(!dc)
-        return; /* Malloc cannot fail on OS's that support multithreading. They
-                 * rather kill the process. */
-    dc->callback = (UA_ApplicationCallback)deleteConnection;
-    dc->application = server;
-    dc->data = connection;
-    UA_WorkQueue_enqueueDelayed(&server->workQueue, dc);
-#endif
 }

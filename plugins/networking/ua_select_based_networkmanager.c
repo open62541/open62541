@@ -28,6 +28,8 @@ select_nm_registerSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
 
     LIST_INSERT_HEAD(&internalData->sockets.list, socketListEntry, pointers);
     UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK, "Registered socket with id %lu", socket->id);
+    if(socket->isListener)
+        ++internalData->numListenerSockets;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -38,6 +40,8 @@ select_nm_unregisterSocket(UA_NetworkManager *networkManager, UA_Socket *socket)
 
     LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, tmp) {
         if(socketListEntry->socket == socket) {
+            if(socket->isListener)
+                --internalData->numListenerSockets;
             LIST_REMOVE(socketListEntry, pointers);
             UA_free(socketListEntry);
         }
@@ -144,7 +148,8 @@ select_nm_getDiscoveryUrls(const UA_NetworkManager *networkManager, UA_String *d
                 UA_free(urls);
                 return UA_STATUSCODE_BADINTERNALERROR;
             }
-            UA_ByteString_copy(&socketListEntry->socket->discoveryUrl, &urls[position]);
+            urls[position] = socketListEntry->socket->discoveryUrl;
+            //UA_ByteString_copy(&socketListEntry->socket->discoveryUrl, &urls[position]);
             ++position;
         }
     }
