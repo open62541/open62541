@@ -18,16 +18,25 @@ typedef struct UA_SocketHook UA_SocketHook;
 typedef struct UA_SocketConfig UA_SocketConfig;
 typedef struct UA_SocketFactory UA_SocketFactory;
 
-typedef struct {
-    /**
+/**
      * The signature of the dataCallback that needs to be implemented.
      *
-     * @param socket the socket that the data was received on.
+     * @param callbackContext The context set by the callback owner.
      * @param data the data buffer the socket received the data to.
      *             Data in this buffer will be lost after the call returns.
-     * @param callbackContext The context set by the callback owner.
+     * @param socket the socket that the data was received on. TODO: do we need this param?
      */
-    UA_StatusCode (*callback)(UA_Socket *socket, UA_ByteString *data, void *callbackContext);
+typedef UA_StatusCode (*UA_Socket_dataCallbackFunction)(void *callbackContext,
+                                                        UA_ByteString *data,
+                                                        UA_Socket *socket);
+
+typedef struct {
+
+    /**
+     * The data callback will be called by the socket if data is available.
+     * The data buffer is passed to the function and will be cleaned up after the callback returns.
+     */
+    UA_Socket_dataCallbackFunction callback;
 
     /**
      * This context is set by the callback owner. It can contain any kind of data that is
@@ -45,11 +54,38 @@ typedef struct UA_SocketList {
     LIST_HEAD(, UA_SocketListEntry) list;
 } UA_SocketList;
 
+typedef UA_StatusCode (*UA_SocketHookFunction)(void *, UA_Socket *);
+
+struct UA_SocketHook {
+    UA_SocketHookFunction hook;
+
+    void *hookContext;
+};
+
+typedef struct HookListEntry {
+    UA_SocketHook hook;
+    LIST_ENTRY(HookListEntry) pointers;
+} HookListEntry;
+
+/**
+ * Convenience alias for passing the list as parameter.
+ */
+typedef struct HookList {
+    LIST_HEAD(, HookListEntry) list;
+} HookList;
+
 struct UA_Socket {
     /**
      * The socket id. Used by the NetworkManager to map to an internal representation (e.g. file descriptor)
      */
     UA_UInt64 id;
+
+    /**
+     * These hooks are called when the socket is deleted.
+     */
+    HookList deletionHooks;
+
+    UA_Logger *logger;
 
     /**
      * The discovery url that can be used to connect to the server on this socket.
@@ -166,6 +202,48 @@ struct UA_Socket {
     void *internalData;
 };
 
+static inline UA_StatusCode
+UA_Socket_addDeletionHook(UA_Socket *sock, UA_SocketHook hook) {
+    HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
+    if(hookListEntry == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    hookListEntry->hook = hook;
+
+    LIST_INSERT_HEAD(&sock->deletionHooks.list, hookListEntry, pointers);
+    return UA_STATUSCODE_GOOD;
+}
+
+static inline UA_StatusCode
+UA_Socket_cleanupHooks(UA_Socket *sock) {
+    HookListEntry *hookListEntry;
+    HookListEntry *tmp;
+    LIST_FOREACH_SAFE(hookListEntry, &sock->deletionHooks.list, pointers, tmp) {
+        LIST_REMOVE(hookListEntry, pointers);
+        UA_free(hookListEntry);
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static inline UA_StatusCode
+UA_Socket_addDeletionHooks(UA_Socket *sock, HookList deletionHooks) {
+    HookListEntry *hookListEntry = NULL;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode lastError = UA_STATUSCODE_GOOD;
+    LIST_FOREACH(hookListEntry, &deletionHooks.list, pointers) {
+        lastError = UA_Socket_addDeletionHook(sock, hookListEntry->hook);
+        if(lastError != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
+                           "Failed to add deletion hook to socket: %s",
+                           UA_StatusCode_name(lastError));
+            retval = lastError;
+        }
+    }
+
+    return retval;
+}
+
+
 /**
  * Configuration parameters for sockets created at startup.
  */
@@ -186,14 +264,6 @@ struct UA_SocketConfig {
     UA_StatusCode (*createSocket)(UA_SocketConfig *config, UA_SocketHook socketHook);
 };
 
-typedef UA_StatusCode (*UA_SocketHookFunction)(void *, UA_Socket *);
-
-struct UA_SocketHook {
-    UA_SocketHookFunction hook;
-
-    void *hookContext;
-};
-
 /**
  * Convenience wrapper for calling socket hooks.
  * Does a sanity check before calling the hook.
@@ -207,18 +277,6 @@ UA_SocketHook_call(UA_SocketHook hook, UA_Socket *sock) {
         return UA_STATUSCODE_BADINTERNALERROR;
     return hook.hook(hook.hookContext, sock);
 }
-
-typedef struct HookListEntry {
-    UA_SocketHook hook;
-    LIST_ENTRY(HookListEntry) pointers;
-} HookListEntry;
-
-/**
- * Convenience alias for passing the list as parameter.
- */
-typedef struct HookList {
-    LIST_HEAD(, HookListEntry) list;
-} HookList;
 
 struct UA_SocketFactory {
     HookList creationHooks;
@@ -299,7 +357,7 @@ static inline UA_StatusCode
 UA_Socket_dataCallback(UA_Socket *socket, UA_ByteString *data) {
     if (socket == NULL || socket->dataCallback.callback == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return socket->dataCallback.callback(socket, data, socket->dataCallback.callbackContext);
+    return socket->dataCallback.callback(socket->dataCallback.callbackContext, data, socket);
 }
 
 #endif //OPEN62541_UA_PLUGIN_SOCKET_H

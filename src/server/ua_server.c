@@ -138,8 +138,9 @@ cleanup:
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
-    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
+    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+    UA_ConnectionManager_deleteMembers(&server->connectionManager);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -179,6 +180,7 @@ UA_Server_cleanup(UA_Server *server, void *_) {
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
+    UA_ConnectionManager_cleanupTimedOut(&server->connectionManager, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
@@ -233,6 +235,7 @@ UA_Server_new(const UA_ServerConfig *config) {
     /* Sockets are created during server run_startup */
 
     /* Initialized SecureChannel and Session managers */
+    UA_ConnectionManager_init(&server->connectionManager, &server->config.logger);
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
 
@@ -373,11 +376,30 @@ UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
 static UA_StatusCode
+removeConnection(void *userData, UA_Socket *sock) {
+    (void)sock;
+    UA_Connection *const connection = (UA_Connection *const)userData;
+    return UA_Connection_free(connection);
+}
+
+static UA_StatusCode
 createConnection(void *userData, UA_Socket *sock) {
     UA_Server *const server = (UA_Server *const)userData;
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "New data socket created. Adding corresponding connection");
 
+    UA_Connection *connection;
+    UA_Connection_new(server->config.connectionConfig, sock, NULL, &connection);
+    connection->connectionManager = &server->connectionManager;
+
+    sock->dataCallback.callbackContext = connection;
+    sock->dataCallback.callback = (UA_Socket_dataCallbackFunction)UA_Connection_assembleChunk;
+
+    UA_SocketHook cleanupConnectionHook;
+    cleanupConnectionHook.hookContext = connection;
+    cleanupConnectionHook.hook = removeConnection;
+
+    UA_Socket_addDeletionHook(sock, cleanupConnectionHook);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -404,6 +426,8 @@ UA_Server_addListenerSocket(UA_Server *server, UA_Socket *sock) {
     retval = UA_SocketFactory_addCreationHook(sock->socketFactory, createConnectionHook);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    // TODO: add cleanupConnection hook.
 
     retval = sock->open(sock);
     if(retval != UA_STATUSCODE_GOOD)

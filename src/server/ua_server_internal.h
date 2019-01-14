@@ -54,6 +54,7 @@ struct UA_Server {
 
     /* Networking */
     UA_NetworkManager networkManager;
+    UA_ConnectionManager connectionManager;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;

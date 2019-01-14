@@ -499,10 +499,14 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_Socket *const sock = UA_Connection_getSocket(connection);
+    if(sock == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Allocate the message buffer */
     UA_ByteString *buf = NULL;
     UA_StatusCode retval =
-        connection->sock->getSendBuffer(connection->sock, connection->config.sendBufferSize, &buf);
+        sock->getSendBuffer(sock, connection->config.sendBufferSize, &buf);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -552,7 +556,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
 
     /* Send the message, the buffer is freed in the network layer */
     buf->length = finalLength;
-    retval = connection->sock->send(connection->sock);
+    retval = sock->send(sock);
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
     retval |= sendAsym_sendFailure
 #endif
@@ -758,6 +762,10 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_Socket *const sock = UA_Connection_getSocket(connection);
+    if(sock == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     size_t bodyLength = 0;
     res = checkLimitsSym(messageContext, &bodyLength);
     if(res != UA_STATUSCODE_GOOD)
@@ -798,7 +806,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
 #endif
 
     /* Send the chunk, the buffer is freed in the network layer */
-    return connection->sock->send(connection->sock);
+    return sock->send(sock);
 
 error:
     return res;
@@ -822,7 +830,11 @@ sendSymmetricEncodingCallback(void *data, UA_Byte **buf_pos, const UA_Byte **buf
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    retval = connection->sock->getSendBuffer(connection->sock, connection->config.sendBufferSize,
+    UA_Socket *const sock = UA_Connection_getSocket(connection);
+    if(sock == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    retval = sock->getSendBuffer(sock, connection->config.sendBufferSize,
                                              &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -837,8 +849,12 @@ sendSymmetricEncodingCallback(void *data, UA_Byte **buf_pos, const UA_Byte **buf
 UA_StatusCode
 UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
                         UA_UInt32 requestId, UA_MessageType messageType) {
-    UA_Connection *connection = channel->connection;
+    UA_Connection *const connection = channel->connection;
     if(!connection)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_Socket *const sock = UA_Connection_getSocket(connection);
+    if(sock == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(messageType != UA_MESSAGETYPE_MSG && messageType != UA_MESSAGETYPE_CLO)
@@ -855,8 +871,8 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
 
     /* Allocate the message buffer */
     UA_StatusCode retval =
-        connection->sock->getSendBuffer(connection->sock, connection->config.sendBufferSize,
-                                        &mc->messageBuffer);
+        sock->getSendBuffer(sock, connection->config.sendBufferSize,
+                            &mc->messageBuffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

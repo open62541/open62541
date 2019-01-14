@@ -118,7 +118,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
                        "Socket %i | SecureChannel %i | Session %.*s | " MSG "%.0s", \
                        ((SESSION)->header.channel ?                     \
                         ((SESSION)->header.channel->connection ?        \
-                         (int)((SESSION)->header.channel->connection->sock->id) : 0) : 0), \
+                         (int)(UA_Connection_getSocket((SESSION)->header.channel->connection)->id) : 0) : 0), \
                        ((SESSION)->header.channel ?                     \
                         (SESSION)->header.channel->securityToken.channelId : 0), \
                        (int)idString.length, idString.data, __VA_ARGS__); \

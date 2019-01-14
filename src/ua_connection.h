@@ -19,6 +19,7 @@ _UA_BEGIN_DECLS
 /* Forward declarations */
 struct UA_Connection;
 typedef struct UA_Connection UA_Connection;
+typedef struct UA_ConnectionManager UA_ConnectionManager;
 
 //struct UA_SecureChannel;
 //typedef struct UA_SecureChannel UA_SecureChannel;
@@ -43,11 +44,15 @@ typedef struct UA_Connection UA_Connection;
 struct UA_Connection {
     UA_ConnectionState state;
     UA_ConnectionConfig config;
+    /**
+     * If a connection manager is used, this points to the used connection manager.
+     * The connection will remove itself when it is freed.
+     */
+    UA_ConnectionManager *connectionManager;
     UA_SecureChannel *channel;       /* The securechannel that is attached to
                                       * this connection */
-    UA_Socket *sock;
     UA_DateTime openingDate;         /* The date the connection was created */
-    void *handle;                    /* A pointer to internal data */
+    void *internalData;                    /* A pointer to internal data */
     UA_ByteString chunkBuffer;   /* A half-received chunk (TCP is a
                                       * streaming protocol) is stored here */
     UA_UInt64 connectCallbackID;     /* Callback Id, for the connect-loop */
@@ -63,6 +68,16 @@ struct UA_Connection {
 };
 
 UA_StatusCode
+UA_Connection_new(UA_ConnectionConfig config, UA_Socket *sock, UA_ConnectionManager *connectionManager,
+                  UA_Connection **p_connection);
+
+UA_Socket *
+UA_Connection_getSocket(UA_Connection *connection);
+
+UA_StatusCode
+UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock);
+
+UA_StatusCode
 UA_Connection_detachSecureChannel(UA_Connection *connection);
 
 UA_StatusCode
@@ -72,8 +87,8 @@ UA_Connection_attachSecureChannel(UA_Connection *connection,
 UA_StatusCode
 UA_Connection_adjustParameters(UA_Connection *connection, const UA_ConnectionConfig *remoteConfig);
 
-void UA_EXPORT
-UA_Connection_deleteMembers(UA_Connection *connection);
+UA_StatusCode
+UA_Connection_free(UA_Connection *connection);
 
 
 // TODO: needed?
@@ -81,7 +96,7 @@ UA_Connection_deleteMembers(UA_Connection *connection);
  * chunks. (TCP is a streaming protocol and packets may be split/merge during
  * transport.) After processing, the message is freed with
  * connection->releaseRecvBuffer. */
-void UA_EXPORT
+UA_StatusCode
 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                UA_ByteString *message);
 
@@ -89,6 +104,38 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
  * connection->free. */
 void UA_EXPORT
 UA_Server_removeConnection(UA_Server *server, UA_Connection *connection);
+
+/**
+ * Connection Manager
+ *
+ */
+
+typedef struct UA_ConnectionEntry {
+    UA_Connection *connection;
+    TAILQ_ENTRY(UA_ConnectionEntry) pointers;
+} UA_ConnectionEntry;
+
+struct UA_ConnectionManager {
+    TAILQ_HEAD(, UA_ConnectionEntry) connections; // doubly-linked list of connections
+    UA_UInt32 currentConnectionCount;
+    UA_Logger *logger;
+};
+
+UA_StatusCode
+UA_ConnectionManager_init(UA_ConnectionManager *connectionManager, UA_Logger *logger);
+
+UA_StatusCode
+UA_ConnectionManager_deleteMembers(UA_ConnectionManager *connectionManager);
+
+UA_StatusCode
+UA_ConnectionManager_cleanupTimedOut(UA_ConnectionManager *connectionManager,
+                                     UA_DateTime nowMonotonic);
+
+UA_StatusCode
+UA_ConnectionManager_add(UA_ConnectionManager *connectionManager, UA_Connection *connection);
+
+UA_StatusCode
+UA_ConnectionManager_remove(UA_ConnectionManager *connectionManager, UA_Connection *connection);
 
 _UA_END_DECLS
 

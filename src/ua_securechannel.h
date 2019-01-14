@@ -88,8 +88,8 @@ struct UA_SecureChannel {
     const UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
     UA_Connection *connection;
-    // FIXME: Only so that client compiles.
-    // FIXME: Client will be broken!!!
+    // TODO: Only so that client compiles.
+    // TODO: Client will be broken!!!
     UA_Connection_old *old_connection;
 
     /* Asymmetric encryption info */
@@ -243,7 +243,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 #define UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Socket %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sock->id) : 0), \
+                 ((CHANNEL)->connection ? (int)(UA_Connection_getSocket((CHANNEL)->connection)->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -252,7 +252,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 #define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Socket %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sock->id) : 0), \
+                 ((CHANNEL)->connection ? (int)(UA_Connection_getSocket((CHANNEL)->connection)->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -261,7 +261,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 #define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
                  "Socket %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sock->id) : 0), \
+                 ((CHANNEL)->connection ? (int)(UA_Connection_getSocket((CHANNEL)->connection)->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -270,7 +270,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 #define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
                  "Socket %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sock->id) : 0), \
+                 ((CHANNEL)->connection ? (int)(UA_Connection_getSocket((CHANNEL)->connection)->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -279,7 +279,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 #define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Socket %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (int)((CHANNEL)->connection->sock->id) : 0), \
+                 ((CHANNEL)->connection ? (int)(UA_Connection_getSocket((CHANNEL)->connection)->id) : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
@@ -288,7 +288,7 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
 #define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
                  "Socket %i | SecureChannel %i | " MSG "%.0s",            \
-                 ((CHANNEL)->connection ? (CHANNEL)->connection->sock->id : 0), \
+                 ((CHANNEL)->connection ? UA_Connection_getSocket((CHANNEL)->connection)->id : 0), \
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \

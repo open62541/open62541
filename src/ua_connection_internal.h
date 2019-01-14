@@ -87,7 +87,7 @@ void
 UA_Connection_old_sendError(UA_Connection_old *connection,
                             UA_TcpErrorMessage *error);
 
-void
+UA_StatusCode
 UA_Connection_sendError(UA_Connection *connection,
                         UA_TcpErrorMessage *error);
 

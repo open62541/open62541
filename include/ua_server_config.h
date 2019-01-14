@@ -109,6 +109,11 @@ struct UA_ServerConfig {
     UA_SocketConfig *socketConfigs;
     size_t socketConfigsSize;
 
+    /**
+     * The connection config contains parameters for all connections created by the server.
+     */
+    UA_ConnectionConfig connectionConfig;
+
 #ifdef UA_ENABLE_PUBSUB
     /*PubSub network layer */
     size_t pubsubTransportLayersSize;

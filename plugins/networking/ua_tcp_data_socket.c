@@ -9,8 +9,6 @@
 #include "ua_types.h"
 
 typedef struct {
-    HookList deletionHooks;
-    UA_Logger *logger;
     UA_Boolean flaggedForDeletion;
     UA_ByteString receiveBuffer;
     /**
@@ -35,7 +33,7 @@ UA_TCP_DataSocket_close(UA_Socket *sock) {
     if(sockData->flaggedForDeletion)
         return UA_STATUSCODE_GOOD;
 
-    UA_LOG_DEBUG(sockData->logger, UA_LOGCATEGORY_NETWORK, "Shutting down socket %i", (int)sock->id);
+    UA_LOG_DEBUG(sock->logger, UA_LOGCATEGORY_NETWORK, "Shutting down socket %i", (int)sock->id);
     UA_shutdown((UA_SOCKET)sock->id, 2);
     sockData->flaggedForDeletion = true;
     return UA_STATUSCODE_GOOD;
@@ -54,8 +52,14 @@ UA_TCP_DataSocket_free(UA_Socket *sock) {
     }
     TCPDataSocketData *const sockData = (TCPDataSocketData *const)sock->internalData;
 
-    UA_LOG_DEBUG(sockData->logger, UA_LOGCATEGORY_NETWORK, "Freeing socket %i", (int)sock->id);
+    HookListEntry *hookListEntry;
+    LIST_FOREACH(hookListEntry, &sock->deletionHooks.list, pointers) {
+        UA_SocketHook_call(hookListEntry->hook, sock);
+    }
 
+    UA_LOG_DEBUG(sock->logger, UA_LOGCATEGORY_NETWORK, "Freeing socket %i", (int)sock->id);
+
+    UA_Socket_cleanupHooks(sock);
     UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&sockData->receiveBuffer);
     UA_ByteString_deleteMembers(&sockData->sendBuffer);
@@ -84,18 +88,18 @@ UA_TCP_DataSocket_activity(UA_Socket *sock) {
             return UA_STATUSCODE_GOOD;
         }
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                          "Error while receiving data from socket: %s", errno_str));
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
 
     sockData->receiveBufferOut.length = (size_t)bytesReceived;
-    UA_LOG_DEBUG(sockData->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_DEBUG(sock->logger, UA_LOGCATEGORY_NETWORK,
                  "Received %i bytes", (int)bytesReceived);
 
     if(sock->dataCallback.callback == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    sock->dataCallback.callback(sock, &sockData->receiveBufferOut, sock->dataCallback.callbackContext);
+    UA_Socket_dataCallback(sock, &sockData->receiveBufferOut);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -108,7 +112,7 @@ UA_TCP_DataSocket_send(UA_Socket *sock) {
     TCPDataSocketData *const sockData = (TCPDataSocketData *const)sock->internalData;
     if(sockData->sendBufferOut.length > sockData->sendBuffer.length ||
        sockData->sendBufferOut.data != sockData->sendBuffer.data) {
-        UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                      "sendBuffer length exceeds originally allocated length, "
                      "or the data pointer was modified.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -127,7 +131,7 @@ UA_TCP_DataSocket_send(UA_Socket *sock) {
                                 (const char *)sockData->sendBufferOut.data + totalBytesSent,
                                 sockData->sendBufferOut.length - totalBytesSent, flags);
             if(bytesSent < 0 && UA_ERRNO != UA_EAGAIN && UA_ERRNO != UA_INTERRUPTED) {
-                UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
+                UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                              "Error while sending data over socket");
                 return UA_STATUSCODE_BADCOMMUNICATIONERROR;
             }
@@ -168,12 +172,11 @@ UA_TCP_DataSocket_getSendBuffer(UA_Socket *sock, size_t bufferSize, UA_ByteStrin
 
 static UA_StatusCode
 UA_TCP_DataSocket_disableNaglesAlgorithm(UA_Socket *sock) {
-    TCPDataSocketData *const sockData = (TCPDataSocketData *const)sock->internalData;
     int dummy = 1;
     if(UA_setsockopt((int)sock->id, IPPROTO_TCP, TCP_NODELAY,
                      (const char *)&dummy, sizeof(dummy)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(sockData->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                          "Cannot set socket option TCP_NODELAY. Error: %s",
                          errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -184,7 +187,6 @@ UA_TCP_DataSocket_disableNaglesAlgorithm(UA_Socket *sock) {
 
 static void
 UA_TCP_DataSocket_logPeerName(UA_Socket *sock, struct sockaddr_storage *remote) {
-    TCPDataSocketData *const sockData = (TCPDataSocketData *const)sock->internalData;
 #if defined(UA_getnameinfo)
     /* Get the peer name for logging */
     char remote_name[100];
@@ -193,17 +195,17 @@ UA_TCP_DataSocket_logPeerName(UA_Socket *sock, struct sockaddr_storage *remote) 
                              remote_name, sizeof(remote_name),
                              NULL, 0, NI_NUMERICHOST);
     if(res == 0) {
-        UA_LOG_INFO(sockData->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                     "Socket %i | New connection over TCP from %s",
                     (int)sock->id, remote_name);
     } else {
-        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(sockData->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                                                 "Socket %i | New connection over TCP, "
                                                 "getnameinfo failed with error: %s",
                                                 (int)sock->id, errno_str));
     }
 #else
-    UA_LOG_INFO(sockData->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                 "Socket %i | New connection over TCP",
                 (int)sock->id);
 #endif
@@ -233,18 +235,12 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     sock->internalData = internalData;
     sock->dataCallback = dataCallback;
 
-    // TODO: do we need to copy this here? or can we just copy the head pointer?
-    internalData->deletionHooks = deletionHooks;
-    /*
-    HookListEntry *hookListEntry = NULL;
-    LIST_FOREACH(hookListEntry, &creationHooks.list, pointers) {
-        HookListEntry *newEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
-        newEntry->hook = hookListEntry->hook;
-        LIST_INSERT_HEAD(&internalData->deletionHooks.list, newEntry, pointers);
-    }
-    */
+    retval = UA_Socket_addDeletionHooks(sock, deletionHooks);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
 
-    internalData->logger = logger;
+
+    sock->logger = logger;
     internalData->flaggedForDeletion = false;
 
     retval = UA_ByteString_allocBuffer(&internalData->receiveBuffer, recvBufferSize);
@@ -279,7 +275,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
                                     (struct sockaddr *)&remote, &remote_size);
     if(newsockfd == UA_INVALID_SOCKET) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(internalData->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "Accept failed with %s", errno_str));
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Error accepting socket. Got invalid file descriptor");
@@ -327,6 +323,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     return retval;
 
 error:
+    UA_Socket_cleanupHooks(sock);
     UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&internalData->receiveBuffer);
     UA_ByteString_deleteMembers(&internalData->sendBuffer);

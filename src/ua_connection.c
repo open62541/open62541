@@ -19,8 +19,20 @@
 #include "ua_securechannel.h"
 #include "ua_connection.h"
 
-void UA_Connection_deleteMembers(UA_Connection *connection) {
+typedef struct {
+    UA_Socket *sock;
+} UA_Connection_internalData;
+
+
+UA_StatusCode
+UA_Connection_free(UA_Connection *connection) {
+    if(connection == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(connection->connectionManager != NULL)
+        UA_ConnectionManager_remove(connection->connectionManager, connection);
     UA_ByteString_deleteMembers(&connection->chunkBuffer);
+    UA_free(connection);
+    return UA_STATUSCODE_GOOD;
 }
 
 void UA_Connection_old_deleteMembers(UA_Connection_old *connection) {
@@ -97,8 +109,12 @@ UA_Connection_old_sendError(UA_Connection_old *connection, UA_TcpErrorMessage *e
     connection->send(connection, &msg);
 }
 
-void
+UA_StatusCode
 UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
+    UA_Socket *const sock = UA_Connection_getSocket(connection);
+    if(sock == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     hideErrors(error);
 
     UA_TcpMessageHeader header;
@@ -108,17 +124,18 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
 
     /* Get the send buffer from the network layer */
     UA_ByteString *sendBuffer = NULL;
-    UA_StatusCode retval = connection->sock->getSendBuffer(connection->sock, header.messageSize, &sendBuffer);
+    UA_StatusCode retval = sock->getSendBuffer(sock, header.messageSize, &sendBuffer);
     if(retval != UA_STATUSCODE_GOOD)
-        return;
+        return retval;
 
     /* Encode and send the response */
     UA_Byte *bufPos = sendBuffer->data;
     const UA_Byte *bufEnd = &sendBuffer->data[sendBuffer->length];
+    // TODO: error handling
     UA_TcpMessageHeader_encodeBinary(&header, &bufPos, bufEnd);
     UA_TcpErrorMessage_encodeBinary(error, &bufPos, bufEnd);
     sendBuffer->length = header.messageSize;
-    connection->sock->send(connection->sock);
+    return sock->send(sock);
 }
 
 static UA_StatusCode
@@ -283,8 +300,7 @@ UA_Connection_old_receiveChunksNonBlocking(UA_Connection_old *connection, void *
     /* Listen for messages to arrive */
     UA_ByteString packet = UA_BYTESTRING_NULL;
     // TODO: Do we still need receiveChunksNonBlocking now? We use callbacks now...
-    // UA_StatusCode retval = connection->recv(connection, &packet, 1);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = connection->recv(connection, &packet, 1);
 
     if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT))
         return retval;
@@ -366,4 +382,93 @@ UA_Connection_adjustParameters(UA_Connection *connection, const UA_ConnectionCon
     connection->state = UA_CONNECTION_ESTABLISHED;
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_Socket *
+UA_Connection_getSocket(UA_Connection *connection) {
+    if(connection == NULL)
+        return NULL;
+    return ((UA_Connection_internalData *)connection->internalData)->sock;
+}
+
+UA_StatusCode
+UA_ConnectionManager_init(UA_ConnectionManager *connectionManager, UA_Logger *logger) {
+    memset(connectionManager, 0, sizeof(UA_ConnectionManager));
+
+    connectionManager->logger = logger;
+    connectionManager->currentConnectionCount = 0;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ConnectionManager_add(UA_ConnectionManager *connectionManager, UA_Connection *connection) {
+    if(connection == NULL || connectionManager == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_ConnectionEntry *connectionEntry = (UA_ConnectionEntry *)UA_malloc(sizeof(UA_ConnectionEntry));
+    connectionEntry->connection = connection;
+    TAILQ_INSERT_TAIL(&connectionManager->connections, connectionEntry, pointers);
+    UA_atomic_addUInt32(&connectionManager->currentConnectionCount, 1);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ConnectionManager_remove(UA_ConnectionManager *connectionManager, UA_Connection *connection) {
+    UA_ConnectionEntry *connectionEntry;
+    TAILQ_FOREACH(connectionEntry, &connectionManager->connections, pointers) {
+        if(connectionEntry->connection == connection)
+            break;
+    }
+    if(!connectionEntry)
+        return UA_STATUSCODE_GOOD;
+
+    TAILQ_REMOVE(&connectionManager->connections, connectionEntry, pointers);
+    UA_free(connectionEntry);
+    UA_atomic_subUInt32(&connectionManager->currentConnectionCount, 1);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ConnectionManager_deleteMembers(UA_ConnectionManager *connectionManager) {
+    UA_ConnectionEntry *connectionEntry;
+    UA_ConnectionEntry *tmp;
+    TAILQ_FOREACH_SAFE(connectionEntry, &connectionManager->connections, pointers, tmp) {
+        TAILQ_REMOVE(&connectionManager->connections, connectionEntry, pointers);
+        UA_free(connectionEntry);
+        UA_atomic_subUInt32(&connectionManager->currentConnectionCount, 1);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ConnectionManager_cleanupTimedOut(UA_ConnectionManager *connectionManager, UA_DateTime nowMonotonic) {
+    // TODO: Implement
+    return 0;
+}
+
+UA_StatusCode
+UA_Connection_new(UA_ConnectionConfig config, UA_Socket *sock,
+                  UA_ConnectionManager *connectionManager,
+                  UA_Connection **p_connection) {
+    if(sock == NULL || p_connection == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_Connection *const connection = (UA_Connection *const)UA_malloc(sizeof(UA_Connection));
+    if(connection == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    memset(connection, 0, sizeof(UA_Connection));
+
+    connection->connectionManager = connectionManager;
+
+    // TODO
+
+    if(connectionManager != NULL)
+        UA_ConnectionManager_add(connectionManager, connection);
+
+    return 0;
+}
+
+UA_StatusCode
+UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock) {
+    // TODO
+    return 0;
 }

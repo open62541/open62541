@@ -17,18 +17,16 @@ typedef enum {
 } SocketState;
 
 typedef struct {
-    UA_Logger *logger;
     SocketState state;
     UA_UInt32 recvBufferSize;
     UA_UInt32 sendBufferSize;
 } TcpSocketData;
 
 static UA_StatusCode
-tcp_sock_setDiscoveryUrl(UA_Socket *socket, in_port_t port, UA_ByteString *customHostname) {
-    if(socket == NULL)
+tcp_sock_setDiscoveryUrl(UA_Socket *sock, in_port_t port, UA_ByteString *customHostname) {
+    if(sock == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    TcpSocketData *const socketData = (TcpSocketData *const)socket->internalData;
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
@@ -45,13 +43,13 @@ tcp_sock_setDiscoveryUrl(UA_Socket *socket, in_port_t port, UA_ByteString *custo
                                             hostnameBuffer, ntohs(port));
             du.data = (UA_Byte *)discoveryUrlBuffer;
         } else {
-            UA_LOG_ERROR(socketData->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+            UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
         }
     }
-    UA_LOG_INFO(socketData->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                 "New TCP listener socket will listen on %.*s",
                 (int)du.length, du.data);
-    return UA_String_copy(&du, &socket->discoveryUrl);
+    return UA_String_copy(&du, &sock->discoveryUrl);
 }
 
 static UA_StatusCode
@@ -59,14 +57,14 @@ tcp_sock_open(UA_Socket *sock) {
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
 
     if(socketData->state != UA_SOCKSTATE_NEW) {
-        UA_LOG_ERROR(socketData->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                      "Calling open on already open socket not supported");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     if(UA_listen((UA_SOCKET)sock->id, MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(socketData->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                            "Error listening on server socket: %s", errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -99,10 +97,17 @@ tcp_sock_mayDelete(UA_Socket *sock) {
 
 static UA_StatusCode
 tcp_sock_free(UA_Socket *sock) {
+    if(sock == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
 
-    UA_ByteString_deleteMembers(&sock->discoveryUrl);
+    HookListEntry *hookListEntry;
+    LIST_FOREACH(hookListEntry, &sock->deletionHooks.list, pointers) {
+        UA_SocketHook_call(hookListEntry->hook, sock);
+    }
 
+    UA_Socket_cleanupHooks(sock);
+    UA_ByteString_deleteMembers(&sock->discoveryUrl);
     UA_SocketFactory_deleteMembers(sock->socketFactory);
     UA_free(sock->socketFactory);
     UA_free(socketData);
@@ -116,12 +121,11 @@ tcp_sock_activity(UA_Socket *sock) {
     if(sock == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
 
     if(sock->socketFactory != NULL && sock->socketFactory->buildSocket != NULL) {
         return sock->socketFactory->buildSocket(sock->socketFactory, sock, NULL);
     } else {
-        UA_LOG_WARNING(socketData->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                        "No socket factory configured. Cannot create new socket");
         return UA_STATUSCODE_GOODDATAIGNORED;
     }
@@ -139,8 +143,7 @@ tcp_sock_buildSocket(UA_SocketFactory *factory, UA_Socket *listenerSocket, void 
 
 static UA_StatusCode
 tcp_sock_send(UA_Socket *sock) {
-    TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
-    UA_LOG_ERROR(socketData->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                  "Sending is not supported on listener sockets");
     // TODO: Can we support sending here? does it make sense at all?
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -148,8 +151,7 @@ tcp_sock_send(UA_Socket *sock) {
 
 static UA_StatusCode
 tcp_sock_getSendBuffer(UA_Socket *sock, size_t bufferSize, UA_ByteString **p_buffer) {
-    TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
-    UA_LOG_ERROR(socketData->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                  "Getting a send buffer is not supported on listener sockets");
     // TODO: see above
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -175,6 +177,14 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     if(socketConfig == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    UA_SOCKET socket_fd = UA_socket(addrinfo->ai_family, addrinfo->ai_socktype, addrinfo->ai_protocol);
+    if(socket_fd == UA_INVALID_SOCKET) {
+        UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
+                       "Error opening the listener socket");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_Socket *sock = (UA_Socket *)UA_malloc(sizeof(UA_Socket));
     if(sock == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -182,6 +192,7 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     memset(sock, 0, sizeof(UA_Socket));
 
     sock->isListener = true;
+    sock->id = (UA_UInt64)socket_fd;
     sock->internalData = (TcpSocketData *)UA_malloc(sizeof(TcpSocketData));
     if(sock->internalData == NULL) {
         UA_free(sock);
@@ -196,7 +207,7 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
 
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
     memset(socketData, 0, sizeof(TcpSocketData));
-    socketData->logger = socketConfig->logger;
+    sock->logger = socketConfig->logger;
     socketData->state = UA_SOCKSTATE_NEW;
     socketData->recvBufferSize = socketConfig->recvBufferSize;
     socketData->sendBufferSize = socketConfig->sendBufferSize;
@@ -207,14 +218,6 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     else
         port = (((struct sockaddr_in6 *)addrinfo->ai_addr)->sin6_port);
     tcp_sock_setDiscoveryUrl(sock, port, &socketConfig->customHostname);
-
-    UA_SOCKET socket_fd = UA_socket(addrinfo->ai_family, addrinfo->ai_socktype, addrinfo->ai_protocol);
-    if(socket_fd == UA_INVALID_SOCKET) {
-        UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
-                       "Error opening the listener socket");
-        goto error;
-    }
-    sock->id = (UA_UInt64)socket_fd;
 
     retval = UA_SocketFactory_init(sock->socketFactory, socketConfig->logger);
     if(retval != UA_STATUSCODE_GOOD)
@@ -262,6 +265,7 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     return UA_STATUSCODE_GOOD;
 
 error:
+    UA_Socket_cleanupHooks(sock);
     if(socket_fd != UA_INVALID_SOCKET)
         UA_close(socket_fd);
     UA_free(sock->internalData);
