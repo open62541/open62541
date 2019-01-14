@@ -86,5 +86,7 @@ int main(void) {
 
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
+    UA_free(types);
+    UA_free(members);
     return 0;
 }

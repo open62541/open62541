@@ -59,6 +59,10 @@ if(UA_ENABLE_ENCRYPTION)
         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
+if(UA_ENABLE_GDS_CM)
+    set(test_plugin_sources ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/plugins/ua_ca_gnutls.c)
+endif()
+
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -251,6 +255,12 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     add_executable(check_server_monitoringspeed server/check_server_monitoringspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_monitoringspeed ${LIBS})
     add_test_valgrind(server_monitoringspeed ${TESTS_BINARY_DIR}/check_server_monitoringspeed)
+endif()
+
+if(UA_ENABLE_GDS_CM)
+    add_executable(check_gnutls_ca gds/check_gnutls_ca.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_gnutls_ca ${LIBS})
+    add_test_valgrind(gnutls_ca ${TESTS_BINARY_DIR}/check_gnutls_ca gds)
 endif()
 
 # Test Client

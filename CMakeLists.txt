@@ -191,6 +191,28 @@ if(UA_ENABLE_MULTITHREADING)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
+option(UA_ENABLE_GDS "Enable GDS - Registration Manager (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_GDS)
+if(UA_ENABLE_GDS)
+    if (NOT (UA_NAMESPACE_ZERO STREQUAL "FULL"))
+        message(FATAL_ERROR "GDS requires full namespace zero")
+    endif()
+endif()
+
+option(UA_ENABLE_GDS_CM "Enable GDS - Certificate Manager (experimental/ uses GnuTLS)" OFF)
+mark_as_advanced(UA_ENABLE_GDS_CM)
+if(UA_ENABLE_GDS_CM)
+    if (NOT UA_ENABLE_GDS)
+        message(FATAL_ERROR "Certificate Manager works only with Registration Manager")
+    endif()
+    if (NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "GDS requires encryption (UA_ENABLE_ENCRYPTION)")
+    endif()
+endif()
+
+option(UA_ENABLE_GDS_CLIENT "Enable functions to access the Global Discovery Server" OFF)
+mark_as_advanced(UA_ENABLE_GDS_CLIENT)
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
@@ -365,6 +387,14 @@ if(UA_ENABLE_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
+if(UA_ENABLE_GDS_CM)
+    # The recommended way is to install GnuTLS via the OS package manager. If
+    # that is not possible, manually compile GnuTLS and set the cmake variables
+    # defined in /tools/cmake/FindGnuTLS.cmake.
+    find_package(GnuTLS REQUIRED)
+    list(APPEND open62541_LIBRARIES ${GNUTLS_LIBRARIES})
+endif()
+
 #####################
 # Compiler Settings #
 #####################
@@ -478,6 +508,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies
                     ${PROJECT_SOURCE_DIR}/deps
                     ${PROJECT_SOURCE_DIR}/src/pubsub
+                    ${PROJECT_SOURCE_DIR}/src/gds
                     ${PROJECT_BINARY_DIR}
                     ${PROJECT_BINARY_DIR}/src_generated
                     ${MBEDTLS_INCLUDE_DIRS})
@@ -627,6 +658,26 @@ endif()
 if(UA_ENABLE_DISCOVERY)
     list(INSERT internal_headers 13 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
+endif()
+
+if(UA_ENABLE_GDS)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_record_datatype.h)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_registration_manager.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/gds/ua_gds_ns.c
+                            ${PROJECT_SOURCE_DIR}/src/gds/ua_registration_manager.c)
+    if(UA_ENABLE_GDS_CM)
+        #has to be inserted before ua_server_config.h
+        list(INSERT exported_headers 18 ${PROJECT_SOURCE_DIR}/include/ua_plugin_ca.h)
+        list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_certificate_manager.h)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/gds/ua_certificate_manager.c)
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_ca_gnutls.h)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_ca_gnutls.c)
+    endif()
+endif()
+
+if(UA_ENABLE_GDS_CLIENT)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/src/gds/ua_gds_client.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/gds/ua_gds_client.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)

@@ -33,6 +33,13 @@ _UA_BEGIN_DECLS
 #include "ua_discovery_manager.h"
 #endif
 
+#ifdef UA_ENABLE_GDS
+#include "ua_registration_manager.h"
+#ifdef UA_ENABLE_GDS_CM
+#include "ua_certificate_manager.h"
+#endif
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
@@ -72,6 +79,14 @@ struct UA_Server {
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
+
+#ifdef UA_ENABLE_GDS
+    LIST_HEAD(gds_list, gds_registeredServer_entry) gds_registeredServers_list;
+    size_t gds_registeredServersSize;
+#ifdef UA_ENABLE_GDS_CM
+    UA_GDS_CertificateManager certificateManager;
+#endif
+#endif
 
     /* Discovery */
 #ifdef UA_ENABLE_DISCOVERY
@@ -282,6 +297,14 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /**********************/
 
 UA_StatusCode UA_Server_initNS0(UA_Server *server);
+
+/**********************/
+/* Create Namespace for GDS */
+/**********************/
+#ifdef UA_ENABLE_GDS
+UA_StatusCode UA_GDS_initNS(UA_Server *server);
+UA_StatusCode UA_GDS_deinitNS(UA_Server *server);
+#endif
 
 _UA_END_DECLS
 

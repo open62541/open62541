@@ -23,6 +23,10 @@
 #include "ua_plugin_pubsub.h"
 #endif
 
+#ifdef UA_ENABLE_GDS_CM
+#include "ua_plugin_ca.h"
+#endif
+
 #ifdef UA_ENABLE_HISTORIZING
 #include "ua_plugin_historydatabase.h"
 #endif
@@ -71,7 +75,7 @@ struct UA_ServerConfig {
     UA_ByteString serverCertificate;
 
     /* MDNS Discovery */
-#ifdef UA_ENABLE_DISCOVERY
+#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_GDS)
     UA_String mdnsServerName;
     size_t serverCapabilitiesSize;
     UA_String *serverCapabilities;
@@ -98,6 +102,10 @@ struct UA_ServerConfig {
     /*PubSub network layer */
     size_t pubsubTransportLayersSize;
     UA_PubSubTransportLayer *pubsubTransportLayers;
+#endif
+#ifdef UA_ENABLE_GDS_CM
+    size_t gds_certificateGroupSize;
+    UA_GDS_CertificateGroup *gds_certificateGroups;
 #endif
 
     /* Available endpoints */
