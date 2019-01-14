@@ -282,7 +282,7 @@ UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber,
     if(certificate)
         localCertificate = *certificate;
     retval =
-        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, conf->logger);
+        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -361,7 +361,7 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
 
     ++conf->securityPoliciesSize;
     retval =
-        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, conf->logger);
+        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -461,7 +461,7 @@ UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
        localPrivateKey = *privateKey;
     ++conf->securityPoliciesSize;
     retval =
-        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, conf->logger);
+        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -561,7 +561,7 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
        localPrivateKey = *privateKey;
     ++conf->securityPoliciesSize;
     retval =
-        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, conf->logger);
+        UA_SecurityPolicy_None(&conf->securityPolicies[0], NULL, localCertificate, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
