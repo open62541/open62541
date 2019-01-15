@@ -12,7 +12,6 @@ import getpass
 from collections import OrderedDict
 import re
 import xml.etree.ElementTree as etree
-import itertools
 import argparse
 import csv
 import textwrap
@@ -310,8 +309,8 @@ class StructType(Type):
                 switchField = switchField[:1].lower() + switchField[1:]
                 switchValue = child.get("SwitchValue")
                 switchOperand = child.get("SwitchOperand")
-                if switchOperand == None:
-                    if switchValue != None:
+                if switchOperand is None:
+                    if switchValue:
                         # Explicit value, no operand set, operand is equals
                         switchOperand = "=="
                     else:
