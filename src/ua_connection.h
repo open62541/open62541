@@ -77,7 +77,7 @@ UA_Socket *
 UA_Connection_getSocket(UA_Connection *connection);
 
 UA_StatusCode
-UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock);
+UA_Connection_assembleChunks(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock);
 
 UA_StatusCode
 UA_Connection_detachSecureChannel(UA_Connection *connection);

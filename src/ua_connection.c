@@ -549,19 +549,40 @@ UA_Connection_validateChunkHeader(UA_Connection *connection, UA_TcpMessageHeader
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+UA_Connection_parseChunkSize(UA_Connection *connection) {
+    UA_TcpMessageHeader messageHeader;
+    size_t offset = 0;
+    UA_StatusCode retval = UA_TcpMessageHeader_decodeBinary(&connection->chunkBuffer, &offset, &messageHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    retval = UA_Connection_validateChunkHeader(connection, &messageHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    connection->currentChunkSize = messageHeader.messageSize;
+
+    return retval;
+}
+
+static void
+UA_Connection_copyChunkPart(UA_Connection *connection, UA_ByteString *buffer,
+                            size_t *offset, size_t bytesToCopy) {
+    if((buffer->length - *offset) < bytesToCopy)
+        bytesToCopy = buffer->length - *offset;
+    memcpy(connection->chunkBuffer.data + connection->chunkBuffer.length,
+           buffer->data + *offset, bytesToCopy);
+    connection->chunkBuffer.length += bytesToCopy;
+    *offset += bytesToCopy;
+}
+
 UA_StatusCode
-UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock) {
-    size_t alreadyCopied = 0;
+UA_Connection_assembleChunks(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock) {
+    size_t offset = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    while(alreadyCopied < buffer->length) {
+    while(offset < buffer->length) {
         if(connection->chunkBuffer.length < UA_MESSAGE_HEADER_SIZE) {
-            size_t bytesToCopy = UA_MESSAGE_HEADER_SIZE - connection->chunkBuffer.length;
-            if(buffer->length < bytesToCopy)
-                bytesToCopy = buffer->length;
-            memcpy(connection->chunkBuffer.data + connection->chunkBuffer.length,
-                   buffer->data + alreadyCopied, bytesToCopy);
-            connection->chunkBuffer.length += bytesToCopy;
-            alreadyCopied += bytesToCopy;
+            UA_Connection_copyChunkPart(connection, buffer, &offset,
+                                        UA_MESSAGE_HEADER_SIZE - connection->chunkBuffer.length);
         }
 
         if(connection->chunkBuffer.length < UA_MESSAGE_HEADER_SIZE) {
@@ -570,28 +591,16 @@ UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA
         }
 
         if(connection->currentChunkSize == 0) {
-            UA_TcpMessageHeader messageHeader;
-            size_t offset = 0;
-            retval = UA_TcpMessageHeader_decodeBinary(&connection->chunkBuffer, &offset, &messageHeader);
+            retval = UA_Connection_parseChunkSize(connection);
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;
-            retval = UA_Connection_validateChunkHeader(connection, &messageHeader);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto error;
-            connection->currentChunkSize = messageHeader.messageSize;
         }
 
-        size_t bytesToCopy = connection->currentChunkSize - connection->chunkBuffer.length;
-        if((buffer->length - alreadyCopied) < bytesToCopy)
-            bytesToCopy = buffer->length - alreadyCopied;
-        memcpy(connection->chunkBuffer.data + connection->chunkBuffer.length,
-               buffer->data + alreadyCopied, bytesToCopy);
-        connection->chunkBuffer.length += bytesToCopy;
-        alreadyCopied += bytesToCopy;
+        UA_Connection_copyChunkPart(connection, buffer, &offset,
+                                    connection->currentChunkSize - connection->chunkBuffer.length);
 
         if(connection->chunkBuffer.length == connection->currentChunkSize) {
             if(connection->chunkCallback.function != NULL) {
-                // TODO: check retvals.
                 retval = connection->chunkCallback.function(connection->chunkCallback.callbackContext,
                                                             connection, &connection->chunkBuffer);
                 if(retval != UA_STATUSCODE_GOOD)
@@ -602,6 +611,9 @@ UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA
             }
 
             UA_Connection_resetChunkBuffer(connection);
+        } else if(connection->chunkBuffer.length > connection->currentChunkSize) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto error;
         }
     }
     return retval;

@@ -397,7 +397,7 @@ createConnection(void *userData, UA_Socket *sock) {
     connection->chunkCallback.function = (UA_ProcessChunkCallbackFunction)UA_Server_processChunk;
 
     sock->dataCallback.callbackContext = connection;
-    sock->dataCallback.callback = (UA_Socket_dataCallbackFunction)UA_Connection_assembleChunk;
+    sock->dataCallback.callback = (UA_Socket_dataCallbackFunction)UA_Connection_assembleChunks;
 
     UA_SocketHook cleanupConnectionHook;
     cleanupConnectionHook.hookContext = connection;
