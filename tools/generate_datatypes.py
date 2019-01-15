@@ -223,9 +223,6 @@ class Type(object):
         funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (idName, idName, self.datatype_ptr())
         return funcs
 
-    def encoding_mask_c(self):
-        return "" # No custom encoding mask function
-
     def encoding_h(self):
         idName = makeCIdentifier(self.name)
         enc = "static UA_INLINE size_t\nUA_{idName}_calcSizeBinary(const UA_{idName} *src) {{\n    return UA_calcSizeBinary(src, {dataTypePtr});\n}}\n"
@@ -391,11 +388,11 @@ class StructType(Type):
         return returnstr + "} UA_%s;" % makeCIdentifier(self.name)
     
     def encoding_mask_c(self):
-        func = super(StructType, self).encoding_mask_c()
+        func = None
         if self.dataTypeKind == 3:
             idName = makeCIdentifier(self.name)
             currentField = 1
-            func +=  "static UA_INLINE UA_UInt32 \nUA_{idName}_encodingMask(const UA_{idName} *src) {{\n".format(idName=idName)
+            func =  "static UA_INLINE UA_UInt32 \nUA_{idName}_encodingMask(const UA_{idName} *src) {{\n".format(idName=idName)
             func += "    UA_UInt32 mask = 0;\n"
             for m in self.members:
                 if hasattr(m, "switchField") and m.switchField != None:
@@ -744,11 +741,12 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 ''')
 
 for t in filtered_types:
-    encoding_mask_func = t.encoding_mask_c()
-    if encoding_mask_func:
-        printc("")
-        printc("/* " + t.name + " encoding mask function */")
-        printc(encoding_mask_func)
+    if hasattr(t, "encoding_mask_c"):
+        encoding_mask_function = t.encoding_mask_c()
+        if encoding_mask_function:
+            printc("")
+            printc("/* " + t.name + " encoding mask function */")
+            printc(encoding_mask_function)
 
 for t in filtered_types:
     printc("")
