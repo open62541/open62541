@@ -245,7 +245,7 @@ class BuiltinType(Type):
         if name in builtin_overlayable:
             self.overlayable = builtin_overlayable[name]
         self.builtin = "true"
-        self.dataTypeKind = 0 
+        self.dataTypeKind = 0
         self.members = [StructMember("", self, False)] # builtin types contain only one member: themselves (drops into the jumptable during processing)
 
 class EnumerationType(Type):
