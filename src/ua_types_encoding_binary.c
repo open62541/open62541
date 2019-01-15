@@ -1535,7 +1535,7 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
     UA_UInt32 encodingMask = 0;
     if(UA_DATATYPE_IS(type, UA_DATATYPEKIND_OPTSTRUCTURE)) {
         // Structure with optional types, decode encoding mask first
-        UInt32_decodeBinary((UA_UInt32 *UA_RESTRICT)&encodingMask, 0, ctx);
+        ret = UInt32_decodeBinary((UA_UInt32 *UA_RESTRICT)&encodingMask, 0, ctx);
     }
 
     /* Loop over members */
