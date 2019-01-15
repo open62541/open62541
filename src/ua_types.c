@@ -649,7 +649,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
     uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first);
     if(nextrange.dimensionsSize == 0) {
         /* no nextrange */
-        if(src->type->pointerFree) {
+        if(src->type->kind & UA_DATATYPEKIND_POINTERFREE) {
             for(size_t i = 0; i < block_count; ++i) {
                 memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
                 nextdst += block * elem_size;
@@ -742,7 +742,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
     size_t elem_size = v->type->memSize;
     uintptr_t nextdst = (uintptr_t)v->data + (first * elem_size);
     uintptr_t nextsrc = (uintptr_t)array;
-    if(v->type->pointerFree || !copy) {
+    if(v->type->kind & UA_DATATYPEKIND_POINTERFREE || !copy) {
         for(size_t i = 0; i < block_count; ++i) {
             memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
             nextsrc += block * elem_size;
@@ -761,7 +761,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
     }
 
     /* If members were moved, initialize original array to prevent reuse */
-    if(!copy && !v->type->pointerFree)
+    if(!copy && !(v->type->kind & UA_DATATYPEKIND_POINTERFREE))
         memset(array, 0, sizeof(elem_size)*arraySize);
 
     return retval;
@@ -923,27 +923,28 @@ copy_noInit(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
     u8 membersSize = type->membersSize;
-    size_t flagCount = 0;
+    size_t bitcount = 0;
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(m->isFlag) {
-            flagCount++;
+        if(m->bitFieldSize > 0) {
+            bitcount += m->bitFieldSize;
             continue;
         }
-        if(flagCount > 0){
+        if(bitcount > 0){
             // Copy all encoding mask bytes
-            for(size_t x = 0; x <= flagCount / 8; ++x) {
+            for(size_t x = 0; x <= bitcount / 8; ++x) {
                 retval |= copyByte((const UA_Byte*)ptrs, (UA_Byte*)ptrd, 0);
                 ptrs++;
                 ptrd++;
             }
-            flagCount = 0;
-        } else if(!m->isArray) {
+            bitcount = 0;
+        }
+        if(!m->isArray) {
             ptrs += m->padding;
             ptrd += m->padding;
-            size_t fi = mt->builtin ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t fi = UA_DATATYPE_IS(mt, UA_DATATYPEKIND_BUILTIN) ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
             retval |= copyJumpTable[fi]((const void*)ptrs, (void*)ptrd, mt);
             ptrs += mt->memSize;
             ptrd += mt->memSize;
@@ -1013,20 +1014,25 @@ static void
 clear_noInit(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
     u8 membersSize = type->membersSize;
-    size_t flagCount = 0;
+    size_t bitcount = 0;
     for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
-        if(m->isFlag) {
-            flagCount++;
+        if(m->bitFieldSize > 0) {
+            bitcount += m->bitFieldSize;
             continue;
         }
-        if(flagCount > 0){
-            ptr += (flagCount / 8) + 1;
-        } else if(!m->isArray) {
+        if(bitcount > 0) {
+            ptr += bitcount / 8;
+            bitcount = 0;
+        }
+        if(UA_DATATYPE_IS(mt, UA_DATATYPEKIND_OPTSTRUCTURE)) {
+            ptr += UA_OPTSTRUCTURE_ENCODINGMASK_SIZE;
+        }
+        if(!m->isArray) {
             ptr += m->padding;
-            size_t fi = mt->builtin ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t fi = UA_DATATYPE_IS(mt, UA_DATATYPEKIND_BUILTIN) ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
             clearJumpTable[fi]((void*)ptr, mt);
             ptr += mt->memSize;
         } else {
@@ -1083,7 +1089,7 @@ UA_Array_copy(const void *src, size_t size,
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    if(type->pointerFree) {
+    if(type->kind & UA_DATATYPEKIND_POINTERFREE) {
         memcpy(*dst, src, type->memSize * size);
         return UA_STATUSCODE_GOOD;
     }
@@ -1105,7 +1111,7 @@ UA_Array_copy(const void *src, size_t size,
 
 void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
-    if(!type->pointerFree) {
+    if(!(type->kind & UA_DATATYPEKIND_POINTERFREE)) {
         uintptr_t ptr = (uintptr_t)p;
         for(size_t i = 0; i < size; ++i) {
             UA_clear((void*)ptr, type);
