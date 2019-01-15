@@ -38,8 +38,8 @@
         <opc:Field TypeName="opc:Bit" Name="OptionOne"/>
         <opc:Field TypeName="opc:Bit" Name="OptionTwo"/>
         <opc:Field Length="6" TypeName="opc:Bit" Name="Reserved1"/>
-        <opc:Field TypeName="opc:Byte" Name="OptionalByteOne" SwitchField="OptionTwo"/>
-        <opc:Field TypeName="opc:Byte" Name="OptionalByteTwo" SwitchField="OptionOne"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteOne" SwitchField="OptionOne"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteTwo" SwitchField="OptionTwo"/>
     </opc:StructuredType>
 
     <opc:StructuredType BaseType="ua:ExtensionObject" Name="SwitchValueObject">
