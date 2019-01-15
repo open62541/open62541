@@ -499,7 +499,7 @@ ENCODE_JSON(Double) {
 static status
 encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
-    size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    size_t encode_index = UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN) ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
     encodeJsonSignature encodeType = encodeJsonJumpTable[encode_index];
     status ret = writeJsonArrStart(ctx);
     uintptr_t uptr = (uintptr_t)ptr;
@@ -1159,17 +1159,17 @@ ENCODE_JSON(Variant) {
     if(!src->type) {
         return writeJsonNull(ctx);
     }
-        
+
     /* Set the content type in the encoding mask */
-    const bool isBuiltin = src->type->builtin;
+    const bool isBuiltin = UA_DATATYPE_IS(src->type, UA_DATATYPEKIND_BUILTIN);
     const bool isAlias = src->type->membersSize == 1
-            && UA_TYPES[src->type->members[0].memberTypeIndex].builtin;
-    
+            && UA_DATATYPE_IS(&UA_TYPES[src->type->members[0].memberTypeIndex], UA_DATATYPEKIND_BUILTIN);
+
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const bool hasDimensions = isArray && src->arrayDimensionsSize > 0;
     status ret = UA_STATUSCODE_GOOD;
-    
+
     if(ctx->useReversible) {
         ret |= writeJsonObjStart(ctx);
         if(ret != UA_STATUSCODE_GOOD)
@@ -1412,8 +1412,8 @@ encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth++;
 
-    status ret = UA_STATUSCODE_GOOD; 
-    if(!type->builtin)
+    status ret = UA_STATUSCODE_GOOD;
+    if(!UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN))
         ret |= writeJsonObjStart(ctx);
 
     uintptr_t ptr = (uintptr_t) src;
@@ -1428,7 +1428,7 @@ encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
 
         if(!member->isArray) {
             ptr += member->padding;
-            size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t encode_index = UA_DATATYPE_IS(membertype, UA_DATATYPEKIND_BUILTIN) ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
             size_t memSize = membertype->memSize;
             ret = encodeJsonJumpTable[encode_index]((const void*) ptr, membertype, ctx);
             ptr += memSize;
@@ -1441,7 +1441,7 @@ encodeJsonInternal(const void *src, const UA_DataType *type, CtxJson *ctx) {
         }
     }
 
-    if(!type->builtin)
+    if(!UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN))
         ret |= writeJsonObjEnd(ctx);
 
     ctx->depth--;
@@ -2854,35 +2854,35 @@ DECODE_JSON(ExtensionObject) {
             }
 
             memcpy(dst->content.encoded.body.data, bodyJsonString, (size_t)sizeOfJsonString);
-            
+
             size_t tokenAfteExtensionObject = 0;
             jumpOverObject(ctx, parseCtx, &tokenAfteExtensionObject);
-            
+
             if(tokenAfteExtensionObject == 0) {
                 /*next object token not found*/
                 UA_NodeId_deleteMembers(&typeId);
                 UA_ByteString_deleteMembers(&dst->content.encoded.body);
                 return UA_STATUSCODE_BADDECODINGERROR;
             }
-            
+
             parseCtx->index = (UA_UInt16)tokenAfteExtensionObject;
-            
+
             return UA_STATUSCODE_GOOD;
         }
-        
+
         /*Type id not used anymore, typeOfBody has type*/
         UA_NodeId_deleteMembers(&typeId);
-        
+
         /*Set Found Type*/
         dst->content.decoded.type = typeOfBody;
         dst->encoding = UA_EXTENSIONOBJECT_DECODED;
-        
+
         if(searchTypeIdResult != 0) {
             dst->content.decoded.data = UA_new(typeOfBody);
             if(!dst->content.decoded.data)
                 return UA_STATUSCODE_BADOUTOFMEMORY;
 
-            size_t decode_index = typeOfBody->builtin ? typeOfBody->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t decode_index = UA_DATATYPE_IS(typeOfBody, UA_DATATYPEKIND_BUILTIN) ? typeOfBody->typeIndex : UA_BUILTIN_TYPES_COUNT;
             UA_NodeId typeId_dummy;
             DecodeEntry entries[2] = {
                 {UA_JSONKEY_TYPEID, &typeId_dummy, (decodeJsonSignature) NodeId_decodeJson, false},
@@ -2994,7 +2994,7 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         }
 
         /* Decode the content */
-        size_t decode_index = dst->type->builtin ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        size_t decode_index = UA_DATATYPE_IS(dst->type, UA_DATATYPEKIND_BUILTIN) ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
         UA_NodeId nodeIddummy;
         DecodeEntry entries[3] =
             {
@@ -3179,12 +3179,12 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     *dst = UA_calloc(length, type->memSize);
     if(*dst == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    
+
     parseCtx->index++; /* We go to first Array member!*/
-    
+
     /* Decode array members */
     uintptr_t ptr = (uintptr_t)*dst;
-    size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    size_t decode_index = UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN) ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
     for(size_t i = 0; i < length; ++i) {
         ret = decodeJsonJumpTable[decode_index]((void*)ptr, type, ctx, parseCtx, true);
         if(ret != UA_STATUSCODE_GOOD) {
@@ -3224,9 +3224,9 @@ decodeJsonInternal(void *dst, const UA_DataType *type, CtxJson *ctx,
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
             ptr += member->padding;
-            size_t fi = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t fi = UA_DATATYPE_IS(membertype, UA_DATATYPEKIND_BUILTIN) ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
             size_t memSize = membertype->memSize;
-            
+
             /*Setup the decoding functions, field names and destinations*/
             entries[i].fieldName = member->memberName;
             entries[i].fieldPointer = (void*)ptr;
