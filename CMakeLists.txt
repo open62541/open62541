@@ -194,6 +194,9 @@ endif()
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
+option(UA_ENABLE_DA "Enable data access" ON)
+mark_as_advanced(UA_ENABLE_DA)
+
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
 if(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -271,6 +274,7 @@ mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
+option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
@@ -734,6 +738,9 @@ else()
             set(UA_FILE_NSPUBSUB ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
         endif()
     endif()
+	if(UA_ENABLE_DA)
+		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_dataaccess.txt)
+    endif()
 endif()
 
 if(NOT EXISTS "${UA_FILE_NS0}")
@@ -950,6 +957,12 @@ endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     add_subdirectory(tests/fuzz)
+endif()
+
+if(UA_BUILD_TOOLS)
+    if(UA_ENABLE_JSON_ENCODING)
+        add_subdirectory(tools/ua2json)
+    endif()
 endif()
 
 ############################

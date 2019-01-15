@@ -2,9 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "ua_server.h"
 #include "ua_client.h"
 #include "ua_config_default.h"
@@ -372,7 +369,8 @@ START_TEST(Node_AddReadWriteNodes) {
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                          UA_QUALIFIEDNAME(1, "UnitTest"),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), attr, &nodeReadWriteUnitTest);
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
+                                         attr, &nodeReadWriteUnitTest);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
@@ -885,15 +883,22 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(arrayDimsReadSize, 0);
 
+    // Set a vector of size 1 as the value
+    UA_Double vec2[2] = {0.0, 0.0};
+    UA_Variant value;
+    UA_Variant_setArray(&value, vec2, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     // writing the array dimensions shall fail at first
-    UA_UInt32 arrayDimsNew[] = {3};
+    // because the current value is not conformant
+    UA_UInt32 arrayDimsNew[] = {1};
     retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, 1, arrayDimsNew);
     ck_assert(retval != UA_STATUSCODE_GOOD);
 
-    // Set a vector of size 3 as the value
-    UA_Double vec[3] = {0.0, 0.0, 0.0};
-    UA_Variant value;
-    UA_Variant_setArray(&value, vec, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+    // Set a vector of size 1 as the value
+    UA_Double vec1[1] = {0.0};
+    UA_Variant_setArray(&value, vec1, 1, &UA_TYPES[UA_TYPES_DOUBLE]);
     retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -905,7 +910,7 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
                                                     &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(arrayDimsReadSize, 1);
-    ck_assert_int_eq(arrayDimsRead[0], 3);
+    ck_assert_int_eq(arrayDimsRead[0], 1);
     UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);
 }
 END_TEST

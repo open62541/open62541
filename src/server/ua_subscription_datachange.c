@@ -13,6 +13,10 @@
 #include "ua_subscription.h"
 #include "ua_types_encoding_binary.h"
 
+#ifdef UA_ENABLE_DA
+#include <math.h> // fabs
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 #define UA_VALUENCODING_MAXSTACK 512
@@ -70,6 +74,65 @@ outOfDeadBand(const void *data1, const void *data2, const size_t arrayPos,
     return true;
 }
 
+#ifdef UA_ENABLE_DA
+static UA_INLINE UA_Boolean
+outOfPercentDeadBand(const void *data1, const void *data2, const size_t index,
+                     const UA_DataType *type, const UA_Double deadbandValue, UA_Range* range) {
+    if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_SByte*)data1)[index],
+                                         ((const UA_SByte*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_SByte*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_BYTE]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Byte*)data1)[index],
+                                         ((const UA_Byte*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_Byte*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_INT16]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int16*)data1)[index],
+                                         ((const UA_Int16*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_Int16*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_UINT16]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt16*)data1)[index],
+                                         ((const UA_UInt16*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_UInt16*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_INT32]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int32*)data1)[index],
+                                         ((const UA_Int32*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_Int32*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_UINT32]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt32*)data1)[index],
+                                         ((const UA_UInt32*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_UInt32*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_INT64]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Int64*)data1)[index],
+                                         ((const UA_Int64*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_Int64*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_UINT64]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_UInt64*)data1)[index],
+                                         ((const UA_UInt64*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_UInt64*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_FLOAT]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Float*)data1)[index],
+                                         ((const UA_Float*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_Float*)data1 > range->high)
+            return false;
+    } else if(type == &UA_TYPES[UA_TYPES_DOUBLE]) {
+        if(ABS_SUBTRACT_TYPE_INDEPENDENT(((const UA_Double*)data1)[index],
+                                         ((const UA_Double*)data2)[index]) <= (deadbandValue/100.0)*(fabs(range->high - range->low)) ||
+           *(const UA_Double*)data1 > range->high)
+            return false;
+    }
+    return true;
+}
+#endif /* UA_ENABLE_DA */
+
 static UA_INLINE UA_Boolean
 updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue,
                              const UA_Double deadbandValue) {
@@ -90,10 +153,49 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
     return false;
 }
 
+#ifdef UA_ENABLE_DA
+static UA_INLINE UA_Boolean
+updateNeededForFilteredPercentValue(const UA_Variant *value, const UA_Variant *oldValue,
+                                    const UA_Double deadbandValue, UA_Range* euRange) {
+    if(value->arrayLength != oldValue->arrayLength)
+        return true;
+
+    if(value->type != oldValue->type)
+        return true;
+
+    if (UA_Variant_isScalar(value)) {
+        return outOfPercentDeadBand(value->data, oldValue->data, 0, value->type, deadbandValue, euRange);
+    } else {
+        for (size_t i = 0; i < value->arrayLength; ++i) {
+            if (outOfPercentDeadBand(value->data, oldValue->data, i, value->type, deadbandValue, euRange))
+                return true;
+        }
+    }
+    return false;
+}
+
+static UA_Boolean
+updateNeededForStatusCode(const UA_DataValue *value, const UA_MonitoredItem *mon) {
+    if (UA_Variant_isScalar(&value->value)) {
+        if(value->status != mon->lastStatus)
+          return true;
+    }
+    return false;
+}
+#endif
+
+
 /* When a change is detected, encoding contains the heap-allocated binary encoded value */
 static UA_Boolean
 detectValueChangeWithFilter(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon,
                             UA_DataValue *value, UA_ByteString *encoding) {
+
+#ifdef UA_ENABLE_DA
+  	if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS) {
+      	if(!updateNeededForStatusCode(value, mon))
+          	return false;
+  	}
+#endif
     if(UA_DataType_isNumeric(value->value.type) &&
        (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
         mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
@@ -102,12 +204,23 @@ detectValueChangeWithFilter(UA_Server *server, UA_Subscription *sub, UA_Monitore
                                              mon->filter.dataChangeFilter.deadbandValue))
                 return false;
         }
-        /* else if (mon->filter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
-            // TODO where do this EURange come from ?
-            UA_Double deadbandValue = fabs(mon->filter.deadbandValue * (EURange.high-EURange.low));
-            if (!updateNeededForFilteredValue(value->value, mon->lastValue, deadbandValue))
-                return false;
-        }*/
+#ifdef UA_ENABLE_DA
+		else if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
+			UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
+			UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
+			if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) { //if branch is not entried, property has been found
+				  UA_BrowsePathResult_deleteMembers(&bpr);
+				  return false;
+			}
+			const UA_VariableNode* node = (const UA_VariableNode*) UA_Nodestore_get(server, &bpr.targets->targetId.nodeId);
+			UA_Range* euRange = (UA_Range*) node->value.data.value.value.data;
+			if(!updateNeededForFilteredPercentValue(&value->value, &mon->lastValue,
+			                                        mon->filter.dataChangeFilter.deadbandValue, euRange)) {
+				if(!updateNeededForStatusCode(value, mon)) //when same value, but different status code is written
+				  return false;
+			}
+		}
+#endif
     }
 
     /* Stack-allocate some memory for the value encoding. We might heap-allocate
@@ -227,15 +340,33 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
             return false;
         }
 
-        if(value->value.storageType == UA_VARIANT_DATA) {
-            newNotification->data.value = *value; /* Move the value to the notification */
-            storedValue = true;
-        } else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
-            UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_ByteString_deleteMembers(&binValueEncoding);
-                UA_free(newNotification);
-                return false;
+        if(monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS){
+            if(value->value.storageType == UA_VARIANT_DATA) {
+                newNotification->data.value.hasStatus = true;
+                UA_StatusCode_copy(&value->status, &newNotification->data.value.status);
+                storedValue = true;
+            }
+            else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
+                UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_ByteString_deleteMembers(&binValueEncoding);
+                    UA_free(newNotification);
+                    return false;
+                }
+            }
+        }
+        else if(monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+                monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+            if(value->value.storageType == UA_VARIANT_DATA) {
+                newNotification->data.value = *value; /* Move the value to the notification */
+                storedValue = true;
+            } else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
+                UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_ByteString_deleteMembers(&binValueEncoding);
+                    UA_free(newNotification);
+                    return false;
+                }
             }
         }
 
@@ -281,12 +412,18 @@ sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *monitoredItem,
 
     /* Store the value for filter comparison (we don't want to decode
      * lastSampledValue in every iteration) */
-    if((monitoredItem->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT ||
-        monitoredItem->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE) &&
-       (monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+    if((monitoredItem->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_NONE ||
+        monitoredItem->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_ABSOLUTE ||
+        monitoredItem->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) &&
+       (monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS ||
+        monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
         monitoredItem->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
         UA_Variant_deleteMembers(&monitoredItem->lastValue);
         UA_Variant_copy(&value->value, &monitoredItem->lastValue);
+#ifdef UA_ENABLE_DA
+        UA_StatusCode_deleteMembers(&monitoredItem->lastStatus);
+        UA_StatusCode_copy(&value->status, &monitoredItem->lastStatus);
+#endif
         /* Don't test the return code here. If this fails, lastValue is empty
          * and a notification will be forced for the next deadband comparison. */
     }
