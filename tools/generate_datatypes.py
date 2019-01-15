@@ -21,6 +21,8 @@ from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
 
+# Bits need to be packed into bytes, according to the 1.0.4 spec Part 5 Annex E.4, 3.
+# byte boundaries need to be explicitly observed when specifying bit fields in bsd files
 special_types = ["Bit"]
 
 excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
@@ -79,12 +81,13 @@ def makeCIdentifier(value):
 ################
 
 class StructMember(object):
-    def __init__(self, name, memberType, isArray, switchField = -1, switchValue = 1):
+    def __init__(self, name, memberType, isArray, switchField = None, switchValue = 0, switchOperand = "!="):
         self.name = name
         self.memberType = memberType
         self.isArray = isArray
         self.switchField = switchField
         self.switchValue = switchValue
+        self.switchOperand = switchOperand
 
 def getNodeidTypeAndId(nodeId):
     if not '=' in nodeId:
@@ -109,6 +112,7 @@ class Type(object):
             self.typeIndex = makeCIdentifier(outname.upper())
 
         self.ns0 = ("true" if namespace == 0 else "false")
+        self.dataTypeKind = -1
         self.outname = outname
         self.description = ""
         self.pointerfree = "false"
@@ -135,16 +139,24 @@ class Type(object):
         else:
             typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
         idName = makeCIdentifier(self.name)
+        dataTypeKind = self.dataTypeKind
+        if self.pointerfree == "true":
+            dataTypeKind += 32
+        if self.overlayable == "true":
+            dataTypeKind += 64
+        encodingFunc = "0"
+        if self.dataTypeKind == 3: # Optional fields, add encoding Func
+            encodingFunc = "(encodingMaskSignature)UA_{idName}_encodingMask".format(idName=idName)
         return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
             "    " + typeid + ", /* .typeId */\n" + \
             "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
             "    " + self.typeIndex + ", /* .typeIndex */\n" + \
+            "    " + str(dataTypeKind) + ", /* .kind */\n" + \
             "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
-            "    " + self.builtin + ", /* .builtin */\n" + \
-            "    " + self.pointerfree + ", /* .pointerFree */\n" + \
-            "    " + self.overlayable + ", /* .overlayable */\n" + \
             "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
-            "    %s_members" % idName + " /* .members */\n}"
+            "    %s_members" % idName + ", /* .members */\n" + \
+            "    %s, /* .encodingMaskFunc */\n" % encodingFunc + \
+            "}"
 
     def members_c(self):
         idName = makeCIdentifier(self.name)
@@ -178,11 +190,10 @@ class Type(object):
                     else:
                         m += " - sizeof(UA_%s)," % makeCIdentifier(before.memberType.name)
                 m += " /* .padding */\n"
+                m += "    0, /* .bitFieldSize */\n"
                 m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
                 m += ("    true" if member.isArray else "    false") + ", /* .isArray */\n"
-                m += "    false, /* .isFlag */\n"
-                m += "    %s, /* .switchField */\n" % member.switchField
-                m += "    %s, /* .switchValue */\n" % member.switchValue
+                m += "    %s, /* .isOptional */\n" % "true" if member.switchField else "false"
                 m+= "}"
                 if i != size:
                     m += ","
@@ -213,24 +224,15 @@ class Type(object):
         funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (idName, idName, self.datatype_ptr())
         return funcs
 
+    def encoding_mask_c(self):
+        return "" # No custom encoding mask function
+
     def encoding_h(self):
         idName = makeCIdentifier(self.name)
-        enc = "static UA_INLINE size_t\nUA_%s_calcSizeBinary(const UA_%s *src) {\n    return UA_calcSizeBinary(src, %s);\n}\n"
-        enc += "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n}\n"
-        enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, NULL);\n}"
-        return enc % tuple(list(itertools.chain(*itertools.repeat([idName, idName, self.datatype_ptr()], 3))))
-
-class BitType(Type):
-    def __init__(self, name):
-        Type.__init__(self, "Bit", None, 0)
-        self.name = "Bit"
-        self.ns0 = "true"
-        self.typeIndex = makeCIdentifier("UA_TYPES_" + self.name.upper())
-        self.outname = "ua_types"
-        self.description = ""
-        self.pointerfree = "true"
-        self.builtin = "false"
-        self.members = [StructMember("", self, False)]
+        enc = "static UA_INLINE size_t\nUA_{idName}_calcSizeBinary(const UA_{idName} *src) {{\n    return UA_calcSizeBinary(src, {dataTypePtr});\n}}\n"
+        enc += "static UA_INLINE UA_StatusCode\nUA_{idName}_encodeBinary(const UA_{idName} *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {{\n    return UA_encodeBinary(src, {dataTypePtr}, bufPos, &bufEnd, NULL, NULL);\n}}\n"
+        enc += "static UA_INLINE UA_StatusCode\nUA_{idName}_decodeBinary(const UA_ByteString *src, size_t *offset, UA_{idName} *dst) {{\n    return UA_decodeBinary(src, offset, dst, {dataTypePtr}, NULL);\n}}"
+        return enc.format(idName = idName, dataTypePtr = self.datatype_ptr())
 
 class BuiltinType(Type):
     def __init__(self, name):
@@ -247,11 +249,13 @@ class BuiltinType(Type):
         if name in builtin_overlayable:
             self.overlayable = builtin_overlayable[name]
         self.builtin = "true"
+        self.dataTypeKind = 0 
         self.members = [StructMember("", self, False)] # builtin types contain only one member: themselves (drops into the jumptable during processing)
 
 class EnumerationType(Type):
     def __init__(self, outname, xml, namespace):
         Type.__init__(self, outname, xml, namespace)
+        self.dataTypeKind = 1
         self.pointerfree = "true"
         self.overlayable = "UA_BINARY_OVERLAYABLE_INTEGER"
         self.members = [StructMember("", types["Int32"], False)] # encoded as uint32
@@ -275,6 +279,7 @@ class EnumerationType(Type):
 class OpaqueType(Type):
     def __init__(self, outname, xml, namespace, baseType):
         Type.__init__(self, outname, xml, namespace)
+        self.dataTypeKind = 5
         self.baseType = baseType
         self.members = [StructMember("", types[baseType], False)] # encoded as string
 
@@ -284,9 +289,11 @@ class OpaqueType(Type):
 class StructType(Type):
     def __init__(self, outname, xml, namespace):
         Type.__init__(self, outname, xml, namespace)
+        self.memberNames = [] # List of member names for referencing indices
         self.members = []
-        self.encodingMaskLength = 0
         self.bitFlags = []
+        self.bitLength = {}
+        self.dataTypeKind = 2
         lengthfields = [] # lengthfields of arrays are not included as members
         for child in xml:
             if child.get("LengthField"):
@@ -298,32 +305,36 @@ class StructType(Type):
                 continue
             switchField = child.get("SwitchField")
             if switchField is not None:
+                # Type is structure with optional types
+                self.dataTypeKind = 3
+                switchField = switchField[:1].lower() + switchField[1:]
                 switchValue = child.get("SwitchValue")
-                if switchValue is None:
-                    switchValue = 1
-                memberName = switchField[:1].lower() + switchField[1:]
-                if memberName in self.bitFlags:
-                    # Assume all flags have already been seen as they must appear first
-                    switchField = self.bitFlags.index(memberName)
-                else:
-                    raise Exception("Union Switchfields are not yet supported")
+                switchOperand = child.get("SwitchOperand")
+                if switchOperand == None:
+                    if switchValue != None:
+                        # Explicit value, no operand set, operand is equals
+                        switchOperand = "=="
+                    else:
+                        # No value and operand selected, anything not equal zero is true
+                        switchValue = 0
+                        switchOperand = "!="
             else:
-                switchField = -1
-                switchValue = 0
+                switchField = None
+                switchValue = None
+                switchOperand = None
             memberName = child.get("Name")
             memberName = memberName[:1].lower() + memberName[1:]
             memberTypeName = getTypeName(child.get("TypeName"))
             if memberTypeName == "Bit":
-                self.encodingMaskLength += 1
-                length = child.get("Length")
-                if length:
-                    self.encodingMaskLength += int(length) - 1
-                if not memberName.startswith("reserved"): # Ignore reserved fields for the struct definition
-                    self.bitFlags.append(memberName)
+                length = child.get("Length") or 1
+                self.bitFlags.append(memberName)
+                self.bitLength[memberName] = length
+                self.memberNames.append(memberName)
                 continue
             memberType = types[memberTypeName]
             isArray = True if child.get("LengthField") else False
-            self.members.append(StructMember(memberName, memberType, isArray, switchField, switchValue))
+            self.memberNames.append(memberName)
+            self.members.append(StructMember(memberName, memberType, isArray, switchField, switchValue, switchOperand))
 
         self.pointerfree = "true"
         self.overlayable = "true"
@@ -345,22 +356,23 @@ class StructType(Type):
         bitflag_template = """
         {{
             UA_TYPENAME("{typeName}") /* .memberName */
-            UA_BUILTIN_TYPES_COUNT + 1, /* HACK! FIXME! .memberTypeIndex */
+            UA_BUILTIN_TYPES_COUNT + 1, /* .memberTypeIndex */
             {padding}, /* .padding */
+            {length}, /* .bitFieldSize */
             true, /* .namespaceZero */
             false, /* .isArray */
-            true, /* .isFlag */
-            -1, /* .switchField */
-            0, /* .switchValue */
+            false /* .isOptional */
         }},
         """
-        # Generate encoding mask members, if there are any
+        # Generate bit flag members
         for i, flag in enumerate(self.bitFlags):
+            length = self.bitLength[flag]
             memberName = makeCIdentifier(flag)
             memberNameCapital = memberName
             if len(memberName) > 0:
                 memberNameCapital = memberName[0].upper() + memberName[1:]
-            data = VerbatimType(textwrap.dedent(bitflag_template.format(typeName=memberNameCapital, padding="0")))
+            data = VerbatimType(textwrap.dedent(bitflag_template.format(typeName=memberNameCapital, length=length, padding="0")))
+            self.memberNames.insert(i, memberName)
             self.members.insert(i, data)
         return super(StructType, self).members_c()
 
@@ -369,7 +381,8 @@ class StructType(Type):
             return "typedef void * UA_%s;" % makeCIdentifier(self.name)
         returnstr =  "typedef struct {\n"
         for flag in self.bitFlags:
-            returnstr += "    UA_Boolean %s : 1;\n" % makeCIdentifier(flag)
+            length = self.bitLength[flag]
+            returnstr += "    UA_Byte %s : %s;\n" % (makeCIdentifier(flag), length)
         for member in self.members:
             if member.isArray:
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
@@ -377,6 +390,37 @@ class StructType(Type):
             else:
                 returnstr += "    UA_%s %s;\n" % (makeCIdentifier(member.memberType.name), makeCIdentifier(member.name))
         return returnstr + "} UA_%s;" % makeCIdentifier(self.name)
+    
+    def encoding_mask_c(self):
+        func = super(StructType, self).encoding_mask_c()
+        if self.dataTypeKind == 3:
+            idName = makeCIdentifier(self.name)
+            currentField = 1
+            func +=  "static UA_INLINE UA_UInt32 \nUA_{idName}_encodingMask(const UA_{idName} *src) {{\n".format(idName=idName)
+            func += "    UA_UInt32 mask = 0;\n"
+            for m in self.members:
+                if hasattr(m, "switchField") and m.switchField != None:
+                    func += "    if(src->{switchField} {operand} {switchValue}){{ mask |= {currentField}; }}\n".format(
+                            switchField=m.switchField,
+                            operand=m.switchOperand,
+                            switchValue=m.switchValue,
+                            currentField=currentField,
+                        )
+                    currentField *= 2
+            func += "    return mask;\n"
+            func += "}\n"
+        return func
+
+    def encoding_h(self):
+        if self.dataTypeKind == 3:
+            # TODO: Structure with optional fields, generate code path with encoding mask variants
+            idName = makeCIdentifier(self.name)
+            enc = "static UA_INLINE size_t\nUA_{idName}_calcSizeBinary(const UA_{idName} *src) {{\n    return UA_calcSizeBinary(src, {dataTypePtr});\n}}\n"
+            enc += "static UA_INLINE UA_StatusCode\nUA_{idName}_encodeBinary(const UA_{idName} *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {{\n    return UA_encodeBinary(src, {dataTypePtr}, bufPos, &bufEnd, NULL, NULL);\n}}\n"
+            enc += "static UA_INLINE UA_StatusCode\nUA_{idName}_decodeBinary(const UA_ByteString *src, size_t *offset, UA_{idName} *dst) {{\n    return UA_decodeBinary(src, offset, dst, {dataTypePtr}, NULL);\n}}"
+            return enc.format(idName = idName, dataTypePtr = self.datatype_ptr())
+        else:
+            return super(StructType, self).encoding_h()
 
 #########################
 # Parse Typedefinitions #
@@ -697,7 +741,15 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "''' + outname + '''_generated.h"''')
+#include "''' + outname + '''_generated.h"
+''')
+
+for t in filtered_types:
+    encoding_mask_func = t.encoding_mask_c()
+    if encoding_mask_func:
+        printc("")
+        printc("/* " + t.name + " encoding mask function */")
+        printc(encoding_mask_func)
 
 for t in filtered_types:
     printc("")

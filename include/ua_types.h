@@ -537,6 +537,8 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType;
 
+typedef uint32_t (*encodingMaskSignature)(const void *UA_RESTRICT p);
+
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
 typedef enum {
@@ -789,16 +791,34 @@ typedef struct {
                                      padding before the size_t length member.
                                      (No padding between size_t and the
                                      following ptr.) */
+    UA_Byte bitFieldSize     : 3; /* If the member is a bitfield, how many bits are contained? Max. 7 */
     UA_Boolean namespaceZero : 1; /* The type of the member is defined in
                                      namespace zero. In this implementation,
                                      types from custom namespace may contain
                                      members from the same namespace or
                                      namespace zero only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
-    UA_Boolean isFlag        : 1; /* The member is a flag and will be encoded in the encoding mask*/
-    UA_SByte switchField;         /* The position of a switch flag if the parameter is optional, a negative value means non-optional */
-    UA_UInt32 switchValue;        /* The value for union and bit switches */
+    UA_Boolean isOptional    : 1; /* The member is optional and might not appear in the binary encoding */
 } UA_DataTypeMember;
+
+#define UA_OPTSTRUCTURE_ENCODINGMASK_SIZE 4 /* Size of the encoding mask of a structure with optional fields */
+
+typedef enum {
+    UA_DATATYPEKIND_BUILTIN = 0, /* Including decimal (still unsupported) */
+    UA_DATATYPEKIND_ENUMERATION = 1,
+    UA_DATATYPEKIND_STRUCTURE = 2,
+    UA_DATATYPEKIND_OPTSTRUCTURE = 3, /* A structure with optional fields */
+    UA_DATATYPEKIND_UNION = 4, /* At most one field is active */
+    UA_DATATYPEKIND_OPAQUE = 5,
+    /* The following are bitfields that indicate simplified handling */
+    UA_DATATYPEKIND_POINTERFREE = 32, /* The type (and its members) contains no
+                                    pointers that need to be freed */
+    UA_DATATYPEKIND_OVERLAYABLE = 64, /* The type has the identical memory layout in
+                                    memory and on the binary stream */
+    UA_DATATYPEKIND_BITMASK = 31, /* Bitmask to filter out flags */
+} UA_DataTypeKind;
+
+#define UA_DATATYPE_IS(type, kind_enum) (((type)->kind & UA_DATATYPEKIND_BITMASK) == kind_enum)
 
 struct UA_DataType {
 #ifdef UA_ENABLE_TYPENAMES
@@ -807,16 +827,12 @@ struct UA_DataType {
     UA_NodeId  typeId;           /* The nodeid of the type */
     UA_UInt16  memSize;          /* Size of the struct in memory */
     UA_UInt16  typeIndex;        /* Index of the type in the datatypetable */
+    UA_Byte    kind;             /* Which kind of datatype is this? One byte enum/bitfield */
     UA_Byte    membersSize;      /* How many members does the type have? */
-    UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
-                                    and encoding functions */
-    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
-                                    pointers that need to be freed */
-    UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
-                                    memory and on the binary stream. */
     UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */
     //UA_UInt16  xmlEncodingId;  /* NodeId of datatype when encoded as XML */
-    UA_DataTypeMember *members;
+    UA_DataTypeMember *members;  /* Member type array for this datatype */
+    encodingMaskSignature encodingMaskFunc; /* The encoding mask function for the type if it has optional fields, otherwise NULL */
 };
 
 /* Test if the data type is a numeric builtin data type. This includes Boolean,

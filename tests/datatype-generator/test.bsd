@@ -7,6 +7,19 @@
         <opc:Field TypeName="opc:Byte" Name="Data"/>
     </opc:StructuredType>
 
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ObjectWithBitFieldAndOption">
+        <opc:Field TypeName="opc:Bit" Name="BitField"/>
+        <opc:Field Length="7" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:Byte" Name="Data" SwitchField="BitField"/>
+    </opc:StructuredType>
+
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DoubleSwitch">
+        <opc:Field TypeName="opc:Bit" Name="Option"/>
+        <opc:Field Length="7" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteOne" SwitchField="Option"/>
+        <opc:Field TypeName="opc:Byte" Name="OptionalByteTwo" SwitchField="Option"/>
+    </opc:StructuredType>
+
     <opc:StructuredType BaseType="ua:ExtensionObject" Name="ObjectWithNineBits">
         <opc:Field TypeName="opc:Bit" Name="BitField0"/>
         <opc:Field TypeName="opc:Bit" Name="BitField1"/>
@@ -17,7 +30,7 @@
         <opc:Field TypeName="opc:Bit" Name="BitField6"/>
         <opc:Field TypeName="opc:Bit" Name="BitField7"/>
         <opc:Field TypeName="opc:Bit" Name="BitField8"/>
-        <opc:Field Length="7" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:Bit" Name="Reserved1" Length="7"/>
         <opc:Field TypeName="opc:Byte" Name="Data" SwitchField="BitField8"/>
     </opc:StructuredType>
 
@@ -37,6 +50,45 @@
         <opc:Field TypeName="opc:Byte" Name="NotTwo" SwitchField="OptionTwo" SwitchValue="0"/>
         <opc:Field TypeName="opc:Byte" Name="YesTwo" SwitchField="OptionTwo" SwitchValue="1"/>
         <opc:Field TypeName="opc:Byte" Name="AlsoNotOne" SwitchField="OptionOne" SwitchValue="0"/>
+    </opc:StructuredType>
+
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaximumOptional">
+        <opc:Field TypeName="opc:Bit" Name="OptionOne"/>
+        <opc:Field TypeName="opc:Bit" Name="OptionTwo"/>
+        <opc:Field TypeName="opc:Bit" Name="OptionOther"/>
+        <opc:Field Length="5" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field TypeName="opc:Byte" Name="First" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Second" SwitchField="OptionOne"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc2" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc3" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc4" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc5" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc6" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc7" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc8" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc9" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc10" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc11" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc12" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc13" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc14" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc15" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc16" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc17" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc18" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc19" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc20" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc21" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc22" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc23" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc24" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc25" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc26" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc27" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Misc28" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="ThirdLast" SwitchField="OptionTwo"/>
+        <opc:Field TypeName="opc:Byte" Name="SecondLast" SwitchField="OptionOther"/>
+        <opc:Field TypeName="opc:Byte" Name="Last" SwitchField="OptionOther"/>
     </opc:StructuredType>
 
 </opc:TypeDictionary>

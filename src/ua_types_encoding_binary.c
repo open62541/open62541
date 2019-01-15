@@ -440,7 +440,7 @@ static status
 Array_encodeBinaryComplex(uintptr_t ptr, size_t length, const UA_DataType *type, Ctx *ctx) {
     /* Get the encoding function for the data type. The jumptable at
      * UA_BUILTIN_TYPES_COUNT points to the generic UA_encodeBinary method */
-    size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    size_t encode_index = UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN) ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
     encodeBinarySignature encodeType = encodeBinaryJumpTable[encode_index];
 
     /* Encode every element */
@@ -485,7 +485,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type, Ctx 
         return ret;
 
     /* Encode the content */
-    if(!type->overlayable)
+    if(!(type->kind & UA_DATATYPEKIND_OVERLAYABLE))
         return Array_encodeBinaryComplex((uintptr_t)src, length, type, ctx);
     return Array_encodeBinaryOverlayable((uintptr_t)src, length, type->memSize, ctx);
 }
@@ -521,7 +521,7 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    if(type->overlayable) {
+    if(type->kind & UA_DATATYPEKIND_OVERLAYABLE) {
         /* memcpy overlayable array */
         if(ctx->end < ctx->pos + (type->memSize * length)) {
             UA_free(*dst);
@@ -533,7 +533,7 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
     } else {
         /* Decode array members */
         uintptr_t ptr = (uintptr_t)*dst;
-        size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        size_t decode_index = type->kind & UA_DATATYPEKIND_OVERLAYABLE ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
         for(size_t i = 0; i < length; ++i) {
             ret = decodeBinaryJumpTable[decode_index]((void*)ptr, type, ctx);
             if(ret != UA_STATUSCODE_GOOD) {
@@ -928,7 +928,7 @@ ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *ty
     /* Decode */
     dst->encoding = UA_EXTENSIONOBJECT_DECODED;
     dst->content.decoded.type = type;
-    size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    size_t decode_index = UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN) ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
     return decodeBinaryJumpTable[decode_index](dst->content.decoded.data, type, ctx);
 }
 
@@ -1024,9 +1024,9 @@ ENCODE_BINARY(Variant) {
         return ENCODE_DIRECT(&encoding, Byte);
 
     /* Set the content type in the encoding mask */
-    const UA_Boolean isBuiltin = src->type->builtin;
+    const UA_Boolean isBuiltin = UA_DATATYPE_IS(src->type, UA_DATATYPEKIND_BUILTIN);
     const UA_Boolean isAlias = src->type->membersSize == 1
-                         && UA_TYPES[src->type->members[0].memberTypeIndex].builtin;
+                         && UA_DATATYPE_IS(&UA_TYPES[src->type->members[0].memberTypeIndex], UA_DATATYPEKIND_BUILTIN);
     if(isBuiltin)
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeIndex + 1);
     else if(isAlias)
@@ -1102,7 +1102,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Decode the content */
-    size_t decode_index = dst->type->builtin ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    size_t decode_index = UA_DATATYPE_IS(dst->type, UA_DATATYPEKIND_BUILTIN) ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
     return decodeBinaryJumpTable[decode_index](dst->data, dst->type, ctx);
 }
 
@@ -1387,11 +1387,16 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
     ctx->depth++;
 
     uintptr_t ptr = (uintptr_t)src;
+    size_t bitcount = 0;
     status ret = UA_STATUSCODE_GOOD;
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
 
-    size_t flagCount = 0;
+    UA_UInt32 encodingMask = 0;
+    if(UA_DATATYPE_IS(type, UA_DATATYPEKIND_OPTSTRUCTURE)) {
+        encodingMask = type->encodingMaskFunc(src);
+        ret = UInt32_encodeBinary(&encodingMask, type, ctx);
+    }
 
     /* Loop over members */
     for(size_t i = 0; i < membersSize; ++i) {
@@ -1399,19 +1404,20 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         ptr += member->padding;
 
-        /* Encoding mask flags must not appear after a proper member, just count and write out the bytes */
-        if(member->isFlag) {
-            flagCount++;
+        if(member->bitFieldSize > 0) {
+            bitcount += member->bitFieldSize;
             continue;
         }
 
-        if(flagCount > 0) {
-            // Encode all encoding mask bytes. This block should only ever be triggered once
-            for(size_t x = 0; x <= flagCount / 8; ++x) {
-                Byte_encodeBinary((const UA_Byte*)ptr, membertype, ctx);
-                ptr += sizeof(UA_Byte);
+        if(bitcount > 0) {
+            // Just closed a bitfield
+            size_t bytes = bitcount / 8;
+            for(size_t b = 0; b < bytes; ++b) {
+                // Encode bytewise into output stream TODO: exchange/buffer send
+                ret = Byte_encodeBinary((const UA_Byte*)ptr, membertype, ctx);
+                ptr++;
             }
-            flagCount = 0;
+            bitcount = 0;
         }
 
         /* Array. Buffer-exchange is done inside Array_encodeBinary if required. */
@@ -1424,22 +1430,17 @@ encodeBinaryInternal(const void *src, const UA_DataType *type, Ctx *ctx) {
         }
 
         bool enabled = true;
-        /* Optional */
-        if(member->switchField >= 0) {
-            const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
-            const UA_Byte mask = (UA_Byte)(1 << (member->switchField % 8));
-            UA_Byte compare = ((const UA_Byte *)src)[offset];
-            if(member->switchValue == 0) {
-                // Invert the compare mask
-                compare = (UA_Byte)~compare;
+        if(member->isOptional) {
+            if(!(encodingMask & 1)) {
+                enabled = false;
             }
-            enabled = compare & mask;
+            encodingMask >>= 1; // Shift out the current option
         }
         /* Scalar */
-        size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
         size_t memSize = membertype->memSize;
         u8 *oldpos = ctx->pos;
         if(enabled) {
+            size_t encode_index = UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN) ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
             ret = encodeBinaryJumpTable[encode_index]((const void*)ptr, membertype, ctx);
         }
         ptr += memSize;
@@ -1526,11 +1527,16 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
     ctx->depth++;
 
     uintptr_t ptr = (uintptr_t)dst;
+    size_t bitcount = 0;
     status ret = UA_STATUSCODE_GOOD;
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
 
-    size_t flagCount = 0;
+    UA_UInt32 encodingMask = 0;
+    if(UA_DATATYPE_IS(type, UA_DATATYPEKIND_OPTSTRUCTURE)) {
+        // Structure with optional types, decode encoding mask first
+        ret = UInt32_decodeBinary((UA_UInt32 *UA_RESTRICT)&encodingMask, 0, ctx);
+    }
 
     /* Loop over members */
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
@@ -1539,18 +1545,20 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
         ptr += member->padding;
 
         /* Encoding flags */
-        if(member->isFlag) {
-            flagCount++;
+        if(member->bitFieldSize > 0) {
+            bitcount += member->bitFieldSize;
             continue;
         }
 
-        if(flagCount > 0) {
-            // Decode all encoding mask bytes. This block should only ever be triggered once
-            for(size_t x = 0; x <= flagCount / 8; ++x) {
-                Byte_decodeBinary((UA_Byte *UA_RESTRICT)ptr, membertype, ctx);
-                ptr += sizeof(UA_Byte);
+        if(bitcount > 0) {
+            // Just finished a bit field, copy the bytes
+            size_t bytes = bitcount / 8;
+            for(size_t b = 0; b < bytes; ++b) {
+                // Encode bytewise into output stream TODO: exchange/buffer send
+                ret = Byte_decodeBinary((UA_Byte*)ptr, membertype, ctx);
+                ptr++;
             }
-            flagCount = 0;
+            bitcount = 0;
         }
 
         /* Array */
@@ -1563,19 +1571,13 @@ decodeBinaryInternal(void *dst, const UA_DataType *type, Ctx *ctx) {
         }
 
         bool enabled = true;
-        /* Optional */
-        if(member->switchField >= 0) {
-            const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
-            const UA_Byte mask = (UA_Byte)(1 << (member->switchField % 8));
-            UA_Byte compare = ((const UA_Byte *)dst)[offset];
-            if(member->switchValue == 0) {
-                compare = (UA_Byte)~compare;
-            }
-            enabled = compare & mask;
+        if(member->isOptional) {
+            enabled = encodingMask & 1;
+            encodingMask >>= 1;
         }
 
         /* Scalar */
-        size_t fi = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        size_t fi = UA_DATATYPE_IS(membertype, UA_DATATYPEKIND_BUILTIN) ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
         size_t memSize = membertype->memSize;
         if(enabled) {
             ret = decodeBinaryJumpTable[fi]((void *UA_RESTRICT)ptr, membertype, ctx);
@@ -1621,12 +1623,12 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
 static size_t
 Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *type) {
     size_t s = 4; /* length */
-    if(type->overlayable) {
+    if(type->kind & UA_DATATYPEKIND_OVERLAYABLE) {
         s += type->memSize * length;
         return s;
     }
     uintptr_t ptr = (uintptr_t)src;
-    size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    size_t encode_index = UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN) ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
     for(size_t i = 0; i < length; ++i) {
         s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, type);
         ptr += type->memSize;
@@ -1723,7 +1725,7 @@ CALCSIZE_BINARY(ExtensionObject) {
     s += NodeId_calcSizeBinary(&src->content.decoded.type->typeId, NULL); /* Type encoding length */
     s += 4; /* Encoding length field */
     const UA_DataType *type = src->content.decoded.type;
-    size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    size_t encode_index = UA_DATATYPE_IS(type, UA_DATATYPEKIND_BUILTIN) ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
     s += calcSizeBinaryJumpTable[encode_index](src->content.decoded.data, type); /* Encoding length */
     return s;
 }
@@ -1735,7 +1737,7 @@ CALCSIZE_BINARY(Variant) {
 
     UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
-    UA_Boolean isBuiltin = src->type->builtin;
+    UA_Boolean isBuiltin = UA_DATATYPE_IS(src->type, UA_DATATYPEKIND_BUILTIN);
 
 
     size_t encode_index = src->type->typeIndex;
@@ -1832,10 +1834,17 @@ const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1
 size_t
 UA_calcSizeBinary(const void *p, const UA_DataType *type) {
     size_t s = 0;
-    size_t flagCount = 0;
     uintptr_t ptr = (uintptr_t)p;
+    size_t bitcount = 0;
     u8 membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+
+    UA_UInt32 encodingMask = 0;
+    if(UA_DATATYPE_IS(type, UA_DATATYPEKIND_OPTSTRUCTURE)) {
+        /* Encoding mask for structures with optional fields */
+        s += UA_OPTSTRUCTURE_ENCODINGMASK_SIZE;
+        encodingMask = type->encodingMaskFunc(p);
+    }
 
     /* Loop over members */
     for(size_t i = 0; i < membersSize; ++i) {
@@ -1843,16 +1852,15 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         ptr += member->padding;
 
-        /* Encoding mask flags */
-        if(member->isFlag) {
-            flagCount++;
+        if(member->bitFieldSize > 0) {
+            bitcount += member->bitFieldSize;
             continue;
         }
-        if(flagCount > 0) {
-            // Reserve enough space for encoding mask bytes. This block should only ever be triggered once
-            ptr += (flagCount / 8) + 1;
-            s += (flagCount / 8) + 1;
-            flagCount = 0;
+
+        if(bitcount > 0) {
+            s += bitcount / 8;
+            ptr += bitcount / 8;
+            bitcount = 0;
         }
 
         /* Array */
@@ -1865,19 +1873,15 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type) {
         }
 
         bool enabled = true;
-        /* Optional field check */
-        if(member->switchField >= 0) {
-            const UA_UInt32 offset = (UA_UInt32)(member->switchField / 8);
-            const UA_Byte mask = (UA_Byte)(1 << (member->switchField % 8));
-            UA_Byte compare = ((const UA_Byte *)p)[offset];
-            if(member->switchValue == 0) {
-                compare = (UA_Byte)~compare;
+        if(member->isOptional) {
+            if(!(encodingMask & 1)) {
+                enabled = false;
             }
-            enabled = compare & mask;
+            encodingMask >>= 1; // Shift out the current option
         }
         /* Scalar */
         if(enabled) {
-            size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t encode_index = UA_DATATYPE_IS(membertype, UA_DATATYPEKIND_BUILTIN) ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
             s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
         }
         ptr += membertype->memSize;

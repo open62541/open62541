@@ -28,32 +28,44 @@ static void teardown(void) {
 
 // Note: the check for builtin types verifies, that calculated sizes do not change arbitrarily
 
-START_TEST(Datatypes_check_encoding_mask_members) {
-    // Ensure all bitfield members are accounted for
+START_TEST(Datatypes_check_bitfield_members) {
+    // Ensure all bitfield members are accounted for, even padding members
     int memberCount = TEST_TYPES[TEST_TYPES_OBJECTWITHBITFIELD].membersSize;
-    ck_assert_uint_eq(memberCount, 2);
+    ck_assert_uint_eq(memberCount, 3); // bitfield, padding field and proper member
 
     memberCount = TEST_TYPES[TEST_TYPES_OBJECTWITHBITSOPTIONALFIELDS].membersSize;
-    ck_assert_uint_eq(memberCount, 4);
+    ck_assert_uint_eq(memberCount, 5); // Two bit fields, padding bitfield and two members
 }
 END_TEST
 
-START_TEST(Datatypes_check_encoding_mask_size) {
-    // Ensure that the calculated size accounts for all bit fields and pads properly
+START_TEST(Datatypes_check_bitfield_calculated_size) {
+    // Ensure that the calculated size accounts for all bit fields
+    size_t itemSize = sizeof(UA_ObjectWithBitField);
     UA_ObjectWithBitField *item0 = UA_ObjectWithBitField_new();
     size_t encodedSize = UA_ObjectWithBitField_calcSizeBinary(item0);
     UA_ObjectWithBitField_delete(item0);
-    ck_assert_uint_eq(encodedSize, 2); // 1 byte data + 1 byte for the encoding mask
-
-    UA_ObjectWithNineBits *item1 = UA_ObjectWithNineBits_new();
-    item1->bitField8 = true;
-    encodedSize = UA_ObjectWithNineBits_calcSizeBinary(item1);
-    UA_ObjectWithNineBits_delete(item1);
-    ck_assert_uint_eq(encodedSize, 3); // 1 byte data + 2 bytes for the encoding mask
+    ck_assert_uint_eq(encodedSize, itemSize); // bitfield including padding fits one byte, one byte payload, nothing optional
 }
 END_TEST
 
-START_TEST(Datatypes_check_encoding_mask_size_with_option) {
+
+START_TEST(Datatypes_check_encoding_mask_size) {
+    const size_t expectedSize = sizeof(UA_ObjectWithBitField);
+    // The two StructuredTypes are declared the same way, except for a SwitchField
+    UA_ObjectWithBitField *item0 = UA_ObjectWithBitField_new();
+    size_t encodedSize = UA_ObjectWithBitField_calcSizeBinary(item0);
+    UA_ObjectWithBitField_delete(item0);
+    ck_assert_uint_eq(encodedSize, expectedSize);
+
+    UA_ObjectWithBitFieldAndOption *item1 = UA_ObjectWithBitFieldAndOption_new();
+    item1->bitField = 1; // Make sure the option is enabled
+    encodedSize = UA_ObjectWithBitFieldAndOption_calcSizeBinary(item1);
+    UA_ObjectWithBitFieldAndOption_delete(item1);
+    ck_assert_uint_eq(encodedSize, expectedSize + 4);
+}
+END_TEST
+
+START_TEST(Datatypes_check_optional_field_sizes) {
     // Ensure that disabled optional fields are accounted for in the size calculations
     UA_ObjectWithBitsOptionalFields item;
     UA_ObjectWithBitsOptionalFields_init(&item);
@@ -64,22 +76,40 @@ START_TEST(Datatypes_check_encoding_mask_size_with_option) {
     item.optionalByteTwo = 0x42;
 
     size_t encodedSize = UA_ObjectWithBitsOptionalFields_calcSizeBinary(&item);
-    ck_assert_uint_eq(encodedSize, 1); // 1 byte encoding mask
+    ck_assert_uint_eq(encodedSize, 5); // 4 bytes encoding mask, 1 byte bitflags
 
     item.optionOne = true;
     item.optionTwo = false;
     encodedSize = UA_ObjectWithBitsOptionalFields_calcSizeBinary(&item);
-    ck_assert_uint_eq(encodedSize, 2); // 1 byte encoding mask, one optional byte
+    ck_assert_uint_eq(encodedSize, 6); // 4 bytes encoding mask, 1 byte bitflags, 1 optional byte
 
     item.optionOne = false;
     item.optionTwo = true;
     encodedSize = UA_ObjectWithBitsOptionalFields_calcSizeBinary(&item);
-    ck_assert_uint_eq(encodedSize, 2); // 1 byte encoding mask + one optional byte
+    ck_assert_uint_eq(encodedSize, 6); // 4 bytes encoding mask, 1 byte bitflags, 1 optional byte
 
     item.optionOne = true;
     item.optionTwo = true;
     encodedSize = UA_ObjectWithBitsOptionalFields_calcSizeBinary(&item);
-    ck_assert_uint_eq(encodedSize, 3); // 1 byte encoding mask + two optional bytes
+    ck_assert_uint_eq(encodedSize, 7); // 4 bytes encoding mask, 1 byte bitflags, 2 optional bytes
+}
+END_TEST
+
+START_TEST(Datatypes_check_multi_switch_size) {
+    // Ensure that disabled optional fields are accounted for in the size calculations
+    UA_DoubleSwitch item;
+    UA_DoubleSwitch_init(&item);
+
+    item.option = false;
+    item.optionalByteOne = 0x55;
+    item.optionalByteTwo = 0x42;
+
+    size_t encodedSize = UA_DoubleSwitch_calcSizeBinary(&item);
+    ck_assert_uint_eq(encodedSize, 5); // 4 bytes encoding mask, 1 byte bitflags
+
+    item.option = true;
+    encodedSize = UA_DoubleSwitch_calcSizeBinary(&item);
+    ck_assert_uint_eq(encodedSize, 7); // 4 bytes encoding mask, 1 byte bitflags, 2 optional byte
 }
 END_TEST
 
@@ -94,6 +124,7 @@ START_TEST(Datatypes_check_encoding_mask_serialize) {
     item->data = 42;
 
     size_t buflen = UA_calcSizeBinary(item, &TEST_TYPES[TEST_TYPES_OBJECTWITHNINEBITS]);
+    ck_assert_uint_eq(buflen, 7); // 4 bytes encoding mask, 2 bytes bitflags, 1 byte data
     UA_ByteString buf;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -105,20 +136,48 @@ START_TEST(Datatypes_check_encoding_mask_serialize) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_ObjectWithNineBits_delete(item);
 
-    ck_assert_uint_eq(buf.data[0], 0x55); // 0b10101010 first encoding mask byte
-    ck_assert_uint_eq(buf.data[1], 0x01); // 0b00000001 second encoding mask byte
-    ck_assert_uint_eq(buf.data[2], 42); // Byte payload as set
+    ck_assert_uint_eq(*((const UA_UInt32*)buf.data), 1); // encoding mask
+    ck_assert_uint_eq(buf.data[4], 0x55); // 0b10101010 bitflag byte 1
+    ck_assert_uint_eq(buf.data[5], 0x01); // 0b00000001 bitflag byte 2
+    ck_assert_uint_eq(buf.data[6], 42);   // Byte payload as set
+    UA_ByteString_deleteMembers(&buf);
+}
+END_TEST
+
+START_TEST(Datatypes_check_encoding_mask_full_range) {
+    UA_MaximumOptional *item = UA_MaximumOptional_new();
+
+    item->optionOne = true;
+    item->optionTwo = true;
+    item->optionOther = false;
+
+    size_t buflen = UA_calcSizeBinary(item, &TEST_TYPES[TEST_TYPES_MAXIMUMOPTIONAL]);
+    ck_assert_uint_eq(buflen, 7); // 4 bytes encoding mask, 1 byte bitflags, 2 bytes data
+    UA_ByteString buf;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte *bufPos = buf.data;
+    const UA_Byte *bufEnd = &buf.data[buf.length];
+
+    retval = UA_MaximumOptional_encodeBinary(item, &bufPos, bufEnd);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_MaximumOptional_delete(item);
+
+    ck_assert_uint_eq(*((const UA_UInt32*)buf.data), 0x20000002); // encoding mask 0b00100000000000000000000000000010
+    ck_assert_uint_eq(buf.data[4], 0x03); // 0b00000101 bitflag byte 1
     UA_ByteString_deleteMembers(&buf);
 }
 END_TEST
 
 START_TEST(Datatypes_check_encoding_mask_deserialize) {
     UA_Byte data[] = {
-                0x89, // 0b10001001
-                0x01, // 0b00000001
+                0x00, 0x00, 0x00, 0x00, // 4 byte encoding mask, will set later
+                0x89, 0x01, // bitfields
                 0x12, // Data 18
             };
-    UA_ByteString src    = { 3, data };
+    *((UA_UInt32*)data) = 1; // Set the correct flag in the encoding mask
+    UA_ByteString src    = { 7, data };
 
     UA_ObjectWithNineBits item;
     UA_ObjectWithNineBits_init(&item);
@@ -151,8 +210,8 @@ START_TEST(Datatypes_check_optional_fields_encoding) {
     option_item.optionalByteTwo = 0x23;
 
     // if serialized into a buffer to hold the encoding mask and optional fields only
-    UA_Byte data[] = { 0x55, 0x55 };
-    UA_ByteString dst = { 2, data };
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
+    UA_ByteString dst = { 7, data };
 
     UA_Byte *bufPos = dst.data;
     const UA_Byte *bufEnd = &dst.data[dst.length];
@@ -161,8 +220,8 @@ START_TEST(Datatypes_check_optional_fields_encoding) {
     // encoding should succeed
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(dst.data[0], 0x02); // Encoding mask indicates optionTwo
-    ck_assert_int_eq(dst.data[1], 0x23); // Value is optionalByteTwo
+    ck_assert_uint_eq(*((const UA_UInt32*)dst.data), 2); // encoding mask 0b00000000000000000000000000000010
+    ck_assert_int_eq(dst.data[5], 0x23); // Value is optionalByteTwo
 }
 END_TEST
 
@@ -172,8 +231,9 @@ START_TEST(Datatypes_check_optional_fields_decoding) {
     UA_ObjectWithBitsOptionalFields_init(&option_item);
 
     // if serialized into a buffer to hold the encoding mask and optional fields only
-    UA_Byte singleData[] = { 0x01, 0x54 }; // Option one enabled
-    UA_ByteString singleSrc = { 2, singleData };
+    UA_Byte singleData[] = { 0x55, 0x55, 0x55, 0x55, 0x01, 0x54 };
+    UA_ByteString singleSrc = { 6, singleData };
+    *((UA_UInt32*)singleData) = 1;
 
     size_t offset = 0;
     UA_StatusCode retval = UA_ObjectWithBitsOptionalFields_decodeBinary(&singleSrc, &offset, &option_item);
@@ -186,7 +246,8 @@ START_TEST(Datatypes_check_optional_fields_decoding) {
     ck_assert_int_eq(option_item.optionalByteTwo, 0);
 
     // switch fields
-    singleSrc.data[0] = 2; // Option two enabled
+    singleSrc.data[4] = 2; // Option two enabled
+    *((UA_UInt32*)singleData) = 2;
     offset = 0;
     UA_ObjectWithBitsOptionalFields_init(&option_item); // clear the item
     retval = UA_ObjectWithBitsOptionalFields_decodeBinary(&singleSrc, &offset, &option_item);
@@ -199,8 +260,9 @@ START_TEST(Datatypes_check_optional_fields_decoding) {
     ck_assert_int_eq(option_item.optionalByteTwo, 0x54);
 
     // Test decoding of two optional fields
-    UA_Byte dualData[] = { 0x03, 0x12, 0x34 };
-    UA_ByteString doubleSrc = { 3, dualData };
+    UA_Byte dualData[] = { 0x55, 0x55, 0x55, 0x55, 0x03, 0x12, 0x34 };
+    UA_ByteString doubleSrc = { 7, dualData };
+    *((UA_UInt32*)dualData) = 3; // Both optional bits enabled
 
     offset = 0;
     UA_ObjectWithBitsOptionalFields_init(&option_item); // clear the item
@@ -228,10 +290,10 @@ START_TEST(Datatypes_check_optional_fields_fieldValue) {
     option_item.alsoNotOne = 0x67;
 
     size_t buflen = UA_SwitchValueObject_calcSizeBinary(&option_item);
-    ck_assert_int_eq(buflen, 4);
+    ck_assert_int_eq(buflen, 8);
 
-    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55 };
-    UA_ByteString dst = { 4, data };
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
+    UA_ByteString dst = { 8, data };
 
     UA_Byte *bufPos = dst.data;
     const UA_Byte *bufEnd = &dst.data[dst.length];
@@ -240,20 +302,21 @@ START_TEST(Datatypes_check_optional_fields_fieldValue) {
     // encoding should succeed
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(dst.data[0], 0x00); // Encoding mask is empty
-    ck_assert_int_eq(dst.data[1], 0x12); // notOne
-    ck_assert_int_eq(dst.data[2], 0x23); // notTwo
-    ck_assert_int_eq(dst.data[3], 0x67); // alsoNotOne
+    *((UA_UInt32*)data) = 11;
+    ck_assert_int_eq(dst.data[4], 0x00);
+    ck_assert_int_eq(dst.data[5], 0x12);
+    ck_assert_int_eq(dst.data[6], 0x23);
+    ck_assert_int_eq(dst.data[7], 0x67);
 
     // Alter the options and encode again
     option_item.optionOne = true;
     option_item.optionTwo = true;
 
     buflen = UA_SwitchValueObject_calcSizeBinary(&option_item);
-    ck_assert_int_eq(buflen, 2); // encoding mask and yesTwo
+    ck_assert_int_eq(buflen, 6);
 
-    UA_Byte data2[] = { 0x55, 0x55 };
-    UA_ByteString dst2 = { 2, data2 };
+    UA_Byte data2[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
+    UA_ByteString dst2 = { 6, data2 };
 
     UA_Byte *bufPos2 = dst2.data;
     const UA_Byte *bufEnd2 = &dst2.data[dst2.length];
@@ -262,8 +325,9 @@ START_TEST(Datatypes_check_optional_fields_fieldValue) {
     // encoding should succeed
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(dst2.data[0], 0x03); // Encoding mask
-    ck_assert_int_eq(dst2.data[1], 0x45); // yesTwo
+    *((UA_UInt32*)data2) = 4;
+    ck_assert_int_eq(dst2.data[4], 3); // The option bitfields
+    ck_assert_int_eq(dst2.data[5], 0x45);
 }
 END_TEST
 
@@ -338,10 +402,13 @@ static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Datatype generator test");
     TCase *tc_server = tcase_create("Optional field test");
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
-    tcase_add_test(tc_server, Datatypes_check_encoding_mask_members);
+    tcase_add_test(tc_server, Datatypes_check_bitfield_members);
+    tcase_add_test(tc_server, Datatypes_check_bitfield_calculated_size);
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_size);
-    tcase_add_test(tc_server, Datatypes_check_encoding_mask_size_with_option);
+    tcase_add_test(tc_server, Datatypes_check_optional_field_sizes);
+    tcase_add_test(tc_server, Datatypes_check_multi_switch_size);
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_serialize);
+    tcase_add_test(tc_server, Datatypes_check_encoding_mask_full_range);
     tcase_add_test(tc_server, Datatypes_check_encoding_mask_deserialize);
     tcase_add_test(tc_server, Datatypes_check_optional_fields_encoding);
     tcase_add_test(tc_server, Datatypes_check_optional_fields_decoding);
