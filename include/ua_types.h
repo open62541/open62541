@@ -791,7 +791,7 @@ typedef struct {
                                      padding before the size_t length member.
                                      (No padding between size_t and the
                                      following ptr.) */
-    UA_Byte bitFieldSize     : 3; /* If the member is a bitfield, how many bits are contained? Max. 7 */
+    UA_Byte bitFieldSize;         /* If the member is a bitfield, how many bits are contained? Max. 7 */
     UA_Boolean namespaceZero : 1; /* The type of the member is defined in
                                      namespace zero. In this implementation,
                                      types from custom namespace may contain
