@@ -369,7 +369,7 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
     ++conf->securityPoliciesSize;
     retval =
         UA_SecurityPolicy_Basic128Rsa15(&conf->securityPolicies[1], &conf->certificateVerification,
-                                        localCertificate, localPrivateKey, conf->logger);
+                                        localCertificate, localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -469,7 +469,7 @@ UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
     ++conf->securityPoliciesSize;
     retval =
         UA_SecurityPolicy_Basic256Sha256(&conf->securityPolicies[1], &conf->certificateVerification,
-                                         localCertificate, localPrivateKey, conf->logger);
+                                         localCertificate, localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -569,7 +569,7 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
     ++conf->securityPoliciesSize;
     retval =
         UA_SecurityPolicy_Basic128Rsa15(&conf->securityPolicies[1], &conf->certificateVerification,
-                                        localCertificate, localPrivateKey, conf->logger);
+                                        localCertificate, localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -577,7 +577,7 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
     ++conf->securityPoliciesSize;
     retval =
         UA_SecurityPolicy_Basic256Sha256(&conf->securityPolicies[2], &conf->certificateVerification,
-                                         localCertificate, localPrivateKey, conf->logger);
+                                         localCertificate, localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
