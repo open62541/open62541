@@ -379,7 +379,6 @@ static UA_StatusCode
 removeConnection(void *userData, UA_Socket *sock) {
     (void)sock;
     UA_Connection *const connection = (UA_Connection *const)userData;
-    printf("\n\nremove connection\n\n");
     return UA_Connection_free(connection);
 }
 

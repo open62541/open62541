@@ -1348,7 +1348,6 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
     /* The wrong ChannelId. Non-opened channels have the id zero. */
     if(messageHeader.secureChannelId != channel->securityToken.channelId &&
        channel->state != UA_SECURECHANNELSTATE_FRESH) {
-        printf("\n\n\n\n ERROR \n\n\n\n");
         return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
     }
 #endif

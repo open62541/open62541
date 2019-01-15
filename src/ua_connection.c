@@ -26,23 +26,6 @@ typedef struct {
     UA_Socket *sock;
 } UA_Connection_internalData;
 
-
-UA_StatusCode
-UA_Connection_free(UA_Connection *connection) {
-    if(connection == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOG_DEBUG(connection->logger, UA_LOGCATEGORY_NETWORK,
-                 "Freeing connection %p", (void *)connection);
-    if(connection->connectionManager != NULL)
-        UA_ConnectionManager_remove(connection->connectionManager, connection);
-    if(connection->channel != NULL)
-        UA_SecureChannel_close(connection->channel);
-    UA_ByteString_deleteMembers(&connection->chunkBuffer);
-    UA_free(connection->internalData);
-    UA_free(connection);
-    return UA_STATUSCODE_GOOD;
-}
-
 void UA_Connection_old_deleteMembers(UA_Connection_old *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteChunk);
 }
@@ -576,7 +559,7 @@ UA_Connection_assembleChunk(UA_Connection *connection, UA_ByteString *buffer, UA
             if(buffer->length < bytesToCopy)
                 bytesToCopy = buffer->length;
             memcpy(connection->chunkBuffer.data + connection->chunkBuffer.length,
-                   buffer->data, bytesToCopy);
+                   buffer->data + alreadyCopied, bytesToCopy);
             connection->chunkBuffer.length += bytesToCopy;
             alreadyCopied += bytesToCopy;
         }
@@ -639,9 +622,26 @@ error:
 
 UA_StatusCode
 UA_Connection_close(UA_Connection *connection) {
+    if(connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_GOOD;
     connection->state = UA_CONNECTION_CLOSED;
     if(connection->channel != NULL)
         UA_SecureChannel_close(connection->channel);
-    printf("\n\nconnection close\n\n");
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Connection_free(UA_Connection *connection) {
+    if(connection == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOG_DEBUG(connection->logger, UA_LOGCATEGORY_NETWORK,
+                 "Freeing connection %p", (void *)connection);
+    if(connection->connectionManager != NULL)
+        UA_ConnectionManager_remove(connection->connectionManager, connection);
+    if(connection->channel != NULL)
+        UA_SecureChannel_close(connection->channel);
+    UA_ByteString_deleteMembers(&connection->chunkBuffer);
+    UA_free(connection->internalData);
+    UA_free(connection);
     return UA_STATUSCODE_GOOD;
 }
