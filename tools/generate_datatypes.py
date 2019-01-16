@@ -375,7 +375,18 @@ class StructType(Type):
     def typedef_h(self):
         if len(self.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(self.name)
-        returnstr =  "typedef struct {\n"
+        returnstr = ""
+        if len(self.bitFlags) > 0:
+            # Workaround for unfounded gcc 4.8 C99 pedantic warnings
+            returnstr += textwrap.dedent("""
+            #ifdef __GNUC__
+            #  if __GNUC__ == 4 && __GNUC_MINOR__ == 8
+            #    pragma GCC diagnostic push
+            #    pragma GCC diagnostic ignored "-Wpedantic"
+            #  endif
+            #endif
+            """)
+        returnstr +=  "typedef struct {\n"
         for flag in self.bitFlags:
             length = self.bitLength[flag]
             returnstr += "    UA_Byte %s : %s;\n" % (makeCIdentifier(flag), length)
@@ -385,8 +396,18 @@ class StructType(Type):
                 returnstr += "    UA_%s *%s;\n" % (makeCIdentifier(member.memberType.name), makeCIdentifier(member.name))
             else:
                 returnstr += "    UA_%s %s;\n" % (makeCIdentifier(member.memberType.name), makeCIdentifier(member.name))
-        return returnstr + "} UA_%s;" % makeCIdentifier(self.name)
-    
+        returnstr += "} UA_%s;" % makeCIdentifier(self.name)
+        if len(self.bitFlags) > 0:
+            # Workaround for unfounded gcc 4.8 C99 pedantic warnings
+            returnstr += textwrap.dedent("""
+            #ifdef __GNUC__
+            #  if __GNUC__ == 4 && __GNUC_MINOR__ == 8
+            #    pragma GCC diagnostic pop
+            #  endif
+            #endif
+            """)
+        return returnstr
+
     def encoding_mask_c(self):
         func = None
         if self.dataTypeKind == 3:
