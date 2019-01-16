@@ -385,6 +385,9 @@ removeConnection(void *userData, UA_Socket *sock) {
 static UA_StatusCode
 createConnection(void *userData, UA_Socket *sock) {
     UA_Server *const server = (UA_Server *const)userData;
+
+    server->networkManager.registerSocket(&server->networkManager, sock);
+
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "New data socket created. Adding corresponding connection");
 
@@ -399,11 +402,8 @@ createConnection(void *userData, UA_Socket *sock) {
     sock->dataCallback.callbackContext = connection;
     sock->dataCallback.callback = (UA_Socket_dataCallbackFunction)UA_Connection_assembleChunks;
 
-    UA_SocketHook cleanupConnectionHook;
-    cleanupConnectionHook.hookContext = connection;
-    cleanupConnectionHook.hook = removeConnection;
-
-    UA_Socket_addDeletionHook(sock, cleanupConnectionHook);
+    sock->deletionHook.hookContext = connection;
+    sock->deletionHook.hook = removeConnection;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -415,23 +415,8 @@ UA_Server_addListenerSocket(UA_Server *server, UA_Socket *sock) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* After creating a data socket, we want to add it to the network manager */
-    UA_SocketHook registerSocketHook;
-    registerSocketHook.hookContext = &server->networkManager;
-    registerSocketHook.hook = (UA_SocketHookFunction)server->networkManager.registerSocket;
-    retval = UA_SocketFactory_addCreationHook(sock->socketFactory, registerSocketHook);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Additionally we want to create a new connection */
-    UA_SocketHook createConnectionHook;
-    createConnectionHook.hookContext = server;
-    createConnectionHook.hook = createConnection;
-    retval = UA_SocketFactory_addCreationHook(sock->socketFactory, createConnectionHook);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    // TODO: add cleanupConnection hook.
+    sock->socketFactory->creationHook.hookContext = server;
+    sock->socketFactory->creationHook.hook = createConnection;
 
     retval = sock->open(sock);
     if(retval != UA_STATUSCODE_GOOD)

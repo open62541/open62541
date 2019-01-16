@@ -52,14 +52,10 @@ UA_TCP_DataSocket_free(UA_Socket *sock) {
     }
     TCPDataSocketData *const sockData = (TCPDataSocketData *const)sock->internalData;
 
-    HookListEntry *hookListEntry;
-    LIST_FOREACH(hookListEntry, &sock->deletionHooks.list, pointers) {
-        UA_SocketHook_call(hookListEntry->hook, sock);
-    }
+    UA_SocketHook_call(sock->deletionHook, sock);
 
     UA_LOG_DEBUG(sock->logger, UA_LOGCATEGORY_NETWORK, "Freeing socket %i", (int)sock->id);
 
-    UA_Socket_cleanupHooks(sock);
     UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&sockData->receiveBuffer);
     UA_ByteString_deleteMembers(&sockData->sendBuffer);
@@ -221,7 +217,7 @@ UA_TCP_DataSocket_logPeerName(UA_Socket *sock, struct sockaddr_storage *remote) 
 
 UA_StatusCode
 UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UInt32 sendBufferSize,
-                             UA_UInt32 recvBufferSize, HookList creationHooks, HookList deletionHooks,
+                             UA_UInt32 recvBufferSize, UA_SocketHook creationHook, UA_SocketHook deletionHook,
                              UA_Socket_DataCallback dataCallback) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
@@ -242,10 +238,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     }
     sock->internalData = internalData;
     sock->dataCallback = dataCallback;
-
-    retval = UA_Socket_addDeletionHooks(sock, deletionHooks);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+    sock->deletionHook = deletionHook;
 
 
     sock->logger = logger;
@@ -317,21 +310,17 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     sock->open = UA_TCP_DataSocket_open;
     sock->getSendBuffer = UA_TCP_DataSocket_getSendBuffer;
 
-    HookListEntry *hookListEntry;
-    LIST_FOREACH(hookListEntry, &creationHooks.list, pointers) {
-        retval = UA_SocketHook_call(hookListEntry->hook, sock);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "Creation hook returned error %s. "
-                         "Continuing to call other hooks before returning.",
-                         UA_StatusCode_name(retval));
-        }
+    retval = UA_SocketHook_call(creationHook, sock);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                     "Creation hook returned error %s.",
+                     UA_StatusCode_name(retval));
+        return retval;
     }
 
     return retval;
 
 error:
-    UA_Socket_cleanupHooks(sock);
     UA_String_deleteMembers(&sock->discoveryUrl);
     UA_ByteString_deleteMembers(&internalData->receiveBuffer);
     UA_ByteString_deleteMembers(&internalData->sendBuffer);

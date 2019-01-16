@@ -82,8 +82,8 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
     struct timeval tmptv = {0, timeout * 1000};
     if(UA_select(highestfd + 1, &fdset, NULL, NULL, &tmptv) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(internalData->logger, UA_LOGCATEGORY_NETWORK,
-                           "Socket select failed with %s", errno_str));
+            UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                         "Socket select failed with %s", errno_str));
         // we will retry, so do not return bad
         return UA_STATUSCODE_GOOD;
     }
@@ -92,9 +92,6 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
     UA_SocketListEntry *socketListEntry, *e_tmp;
     LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, e_tmp) {
         UA_Socket *const socket = socketListEntry->socket;
-        /*
-        if((!UA_fd_isset(socket->id, &errset) && !UA_fd_isset(socket->id, &fdset)) ||
-           ((!UA_fd_isset(socket->id, &fdset) || !UA_fd_isset(socket->id, &errset)) && socket->isListener)) {*/
         if(!UA_fd_isset(socket->id, &fdset)) {
             // Check deletion for all not selected sockets to clean them up if necessary.
             if(socket->mayDelete(socket)) {

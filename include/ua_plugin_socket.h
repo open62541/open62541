@@ -62,18 +62,6 @@ struct UA_SocketHook {
     void *hookContext;
 };
 
-typedef struct HookListEntry {
-    UA_SocketHook hook;
-    LIST_ENTRY(HookListEntry) pointers;
-} HookListEntry;
-
-/**
- * Convenience alias for passing the list as parameter.
- */
-typedef struct HookList {
-    LIST_HEAD(, HookListEntry) list;
-} HookList;
-
 struct UA_Socket {
     /**
      * The socket id. Used by the NetworkManager to map to an internal representation (e.g. file descriptor)
@@ -83,7 +71,7 @@ struct UA_Socket {
     /**
      * These hooks are called when the socket is deleted.
      */
-    HookList deletionHooks;
+    UA_SocketHook deletionHook;
 
     UA_Logger *logger;
 
@@ -202,47 +190,6 @@ struct UA_Socket {
     void *internalData;
 };
 
-static inline UA_StatusCode
-UA_Socket_addDeletionHook(UA_Socket *sock, UA_SocketHook hook) {
-    HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
-    if(hookListEntry == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    hookListEntry->hook = hook;
-
-    LIST_INSERT_HEAD(&sock->deletionHooks.list, hookListEntry, pointers);
-    return UA_STATUSCODE_GOOD;
-}
-
-static inline UA_StatusCode
-UA_Socket_cleanupHooks(UA_Socket *sock) {
-    HookListEntry *hookListEntry;
-    HookListEntry *tmp;
-    LIST_FOREACH_SAFE(hookListEntry, &sock->deletionHooks.list, pointers, tmp) {
-        LIST_REMOVE(hookListEntry, pointers);
-        UA_free(hookListEntry);
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static inline UA_StatusCode
-UA_Socket_addDeletionHooks(UA_Socket *sock, HookList deletionHooks) {
-    HookListEntry *hookListEntry = NULL;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_StatusCode lastError = UA_STATUSCODE_GOOD;
-    LIST_FOREACH(hookListEntry, &deletionHooks.list, pointers) {
-        lastError = UA_Socket_addDeletionHook(sock, hookListEntry->hook);
-        if(lastError != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
-                           "Failed to add deletion hook to socket: %s",
-                           UA_StatusCode_name(lastError));
-            retval = lastError;
-        }
-    }
-
-    return retval;
-}
-
 
 /**
  * Configuration parameters for sockets created at startup.
@@ -279,15 +226,15 @@ UA_SocketHook_call(UA_SocketHook hook, UA_Socket *sock) {
 }
 
 struct UA_SocketFactory {
-    HookList creationHooks;
-    HookList deletionHooks;
+    UA_SocketHook creationHook;
+    UA_SocketHook deletionHook;
 
     UA_Logger *logger;
 
     /**
      * This function can be used to build a socket.
-     * After the socket is built, the creation hooks are called and the socket is also passed
-     * the deletion hooks, which it will then later call when it is deleted, in order to perform
+     * After the socket is built, the creation hook is called and the socket is also passed
+     * the deletion hook, which it will then later call when it is deleted, in order to perform
      * proper cleanup.
      *
      * @param factory the factory to perform the operation on.
@@ -302,30 +249,6 @@ struct UA_SocketFactory {
 };
 
 static inline UA_StatusCode
-UA_SocketFactory_addCreationHook(UA_SocketFactory *factory, UA_SocketHook hook) {
-    HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
-    if(hookListEntry == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    hookListEntry->hook = hook;
-
-    LIST_INSERT_HEAD(&factory->creationHooks.list, hookListEntry, pointers);
-    UA_LOG_TRACE(factory->logger, UA_LOGCATEGORY_NETWORK, "Added deletion hook.");
-    return UA_STATUSCODE_GOOD;
-}
-
-static inline UA_StatusCode
-UA_SocketFactory_addDeletionHook(UA_SocketFactory *factory, UA_SocketHook hook) {
-    HookListEntry *hookListEntry = (HookListEntry *)UA_malloc(sizeof(HookListEntry));
-    if(hookListEntry == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    hookListEntry->hook = hook;
-
-    LIST_INSERT_HEAD(&factory->deletionHooks.list, hookListEntry, pointers);
-    UA_LOG_TRACE(factory->logger, UA_LOGCATEGORY_NETWORK, "Added deletion hook");
-    return UA_STATUSCODE_GOOD;
-}
-
-static inline UA_StatusCode
 UA_SocketFactory_init(UA_SocketFactory *factory, UA_Logger *logger) {
     memset(factory, 0, sizeof(UA_SocketFactory));
     factory->logger = logger;
@@ -335,17 +258,7 @@ UA_SocketFactory_init(UA_SocketFactory *factory, UA_Logger *logger) {
 
 static inline UA_StatusCode
 UA_SocketFactory_deleteMembers(UA_SocketFactory *factory) {
-    HookListEntry *hookListEntry;
-    HookListEntry *tmp;
-    LIST_FOREACH_SAFE(hookListEntry, &factory->creationHooks.list, pointers, tmp) {
-        LIST_REMOVE(hookListEntry, pointers);
-        UA_free(hookListEntry);
-    }
-    LIST_FOREACH_SAFE(hookListEntry, &factory->deletionHooks.list, pointers, tmp) {
-        LIST_REMOVE(hookListEntry, pointers);
-        UA_free(hookListEntry);
-    }
-
+    memset(factory, 0, sizeof(UA_SocketFactory));
     return UA_STATUSCODE_GOOD;
 }
 

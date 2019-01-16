@@ -101,12 +101,8 @@ tcp_sock_free(UA_Socket *sock) {
         return UA_STATUSCODE_BADINTERNALERROR;
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
 
-    HookListEntry *hookListEntry;
-    LIST_FOREACH(hookListEntry, &sock->deletionHooks.list, pointers) {
-        UA_SocketHook_call(hookListEntry->hook, sock);
-    }
+    UA_SocketHook_call(sock->deletionHook, sock);
 
-    UA_Socket_cleanupHooks(sock);
     UA_ByteString_deleteMembers(&sock->discoveryUrl);
     UA_SocketFactory_deleteMembers(sock->socketFactory);
     UA_free(sock->socketFactory);
@@ -121,6 +117,9 @@ tcp_sock_activity(UA_Socket *sock) {
     if(sock == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    if(sock->mayDelete(sock))
+        return UA_STATUSCODE_GOOD;
 
     if(sock->socketFactory != NULL && sock->socketFactory->buildSocket != NULL) {
         return sock->socketFactory->buildSocket(sock->socketFactory, sock, NULL);
@@ -137,7 +136,7 @@ tcp_sock_buildSocket(UA_SocketFactory *factory, UA_Socket *listenerSocket, void 
     return UA_TCP_DataSocket_AcceptFrom(listenerSocket, factory->logger,
                                         socketData->sendBufferSize,
                                         socketData->recvBufferSize,
-                                        factory->creationHooks, factory->deletionHooks,
+                                        factory->creationHook, factory->deletionHook,
                                         factory->socketDataCallback);
 }
 
@@ -265,7 +264,6 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     return UA_STATUSCODE_GOOD;
 
 error:
-    UA_Socket_cleanupHooks(sock);
     if(socket_fd != UA_INVALID_SOCKET)
         UA_close(socket_fd);
     UA_free(sock->internalData);
