@@ -366,11 +366,6 @@ struct UA_SecurityPolicy {
     void (*deleteMembers)(UA_SecurityPolicy *policy);
 };
 
-typedef struct {
-    UA_SecurityPolicy securityPolicy;
-    UA_EndpointDescription endpointDescription;
-} UA_Endpoint;
-
 /* Gets the number of bytes that are needed by the encryption function in
  * addition to the length of the plaintext message. This is needed, since
  * most RSA encryption methods have their own padding mechanism included.
@@ -386,6 +381,14 @@ UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityP
                                                               const void *channelContext,
                                                               size_t maxEncryptionLength);
 
+/* Gets the a pointer to the context of a security policy supported by the
+ * server matched by the security policy uri.
+ *
+ * @param server the server context.
+ * @param securityPolicyUri the security policy to get the context of. */
+UA_SecurityPolicy *
+UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
+                                         UA_ByteString *securityPolicyUri);
 
 typedef UA_StatusCode
 (*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,

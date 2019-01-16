@@ -238,7 +238,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         for(size_t j = 0; j < server->config.endpointsSize; ++j) {
             for(size_t i = 0; i < request->profileUrisSize; ++i) {
                 if(!UA_String_equal(&request->profileUris[i],
-                                    &server->config.endpoints[j].endpointDescription.transportProfileUri))
+                                    &server->config.endpoints[j].transportProfileUri))
                     continue;
                 relevant_endpoints[j] = true;
                 ++relevant_count;
@@ -277,7 +277,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         for(size_t j = 0; j < server->config.endpointsSize; ++j) {
             if(!relevant_endpoints[j])
                 continue;
-            retval = UA_EndpointDescription_copy(&server->config.endpoints[j].endpointDescription,
+            retval = UA_EndpointDescription_copy(&server->config.endpoints[j],
                                                  &response->endpoints[k]);
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;
