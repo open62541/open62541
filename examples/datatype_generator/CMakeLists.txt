@@ -14,6 +14,7 @@ ua_generate_datatypes(
     OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}"
     FILE_CSV "${CMAKE_CURRENT_SOURCE_DIR}/datatypes.csv"
     FILES_BSD "${CMAKE_CURRENT_SOURCE_DIR}/datatypes.bsd"
+    NO_EXPORT true
 )
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})

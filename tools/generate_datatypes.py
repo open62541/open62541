@@ -607,6 +607,11 @@ parser.add_argument('-t', '--type-bsd',
                     default=[],
                     help='bsd file with type definitions')
 
+parser.add_argument('--no-export',
+                    action='store_true',
+                    dest="no_export",
+                    help='Omit UA_EXPORT from generated code')
+
 parser.add_argument('outfile',
                     metavar='<outputFile>',
                     help='output file w/o extension')
@@ -696,7 +701,8 @@ printh('''/**
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
 printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
-printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
+export = "UA_EXPORT " if args.no_export else ""
+printh("extern " + export + "const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
 for i, t in enumerate(filtered_types):
     printh("\n/**\n * " +  t.name)
