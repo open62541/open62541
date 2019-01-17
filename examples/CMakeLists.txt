@@ -107,6 +107,8 @@ endif()
 # Feature Examples #
 ####################
 
+add_subdirectory(datatype_generator)
+
 add_example(server_mainloop server_mainloop.c)
 
 add_example(server_instantiation server_instantiation.c)
