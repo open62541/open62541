@@ -138,9 +138,9 @@ function(ua_generate_datatypes)
         set(UA_GEN_DT_NO_BUILTIN "")
     endif()
 
-    set(UA_GEN_DT_EXPORT "--no-export")
+    set(UA_GEN_DT_EXPORT "")
     if (UA_GEN_DT_NO_EXPORT)
-        set(UA_GEN_DT_EXPORT "")
+        set(UA_GEN_DT_EXPORT "--no-export")
     endif()
 
     set(SELECTED_TYPES_TMP "")
