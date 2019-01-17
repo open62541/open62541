@@ -648,15 +648,21 @@ createSecureChannel(void *application, UA_Connection *connection,
     UA_Server *server = (UA_Server*)application;
 
     /* Iterate over available endpoints and choose the correct one */
-    UA_Endpoint *endpoint = NULL;
+    UA_EndpointDescription *endpoint = NULL;
+    UA_SecurityPolicy *securityPolicy = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.endpointsSize; ++i) {
-        UA_Endpoint *endpointCandidate = &server->config.endpoints[i];
+        UA_EndpointDescription *endpointCandidate = &server->config.endpoints[i];
         if(!UA_ByteString_equal(&asymHeader->securityPolicyUri,
-                                &endpointCandidate->securityPolicy.policyUri))
+                                &endpointCandidate->securityPolicyUri))
             continue;
-        retval = endpointCandidate->securityPolicy.asymmetricModule.
-            compareCertificateThumbprint(&endpointCandidate->securityPolicy,
+        securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server,
+                                                                  (UA_ByteString*)&endpointCandidate->securityPolicyUri);
+        if(!securityPolicy)
+            return UA_STATUSCODE_BADINTERNALERROR;
+
+        retval = securityPolicy->asymmetricModule.
+            compareCertificateThumbprint(securityPolicy,
                                          &asymHeader->receiverCertificateThumbprint);
         if(retval != UA_STATUSCODE_GOOD)
             continue;
@@ -673,7 +679,7 @@ createSecureChannel(void *application, UA_Connection *connection,
 
     /* Create a new channel */
     return UA_SecureChannelManager_create(&server->secureChannelManager, connection,
-                                          &endpoint->securityPolicy, asymHeader);
+                                          securityPolicy, asymHeader);
 }
 
 static UA_StatusCode

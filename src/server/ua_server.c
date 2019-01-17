@@ -328,17 +328,36 @@ UA_Server_updateCertificate(UA_Server *server,
 
     size_t i = 0;
     while (i < server->config.endpointsSize) {
-        UA_EndpointDescription *ed = &server->config.endpoints[i].endpointDescription;
+        UA_EndpointDescription *ed = &server->config.endpoints[i];
         if (UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
             UA_String_deleteMembers(&ed->serverCertificate);
             UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp = &server->config.endpoints[i].securityPolicy;
+            UA_SecurityPolicy *sp = UA_SecurityPolicy_getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
+            if(!sp)
+                return UA_STATUSCODE_BADINTERNALERROR;
             sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
         }
         i++;
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+/***************************/
+/* Server lookup functions */
+/***************************/
+
+UA_SecurityPolicy *
+UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
+                                         UA_ByteString *securityPolicyUri)
+{
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
+        if(UA_ByteString_equal(securityPolicyUri,
+                               &securityPolicyCandidate->policyUri))
+            return securityPolicyCandidate;
+    }
+    return NULL;
 }
 
 /********************/

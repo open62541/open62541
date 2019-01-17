@@ -135,7 +135,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Copy the server's endpointdescriptions into the response */
     for(size_t i = 0; i < server->config.endpointsSize; ++i)
         response->responseHeader.serviceResult |=
-            UA_EndpointDescription_copy(&server->config.endpoints[i].endpointDescription,
+            UA_EndpointDescription_copy(&server->config.endpoints[i],
                                         &response->serverEndpoints[i]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager,
@@ -277,20 +277,20 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Find the matching endpoint */
     const UA_EndpointDescription *ed = NULL;
     for(size_t i = 0; ed == NULL && i < server->config.endpointsSize; ++i) {
-        const UA_Endpoint *e = &server->config.endpoints[i];
+        const UA_EndpointDescription *e = &server->config.endpoints[i];
 
         /* Match the Security Mode */
-        if(e->endpointDescription.securityMode != channel->securityMode)
+        if(e->securityMode != channel->securityMode)
             continue;
 
         /* Match the SecurityPolicy */
-        if(!UA_String_equal(&e->securityPolicy.policyUri,
+        if(!UA_String_equal(&e->securityPolicyUri,
                             &channel->securityPolicy->policyUri))
             continue;
 
         /* Match the UserTokenType */
-        for(size_t j = 0; j < e->endpointDescription.userIdentityTokensSize; j++) {
-            const UA_UserTokenPolicy *u = &e->endpointDescription.userIdentityTokens[j];
+        for(size_t j = 0; j < e->userIdentityTokensSize; j++) {
+            const UA_UserTokenPolicy *u = &e->userIdentityTokens[j];
             if(u->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
                 if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
                     continue;
@@ -309,7 +309,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             }
 
             /* Match found */
-            ed = &e->endpointDescription;
+            ed = e;
             break;
         }
 
