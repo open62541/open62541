@@ -1,12 +1,15 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <stdio.h>
-#include "open62541.h"
+#include <ua_client_subscriptions.h>
+#include <ua_client_highlevel.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
-handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
+handler_TheAnswerChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
+                         UA_UInt32 monId, void *monContext, UA_DataValue *value) {
     printf("The Answer has changed!\n");
 }
 #endif
@@ -37,7 +40,7 @@ int main(int argc, char *argv[]) {
         return (int)retval;
     }
     printf("%i endpoints found\n", (int)endpointArraySize);
-    for(size_t i=0;i<endpointArraySize;i++){
+    for(size_t i=0;i<endpointArraySize;i++) {
         printf("URL of endpoint %i is %.*s\n", (int)i,
                (int)endpointArray[i].endpointUrl.length,
                endpointArray[i].endpointUrl.data);
@@ -63,8 +66,8 @@ int main(int argc, char *argv[]) {
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
     printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
-    for (size_t i = 0; i < bResp.resultsSize; ++i) {
-        for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
+    for(size_t i = 0; i < bResp.resultsSize; ++i) {
+        for(size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
             UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
             if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
                 printf("%-9d %-16d %-16.*s %-16.*s\n", ref->nodeId.nodeId.namespaceIndex,
@@ -81,8 +84,8 @@ int main(int argc, char *argv[]) {
             /* TODO: distinguish further types */
         }
     }
-    UA_BrowseRequest_deleteMembers(&bReq);
-    UA_BrowseResponse_deleteMembers(&bResp);
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bResp);
 
     /* Same thing, this time using the node iterator... */
     UA_NodeId *parent = UA_NodeId_new();
@@ -93,19 +96,27 @@ int main(int argc, char *argv[]) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
-    UA_UInt32 subId = 0;
-    UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
-    if(subId)
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
+
+    UA_UInt32 subId = response.subscriptionId;
+    if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
         printf("Create subscription succeeded, id %u\n", subId);
-    /* Add a MonitoredItem */
-    UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
-    UA_UInt32 monId = 0;
-    UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
-                                             &handler_TheAnswerChanged, NULL, &monId, 250);
-    if (monId)
-        printf("Monitoring 'the.answer', id %u\n", subId);
+
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_STRING(1, "the.answer"));
+
+    UA_MonitoredItemCreateResult monResponse =
+    UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                              UA_TIMESTAMPSTORETURN_BOTH,
+                                              monRequest, NULL, handler_TheAnswerChanged, NULL);
+    if(monResponse.statusCode == UA_STATUSCODE_GOOD)
+        printf("Monitoring 'the.answer', id %u\n", monResponse.monitoredItemId);
+
+
     /* The first publish request should return the initial value of the variable */
-    UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    UA_Client_run_iterate(client, 1000);
 #endif
 
     /* Read attribute */
@@ -136,8 +147,8 @@ int main(int argc, char *argv[]) {
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
             printf("the new value is: %i\n", value);
-    UA_WriteRequest_deleteMembers(&wReq);
-    UA_WriteResponse_deleteMembers(&wResp);
+    UA_WriteRequest_clear(&wReq);
+    UA_WriteResponse_clear(&wResp);
 
     /* Write node attribute (using the highlevel API) */
     value++;
@@ -148,9 +159,9 @@ int main(int argc, char *argv[]) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Take another look at the.answer */
-    UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    UA_Client_run_iterate(client, 100);
     /* Delete the subscription */
-    if(!UA_Client_Subscriptions_remove(client, subId))
+    if(UA_Client_Subscriptions_deleteSingle(client, subId) == UA_STATUSCODE_GOOD)
         printf("Subscription removed\n");
 #endif
 
@@ -165,13 +176,13 @@ int main(int argc, char *argv[]) {
     retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
-        printf("Method call was successfull, and %lu returned values available.\n",
+        printf("Method call was successful, and %lu returned values available.\n",
                (unsigned long)outputSize);
         UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     } else {
-        printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
+        printf("Method call was unsuccessful, and %x returned values available.\n", retval);
     }
-    UA_Variant_deleteMembers(&input);
+    UA_Variant_clear(&input);
 #endif
 
 #ifdef UA_ENABLE_NODEMANAGEMENT

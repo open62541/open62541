@@ -1,26 +1,32 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_CHANNEL_MANAGER_H_
 #define UA_CHANNEL_MANAGER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "ua_util.h"
+#include "ua_util_internal.h"
 #include "ua_server.h"
+#include "ua_workqueue.h"
 #include "ua_securechannel.h"
-#include "queue.h"
+#include "open62541_queue.h"
 
-typedef struct channel_list_entry {
+_UA_BEGIN_DECLS
+
+typedef struct channel_entry {
+    UA_DelayedCallback cleanupCallback;
+    TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
-    LIST_ENTRY(channel_list_entry) pointers;
-} channel_list_entry;
+} channel_entry;
 
-typedef struct UA_SecureChannelManager {
-    LIST_HEAD(channel_list, channel_list_entry) channels; // doubly-linked list of channels
+typedef struct {
+    TAILQ_HEAD(, channel_entry) channels; // doubly-linked list of channels
     UA_UInt32 currentChannelCount;
     UA_UInt32 lastChannelId;
     UA_UInt32 lastTokenId;
@@ -61,8 +67,6 @@ UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId);
 UA_StatusCode
 UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CHANNEL_MANAGER_H_ */

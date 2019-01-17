@@ -1,8 +1,12 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
 
 UA_StatusCode
@@ -18,7 +22,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     if(!connected) {
-        retval = UA_Client_connectInternal(client, serverUrl, UA_FALSE, UA_FALSE);
+        retval = UA_Client_connectInternal(client, serverUrl, false, false);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -43,7 +47,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     }
 
     if(!connected) {
-        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, UA_TRUE, UA_FALSE);
+        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, true, false);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -58,7 +62,6 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
 
     /* Send the request */
     UA_FindServersResponse response;
-    UA_FindServersResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
 
@@ -81,6 +84,8 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     return retval;
 }
 
+#ifdef UA_ENABLE_DISCOVERY
+
 UA_StatusCode
 UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
                                UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
@@ -94,7 +99,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
     }
 
     if(!connected) {
-        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, UA_TRUE, UA_FALSE);
+        UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl, true, false);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -109,7 +114,6 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
 
     /* Send the request */
     UA_FindServersOnNetworkResponse response;
-    UA_FindServersOnNetworkResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
 
@@ -131,3 +135,5 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
         UA_Client_disconnect(client);
     return retval;
 }
+
+#endif

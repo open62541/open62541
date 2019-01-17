@@ -19,140 +19,110 @@
 ###
 
 from __future__ import print_function
-import string
-from collections import deque
 from os.path import basename
 import logging
 import codecs
+import os
 try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
 
+import sys
+if sys.version_info[0] >= 3:
+    # strings are already parsed to unicode
+    def unicode(s):
+        return s
+
 logger = logging.getLogger(__name__)
 
-from constants import *
+from datatypes import NodeId
 from nodes import *
 from nodeset import *
-from backend_open62541_nodes import generateNodeCode, generateReferenceCode
+from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode
 
-##############
-# Sort Nodes #
-##############
-
-# Select the references that shall be generated after this node in the ordering
-# If both nodes of the reference are hidden we assume that the references between
-# those nodes are already setup. Still print if only the target node is hidden,
-# because we need that reference.
-def selectPrintRefs(nodeset, L, node):
-    printRefs = []
-    for ref in node.references:
-        targetnode = nodeset.nodes[ref.target]
-        if node.hidden and targetnode.hidden:
-            continue
-        if not targetnode.hidden and not targetnode in L:
-            continue
-        printRefs.append(ref)
-    for ref in node.inverseReferences:
-        targetnode = nodeset.nodes[ref.target]
-        if node.hidden and targetnode.hidden:
-            continue
-        if not targetnode.hidden and not targetnode in L:
-            continue
-        printRefs.append(ref)
-    return printRefs
-
-def addTypeRef(nodeset, type_refs, dataTypeId, referencedById):
-    if not dataTypeId in type_refs:
-        type_refs[dataTypeId] = [referencedById]
-    else:
-        type_refs[dataTypeId].append(referencedById)
-
-
-def reorderNodesMinDependencies(nodeset):
-    # Kahn's algorithm
-    # https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-
-    relevant_types = nodeset.getRelevantOrderingReferences()
-
-    # determine in-degree
-    in_degree = {u.id: 0 for u in nodeset.nodes.values()}
-    dataType_refs = {}
-    hiddenCount = 0
-    for u in nodeset.nodes.values():  # of each node
-        if u.hidden:
-            hiddenCount += 1
-            continue
-        hasTypeDef = None
+# Kahn's algorithm: https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
+def sortNodes(nodeset):
+    # reverse hastypedefinition references to treat only forward references
+    hasTypeDef = NodeId("ns=0;i=40")
+    for u in nodeset.nodes.values():
         for ref in u.references:
-            if ref.referenceType.i == 40:
-                hasTypeDef = ref.target
-            elif (ref.referenceType in relevant_types and ref.isForward) and not nodeset.nodes[ref.target].hidden:
-                in_degree[ref.target] += 1
-        if hasTypeDef is not None and not nodeset.nodes[hasTypeDef].hidden:
-            # we cannot print the node u because it first needs the variable type node
+            if ref.referenceType == hasTypeDef:
+                ref.isForward = not ref.isForward
+
+    # Only hierarchical types...
+    relevant_refs = nodeset.getRelevantOrderingReferences()
+
+    # determine in-degree of unfulfilled references
+    L = [node for node in nodeset.nodes.values() if node.hidden]  # ordered list of nodes
+    R = {node.id: node for node in nodeset.nodes.values() if not node.hidden} # remaining nodes
+    in_degree = {id: 0 for id in R.keys()}
+    for u in R.values(): # for each node
+        for ref in u.references:
+            if not ref.referenceType in relevant_refs:
+                continue
+            if nodeset.nodes[ref.target].hidden:
+                continue
+            if ref.isForward:
+                continue
             in_degree[u.id] += 1
 
-        if isinstance(u, VariableNode) and u.dataType is not None:
-            dataTypeNode = nodeset.getDataTypeNode(u.dataType)
-            if dataTypeNode is not None and not dataTypeNode.hidden:
-                # we cannot print the node u because it first needs the data type node
-                in_degree[u.id] += 1
-                # to be able to decrement the in_degree count, we need to store it here
-                addTypeRef(nodeset, dataType_refs,dataTypeNode.id, u.id)
+    # Print ReferenceType and DataType nodes first. They may be required even
+    # though there is no reference to them. For example if the referencetype is
+    # used in a reference, it must exist. A Variable node may point to a
+    # DataTypeNode in the datatype attribute and not via an explicit reference.
 
-    # collect nodes with zero in-degree
-    Q = deque()
-    for id in in_degree:
-        if in_degree[id] == 0:
-            # print referencetypenodes first
-            n = nodeset.nodes[id]
-            if isinstance(n, ReferenceTypeNode):
-                Q.append(nodeset.nodes[id])
-            else:
-                Q.appendleft(nodeset.nodes[id])
-
-    L = []  # list for order of nodes
+    Q = {node for node in R.values() if in_degree[node.id] == 0 and
+         (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))}
     while Q:
-        u = Q.pop()  # choose node of zero in-degree
-        # decide which references to print now based on the ordering
-        u.printRefs = selectPrintRefs(nodeset, L, u)
-        if u.hidden:
-            continue
-
-        L.append(u)  # and 'remove' it from graph
-
-        if isinstance(u, DataTypeNode):
-            # decrement all the nodes which depend on this datatype
-            if u.id in dataType_refs:
-                for n in dataType_refs[u.id]:
-                    if not nodeset.nodes[n].hidden:
-                        in_degree[n] -= 1
-                    if in_degree[n] == 0:
-                        Q.append(nodeset.nodes[n])
-                del dataType_refs[u.id]
-
-        for ref in u.inverseReferences:
-            if ref.referenceType.i == 40:
-                if not nodeset.nodes[ref.target].hidden:
-                    in_degree[ref.target] -= 1
-                if in_degree[ref.target] == 0:
-                    Q.append(nodeset.nodes[ref.target])
+        u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
+        L.append(u)
+        del R[u.id]
 
         for ref in u.references:
-            if (ref.referenceType in relevant_types and ref.isForward):
-                if not nodeset.nodes[ref.target].hidden:
-                    in_degree[ref.target] -= 1
-                if in_degree[ref.target] == 0:
-                    Q.append(nodeset.nodes[ref.target])
+            if not ref.referenceType in relevant_refs:
+                continue
+            if nodeset.nodes[ref.target].hidden:
+                continue
+            if not ref.isForward:
+                continue
+            in_degree[ref.target] -= 1
+            if in_degree[ref.target] == 0:
+                Q.add(R[ref.target])
 
-    if len(L) + hiddenCount != len(nodeset.nodes.values()):
+    # Order the remaining nodes
+    Q = {node for node in R.values() if in_degree[node.id] == 0}
+    while Q:
+        u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
+        L.append(u)
+        del R[u.id]
+
+        for ref in u.references:
+            if not ref.referenceType in relevant_refs:
+                continue
+            if nodeset.nodes[ref.target].hidden:
+                continue
+            if not ref.isForward:
+                continue
+            in_degree[ref.target] -= 1
+            if in_degree[ref.target] == 0:
+                Q.add(R[ref.target])
+
+    # reverse hastype references
+    for u in nodeset.nodes.values():
+        for ref in u.references:
+            if ref.referenceType == hasTypeDef:
+                ref.isForward = not ref.isForward
+
+    if len(L) != len(nodeset.nodes.values()):
+        print(len(L))
         stillOpen = ""
         for id in in_degree:
             if in_degree[id] == 0:
                 continue
             node = nodeset.nodes[id]
-            stillOpen += node.browseName.name + "/" + str(node.id) + " = " + str(in_degree[id]) + "\r\n"
+            stillOpen += node.browseName.name + "/" + str(node.id) + " = " + str(in_degree[id]) + \
+                                                                         " " + str(node.references) + "\r\n"
         raise Exception("Node graph is circular on the specified references. Still open nodes:\r\n" + stillOpen)
     return L
 
@@ -160,7 +130,7 @@ def reorderNodesMinDependencies(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0):
+def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_headers=False, typesArray=[], encode_binary_size=32000):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
@@ -188,20 +158,56 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 """ % (outfilebase.upper(), outfilebase.upper()))
     if internal_headers:
         writeh("""
-#ifdef UA_NO_AMALGAMATION
-#include "ua_server.h"
-#include "ua_types_encoding_binary.h"
-%s
-#else
-#include "open62541.h"
+#ifdef UA_ENABLE_AMALGAMATION
+# include "open62541.h"
+
+/* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
+
+# ifndef UA_Nodestore_remove //this definition is needed to hide this code in the amalgamated .c file
+
+typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
+                                                 const UA_Byte **bufEnd);
+
+UA_StatusCode
+UA_encodeBinary(const void *src, const UA_DataType *type,
+                UA_Byte **bufPos, const UA_Byte **bufEnd,
+                UA_exchangeEncodeBuffer exchangeCallback,
+                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+UA_StatusCode
+UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
+                const UA_DataType *type, size_t customTypesSize,
+                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+size_t
+UA_calcSizeBinary(void *p, const UA_DataType *type);
+
+const UA_DataType *
+UA_findDataTypeByBinary(const UA_NodeId *typeId);
+
+# endif // UA_Nodestore_remove
+
+#else // UA_ENABLE_AMALGAMATION
+# include "ua_server.h"
 #endif
+
+%s
 """ % (additionalHeaders))
     else:
         writeh("""
-#include "open62541.h"
-""")
+#ifdef UA_ENABLE_AMALGAMATION
+# include "open62541.h"
+#else
+# include "ua_server.h"
+#endif
+%s
+""" % (additionalHeaders))
     writeh("""
+_UA_BEGIN_DECLS
+
 extern UA_StatusCode %s(UA_Server *server);
+
+_UA_END_DECLS
 
 #endif /* %s_H_ */""" % \
            (outfilebase, outfilebase.upper()))
@@ -212,41 +218,73 @@ extern UA_StatusCode %s(UA_Server *server);
 #include "%s.h"
 """ % (outfilebase))
 
-    parentrefs = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
-    parentrefs = list(map(lambda x: x.id, parentrefs))
-
     # Loop over the sorted nodes
     logger.info("Reordering nodes for minimal dependencies during printing")
-    sorted_nodes = reorderNodesMinDependencies(nodeset)
+    sorted_nodes = sortNodes(nodeset)
     logger.info("Writing code for nodes and references")
-    
     functionNumber = 0
 
+    parentreftypes = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
+    parentreftypes = list(map(lambda x: x.id, parentreftypes))
+
+    printed_ids = set()
     for node in sorted_nodes:
-        # Print node
+        printed_ids.add(node.id)
+
+        parentref = node.popParentRef(parentreftypes)
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "(UA_Server *server, UA_UInt16* ns){\n")
-            code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length)
+            code_global = []
+            code = generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary_size, code_global)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
                 continue
             else:
+                if len(code_global) > 0:
+                    writec("\n".join(code_global))
+                    writec("\n")
+                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {")
+                if isinstance(node, MethodNode):
+                    writec("#ifdef UA_ENABLE_METHODCALLS")
                 writec(code)
 
         # Print inverse references leading to this node
-        for ref in node.printRefs:
+        for ref in node.references:
+            if ref.target not in printed_ids:
+                continue
+            if node.hidden and nodeset.nodes[ref.target].hidden:
+                continue
             writec(generateReferenceCode(ref))
-            
-        writec("return retVal;\n}")
-        functionNumber = functionNumber + 1
-    
-    
-    writec("""
-UA_StatusCode %s(UA_Server *server) {  // NOLINT
 
+        if node.hidden:
+            continue
+
+        writec("return retVal;")
+
+        if isinstance(node, MethodNode):
+            writec("#else")
+            writec("return UA_STATUSCODE_GOOD;")
+            writec("#endif /* UA_ENABLE_METHODCALLS */")
+        writec("}");
+
+        writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
+
+        if isinstance(node, MethodNode):
+            writec("#ifdef UA_ENABLE_METHODCALLS")
+        writec("return " + generateNodeCode_finish(node))
+        if isinstance(node, MethodNode):
+            writec("#else")
+            writec("return UA_STATUSCODE_GOOD;")
+            writec("#endif /* UA_ENABLE_METHODCALLS */")
+        writec("}");
+
+        functionNumber = functionNumber + 1
+
+    writec("""
+UA_StatusCode %s(UA_Server *server) {
 UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
+
     # Generate namespaces (don't worry about duplicates)
     writec("/* Use namespace ids generated by the server */")
     writec("UA_UInt16 ns[" + str(len(nodeset.namespaces)) + "];")
@@ -255,14 +293,21 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
 
     for i in range(0, functionNumber):
-        writec("retVal |= function_" + outfilebase + "_" + str(i) + "(server, ns);")
-    
-        
+        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_begin(server, ns);")
+
+    for i in reversed(range(0, functionNumber)):
+        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_finish(server, ns);")
+
     writec("return retVal;\n}")
+    outfileh.flush()
+    os.fsync(outfileh)
     outfileh.close()
     fullCode = outfilec.getvalue()
     outfilec.close()
 
     outfilec = codecs.open(outfilename + ".c", r"w+", encoding='utf-8')
     outfilec.write(fullCode)
+    outfilec.flush()
+    os.fsync(outfilec)
     outfilec.close()
+

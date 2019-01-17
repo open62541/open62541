@@ -41,7 +41,7 @@ START_TEST(Server_addNamespace_writeService) {
     UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                         &namespaces);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_eq(namespaces.type, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert(namespaces.type == &UA_TYPES[UA_TYPES_STRING]);
 
     namespaces.data = UA_realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
     ++namespaces.arrayLength;
@@ -107,24 +107,21 @@ START_TEST(Server_forEachChildNodeCall) {
 
     /* List all the children/references of the objects folder
      * The forEachChildNodeCall has to hit all of them */
-    struct nodeIterData objectsFolderChildren[] = {
-        {
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                UA_FALSE,
-                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                UA_FALSE
-        },{
-                UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
-                UA_TRUE,
-                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                UA_FALSE
-        },{
-                UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
-                UA_FALSE,
-                UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
-                UA_FALSE
-        }
-    };
+    struct nodeIterData objectsFolderChildren[3];
+    objectsFolderChildren[0].id = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    objectsFolderChildren[0].isInverse = UA_FALSE;
+    objectsFolderChildren[0].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    objectsFolderChildren[0].hit = UA_FALSE;
+
+    objectsFolderChildren[1].id = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+    objectsFolderChildren[1].isInverse = UA_TRUE;
+    objectsFolderChildren[1].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    objectsFolderChildren[1].hit = UA_FALSE;
+
+    objectsFolderChildren[2].id = UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE);
+    objectsFolderChildren[2].isInverse = UA_FALSE;
+    objectsFolderChildren[2].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+    objectsFolderChildren[2].hit = UA_FALSE;
 
     UA_StatusCode retval = UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, &objectsFolderChildren);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);

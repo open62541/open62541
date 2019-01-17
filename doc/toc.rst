@@ -5,6 +5,7 @@ open62541 Documentation
 
    index
    building
+   installing
    tutorials
    protocol
    types
@@ -13,5 +14,5 @@ open62541 Documentation
    server
    client
    constants
-   namespace_compiler
+   nodeset_compiler
    internal

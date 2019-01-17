@@ -1,40 +1,21 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_server_internal.h"
 #include "ua_client.h"
-#include "ua_config_default.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server,
-                                      const char* discoveryServerUrl,
+                                      UA_Client *client,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
-    if(!discoveryServerUrl) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "No discovery server url provided");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Create the client */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-    if(!client)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Connect the client */
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Connecting to the discovery server failed with statuscode %s",
-                     UA_StatusCode_name(retval));
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return retval;
-    }
-
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
@@ -53,7 +34,7 @@ register_server_with_discovery_server(UA_Server *server,
         request.server.semaphoreFilePath =
             UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
 #else
-        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
                        "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
@@ -66,12 +47,8 @@ register_server_with_discovery_server(UA_Server *server,
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
     size_t total_discurls = config_discurls + nl_discurls;
-    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * total_discurls);
-    if (!request.server.discoveryUrls) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    UA_STACKARRAY(UA_String, urlsBuf, total_discurls);
+    request.server.discoveryUrls = urlsBuf;
     request.server.discoveryUrlsSize = total_discurls;
 
     for(size_t i = 0; i < config_discurls; ++i)
@@ -99,7 +76,6 @@ register_server_with_discovery_server(UA_Server *server,
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;
-    UA_RegisterServer2Response_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
@@ -117,7 +93,6 @@ register_server_with_discovery_server(UA_Server *server,
         request_fallback.server = request.server;
 
         UA_RegisterServerResponse response_fallback;
-        UA_RegisterServerResponse_init(&response_fallback);
 
         __UA_Client_Service(client, &request_fallback,
                             &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
@@ -129,27 +104,25 @@ register_server_with_discovery_server(UA_Server *server,
     }
 
     if(serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer/RegisterServer2 failed with statuscode %s",
                      UA_StatusCode_name(serviceResult));
     }
 
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
     return serviceResult;
 }
 
 UA_StatusCode
-UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
-                                                 UA_FALSE, semaphoreFilePath);
+    return register_server_with_discovery_server(server, client,
+                                                 false, semaphoreFilePath);
 }
 
 UA_StatusCode
-UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
-                                                 UA_TRUE, NULL);
+UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
+    return register_server_with_discovery_server(server, client,
+                                                 true, NULL);
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

@@ -10,6 +10,7 @@
 #include "ua_plugin_nodestore.h"
 #include "ua_nodestore_default.h"
 #include "ua_util.h"
+#include "ziptree.h"
 #include "check.h"
 
 /* container_of */
@@ -22,16 +23,23 @@
 
 /* Dirty redifinition from ua_nodestore_default.c to check that all nodes were
  * released */
-typedef struct UA_NodeMapEntry {
-    struct UA_NodeMapEntry *orig; /* the version this is a copy from (or NULL) */
+struct NodeEntry;
+typedef struct NodeEntry NodeEntry;
+
+struct NodeEntry {
+    ZIP_ENTRY(NodeEntry) zipfields;
+    UA_UInt32 nodeIdHash;
     UA_UInt16 refCount; /* How many consumers have a reference to the node? */
     UA_Boolean deleted; /* Node was marked as deleted and can be deleted when refCount == 0 */
-    UA_Node node;
-} UA_NodeMapEntry;
+    NodeEntry *orig;    /* If a copy is made to replace a node, track that we
+                         * replace only the node from which the copy was made.
+                         * Important for concurrent operations. */
+    UA_NodeId nodeId; /* This is actually a UA_Node that also starts with a NodeId */
+};
 
 static void checkAllReleased(void *context, const UA_Node* node) {
-    UA_NodeMapEntry *entry = container_of(node, UA_NodeMapEntry, node);
-    ck_assert_int_eq(entry->refCount, 1); /* The count is increased when the visited node is checked out */
+    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
+    ck_assert_int_eq(entry->refCount, 0); /* The count is increased when the visited node is checked out */
 }
 
 UA_Nodestore ns;
@@ -182,7 +190,7 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 }
 END_TEST
 
-START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
+START_TEST(failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries) {
     UA_Node* n1 = createNode(0,2253);
     ns.insertNode(ns.context, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
@@ -272,7 +280,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSingleEntry);
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSeveralEntries);
     tcase_add_test (tc_find, findNodeInExpandedNamespace);
-    tcase_add_test (tc_find, failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries);
+    tcase_add_test (tc_find, failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries);
     tcase_add_test (tc_find, failToFindNodeInOtherUA_NodeStore);
     suite_add_tcase (s, tc_find);
 

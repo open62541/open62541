@@ -8,20 +8,22 @@
 #include "testing_clock.h"
 #include "ua_config_default.h"
 
-UA_ByteString *vBuffer;
+static UA_ByteString *vBuffer;
+static UA_ByteString sendBuffer;
 
 UA_StatusCode UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
 
 static UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    buf->data = (length == 0) ? NULL : (UA_Byte*)UA_malloc(length);
+    if(length > sendBuffer.length)
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    *buf = sendBuffer;
     buf->length = length;
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
 }
 
 static UA_StatusCode
@@ -29,9 +31,10 @@ dummySend(UA_Connection *connection, UA_ByteString *buf) {
     assert(connection != NULL);
     assert(buf != NULL);
 
-    UA_ByteString_deleteMembers(vBuffer);
-    UA_ByteString_copy(buf, vBuffer);
-    UA_ByteString_deleteMembers(buf);
+    if(vBuffer) {
+        UA_ByteString_deleteMembers(vBuffer);
+        UA_ByteString_copy(buf, vBuffer);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -41,21 +44,23 @@ dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 dummyClose(UA_Connection *connection) {
-    UA_ByteString_deleteMembers(vBuffer);
+    if(vBuffer)
+        UA_ByteString_deleteMembers(vBuffer);
+    UA_ByteString_deleteMembers(&sendBuffer);
 }
 
-UA_Connection createDummyConnection(UA_ByteString *verificationBuffer) {
-    assert(verificationBuffer != NULL);
-
+UA_Connection createDummyConnection(size_t sendBufferSize,
+                                    UA_ByteString *verificationBuffer) {
     vBuffer = verificationBuffer;
+    UA_ByteString_allocBuffer(&sendBuffer, sendBufferSize);
+
     UA_Connection c;
     c.state = UA_CONNECTION_ESTABLISHED;
-    c.localConf = UA_ConnectionConfig_default;
-    c.remoteConf = UA_ConnectionConfig_default;
+    c.config = UA_ConnectionConfig_default;
     c.channel = NULL;
     c.sockfd = 0;
     c.handle = NULL;
-    c.incompleteMessage = UA_BYTESTRING_NULL;
+    c.incompleteChunk = UA_BYTESTRING_NULL;
     c.getSendBuffer = dummyGetSendBuffer;
     c.releaseSendBuffer = dummyReleaseSendBuffer;
     c.send = dummySend;

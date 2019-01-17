@@ -1,20 +1,27 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014, 2017 (c) Florian Palm
+ *    Copyright 2015 (c) Sten Grüner
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_SESSION_MANAGER_H_
 #define UA_SESSION_MANAGER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "queue.h"
 #include "ua_server.h"
-#include "ua_util.h"
+#include "ua_workqueue.h"
+#include "ua_util_internal.h"
 #include "ua_session.h"
+#include "open62541_queue.h"
+
+_UA_BEGIN_DECLS
 
 typedef struct session_list_entry {
+    UA_DelayedCallback cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
@@ -50,8 +57,6 @@ UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *toke
 UA_Session *
 UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *sessionId);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SESSION_MANAGER_H_ */

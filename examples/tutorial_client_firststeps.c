@@ -8,8 +8,9 @@
  * provides both a server- and clientside API, so creating a client is as easy as
  * creating a server. Copy the following into a file `myClient.c`: */
 
-#include <stdio.h>
-#include "open62541.h"
+#include <ua_client_highlevel.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
 
 int main(void) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -28,8 +29,8 @@ int main(void) {
     const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
 
-    if (retval == UA_STATUSCODE_GOOD &&
-        UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
+    if(retval == UA_STATUSCODE_GOOD &&
+       UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *) value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "date is: %u-%u-%u %u:%u:%u.%03u\n",
@@ -37,7 +38,7 @@ int main(void) {
     }
 
     /* Clean up */
-    UA_Variant_deleteMembers(&value);
+    UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
     return UA_STATUSCODE_GOOD;
 }
@@ -47,19 +48,19 @@ int main(void) {
  *
  * .. code-block:: bash
  *
- *     $ gcc -std=c99 open6251.c myClient.c -o myClient
+ *     $ gcc -std=c99 open62541.c myClient.c -o myClient
  *
  * In a MinGW environment, the Winsock library must be added.
  *
  * .. code-block:: bash
  *
- *    $ gcc -std=c99 open6251.c myClient.c -lws2_32 -o myClient.exe
+ *    $ gcc -std=c99 open62541.c myClient.c -lws2_32 -o myClient.exe
  *
  * Further tasks
  * ^^^^^^^^^^^^^
  *
  * - Try to connect to some other OPC UA server by changing
- *   ``opc.tcp://localhost:16664`` to an appropriate address (remember that the
+ *   ``opc.tcp://localhost:4840`` to an appropriate address (remember that the
  *   queried node is contained in any OPC UA server).
  *
  * - Try to set the value of the variable node (ns=1,i="the.answer") containing

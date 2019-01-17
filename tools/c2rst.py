@@ -5,8 +5,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import sys
-import os
-import binascii
 import re
 
 # Converts a header file to restructured text documentation
@@ -22,7 +20,7 @@ remove_keyword = [" UA_EXPORT", " UA_FUNC_ATTR_WARN_UNUSED_RESULT",
                   " UA_FUNC_ATTR_MALLOC", " UA_RESTRICT "]
 
 def clean_comment(line):
-    m = re.search("^( \* |/\*\* )(.*?)( \*/)?$", line)
+    m = re.search("^\s*(\* |/\*\* )(.*?)( \*/)?$", line)
     if not m:
         return "\n"
     return m.group(2) + "\n"
@@ -33,7 +31,7 @@ def clean_line(line):
     return line
 
 def comment_start(line):
-    m = re.search("^/\*\*[ \n]", line)
+    m = re.search("^\s*/\*\*[ \n]", line)
     if not m:
         return False
     return True

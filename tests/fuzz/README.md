@@ -7,12 +7,12 @@ https://github.com/google/oss-fuzz
 Currently tested is processing of binary messages and encoding/decoding of
 binary encoded data.
 
-# Status
+## Status
 
 * [Build status](https://oss-fuzz-build-logs.storage.googleapis.com/index.html)
 * [Open issues](https://bugs.chromium.org/p/oss-fuzz/issues/list?q=label:Proj-open62541)
 
-# Update the corpus
+## Update the corpus
 
 To update the current corpus used for fuzzing you need to follow these steps.
 It will execute all the unit tests, dump the received data packages to a directory

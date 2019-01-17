@@ -1,15 +1,18 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_PLUGIN_NETWORK_H_
 #define UA_PLUGIN_NETWORK_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_server.h"
+#include "ua_plugin_log.h"
+
+_UA_BEGIN_DECLS
 
 /* Forward declarations */
 struct UA_Connection;
@@ -39,35 +42,35 @@ typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
 
 typedef struct {
     UA_UInt32 protocolVersion;
-    UA_UInt32 sendBufferSize;
     UA_UInt32 recvBufferSize;
-    UA_UInt32 maxMessageSize;
-    UA_UInt32 maxChunkCount;
+    UA_UInt32 sendBufferSize;
+    UA_UInt32 maxMessageSize; /* Indicated by the remote side (0 = unbounded) */
+    UA_UInt32 maxChunkCount;  /* Indicated by the remote side (0 = unbounded) */
 } UA_ConnectionConfig;
 
 typedef enum {
+    UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
+                                * will be deleted */
     UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
                                 * is not done */
-    UA_CONNECTION_ESTABLISHED, /* The socket is open and the connection
+    UA_CONNECTION_ESTABLISHED  /* The socket is open and the connection
                                 * configured */
-    UA_CONNECTION_CLOSED       /* The socket has been closed and the connection
-                                * will be deleted */
+
 } UA_ConnectionState;
 
 struct UA_Connection {
     UA_ConnectionState state;
-    UA_ConnectionConfig localConf;
-    UA_ConnectionConfig remoteConf;
+    UA_ConnectionConfig config;
     UA_SecureChannel *channel;       /* The securechannel that is attached to
                                       * this connection */
-    UA_Int32 sockfd;                 /* Most connectivity solutions run on
+    UA_SOCKET sockfd;                 /* Most connectivity solutions run on
                                       * sockets. Having the socket id here
                                       * simplifies the design. */
     UA_DateTime openingDate;         /* The date the connection was created */
     void *handle;                    /* A pointer to internal data */
-    UA_ByteString incompleteMessage; /* A half-received message (TCP is a
+    UA_ByteString incompleteChunk;   /* A half-received chunk (TCP is a
                                       * streaming protocol) is stored here */
-
+    UA_UInt64 connectCallbackID;     /* Callback Id, for the connect-loop */
     /* Get a buffer for sending */
     UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length,
                                    UA_ByteString *buf);
@@ -146,7 +149,10 @@ UA_Server_removeConnection(UA_Server *server, UA_Connection *connection);
 
 struct UA_ServerNetworkLayer {
     void *handle; /* Internal data */
+
     UA_String discoveryUrl;
+
+    UA_ConnectionConfig localConnectionConfig;
 
     /* Start listening on the networklayer.
      *
@@ -187,38 +193,14 @@ struct UA_ServerNetworkLayer {
  * The client has only a single connection used for sending and receiving binary
  * messages. */
 
-/* @param localConf the connection config for this client
+/* @param config the connection config for this client
  * @param endpointUrl to where to connect
- * @param timeout in ms until the connection try times out if remote not reachable */
+ * @param timeout in ms until the connection try times out if remote not reachable
+ * @param logger the logger to use */
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
-                              const UA_UInt32 timeout);
+(*UA_ConnectClientConnection)(UA_ConnectionConfig config, const char *endpointUrl,
+                              const UA_UInt32 timeout, const UA_Logger *logger);
 
-/**
- * Endpoint URL Parser
- * -------------------
- * The endpoint URL parser is generally useful for the implementation of network
- * layer plugins. */
-
-/* Split the given endpoint url into hostname, port and path. All arguments must
- * be non-NULL. EndpointUrls have the form "opc.tcp://hostname:port/path", port
- * and path may be omitted (together with the prefix colon and slash).
- *
- * @param endpointUrl The endpoint URL.
- * @param outHostname Set to the parsed hostname. The string points into the
- *        original endpointUrl, so no memory is allocated. If an IPv6 address is
- *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'
- * @param outPort Set to the port of the url or left unchanged.
- * @param outPath Set to the path if one is present in the endpointUrl.
- *        Starting or trailing '/' are NOT included in the path. The string
- *        points into the original endpointUrl, so no memory is allocated.
- * @return Returns UA_STATUSCODE_BADTCPENDPOINTURLINVALID if parsing failed. */
-UA_StatusCode UA_EXPORT
-UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
-                    UA_UInt16 *outPort, UA_String *outPath);
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_PLUGIN_NETWORK_H_ */

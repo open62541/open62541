@@ -16,8 +16,10 @@
  * This section shows the basic interaction patterns for data types. Make
  * sure to compare with the type definitions in ``ua_types.h``. */
 
-#include <assert.h>
-#include "open62541.h"
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
+
 
 static void
 variables_basic(void) {
@@ -39,29 +41,29 @@ variables_basic(void) {
 
     UA_String s2;
     UA_String_copy(&s, &s2);
-    UA_String_deleteMembers(&s2); /* Copying heap-allocated the dynamic content */
+    UA_String_clear(&s2); /* Copying heap-allocated the dynamic content */
 
     UA_String s3 = UA_STRING("test2");
     UA_String s4 = UA_STRING_ALLOC("test2"); /* Copies the content to the heap */
     UA_Boolean eq = UA_String_equal(&s3, &s4);
-    UA_String_deleteMembers(&s4);
+    UA_String_clear(&s4);
     if(!eq)
         return;
-    
+
     /* Structured Type */
-    UA_CallRequest cr;
-    UA_init(&cr, &UA_TYPES[UA_TYPES_CALLREQUEST]); /* Generic method */
-    UA_CallRequest_init(&cr); /* Shorthand for the previous line */
+    UA_ReadRequest rr;
+    UA_init(&rr, &UA_TYPES[UA_TYPES_READREQUEST]); /* Generic method */
+    UA_ReadRequest_init(&rr); /* Shorthand for the previous line */
 
-    cr.requestHeader.timestamp = UA_DateTime_now(); /* Members of a structure */
+    rr.requestHeader.timestamp = UA_DateTime_now(); /* Members of a structure */
 
-    cr.methodsToCall = (UA_CallMethodRequest *)UA_Array_new(5, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST]);
-    cr.methodsToCallSize = 5; /* Array size needs to be made known */
+    rr.nodesToRead = (UA_ReadValueId *)UA_Array_new(5, &UA_TYPES[UA_TYPES_READVALUEID]);
+    rr.nodesToReadSize = 5; /* Array size needs to be made known */
 
-    UA_CallRequest *cr2 = UA_CallRequest_new();
-    UA_copy(&cr, cr2, &UA_TYPES[UA_TYPES_CALLREQUEST]);
-    UA_CallRequest_deleteMembers(&cr);
-    UA_CallRequest_delete(cr2);
+    UA_ReadRequest *rr2 = UA_ReadRequest_new();
+    UA_copy(&rr, rr2, &UA_TYPES[UA_TYPES_READREQUEST]);
+    UA_ReadRequest_clear(&rr);
+    UA_ReadRequest_delete(rr2);
 }
 
 /**
@@ -84,11 +86,11 @@ variables_nodeids(void) {
 
     UA_NodeId id3;
     UA_NodeId_copy(&id2, &id3);
-    UA_NodeId_deleteMembers(&id3);
+    UA_NodeId_clear(&id3);
 
     UA_NodeId id4 = UA_NODEID_STRING_ALLOC(1, "testid"); /* the string is copied
                                                             to the heap */
-    UA_NodeId_deleteMembers(&id4);
+    UA_NodeId_clear(&id4);
 }
 
 /**
@@ -110,7 +112,7 @@ variables_variants(void) {
     /* Make a copy */
     UA_Variant v2;
     UA_Variant_copy(&v, &v2);
-    UA_Variant_deleteMembers(&v2);
+    UA_Variant_clear(&v2);
 
     /* Set an array value */
     UA_Variant v3;
@@ -124,7 +126,7 @@ variables_variants(void) {
     v3.arrayDimensionsSize = 2;
     v3.arrayDimensions[0] = 3;
     v3.arrayDimensions[1] = 3;
-    UA_Variant_deleteMembers(&v3);
+    UA_Variant_clear(&v3);
 }
 
 /** It follows the main function, making use of the above definitions. */

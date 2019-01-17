@@ -1,0 +1,8 @@
+ParsingResult
+NodeTypeDescription
+QueryDataDescription
+QueryDataSet
+QueryFirstRequest
+QueryFirstResponse
+QueryNextRequest
+QueryNextResponse

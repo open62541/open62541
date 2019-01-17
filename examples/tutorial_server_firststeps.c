@@ -20,8 +20,11 @@
  * you have the ``open62541.c/.h`` files in the current folder. Now create a new
  * C source-file called ``myServer.c`` with the following content: */
 
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
+
 #include <signal.h>
-#include "open62541.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -71,7 +74,7 @@ int main(void) {
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  *
  * *open62541* provides a flexible framework for building OPC UA servers and
- * clients. The goals is to have a core library that accomodates for all use
+ * clients. The goals is to have a core library that accommodates for all use
  * cases and runs on all platforms. Users can then adjust the library to fit
  * their use case via configuration and by developing (platform-specific)
  * plugins. The core library is based on C99 only and does not even require

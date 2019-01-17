@@ -7,16 +7,19 @@
  *
  * This tutorial shows how to work with data types and how to add variable nodes
  * to a server. First, we add a new variable to the server. Take a look at the
- * definition of the ``UA_VariableAttrbitues`` structure to see the list of all
+ * definition of the ``UA_VariableAttributes`` structure to see the list of all
  * attributes defined for VariableNodes.
  *
  * Note that the default settings have the AccessLevel of the variable value as
  * read only. See below for making the variable writable.
  */
 
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
+
 #include <signal.h>
-#include <stdio.h>
-#include "open62541.h"
+
 
 static void
 addVariable(UA_Server *server) {
@@ -36,7 +39,7 @@ addVariable(UA_Server *server) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
 /**

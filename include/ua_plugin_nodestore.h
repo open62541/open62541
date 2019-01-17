@@ -1,6 +1,11 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_SERVER_NODES_H_
 #define UA_SERVER_NODES_H_
@@ -12,11 +17,15 @@
  * not meant to be used directly by end users. Please use the public server API
  * / OPC UA services to interact with the information model. */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include "ua_types.h"
 #include "ua_server.h"
+
+_UA_BEGIN_DECLS
+
+/* Forward declaration */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+struct UA_MonitoredItem;
+#endif
 
 /**
  * .. _information-modelling:
@@ -177,7 +186,7 @@ typedef struct {
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
     UA_Double minimumSamplingInterval;
-    UA_Boolean historizing; /* currently unsupported */
+    UA_Boolean historizing;
 } UA_VariableNode;
 
 /**
@@ -228,6 +237,14 @@ typedef struct {
     UA_MethodCallback method;
 } UA_MethodNode;
 
+
+/** Attributes for nodes which are capable of generating events */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+/* Store active monitoredItems on this node */
+# define UA_EVENT_ATTRIBUTES                                         \
+    struct UA_MonitoredItem *monitoredItemQueue;
+#endif
+
 /**
  * ObjectNode
  * ----------
@@ -239,6 +256,9 @@ typedef struct {
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_EVENT_ATTRIBUTES
+#endif
     UA_Byte eventNotifier;
 } UA_ObjectNode;
 
@@ -507,8 +527,6 @@ UA_Node_deleteReferences(UA_Node *node);
 void UA_EXPORT
 UA_Node_deleteMembers(UA_Node *node);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_SERVER_NODES_H_ */

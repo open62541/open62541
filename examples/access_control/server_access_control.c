@@ -1,39 +1,41 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <signal.h>
-#include <stdio.h>
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_plugin_access_control.h>
+#include <ua_log_stdout.h>
 
-#include "open62541.h"
+#include <signal.h>
 
 static UA_Boolean
-allowAddNode(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_AddNodesItem *item)
-{
+allowAddNode(UA_Server *server, UA_AccessControl *ac,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_AddNodesItem *item) {
     printf("Called allowAddNode\n");
     return UA_TRUE;
 }
 
 static UA_Boolean
-allowAddReference(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_AddReferencesItem *item)
-{
+allowAddReference(UA_Server *server, UA_AccessControl *ac,
+                  const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_AddReferencesItem *item) {
     printf("Called allowAddReference\n");
     return UA_TRUE;
 }
 
 static UA_Boolean
-allowDeleteNode(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_DeleteNodesItem *item)
-{
+allowDeleteNode(UA_Server *server, UA_AccessControl *ac,
+                const UA_NodeId *sessionId, void *sessionContext,
+                const UA_DeleteNodesItem *item) {
     printf("Called allowDeleteNode\n");
     return UA_FALSE; // Do not allow deletion from client
 }
 
 static UA_Boolean
-allowDeleteReference(const UA_NodeId *sessionId, void *sessionContext,
-    const UA_DeleteReferencesItem *item)
-{
+allowDeleteReference(UA_Server *server, UA_AccessControl *ac,
+                     const UA_NodeId *sessionId, void *sessionContext,
+                     const UA_DeleteReferencesItem *item) {
     printf("Called allowDeleteReference\n");
     return UA_TRUE;
 }

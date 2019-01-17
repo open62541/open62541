@@ -7,6 +7,7 @@
 #include "ua_types.h"
 #include "ua_client.h"
 #include "ua_util.h"
+#include "ua_util_internal.h"
 #include "check.h"
 
 START_TEST(EndpointUrl_split) {
@@ -119,6 +120,66 @@ START_TEST(EndpointUrl_split) {
 }
 END_TEST
 
+START_TEST(EndpointUrl_ethernet) {
+    UA_String target;
+    UA_UInt16 vid = 0;
+    UA_Byte pcp = 0;
+    UA_String expected;
+
+    // check for too short url
+    UA_String endPointUrl = UA_STRING("inv.ali:/");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(vid, 0);
+    ck_assert_uint_eq(pcp, 0);
+
+    // valid without vid and pcp but leading ':'
+    endPointUrl = UA_STRING("opc.eth://target:");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(vid, 0);
+    ck_assert_uint_eq(pcp, 0);
+
+    // without pcp and vid as non decimal
+    endPointUrl = UA_STRING("opc.eth://target:abc");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(vid, 0);
+    ck_assert_uint_eq(pcp, 0);
+
+    // pcp as non decimal
+    endPointUrl = UA_STRING("opc.eth://target:100.abc");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(vid, 100);
+    ck_assert_uint_eq(pcp, 0);
+
+    // valid without pcp but leading '.'
+    endPointUrl = UA_STRING("opc.eth://target:100.");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+    ck_assert_uint_eq(vid, 100);
+    ck_assert_uint_eq(pcp, 0);
+
+    // valid without pcp
+    endPointUrl = UA_STRING("opc.eth://target:100");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_GOOD);
+    expected = UA_STRING("target");
+    ck_assert(UA_String_equal(&target, &expected));
+    ck_assert_uint_eq(vid, 100);
+    ck_assert_uint_eq(pcp, 0);
+
+    // valid
+    endPointUrl = UA_STRING("opc.eth://target:100.7");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_GOOD);
+    expected = UA_STRING("target");
+    ck_assert(UA_String_equal(&target, &expected));
+    ck_assert_uint_eq(vid, 100);
+    ck_assert_uint_eq(pcp, 7);
+}
+END_TEST
 
 START_TEST(readNumber) {
     UA_UInt32 result;
@@ -129,6 +190,24 @@ START_TEST(readNumber) {
 
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"123456789", 9, &result), 9);
     ck_assert_uint_eq(result, 123456789);
+}
+END_TEST
+
+START_TEST(readNumberWithBase) {
+    UA_UInt32 result;
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"g", 1, &result, 16), 0);
+
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"f", 1, &result, 16), 1);
+    ck_assert_uint_eq(result, 15);
+
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"1x", 2, &result, 16), 1);
+    ck_assert_uint_eq(result, 1);
+
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"12345678", 9, &result, 16), 8);
+    ck_assert_uint_eq(result, 0x12345678);
+
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"123456789", 9, &result, 8), 7);
+    ck_assert_uint_eq(result, 01234567);
 }
 END_TEST
 
@@ -155,15 +234,171 @@ START_TEST(StatusCode_msg) {
 }
 END_TEST
 
+
+static void assertNodeIdString(const UA_String *gotStr, const char* expectedStr) {
+    size_t expectedStringLength = strlen(expectedStr);
+    ck_assert_uint_eq(gotStr->length, expectedStringLength);
+    char *gotChars = (char*)UA_malloc(gotStr->length+1);
+    memcpy(gotChars, gotStr->data, gotStr->length);
+    gotChars[gotStr->length] = 0;
+    ck_assert_str_eq(gotChars, expectedStr);
+    UA_free(gotChars);
+}
+
+START_TEST(idToStringNumeric) {
+    UA_NodeId n;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_NODEID_NUMERIC(0,0);
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "i=0");
+
+    n = UA_NODEID_NUMERIC(12345,1234567890);
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=12345;i=1234567890");
+
+    n = UA_NODEID_NUMERIC(0xFFFF,0xFFFFFFFF);
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=65535;i=4294967295");
+
+    UA_String_deleteMembers(&str);
+} END_TEST
+
+START_TEST(idToStringString) {
+    UA_NodeId n;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_NODEID_STRING(0,"");
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "s=");
+
+    n = UA_NODEID_STRING(54321,"Some String");
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=54321;s=Some String");
+
+    n = UA_NODEID_STRING(0,"Some String");
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "s=Some String");
+
+    UA_String_deleteMembers(&str);
+} END_TEST
+
+START_TEST(idToStringGuid) {
+    UA_NodeId n;
+    UA_String str = UA_STRING_NULL;
+
+    UA_Guid g = UA_GUID_NULL;
+
+    n = UA_NODEID_GUID(0,UA_GUID_NULL);
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "g=00000000-0000-0000-0000-000000000000");
+
+    g.data1 = 0xA123456C;
+    g.data2 = 0x0ABC;
+    g.data3 = 0x1A2B;
+    g.data4[0] = 0x81;
+    g.data4[1] = 0x5F;
+    g.data4[2] = 0x68;
+    g.data4[3] = 0x72;
+    g.data4[4] = 0x12;
+    g.data4[5] = 0xAA;
+    g.data4[6] = 0xEE;
+    g.data4[7] = 0x1B;
+
+    n = UA_NODEID_GUID(65535,g);
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=65535;g=a123456c-0abc-1a2b-815f-687212aaee1b");
+
+    g.data1 = 0xFFFFFFFF;
+    g.data2 = 0xFFFF;
+    g.data3 = 0xFFFF;
+    g.data4[0] = 0xFF;
+    g.data4[1] = 0xFF;
+    g.data4[2] = 0xFF;
+    g.data4[3] = 0xFF;
+    g.data4[4] = 0xFF;
+    g.data4[5] = 0xFF;
+    g.data4[6] = 0xFF;
+    g.data4[7] = 0xFF;
+
+    n = UA_NODEID_GUID(65535,g);
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=65535;g=ffffffff-ffff-ffff-ffff-ffffffffffff");
+
+    UA_String_deleteMembers(&str);
+} END_TEST
+
+START_TEST(idToStringByte) {
+    UA_NodeId n;
+    UA_String str = UA_STRING_NULL;
+
+    n.namespaceIndex = 0;
+    n.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    n.identifier.byteString.data = NULL;
+    n.identifier.byteString.length = 0;
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "b=");
+
+    UA_ByteString bs = UA_BYTESTRING_NULL;
+
+    bs.length = 1;
+    bs.data = (UA_Byte*)UA_malloc(bs.length);
+    bs.data[0] = 0x00;
+    n.identifier.byteString = bs;
+    n.namespaceIndex = 123;
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=123;b=AA==");
+    UA_free(bs.data);
+
+    bs.length = 1;
+    bs.data = (UA_Byte*)UA_malloc(bs.length);
+    bs.data[0] = 0x2C;
+    n.identifier.byteString = bs;
+    n.namespaceIndex = 123;
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=123;b=LA==");
+    UA_free(bs.data);
+
+    bs.length = 5;
+    bs.data = (UA_Byte*)UA_malloc(bs.length);
+    bs.data[0] = 0x21;
+    bs.data[1] = 0x83;
+    bs.data[2] = 0xE0;
+    bs.data[3] = 0x54;
+    bs.data[4] = 0x78;
+    n.identifier.byteString = bs;
+    n.namespaceIndex = 599;
+    UA_NodeId_toString(&n, &str);
+    assertNodeIdString(&str, "ns=599;b=IYPgVHg=");
+    UA_free(bs.data);
+
+    UA_String_deleteMembers(&str);
+} END_TEST
+
+
+
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
     tcase_add_test(tc_endpointUrl_split, EndpointUrl_split);
     suite_add_tcase(s,tc_endpointUrl_split);
+    TCase *tc_endpointUrl_ethernet = tcase_create("EndpointUrl_ethernet");
+    tcase_add_test(tc_endpointUrl_ethernet, EndpointUrl_ethernet);
+    suite_add_tcase(s,tc_endpointUrl_ethernet);
     TCase *tc_utils = tcase_create("Utils");
     tcase_add_test(tc_utils, readNumber);
+    tcase_add_test(tc_utils, readNumberWithBase);
     tcase_add_test(tc_utils, StatusCode_msg);
     suite_add_tcase(s,tc_utils);
+
+
+    TCase *tc1 = tcase_create("test nodeid string");
+    tcase_add_test(tc1, idToStringNumeric);
+    tcase_add_test(tc1, idToStringString);
+    tcase_add_test(tc1, idToStringGuid);
+    tcase_add_test(tc1, idToStringByte);
+    suite_add_tcase(s, tc1);
+
     return s;
 }
 

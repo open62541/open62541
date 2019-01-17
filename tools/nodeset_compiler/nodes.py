@@ -19,7 +19,10 @@
 import sys
 import logging
 from datatypes import *
-from constants import *
+
+__all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
+           'ObjectNode', 'VariableNode', 'VariableTypeNode',
+           'MethodNode', 'ObjectTypeNode', 'DataTypeNode', 'ViewNode']
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +33,11 @@ if sys.version_info[0] >= 3:
 
 class Reference(object):
     # all either nodeids or strings with an alias
-    def __init__(self, source, referenceType, target, isForward=True, hidden=False, inferred=False):
+    def __init__(self, source, referenceType, target, isForward):
         self.source = source
         self.referenceType = referenceType
         self.target = target
         self.isForward = isForward
-        self.hidden = hidden  # the reference is part of a nodeset that already exists
-        self.inferred = inferred
 
     def __str__(self):
         retval = str(self.source)
@@ -53,13 +54,21 @@ class Reference(object):
     def __eq__(self, other):
         return str(self) == str(other)
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def __hash__(self):
         return hash(str(self))
+
+def RefOrAlias(s):
+    try:
+        return NodeId(s)
+    except Exception:
+        return s
 
 class Node(object):
     def __init__(self):
         self.id = NodeId()
-        self.nodeClass = NODE_CLASS_GENERERIC
         self.browseName = QualifiedName()
         self.displayName = LocalizedText()
         self.description = LocalizedText()
@@ -67,8 +76,8 @@ class Node(object):
         self.writeMask = 0
         self.userWriteMask = 0
         self.references = set()
-        self.inverseReferences = set()
         self.hidden = False
+        self.modelUri = None
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -82,7 +91,7 @@ class Node(object):
     def parseXML(self, xmlelement):
         for idname in ['NodeId', 'NodeID', 'nodeid']:
             if xmlelement.hasAttribute(idname):
-                self.id = NodeId(xmlelement.getAttribute(idname))
+                self.id = RefOrAlias(xmlelement.getAttribute(idname))
 
         for (at, av) in xmlelement.attributes.items():
             if at == "BrowseName":
@@ -121,26 +130,43 @@ class Node(object):
         for ref in xmlelement.childNodes:
             if ref.nodeType != ref.ELEMENT_NODE:
                 continue
-            source = NodeId(str(self.id))  # deep-copy of the nodeid
-            target = NodeId(ref.firstChild.data)
+            source = RefOrAlias(str(self.id))  # deep-copy of the nodeid
+            target = RefOrAlias(ref.firstChild.data)
+
             reftype = None
             forward = True
             for (at, av) in ref.attributes.items():
                 if at == "ReferenceType":
-                    if '=' in av:
-                        reftype = NodeId(av)
-                    else:
-                        reftype = av  # alias, such as "HasSubType"
+                    reftype = RefOrAlias(av)
                 elif at == "IsForward":
                     forward = not "false" in av.lower()
-            if forward:
-                self.references.add(Reference(source, reftype, target, forward))
-            else:
-                self.inverseReferences.add(Reference(source, reftype, target, forward))
+            self.references.add(Reference(source, reftype, target, forward))
+
+    def popParentRef(self, parentreftypes):
+        # HasSubtype has precedence
+        for ref in self.references:
+            if ref.referenceType == NodeId("ns=0;i=45") and not ref.isForward:
+                self.references.remove(ref)
+                return ref
+        for ref in self.references:
+            if ref.referenceType in parentreftypes and not ref.isForward:
+                self.references.remove(ref)
+                return ref
+        return Reference(NodeId(), NodeId(), NodeId(), False)
+
+    def popTypeDef(self):
+        for ref in self.references:
+            if ref.referenceType.i == 40 and ref.isForward:
+                self.references.remove(ref)
+                return ref
+        return Reference(NodeId(), NodeId(), NodeId(), False)
 
     def replaceAliases(self, aliases):
         if str(self.id) in aliases:
             self.id = NodeId(aliases[self.id])
+        if isinstance(self, VariableNode) or isinstance(self, VariableTypeNode):
+            if str(self.dataType) in aliases:
+                self.dataType = NodeId(aliases[self.dataType])
         new_refs = set()
         for ref in self.references:
             if str(ref.source) in aliases:
@@ -151,23 +177,12 @@ class Node(object):
                 ref.referenceType = NodeId(aliases[ref.referenceType])
             new_refs.add(ref)
         self.references = new_refs
-        new_inv_refs = set()
-        for ref in self.inverseReferences:
-            if str(ref.source) in aliases:
-                ref.source = NodeId(aliases[ref.source])
-            if str(ref.target) in aliases:
-                ref.target = NodeId(aliases[ref.target])
-            if str(ref.referenceType) in aliases:
-                ref.referenceType = NodeId(aliases[ref.referenceType])
-            new_inv_refs.add(ref)
-        self.inverseReferences = new_inv_refs
 
     def replaceNamespaces(self, nsMapping):
         self.id.ns = nsMapping[self.id.ns]
         self.browseName.ns = nsMapping[self.browseName.ns]
         if hasattr(self, 'dataType') and isinstance(self.dataType, NodeId):
             self.dataType.ns = nsMapping[self.dataType.ns]
-
         new_refs = set()
         for ref in self.references:
             ref.source.ns = nsMapping[ref.source.ns]
@@ -175,23 +190,15 @@ class Node(object):
             ref.referenceType.ns = nsMapping[ref.referenceType.ns]
             new_refs.add(ref)
         self.references = new_refs
-        new_inv_refs = set()
-        for ref in self.inverseReferences:
-            ref.source.ns = nsMapping[ref.source.ns]
-            ref.target.ns = nsMapping[ref.target.ns]
-            ref.referenceType.ns = nsMapping[ref.referenceType.ns]
-            new_inv_refs.add(ref)
-        self.inverseReferences = new_inv_refs
 
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_REFERENCETYPE
         self.isAbstract = False
         self.symmetric = False
         self.inverseName = ""
         if xmlelement:
-            self.parseXML(xmlelement)
+            ReferenceTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -211,10 +218,9 @@ class ReferenceTypeNode(Node):
 class ObjectNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_OBJECT
         self.eventNotifier = 0
         if xmlelement:
-            self.parseXML(xmlelement)
+            ObjectNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -225,7 +231,6 @@ class ObjectNode(Node):
 class VariableNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_VARIABLE
         self.dataType = NodeId()
         self.valueRank = -2
         self.arrayDimensions = []
@@ -237,7 +242,7 @@ class VariableNode(Node):
         self.value = None
         self.xmlValueDef = None
         if xmlelement:
-            self.parseXML(xmlelement)
+            VariableNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -251,10 +256,9 @@ class VariableNode(Node):
             elif at == "MinimumSamplingInterval":
                 self.minimumSamplingInterval = float(av)
             elif at == "DataType":
-                if "=" in av:
-                    self.dataType = NodeId(av)
-                else:
-                    self.dataType = av
+                self.dataType = RefOrAlias(av)
+            elif  at == "ArrayDimensions":
+                self.arrayDimensions = av.split(",")
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -262,11 +266,14 @@ class VariableNode(Node):
             if x.localName == "Value":
                 self.xmlValueDef = x
             elif x.localName == "DataType":
-                self.dataType = NodeId(str(x))
+                self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
-            elif x.localName == "ArrayDimensions":
-                self.arrayDimensions = int(unicode(x.firstChild.data))
+            elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
+                elements = x.getElementsByTagName("ListOfUInt32");
+                if len(elements):
+                    for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
+                        self.arrayDimensions.append(v.firstChild.data)
             elif x.localName == "AccessLevel":
                 self.accessLevel = int(unicode(x.firstChild.data))
             elif x.localName == "UserAccessLevel":
@@ -282,30 +289,26 @@ class VariableNode(Node):
             return False
 
         # FIXME: Don't build at all or allocate "defaults"? I'm for not building at all.
-        if self.xmlValueDef == None:
+        if self.xmlValueDef is None:
             #logger.warn("Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.")
             return False
 
         self.value = Value()
-        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode)
+        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self)
 
         # Array Dimensions must accurately represent the value and will be patched
         # reflect the exaxt dimensions attached binary stream.
         if not isinstance(self.value, Value) or len(self.value.value) == 0:
             self.arrayDimensions = []
-        else:
-            # Parser only permits 1-d arrays, which means we do not have to check further dimensions
-            self.arrayDimensions = [len(self.value.value)]
         return True
 
 
 class VariableTypeNode(VariableNode):
     def __init__(self, xmlelement=None):
         VariableNode.__init__(self)
-        self.nodeClass = NODE_CLASS_VARIABLETYPE
         self.isAbstract = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            VariableTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -316,12 +319,11 @@ class VariableTypeNode(VariableNode):
 class MethodNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_METHOD
         self.executable = True
         self.userExecutable = True
         self.methodDecalaration = None
         if xmlelement:
-            self.parseXML(xmlelement)
+            MethodNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -336,10 +338,9 @@ class MethodNode(Node):
 class ObjectTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_OBJECTTYPE
         self.isAbstract = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            ObjectTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -381,7 +382,6 @@ class DataTypeNode(Node):
 
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_DATATYPE
         self.isAbstract = False
         self.__xmlDefinition__ = None
         self.__baseTypeEncoding__ = []
@@ -390,7 +390,7 @@ class DataTypeNode(Node):
         self.__definition__ = []
         self.__isEnum__     = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            DataTypeNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
@@ -434,7 +434,7 @@ class DataTypeNode(Node):
             of this DataType.
 
             The function will parse the XML <Definition> of the dataType and extract
-            "Name"-"Type" tuples. If successfull, buildEncoding will return a nested
+            "Name"-"Type" tuples. If successful, buildEncoding will return a nested
             list of the following format:
 
             [['Alias1', ['Alias2', ['BuiltinType']]], [Alias2, ['BuiltinType']], ...]
@@ -491,9 +491,11 @@ class DataTypeNode(Node):
             logger.debug("")
             return self.__baseTypeEncoding__
 
-        if self.__xmlDefinition__ == None:
+        if self.__xmlDefinition__ is None:
             # Check if there is a supertype available
-            for ref in self.inverseReferences:
+            for ref in self.references:
+                if ref.isForward:
+                    continue
                 # hasSubtype
                 if ref.referenceType.i == 45:
                     targetNode = nodeset.nodes[ref.target]
@@ -504,7 +506,7 @@ class DataTypeNode(Node):
                             self.__encodable__ = False
                             break
                         else:
-                            self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, 0]
+                            self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
             if len(self.__baseTypeEncoding__) == 0:
                 logger.debug(prefix + "No viable definition for " + str(self.browseName) + " " + str(self.id) + " found.")
                 self.__encodable__ = False
@@ -520,7 +522,6 @@ class DataTypeNode(Node):
 
         isEnum = True
         isSubType = True
-        hasValueRank = 0
 
         # We need to store the definition as ordered data, but can't use orderedDict
         # for backward compatibility with Python 2.6 and 3.4
@@ -533,7 +534,7 @@ class DataTypeNode(Node):
                 fname  = ""
                 fdtype = ""
                 enumVal = ""
-                valueRank = 0
+                valueRank = None
                 for at,av in x.attributes.items():
                     if at == "DataType":
                         fdtype = str(av)
@@ -547,8 +548,6 @@ class DataTypeNode(Node):
                         isSubType = False
                     elif at == "ValueRank":
                         valueRank = int(av)
-                        if valueRank > 0:
-                            logger.warn("Value ranks >0 not fully supported. Further steps may fail")
                     else:
                         logger.warn("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.
@@ -569,9 +568,11 @@ class DataTypeNode(Node):
 
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
-                    if not NodeId(fdtype) in nodeset.nodes:
-                        raise Exception("Node {} not found in nodeset".format(NodeId(fdtype)))
-                    dtnode = nodeset.nodes[NodeId(fdtype)]
+                    fdTypeNodeId = NodeId(fdtype)
+                    fdTypeNodeId.ns = nodeset.namespaceMapping[self.modelUri][fdTypeNodeId.ns]
+                    if not fdTypeNodeId in nodeset.nodes:
+                        raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
+                    dtnode = nodeset.nodes[fdTypeNodeId]
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable
                     typeDict.append([fname, dtnode])
@@ -612,16 +613,15 @@ class DataTypeNode(Node):
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
-        self.nodeClass = NODE_CLASS_VIEW
-        self.containsNoLoops == False
-        self.eventNotifier == False
+        self.containsNoLoops = False
+        self.eventNotifier = False
         if xmlelement:
-            self.parseXML(xmlelement)
+            ViewNode.parseXML(self, xmlelement)
 
     def parseXML(self, xmlelement):
         Node.parseXML(self, xmlelement)
         for (at, av) in xmlelement.attributes.items():
             if at == "ContainsNoLoops":
                 self.containsNoLoops = "false" not in av.lower()
-            if at == "eventNotifier":
+            if at == "EventNotifier":
                 self.eventNotifier = "false" not in av.lower()

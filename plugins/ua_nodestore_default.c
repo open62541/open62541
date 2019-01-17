@@ -1,11 +1,13 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ *
+ *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #include "ua_nodestore_default.h"
-
-/* container_of */
-#define container_of(ptr, type, member) \
-    (type *)((uintptr_t)ptr - offsetof(type,member))
+#include "ziptree.h"
 
 #ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
@@ -16,126 +18,110 @@
 #define END_CRITSECT(NODEMAP)
 #endif
 
-/* The default Nodestore is simply a hash-map from NodeIds to Nodes. To find an
- * entry, iterate over candidate positions according to the NodeId hash.
- *
- * - Tombstone or non-matching NodeId: continue searching
- * - Matching NodeId: Return the entry
- * - NULL: Abort the search */
+/* container_of */
+#define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
 
-typedef struct UA_NodeMapEntry {
-    struct UA_NodeMapEntry *orig; /* the version this is a copy from (or NULL) */
+struct NodeEntry;
+typedef struct NodeEntry NodeEntry;
+
+struct NodeEntry {
+    ZIP_ENTRY(NodeEntry) zipfields;
+    UA_UInt32 nodeIdHash;
     UA_UInt16 refCount; /* How many consumers have a reference to the node? */
     UA_Boolean deleted; /* Node was marked as deleted and can be deleted when refCount == 0 */
-    UA_Node node;
-} UA_NodeMapEntry;
+    NodeEntry *orig;    /* If a copy is made to replace a node, track that we
+                         * replace only the node from which the copy was made.
+                         * Important for concurrent operations. */
+    UA_NodeId nodeId; /* This is actually a UA_Node that also starts with a NodeId */
+};
 
-#define UA_NODEMAP_MINSIZE 64
-#define UA_NODEMAP_TOMBSTONE ((UA_NodeMapEntry*)0x01)
+/* Absolute ordering for NodeIds */
+static enum ZIP_CMP
+cmpNodeId(const void *a, const void *b) {
+    const NodeEntry *aa = (const NodeEntry*)a;
+    const NodeEntry *bb = (const NodeEntry*)b;
+    /* Compare hash */
+    if(aa->nodeIdHash < bb->nodeIdHash)
+        return ZIP_CMP_LESS;
+    if(aa->nodeIdHash > bb->nodeIdHash)
+        return ZIP_CMP_MORE;
+
+    if(UA_NodeId_equal(&aa->nodeId, &bb->nodeId))
+        return ZIP_CMP_EQ;
+
+    /* Compare namespaceIndex */
+    if(aa->nodeId.namespaceIndex < bb->nodeId.namespaceIndex)
+        return ZIP_CMP_LESS;
+    if(aa->nodeId.namespaceIndex > bb->nodeId.namespaceIndex)
+        return ZIP_CMP_MORE;
+
+    /* Compare identifierType */
+    if(aa->nodeId.identifierType < bb->nodeId.identifierType)
+        return ZIP_CMP_LESS;
+    if(aa->nodeId.identifierType > bb->nodeId.identifierType)
+        return ZIP_CMP_MORE;
+
+    /* Compare the identifier */
+    switch(aa->nodeId.identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        if(aa->nodeId.identifier.numeric < bb->nodeId.identifier.numeric)
+            return ZIP_CMP_LESS;
+        if(aa->nodeId.identifier.numeric > bb->nodeId.identifier.numeric)
+            return ZIP_CMP_MORE;
+        break;
+    case UA_NODEIDTYPE_GUID:
+        if(aa->nodeId.identifier.guid.data1 < bb->nodeId.identifier.guid.data1 ||
+           aa->nodeId.identifier.guid.data2 < bb->nodeId.identifier.guid.data2 ||
+           aa->nodeId.identifier.guid.data3 < bb->nodeId.identifier.guid.data3 ||
+           strncmp((const char*)aa->nodeId.identifier.guid.data4,
+                   (const char*)bb->nodeId.identifier.guid.data4, 8) < 0)
+            return ZIP_CMP_LESS;
+        if(aa->nodeId.identifier.guid.data1 > bb->nodeId.identifier.guid.data1 ||
+           aa->nodeId.identifier.guid.data2 > bb->nodeId.identifier.guid.data2 ||
+           aa->nodeId.identifier.guid.data3 > bb->nodeId.identifier.guid.data3 ||
+           strncmp((const char*)aa->nodeId.identifier.guid.data4,
+                   (const char*)bb->nodeId.identifier.guid.data4, 8) > 0)
+            return ZIP_CMP_MORE;
+        break;
+    case UA_NODEIDTYPE_STRING:
+    case UA_NODEIDTYPE_BYTESTRING: {
+        if(aa->nodeId.identifier.string.length < bb->nodeId.identifier.string.length)
+            return ZIP_CMP_LESS;
+        if(aa->nodeId.identifier.string.length > bb->nodeId.identifier.string.length)
+            return ZIP_CMP_MORE;
+        int cmp = strncmp((const char*)aa->nodeId.identifier.string.data,
+                          (const char*)bb->nodeId.identifier.string.data,
+                          aa->nodeId.identifier.string.length);
+        if(cmp < 0)
+            return ZIP_CMP_LESS;
+        if(cmp > 0)
+            return ZIP_CMP_MORE;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return ZIP_CMP_EQ;
+}
+
+ZIP_HEAD(NodeTree, NodeEntry);
+typedef struct NodeTree NodeTree;
 
 typedef struct {
-    UA_NodeMapEntry **entries;
-    UA_UInt32 size;
-    UA_UInt32 count;
-    UA_UInt32 sizePrimeIndex;
+    NodeTree root;
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_t mutex; /* Protect access */
 #endif
-} UA_NodeMap;
+} NodeMap;
 
-/*********************/
-/* HashMap Utilities */
-/*********************/
+ZIP_PROTTYPE(NodeTree, NodeEntry, NodeEntry)
+ZIP_IMPL(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
 
-/* The size of the hash-map is always a prime number. They are chosen to be
- * close to the next power of 2. So the size ca. doubles with each prime. */
-static UA_UInt32 const primes[] = {
-    7,         13,         31,         61,         127,         251,
-    509,       1021,       2039,       4093,       8191,        16381,
-    32749,     65521,      131071,     262139,     524287,      1048573,
-    2097143,   4194301,    8388593,    16777213,   33554393,    67108859,
-    134217689, 268435399,  536870909,  1073741789, 2147483647,  4294967291
-};
-
-static UA_UInt32 mod(UA_UInt32 h, UA_UInt32 size) { return h % size; }
-static UA_UInt32 mod2(UA_UInt32 h, UA_UInt32 size) { return 1 + (h % (size - 2)); }
-
-static UA_UInt16
-higher_prime_index(UA_UInt32 n) {
-    UA_UInt16 low  = 0;
-    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(UA_UInt32));
-    while(low != high) {
-        UA_UInt16 mid = (UA_UInt16)(low + ((high - low) / 2));
-        if(n > primes[mid])
-            low = (UA_UInt16)(mid + 1);
-        else
-            high = mid;
-    }
-    return low;
-}
-
-/* returns an empty slot or null if the nodeid exists */
-static UA_NodeMapEntry **
-findFreeSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
-    UA_UInt32 h = UA_NodeId_hash(nodeid);
-    UA_UInt32 size = ns->size;
-    UA_UInt32 idx = mod(h, size);
-    UA_UInt32 hash2 = mod2(h, size);
-
-    while(true) {
-        UA_NodeMapEntry *e = ns->entries[idx];
-        if(e > UA_NODEMAP_TOMBSTONE &&
-           UA_NodeId_equal(&e->node.nodeId, nodeid))
-            return NULL;
-        if(ns->entries[idx] <= UA_NODEMAP_TOMBSTONE)
-            return &ns->entries[idx];
-        idx += hash2;
-        if(idx >= size)
-            idx -= size;
-    }
-
-    /* NOTREACHED */
-    return NULL;
-}
-
-/* The occupancy of the table after the call will be about 50% */
-static UA_StatusCode
-expand(UA_NodeMap *ns) {
-    UA_UInt32 osize = ns->size;
-    UA_UInt32 count = ns->count;
-    /* Resize only when table after removal of unused elements is either too
-       full or too empty */
-    if(count * 2 < osize && (count * 8 > osize || osize <= UA_NODEMAP_MINSIZE))
-        return UA_STATUSCODE_GOOD;
-
-    UA_NodeMapEntry **oentries = ns->entries;
-    UA_UInt32 nindex = higher_prime_index(count * 2);
-    UA_UInt32 nsize = primes[nindex];
-    UA_NodeMapEntry **nentries = (UA_NodeMapEntry **)UA_calloc(nsize, sizeof(UA_NodeMapEntry*));
-    if(!nentries)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    ns->entries = nentries;
-    ns->size = nsize;
-    ns->sizePrimeIndex = nindex;
-
-    /* recompute the position of every entry and insert the pointer */
-    for(size_t i = 0, j = 0; i < osize && j < count; ++i) {
-        if(oentries[i] <= UA_NODEMAP_TOMBSTONE)
-            continue;
-        UA_NodeMapEntry **e = findFreeSlot(ns, &oentries[i]->node.nodeId);
-        UA_assert(e);
-        *e = oentries[i];
-        ++j;
-    }
-
-    UA_free(oentries);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_NodeMapEntry *
+static NodeEntry *
 newEntry(UA_NodeClass nodeClass) {
-    size_t size = sizeof(UA_NodeMapEntry) - sizeof(UA_Node);
+    size_t size = sizeof(NodeEntry) - sizeof(UA_NodeId);
     switch(nodeClass) {
     case UA_NODECLASS_OBJECT:
         size += sizeof(UA_ObjectNode);
@@ -164,108 +150,71 @@ newEntry(UA_NodeClass nodeClass) {
     default:
         return NULL;
     }
-    UA_NodeMapEntry *entry = (UA_NodeMapEntry*)UA_calloc(1, size);
+    NodeEntry *entry = (NodeEntry*)UA_calloc(1, size);
     if(!entry)
         return NULL;
-    entry->node.nodeClass = nodeClass;
+    UA_Node *node = (UA_Node*)&entry->nodeId;
+    node->nodeClass = nodeClass;
     return entry;
 }
 
 static void
-deleteEntry(UA_NodeMapEntry *entry) {
-    UA_Node_deleteMembers(&entry->node);
+deleteEntry(NodeEntry *entry) {
+    UA_Node_deleteMembers((UA_Node*)&entry->nodeId);
     UA_free(entry);
 }
 
 static void
-cleanupEntry(UA_NodeMapEntry *entry) {
+cleanupEntry(NodeEntry *entry) {
     if(entry->deleted && entry->refCount == 0)
         deleteEntry(entry);
-}
-
-static UA_StatusCode
-clearSlot(UA_NodeMap *ns, UA_NodeMapEntry **slot) {
-    (*slot)->deleted = true;
-    cleanupEntry(*slot);
-    *slot = UA_NODEMAP_TOMBSTONE;
-    --ns->count;
-    /* Downsize the hashmap if it is very empty */
-    if(ns->count * 8 < ns->size && ns->size > 32)
-        expand(ns); /* Can fail. Just continue with the bigger hashmap. */
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_NodeMapEntry **
-findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
-    UA_UInt32 h = UA_NodeId_hash(nodeid);
-    UA_UInt32 size = ns->size;
-    UA_UInt32 idx = mod(h, size);
-    UA_UInt32 hash2 = mod2(h, size);
-
-    while(true) {
-        UA_NodeMapEntry *e = ns->entries[idx];
-        if(!e)
-            return NULL;
-        if(e > UA_NODEMAP_TOMBSTONE &&
-           UA_NodeId_equal(&e->node.nodeId, nodeid))
-            return &ns->entries[idx];
-        idx += hash2;
-        if(idx >= size)
-            idx -= size;
-    }
-
-    /* NOTREACHED */
-    return NULL;
 }
 
 /***********************/
 /* Interface functions */
 /***********************/
 
+/* Not yet inserted into the NodeMap */
 static UA_Node *
-UA_NodeMap_newNode(void *context, UA_NodeClass nodeClass) {
-    UA_NodeMapEntry *entry = newEntry(nodeClass);
+NodeMap_newNode(void *context, UA_NodeClass nodeClass) {
+    NodeEntry *entry = newEntry(nodeClass);
     if(!entry)
         return NULL;
-    return &entry->node;
+    return (UA_Node*)&entry->nodeId;
 }
 
+/* Not yet inserted into the NodeMap */
 static void
-UA_NodeMap_deleteNode(void *context, UA_Node *node) {
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_NodeMap *ns = (UA_NodeMap*)context;
-#endif
-    BEGIN_CRITSECT(ns);
-    UA_NodeMapEntry *entry = container_of(node, UA_NodeMapEntry, node);
-    UA_assert(&entry->node == node);
-    deleteEntry(entry);
-    END_CRITSECT(ns);
+NodeMap_deleteNode(void *context, UA_Node *node) {
+    deleteEntry(container_of(node, NodeEntry, nodeId));
 }
 
 static const UA_Node *
-UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
-    UA_NodeMap *ns = (UA_NodeMap*)context;
+NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
+    NodeMap *ns = (NodeMap*)context;
     BEGIN_CRITSECT(ns);
-    UA_NodeMapEntry **entry = findOccupiedSlot(ns, nodeid);
+    NodeEntry dummy;
+    dummy.nodeIdHash = UA_NodeId_hash(nodeid);
+    dummy.nodeId = *nodeid;
+    NodeEntry *entry = ZIP_FIND(NodeTree, &ns->root, &dummy);
     if(!entry) {
         END_CRITSECT(ns);
         return NULL;
     }
-    ++(*entry)->refCount;
+    ++entry->refCount;
     END_CRITSECT(ns);
-    return (const UA_Node*)&(*entry)->node;
+    return (const UA_Node*)&entry->nodeId;
 }
 
 static void
-UA_NodeMap_releaseNode(void *context, const UA_Node *node) {
-    if (!node)
+NodeMap_releaseNode(void *context, const UA_Node *node) {
+    if(!node)
         return;
 #ifdef UA_ENABLE_MULTITHREADING
-    UA_NodeMap *ns = (UA_NodeMap*)context;
+    NodeMap *ns = (NodeMap*)context;
 #endif
     BEGIN_CRITSECT(ns);
-    UA_NodeMapEntry *entry = container_of(node, UA_NodeMapEntry, node);
-    UA_assert(&entry->node == node);
+    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     UA_assert(entry->refCount > 0);
     --entry->refCount;
     cleanupEntry(entry);
@@ -273,198 +222,188 @@ UA_NodeMap_releaseNode(void *context, const UA_Node *node) {
 }
 
 static UA_StatusCode
-UA_NodeMap_getNodeCopy(void *context, const UA_NodeId *nodeid,
-                       UA_Node **outNode) {
-    UA_NodeMap *ns = (UA_NodeMap*)context;
+NodeMap_getNodeCopy(void *context, const UA_NodeId *nodeid,
+                    UA_Node **outNode) {
+    /* Find the node */
+    const UA_Node *node = NodeMap_getNode(context, nodeid);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    /* Create the new entry */
+    NodeEntry *ne = newEntry(node->nodeClass);
+    if(!ne) {
+        NodeMap_releaseNode(context, node);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Copy the node content */
+    UA_Node *nnode = (UA_Node*)&ne->nodeId;
+    UA_StatusCode retval = UA_Node_copy(node, nnode);
+    NodeMap_releaseNode(context, node);
+    if(retval != UA_STATUSCODE_GOOD) {
+        deleteEntry(ne);
+        return retval;
+    }
+
+    ne->orig = container_of(node, NodeEntry, nodeId);
+    *outNode = nnode;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+NodeMap_removeNode(void *context, const UA_NodeId *nodeid) {
+    NodeMap *ns = (NodeMap*)context;
     BEGIN_CRITSECT(ns);
-    UA_NodeMapEntry **slot = findOccupiedSlot(ns, nodeid);
-    if(!slot) {
+    NodeEntry dummy;
+    dummy.nodeIdHash = UA_NodeId_hash(nodeid);
+    dummy.nodeId = *nodeid;
+    NodeEntry *entry = ZIP_FIND(NodeTree, &ns->root, &dummy);
+    if(!entry) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    UA_NodeMapEntry *entry = *slot;
-    UA_NodeMapEntry *newItem = newEntry(entry->node.nodeClass);
-    if(!newItem) {
-        END_CRITSECT(ns);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_StatusCode retval = UA_Node_copy(&entry->node, &newItem->node);
-    if(retval == UA_STATUSCODE_GOOD) {
-        newItem->orig = entry; // store the pointer to the original
-        *outNode = &newItem->node;
-    } else {
-        deleteEntry(newItem);
-    }
+    ZIP_REMOVE(NodeTree, &ns->root, entry);
+    entry->deleted = true;
+    cleanupEntry(entry);
     END_CRITSECT(ns);
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-UA_NodeMap_removeNode(void *context, const UA_NodeId *nodeid) {
-    UA_NodeMap *ns = (UA_NodeMap*)context;
+NodeMap_insertNode(void *context, UA_Node *node,
+                   UA_NodeId *addedNodeId) {
+    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
+    NodeMap *ns = (NodeMap*)context;
     BEGIN_CRITSECT(ns);
-    UA_NodeMapEntry **slot = findOccupiedSlot(ns, nodeid);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(slot)
-        retval = clearSlot(ns, slot);
-    else
-        retval = UA_STATUSCODE_BADNODEIDUNKNOWN;
-    END_CRITSECT(ns);
-    return retval;
-}
 
-static UA_StatusCode
-UA_NodeMap_insertNode(void *context, UA_Node *node,
-                      UA_NodeId *addedNodeId) {
-    UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
-    if(ns->size * 3 <= ns->count * 4) {
-        if(expand(ns) != UA_STATUSCODE_GOOD) {
-            END_CRITSECT(ns);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
-
-    UA_NodeId tempNodeid;
-    tempNodeid = node->nodeId;
-    tempNodeid.namespaceIndex = 0;
-    UA_NodeMapEntry **slot;
-    if(tempNodeid.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       tempNodeid.identifier.numeric == 0) {
-        /* create a random nodeid */
-        /* start at least with 50,000 to make sure we don not conflict with nodes from the spec */
-        /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
-        /* Thus the node id's may collide */
-        UA_UInt32 identifier = 50000 + ns->count+1; // start value
-        UA_UInt32 size = ns->size;
-        UA_UInt32 increase = mod2(ns->count+1, size);
-        while(true) {
-            node->nodeId.identifier.numeric = identifier;
-            slot = findFreeSlot(ns, &node->nodeId);
-            if(slot)
-                break;
-            identifier += increase;
-            if(identifier >= size)
-                identifier -= size;
-        }
+    /* Ensure that the NodeId is unique */
+    NodeEntry dummy;
+    dummy.nodeId = node->nodeId;
+    if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+       node->nodeId.identifier.numeric == 0) {
+        do { /* Create a random nodeid until we find an unoccupied id */
+            node->nodeId.identifier.numeric = UA_UInt32_random();
+            dummy.nodeId.identifier.numeric = node->nodeId.identifier.numeric;
+            dummy.nodeIdHash = UA_NodeId_hash(&node->nodeId);
+        } while(ZIP_FIND(NodeTree, &ns->root, &dummy));
     } else {
-        slot = findFreeSlot(ns, &node->nodeId);
-        if(!slot) {
-            deleteEntry(container_of(node, UA_NodeMapEntry, node));
+        dummy.nodeIdHash = UA_NodeId_hash(&node->nodeId);
+        if(ZIP_FIND(NodeTree, &ns->root, &dummy)) { /* The nodeid exists */
+            deleteEntry(entry);
             END_CRITSECT(ns);
             return UA_STATUSCODE_BADNODEIDEXISTS;
         }
     }
 
-    *slot = container_of(node, UA_NodeMapEntry, node);
-    ++ns->count;
-    UA_assert(&(*slot)->node == node);
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Copy the NodeId */
     if(addedNodeId) {
-        retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
-        if(retval != UA_STATUSCODE_GOOD)
-            clearSlot(ns, slot);
+        UA_StatusCode retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            deleteEntry(entry);
+            END_CRITSECT(ns);
+            return retval;
+        }
     }
 
-    END_CRITSECT(ns);
-    return retval;
-}
-
-static UA_StatusCode
-UA_NodeMap_replaceNode(void *context, UA_Node *node) {
-    UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
-    UA_NodeMapEntry **slot = findOccupiedSlot(ns, &node->nodeId);
-    if(!slot) {
-        END_CRITSECT(ns);
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
-    UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
-    if(*slot != newEntryContainer->orig) {
-        /* The node was updated since the copy was made */
-        deleteEntry(newEntryContainer);
-        END_CRITSECT(ns);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    (*slot)->deleted = true;
-    cleanupEntry(*slot);
-    *slot = newEntryContainer;
+    /* Insert the node */
+    entry->nodeIdHash = dummy.nodeIdHash;
+    ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_FFS32(UA_UInt32_random()));
     END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }
 
-static void
-UA_NodeMap_iterate(void *context, void *visitorContext,
-                   UA_NodestoreVisitor visitor) {
-    UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
-    for(UA_UInt32 i = 0; i < ns->size; ++i) {
-        if(ns->entries[i] > UA_NODEMAP_TOMBSTONE) {
-            END_CRITSECT(ns);
-            UA_NodeMapEntry *entry = ns->entries[i];
-            entry->refCount++;
-            visitor(visitorContext, &entry->node);
-            entry->refCount--;
-            cleanupEntry(entry);
-            BEGIN_CRITSECT(ns);
-        }
+static UA_StatusCode
+NodeMap_replaceNode(void *context, UA_Node *node) {
+    /* Find the node */
+    const UA_Node *oldNode = NodeMap_getNode(context, &node->nodeId);
+    if(!oldNode)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    /* Test if the copy is current */
+    NodeEntry *entry = container_of(node, NodeEntry, nodeId);
+    NodeEntry *oldEntry = container_of(oldNode, NodeEntry, nodeId);
+    if(oldEntry != entry->orig) {
+        /* The node was already updated since the copy was made */
+        deleteEntry(entry);
+        NodeMap_releaseNode(context, oldNode);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* Replace */
+    NodeMap *ns = (NodeMap*)context;
+    BEGIN_CRITSECT(ns);
+    ZIP_REMOVE(NodeTree, &ns->root, oldEntry);
+    entry->nodeIdHash = oldEntry->nodeIdHash;
+    ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_RANK(entry, zipfields));
+    oldEntry->deleted = true;
+    END_CRITSECT(ns);
+
+    NodeMap_releaseNode(context, oldNode);
+    return UA_STATUSCODE_GOOD;
+}
+
+struct VisitorData {
+    UA_NodestoreVisitor visitor;
+    void *visitorContext;
+};
+
+static void
+nodeVisitor(NodeEntry *entry, void *data) {
+    struct VisitorData *d = (struct VisitorData*)data;
+    d->visitor(d->visitorContext, (UA_Node*)&entry->nodeId);
+}
+
+static void
+NodeMap_iterate(void *context, void *visitorContext,
+                UA_NodestoreVisitor visitor) {
+    struct VisitorData d;
+    d.visitor = visitor;
+    d.visitorContext = visitorContext;
+    NodeMap *ns = (NodeMap*)context;
+    BEGIN_CRITSECT(ns);
+    ZIP_ITER(NodeTree, &ns->root, nodeVisitor, &d);
     END_CRITSECT(ns);
 }
 
 static void
-UA_NodeMap_delete(void *context) {
-    UA_NodeMap *ns = (UA_NodeMap*)context;
+deleteNodeVisitor(NodeEntry *entry, void *data) {
+    deleteEntry(entry);
+}
+
+static void
+NodeMap_delete(void *context) {
+    NodeMap *ns = (NodeMap*)context;
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_destroy(&ns->mutex);
 #endif
-    UA_UInt32 size = ns->size;
-    UA_NodeMapEntry **entries = ns->entries;
-    for(UA_UInt32 i = 0; i < size; ++i) {
-        if(entries[i] > UA_NODEMAP_TOMBSTONE) {
-            /* On debugging builds, check that all nodes were release */
-            UA_assert(entries[i]->refCount == 0);
-            /* Delete the node */
-            deleteEntry(entries[i]);
-        }
-    }
-    UA_free(ns->entries);
+    ZIP_ITER(NodeTree, &ns->root, deleteNodeVisitor, NULL);
     UA_free(ns);
 }
 
 UA_StatusCode
 UA_Nodestore_default_new(UA_Nodestore *ns) {
     /* Allocate and initialize the nodemap */
-    UA_NodeMap *nodemap = (UA_NodeMap*)UA_malloc(sizeof(UA_NodeMap));
+    NodeMap *nodemap = (NodeMap*)UA_malloc(sizeof(NodeMap));
     if(!nodemap)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    nodemap->sizePrimeIndex = higher_prime_index(UA_NODEMAP_MINSIZE);
-    nodemap->size = primes[nodemap->sizePrimeIndex];
-    nodemap->count = 0;
-    nodemap->entries = (UA_NodeMapEntry**)
-        UA_calloc(nodemap->size, sizeof(UA_NodeMapEntry*));
-    if(!nodemap->entries) {
-        UA_free(nodemap);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_init(&nodemap->mutex, NULL);
 #endif
 
+    ZIP_INIT(&nodemap->root);
+
     /* Populate the nodestore */
     ns->context = nodemap;
-    ns->deleteNodestore = UA_NodeMap_delete;
+    ns->deleteNodestore = NodeMap_delete;
     ns->inPlaceEditAllowed = true;
-    ns->newNode = UA_NodeMap_newNode;
-    ns->deleteNode = UA_NodeMap_deleteNode;
-    ns->getNode = UA_NodeMap_getNode;
-    ns->releaseNode = UA_NodeMap_releaseNode;
-    ns->getNodeCopy = UA_NodeMap_getNodeCopy;
-    ns->insertNode = UA_NodeMap_insertNode;
-    ns->replaceNode = UA_NodeMap_replaceNode;
-    ns->removeNode = UA_NodeMap_removeNode;
-    ns->iterate = UA_NodeMap_iterate;
-
+    ns->newNode = NodeMap_newNode;
+    ns->deleteNode = NodeMap_deleteNode;
+    ns->getNode = NodeMap_getNode;
+    ns->releaseNode = NodeMap_releaseNode;
+    ns->getNodeCopy = NodeMap_getNodeCopy;
+    ns->insertNode = NodeMap_insertNode;
+    ns->replaceNode = NodeMap_replaceNode;
+    ns->removeNode = NodeMap_removeNode;
+    ns->iterate = NodeMap_iterate;
     return UA_STATUSCODE_GOOD;
 }

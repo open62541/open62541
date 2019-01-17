@@ -1,16 +1,24 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2017 (c) Florian Palm
+ *    Copyright 2015 (c) Sten Grüner
+ *    Copyright 2014 (c) LEvertz
+ *    Copyright 2015 (c) Chris Iatrou
+ *    Copyright 2015 (c) Christian Fimmers
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ */
 
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_server.h"
 #include "ua_session.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * .. _services:
@@ -37,6 +45,9 @@ extern "C" {
 
 typedef void (*UA_Service)(UA_Server*, UA_Session*,
                            const void *request, void *response);
+
+typedef UA_StatusCode (*UA_InSituService)(UA_Server*, UA_Session*, UA_MessageContext *mc,
+                                          const void *request, UA_ResponseHeader *rh);
 
 /**
  * Discovery Service Set
@@ -293,9 +304,8 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * elements are indexed, such as an array, this Service allows Clients to read
  * the entire set of indexed values as a composite, to read individual elements
  * or to read ranges of elements of the composite. */
-void Service_Read(UA_Server *server, UA_Session *session,
-                  const UA_ReadRequest *request,
-                  UA_ReadResponse *response);
+UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
+                           const UA_ReadRequest *request, UA_ResponseHeader *responseHeader);
 
 /**
  * Write Service
@@ -314,7 +324,11 @@ void Service_Write(UA_Server *server, UA_Session *session,
  * Used to read historical values or Events of one or more Nodes. Servers may
  * make historical values available to Clients using this Service, although the
  * historical values themselves are not visible in the AddressSpace. */
-/* Not Implemented */
+#ifdef UA_ENABLE_HISTORIZING
+void Service_HistoryRead(UA_Server *server, UA_Session *session,
+                         const UA_HistoryReadRequest *request,
+                         UA_HistoryReadResponse *response);
+#endif
 
 /**
  * HistoryUpdate Service
@@ -338,9 +352,13 @@ void Service_Write(UA_Server *server, UA_Session *session,
  * Used to call (invoke) a methods. Each method call is invoked within the
  * context of an existing Session. If the Session is terminated, the results of
  * the method's execution cannot be returned to the Client and are discarded. */
+#ifdef UA_ENABLE_METHODCALLS
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response);
+#endif
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 
 /**
  * MonitoredItem Service Set
@@ -357,7 +375,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
  * links to be deleted, but has no effect on the MonitoredItems referenced by
  * the triggered items. */
 void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                                  const UA_CreateMonitoredItemsRequest *request, 
+                                  const UA_CreateMonitoredItemsRequest *request,
                                   UA_CreateMonitoredItemsResponse *response);
 
 /**
@@ -470,8 +488,8 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
  * its Session. */
 /* Not Implemented */
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
+_UA_END_DECLS
 
 #endif /* UA_SERVICES_H_ */

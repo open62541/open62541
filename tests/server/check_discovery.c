@@ -2,32 +2,22 @@
 *  License, v. 2.0. If a copy of the MPL was not distributed with this
 *  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 500
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-
-// On older systems we need to define _BSD_SOURCE
-// _DEFAULT_SOURCE is an alias for that
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
-#include <stdio.h>
-#include <fcntl.h>
-#include <check.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
-
 #include "server/ua_server_internal.h"
 #include "ua_client.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
+
+#include <fcntl.h>
+#ifndef WIN32
+#include <sys/stat.h>
+#endif
+#include <check.h>
+
+#ifndef _WIN32
+#include <sys/stat.h>
+#endif
 
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 1
@@ -38,6 +28,7 @@ UA_Server *server_lds;
 UA_ServerConfig *config_lds;
 UA_Boolean *running_lds;
 THREAD_HANDLE server_thread_lds;
+UA_Client *clientRegisterRepeated;
 
 THREAD_CALLBACK(serverloop_lds) {
     while(*running_lds)
@@ -121,16 +112,26 @@ static void teardown_register(void) {
 }
 
 START_TEST(Server_register) {
-    UA_StatusCode retval =
-        UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840", NULL);
+    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegister != NULL);
+    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_register_discovery(server_register, clientRegister , NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegister);
+    UA_Client_delete(clientRegister);
 }
 END_TEST
 
 START_TEST(Server_unregister) {
-    UA_StatusCode retval =
-        UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
+    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegister != NULL);
+    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_unregister_discovery(server_register, clientRegister);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegister);
+    UA_Client_delete(clientRegister);
 }
 END_TEST
 
@@ -152,11 +153,14 @@ START_TEST(Server_register_semaphore) {
     ck_assert_ptr_ne(fp, NULL);
     fclose(fp);
 #endif
-
-    UA_StatusCode retval =
-        UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840",
-                                     SEMAPHORE_PATH);
+    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegister != NULL);
+    UA_StatusCode retval = UA_Client_connect_noSession(clientRegister, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegister);
+    UA_Client_delete(clientRegister);
 }
 END_TEST
 
@@ -167,9 +171,11 @@ START_TEST(Server_unregister_semaphore) {
 END_TEST
 
 START_TEST(Server_register_periodic) {
+    ck_assert(clientRegisterRepeated == NULL);
+    clientRegisterRepeated = UA_Client_new(UA_ClientConfig_default);
+    ck_assert(clientRegisterRepeated != NULL);
     // periodic register every minute, first register immediately
-    UA_StatusCode retval =
-        UA_Server_addPeriodicServerRegisterCallback(server_register, "opc.tcp://localhost:4840",
+    UA_StatusCode retval = UA_Server_addPeriodicServerRegisterCallback(server_register, clientRegisterRepeated, "opc.tcp://localhost:4840",
                                                     60*1000, 100, &periodicRegisterCallbackId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
@@ -180,9 +186,11 @@ START_TEST(Server_unregister_periodic) {
     UA_fakeSleep(1000);
     UA_realSleep(1000);
     UA_Server_removeRepeatedCallback(server_register, periodicRegisterCallbackId);
-    UA_StatusCode retval = UA_Server_unregister_discovery(server_register,
-                                                          "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Server_unregister_discovery(server_register, clientRegisterRepeated);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(clientRegisterRepeated);
+    UA_Client_delete(clientRegisterRepeated);
+    clientRegisterRepeated=NULL;
 }
 END_TEST
 
@@ -372,22 +380,23 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
 
 // Test if discovery server lists himself as registered server if it is filtered by his uri
 START_TEST(Client_filter_discovery) {
-    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    UA_String expectedUris[1];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
     FindAndCheck(expectedUris, 1, NULL, NULL, "urn:open62541.test.local_discovery_server", NULL);
 }
 END_TEST
 
 // Test if server filters locale
 START_TEST(Client_filter_locale) {
-    const UA_String expectedUris[] = {
-        UA_STRING("urn:open62541.test.local_discovery_server"),
-        UA_STRING("urn:open62541.test.server_register")
-    };
-    const UA_String expectedNames[] = {
-        UA_STRING("LDS Server"),
-        UA_STRING("Anmeldungsserver")
-    };
-    const UA_String expectedLocales[] = {UA_STRING("en"), UA_STRING("de")};
+    UA_String expectedUris[2];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server"),
+    expectedUris[1] = UA_STRING("urn:open62541.test.server_register");
+    UA_String expectedNames[2];
+    expectedNames[0]= UA_STRING("LDS Server");
+    expectedNames[1]= UA_STRING("Anmeldungsserver");
+    UA_String expectedLocales[2];
+    expectedLocales[0] = UA_STRING("en");
+    expectedLocales[1] = UA_STRING("de");
     // even if we request en-US, the server will return de-DE because it only has that name.
     FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 
@@ -403,8 +412,10 @@ START_TEST(Client_find_on_network_registered) {
     ck_assert_uint_eq(gethostname(hostname, 255), 0);
 
     //DNS limits name to max 63 chars (+ \0)
-    snprintf(urls[0], 64, "LDS_test-%s", hostname);
-    snprintf(urls[1], 64, "Register_test-%s", hostname);
+    //We need this ugly casting, otherwise gcc >7.2 will complain about format-truncation, but we want it here
+    void *hostnameVoid = (void*)hostname;
+    snprintf(urls[0], 64, "LDS_test-%s", (char*)hostnameVoid);
+    snprintf(urls[1], 64, "Register_test-%s", (char*)hostnameVoid);
     expectedUris[0] = UA_STRING(urls[0]);
     expectedUris[1] = UA_STRING(urls[1]);
     FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL, NULL, 0);
@@ -425,17 +436,15 @@ END_TEST
 
 // Test if filtering with uris works
 START_TEST(Client_find_filter) {
-    const UA_String expectedUris[] = {
-        UA_STRING("urn:open62541.test.server_register")
-    };
+    UA_String expectedUris[1];
+    expectedUris[0] = UA_STRING("urn:open62541.test.server_register");
     FindAndCheck(expectedUris, 1, NULL, NULL, "urn:open62541.test.server_register", NULL);
 }
 END_TEST
 
 START_TEST(Client_get_endpoints) {
-    const UA_String  expectedEndpoints[] ={
-        UA_STRING("opc.tcp://localhost:4840")
-    };
+    UA_String  expectedEndpoints[1];
+    expectedEndpoints[0] = UA_STRING("opc.tcp://localhost:4840");
 
     // general check if expected endpoints are returned
     GetEndpointsAndCheck("opc.tcp://localhost:4840", NULL,expectedEndpoints, 1);
@@ -455,17 +464,17 @@ END_TEST
 
 // Test if discovery server lists himself as registered server, before any other registration.
 START_TEST(Client_find_discovery) {
-    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    UA_String expectedUris[1];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
     FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
 }
 END_TEST
 
 // Test if registered server is returned from LDS
 START_TEST(Client_find_registered) {
-    const UA_String expectedUris[2] = {
-        UA_STRING("urn:open62541.test.local_discovery_server"),
-        UA_STRING("urn:open62541.test.server_register")
-    };
+    UA_String expectedUris[2];
+    expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
+    expectedUris[1] = UA_STRING("urn:open62541.test.server_register");
     FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
 }
 END_TEST

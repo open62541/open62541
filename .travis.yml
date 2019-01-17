@@ -1,50 +1,212 @@
-language: c
+# using c for language overwrites our compilers
+language: generic
 
-# use new build environment (docker)
 sudo: required
 
 env:
   global:
     # GITAUTH:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
-    # COVERITY_SCAN_TOKEN:
-    - secure: C7LLWmOCdRYJGiXjFYDHWwBB6XGjs9Hio4kkvDehLRredRgp1UJ73g6Av9L7xrTUide6GiPrSd+RJw7py/twx5qaeIjOWPy+XvtmabDEQBquLjEkvS+LP2EycaMe92kHMo1ItFfRomgj1FyNYPVnUFgdyedGWv+p553ziDbrMas=
-
 
 dist: trusty
 
 matrix:
   fast_finish: true
   include:
+    #
     - os: linux
-      compiler: gcc
+      addons:
+        apt:
+          sources:
+            # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
+            - ubuntu-toolchain-r-test
+          packages:
+            - binutils-mingw-w64-i686
+            - build-essential
+            - check
+            - cmake
+            - debhelper
+            - fakeroot
+            - gcc-multilib
+            - g++-mingw-w64-i686
+            - g++-mingw-w64-x86-64
+            - g++-multilib
+            - graphviz
+            - libsubunit-dev
+            - libx11-dev
+            - mingw-w64
+            - python-six
+            - python3-six
+            - texlive-fonts-recommended
+            - texlive-latex-extra
+            - texlive-latex-recommended
+            - valgrind
+            - wget
+            - xutils-dev
+            - zip
       env:
         - ANALYZE=false
+        - CC=gcc-4.8
+        - CXX=g++-4.8
+        - PYTHON=python2
+        - MINGW=true
+        - DEBIAN=true
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - debhelper
+            - fakeroot
+            - gcc-8
+            - gcc-8-multilib
+            - g++-8
+            - g++-8-multilib
+            - graphviz
+            - linux-libc-dev:i386
+            - python-six
+            - python3-six
+            - texlive-fonts-recommended
+            - texlive-latex-extra
+            - texlive-latex-recommended
+            - valgrind
+      env:
+        - ANALYZE=false
+        - CC=gcc-8
+        - CXX=g++-8
         - PYTHON=python2
     - os: linux
-      compiler: gcc
-      env: ANALYZE=true
-    - os: linux
-      compiler: gcc
-      env: DOCKER=true
-      services:
-        - docker
-    - os: linux
-      compiler: clang
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - clang-6.0
+            - clang-tidy-6.0
+            - debhelper
+            - fakeroot
+            - graphviz
+            - python-six
+            - texlive-fonts-recommended
+            - texlive-latex-extra
+            - texlive-latex-recommended
+            - valgrind
       env:
         - ANALYZE=false
+        - CC=clang-6.0
+        - CXX=clang++-6.0
         - PYTHON=python2
     - os: linux
-      compiler: clang
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - clang-6.0
+            - clang-tidy-6.0
+            - debhelper
+            - fakeroot
+            - graphviz
+            - python3-six
+            - texlive-fonts-recommended
+            - texlive-latex-extra
+            - texlive-latex-recommended
+            - valgrind
       env:
         - ANALYZE=false
+        - CC=clang-6.0
+        - CXX=clang++-6.0
         - PYTHON=python3
     - os: linux
-      compiler: clang
-      env: ANALYZE=true
+      addons:
+        apt:
+          packages:
+            - check
+            - graphviz
+            - debhelper
+            - fakeroot
+            - python-six
+            - python3-six
+            - texlive-fonts-recommended
+            - texlive-latex-extra
+            - texlive-latex-recommended
+      env:
+        - ANALYZE=false
+        - CC=tcc
+        - PYTHON=python2
     - os: linux
-      compiler: clang
-      env: FUZZER=true
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - clang-6.0
+            - clang-tidy-6.0
+            - python3-six
+            - valgrind
+      env:
+        - INSTALL=true
+        - CC=clang-6.0
+        - CXX=clang++-6.0
+        - PYTHON=python3
+    - os: linux
+      addons:
+        apt:
+          packages:
+            - cppcheck
+      env:
+        - ANALYZE=true
+        - CC=gcc-4.8
+        - CXX=g++-4.8
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - clang-6.0
+            - clang-tidy-6.0
+            - graphviz
+            - python-six
+            - python3-six
+            - texlive-fonts-recommended
+            - texlive-latex-extra
+            - texlive-latex-recommended
+      env:
+        - ANALYZE=true
+        - PYTHON=python3
+        - CC=clang-6.0
+        - CXX=clang++-6.0
+    #- os: linux
+    #  compiler: gcc
+    #  env: LINT=true
+    - os: linux
+      env:
+        - DOCKER=true
+    - os: linux
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - check
+            - clang-6.0
+            - clang-tidy-6.0
+            - libfuzzer-6.0-dev
+            - python-six
+            - python3-six
+      env:
+        - FUZZER=true
     - os: osx
       compiler: clang
       # disable homebrew auto update which takes a lot of time
@@ -52,42 +214,21 @@ matrix:
       cache:
         directories:
           - $HOME/Library/Caches/Homebrew
-
-addons:
-  apt:
-    sources:
-      # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
-    packages:
-      - binutils-mingw-w64-i686
-      - build-essential
-      - check
-      - cmake
-      - cppcheck
-      - gcc-multilib
-      - g++-mingw-w64-i686
-      - g++-mingw-w64-x86-64
-      - g++-multilib
-      - graphviz
-      - libsubunit-dev
-      - libx11-dev
-      - mingw-w64
-      - python-six
-      - python3-six
-      - texlive-fonts-recommended
-      - texlive-latex-extra
-      - texlive-latex-recommended
-      - valgrind
-      - wget
-      - xutils-dev
-      - zip
-  coverity_scan:
-    project:
-      name: "open62541/open62541"
-      description: "Build submitted by Travis"
-    notification_email: null@plt.rwth-aachen.de
-    build_command_prepend: "mkdir build && cd build && cmake .."
-    build_command: "make"
-    branch_pattern: coverity_scan
+    - os: linux
+      addons:
+        sonarcloud:
+          organization: open62541
+          branches:
+            - master
+            - sonarcloud
+      env:
+        - CC=gcc-4.9
+        - CXX=g++-4.9
+        - SONAR=true
+        - PYTHON=python2
+      cache:
+        directories:
+          - '$HOME/.sonar/cache'
 
 cache:
   pip: true
@@ -98,19 +239,87 @@ cache:
 
 # combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
 before_install: |
- set -e
- # Exit travis if on coverity_scan branch and not first build
- test $TRAVIS_BRANCH != coverity_scan -o ${TRAVIS_JOB_NUMBER##*.} = 1 || exit 0
- if [ ${TRAVIS_OS_NAME} == "linux" ]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-; fi
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
+ # set paths for locally installed libs (like liburcu)
+ export LOCAL_PKG=$HOME/install
+ mkdir -p $LOCAL_PKG/lib
+ mkdir -p $LOCAL_PKG/include
+ mkdir -p $LOCAL_PKG/bin
+ export LIBRARY_PATH=$LOCAL_PKG/lib:$LIBRARY_PATH
+ export C_INCLUDE_PATH=$LOCAL_PKG/include:$C_INCLUDE_PATH
+ export CPLUS_INCLUDE_PATH=$LOCAL_PKG/include:$CPLUS_INCLUDE_PATH
+ export PKG_CONFIG_PATH=$LOCAL_PKG/lib/pkgconfig:$PKG_CONFIG_PATH
+ export PATH=$LOCAL_PKG:$LOCAL_PKG/bin:$PATH
+ export CMAKE_PREFIX_PATH=$LOCAL_PKG:CMAKE_PREFIX_PATH
+ # set local path for python packages
+ export PATH=$PATH:$HOME/.local/bin # linux
+ export PATH=$PATH:$HOME/Library/Python #OS X
+ export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
 script: |
- set -e
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+      echo ""
+      echo ""
+      echo "----------------- Error -----------------"
+      echo ""
+      echo "---- Check additional output above!! ----"
+      # Wait a bit until the stdout is flushed
+      for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
 after_success: |
+ set -eE
+
+ errorTrap() {
+   last_rv=$?
+
+   if [ $last_rv -ne 0 ] ; then
+     echo ""
+     echo ""
+     echo "----------------- Error -----------------"
+     echo ""
+     echo "---- Check additional output above!! ----"
+     # Wait a bit until the stdout is flushed
+     for i in 1 2 3 4 5 6 7 8 9 10; do echo "."; sleep 1; done
+   fi
+
+   exit $last_rv
+ }
+ trap errorTrap 0
+
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
  # Sleep to flush travis output
  echo == Build success ==
@@ -133,8 +342,10 @@ deploy:
     - open62541-raspberrypi.tar.gz
     - open62541.c
     - open62541.h
+    - open62541*.deb
+  file_glob: true
   skip_cleanup: true
   on:
     repo: open62541/open62541
     tags: true
-    condition: $CC = gcc && $ANALYZE = false
+    condition: $CC = gcc-4.8 && $ANALYZE = false

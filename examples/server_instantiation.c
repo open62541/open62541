@@ -1,8 +1,11 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
+
 #include <signal.h>
-#include "open62541.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -15,7 +18,7 @@ int main(void) {
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
-    
+
     /* Create a rudimentary objectType
      * 
      * BaseObjectType
@@ -30,43 +33,43 @@ int main(void) {
     UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mamal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MamalType");
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000), 
+    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "MamalType"), otAttr, NULL, NULL);
-  
+
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mamals Age in months");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Age");
     UA_UInt32 ageVar = 0;
     UA_Variant_setScalar(&vAttr.value, &ageVar, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001), 
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001),
                               UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Age"), UA_NODEID_NULL, vAttr, NULL, NULL);
-  
+                              UA_QUALIFIEDNAME(1, "Age"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
+
     otAttr = UA_ObjectTypeAttributes_default;
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mamal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DogType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10002),
                                 UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "DogType"), otAttr, NULL, NULL);
-    
+
     vAttr = UA_VariableAttributes_default;
     vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mamals Age in months");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Name");
     UA_String defaultName = UA_STRING("unnamed dog");
     UA_Variant_setScalar(&vAttr.value, &defaultName, &UA_TYPES[UA_TYPES_STRING]);
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10003), 
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10003),
                               UA_NODEID_NUMERIC(1, 10002), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NULL, vAttr, NULL, NULL);
-    
+                              UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
+
     /* Instatiate a dog named bello:
      * (O) Objects
      *   + O Bello <DogType>
      *     + Age 
      *     + Name
      */
-    
+
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog named Bello");
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Bello");
@@ -75,7 +78,7 @@ int main(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Bello"), UA_NODEID_NUMERIC(1, 10002),
                             oAttr, NULL, NULL);
-    
+
     retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);

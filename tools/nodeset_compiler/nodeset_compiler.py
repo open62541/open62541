@@ -24,8 +24,8 @@
 
 import logging
 import argparse
+from datatypes import NodeId
 from nodeset import *
-from backend_open62541 import generateOpen62541Code
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('-e', '--existing',
@@ -74,14 +74,6 @@ parser.add_argument('-i', '--ignore',
                     default=[],
                     help='Loads a list of NodeIDs stored in ignoreFile (one NodeID per line). Any of the nodeIds encountered in this file will be kept in the nodestore but not printed in the generated code')
 
-parser.add_argument('-s', '--suppress',
-                    metavar="<attribute>",
-                    action='append',
-                    dest="suppressedAttributes",
-                    choices=['description', 'browseName', 'displayName', 'writeMask', 'userWriteMask', 'nodeid'],
-                    default=[],
-                    help="Suppresses the generation of some node attributes. Currently supported options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask' and 'nodeid'.")
-
 parser.add_argument('-t', '--types-array',
                     metavar="<typesArray>",
                     action='append',
@@ -90,14 +82,22 @@ parser.add_argument('-t', '--types-array',
                     default=[],
                     help='Types array for the given namespace. Can be used mutliple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
-parser.add_argument('--max-string-length',
+parser.add_argument('--encode-binary-size',
                     type=int,
-                    dest="max_string_length",
-                    default=0,
-                    help='Maximum allowed length of a string literal. If longer, it will be set to an empty string')
+                    dest="encode_binary_size",
+                    default=32000,
+                    help='Size of the temporary array used to encode custom datatypes. If you don\'t know what it is, do not use this option')
 
 parser.add_argument('-v', '--verbose', action='count',
+                    default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
+
+parser.add_argument('--backend',
+                    default='open62541',
+                    const='open62541',
+                    nargs='?',
+                    choices=['open62541', 'graphviz'],
+                    help='Backend for the output files (default: %(default)s)')
 
 args = parser.parse_args()
 
@@ -122,6 +122,8 @@ else:
 # Parse the XML files
 ns = NodeSet()
 nsCount = 0
+loadedFiles = list()
+
 
 def getTypesArray(nsIdx):
     if nsIdx < len(args.typesArray):
@@ -130,10 +132,18 @@ def getTypesArray(nsIdx):
         return "UA_TYPES"
 
 for xmlfile in args.existing:
+    if xmlfile.name in loadedFiles:
+        logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
+        continue
+    loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) " + str(xmlfile.name))
     ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
     nsCount +=1
 for xmlfile in args.infiles:
+    if xmlfile.name in loadedFiles:
+        logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
+        continue
+    loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing " + str(xmlfile.name))
     ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
     nsCount +=1
@@ -150,7 +160,7 @@ for blacklist in args.blacklistFiles:
     for line in blacklist.readlines():
         line = line.replace(" ", "")
         id = line.replace("\n", "")
-        if ns.getNodeByIDString(id) == None:
+        if ns.getNodeByIDString(id) is None:
             logger.info("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
         else:
             ns.removeNodeById(line)
@@ -185,9 +195,20 @@ ns.buildEncodingRules()
 # buidEncodingRules.
 ns.allocateVariables()
 
-#printDependencyGraph(ns)
+ns.addInverseReferences()
 
-# Create the C code with the open62541 backend of the compiler
-logger.info("Generating Code")
-generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0, args.internal_headers, args.typesArray, args.max_string_length)
+logger.info("Generating Code for Backend: {}".format(args.backend))
+
+if args.backend == "open62541":
+    # Create the C code with the open62541 backend of the compiler
+    from backend_open62541 import generateOpen62541Code
+    generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.encode_binary_size)
+elif args.backend == "graphviz":
+    from backend_graphviz import generateGraphvizCode
+    generateGraphvizCode(ns, filename=args.outputFile)
+else:
+    logger.error("Unsupported backend: {}".format(args.backend))
+    exit(1)
+
+
 logger.info("NodeSet generation code successfully printed")

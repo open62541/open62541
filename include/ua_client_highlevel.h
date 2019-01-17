@@ -1,15 +1,23 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Florian Palm
+ *    Copyright 2016 (c) Chris Iatrou
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Frank Meerkötter
+ *    Copyright 2018 (c) Fabian Arndt
+ *    Copyright 2018 (c) Peter Rustler, basyskom GmbH
+ */
 
 #ifndef UA_CLIENT_HIGHLEVEL_H_
 #define UA_CLIENT_HIGHLEVEL_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_client.h"
+
+_UA_BEGIN_DECLS
 
 /**
  * .. _client-highlevel:
@@ -205,6 +213,44 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
 }
 
 /**
+ * Historical Access
+ * ^^^^^^^^^^^^^^^^^
+ * The following functions can be used to read a single node historically.
+ * Use the regular service to read several nodes at once.
+ */
+#ifdef UA_ENABLE_HISTORIZING
+typedef UA_Boolean
+(*UA_HistoricalIteratorCallback)(UA_Client *client,
+                                 const UA_NodeId *nodeId,
+                                 UA_Boolean moreDataAvailable,
+                                 const UA_ExtensionObject *data, void *callbackContext);
+
+#ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
+UA_StatusCode UA_EXPORT
+UA_Client_HistoryRead_events(UA_Client *client, const UA_NodeId *nodeId,
+                                const UA_HistoricalIteratorCallback callback,
+                                UA_DateTime startTime, UA_DateTime endTime,
+                                UA_String indexRange, const UA_EventFilter filter, UA_UInt32 numValuesPerNode,
+                                UA_TimestampsToReturn timestampsToReturn, void *callbackContext);
+#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
+
+UA_StatusCode UA_EXPORT
+UA_Client_HistoryRead_raw(UA_Client *client, const UA_NodeId *nodeId,
+                             const UA_HistoricalIteratorCallback callback,
+                             UA_DateTime startTime, UA_DateTime endTime,
+                             UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 numValuesPerNode,
+                             UA_TimestampsToReturn timestampsToReturn, void *callbackContext);
+
+#ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
+UA_StatusCode UA_EXPORT
+UA_Client_HistoryRead_modified(UA_Client *client, const UA_NodeId *nodeId,
+                                  const UA_HistoricalIteratorCallback callback,
+                                  UA_DateTime startTime, UA_DateTime endTime,
+                                  UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 numValuesPerNode,
+                                  UA_TimestampsToReturn timestampsToReturn, void *callbackContext);
+#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
+#endif // UA_ENABLE_HISTORIZING
+/**
  * Write Attributes
  * ^^^^^^^^^^^^^^^^
  *
@@ -387,10 +433,12 @@ UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId
 /**
  * Method Calling
  * ^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 UA_Client_call(UA_Client *client, const UA_NodeId objectId,
                const UA_NodeId methodId, size_t inputSize, const UA_Variant *input,
                size_t *outputSize, UA_Variant **output);
+#endif
 
 /**
  * Node Management
@@ -555,74 +603,6 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
 }
 
 /**
- * .. _client-subscriptions:
- *
- * Subscriptions Handling
- * ^^^^^^^^^^^^^^^^^^^^^^
- * At this time, the client does not yet contain its own thread or event-driven
- * main-loop. So the client will not perform any actions automatically in the
- * background. This is especially relevant for subscriptions. The user will have
- * to periodically call `UA_Client_Subscriptions_manuallySendPublishRequest`.
- * See also :ref:`here <client-subscriptions>`. */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-typedef struct {
-    UA_Double requestedPublishingInterval;
-    UA_UInt32 requestedLifetimeCount;
-    UA_UInt32 requestedMaxKeepAliveCount;
-    UA_UInt32 maxNotificationsPerPublish;
-    UA_Boolean publishingEnabled;
-    UA_Byte priority;
-} UA_SubscriptionSettings;
-
-extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
-                            UA_UInt32 *newSubscriptionId);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
-
-typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
-                                                  const size_t nEventFields,
-                                                  const UA_Variant *eventFields,
-                                                  void *context);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
-                                          const UA_NodeId nodeId, const UA_UInt32 attributeID,
-                                          UA_SimpleAttributeOperand *selectClause,
-                                          const size_t nSelectClauses,
-                                          UA_ContentFilterElement *whereClause,
-                                          const size_t nWhereClauses,
-                                          const UA_MonitoredEventHandlingFunction hf,
-                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
-
-typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
-                                                 UA_DataValue *value,
-                                                 void *context);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredItem(UA_Client *client,
-                                         UA_UInt32 subscriptionId,
-                                         UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         UA_MonitoredItemHandlingFunction hf,
-                                         void *hfContext,
-                                         UA_UInt32 *newMonitoredItemId,
-                                         UA_Double samplingInterval);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client,
-                                            UA_UInt32 subscriptionId,
-                                            UA_UInt32 monitoredItemId);
-
-#endif
-
-/**
  * Misc Highlevel Functionality
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 /* Get the namespace-index of a namespace-URI
@@ -640,18 +620,14 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
 #define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
    function for each child node */
-typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId,
-                                                 UA_Boolean isInverse,
-                                                 UA_NodeId referenceTypeId,
-                                                 void *handle);
+typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
+                                                 UA_NodeId referenceTypeId, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) ;
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_CLIENT_HIGHLEVEL_H_ */

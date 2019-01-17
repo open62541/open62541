@@ -80,3 +80,6 @@ Makefile
 /build
 /.idea
 /cmake-build*
+/tools/certs/certs/*
+Pipfile
+Pipfile.lock

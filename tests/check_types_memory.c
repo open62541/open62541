@@ -14,7 +14,8 @@
 #include "ua_util.h"
 #include "check.h"
 
-// Define types to a dummy value if they are not available (e.g. not built with NS0 full)
+/* Define types to a dummy value if they are not available (e.g. not built with
+ * NS0 full) */
 #ifndef UA_TYPES_UNION
 #define UA_TYPES_UNION UA_TYPES_COUNT
 #endif
@@ -24,8 +25,44 @@
 #ifndef UA_TYPES_NOTIFICATIONDATA
 #define UA_TYPES_NOTIFICATIONDATA UA_TYPES_COUNT
 #endif
+#ifndef UA_TYPES_MONITORINGFILTER
+#define UA_TYPES_MONITORINGFILTER UA_TYPES_COUNT
+#endif
 #ifndef UA_TYPES_MONITORINGFILTERRESULT
 #define UA_TYPES_MONITORINGFILTERRESULT UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_DATASETREADERMESSAGEDATATYPE
+#define UA_TYPES_DATASETREADERMESSAGEDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_WRITERGROUPTRANSPORTDATATYPE
+#define UA_TYPES_WRITERGROUPTRANSPORTDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_CONNECTIONTRANSPORTDATATYPE
+#define UA_TYPES_CONNECTIONTRANSPORTDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_WRITERGROUPMESSAGEDATATYPE
+#define UA_TYPES_WRITERGROUPMESSAGEDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_READERGROUPTRANSPORTDATATYPE
+#define UA_TYPES_READERGROUPTRANSPORTDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE
+#define UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_DATASETREADERTRANSPORTDATATYPE
+#define UA_TYPES_DATASETREADERTRANSPORTDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_DATASETWRITERTRANSPORTDATATYPE
+#define UA_TYPES_DATASETWRITERTRANSPORTDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_SUBSCRIBEDDATASETDATATYPE
+#define UA_TYPES_SUBSCRIBEDDATASETDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_READERGROUPMESSAGEDATATYPE
+#define UA_TYPES_READERGROUPMESSAGEDATATYPE UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_DATASETWRITERMESSAGEDATATYPE
+#define UA_TYPES_DATASETWRITERMESSAGEDATATYPE UA_TYPES_COUNT
 #endif
 
 START_TEST(newAndEmptyObjectShallBeDeleted) {
@@ -93,7 +130,7 @@ START_TEST(encodeShallYieldDecode) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], 0, NULL); 
+    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
@@ -107,7 +144,8 @@ START_TEST(encodeShallYieldDecode) {
     // then
     msg1.length = offset;
     msg2.length = offset;
-    ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true, "messages differ idx=%d,nodeid=%i", _i,
+    ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true,
+                  "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
 
     // finally
@@ -120,13 +158,27 @@ END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     //Skip test for void*
-    if (_i == UA_TYPES_DISCOVERYCONFIGURATION ||
-            _i == UA_TYPES_FILTEROPERAND ||
-            _i == UA_TYPES_MONITORINGFILTER ||
-            _i == UA_TYPES_UNION ||
-            _i == UA_TYPES_HISTORYREADDETAILS ||
-            _i == UA_TYPES_NOTIFICATIONDATA ||
-            _i == UA_TYPES_MONITORINGFILTERRESULT)
+    if (
+#ifdef UA_ENABLE_DISCOVERY
+        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
+#endif
+        _i == UA_TYPES_FILTEROPERAND ||
+        _i == UA_TYPES_UNION ||
+        _i == UA_TYPES_HISTORYREADDETAILS ||
+        _i == UA_TYPES_NOTIFICATIONDATA ||
+        _i == UA_TYPES_MONITORINGFILTER ||
+        _i == UA_TYPES_MONITORINGFILTERRESULT ||
+        _i == UA_TYPES_DATASETREADERMESSAGEDATATYPE ||
+        _i == UA_TYPES_WRITERGROUPTRANSPORTDATATYPE ||
+        _i == UA_TYPES_CONNECTIONTRANSPORTDATATYPE ||
+        _i == UA_TYPES_WRITERGROUPMESSAGEDATATYPE ||
+        _i == UA_TYPES_READERGROUPTRANSPORTDATATYPE ||
+        _i == UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE ||
+        _i == UA_TYPES_DATASETREADERTRANSPORTDATATYPE ||
+        _i == UA_TYPES_DATASETWRITERTRANSPORTDATATYPE ||
+        _i == UA_TYPES_SUBSCRIBEDDATASETDATATYPE ||
+        _i == UA_TYPES_READERGROUPMESSAGEDATATYPE ||
+        _i == UA_TYPES_DATASETWRITERMESSAGEDATATYPE)
         return;
     // given
     UA_ByteString msg1;
@@ -147,7 +199,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
-    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], 0, NULL);
+    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj2, &UA_TYPES[_i]);
     UA_ByteString_deleteMembers(&msg1);
@@ -180,9 +232,11 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         }
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         //then
-        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %d from random buffer", UA_TYPES[_i].typeId.identifier.numeric);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD,
+                      "Decoding %d from random buffer",
+                      UA_TYPES[_i].typeId.identifier.numeric);
         // finally
         UA_delete(obj1, &UA_TYPES[_i]);
     }
@@ -214,7 +268,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
         }
         size_t pos = 0;
         void *obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], NULL);
         UA_delete(obj1, &UA_TYPES[_i]);
     }
 
@@ -224,17 +278,31 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
-    /* Empty variants (with no type defined) cannot be encoded. This is intentional. Discovery configuration is just a base class and void * */
+    /* Empty variants (with no type defined) cannot be encoded. This is
+     * intentional. Discovery configuration is just a base class and void * */
     if(_i == UA_TYPES_VARIANT ||
        _i == UA_TYPES_VARIABLEATTRIBUTES ||
        _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
        _i == UA_TYPES_FILTEROPERAND ||
-       _i == UA_TYPES_MONITORINGFILTER ||
+#ifdef UA_ENABLE_DISCOVERY
        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
+#endif
        _i == UA_TYPES_UNION ||
        _i == UA_TYPES_HISTORYREADDETAILS ||
        _i == UA_TYPES_NOTIFICATIONDATA ||
-       _i == UA_TYPES_MONITORINGFILTERRESULT)
+       _i == UA_TYPES_MONITORINGFILTER ||
+        _i == UA_TYPES_MONITORINGFILTERRESULT ||
+        _i == UA_TYPES_DATASETREADERMESSAGEDATATYPE ||
+        _i == UA_TYPES_WRITERGROUPTRANSPORTDATATYPE ||
+        _i == UA_TYPES_CONNECTIONTRANSPORTDATATYPE ||
+        _i == UA_TYPES_WRITERGROUPMESSAGEDATATYPE ||
+        _i == UA_TYPES_READERGROUPTRANSPORTDATATYPE ||
+        _i == UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE ||
+        _i == UA_TYPES_DATASETREADERTRANSPORTDATATYPE ||
+        _i == UA_TYPES_DATASETWRITERTRANSPORTDATATYPE ||
+        _i == UA_TYPES_SUBSCRIBEDDATASETDATATYPE ||
+        _i == UA_TYPES_READERGROUPMESSAGEDATATYPE ||
+        _i == UA_TYPES_DATASETWRITERMESSAGEDATATYPE)
         return;
     void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
@@ -265,12 +333,15 @@ int main(void) {
     tcase_add_loop_test(tc, encodeShallYieldDecode, UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
     suite_add_tcase(s, tc);
     tc = tcase_create("Truncated Buffers");
-    tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive, UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
+    tcase_add_loop_test(tc, decodeShallFailWithTruncatedBufferButSurvive,
+                        UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
     suite_add_tcase(s, tc);
 
     tc = tcase_create("Fuzzing with Random Buffers");
-    tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed, UA_TYPES_BOOLEAN, UA_TYPES_DOUBLE);
-    tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_TYPES_NODEID, UA_TYPES_COUNT - 1);
+    tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed,
+                        UA_TYPES_BOOLEAN, UA_TYPES_DOUBLE);
+    tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive,
+                        UA_TYPES_NODEID, UA_TYPES_COUNT - 1);
     suite_add_tcase(s, tc);
 
     tc = tcase_create("Test calcSizeBinary");

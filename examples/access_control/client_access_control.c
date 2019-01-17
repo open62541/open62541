@@ -5,9 +5,9 @@
  * Using access_control_server
  */
 
-#include <stdio.h>
-
-#include "open62541.h"
+#include <ua_client.h>
+#include <ua_config_default.h>
+#include <ua_client_highlevel.h>
 
 int main(void) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -61,7 +61,7 @@ int main(void) {
     printf("deleteNode returned: %s\n", UA_StatusCode_name(retCode));
 
     /* Clean up */
-    UA_VariableAttributes_deleteMembers(&newVariableAttributes);
+    UA_VariableAttributes_clear(&newVariableAttributes);
     UA_Client_delete(client); /* Disconnects the client internally */
     return UA_STATUSCODE_GOOD;
 }

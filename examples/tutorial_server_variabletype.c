@@ -18,8 +18,11 @@
  * VariableTypeNode to the hierarchy of variable types.
  */
 
+#include <ua_server.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
+
 #include <signal.h>
-#include "open62541.h"
 
 static UA_NodeId pointTypeId;
 
@@ -27,7 +30,7 @@ static void
 addVariableType2DPoint(UA_Server *server) {
     UA_VariableTypeAttributes vtAttr = UA_VariableTypeAttributes_default;
     vtAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    vtAttr.valueRank = 1; /* array with one dimension */
+    vtAttr.valueRank = UA_VALUERANK_ONE_DIMENSION;
     UA_UInt32 arrayDims[1] = {2};
     vtAttr.arrayDimensions = arrayDims;
     vtAttr.arrayDimensionsSize = 1;
@@ -57,7 +60,7 @@ addVariable(UA_Server *server) {
     /* Prepare the node attributes */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    vAttr.valueRank = 1; /* array with one dimension */
+    vAttr.valueRank = UA_VALUERANK_ONE_DIMENSION;
     UA_UInt32 arrayDims[1] = {2};
     vAttr.arrayDimensions = arrayDims;
     vAttr.arrayDimensionsSize = 1;
@@ -84,12 +87,12 @@ addVariableFail(UA_Server *server) {
     /* Prepare the node attributes */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    vAttr.valueRank = -1; /* a scalar. this is not allowed per the variable type */
+    vAttr.valueRank = UA_VALUERANK_SCALAR; /* a scalar. this is not allowed per the variable type */
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Variable (fail)");
     UA_String s = UA_STRING("2dpoint?");
     UA_Variant_setScalar(&vAttr.value, &s, &UA_TYPES[UA_TYPES_STRING]);
 
-    /* Add the node */
+    /* Add the node will return UA_STATUSCODE_BADTYPEMISMATCH*/
     UA_Server_addVariableNode(server, UA_NODEID_NULL,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -104,7 +107,7 @@ addVariableFail(UA_Server *server) {
 
 static void
 writeVariable(UA_Server *server) {
-    UA_StatusCode retval = UA_Server_writeValueRank(server, pointVariableId, 0);
+    UA_StatusCode retval = UA_Server_writeValueRank(server, pointVariableId, UA_VALUERANK_ONE_OR_MORE_DIMENSIONS);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Setting the Value Rank failed with Status Code %s",
                 UA_StatusCode_name(retval));

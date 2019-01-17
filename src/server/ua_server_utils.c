@@ -1,95 +1,39 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2016 (c) Lorenz Haas
+ *    Copyright 2017 (c) frax2222
+ *    Copyright 2017 (c) Florian Palm
+ *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Julian Grothoff
+ */
 
 #include "ua_server_internal.h"
 
-/**********************/
-/* Parse NumericRange */
-/**********************/
-
-static size_t
-readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
-    size_t progress = UA_readNumber(buf, buflen, &dim->min);
-    if(progress == 0)
-        return 0;
-    if(buflen <= progress + 1 || buf[progress] != ':') {
-        dim->max = dim->min;
-        return progress;
-    }
-
-    ++progress;
-    size_t progress2 = UA_readNumber(&buf[progress], buflen - progress, &dim->max);
-    if(progress2 == 0)
-        return 0;
-
-    /* invalid range */
-    if(dim->min >= dim->max)
-        return 0;
-
-    return progress + progress2;
-}
-
-UA_StatusCode
-UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
-    size_t idx = 0;
-    size_t dimensionsMax = 0;
-    UA_NumericRangeDimension *dimensions = NULL;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t offset = 0;
-    while(true) {
-        /* alloc dimensions */
-        if(idx >= dimensionsMax) {
-            UA_NumericRangeDimension *newds;
-            size_t newdssize = sizeof(UA_NumericRangeDimension) * (dimensionsMax + 2);
-            newds = (UA_NumericRangeDimension*)UA_realloc(dimensions, newdssize);
-            if(!newds) {
-                retval = UA_STATUSCODE_BADOUTOFMEMORY;
-                break;
-            }
-            dimensions = newds;
-            dimensionsMax = dimensionsMax + 2;
-        }
-
-        /* read the dimension */
-        size_t progress = readDimension(&str->data[offset], str->length - offset,
-                                        &dimensions[idx]);
-        if(progress == 0) {
-            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
-            break;
-        }
-        offset += progress;
-        ++idx;
-
-        /* loop into the next dimension */
-        if(offset >= str->length)
-            break;
-
-        if(str->data[offset] != ',') {
-            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
-            break;
-        }
-        ++offset;
-    }
-
-    if(retval == UA_STATUSCODE_GOOD && idx > 0) {
-        range->dimensions = dimensions;
-        range->dimensionsSize = idx;
-    } else
-        UA_free(dimensions);
-
-    return retval;
-}
+#define UA_MAX_TREE_RECURSE 50 /* How deep up/down the tree do we recurse at most? */
 
 /********************************/
 /* Information Model Operations */
 /********************************/
 
-UA_Boolean
-isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
+/* Keeps track of already visited nodes to detect circular references */
+struct ref_history {
+    struct ref_history *parent; /* the previous element */
+    const UA_NodeId *id; /* the id of the node at this depth */
+    UA_UInt16 depth;
+};
+
+static UA_Boolean
+isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+                       struct ref_history *visitedRefs, const UA_NodeId *referenceTypeIds,
+                       size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
         return true;
+
+    if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
+        return false;
 
     const UA_Node *node = ns->getNode(ns->context, leafNode);
     if(!node)
@@ -114,8 +58,31 @@ isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
         /* Match the targets or recurse */
         for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-            if(isNodeInTree(ns, &refs->targetIds[j].nodeId, nodeToFind,
-                            referenceTypeIds, referenceTypeIdsSize)) {
+            /* Check if we already have seen the referenced node and skip to
+             * avoid endless recursion. Do this only at every 5th depth to save
+             * effort. Circular dependencies are rare and forbidden for most
+             * reference types. */
+            if(visitedRefs->depth % 5 == 4) {
+                struct ref_history *last = visitedRefs;
+                UA_Boolean skip = false;
+                while(!skip && last) {
+                    if(UA_NodeId_equal(last->id, &refs->targetIds[j].nodeId))
+                        skip = true;
+                    last = last->parent;
+                }
+                if(skip)
+                    continue;
+            }
+
+            /* Stack-allocate the visitedRefs structure for the next depth */
+            struct ref_history nextVisitedRefs = {visitedRefs, &refs->targetIds[j].nodeId,
+                                                  (UA_UInt16)(visitedRefs->depth+1)};
+
+            /* Recurse */
+            UA_Boolean foundRecursive =
+                isNodeInTreeNoCircular(ns, &refs->targetIds[j].nodeId, nodeToFind, &nextVisitedRefs,
+                                       referenceTypeIds, referenceTypeIdsSize);
+            if(foundRecursive) {
                 ns->releaseNode(ns->context, node);
                 return true;
             }
@@ -124,6 +91,13 @@ isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
     ns->releaseNode(ns->context, node);
     return false;
+}
+
+UA_Boolean
+isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
+    struct ref_history visitedRefs = {NULL, leafNode, 0};
+    return isNodeInTreeNoCircular(ns, leafNode, nodeToFind, &visitedRefs, referenceTypeIds, referenceTypeIdsSize);
 }
 
 const UA_Node *
@@ -194,12 +168,14 @@ static const UA_NodeId hasSubtypeNodeId =
 
 static UA_StatusCode
 getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
-                         size_t *results_size, const UA_Node *node) {
+                         size_t *results_size, const UA_Node *node,
+                         UA_Boolean walkDownwards) {
     UA_NodeId *results = *results_ptr;
     for(size_t i = 0; i < node->referencesSize; ++i) {
         /* Is the reference kind relevant? */
         UA_NodeReferenceKind *refs = &node->references[i];
-        if(!refs->isInverse)
+        // if downwards, we do not want inverse, if upwards we want inverse
+        if (walkDownwards == refs->isInverse)
             continue;
         if(!UA_NodeId_equal(&hasSubtypeNodeId, &refs->referenceTypeId))
             continue;
@@ -245,7 +221,8 @@ getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
 
 UA_StatusCode
 getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
+                 UA_Boolean walkDownwards) {
     /* Allocate the results array. Probably too big, but saves mallocs. */
     size_t results_size = 20;
     UA_NodeId *results = (UA_NodeId*)UA_malloc(sizeof(UA_NodeId) * results_size);
@@ -275,7 +252,7 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
 
         /* Add references from the current node to the end of the array */
         retval = getTypeHierarchyFromNode(&results, &results_count,
-                                          &results_size, node);
+                                          &results_size, node, walkDownwards);
 
         /* Release the node */
         ns->releaseNode(ns->context, node);
@@ -297,33 +274,72 @@ getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
     return UA_STATUSCODE_GOOD;
 }
 
+
+UA_StatusCode
+getTypesHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType, size_t leafTypeSize,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
+                 UA_Boolean walkDownwards) {
+    UA_NodeId *results = NULL;
+    size_t results_count = 0;
+    for (size_t i=0; i<leafTypeSize; i++) {
+        UA_NodeId *tmpResults = NULL;
+        size_t tmpResults_size = 0;
+        UA_StatusCode retval = getTypeHierarchy(ns, &leafType[i], &tmpResults, &tmpResults_size, walkDownwards);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
+            return retval;
+        }
+        if (tmpResults_size == 0 || tmpResults == NULL )
+            continue;
+        size_t new_size = sizeof(UA_NodeId) * (results_count + tmpResults_size);
+        UA_NodeId *new_results = (UA_NodeId*)UA_realloc(results, new_size);
+        if(!new_results) {
+            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        results = new_results;
+        memcpy(&results[results_count],tmpResults, sizeof(UA_NodeId)*tmpResults_size);
+        /* do not use UA_Array_delete since we still need the content of the nodes */
+        UA_free(tmpResults);
+        results_count = results_count + tmpResults_size;
+    }
+    *typeHierarchy = results;
+    *typeHierarchySize = results_count;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* For mulithreading: make a copy of the node, edit and replace.
  * For singlethreading: edit the original */
 UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
-                   const void *data) {
-#ifndef UA_ENABLE_MULTITHREADING
+                   void *data) {
+#ifndef UA_ENABLE_IMMUTABLE_NODES
+    /* Get the node and process it in-situ */
     const UA_Node *node = UA_Nodestore_get(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    UA_StatusCode retval = callback(server, session,
-                                    (UA_Node*)(uintptr_t)node, data);
+    UA_StatusCode retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
     UA_Nodestore_release(server, node);
     return retval;
 #else
     UA_StatusCode retval;
     do {
+        /* Get an editable copy of the node */
         UA_Node *node;
-        retval = server->config.nodestore.getNodeCopy(server->config.nodestore.context,
-                                                      nodeId, &node);
+        retval = server->config.nodestore.
+            getNodeCopy(server->config.nodestore.context, nodeId, &node);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
+
+        /* Run the operation on the copy */
         retval = callback(server, session, node, data);
         if(retval != UA_STATUSCODE_GOOD) {
             server->config.nodestore.deleteNode(server->config.nodestore.context, node);
             return retval;
         }
+
+        /* Replace the node */
         retval = server->config.nodestore.replaceNode(server->config.nodestore.context, node);
     } while(retval != UA_STATUSCODE_GOOD);
     return retval;
@@ -333,7 +349,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   const size_t *requestOperations,
+                                   void *context, const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType) {
@@ -352,12 +368,16 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
     /* No padding after size_t */
     uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
     for(size_t i = 0; i < ops; i++) {
-        operationCallback(server, session, (void*)reqOp, (void*)respOp);
+        operationCallback(server, session, context, (void*)reqOp, (void*)respOp);
         reqOp += requestOperationsType->memSize;
         respOp += responseOperationsType->memSize;
     }
     return UA_STATUSCODE_GOOD;
 }
+
+/* A few global NodeId definitions */
+const UA_NodeId subtypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
+const UA_NodeId hierarchicalReferences = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
 
 /*********************************/
 /* Default attribute definitions */
@@ -380,7 +400,7 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
      0, NULL, 0, NULL},          /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
-    -2,                          /* valueRank */
+    UA_VALUERANK_ANY,            /* valueRank */
     0, NULL,                     /* arrayDimensions */
     UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
     0.0,                         /* minimumSamplingInterval */
@@ -412,7 +432,7 @@ const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
      0, NULL, 0, NULL},          /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
-    -2,                          /* valueRank */
+    UA_VALUERANK_ANY,            /* valueRank */
     0, NULL,                     /* arrayDimensions */
     false                        /* isAbstract */
 };

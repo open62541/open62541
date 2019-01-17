@@ -5,11 +5,9 @@
  * and then calls GetEndpoints on the returned list of servers.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <open62541.h>
-
-UA_Logger logger = UA_Log_Stdout;
+#include <ua_client.h>
+#include <ua_config_default.h>
+#include <ua_log_stdout.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
@@ -26,8 +24,8 @@ int main(void) {
         UA_Client *client = UA_Client_new(UA_ClientConfig_default);
         UA_StatusCode retval = UA_Client_findServersOnNetwork(client, DISCOVERY_SERVER_ENDPOINT, 0, 0,
                                                               0, NULL, &serverOnNetworkSize, &serverOnNetwork);
-        if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "Could not call FindServersOnNetwork service. "
                          "Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
@@ -36,7 +34,7 @@ int main(void) {
         }
 
         // output all the returned/registered servers
-        for (size_t i = 0; i < serverOnNetworkSize; i++) {
+        for(size_t i = 0; i < serverOnNetworkSize; i++) {
             UA_ServerOnNetwork *server = &serverOnNetwork[i];
             printf("Server[%lu]: %.*s", (unsigned long) i,
                    (int) server->serverName.length, server->serverName.data);
@@ -44,7 +42,7 @@ int main(void) {
             printf("\n\tDiscovery URL: %.*s", (int) server->discoveryUrl.length,
                    server->discoveryUrl.data);
             printf("\n\tCapabilities: ");
-            for (size_t j = 0; j < server->serverCapabilitiesSize; j++) {
+            for(size_t j = 0; j < server->serverCapabilitiesSize; j++) {
                 printf("%.*s,", (int) server->serverCapabilities[j].length,
                        server->serverCapabilities[j].data);
             }
@@ -66,14 +64,14 @@ int main(void) {
                                        &applicationDescriptionArraySize, &applicationDescriptionArray);
         UA_Client_delete(client);
     }
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
                 "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
         return (int) retval;
     }
 
     // output all the returned/registered servers
-    for (size_t i = 0; i < applicationDescriptionArraySize; i++) {
+    for(size_t i = 0; i < applicationDescriptionArraySize; i++) {
         UA_ApplicationDescription *description = &applicationDescriptionArray[i];
         printf("Server[%lu]: %.*s", (unsigned long) i, (int) description->applicationUri.length,
                description->applicationUri.data);
@@ -84,7 +82,7 @@ int main(void) {
         printf("\n\tProduct URI: %.*s", (int) description->productUri.length,
                description->productUri.data);
         printf("\n\tType: ");
-        switch (description->applicationType) {
+        switch(description->applicationType) {
             case UA_APPLICATIONTYPE_SERVER:
                 printf("Server");
                 break;
@@ -101,7 +99,7 @@ int main(void) {
                 printf("Unknown");
         }
         printf("\n\tDiscovery URLs:");
-        for (size_t j = 0; j < description->discoveryUrlsSize; j++) {
+        for(size_t j = 0; j < description->discoveryUrlsSize; j++) {
             printf("\n\t\t[%lu]: %.*s", (unsigned long) j,
                    (int) description->discoveryUrls[j].length,
                    description->discoveryUrls[j].data);
@@ -116,10 +114,10 @@ int main(void) {
 
     printf("-------- Server Endpoints --------\n");
 
-    for (size_t i = 0; i < applicationDescriptionArraySize; i++) {
+    for(size_t i = 0; i < applicationDescriptionArraySize; i++) {
         UA_ApplicationDescription *description = &applicationDescriptionArray[i];
-        if (description->discoveryUrlsSize == 0) {
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT,
+        if(description->discoveryUrlsSize == 0) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
                         "[GetEndpoints] Server %.*s did not provide any discovery urls. Skipping.",
                         (int)description->applicationUri.length, description->applicationUri.data);
             continue;
@@ -136,22 +134,23 @@ int main(void) {
 
         UA_EndpointDescription *endpointArray = NULL;
         size_t endpointArraySize = 0;
+        //TODO: adapt to the new async getEndpoint
         retval = UA_Client_getEndpoints(client, discoveryUrl, &endpointArraySize, &endpointArray);
         UA_free(discoveryUrl);
-        if (retval != UA_STATUSCODE_GOOD) {
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_Client_disconnect(client);
             UA_Client_delete(client);
             break;
         }
 
-        for (size_t j = 0; j < endpointArraySize; j++) {
+        for(size_t j = 0; j < endpointArraySize; j++) {
             UA_EndpointDescription *endpoint = &endpointArray[j];
             printf("\n\tEndpoint[%lu]:", (unsigned long) j);
             printf("\n\t\tEndpoint URL: %.*s", (int) endpoint->endpointUrl.length, endpoint->endpointUrl.data);
             printf("\n\t\tTransport profile URI: %.*s", (int) endpoint->transportProfileUri.length,
                    endpoint->transportProfileUri.data);
             printf("\n\t\tSecurity Mode: ");
-            switch (endpoint->securityMode) {
+            switch(endpoint->securityMode) {
             case UA_MESSAGESECURITYMODE_INVALID:
                 printf("Invalid");
                 break;

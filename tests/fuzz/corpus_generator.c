@@ -24,23 +24,24 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <ua_client_highlevel.h>
+#include <ua_client_subscriptions.h>
+#include <client/ua_client_internal.h>
 
 #include "ua_config_default.h"
 
 UA_Server *server;
 UA_ServerConfig *config;
-UA_Boolean *running;
+UA_Boolean running;
 pthread_t server_thread;
 
 static void * serverloop(void *_) {
-    while(*running)
+    while(running)
         UA_Server_run_iterate(server, true);
     return NULL;
 }
 
 static void start_server(void) {
-    running = UA_Boolean_new();
-    *running = true;
+    running = true;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -48,10 +49,9 @@ static void start_server(void) {
 }
 
 static void teardown_server(void) {
-    *running = false;
+    running = false;
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
-    UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 }
@@ -360,26 +360,30 @@ translateBrowsePathsToNodeIdsRequest(UA_Client *client) {
 
 
 static void
-monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
-
+monitoredItemHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
+                     UA_UInt32 monId, void *monContext, UA_DataValue *value) {
 }
 
 static UA_StatusCode
 subscriptionRequests(UA_Client *client) {
     UA_UInt32 subId;
     // createSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId));
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
 
+    ASSERT_GOOD(response.responseHeader.serviceResult);
+    subId = response.subscriptionId;
 
     // modifySubscription
     UA_ModifySubscriptionRequest modifySubscriptionRequest;
     UA_ModifySubscriptionRequest_init(&modifySubscriptionRequest);
     modifySubscriptionRequest.subscriptionId = subId;
-    modifySubscriptionRequest.maxNotificationsPerPublish = UA_SubscriptionSettings_default.maxNotificationsPerPublish;
-    modifySubscriptionRequest.priority = UA_SubscriptionSettings_default.priority;
-    modifySubscriptionRequest.requestedLifetimeCount = UA_SubscriptionSettings_default.requestedLifetimeCount;
-    modifySubscriptionRequest.requestedMaxKeepAliveCount = UA_SubscriptionSettings_default.requestedMaxKeepAliveCount;
-    modifySubscriptionRequest.requestedPublishingInterval = UA_SubscriptionSettings_default.requestedPublishingInterval;
+    modifySubscriptionRequest.maxNotificationsPerPublish = request.maxNotificationsPerPublish;
+    modifySubscriptionRequest.priority = request.priority;
+    modifySubscriptionRequest.requestedLifetimeCount = request.requestedLifetimeCount;
+    modifySubscriptionRequest.requestedMaxKeepAliveCount = request.requestedMaxKeepAliveCount;
+    modifySubscriptionRequest.requestedPublishingInterval = request.requestedPublishingInterval;
     UA_ModifySubscriptionResponse modifySubscriptionResponse;
     __UA_Client_Service(client, &modifySubscriptionRequest, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
                         &modifySubscriptionResponse, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
@@ -404,12 +408,28 @@ subscriptionRequests(UA_Client *client) {
 
     // createMonitoredItemsRequest
     UA_UInt32 monId;
-    ASSERT_GOOD(UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
-                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler,
-                                                      NULL, &monId, 250));
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL, monitoredItemHandler, NULL);
+
+    ASSERT_GOOD(monResponse.statusCode);
+    monId = monResponse.monitoredItemId;
 
     // publishRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_manuallySendPublishRequest(client));
+    UA_PublishRequest publishRequest;
+    UA_PublishRequest_init(&publishRequest);
+    ASSERT_GOOD(UA_Client_preparePublishRequest(client, &publishRequest));
+    UA_PublishResponse publishResponse;
+    __UA_Client_Service(client, &publishRequest, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+                        &publishResponse, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
+    // ASSERT_GOOD(publishResponse.responseHeader.serviceResult);
+    UA_PublishRequest_deleteMembers(&publishRequest);
+    UA_PublishResponse_deleteMembers(&publishResponse);
 
     // republishRequest
     UA_RepublishRequest republishRequest;
@@ -455,11 +475,11 @@ subscriptionRequests(UA_Client *client) {
     UA_SetMonitoringModeResponse_deleteMembers(&setMonitoringModeResponse);
 
     // deleteMonitoredItemsRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId));
+    ASSERT_GOOD(UA_Client_MonitoredItems_deleteSingle(client, subId, monId));
 
 
     // deleteSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_remove(client, subId));
+    ASSERT_GOOD(UA_Client_Subscriptions_deleteSingle(client, subId));
 
     return UA_STATUSCODE_GOOD;
 }
@@ -564,7 +584,7 @@ int main(void) {
     teardown_server();
 
     if(retval != UA_STATUSCODE_GOOD) {
-        printf("\n--------- AN ERROR OCCURED ----------\nStatus = %s\n", UA_StatusCode_name(retval));
+        printf("\n--------- AN ERROR OCCURRED ----------\nStatus = %s\n", UA_StatusCode_name(retval));
         exit(1);
     } else {
         printf("\n--------- SUCCESS -------\nThe corpus is stored in %s", UA_CORPUS_OUTPUT_DIR);

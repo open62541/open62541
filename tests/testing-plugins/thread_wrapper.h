@@ -4,6 +4,7 @@
 
 /* Simple wrapper for unit test threads */
 
+/* Threads */
 
 #ifndef WIN32
 #include <pthread.h>
@@ -22,4 +23,29 @@
 
 #define THREAD_CALLBACK(name) DWORD WINAPI name( LPVOID lpParam )
 
+#endif
+
+/* Mutex */
+
+/* Windows returns non-zero on success and pthread returns zero,
+ * so compare to zero to achieve consistent return values */
+
+#ifndef WIN32
+#define MUTEX_HANDLE pthread_mutex_t
+
+/* Will return UA_TRUE when zero */
+#define MUTEX_INIT(name) (pthread_mutex_init(&(name), NULL) == 0)
+#define MUTEX_LOCK(name) (pthread_mutex_lock(&(name)) == 0)
+#define MUTEX_UNLOCK(name) (pthread_mutex_unlock(&(name)) == 0)
+#define MUTEX_DESTROY(name) (pthread_mutex_destroy(&(name)) == 0)
+
+#else
+
+#define MUTEX_HANDLE HANDLE
+
+/* Will return UA_FALSE when zero */
+#define MUTEX_INIT(name) (CreateMutex(NULL, FALSE, NULL) != 0)
+#define MUTEX_LOCK(name) (WaitForSingleObject((name), INFINITE) != 0)
+#define MUTEX_UNLOCK(name) (ReleaseMutex((name)) != 0)
+#define MUTEX_DESTROY(name) (CloseHandle((name)) != 0)
 #endif

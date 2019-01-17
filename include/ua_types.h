@@ -1,16 +1,26 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ *
+ *    Copyright 2014 (c) Leon Urbas
+ *    Copyright 2014, 2016-2017 (c) Florian Palm
+ *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2015-2016 (c) Sten Grüner
+ *    Copyright 2015-2016 (c) Chris Iatrou
+ *    Copyright 2015 (c) Nick Goossens
+ *    Copyright 2015-2016 (c) Oleksiy Vasylyev
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ */
 
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "ua_config.h"
 #include "ua_constants.h"
+#include "ua_statuscodes.h"
+
+_UA_BEGIN_DECLS
 
 #define UA_BUILTIN_TYPES_COUNT 25U
 
@@ -37,8 +47,8 @@ extern "C" {
  * ^^^^^^^
  * A two-state logical value (true or false). */
 typedef bool UA_Boolean;
-#define UA_TRUE true
-#define UA_FALSE false
+#define UA_TRUE true UA_INTERNAL_DEPRECATED
+#define UA_FALSE false UA_INTERNAL_DEPRECATED
 
 /**
  * SByte
@@ -163,6 +173,9 @@ UA_STRING(char *chars) {
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
+/* Define strings at compile time (in ROM) */
+#define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
+
 /**
  * .. _datetime:
  *
@@ -286,8 +299,8 @@ typedef UA_String UA_XmlElement;
  * An identifier for a node in the address space of an OPC UA Server. */
 enum UA_NodeIdType {
     UA_NODEIDTYPE_NUMERIC    = 0, /* In the binary encoding, this can also
-                                     become 1 or 2 (2byte and 4byte encoding of
-                                     small numeric nodeids) */
+                                   * become 1 or 2 (two-byte and four-byte
+                                   * encoding of small numeric nodeids) */
     UA_NODEIDTYPE_STRING     = 3,
     UA_NODEIDTYPE_GUID       = 4,
     UA_NODEIDTYPE_BYTESTRING = 5
@@ -366,6 +379,9 @@ typedef struct {
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 
+UA_Boolean UA_EXPORT UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
+                                             const UA_ExpandedNodeId *n2);
+
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
@@ -433,6 +449,10 @@ UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     qn.name = UA_STRING_ALLOC(chars); return qn;
 }
 
+UA_Boolean UA_EXPORT
+UA_QualifiedName_equal(const UA_QualifiedName *qn1,
+                       const UA_QualifiedName *qn2);
+
 /**
  * LocalizedText
  * ^^^^^^^^^^^^^
@@ -474,6 +494,10 @@ typedef struct  {
     size_t dimensionsSize;
     UA_NumericRangeDimension *dimensions;
 } UA_NumericRange;
+
+UA_StatusCode UA_EXPORT
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
+
 
 /**
  * .. _variant:
@@ -659,7 +683,7 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
  *
  * ExtensionObjects may contain scalars of any data type. Even those that are
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
- * are described. If the received data type is unkown, the encoded string and
+ * are described. If the received data type is unknown, the encoded string and
  * target NodeId is stored instead of the decoded value. */
 typedef enum {
     UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
@@ -746,7 +770,7 @@ typedef struct UA_DiagnosticInfo {
  * - ``UA_StatusCode T_copy(const T *src, T *dst)``: Copy the content of the
  *   data type. Returns ``UA_STATUSCODE_GOOD`` or
  *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
- * - ``void T_deleteMembers(T *ptr)``: Delete the dynamically allocated content
+ * - ``void T_clear(T *ptr)``: Delete the dynamically allocated content
  *   of the data type and perform a ``T_init`` to reset the type.
  * - ``void T_delete(T *ptr)``: Delete the content of the data type and the
  *   memory for the data type itself.
@@ -762,7 +786,7 @@ typedef struct {
                                      types */
     UA_Byte   padding;            /* How much padding is there before this
                                      member element? For arrays this is the
-                                     padding before the size_t lenght member.
+                                     padding before the size_t length member.
                                      (No padding between size_t and the
                                      following ptr.) */
     UA_Boolean namespaceZero : 1; /* The type of the member is defined in
@@ -792,13 +816,11 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
-/* The following is used to exclude type names in the definition of UA_DataType
- * structures if the feature is disabled. */
-#ifdef UA_ENABLE_TYPENAMES
-# define UA_TYPENAME(name) name,
-#else
-# define UA_TYPENAME(name)
-#endif
+/* Test if the data type is a numeric builtin data type. This includes Boolean,
+ * integers and floating point numbers. Not included are DateTime and
+ * StatusCode. */
+UA_Boolean
+UA_DataType_isNumeric(const UA_DataType *type);
 
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
@@ -846,7 +868,9 @@ UA_copy(const void *src, void *dst, const UA_DataType *type);
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable */
-void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *type);
+void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
+
+#define UA_deleteMembers(p, type) UA_clear(p, type)
 
 /* Frees a variable and all of its content.
  *
@@ -866,13 +890,15 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
  * In open62541 however, we use ``size_t`` for array lengths. An undefined array
  * has length 0 and the data pointer is ``NULL``. An array of length 0 also has
  * length 0 but a data pointer ``UA_EMPTY_ARRAY_SENTINEL``. */
+
 /* Allocates and initializes an array of variables of a specific type
  *
  * @param size The requested array length
  * @param type The datatype description
  * @return Returns the memory location of the variable or NULL if no memory
            could be allocated */
-void UA_EXPORT * UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
+void UA_EXPORT *
+UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
 /* Allocates and copies an array
  *
@@ -909,53 +935,33 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  * -------------------------------
  *
  * The following data types were auto-generated from a definition in XML format.
+ */
+
+/* The following is used to exclude type names in the definition of UA_DataType
+ * structures if the feature is disabled. */
+#ifdef UA_ENABLE_TYPENAMES
+# define UA_TYPENAME(name) name,
+#else
+# define UA_TYPENAME(name)
+#endif
+
+/* Datatype arrays with custom type definitions can be added in a linked list to
+ * the client or server configuration. Datatype members can point to types in
+ * the same array via the ``memberTypeIndex``. If ``namespaceZero`` is set to
+ * true, the member datatype is looked up in the array of builtin datatypes
+ * instead. */
+typedef struct UA_DataTypeArray {
+    const struct UA_DataTypeArray *next;
+    const size_t typesSize;
+    const UA_DataType *types;
+} UA_DataTypeArray;
+
+/**
  *
  * .. toctree::
  *
  *    types_generated */
 
-/**
- * Deprecated Data Types API
- * -------------------------
- * The following definitions are deprecated and will be removed in future
- * releases of open62541. */
-
-typedef struct {
-    UA_StatusCode code;      /* The numeric value of the StatusCode */
-    const char* name;        /* The symbolic name */
-    const char* explanation; /* Short message explaining the StatusCode */
-} UA_StatusCodeDescription;
-
-UA_EXPORT extern const UA_StatusCodeDescription statusCodeExplanation_default;
-
-UA_DEPRECATED static UA_INLINE const UA_StatusCodeDescription *
-UA_StatusCode_description(UA_StatusCode code) {
-    return &statusCodeExplanation_default;
-}
-
-UA_DEPRECATED static UA_INLINE const char *
-UA_StatusCode_explanation(UA_StatusCode code) {
-    return statusCodeExplanation_default.name;
-}
-
-UA_DEPRECATED UA_String
-UA_DateTime_toString(UA_DateTime t);
-
-/* The old DateTime conversion macros */
-UA_DEPRECATED static UA_INLINE double
-deprecatedDateTimeMultiple(double multiple) {
-    return multiple;
-}
-
-#define UA_USEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_USEC)
-#define UA_MSEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_MSEC)
-#define UA_SEC_TO_DATETIME deprecatedDateTimeMultiple((UA_Double)UA_DATETIME_SEC)
-#define UA_DATETIME_TO_USEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_USEC))
-#define UA_DATETIME_TO_MSEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_MSEC))
-#define UA_DATETIME_TO_SEC deprecatedDateTimeMultiple(1.0 / ((UA_Double)UA_DATETIME_SEC))
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* UA_TYPES_H_ */
