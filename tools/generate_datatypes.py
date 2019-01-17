@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from __future__ import print_function
@@ -216,7 +216,7 @@ class Type(object):
                 if idName == entry:
                     funcs += "UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT "
                     break
-            
+
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (idName, idName, idName, self.datatype_ptr())
             funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (idName, idName, self.datatype_ptr())
             funcs += "static UA_INLINE void\nUA_%s_clear(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (idName, idName, self.datatype_ptr())
