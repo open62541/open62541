@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <ua_pubsub_ns0.h>
 
 #include "ua_types.h"
 #include "ua_config_default.h"
@@ -93,7 +94,7 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
     ck_assert(objectsFolderChildren[i].isInverse == isInverse);
 
     ck_assert(!objectsFolderChildren[i].hit);
-    objectsFolderChildren[i].hit = UA_TRUE;
+    objectsFolderChildren[i].hit = true;
 
     ck_assert(UA_NodeId_equal(&referenceTypeId, &objectsFolderChildren[i].referenceTypeID));
 
@@ -109,19 +110,19 @@ START_TEST(Server_forEachChildNodeCall) {
      * The forEachChildNodeCall has to hit all of them */
     struct nodeIterData objectsFolderChildren[3];
     objectsFolderChildren[0].id = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    objectsFolderChildren[0].isInverse = UA_FALSE;
+    objectsFolderChildren[0].isInverse = false;
     objectsFolderChildren[0].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    objectsFolderChildren[0].hit = UA_FALSE;
+    objectsFolderChildren[0].hit = false;
 
     objectsFolderChildren[1].id = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
-    objectsFolderChildren[1].isInverse = UA_TRUE;
+    objectsFolderChildren[1].isInverse = true;
     objectsFolderChildren[1].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    objectsFolderChildren[1].hit = UA_FALSE;
+    objectsFolderChildren[1].hit = false;
 
     objectsFolderChildren[2].id = UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE);
-    objectsFolderChildren[2].isInverse = UA_FALSE;
+    objectsFolderChildren[2].isInverse = false;
     objectsFolderChildren[2].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    objectsFolderChildren[2].hit = UA_FALSE;
+    objectsFolderChildren[2].hit = false;
 
     UA_StatusCode retval = UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, &objectsFolderChildren);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -148,19 +149,26 @@ START_TEST(Server_set_customHostname) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // TODO when we have more network layers, extend this
-    ck_assert_uint_ge(config->networkLayersSize, 1);
+    ck_assert_uint_ge(config->socketConfigsSize, 1);
 
+    UA_String *discoveryUrls;
+    size_t discoveryUrlsSize;
 
-    for (size_t i=0; i<config->networkLayersSize; i++) {
-        const UA_ServerNetworkLayer *nl = &config->networkLayers[i];
+    retval = server->networkManager.getDiscoveryUrls(&server->networkManager,
+                                                     &discoveryUrls,
+                                                     &discoveryUrlsSize);
+
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < discoveryUrlsSize; i++) {
         char discoveryUrl[256];
         int len = snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
-        ck_assert_int_eq(nl->discoveryUrl.length, len);
-        ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);
+        ck_assert_int_eq(discoveryUrls[i].length, len);
+        ck_assert(strncmp(discoveryUrl, (char *)discoveryUrls[i].data, len) == 0);
     }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
+    UA_free(discoveryUrls);
 }
 END_TEST
 
