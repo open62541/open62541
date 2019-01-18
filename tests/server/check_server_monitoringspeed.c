@@ -7,18 +7,18 @@
 #include <time.h>
 #include <stdio.h>
 #include <check.h>
-
+#include "testing_socket.h"
 #include "ua_server.h"
 #include "ua_server_internal.h"
 #include "ua_config_default.h"
 #include "server/ua_subscription.h"
-
 #include "testing_networklayers.h"
 #include "testing_policy.h"
 
 static UA_SecureChannel testChannel;
 static UA_SecurityPolicy dummyPolicy;
-static UA_Connection testingConnection;
+static UA_Connection *testingConnection;
+static UA_Socket dummySocket;
 static funcs_called funcsCalled;
 static key_sizes keySizes;
 
@@ -33,16 +33,18 @@ static void setup(void) {
     UA_SecureChannel_init(&testChannel);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
 
-    testingConnection = createDummyConnection(65535, NULL);
-    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-    testChannel.connection = &testingConnection;
+    dummySocket = createDummySocket(NULL);
+    UA_Connection_new(UA_ConnectionConfig_default, &dummySocket, NULL, &testingConnection);
+    UA_Connection_attachSecureChannel(testingConnection, &testChannel);
+    testChannel.connection = testingConnection;
 }
 
 static void teardown(void) {
     UA_SecureChannel_close(&testChannel);
     UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
-    testingConnection.close(&testingConnection);
+    UA_Connection_close(testingConnection);
+    dummySocket.close(&dummySocket);
 
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
