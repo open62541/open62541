@@ -619,6 +619,9 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
             UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                            "Received Publish Response with code %s",
                             UA_StatusCode_name(response->responseHeader.serviceResult));
+            UA_Client_Subscription* sub = findSubscription(client, response->subscriptionId);
+            if (sub != NULL)
+              UA_Client_Subscription_deleteInternal(client, sub);
         }
         return;
     }
