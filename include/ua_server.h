@@ -1291,6 +1291,23 @@ UA_StatusCode UA_EXPORT
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
 
+#ifdef UA_ENABLE_HISTORIZING
+UA_Boolean UA_EXPORT
+UA_Server_AccessControl_allowHistoryUpdateUpdateData(UA_Server *server,
+                                                     const UA_NodeId *sessionId, void *sessionContext,
+                                                     const UA_NodeId *nodeId,
+                                                     UA_PerformUpdateType performInsertReplace,
+                                                     const UA_DataValue *value);
+
+UA_Boolean UA_EXPORT
+UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
+                                                            const UA_NodeId *sessionId, void *sessionContext,
+                                                            const UA_NodeId *nodeId,
+                                                            UA_DateTime startTimestamp,
+                                                            UA_DateTime endTimestamp,
+                                                            bool isDeleteModified);
+#endif // UA_ENABLE_HISTORIZING
+
 _UA_END_DECLS
 
 #endif /* UA_SERVER_H_ */
