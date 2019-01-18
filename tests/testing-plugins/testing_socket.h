@@ -1,0 +1,8 @@
+//
+// Created by giraud on 18.01.19.
+//
+
+#ifndef OPEN62541_TESTING_SOCKET_H
+#define OPEN62541_TESTING_SOCKET_H
+
+#endif //OPEN62541_TESTING_SOCKET_H

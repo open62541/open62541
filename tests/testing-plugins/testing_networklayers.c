@@ -14,7 +14,7 @@ static UA_ByteString sendBuffer;
 UA_StatusCode UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
 
 static UA_StatusCode
-dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
+dummyGetSendBuffer(UA_Connection_old *connection, size_t length, UA_ByteString *buf) {
     if(length > sendBuffer.length)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     *buf = sendBuffer;
@@ -23,11 +23,11 @@ dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf)
 }
 
 static void
-dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
+dummyReleaseSendBuffer(UA_Connection_old *connection, UA_ByteString *buf) {
 }
 
 static UA_StatusCode
-dummySend(UA_Connection *connection, UA_ByteString *buf) {
+dummySend(UA_Connection_old *connection, UA_ByteString *buf) {
     assert(connection != NULL);
     assert(buf != NULL);
 
@@ -39,22 +39,23 @@ dummySend(UA_Connection *connection, UA_ByteString *buf) {
 }
 
 static void
-dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
+dummyReleaseRecvBuffer(UA_Connection_old *connection, UA_ByteString *buf) {
 }
 
 static void
-dummyClose(UA_Connection *connection) {
+dummyClose(UA_Connection_old *connection) {
     if(vBuffer)
         UA_ByteString_deleteMembers(vBuffer);
     UA_ByteString_deleteMembers(&sendBuffer);
 }
 
-UA_Connection createDummyConnection(size_t sendBufferSize,
-                                    UA_ByteString *verificationBuffer) {
+UA_Connection_old
+createDummyConnection(size_t sendBufferSize,
+                      UA_ByteString *verificationBuffer) {
     vBuffer = verificationBuffer;
     UA_ByteString_allocBuffer(&sendBuffer, sendBufferSize);
 
-    UA_Connection c;
+    UA_Connection_old c;
     c.state = UA_CONNECTION_ESTABLISHED;
     c.config = UA_ConnectionConfig_default;
     c.channel = NULL;
@@ -71,11 +72,11 @@ UA_Connection createDummyConnection(size_t sendBufferSize,
 }
 
 UA_UInt32 UA_Client_recvSleepDuration;
-UA_StatusCode (*UA_Client_recv)(UA_Connection *connection, UA_ByteString *response,
+UA_StatusCode (*UA_Client_recv)(UA_Connection_old *connection, UA_ByteString *response,
                                 UA_UInt32 timeout);
 
 UA_StatusCode
-UA_Client_recvTesting(UA_Connection *connection, UA_ByteString *response,
+UA_Client_recvTesting(UA_Connection_old *connection, UA_ByteString *response,
                     UA_UInt32 timeout) {
 
     if(UA_Client_recvTesting_result != UA_STATUSCODE_GOOD) {

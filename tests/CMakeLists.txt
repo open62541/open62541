@@ -48,8 +48,12 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
+                        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_listener_socket.c
+                        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_data_socket.c
+                        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
