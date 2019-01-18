@@ -96,8 +96,6 @@ UA_TCP_DataSocket_activity(UA_Socket *sock) {
     }
 
     sockData->receiveBufferOut.length = (size_t)bytesReceived;
-    UA_LOG_DEBUG(sock->logger, UA_LOGCATEGORY_NETWORK,
-                 "Received %i bytes", (int)bytesReceived);
 
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(sockData->receiveBufferOut.data, sockData->receiveBufferOut.length);
