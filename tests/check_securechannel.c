@@ -2,15 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <ua_types.h>
-#include <ua_plugin_securitypolicy.h>
-#include <ua_types_encoding_binary.h>
-#include <src_generated/ua_types_generated.h>
-#include <src_generated/ua_transport_generated_encoding_binary.h>
-#include <src_generated/ua_transport_generated.h>
-#include <src_generated/ua_types_generated_encoding_binary.h>
-#include <src_generated/ua_transport_generated_handling.h>
-
+#include "ua_types.h"
+#include "ua_plugin_securitypolicy.h"
+#include "ua_types_encoding_binary.h"
+#include "src_generated/ua_types_generated.h"
+#include "src_generated/ua_transport_generated_encoding_binary.h"
+#include "src_generated/ua_transport_generated.h"
+#include "src_generated/ua_types_generated_encoding_binary.h"
+#include "src_generated/ua_transport_generated_handling.h"
+#include "ua_config_default.h"
+#include "testing_socket.h"
 #include "testing_networklayers.h"
 #include "testing_policy.h"
 #include "ua_securechannel.h"
@@ -33,8 +34,9 @@ UA_SecureChannel testChannel;
 UA_ByteString dummyCertificate =
     UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
 UA_SecurityPolicy dummyPolicy;
-UA_Connection testingConnection;
+UA_Connection *testingConnection;
 UA_ByteString sentData;
+UA_Socket dummySocket;
 
 
 static funcs_called fCalled;
@@ -46,9 +48,10 @@ setup_secureChannel(void) {
     UA_SecureChannel_init(&testChannel);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
-    testingConnection = createDummyConnection(65535, &sentData);
-    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-    testChannel.connection = &testingConnection;
+    dummySocket = createDummySocket(&sentData);
+    UA_Connection_new(UA_ConnectionConfig_default, &dummySocket, NULL, &testingConnection);
+    UA_Connection_attachSecureChannel(testingConnection, &testChannel);
+    testChannel.connection = testingConnection;
 }
 
 static void
@@ -56,7 +59,8 @@ teardown_secureChannel(void) {
     UA_SecureChannel_close(&testChannel);
     UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
-    testingConnection.close(&testingConnection);
+    UA_Connection_close(testingConnection);
+    dummySocket.close(&dummySocket);
 }
 
 static void
