@@ -88,6 +88,21 @@ struct UA_AccessControl {
     UA_Boolean (*allowDeleteReference)(UA_Server *server, UA_AccessControl *ac,
                                        const UA_NodeId *sessionId, void *sessionContext,
                                        const UA_DeleteReferencesItem *item);
+
+    /* Allow insert,replace,update of historical data */
+    UA_Boolean (*allowHistoryUpdateUpdateData)(UA_Server *server, UA_AccessControl *ac,
+                                               const UA_NodeId *sessionId, void *sessionContext,
+                                               const UA_NodeId *nodeId,
+                                               UA_PerformUpdateType performInsertReplace,
+                                               const UA_DataValue *value);
+
+    /* Allow delete of historical data */
+    UA_Boolean (*allowHistoryUpdateDeleteRawModified)(UA_Server *server, UA_AccessControl *ac,
+                                                      const UA_NodeId *sessionId, void *sessionContext,
+                                                      const UA_NodeId *nodeId,
+                                                      UA_DateTime startTimestamp,
+                                                      UA_DateTime endTimestamp,
+                                                      bool isDeleteModified);
 };
 
 _UA_END_DECLS

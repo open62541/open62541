@@ -329,6 +329,15 @@ updateData_service_default(UA_Server *server,
     result->operationResultsSize = details->updateValuesSize;
     result->operationResults = (UA_StatusCode*)UA_Array_new(result->operationResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     for (size_t i = 0; i < details->updateValuesSize; ++i) {
+        if (!UA_Server_AccessControl_allowHistoryUpdateUpdateData(server,
+                                                                  sessionId,
+                                                                  sessionContext,
+                                                                  &details->nodeId,
+                                                                  details->performInsertReplace,
+                                                                  &details->updateValues[i])) {
+            result->operationResults[i] = UA_STATUSCODE_BADUSERACCESSDENIED;
+            continue;
+        }
         switch (details->performInsertReplace) {
         case UA_PERFORMUPDATETYPE_INSERT:
             if (!setting->historizingBackend.insertDataValue) {
@@ -421,6 +430,18 @@ deleteRawModified_service_default(UA_Server *server,
         result->statusCode = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
         return;
     }
+
+    if (!UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(server,
+                                                                     sessionId,
+                                                                     sessionContext,
+                                                                     &details->nodeId,
+                                                                     details->startTime,
+                                                                     details->endTime,
+                                                                     details->isDeleteModified)) {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
     result->statusCode
             = setting->historizingBackend.removeDataValue(server,
                                                           setting->historizingBackend.context,

@@ -167,6 +167,26 @@ allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
     return true;
 }
 
+static UA_Boolean
+allowHistoryUpdateUpdateData_default(UA_Server *server, UA_AccessControl *ac,
+                                     const UA_NodeId *sessionId, void *sessionContext,
+                                     const UA_NodeId *nodeId,
+                                     UA_PerformUpdateType performInsertReplace,
+                                     const UA_DataValue *value) {
+    return true;
+}
+
+static UA_Boolean
+allowHistoryUpdateDeleteRawModified_default(UA_Server *server, UA_AccessControl *ac,
+                                            const UA_NodeId *sessionId, void *sessionContext,
+                                            const UA_NodeId *nodeId,
+                                            UA_DateTime startTimestamp,
+                                            UA_DateTime endTimestamp,
+                                            bool isDeleteModified) {
+    return true;
+}
+
+
 /***************************************/
 /* Create Delete Access Control Plugin */
 /***************************************/
@@ -202,6 +222,8 @@ UA_AccessControl_default(UA_AccessControl *ac,
     ac->getUserExecutableOnObject = getUserExecutableOnObject_default;
     ac->allowAddNode = allowAddNode_default;
     ac->allowAddReference = allowAddReference_default;
+    ac->allowHistoryUpdateUpdateData = allowHistoryUpdateUpdateData_default;
+    ac->allowHistoryUpdateDeleteRawModified = allowHistoryUpdateDeleteRawModified_default;
     ac->allowDeleteNode = allowDeleteNode_default;
     ac->allowDeleteReference = allowDeleteReference_default;
 
