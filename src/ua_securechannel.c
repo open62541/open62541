@@ -54,17 +54,16 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
     if(channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    channel->securityPolicy = securityPolicy;
     UA_StatusCode retval;
-    if(channel->securityPolicy->certificateVerification != NULL) {
-        retval = channel->securityPolicy->certificateVerification->
-            verifyCertificate(channel->securityPolicy->certificateVerification->context,
+    if(securityPolicy->certificateVerification != NULL) {
+        retval = securityPolicy->certificateVerification->
+            verifyCertificate(securityPolicy->certificateVerification->context,
                               remoteCertificate);
 
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } else {
-        UA_LOG_WARNING(channel->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "No PKI plugin set. Accepting all certificates");
     }
 
@@ -81,6 +80,9 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
     retval = securityPolicy->asymmetricModule.
         makeCertificateThumbprint(securityPolicy, &channel->remoteCertificate,
                                   &remoteCertificateThumbprint);
+
+    if(retval == UA_STATUSCODE_GOOD)
+        channel->securityPolicy = securityPolicy;
 
     return retval;
 }
@@ -128,12 +130,15 @@ UA_SecureChannel_deleteMembers(UA_SecureChannel *channel) {
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
 
     /* Delete the channel context for the security policy */
-    if(channel->securityPolicy)
+    if(channel->securityPolicy) {
         channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
-
+        channel->securityPolicy = NULL;
+    }
 
     /* Remove the buffered messages */
     UA_SecureChannel_deleteMessages(channel);
+
+    UA_SecureChannel_init(channel);
 }
 
 void
