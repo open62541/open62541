@@ -339,6 +339,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     UA_StatusCode retval;
     size_t dataToEncryptLength =
         totalLength - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
+
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = (UA_UInt32)
@@ -383,8 +384,8 @@ static void
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end) {
     *buf_start += UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH;
-    *buf_start += UA_SEQUENCE_HEADER_LENGTH;
     *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
+    *buf_start += UA_SEQUENCE_HEADER_LENGTH;
 
 #ifdef UA_ENABLE_ENCRYPTION
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
@@ -537,8 +538,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
         total_length += securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
 
-    /* The total message length is known here which is why we */
-    /* encode the headers at this step and not earlier. */
+    /* The total message length is known here which is why we encode the headers
+     * at this step and not earlier. */
     size_t finalLength = 0;
     retval = prependHeadersAsym(channel, buf.data, buf_end, total_length,
                                 securityHeaderLength, requestId, &finalLength);
