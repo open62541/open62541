@@ -278,9 +278,9 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
     #  0: x-dim | x>0
     #  n: n-dim | n>0
     if (len(node.value) == 0):
-        return ["", ""]
+        return ["", "", ""]
     if not isinstance(node.value[0], Value):
-        return ["", ""]
+        return ["", "", ""]
 
     dataTypeNode = nodeset.getDataTypeNode(parentNode.dataType)
 
