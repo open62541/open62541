@@ -91,12 +91,14 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
         return STATUS_CODE_BAD_POINTER;
 
     memset(client, 0, sizeof(UA_Client));
+
+    client->config = config;
     /* Allocate memory for certificate verification */
     client->securityPolicy.certificateVerification =
                            (UA_CertificateVerification *)
                             UA_malloc(sizeof(UA_CertificateVerification));
 
-    UA_StatusCode retval = config.configureNetworkManager(&config, &client->networkManager);
+    UA_StatusCode retval = config.configureNetworkManager(&client->config, &client->networkManager);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -113,14 +115,13 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
     /* Initiate client security policy */
     retval = (*securityPolicyFunction)(&client->securityPolicy,
                                        client->securityPolicy.certificateVerification,
-                                       certificate, privateKey, &config.logger);
+                                       certificate, privateKey, &client->config.logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_CLIENT,
                      "Failed to setup the SecurityPolicy with error %s", UA_StatusCode_name(retval));
         return retval;
     }
 
-    client->config = config;
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
 
