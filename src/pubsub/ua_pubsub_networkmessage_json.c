@@ -322,12 +322,12 @@ DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataT
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
 
     DecodeEntry entries[6] = {
-        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId, getDecodeSignature(UA_TYPES_UINT16), false},
-        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, getDecodeSignature(UA_TYPES_UINT16), false},
-        {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false},
-        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, getDecodeSignature(UA_TYPES_DATETIME), false},
-        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, getDecodeSignature(UA_TYPES_UINT16), false},
-        {UA_DECODEKEY_PAYLOAD, dsm, &DataSetPayload_decodeJsonInternal, false}
+        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
+        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, getDecodeSignature(UA_TYPES_DATETIME), false, NULL},
+        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_PAYLOAD, dsm, &DataSetPayload_decodeJsonInternal, false, NULL}
     };
 
     status ret = decodeFields(ctx, parseCtx, entries, 6, NULL);
@@ -483,11 +483,11 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
         /* Network Message */
         UA_String messageType;
         DecodeEntry entries[5] = {
-            {UA_DECODEKEY_MESSAGEID, &dst->messageId, getDecodeSignature(UA_TYPES_STRING), false},
-            {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false},
-            {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, getDecodeSignature(publishIdTypeIndex), false},
-            {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, getDecodeSignature(UA_TYPES_GUID), false},
-            {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false}
+            {UA_DECODEKEY_MESSAGEID, &dst->messageId, getDecodeSignature(UA_TYPES_STRING), false, NULL},
+            {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
+            {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, getDecodeSignature(publishIdTypeIndex), false, NULL},
+            {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, getDecodeSignature(UA_TYPES_GUID), false, NULL},
+            {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
         };
 
         //Store publisherId in correct union

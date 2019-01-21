@@ -143,6 +143,7 @@ typedef struct {
     void * fieldPointer;
     decodeJsonSignature function;
     UA_Boolean found;
+    const UA_DataType *type;
 } DecodeEntry;
 
 UA_StatusCode
