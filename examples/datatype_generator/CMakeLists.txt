@@ -19,5 +19,6 @@ ua_generate_datatypes(
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+add_example(generated_datatypes_client client_datatypes.c ${CMAKE_CURRENT_BINARY_DIR}/datatypes_generated.c)
 add_example(generated_datatypes_server server_datatypes.c ${CMAKE_CURRENT_BINARY_DIR}/datatypes_generated.c)
 add_dependencies(generated_datatypes_server open62541-generator-example-datatypes)

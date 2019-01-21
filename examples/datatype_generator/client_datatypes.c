@@ -1,19 +1,23 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#ifdef UA_ENABLE_AMALGAMATION
 #include "open62541.h"
-#include "custom_datatype.h"
+#else
+#include "ua_client.h"
+#include "ua_client_highlevel.h"
+#include "ua_config_default.h"
+#include "ua_log_stdout.h"
+#endif
+
+#include "datatypes_generated.h"
 
 int main(void) {
     UA_ClientConfig config = UA_ClientConfig_default;
 
-    /* Make your custom datatype known to the stack */
-    UA_DataType types[1];
-    types[0] = PointType;
-
     /* Attention! Here the custom datatypes are allocated on the stack. So they
      * cannot be accessed from parallel (worker) threads. */
-    UA_DataTypeArray customDataTypes = {config.customDataTypes, 1, types};
+    UA_DataTypeArray customDataTypes = {config.customDataTypes, 1, DATATYPES};
     config.customDataTypes = &customDataTypes;
 
     UA_Client *client = UA_Client_new(config);
@@ -22,18 +26,23 @@ int main(void) {
         UA_Client_delete(client);
         return (int)retval;
     }
-    
+
     UA_Variant value; /* Variants can hold scalar values and arrays of any type */
     UA_Variant_init(&value);
-    
-     UA_NodeId nodeId =
-        UA_NODEID_STRING(1, "3D.Point");
+
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "OptionObject");
 
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
-            
+
     if(retval == UA_STATUSCODE_GOOD) {
-        Point *p = (Point *)value.data;
-        printf("Point = %f, %f, %f \n", p->x, p->y, p->z);
+        UA_OptionObject *o = (UA_OptionObject *)value.data;
+        printf("Type with optional fields: (optionOne: %d, optionTwo: %d, byteOne: %X, byteTwo: %X) \n",
+            o->optionOne,
+            o->optionTwo,
+            o->optionalByteOne,
+            o->optionalByteTwo);
+    } else {
+        printf("Value attribute read failed with status code: %d\n", retval);
     }
 
     /* Clean up */

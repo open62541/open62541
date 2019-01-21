@@ -13,6 +13,7 @@
 #include "datatypes_generated.h"
 
 #include <signal.h>
+#include <unistd.h>
 
 
 UA_Boolean running = true;
@@ -47,12 +48,12 @@ addDataType(UA_Server *server) {
 }
 
 static void
-addVariable(UA_Server *server) {
+addVariable(UA_Server *server, const bool optionOne, const bool optionTwo, const UA_Byte optionalByteOne, const UA_Byte optionalByteTwo) {
     UA_OptionObject o;
-    o.optionOne = true;
-    o.optionTwo = false;
-    o.optionalByteOne = 0x56;
-    o.optionalByteTwo = 0x78;
+    o.optionOne = optionOne;
+    o.optionTwo = optionTwo;
+    o.optionalByteOne = optionalByteOne;
+    o.optionalByteTwo = optionalByteTwo;
 
     UA_VariableAttributes vattr = UA_VariableAttributes_default;
     vattr.description = UA_LOCALIZEDTEXT("en-US", "OptionObject Var");
@@ -68,7 +69,36 @@ addVariable(UA_Server *server) {
                               DATATYPES[0].typeId, vattr, NULL, NULL);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+    bool optionOne = false;
+    bool optionTwo = false;
+    UA_Byte optionalByteOne = 0x55;
+    UA_Byte optionalByteTwo = 0x55;
+
+    int c;
+    opterr = 0;
+    char *end;
+    while ((c = getopt(argc, argv, "12f:s:")) != -1)
+        switch (c)
+        {
+        case '1':
+            optionOne = true;
+            break;
+        case '2':
+            optionTwo = true;
+            break;
+        case 'f':
+            optionalByteOne = (UA_Byte)strtol(optarg, &end, 10);
+            break;
+        case 's':
+            optionalByteTwo = (UA_Byte)strtol(optarg, &end, 10);
+            break;
+        default:
+            abort ();
+        }
+
+
+
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
@@ -83,7 +113,7 @@ int main(void) {
     UA_Server *server = UA_Server_new(config);
 
     addDataType(server);
-    addVariable(server);
+    addVariable(server, optionOne, optionTwo, optionalByteOne, optionalByteTwo);
 
     UA_Server_run(server, &running);
 
