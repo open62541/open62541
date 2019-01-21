@@ -19,7 +19,7 @@
  * @param  client             client configuration that need to be deleted
  * @param  remoteCertificate  server certificate */
 static void cleanupClient(UA_Client* client, UA_ByteString* remoteCertificate) {
-    UA_ByteString_delete(remoteCertificate); /* Dereference the memory */
+    UA_ByteString_delete(remoteCertificate);
     UA_Client_delete(client); /* Disconnects the client internally */
 }
 
@@ -117,7 +117,7 @@ int main(int argc, char* argv[]) {
                                   revocationList, revocationListSize,
                                   UA_SecurityPolicy_Basic256Sha256);
     if(client == NULL) {
-        UA_ByteString_delete(remoteCertificate); /* Dereference the memory */
+        UA_ByteString_delete(remoteCertificate);
         return FAILURE;
     }
 
