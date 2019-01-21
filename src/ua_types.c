@@ -933,7 +933,7 @@ copy_noInit(const void *src, void *dst, const UA_DataType *type) {
             continue;
         }
         if(bitcount > 0){
-            // Copy all encoding mask bytes
+            // Copy all bitflag bytes
             for(size_t x = 0; x <= bitcount / 8; ++x) {
                 retval |= copyByte((const UA_Byte*)ptrs, (UA_Byte*)ptrd, 0);
                 ptrs++;
