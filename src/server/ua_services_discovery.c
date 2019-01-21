@@ -667,7 +667,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     }
 
 
-    if (client->connection->state != UA_CONNECTION_CLOSED)
+    if(client->connection != NULL && client->connection->state != UA_CONNECTION_CLOSED)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     /* check if we are already registering with the given discovery url and remove the old periodic call */
