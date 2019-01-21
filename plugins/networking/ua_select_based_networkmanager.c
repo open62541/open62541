@@ -27,7 +27,7 @@ select_nm_registerSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
     SelectNMData *internalData = (SelectNMData *)networkManager->internalData;
 
     LIST_INSERT_HEAD(&internalData->sockets.list, socketListEntry, pointers);
-    UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK, "Registered socket with id %lu", socket->id);
+    UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK, "Registered socket with id %lu", socket->id);
     if(socket->isListener)
         ++internalData->numListenerSockets;
     return UA_STATUSCODE_GOOD;
@@ -125,6 +125,8 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
 static UA_StatusCode
 select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
                         UA_Socket *sock) {
+    if(networkManager == NULL || sock == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     fd_set fdset;
     FD_ZERO(&fdset);
     UA_fd_set(sock->id, &fdset);

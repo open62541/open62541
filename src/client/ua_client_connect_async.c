@@ -189,7 +189,7 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
 
 UA_StatusCode
 processOPNResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk) {
+                        const UA_ByteString *chunk) {
     UA_Client *client = (UA_Client*) application;
     UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk, true);
     client->connectStatus = retval;

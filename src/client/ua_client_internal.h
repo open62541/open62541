@@ -223,12 +223,16 @@ UA_StatusCode
 receivePacketAsync(UA_Client *client);
 
 UA_StatusCode
+processACKResponse(void *application, UA_Connection *connection,
+                   UA_ByteString *chunk, size_t *offset);
+
+UA_StatusCode
 processACKResponseAsync(void *application, UA_Connection *connection,
                         UA_ByteString *chunk);
 
 UA_StatusCode
 processOPNResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk);
+                        const UA_ByteString *chunk);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);
@@ -244,6 +248,13 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
+
+/********************/
+/** Chunk handling **/
+/********************/
+
+UA_StatusCode
+UA_Client_processChunk(UA_Client *client, UA_Connection *connection, UA_ByteString *chunk);
 
 _UA_END_DECLS
 

@@ -11,7 +11,7 @@
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2016 (c) TorbenD
  *    Copyright 2017 (c) frax2222
- *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2017-2019 (c) Mark Giraud, Fraunhofer IOSB
  */
 
 #include "ua_server_internal.h"

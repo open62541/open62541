@@ -226,6 +226,19 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
                                          UA_ProcessMessageCallback callback);
 
 /**
+ * Checks if the message with the supplied requestId has been received completely.
+ * @param channel
+ * @param requestId
+ * @return
+ */
+UA_Boolean
+UA_SecureChannel_isMessageComplete(UA_SecureChannel *channel, UA_UInt32 requestId);
+
+UA_StatusCode
+UA_SecureChannel_processMessage(UA_SecureChannel *channel, void *application,
+                                UA_ProcessMessageCallback callback, UA_UInt32 requestId);
+
+/**
  * Log Helper
  * ----------
  * C99 requires at least one element for the variadic argument. If the log

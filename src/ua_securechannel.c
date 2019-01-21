@@ -1066,6 +1066,56 @@ UA_SecureChannel_processCompleteMessages(UA_SecureChannel *channel, void *applic
     return retval;
 }
 
+UA_Boolean
+UA_SecureChannel_isMessageComplete(UA_SecureChannel *channel, UA_UInt32 requestId) {
+    UA_Message *message;
+    TAILQ_FOREACH(message, &channel->messages, pointers) {
+        /* Stop at the first incomplete message */
+        if(message->requestId == requestId)
+            return true;
+    }
+    return false;
+}
+
+UA_StatusCode
+UA_SecureChannel_processMessage(UA_SecureChannel *channel, void *application,
+                                UA_ProcessMessageCallback callback, UA_UInt32 requestId) {
+    UA_Message *message, *tmp_message;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    TAILQ_FOREACH_SAFE(message, &channel->messages, pointers, tmp_message) {
+        if(message->requestId != requestId)
+            continue;
+
+        if(!message->final)
+            return retval;
+
+        /* Has the channel been closed (during the last message)? */
+        if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
+            return retval;
+
+        /* Remove the current message before processing */
+        TAILQ_REMOVE(&channel->messages, message, pointers);
+
+        /* Process */
+        retval = processMessage(channel, message, application, callback);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        /* Clean up the message */
+        UA_ChunkPayload *payload;
+        while((payload = SIMPLEQ_FIRST(&message->chunkPayloads))) {
+            if(payload->copied)
+                UA_ByteString_deleteMembers(&payload->bytes);
+            SIMPLEQ_REMOVE_HEAD(&message->chunkPayloads, pointers);
+            UA_free(payload);
+        }
+        UA_free(message);
+        return retval;
+    }
+
+    return UA_STATUSCODE_BADNODATA;
+}
+
 /****************************/
 /* Process a received Chunk */
 /****************************/

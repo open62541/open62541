@@ -112,6 +112,10 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
+        retval = client->networkManager.process(&client->networkManager, timeout);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
         UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
         retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
