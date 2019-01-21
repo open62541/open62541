@@ -51,7 +51,6 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_cloc
                         ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_data_socket.c
                         ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
 )
 

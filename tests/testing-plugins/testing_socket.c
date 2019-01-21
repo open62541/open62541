@@ -76,3 +76,29 @@ createDummySocket(UA_ByteString *verificationBuffer) {
 
     return sock;
 }
+
+UA_StatusCode UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+
+UA_UInt32 UA_Client_recvSleepDuration;
+UA_StatusCode (*UA_Client_recv)(UA_Connection *connection, UA_ByteString *response,
+                                UA_UInt32 timeout);
+
+UA_StatusCode
+UA_Client_recvTesting(UA_Connection *connection, UA_ByteString *response,
+                      UA_UInt32 timeout) {
+
+    if(UA_Client_recvTesting_result != UA_STATUSCODE_GOOD) {
+        UA_StatusCode temp = UA_Client_recvTesting_result;
+        UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+        UA_fakeSleep(timeout);
+        return temp;
+    }
+
+    UA_StatusCode res = UA_Client_recv(connection, response, timeout);
+    if(res == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+        UA_fakeSleep(timeout);
+    else
+        UA_fakeSleep(UA_Client_recvSleepDuration);
+    UA_Client_recvSleepDuration = 0;
+    return res;
+}

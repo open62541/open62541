@@ -119,8 +119,9 @@ setup(void)
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    // TODO: new networking api
+//    UA_Client_recv = client->connection.recv;
+//    client->connection.recv = UA_Client_recvTesting;
 }
 
 static void

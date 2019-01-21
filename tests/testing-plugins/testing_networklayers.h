@@ -11,33 +11,6 @@
 extern "C" {
 #endif
 
-/**
- * Create the TCP networklayer and listen to the specified port
- *
- * @param sendBufferSize The send buffer is reused. This is the max chunk size
- * @param verificationBuffer the send function will copy the data that is sent
- *        to this buffer, so that it is possible to check what the send function
- *        received. */
-UA_Connection_old
-createDummyConnection(size_t sendBufferSize,
-                      UA_ByteString *verificationBuffer);
-
-/**
- * Simulate network timing conditions
- * ---------------------------------- */
-
-extern UA_UInt32 UA_Client_recvSleepDuration;
-extern UA_StatusCode (*UA_Client_recv)(UA_Connection_old *connection, UA_ByteString *response,
-                                       UA_UInt32 timeout);
-
-extern UA_StatusCode UA_Client_recvTesting_result;
-
-/* Override the client recv method to increase the simulated clock after the first recv.
- * UA_Client_recvSleepDuration is set to zero after the first recv.
- * UA_Client_recvTesting_result can be used to simulate an error */
-UA_StatusCode
-UA_Client_recvTesting(UA_Connection_old *connection, UA_ByteString *response,
-                    UA_UInt32 timeout);
 
 #ifdef __cplusplus
 }

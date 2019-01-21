@@ -16,7 +16,7 @@
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
+#include "testing_socket.h"
 #include "thread_wrapper.h"
 #include "ua_plugin_historydatabase.h"
 #include "ua_historydatabase_default.h"
@@ -128,8 +128,9 @@ setup(void)
         exit(1);
     }
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    // TODO: new networking api
+//    UA_Client_recv = client->connection.recv;
+//    client->connection.recv = UA_Client_recvTesting;
 }
 
 static void
