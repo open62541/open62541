@@ -773,8 +773,13 @@ UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
 /* Default Client Settings */
 /***************************/
 
-static UA_INLINE void UA_ClientConnectionTCP_poll_callback(UA_Client *client, void *data) {
-    UA_ClientConnectionTCP_poll(client, data);
+static UA_StatusCode
+createDefaultClientSocket(UA_SocketConfig *config, UA_SocketHook socketHook) {
+    UA_ClientSocketConfig *clientSocketConfig = (UA_ClientSocketConfig *)config;
+    return UA_TCP_DataSocket_ConnectTo(clientSocketConfig->endpointUrl, clientSocketConfig->timeout,
+                                       clientSocketConfig->socketConfig.logger,
+                                       clientSocketConfig->socketConfig.sendBufferSize,
+                                       clientSocketConfig->socketConfig.recvBufferSize, socketHook);
 }
 
 const UA_ClientConfig UA_ClientConfig_default = {
@@ -788,9 +793,18 @@ const UA_ClientConfig UA_ClientConfig_default = {
         0, /* .maxMessageSize, 0 -> unlimited */
         0 /* .maxChunkCount, 0 -> unlimited */
     },
-    UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
-    UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
-    UA_ClientConnectionTCP_poll_callback, /* .pollConnectionFunc (for async connection) */
+    {
+        {
+            65535,
+            65535,
+            4840,
+            NULL,
+            {0, NULL},
+            createDefaultClientSocket,
+        },
+        NULL,
+        5000,
+    },
 
     NULL, /* .customDataTypes */
 

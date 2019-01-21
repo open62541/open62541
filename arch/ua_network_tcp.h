@@ -15,14 +15,14 @@ extern "C" {
 #include "ua_client.h"
 #include "ua_plugin_log.h"
 
-UA_Connection_old UA_EXPORT
-UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
-                       const UA_UInt32 timeout, const UA_Logger *logger);
-
-UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data);
-UA_Connection_old UA_EXPORT
-UA_ClientConnectionTCP_init(UA_ConnectionConfig conf, const char *endpointUrl,
-                            const UA_UInt32 timeout, const UA_Logger *logger);
+//UA_Connection_old UA_EXPORT
+//UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
+//                       const UA_UInt32 timeout, const UA_Logger *logger);
+//
+//UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data);
+//UA_Connection_old UA_EXPORT
+//UA_ClientConnectionTCP_init(UA_ConnectionConfig conf, const char *endpointUrl,
+//                            const UA_UInt32 timeout, const UA_Logger *logger);
 #ifdef __cplusplus
 } // extern "C"
 #endif

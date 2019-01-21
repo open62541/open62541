@@ -88,9 +88,6 @@ struct UA_SecureChannel {
     const UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
     UA_Connection *connection;
-    // TODO: Only so that client compiles.
-    // TODO: Client will be broken!!!
-    UA_Connection_old *old_connection;
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;

@@ -18,6 +18,7 @@ _UA_BEGIN_DECLS
 
 /* Forward declarations */
 typedef struct UA_ConnectionManager UA_ConnectionManager;
+typedef struct UA_SecureChannel UA_SecureChannel;
 
 //struct UA_SecureChannel;
 //typedef struct UA_SecureChannel UA_SecureChannel;
@@ -72,6 +73,10 @@ struct UA_Connection {
 UA_StatusCode
 UA_Connection_new(UA_ConnectionConfig config, UA_Socket *sock, UA_ConnectionManager *connectionManager,
                   UA_Connection **p_connection);
+
+UA_StatusCode
+UA_Connection_sendError(UA_Connection *connection,
+                        UA_TcpErrorMessage *error);
 
 UA_Socket *
 UA_Connection_getSocket(UA_Connection *connection);

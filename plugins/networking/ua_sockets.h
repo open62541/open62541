@@ -40,4 +40,22 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
                              UA_UInt32 recvBufferSize, UA_SocketHook creationHook, UA_SocketHook deletionHook,
                              UA_Socket_DataCallback dataCallback);
 
+/**
+ * Connects to the supplied endpoint Url.
+ * The cal will block until the socket is connected but only up to timeout milliseconds.
+ *
+ * @param endpointUrl
+ * @param timeout
+ * @param logger
+ * @param sendBufferSize
+ * @param recvBufferSize
+ * @param creationHook
+ * @return
+ */
+UA_StatusCode
+UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
+                            UA_UInt32 timeout, UA_Logger *logger,
+                            UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize,
+                            UA_SocketHook creationHook);
+
 #endif //OPEN62541_UA_SOCKETS_H

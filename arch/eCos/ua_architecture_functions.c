@@ -22,11 +22,9 @@ unsigned int UA_socket_set_nonblocking(UA_SOCKET sockfd){
 }
 
 void UA_initialize_architecture_network(void){
-  return;
 }
 
 void UA_deinitialize_architecture_network(void){
-  return;
 }
 
 int gethostname_ecos(char* name, size_t len){

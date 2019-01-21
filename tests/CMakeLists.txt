@@ -37,8 +37,7 @@ endif()
 
 
 # Use different plugins for testing
-set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
+set(test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c

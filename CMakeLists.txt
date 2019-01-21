@@ -104,7 +104,6 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
-            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
 )
 
 set(ua_architecture_headers ${ua_architecture_headers}

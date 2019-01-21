@@ -49,16 +49,19 @@ typedef enum {
 } UA_ClientState;
 
 typedef struct {
+    UA_SocketConfig socketConfig;
+
+    const char *endpointUrl;
+    UA_UInt32 timeout;
+} UA_ClientSocketConfig;
+
+typedef struct {
     UA_UInt32 timeout;               /* ASync + Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
-
-    /* Callbacks for async connection handshakes */
-    UA_ConnectClientConnection connectionFunc;
-    UA_ConnectClientConnection initConnectionFunc;
-    void (*pollConnectionFunc)(UA_Client *client, void *context);
+    UA_ClientSocketConfig clientSocketConfig;
 
     /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
      * with the configuration. So it is possible to allocate them on ROM. */
