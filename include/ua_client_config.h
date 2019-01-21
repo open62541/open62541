@@ -11,6 +11,7 @@
 
 #include "ua_config.h"
 #include "ua_plugin_network.h"
+#include "ua_plugin_network_manager.h"
 
 _UA_BEGIN_DECLS
 
@@ -55,12 +56,26 @@ typedef struct {
     UA_UInt32 timeout;
 } UA_ClientSocketConfig;
 
-typedef struct {
+typedef struct UA_ClientConfig UA_ClientConfig;
+
+struct UA_ClientConfig {
     UA_UInt32 timeout;               /* ASync + Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
+
+    /* Networking */
+    /**
+     * This function is called by the server to create a networkManager.
+     * This enables configuration to be done on the user side in the config.
+     * The delayed configuration makes sure, that initialization is done during
+     * server startup. Also, only the server will have ownership of the NetworkManager.
+     *
+     * @param config The configuration.
+     * @param networkManager The networkManager to initialize.
+     */
+    UA_StatusCode (*configureNetworkManager)(const UA_ClientConfig *config, UA_NetworkManager *networkManager);
     UA_ClientSocketConfig clientSocketConfig;
 
     /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
@@ -98,7 +113,7 @@ typedef struct {
                                            UA_UInt32 subscriptionId,
                                            void *subContext);
 #endif
-} UA_ClientConfig;
+};
 
 _UA_END_DECLS
 

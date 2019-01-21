@@ -782,6 +782,19 @@ createDefaultClientSocket(UA_SocketConfig *config, UA_SocketHook socketHook) {
                                        clientSocketConfig->socketConfig.recvBufferSize, socketHook);
 }
 
+/**
+ * The default select based network manager doesn't need any configuration.
+ * It suffices to just initialize it.
+ */
+static UA_StatusCode
+configureClientNetworkManager_default(const UA_ClientConfig *config, UA_NetworkManager *networkManager) {
+    /* Instead of calling this function here, you could also directly pass the pointer.
+     * This just illustrates, that additional configuration steps may be performed by user code.
+     */
+    return UA_SelectBasedNetworkManager(&config->logger, networkManager);
+}
+
+
 const UA_ClientConfig UA_ClientConfig_default = {
     5000, /* .timeout, 5 seconds */
     10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
@@ -793,6 +806,7 @@ const UA_ClientConfig UA_ClientConfig_default = {
         0, /* .maxMessageSize, 0 -> unlimited */
         0 /* .maxChunkCount, 0 -> unlimited */
     },
+    configureClientNetworkManager_default,
     {
         {
             65535,

@@ -31,9 +31,15 @@
 /* Client Lifecycle */
 /********************/
 
+// TODO: return StatusCode
 static void
 UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
+
+    UA_StatusCode retval = config.configureNetworkManager(&config, &client->networkManager);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
     /* TODO: Select policy according to the endpoint */
     client->config = config;
     UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL,
@@ -90,10 +96,13 @@ UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
                            (UA_CertificateVerification *)
                             UA_malloc(sizeof(UA_CertificateVerification));
 
-    UA_StatusCode retval =
-    UA_CertificateVerification_Trustlist(client->securityPolicy.certificateVerification,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
+    UA_StatusCode retval = config.configureNetworkManager(&config, &client->networkManager);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_CertificateVerification_Trustlist(client->securityPolicy.certificateVerification,
+                                                  trustList, trustListSize,
+                                                  revocationList, revocationListSize);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -198,6 +207,9 @@ UA_Client_deleteMembers(UA_Client* client) {
 
     /* Clean up the work queue */
     UA_WorkQueue_cleanup(&client->workQueue);
+
+    client->networkManager.shutdown(&client->networkManager);
+    client->networkManager.deleteMembers(&client->networkManager);
 }
 
 void
