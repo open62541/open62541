@@ -1,12 +1,8 @@
-####################
-# Nodeset Examples #
-####################
-
 ###################
 # Custom XML      #
 ###################
 
-# Generate types for ADI namespace
+# Generate custom types
 ua_generate_datatypes(
     NAME "datatypes"
     TARGET_SUFFIX "example-datatypes"
