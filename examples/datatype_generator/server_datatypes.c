@@ -13,8 +13,10 @@
 #include "datatypes_generated.h"
 
 #include <signal.h>
-#include <unistd.h>
 
+#ifdef UA_ARCHITECTURE_POSIX
+#include <unistd.h>
+#endif
 
 UA_Boolean running = true;
 
@@ -75,6 +77,7 @@ int main(int argc, char **argv) {
     UA_Byte optionalByteOne = 0x55;
     UA_Byte optionalByteTwo = 0x55;
 
+#ifdef UA_ARCHITECTURE_POSIX
     int c;
     opterr = 0;
     char *end;
@@ -96,8 +99,7 @@ int main(int argc, char **argv) {
         default:
             abort ();
         }
-
-
+#endif
 
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
