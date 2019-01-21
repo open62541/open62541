@@ -20,6 +20,15 @@ struct UA_NetworkManager {
     UA_StatusCode (*process)(UA_NetworkManager *networkManager, UA_UInt16 timeout);
 
     /**
+     * Checks if the supplied socket has pending activity and calls the activity callback chain
+     * if so.
+     * @param networkManager
+     * @param timeout
+     * @return
+     */
+    UA_StatusCode (*processSocket)(UA_NetworkManager *networkManager, UA_UInt32 timeout, UA_Socket *sock);
+
+    /**
      * Gets all known discovery urls of listener sockets registered with the network manager.
      * This function will allocate an array of strings, which needs to be freed by the caller.
      *

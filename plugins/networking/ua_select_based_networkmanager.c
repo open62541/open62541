@@ -123,6 +123,28 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
 }
 
 static UA_StatusCode
+select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
+                        UA_Socket *sock) {
+    fd_set fdset;
+    FD_ZERO(&fdset);
+    UA_fd_set(sock->id, &fdset);
+    struct timeval tmptv = {0, timeout * 1000};
+
+    int resultsize = UA_select((UA_Int32)(sock->id + 1), NULL, &fdset, NULL, &tmptv);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(resultsize == 1) {
+        if(sock->mayDelete(sock))
+            return UA_STATUSCODE_BADCONNECTIONCLOSED;
+        retval = sock->activity(sock);
+        if (retval != UA_STATUSCODE_GOOD) {
+            sock->close(sock);
+            return retval;
+        }
+    }
+    return retval;
+}
+
+static UA_StatusCode
 select_nm_getDiscoveryUrls(const UA_NetworkManager *networkManager, UA_String *discoveryUrls[],
                            size_t *discoveryUrlsSize) {
     SelectNMData *const internalData = (SelectNMData *const)networkManager->internalData;
@@ -212,6 +234,7 @@ UA_SelectBasedNetworkManager(const UA_Logger *logger, UA_NetworkManager *network
     networkManager->registerSocket = select_nm_registerSocket;
     networkManager->unregisterSocket = select_nm_unregisterSocket;
     networkManager->process = select_nm_process;
+    networkManager->processSocket = select_nm_processSocket;
     networkManager->getDiscoveryUrls = select_nm_getDiscoveryUrls;
     networkManager->shutdown = select_nm_shutdown;
     networkManager->deleteMembers = select_nm_deleteMembers;
