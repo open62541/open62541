@@ -10,6 +10,7 @@
 
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/server.h>
+#include "ua_plugin_securitypolicy.h"
 
 _UA_BEGIN_DECLS
 
@@ -23,7 +24,9 @@ typedef struct {
 UA_EXPORT UA_StatusCode
 UA_AccessControl_default(UA_AccessControl *ac, UA_Boolean allowAnonymous,
                          size_t usernamePasswordLoginSize,
-                         const UA_UsernamePasswordLogin *usernamePasswordLogin);
+                         const UA_UsernamePasswordLogin *usernamePasswordLogin,
+                         size_t securityPoliciesSize,
+                         const UA_SecurityPolicy *securityPolicies);
 
 _UA_END_DECLS
 

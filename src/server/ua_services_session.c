@@ -246,6 +246,82 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
     return retval;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION
+static UA_StatusCode
+decryptPassword(UA_Session *session, UA_UserNameIdentityToken *userToken,
+                UA_SecurityPolicy *securityPolicy) {
+    UA_ByteString decryptedTokenSecret;
+    UA_UInt32 tokenSecretLength;
+    UA_StatusCode result = UA_STATUSCODE_GOOD;
+
+    if(!UA_String_equal(&userToken->encryptionAlgorithm,
+                        &securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.uri))
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+    UA_ByteString_copy(&userToken->password, &decryptedTokenSecret);
+
+    if(securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.decrypt(securityPolicy,
+                                                                                 securityPolicy->policyContext,
+                                                                                 &decryptedTokenSecret) == UA_STATUSCODE_GOOD) {
+        memcpy(&tokenSecretLength, &decryptedTokenSecret.data, sizeof(UA_UInt32));
+
+        if((decryptedTokenSecret.length < (sizeof(UA_UInt32) + session->serverNonce.length)) ||
+           (decryptedTokenSecret.length < (sizeof(UA_UInt32) + tokenSecretLength)) ||
+           (tokenSecretLength < session->serverNonce.length)) {
+           /* The decrypted data is not large enough to include the
+            * Encrypted Token Secret Format or the length field does not
+            * indicate enough data to include the server nonce. */
+           result = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        } else if((decryptedTokenSecret.length > (sizeof(UA_UInt32) + tokenSecretLength))) {
+            /* If the Encrypted Token Secret contains padding, the padding
+             * must be zeroes according to the 1.04.1 specification errata,
+             * chapter 3. */
+            for(size_t i = sizeof(UA_UInt32) + tokenSecretLength; i < decryptedTokenSecret.length; i++) {
+                if(decryptedTokenSecret.data[i] != 0) {
+                    result = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+                    break;
+                }
+            }
+        }
+
+        if(result == UA_STATUSCODE_GOOD) {
+            UA_ByteString tokenServerNonce = {session->serverNonce.length,
+                                              &decryptedTokenSecret.data[sizeof(UA_UInt32) + tokenSecretLength - session->serverNonce.length]};
+
+            if(!UA_ByteString_equal(&session->serverNonce, &tokenServerNonce))
+                /* The server nonce must match according to the 1.04.1
+                 * specification errata, chapter 3. */
+                result = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        }
+    } else {
+        result = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    }
+
+    if(result != UA_STATUSCODE_GOOD) {
+        /* Free allocated resources */
+        UA_ByteString_deleteMembers(&decryptedTokenSecret);
+        return result;
+    }
+
+    /* The password was decrypted successfully, replace the encrypted password,
+     * delete the encryptionAlgorithm string and set an internal policy id in
+     * the userIdentityToken */
+    UA_ByteString_deleteMembers(&userToken->password);
+    UA_ByteString decryptedPassword = {tokenSecretLength - session->serverNonce.length,
+                                       &decryptedTokenSecret.data[sizeof(UA_UInt32)]};
+    UA_ByteString_copy(&decryptedPassword, &userToken->password);
+    UA_String_deleteMembers(&userToken->encryptionAlgorithm);
+    userToken->encryptionAlgorithm.length = 0;
+    UA_String_deleteMembers(&userToken->policyId);
+    userToken->policyId = UA_STRING_ALLOC(UA_ACCESS_CONTROL_DECRYPTED_PASSWORD_POLICY_ID);
+
+    /* Free allocated resources */
+    UA_ByteString_deleteMembers(&decryptedTokenSecret);
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 /* TODO: Check all of the following:
  *
  * Part 4, §5.6.3: When the ActivateSession Service is called for the first time
@@ -331,6 +407,65 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         return;
     }
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* If it is a UserNameIdentityToken, decrypt the password if encrypted */
+    if((request->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED) &&
+       (request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
+       UA_UserNameIdentityToken *userToken =
+           (UA_UserNameIdentityToken *)request->userIdentityToken.content.decoded.data;
+       UA_Boolean policyFound = false;
+       UA_Byte tokenIndex;
+       UA_SecurityPolicy* securityPolicy;
+
+       for(tokenIndex = 0; tokenIndex < ed->userIdentityTokensSize; tokenIndex++)
+       {
+           if(ed->userIdentityTokens[tokenIndex].tokenType != UA_USERTOKENTYPE_USERNAME)
+               continue;
+
+           if(UA_String_equal(&userToken->policyId, &ed->userIdentityTokens[tokenIndex].policyId)) {
+               /* Found policy */
+               policyFound = true;
+               break;
+           }
+       }
+
+       if(!policyFound) {
+           response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+           return;
+       }
+
+       if(ed->userIdentityTokens[tokenIndex].securityPolicyUri.length == 0 ||
+          ed->userIdentityTokens[tokenIndex].securityPolicyUri.data == NULL ) {
+           /* If the userTokenPolicy doesn't specify a security policy the
+            * security policy of the secure channel should be used.
+            * Make a copy of the endpoint policy uri as the endpoint is const declared. */
+           UA_ByteString securityPolicyUri;
+           UA_ByteString_copy(&ed->securityPolicyUri, &securityPolicyUri);
+           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &securityPolicyUri);
+           UA_ByteString_deleteMembers(&securityPolicyUri);
+       }
+       else
+           securityPolicy = UA_SecurityPolicy_getSecurityPolicyByUri(server, &ed->userIdentityTokens[tokenIndex].securityPolicyUri);
+
+       if(!securityPolicy) {
+          response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+          return;
+       }
+
+       if(!UA_String_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+          response->responseHeader.serviceResult = decryptPassword( session, userToken, securityPolicy );
+
+          if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+              UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                  "ActivateSession: Failed to decrypt the password "
+                                  "with the status code %s",
+                                  UA_StatusCode_name(response->responseHeader.serviceResult));
+              return;
+          }
+       }
+    }
+#endif
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =

@@ -165,12 +165,6 @@ createDefaultConfig(void) {
     conf->nodeLifecycle.constructor = NULL;
     conf->nodeLifecycle.destructor = NULL;
 
-    if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
-            usernamePasswords) != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_delete(conf);
-        return NULL;
-    }
-
     /* Relax constraints for the InformationModel */
     conf->relaxEmptyValueConstraint = true; /* Allow empty values */
 
@@ -293,6 +287,13 @@ UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber,
         return NULL;
     }
 
+    /* Access Control */
+    if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
+           usernamePasswords, conf->securityPoliciesSize, conf->securityPolicies) != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
     /* Allocate the endpoint */
     conf->endpoints = (UA_EndpointDescription *)UA_malloc(sizeof(UA_EndpointDescription));
     if(!conf->endpoints) {
@@ -381,6 +382,13 @@ UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
                                              localCertificate, localPrivateKey,
                                              &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    /* Access Control */
+    if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
+           usernamePasswords, conf->securityPoliciesSize, conf->securityPolicies) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -487,6 +495,13 @@ UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
                                               localCertificate, localPrivateKey,
                                               &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    /* Access Control */
+    if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
+           usernamePasswords, conf->securityPoliciesSize, conf->securityPolicies) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
@@ -612,6 +627,13 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
                                               &conf->certificateVerification,
                                               localCertificate, localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    /* Access Control */
+    if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
+           usernamePasswords, conf->securityPoliciesSize, conf->securityPolicies) != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }

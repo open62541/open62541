@@ -69,7 +69,7 @@ START_TEST(Client_user_fail) {
     UA_StatusCode retval =
         UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user0", "password");
 
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYTOKENREJECTED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -81,7 +81,7 @@ START_TEST(Client_pass_fail) {
     UA_StatusCode retval =
         UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "secret");
 
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYTOKENREJECTED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

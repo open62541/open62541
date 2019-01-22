@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -17,9 +17,15 @@ typedef struct {
 } AccessControlContext;
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
-#define USERNAME_POLICY "open62541-username-policy"
 const UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
-const UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
+#define USERNAME_NONE_POLICY "open62541-username-none-policy"
+const UA_String username_none_policy = UA_STRING_STATIC(USERNAME_NONE_POLICY);
+#ifdef UA_ENABLE_ENCRYPTION
+#define USERNAME_BASIC128RSA15_POLICY "open62541-username-basic128rsa15-policy"
+const UA_String username_basic128rsa15_policy = UA_STRING_STATIC(USERNAME_BASIC128RSA15_POLICY);
+#define USERNAME_BASIC256SHA256_POLICY "open62541-username-basic256sha256-policy"
+const UA_String username_basic256sha256_policy = UA_STRING_STATIC(USERNAME_BASIC256SHA256_POLICY);
+#endif
 
 /************************/
 /* Access Control Logic */
@@ -72,10 +78,11 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         const UA_UserNameIdentityToken *userToken =
             (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
 
-        if(!UA_String_equal(&userToken->policyId, &username_policy))
+        if (!UA_String_equal(&userToken->policyId, &username_none_policy) &&
+            !UA_String_equal(&userToken->policyId, &(UA_String)UA_STRING_STATIC(UA_ACCESS_CONTROL_DECRYPTED_PASSWORD_POLICY_ID)))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        /* TODO: Support encrypted username/password over unencrypted SecureChannels */
+        /* A valid encrypted password is decrypted before calling this function */
         if(userToken->encryptionAlgorithm.length > 0)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
@@ -93,7 +100,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             }
         }
         if(!match)
-            return UA_STATUSCODE_BADUSERACCESSDENIED;
+            return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
 
         /* No userdata atm */
         *sessionContext = NULL;
@@ -213,7 +220,8 @@ static void deleteMembers_default(UA_AccessControl *ac) {
 UA_StatusCode
 UA_AccessControl_default(UA_AccessControl *ac,
                          UA_Boolean allowAnonymous, size_t usernamePasswordLoginSize,
-                         const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+                         const UA_UsernamePasswordLogin *usernamePasswordLogin,
+                         size_t securityPoliciesSize, const UA_SecurityPolicy *securityPolicies) {
     ac->deleteMembers = deleteMembers_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;
@@ -259,8 +267,8 @@ UA_AccessControl_default(UA_AccessControl *ac,
     size_t policies = 0;
     if(allowAnonymous)
         policies++;
-    if(usernamePasswordLoginSize > 0)
-        policies++;
+    if(usernamePasswordLoginSize > 0 && securityPoliciesSize > 0)
+        policies+=securityPoliciesSize;
     ac->userTokenPoliciesSize = 0;
     ac->userTokenPolicies = (UA_UserTokenPolicy *)
         UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
@@ -277,16 +285,31 @@ UA_AccessControl_default(UA_AccessControl *ac,
         policies++;
     }
 
-    if(usernamePasswordLoginSize > 0) {
-        ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
-        ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
-        if (!ac->userTokenPolicies[policies].policyId.data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        /* No encryption of username/password supported at the moment */
-        ac->userTokenPolicies[policies].securityPolicyUri =
-            UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
-        if (!ac->userTokenPolicies[policies].securityPolicyUri.data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(usernamePasswordLoginSize > 0 && securityPoliciesSize > 0) {
+        /* Add one UserIdentityToken per SecurityPolicy */
+        for(size_t i = 0; i < securityPoliciesSize; i++, policies++) {
+            ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
+            if(UA_String_equal(&securityPolicies[i].policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+                ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_NONE_POLICY);
+            }
+#ifdef UA_ENABLE_ENCRYPTION
+            else if(UA_String_equal(&securityPolicies[i].policyUri, &(UA_String)UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"))) {
+                ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_BASIC128RSA15_POLICY);
+            }
+            else if(UA_String_equal(&securityPolicies[i].policyUri, &(UA_String)UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256"))) {
+                ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_BASIC256SHA256_POLICY);
+            }
+#endif
+            else {
+                /* The SecurityPolicy is not supported by the accesscontrol implementation */
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+
+            if (!ac->userTokenPolicies[policies].policyId.data)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            if(UA_String_copy(&securityPolicies[i].policyUri, &ac->userTokenPolicies[policies].securityPolicyUri) != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
     return UA_STATUSCODE_GOOD;
 }

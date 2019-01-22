@@ -13,6 +13,11 @@
 
 _UA_BEGIN_DECLS
 
+/* Internal UserIdentityToken policy ID set by the stack when an
+ * UsernameIdentityToken has been decrypted before passing it to the
+ * access control plugin */
+#define UA_ACCESS_CONTROL_DECRYPTED_PASSWORD_POLICY_ID "open62541-internal-decrypted"
+
 struct UA_AccessControl;
 typedef struct UA_AccessControl UA_AccessControl;
 
