@@ -54,6 +54,7 @@ typedef struct {
 
     const char *endpointUrl;
     UA_UInt32 timeout;
+    UA_SocketHook openHook;
 } UA_ClientSocketConfig;
 
 typedef struct UA_ClientConfig UA_ClientConfig;

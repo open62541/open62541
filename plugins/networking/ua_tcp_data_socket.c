@@ -25,6 +25,13 @@ typedef struct {
     UA_ByteString sendBufferOut;
 } TCPDataSocketData;
 
+typedef struct {
+    TCPDataSocketData dataSocketData;
+    UA_String endpointUrl;
+    UA_UInt32 timeout;
+    UA_SocketHook openHook;
+} TCPClientDataSocketData;
+
 static UA_StatusCode
 UA_TCP_DataSocket_close(UA_Socket *sock) {
     if(sock == NULL) {
@@ -219,7 +226,9 @@ static UA_StatusCode
 UA_TCP_DataSocket_allocate(UA_UInt64 sockFd, UA_UInt32 sendBufferSize,
                            UA_UInt32 recvBufferSize, UA_SocketHook *deletionHook,
                            UA_Socket_DataCallback *dataCallback, UA_Logger *logger,
-                           UA_Socket **p_sock) {
+                           void *allocatedInternalData, UA_Socket **p_sock) {
+    if(allocatedInternalData == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Socket *sock = (UA_Socket *)UA_malloc(sizeof(UA_Socket));
     if(sock == NULL) {
@@ -229,13 +238,7 @@ UA_TCP_DataSocket_allocate(UA_UInt64 sockFd, UA_UInt32 sendBufferSize,
     }
     memset(sock, 0, sizeof(UA_Socket));
 
-    TCPDataSocketData *internalData = (TCPDataSocketData *)UA_malloc(sizeof(TCPDataSocketData));
-    if(internalData == NULL) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "Ran out of memory while creating data socket internal data");
-        UA_free(sock);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    TCPDataSocketData *internalData = (TCPDataSocketData *)allocatedInternalData;
     sock->internalData = internalData;
     if(dataCallback != NULL)
         sock->dataCallback = *dataCallback;
@@ -304,8 +307,15 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
                  newsockfd, (int)listenerSocket->id);
 
     UA_Socket *sock = NULL;
+    void *internalData = UA_malloc(sizeof(TCPDataSocketData));
+    if(internalData == NULL) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                     "Failed to allocate data socket internal data. Out of memory");
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto error;
+    }
     retval = UA_TCP_DataSocket_allocate((UA_UInt64)newsockfd, sendBufferSize, recvBufferSize,
-                                        &deletionHook, &dataCallback, logger, &sock);
+                                        &deletionHook, &dataCallback, logger, internalData, &sock);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                      "Failed to allocate socket resources with error %s",
@@ -345,6 +355,8 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     return retval;
 
 error:
+    if(internalData != NULL)
+        UA_free(internalData);
     if(sock != NULL)
         UA_String_deleteMembers(&sock->discoveryUrl);
     UA_close(newsockfd);
@@ -523,7 +535,7 @@ typedef struct TCPClientConnection {
 //    return UA_STATUSCODE_GOOD;
 //
 //}
-//
+
 //UA_Connection_old
 //UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const char *endpointUrl,
 //                            const UA_UInt32 timeout, const UA_Logger *logger) {
@@ -586,25 +598,26 @@ typedef struct TCPClientConnection {
 
 #define UA_HOSTNAME_MAX_LENGTH 512
 
-UA_StatusCode
-UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
-                            const UA_UInt32 timeout, UA_Logger *logger,
-                            UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize,
-                            UA_SocketHook creationHook) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+static UA_StatusCode
+UA_TCP_ClientDataSocket_open(UA_Socket *sock) {
+    if(sock == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    TCPClientDataSocketData *internalData = (TCPClientDataSocketData *)sock->internalData;
 
-    UA_String endpointUrlString = UA_STRING((char *)(uintptr_t)endpointUrl);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_String hostnameString = UA_STRING_NULL;
     UA_String pathString = UA_STRING_NULL;
     UA_UInt16 port = 0;
     char hostname[UA_HOSTNAME_MAX_LENGTH];
 
     retval =
-        UA_parseEndpointUrl(&endpointUrlString, &hostnameString,
+        UA_parseEndpointUrl(&internalData->endpointUrl, &hostnameString,
                             &port, &pathString);
     if(retval != UA_STATUSCODE_GOOD || hostnameString.length >= UA_HOSTNAME_MAX_LENGTH) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Server url is invalid: %s", endpointUrl);
+        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
+                       "Server url is invalid: %*.s",
+                       (int)internalData->endpointUrl.length, internalData->endpointUrl.data);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     memcpy(hostname, hostnameString.data, hostnameString.length);
@@ -612,7 +625,7 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
 
     if(port == 0) {
         port = 4840;
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(sock->logger, UA_LOGCATEGORY_NETWORK,
                     "No port defined, using default port %d", port);
     }
 
@@ -625,15 +638,15 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
     UA_snprintf(portStr, 6, "%d", port);
     int error = UA_getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
-        UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_SOCKET_ERRNO_GAI_WRAP(UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                                                     "DNS lookup of %s failed with error %s", hostname, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_Boolean connected = false;
-    UA_DateTime dtTimeout = timeout * UA_DATETIME_MSEC;
+    UA_DateTime dtTimeout = internalData->timeout * UA_DATETIME_MSEC;
     UA_DateTime connStart = UA_DateTime_nowMonotonic();
-    UA_SOCKET clientsockfd;
+    UA_SOCKET clientsockfd = UA_INVALID_SOCKET;
 
     /* On linux connect may immediately return with ECONNREFUSED but we still
      * want to try to connect. So use a loop and retry until timeout is
@@ -644,7 +657,7 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
                                  server->ai_socktype,
                                  server->ai_protocol);
         if(clientsockfd == UA_INVALID_SOCKET) {
-            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                                                     "Could not create client socket: %s", errno_str));
             UA_freeaddrinfo(server);
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -653,7 +666,7 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
         /* Non blocking connect to be able to timeout */
         retval = UA_socket_set_nonblocking(clientsockfd);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                            "Could not set the client socket to nonblocking");
             goto error;
         }
@@ -663,9 +676,10 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
 
         if((error == -1) && (UA_ERRNO != UA_ERR_CONNECTION_PROGRESS)) {
             UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                               "Connection to %s failed with error: %s",
-                               endpointUrl, errno_str));
+                UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
+                               "Connection to %*.s failed with error: %s",
+                               (int)internalData->endpointUrl.length,
+                               internalData->endpointUrl.data, errno_str));
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto error;
         }
@@ -726,9 +740,11 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
                     /* on connection refused we should still try to connect */
                     /* connection refused happens on localhost or local ip without timeout */
                     if(so_error != ECONNREFUSED) {
-                        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                                       "Connection to %s failed with error: %s",
-                                       endpointUrl, strerror(ret == 0 ? so_error : UA_ERRNO));
+                        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
+                                       "Connection to %*.s failed with error: %s",
+                                       (int)internalData->endpointUrl.length,
+                                       internalData->endpointUrl.data,
+                                       strerror(ret == 0 ? so_error : UA_ERRNO));
                         retval = UA_STATUSCODE_BADINTERNALERROR;
                         goto error;
                     }
@@ -753,9 +769,10 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
 
     if(!connected) {
         /* connection timeout */
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Trying to connect to %s timed out",
-                       endpointUrl);
+        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
+                       "Trying to connect to %*.s timed out",
+                       (int)internalData->endpointUrl.length,
+                       internalData->endpointUrl.data);
         retval = UA_STATUSCODE_BADTIMEOUT;
         goto error;
     }
@@ -764,7 +781,7 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
     /* We are connected. Reset socket to blocking */
     retval = UA_socket_set_blocking(clientsockfd);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set the client socket to blocking");
         goto error;
     }
@@ -774,21 +791,13 @@ UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
     int sso_result = UA_setsockopt(clientsockfd, SOL_SOCKET,
                                    SO_NOSIGPIPE, (void*)&val, sizeof(val));
     if(sso_result < 0)
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(sock->logger, UA_LOGCATEGORY_NETWORK,
                        "Couldn't set SO_NOSIGPIPE");
 #endif
 
-    UA_Socket *sock = NULL;
-    retval = UA_TCP_DataSocket_allocate((UA_UInt64)clientsockfd, sendBufferSize, recvBufferSize,
-                                        NULL, NULL, logger, &sock);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "Failed to allocate socket resources with error %s",
-                     UA_StatusCode_name(retval));
-        goto error;
-    }
+    sock->id = (UA_UInt64)clientsockfd;
 
-    UA_SocketHook_call(creationHook, sock);
+    UA_SocketHook_call(internalData->openHook, sock);
 
     return retval;
 error:
@@ -797,5 +806,51 @@ error:
         UA_close(clientsockfd);
     }
     UA_freeaddrinfo(server);
+    return retval;
+}
+
+static UA_StatusCode
+UA_TCP_ClientDataSocket_free(UA_Socket *sock) {
+    TCPClientDataSocketData *internalData = (TCPClientDataSocketData *)sock->internalData;
+    UA_String_deleteMembers(&internalData->endpointUrl);
+    return UA_TCP_DataSocket_free(sock);
+}
+
+UA_StatusCode
+UA_TCP_ClientDataSocket(const char *endpointUrl,
+                        UA_UInt32 timeout, UA_Logger *logger,
+                        UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize,
+                        UA_SocketHook creationHook, UA_SocketHook openHook) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    TCPClientDataSocketData *internalData =
+        (TCPClientDataSocketData *)UA_malloc(sizeof(TCPClientDataSocketData));
+    if(internalData == NULL) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                     "Failed to allocate data socket internal data. Out of memory");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_Socket *sock = NULL;
+    retval = UA_TCP_DataSocket_allocate(0, sendBufferSize, recvBufferSize,
+                                        NULL, NULL, logger, internalData, &sock);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
+                     "Failed to allocate socket resources with error %s",
+                     UA_StatusCode_name(retval));
+        UA_free(internalData);
+        return retval;
+    }
+
+    UA_String endpointUrlString = UA_STRING((char *)(uintptr_t)endpointUrl);
+    UA_String_copy(&endpointUrlString, &internalData->endpointUrl);
+    internalData->openHook = openHook;
+    internalData->timeout = timeout;
+
+    sock->open = UA_TCP_ClientDataSocket_open;
+    sock->free = UA_TCP_ClientDataSocket_free;
+
+    UA_SocketHook_call(creationHook, sock);
+
     return retval;
 }

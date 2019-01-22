@@ -53,9 +53,9 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
  * @return
  */
 UA_StatusCode
-UA_TCP_DataSocket_ConnectTo(const char *endpointUrl,
-                            UA_UInt32 timeout, UA_Logger *logger,
-                            UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize,
-                            UA_SocketHook creationHook);
+UA_TCP_ClientDataSocket(const char *endpointUrl,
+                        UA_UInt32 timeout, UA_Logger *logger,
+                        UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize,
+                        UA_SocketHook creationHook, UA_SocketHook openHook);
 
 #endif //OPEN62541_UA_SOCKETS_H
