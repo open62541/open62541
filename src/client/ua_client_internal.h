@@ -142,6 +142,7 @@ struct UA_Client {
 
     /* NetworkManager */
     UA_NetworkManager networkManager;
+    UA_UInt64 openRepeatedCallbackId;
 
     /* Connection */
     UA_Connection* connection;
