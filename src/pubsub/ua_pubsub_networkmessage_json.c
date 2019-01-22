@@ -82,16 +82,18 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 da
     rv |= writeJsonKey(ctx, UA_DECODEKEY_PAYLOAD);
     rv |= writeJsonObjStart(ctx);
 
-    /* TODO: currently no difference between delta and key frames. Own dataSetMessageType for json?*/
+    /* TODO: currently no difference between delta and key frames. Own
+     * dataSetMessageType for json?. If the field names are not defined, write
+     * out empty field names. */
     if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
-        if(src->data.keyFrameData.fieldNames == NULL){
-            return UA_STATUSCODE_BADENCODINGERROR;
-        }
 
         if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
             /* KEYFRAME VARIANT */
             for (UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
-                rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
+                if(src->data.keyFrameData.fieldNames)
+                    rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
+                else
+                    rv |= writeJsonKey(ctx, "");
                 rv |= encodeJsonInternal(&(src->data.keyFrameData.dataSetFields[i].value),
                         &UA_TYPES[UA_TYPES_VARIANT], ctx);
                 if(rv != UA_STATUSCODE_GOOD)
@@ -102,7 +104,10 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 da
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
             /* KEYFRAME DATAVALUE */
             for (UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
-                rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
+                if(src->data.keyFrameData.fieldNames)
+                    rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
+                else
+                    rv |= writeJsonKey(ctx, "");
                 rv |= encodeJsonInternal(&(src->data.keyFrameData.dataSetFields[i]), &UA_TYPES[UA_TYPES_DATAVALUE], ctx);
                 if(rv != UA_STATUSCODE_GOOD)
                     return rv;
