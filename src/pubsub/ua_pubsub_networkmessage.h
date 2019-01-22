@@ -235,7 +235,7 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
                                UA_String *serverUris, size_t serverUriSize,
                                UA_Boolean useReversible);
 
-UA_StatusCode UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, UA_ByteString *src);
+UA_StatusCode UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src);
 #endif
 
 _UA_END_DECLS
