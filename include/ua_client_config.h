@@ -43,6 +43,7 @@ typedef enum {
     UA_CLIENTSTATE_DISCONNECTED,         /* The client is disconnected */
     UA_CLIENTSTATE_WAITING_FOR_ACK,      /* The Client has sent HEL and waiting */
     UA_CLIENTSTATE_CONNECTED,            /* A TCP connection to the server is open */
+    UA_CLIENTSTATE_SECURECHANNEL_OPENING,/* A SecureChannel to the server is opening */
     UA_CLIENTSTATE_SECURECHANNEL,        /* A SecureChannel to the server is open */
     UA_CLIENTSTATE_SESSION,              /* A session with the server is open */
     UA_CLIENTSTATE_SESSION_DISCONNECTED, /* Disconnected vs renewed? */

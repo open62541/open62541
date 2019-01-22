@@ -39,48 +39,12 @@
 /***********************/
 /* Open the Connection */
 /***********************/
-static UA_StatusCode
-openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/);
 
 static UA_StatusCode
 requestSession(UA_Client *client, UA_UInt32 *requestId);
 
 static UA_StatusCode
 requestGetEndpoints(UA_Client *client, UA_UInt32 *requestId);
-
-/*receives hello ack, opens secure channel*/
-UA_StatusCode
-processACKResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk) {
-    UA_Client *client = (UA_Client*)application;
-
-    /* Decode the message */
-    size_t offset = 0;
-    UA_TcpMessageHeader messageHeader;
-    UA_TcpAcknowledgeMessage ackMessage;
-    client->connectStatus = UA_TcpMessageHeader_decodeBinary (chunk, &offset,
-                                                              &messageHeader);
-    client->connectStatus |= UA_TcpAcknowledgeMessage_decodeBinary(
-            chunk, &offset, &ackMessage);
-    if (client->connectStatus != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "Decoding ACK message failed");
-        return client->connectStatus;
-    }
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
-
-    client->connectStatus =
-        UA_Connection_adjustParameters(connection, (const UA_ConnectionConfig *)&ackMessage);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
-
-    client->state = UA_CLIENTSTATE_CONNECTED;
-
-    /* Open a SecureChannel. TODO: Select with endpoint  */
-    UA_Connection_attachSecureChannel(client->connection, &client->channel);
-    client->connectStatus = openSecureChannelAsync(client/*, false*/);
-    return client->connectStatus;
-}
 
 static UA_StatusCode
 sendHELMessage(UA_Client *client) {
@@ -188,23 +152,17 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-processOPNResponseAsync(void *application, UA_Connection *connection,
-                        const UA_ByteString *chunk) {
-    UA_Client *client = (UA_Client*) application;
-    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk, true);
-    client->connectStatus = retval;
+UA_Client_processOPNAsync(UA_Client *client) {
+    UA_StatusCode retval =
+        UA_SecureChannel_processCompleteMessages(&client->channel,
+                                                 client, processDecodedOPNResponseAsync);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
-    UA_SecureChannel_processCompleteMessages(&client->channel, client, processDecodedOPNResponseAsync);
-    
+
     if(client->state < UA_CLIENTSTATE_SECURECHANNEL) {
         retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
         goto error;
     }
-
-    retval = UA_SecureChannel_persistIncompleteMessages(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
 
     retval = UA_SecureChannel_generateNewKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
@@ -229,8 +187,8 @@ error:
 }
 
 /* OPN messges to renew the channel are sent asynchronous */
-static UA_StatusCode
-openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
+UA_StatusCode
+UA_CLient_openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
     /* Check if sc is still valid */
     /*if(renew && client->nextChannelRenewal - UA_DateTime_nowMonotonic () > 0)
         return UA_STATUSCODE_GOOD;*/
@@ -299,6 +257,7 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
         LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
         return retval;
     }*/
+    client->state = UA_CLIENTSTATE_SECURECHANNEL_OPENING;
     return retval;
 }
 
@@ -527,7 +486,9 @@ UA_StatusCode
 UA_Client_connect_iterate(UA_Client *client) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
-    if (client->connection->state == UA_CONNECTION_ESTABLISHED){
+    if(client->connection == NULL)
+        return client->connectStatus; /* not yet connected */
+    if(client->connection->state == UA_CONNECTION_OPENING) {
         if(client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
             client->connectStatus = sendHELMessage(client);
             if(client->connectStatus == UA_STATUSCODE_GOOD) {
@@ -549,7 +510,6 @@ UA_Client_connect_iterate(UA_Client *client) {
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_Connection_close(client->connection);
     }
-
     return client->connectStatus;
 }
 
@@ -646,16 +606,6 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->asyncConnectCall.callback = callback;
     client->asyncConnectCall.userdata = userdata;
 
-//    if(!client->connection.connectCallbackID) {
-//        UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-//                     "Adding async connection callback");
-//        retval = UA_Client_addRepeatedCallback(
-//                     client, client->config.pollConnectionFunc, &client->connection, 100.0,
-//                     &client->connection.connectCallbackID);
-//        if(retval != UA_STATUSCODE_GOOD)
-//            goto cleanup;
-//    }
-
     retval = UA_SecureChannel_generateLocalNonce(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -733,8 +683,7 @@ UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
     if (client->state >= UA_CLIENTSTATE_CONNECTED)
         UA_Connection_close(client->connection);
     else {
-        // TODO: new networking api
-//        UA_Client_removeRepeatedCallback(client, client->connection.connectCallbackID);
+        UA_Client_removeRepeatedCallback(client, client->openRepeatedCallbackId);
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

@@ -319,27 +319,6 @@ __UA_Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
 }
 
-UA_StatusCode
-receivePacketAsync(UA_Client *client) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED ||
-            UA_Client_getState(client) == UA_CLIENTSTATE_WAITING_FOR_ACK) {
-        // TODO: fix for new networking api
-//        retval = UA_Connection_old_receiveChunksNonBlocking(&client->connection, client, processACKResponseAsync);
-        (void)processACKResponseAsync;
-    }
-    else if(UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
-//        retval = UA_Connection_old_receiveChunksNonBlocking(&client->connection, client, processOPNResponseAsync);
-        (void)processOPNResponseAsync;
-    }
-//    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
-//        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
-//            setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
-//        UA_Client_disconnect(client);
-//    }
-    return retval;
-}
-
 void
 UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                               UA_StatusCode statusCode) {

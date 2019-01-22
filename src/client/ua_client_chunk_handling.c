@@ -13,37 +13,6 @@
 #define UA_BITMASK_MESSAGETYPE 0x00ffffff
 #define UA_BITMASK_CHUNKTYPE 0xff000000
 
-static void
-processSecureChannelMessage(void *application, UA_SecureChannel *channel,
-                            UA_MessageType messagetype, UA_UInt32 requestId,
-                            const UA_ByteString *message) {
-    UA_Client *client = (UA_Client *)application;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    switch(messagetype) {
-    case UA_MESSAGETYPE_OPN: {
-        UA_LOG_TRACE_CHANNEL(&client->config.logger, channel,
-                             "Processing OPN");
-//        retval = processOPNResponse(client, channel->connection, message);
-    }
-        break;
-    case UA_MESSAGETYPE_MSG:UA_LOG_TRACE_CHANNEL(&client->config.logger, channel, "Process a MSG");
-//        retval = processMSG(client, channel, requestId, message);
-        break;
-    case UA_MESSAGETYPE_CLO:UA_LOG_TRACE_CHANNEL(&client->config.logger, channel, "Process a CLO");
-//        Service_CloseSecureChannel(client, channel);
-        break;
-    default:UA_LOG_TRACE_CHANNEL(&client->config.logger, channel, "Invalid message type");
-        retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-        break;
-    }
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_CHANNEL(&client->config.logger, channel,
-                            "Processing the message failed with StatusCode %s. "
-                            "Closing the channel.", UA_StatusCode_name(retval));
-//        Service_CloseSecureChannel(server, channel);
-    }
-}
-
 static UA_StatusCode
 UA_Client_processTcpErrorMessage(UA_Client *client, UA_ByteString *message,
                                  size_t *offset) {
@@ -85,7 +54,7 @@ client_processCompleteChunkWithoutChannel(UA_Client *client, UA_Connection *conn
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     }
 
-    // Only HEL and OPN messages possible without a channel (on the server side)
+    // Only HEL and OPN messages possible without a channel (on the client side)
     switch(messageType) {
     case UA_MESSAGETYPE_ACK: {
         retval = processACKResponse(client, connection, message, &offset);
@@ -115,16 +84,6 @@ typedef struct {
     void *response;
     const UA_DataType *responseType;
 } SyncResponseDescription;
-
-/* Forward complete chunks directly to the securechannel */
-//static UA_StatusCode
-//client_processChunk(void *application, UA_Connection *connection, UA_ByteString *chunk) {
-//    SyncResponseDescription *rd = (SyncResponseDescription*)application;
-//    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&rd->client->channel, chunk, true);
-//    if(retval != UA_STATUSCODE_GOOD)
-//        return retval;
-//    return UA_SecureChannel_persistIncompleteMessages(&rd->client->channel);
-//}
 
 static const UA_NodeId
     serviceFaultId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVICEFAULT_ENCODING_DEFAULTBINARY}};
@@ -327,9 +286,6 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
                             const UA_DataType *responseType) {
     SyncResponseDescription rd = {client, false, 0, response, responseType};
 
-    // TODO: replace with new networking api
-//    UA_StatusCode retval = UA_Connection_old_receiveChunksNonBlocking(
-//            &client->connection, &rd, client_processChunk);
     UA_StatusCode retval = UA_SecureChannel_processCompleteMessages(&client->channel, &rd, processServiceResponse);
     /*let client run when non critical timeout*/
     if(retval != UA_STATUSCODE_GOOD
@@ -349,21 +305,10 @@ UA_Client_processChunk(UA_Client *client, UA_Connection *connection, UA_ByteStri
     if(!connection->channel)
         return client_processCompleteChunkWithoutChannel(client, connection, chunk);
     else
-        return UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
+        retval = UA_SecureChannel_decryptAddChunk(connection->channel, chunk, false);
 
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-
-    retval = UA_SecureChannel_processCompleteMessages(connection->channel, client,
-                                                      processSecureChannelMessage);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    if(connection->channel == NULL)
-        return UA_STATUSCODE_GOOD;
-
-    if(connection->channel->state == UA_SECURECHANNELSTATE_CLOSED)
-        return UA_STATUSCODE_GOOD;
 
     return UA_SecureChannel_persistIncompleteMessages(connection->channel);
 }

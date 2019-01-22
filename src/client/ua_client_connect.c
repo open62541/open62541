@@ -61,7 +61,9 @@ processACKResponse(void *application, UA_Connection *connection,
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
 
     /* Process the ACK message */
-    return UA_Connection_adjustParameters(connection, (const UA_ConnectionConfig *)&ackMessage);
+    retval = UA_Connection_adjustParameters(connection, (const UA_ConnectionConfig *)&ackMessage);
+    client->state = UA_CLIENTSTATE_CONNECTED;
+    return retval;
 }
 
 static UA_StatusCode

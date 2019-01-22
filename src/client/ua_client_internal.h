@@ -218,22 +218,15 @@ UA_Client_getEndpointsInternal(UA_Client *client,
                                size_t* endpointDescriptionsSize,
                                UA_EndpointDescription** endpointDescriptions);
 
-/* Receive and process messages until a synchronous message arrives or the
- * timout finishes */
 UA_StatusCode
-receivePacketAsync(UA_Client *client);
+UA_CLient_openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/);
 
 UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection,
                    UA_ByteString *chunk, size_t *offset);
 
 UA_StatusCode
-processACKResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk);
-
-UA_StatusCode
-processOPNResponseAsync(void *application, UA_Connection *connection,
-                        const UA_ByteString *chunk);
+UA_Client_processOPNAsync(UA_Client *client);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);
