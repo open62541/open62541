@@ -290,6 +290,8 @@ static status DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *t
             return ret;
         }
 
+        parseCtx->index++;
+
         //TODO: Is field value a variant or datavalue? Current check if type and body present.
         UA_Boolean isVariant = UA_TRUE;
         size_t searchResult = 0;
