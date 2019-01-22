@@ -517,7 +517,7 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     }
 }
 
-status UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, UA_ByteString *src){
+status UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src){
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(CtxJson));
