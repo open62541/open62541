@@ -269,6 +269,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         } else {
             retval = UA_SecureChannel_processCompleteMessages(&client->channel, &rd,
                                                               processServiceResponse);
+            rd.received = true;
         }
 
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
