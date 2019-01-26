@@ -75,3 +75,39 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     
 
 endif()
+
+# PLCopen requires the full ns0 as basis
+if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+
+    # Generate types and namespace for DI
+    #ua_generate_nodeset_and_datatypes(
+    #    NAME "di"
+    #    FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
+    #    FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+    #    NAMESPACE_IDX 2
+    #    FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
+    #    INTERNAL
+    #)
+
+    # generate powerlink namespace which is using DI
+    ua_generate_nodeset_and_datatypes(
+        NAME "powerlink"
+        # PLCopen does not define custom types. Only generate the nodeset
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/POWERLINK/Opc.Ua.POWERLINK.NodeIds.csv"
+        FILE_BSD "${PROJECT_SOURCE_DIR}/examples/nodeset/Opc.Ua.POWERLINK.NodeSet2.bsd"
+        NAMESPACE_IDX 3
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml"
+        # PLCopen depends on the di nodeset, which must be generated before
+        DEPENDS "di"
+        INTERNAL
+    )
+
+    add_example(server_nodeset_powerlink server_nodeset_powerlink.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_types_di_generated.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_types_powerlink_generated.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_powerlink.c)
+    add_dependencies(server_nodeset_plcopen open62541-generator-ns-powerlink)
+    
+
+endif()
