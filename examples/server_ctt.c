@@ -158,7 +158,8 @@ setInformationModel(UA_Server *server) {
     v_attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
     v_attr.valueRank = UA_VALUERANK_SCALAR;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
-    UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+    UA_Server_addDataSourceVariableNode(server, UA_NODEID_NUMERIC(1, 2345),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
                                         baseDataVariableType, v_attr, dateDataSource, NULL, NULL);
 
