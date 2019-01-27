@@ -760,25 +760,25 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
-    //UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+    UA_CertificateVerification_AcceptAll(&config->certificateVerification);
 
-    /* if(config->securityPoliciesSize > 0) { */
-    /*     UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK, */
-    /*                  "Could not initialize a config that already has SecurityPolicies"); */
-    /*     return UA_STATUSCODE_BADINTERNALERROR; */
-    /* } */
+    if(config->securityPoliciesSize > 0) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK,
+                     "Could not initialize a config that already has SecurityPolicies");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    /* config->securityPolicies = (UA_SecurityPolicy*)malloc(sizeof(UA_SecurityPolicy)); */
-    /* if(!config->securityPolicies) */
-    /*     return UA_STATUSCODE_BADOUTOFMEMORY; */
-    /* UA_StatusCode retval = UA_SecurityPolicy_None(config->securityPolicies, NULL, */
-    /*                                               UA_BYTESTRING_NULL, &config->logger); */
-    /* if(retval != UA_STATUSCODE_GOOD) { */
-    /*     free(config->securityPolicies); */
-    /*     config->securityPolicies = NULL; */
-    /*     return retval; */
-    /* } */
-    /* config->securityPoliciesSize = 1; */
+    config->securityPolicies = (UA_SecurityPolicy*)malloc(sizeof(UA_SecurityPolicy));
+    if(!config->securityPolicies)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode retval = UA_SecurityPolicy_None(config->securityPolicies, NULL,
+                                                  UA_BYTESTRING_NULL, &config->logger);
+    if(retval != UA_STATUSCODE_GOOD) {
+        free(config->securityPolicies);
+        config->securityPolicies = NULL;
+        return retval;
+    }
+    config->securityPoliciesSize = 1;
 
     config->connectionFunc = UA_ClientConnectionTCP;
     config->initConnectionFunc = UA_ClientConnectionTCP_init; /* for async client */
@@ -800,3 +800,44 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     return UA_STATUSCODE_GOOD;
 }
+
+#ifdef UA_ENABLE_ENCRYPTION
+UA_StatusCode
+UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
+                                     UA_ByteString localCertificate, UA_ByteString privateKey,
+                                     const UA_ByteString *trustList, size_t trustListSize,
+                                     const UA_ByteString *revocationList, size_t revocationListSize) {
+    UA_StatusCode retval = UA_ClientConfig_setDefault(config);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
+                                                  trustList, trustListSize,
+                                                  revocationList, revocationListSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Populate SecurityPolicies */
+    UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
+        realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * 3);
+    if(!sp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = sp;
+
+    retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[1],
+                                             &config->certificateVerification,
+                                             localCertificate, privateKey, &config->logger);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    ++config->securityPoliciesSize;
+
+    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[2],
+                                              &config->certificateVerification,
+                                              localCertificate, privateKey, &config->logger);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    ++config->securityPoliciesSize;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif

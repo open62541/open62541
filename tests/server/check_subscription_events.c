@@ -184,11 +184,14 @@ setup(void) {
     addNewEventType();
     setupSelectClauses();
     THREAD_CREATE(server_thread, serverloop);
-    client = UA_Client_new(UA_ClientConfig_default);
+
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if (retval != UA_STATUSCODE_GOOD)
-    {
-        fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s", UA_StatusCode_name(retval));
+    if(retval != UA_STATUSCODE_GOOD) {
+        fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s",
+                UA_StatusCode_name(retval));
         exit(1);
     }
     setupSubscription();

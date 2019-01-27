@@ -34,8 +34,6 @@
 static void
 UA_Client_init(UA_Client* client) {
     memset(client, 0, sizeof(UA_Client));
-    UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL,
-                           &client->config.logger);
     UA_SecureChannel_init(&client->channel);
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
@@ -56,23 +54,38 @@ UA_Client_new() {
 }
 
 static void
+UA_ClientConfig_deleteMembers(UA_ClientConfig *config) {
+    UA_ApplicationDescription_deleteMembers(&config->clientDescription);
+
+    UA_ExtensionObject_deleteMembers(&config->userIdentityToken);
+    UA_String_deleteMembers(&config->securityPolicyUri);
+
+    UA_EndpointDescription_deleteMembers(&config->endpoint);
+    UA_UserTokenPolicy_deleteMembers(&config->userTokenPolicy);
+
+    if(config->certificateVerification.deleteMembers)
+        config->certificateVerification.deleteMembers(&config->certificateVerification);
+
+    /* Delete the SecurityPolicies */
+    if(config->securityPolicies == 0)
+        return;
+    for(size_t i = 0; i < config->securityPoliciesSize; i++)
+        config->securityPolicies[i].deleteMembers(&config->securityPolicies[i]);
+    UA_free(config->securityPolicies);
+    config->securityPolicies = 0;
+}
+
+static void
 UA_Client_deleteMembers(UA_Client *client) {
     UA_Client_disconnect(client);
-    client->securityPolicy.deleteMembers(&client->securityPolicy);
     /* Commented as UA_SecureChannel_deleteMembers already done
      * in UA_Client_disconnect function */
     //UA_SecureChannel_deleteMembersCleanup(&client->channel);
     if (client->connection.free)
         client->connection.free(&client->connection);
     UA_Connection_deleteMembers(&client->connection);
-    if(client->endpointUrl.data)
-        UA_String_deleteMembers(&client->endpointUrl);
-    UA_UserTokenPolicy_deleteMembers(&client->token);
     UA_NodeId_deleteMembers(&client->authenticationToken);
-    if(client->username.data)
-        UA_String_deleteMembers(&client->username);
-    if(client->password.data)
-        UA_String_deleteMembers(&client->password);
+    UA_String_deleteMembers(&client->endpointUrl);
 
     /* Delete the async service calls */
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
@@ -87,6 +100,8 @@ UA_Client_deleteMembers(UA_Client *client) {
 
     /* Clean up the work queue */
     UA_WorkQueue_cleanup(&client->workQueue);
+
+    UA_ClientConfig_deleteMembers(&client->config);
 }
 
 void
@@ -97,15 +112,6 @@ UA_Client_reset(UA_Client* client) {
 
 void
 UA_Client_delete(UA_Client* client) {
-    /* certificate verification is initialized for secure client
-     * which is deallocated */
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if (client->securityPolicy.certificateVerification->deleteMembers)
-            client->securityPolicy.certificateVerification->deleteMembers(client->securityPolicy.certificateVerification);
-        UA_free(client->securityPolicy.certificateVerification);
-    }
-
     UA_Client_deleteMembers(client);
     UA_free(client);
 }

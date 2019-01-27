@@ -390,13 +390,6 @@ UA_SecurityPolicy *
 UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
                                          UA_ByteString *securityPolicyUri);
 
-typedef UA_StatusCode
-(*UA_SecurityPolicy_Func)(UA_SecurityPolicy *policy,
-                          UA_CertificateVerification *certificateVerification,
-                          const UA_ByteString localCertificate,
-                          const UA_ByteString localPrivateKey,
-                          const UA_Logger *logger);
-
 _UA_END_DECLS
 
 #endif /* UA_PLUGIN_SECURITYPOLICY_H_ */
