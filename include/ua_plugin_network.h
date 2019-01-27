@@ -198,8 +198,8 @@ struct UA_ServerNetworkLayer {
  * @param timeout in ms until the connection try times out if remote not reachable
  * @param logger the logger to use */
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig config, const char *endpointUrl,
-                              const UA_UInt32 timeout, const UA_Logger *logger);
+(*UA_ConnectClientConnection)(UA_ConnectionConfig config, UA_String endpointUrl,
+                              UA_UInt32 timeout, UA_Logger *logger);
 
 _UA_END_DECLS
 
