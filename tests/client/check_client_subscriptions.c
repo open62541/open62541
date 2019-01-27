@@ -60,7 +60,9 @@ dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
 }
 
 START_TEST(Client_subscription) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -104,7 +106,8 @@ START_TEST(Client_subscription) {
 END_TEST
 
 START_TEST(Client_subscription_createDataChanges) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -204,7 +207,8 @@ START_TEST(Client_subscription_createDataChanges) {
 END_TEST
 
 START_TEST(Client_subscription_keepAlive) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -267,7 +271,9 @@ START_TEST(Client_subscription_keepAlive) {
 END_TEST
 
 START_TEST(Client_subscription_connectionClose) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -306,7 +312,8 @@ START_TEST(Client_subscription_connectionClose) {
 END_TEST
 
 START_TEST(Client_subscription_without_notification) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -394,16 +401,18 @@ subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subCon
 }
 
 START_TEST(Client_subscription_async_sub) {
-    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     /* Set stateCallback */
-    clientConfig.stateCallback = stateCallback;
-    clientConfig.subscriptionInactivityCallback = subscriptionInactivityCallback;
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->stateCallback = stateCallback;
+    cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
     inactivityCallbackCalled = false;
 
     /* Activate background publish request */
-    clientConfig.outStandingPublishRequests = 10;
+    cc->outStandingPublishRequests = 10;
 
-    UA_Client *client = UA_Client_new(clientConfig);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_DISCONNECTED);
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -454,7 +463,7 @@ START_TEST(Client_subscription_async_sub) {
     /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_run_iterate(client, (UA_UInt16)clientConfig.timeout);
+    UA_Client_run_iterate(client, (UA_UInt16)cc->timeout);
     ck_assert_uint_eq(inactivityCallbackCalled, true);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
@@ -464,7 +473,9 @@ END_TEST
 
 #ifdef UA_ENABLE_METHODCALLS
 START_TEST(Client_methodcall) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

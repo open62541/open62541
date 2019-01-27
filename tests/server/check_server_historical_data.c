@@ -120,7 +120,8 @@ setup(void)
         exit(1);
     }
 
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if (retval != UA_STATUSCODE_GOOD)
     {

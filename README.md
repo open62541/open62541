@@ -173,7 +173,8 @@ int main(int argc, char** argv)
 int main(int argc, char *argv[])
 {
     /* Create a client and connect */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(status != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

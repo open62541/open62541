@@ -108,12 +108,13 @@ int
 main(void) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ClientConfig config = UA_ClientConfig_default;
-    /* Set stateCallback */
-    config.stateCallback = stateCallback;
-    config.subscriptionInactivityCallback = subscriptionInactivityCallback;
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
 
-    UA_Client *client = UA_Client_new(config);
+    /* Set stateCallback */
+    cc->stateCallback = stateCallback;
+    cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
 
     /* Endless loop runAsync */
     while(running) {

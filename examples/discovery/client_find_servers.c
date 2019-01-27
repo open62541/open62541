@@ -21,7 +21,8 @@ int main(void) {
         UA_ServerOnNetwork *serverOnNetwork = NULL;
         size_t serverOnNetworkSize = 0;
 
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         UA_StatusCode retval = UA_Client_findServersOnNetwork(client, DISCOVERY_SERVER_ENDPOINT, 0, 0,
                                                               0, NULL, &serverOnNetworkSize, &serverOnNetwork);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -59,7 +60,8 @@ int main(void) {
 
     UA_StatusCode retval;
     {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retval = UA_Client_findServers(client, DISCOVERY_SERVER_ENDPOINT, 0, NULL, 0, NULL,
                                        &applicationDescriptionArraySize, &applicationDescriptionArray);
         UA_Client_delete(client);
@@ -126,7 +128,8 @@ int main(void) {
         printf("\nEndpoints for Server[%lu]: %.*s\n", (unsigned long) i,
                (int) description->applicationUri.length, description->applicationUri.data);
 
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
         char *discoveryUrl = (char *) UA_malloc(sizeof(char) * description->discoveryUrls[0].length + 1);
         memcpy(discoveryUrl, description->discoveryUrls[0].data, description->discoveryUrls[0].length);

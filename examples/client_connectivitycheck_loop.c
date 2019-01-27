@@ -22,14 +22,12 @@ inactivityCallback (UA_Client *client) {
 int main(void) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ClientConfig config = UA_ClientConfig_default;
-    /* Set stateCallback */
-    config.inactivityCallback = inactivityCallback;
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
 
-    /* Perform a connectivity check every 2 seconds */
-    config.connectivityCheckInterval = 2000;
-
-    UA_Client *client = UA_Client_new(config);
+    cc->inactivityCallback = inactivityCallback; /* Set stateCallback */
+    cc->connectivityCheckInterval = 2000; /* Perform a connectivity check every 2 seconds */
 
     /* Endless loop runAsync */
     while (running) {

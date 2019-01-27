@@ -53,27 +53,7 @@ _UA_BEGIN_DECLS
 
 /* Create a new client */
 UA_Client UA_EXPORT *
-UA_Client_new(UA_ClientConfig config);
-
-/* Creates a new secure client with the required configuration, certificate
- * privatekey, trustlist and revocation list.
- *
- * @param  config                   new secure configuration for client
- * @param  certificate              client certificate
- * @param  privateKey               client's private key
- * @param  remoteCertificate        server certificate form the endpoints
- * @param  trustList                list of trustable certificate
- * @param  trustListSize            count of trustList
- * @param  revocationList           list of revoked digital certificate
- * @param  revocationListSize       count of revocationList
- * @param  securityPolicyFunction   securityPolicy function
- * @return Returns a client configuration for secure channel */
-UA_Client UA_EXPORT *
-UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
-                     UA_ByteString privateKey, const UA_ByteString *remoteCertificate,
-                     const UA_ByteString *trustList, size_t trustListSize,
-                     const UA_ByteString *revocationList, size_t revocationListSize,
-                     UA_SecurityPolicy_Func securityPolicyFunction);
+UA_Client_new(void);
 
 /* Get the client connection status */
 UA_ClientState UA_EXPORT

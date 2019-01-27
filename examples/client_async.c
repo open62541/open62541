@@ -102,7 +102,8 @@ translateCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
 int
 main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_UInt32 reqId = 0;
     UA_String userdata = UA_STRING("userdata");
 

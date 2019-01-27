@@ -102,7 +102,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     /* opc.tcp://uademo.prosysopc.com:53530/OPCUA/SimulationServer */
     /* opc.tcp://opcua.demo-this.com:51210/UA/SampleServer */

@@ -90,7 +90,8 @@ int main(int argc, char **argv) {
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
                                         &myInteger, NULL);
 
-    UA_Client *clientRegister = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *clientRegister = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
 
     // periodic server register after 10 Minutes, delay first register for 500ms
     UA_StatusCode retval =

@@ -743,33 +743,60 @@ static UA_INLINE void UA_ClientConnectionTCP_poll_callback(UA_Client *client, vo
     UA_ClientConnectionTCP_poll(client, data);
 }
 
-const UA_ClientConfig UA_ClientConfig_default = {
-    5000, /* .timeout, 5 seconds */
-    10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
-    {UA_Log_Stdout_log, NULL, UA_Log_Stdout_clear}, /* .logger */
-    { /* .localConnectionConfig */
-        0, /* .protocolVersion */
-        65535, /* .sendBufferSize, 64k per chunk */
-        65535, /* .recvBufferSize, 64k per chunk */
-        0, /* .maxMessageSize, 0 -> unlimited */
-        0 /* .maxChunkCount, 0 -> unlimited */
-    },
-    UA_ClientConnectionTCP, /* .connectionFunc (for sync connection) */
-    UA_ClientConnectionTCP_init, /* .initConnectionFunc (for async client) */
-    UA_ClientConnectionTCP_poll_callback, /* .pollConnectionFunc (for async connection) */
+UA_StatusCode
+UA_ClientConfig_setDefault(UA_ClientConfig *config) {
+    config->timeout = 5000;
+    config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
-    NULL, /* .customDataTypes */
+    config->logger.log = UA_Log_Stdout_log;
+    config->logger.context = NULL;
+    config->logger.clear = UA_Log_Stdout_clear;
 
-    NULL, /* .stateCallback */
-    0,    /* .connectivityCheckInterval */
+    config->localConnectionConfig.protocolVersion = 0;
+    config->localConnectionConfig.sendBufferSize = 65535;
+    config->localConnectionConfig.recvBufferSize = 65535;
+    config->localConnectionConfig.maxMessageSize = 0; /* 0 -> unlimited */
+    config->localConnectionConfig.maxChunkCount = 0; /* 0 -> unlimited */
 
-    1200000, /* requestedSessionTimeout */
+    /* Certificate Verification that accepts every certificate. Can be
+     * overwritten when the policy is specialized. */
+    //UA_CertificateVerification_AcceptAll(&config->certificateVerification);
 
-    NULL, /* .inactivityCallback */
-    NULL, /* .clientContext */
+    /* if(config->securityPoliciesSize > 0) { */
+    /*     UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK, */
+    /*                  "Could not initialize a config that already has SecurityPolicies"); */
+    /*     return UA_STATUSCODE_BADINTERNALERROR; */
+    /* } */
+
+    /* config->securityPolicies = (UA_SecurityPolicy*)malloc(sizeof(UA_SecurityPolicy)); */
+    /* if(!config->securityPolicies) */
+    /*     return UA_STATUSCODE_BADOUTOFMEMORY; */
+    /* UA_StatusCode retval = UA_SecurityPolicy_None(config->securityPolicies, NULL, */
+    /*                                               UA_BYTESTRING_NULL, &config->logger); */
+    /* if(retval != UA_STATUSCODE_GOOD) { */
+    /*     free(config->securityPolicies); */
+    /*     config->securityPolicies = NULL; */
+    /*     return retval; */
+    /* } */
+    /* config->securityPoliciesSize = 1; */
+
+    config->connectionFunc = UA_ClientConnectionTCP;
+    config->initConnectionFunc = UA_ClientConnectionTCP_init; /* for async client */
+    config->pollConnectionFunc = UA_ClientConnectionTCP_poll_callback; /* for async connection */
+
+    config->customDataTypes = NULL;
+    config->stateCallback = NULL;
+    config->connectivityCheckInterval = 0;
+
+    config->requestedSessionTimeout = 1200000; /* requestedSessionTimeout */
+
+    config->inactivityCallback = NULL;
+    config->clientContext = NULL;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    10,  /* .outStandingPublishRequests */
-    NULL /* .subscriptionInactivityCallback */
+    config->outStandingPublishRequests = 10;
+    config->subscriptionInactivityCallback = NULL;
 #endif
-};
+
+    return UA_STATUSCODE_GOOD;
+}
