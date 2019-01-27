@@ -347,6 +347,106 @@ signActivateSessionRequest(UA_SecureChannel *channel,
     return retval;
 }
 
+UA_StatusCode
+encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPolicy,
+                         UA_ExtensionObject *userIdentityToken) {
+    UA_IssuedIdentityToken *iit = NULL;
+    UA_UserNameIdentityToken *unit = NULL;
+    UA_ByteString *tokenData;
+    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
+        iit = (UA_IssuedIdentityToken*)userIdentityToken->content.decoded.data;
+        tokenData = &iit->tokenData;
+    } else if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        unit = (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
+        tokenData = &unit->password;
+    } else {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* No encryption */
+    const UA_String none = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    if(userTokenSecurityPolicy->length == 0 ||
+       UA_String_equal(userTokenSecurityPolicy, &none)) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_SecurityPolicy *sp = getSecurityPolicy(client, *userTokenSecurityPolicy);
+    if(!sp) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+                       "Could not find the required SecurityPolicy for the UserToken");
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    /* Create a temp channel context */
+
+    void *channelContext;
+    UA_StatusCode retval = sp->channelModule.
+        newContext(sp, &client->config.endpoint.serverCertificate, &channelContext);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+                       "Could not instantiate the SecurityPolicy for the UserToken");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
+    /* Compute the encrypted length (at least one byte padding) */
+    size_t plainTextBlockSize = sp->asymmetricModule.cryptoModule.
+        encryptionAlgorithm.getRemotePlainTextBlockSize(sp, channelContext);
+    UA_UInt32 length = (UA_UInt32)(tokenData->length + client->channel.remoteNonce.length);
+    UA_UInt32 totalLength = length + 4; /* Including the length field */
+    size_t blocks = totalLength / plainTextBlockSize;
+    if(totalLength  % plainTextBlockSize != 0)
+        blocks++;
+    size_t overHead =
+        UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(sp, channelContext,
+                                                                      blocks * plainTextBlockSize);
+
+    /* Allocate memory for encryption overhead */
+    UA_ByteString encrypted;
+    retval = UA_ByteString_allocBuffer(&encrypted, (blocks * plainTextBlockSize) + overHead);
+    if(retval != UA_STATUSCODE_GOOD) {
+        sp->channelModule.deleteContext(channelContext);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_Byte *pos = encrypted.data;
+    const UA_Byte *end = &encrypted.data[encrypted.length];
+    UA_UInt32_encodeBinary(&length, &pos, end);
+    memcpy(pos, tokenData->data, tokenData->length);
+    memcpy(&pos[tokenData->length], client->channel.remoteNonce.data,
+           client->channel.remoteNonce.length);
+
+    /* Add padding
+     *
+     * 7.36.2.2 Legacy Encrypted Token Secret Format: A Client should not add any
+     * padding after the secret. If a Client adds padding then all bytes shall
+     * be zero. A Server shall check for padding added by Clients and ensure
+     * that all padding bytes are zeros. */
+    size_t paddedLength = plainTextBlockSize * blocks;
+    for(size_t i = totalLength; i < paddedLength; i++)
+        encrypted.data[i] = 0;
+    encrypted.length = paddedLength;
+
+    retval = sp->asymmetricModule.cryptoModule.encryptionAlgorithm.encrypt(sp, channelContext,
+                                                                           &encrypted);
+    encrypted.length = (blocks * plainTextBlockSize) + overHead;
+
+    if(iit) {
+        retval |= UA_String_copy(&sp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
+                                 &iit->encryptionAlgorithm);
+    } else {
+        retval |= UA_String_copy(&sp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
+                                 &unit->encryptionAlgorithm);
+    }
+
+    UA_ByteString_deleteMembers(tokenData);
+    *tokenData = encrypted;
+
+    /* Delete the temp channel context */
+    sp->channelModule.deleteContext(channelContext);
+
+    return retval;
+}
+
 static UA_StatusCode
 activateSession(UA_Client *client) {
     UA_ActivateSessionRequest request;
@@ -375,6 +475,16 @@ activateSession(UA_Client *client) {
      * string. */
     retval |= UA_String_copy(&client->config.userTokenPolicy.policyId,
                              (UA_String*)request.userIdentityToken.content.decoded.data);
+
+    /* Encrypt the UserIdentityToken */
+    const UA_String *userTokenPolicy = &client->channel.securityPolicy->policyUri;
+    if(client->config.userTokenPolicy.securityPolicyUri.length > 0)
+        userTokenPolicy = &client->config.userTokenPolicy.securityPolicyUri;
+    retval |= encryptUserIdentityToken(client, userTokenPolicy, &request.userIdentityToken);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ActivateSessionRequest_deleteMembers(&request);
+        return retval;
+    }
 
     /* This function call is to prepare a client signature */
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
