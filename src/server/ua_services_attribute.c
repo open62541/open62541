@@ -362,6 +362,9 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
             v->serverTimestamp = UA_DateTime_now();
             v->hasServerTimestamp = true;
         }
+    } else {
+        /* In case the ServerTimestamp has been set manually */
+        v->hasServerTimestamp = false;
     }
 
     /* Handle source time stamp */
