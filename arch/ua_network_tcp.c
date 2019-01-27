@@ -523,7 +523,7 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
-                         const UA_Logger *logger) {
+                         UA_Logger *logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
@@ -738,8 +738,8 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
 }
 
 UA_Connection
-UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const char *endpointUrl,
-                            const UA_UInt32 timeout, const UA_Logger *logger) {
+UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpointUrl,
+                            UA_UInt32 timeout, UA_Logger *logger) {
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
 
@@ -757,18 +757,18 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const char *endpointUrl,
                     sizeof(TCPClientConnection));
     connection.handle = (void*) tcpClientConnection;
     tcpClientConnection->timeout = timeout;
-    UA_String endpointUrlString = UA_STRING((char*) (uintptr_t) endpointUrl);
     UA_String hostnameString = UA_STRING_NULL;
     UA_String pathString = UA_STRING_NULL;
     UA_UInt16 port = 0;
     char hostname[512];
     tcpClientConnection->connStart = UA_DateTime_nowMonotonic();
 
-    UA_StatusCode parse_retval = UA_parseEndpointUrl(&endpointUrlString,
+    UA_StatusCode parse_retval = UA_parseEndpointUrl(&endpointUrl,
                     &hostnameString, &port, &pathString);
     if (parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                            "Server url is invalid: %s", endpointUrl);
+                           "Server url is invalid: %.*s",
+                           (int)endpointUrl.length, endpointUrl.data);
             connection.state = UA_CONNECTION_CLOSED;
             return connection;
     }
@@ -798,8 +798,8 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const char *endpointUrl,
 }
 
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig config, const char *endpointUrl,
-                       const UA_UInt32 timeout, const UA_Logger *logger) {
+UA_ClientConnectionTCP(UA_ConnectionConfig config, const UA_String endpointUrl,
+                       UA_UInt32 timeout, UA_Logger *logger) {
     UA_initialize_architecture_network();
 
     UA_Connection connection;
@@ -815,18 +815,17 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const char *endpointUrl,
     connection.releaseRecvBuffer = connection_releaserecvbuffer;
     connection.handle = NULL;
 
-    UA_String endpointUrlString = UA_STRING((char*)(uintptr_t)endpointUrl);
     UA_String hostnameString = UA_STRING_NULL;
     UA_String pathString = UA_STRING_NULL;
     UA_UInt16 port = 0;
     char hostname[512];
 
     UA_StatusCode parse_retval =
-        UA_parseEndpointUrl(&endpointUrlString, &hostnameString,
-                            &port, &pathString);
+        UA_parseEndpointUrl(&endpointUrl, &hostnameString, &port, &pathString);
     if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Server url is invalid: %s", endpointUrl);
+                       "Server url is invalid: %.*s",
+                       (int)endpointUrl.length, endpointUrl.data);
         return connection;
     }
     memcpy(hostname, hostnameString.data, hostnameString.length);
@@ -893,8 +892,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const char *endpointUrl,
             ClientNetworkLayerTCP_close(&connection);
             UA_LOG_SOCKET_ERRNO_WRAP(
                     UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                                   "Connection to %s failed with error: %s",
-                                   endpointUrl, errno_str));
+                                   "Connection to %.*s failed with error: %s",
+                                   (int)endpointUrl.length, endpointUrl.data, errno_str));
             UA_freeaddrinfo(server);
             return connection;
         }
@@ -957,8 +956,9 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const char *endpointUrl,
                     if (so_error != ECONNREFUSED) {
                         ClientNetworkLayerTCP_close(&connection);
                         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                                       "Connection to %s failed with error: %s",
-                                       endpointUrl, strerror(ret == 0 ? so_error : UA_ERRNO));
+                                       "Connection to %.*s failed with error: %s",
+                                       (int)endpointUrl.length, endpointUrl.data,
+                                       strerror(ret == 0 ? so_error : UA_ERRNO));
                         UA_freeaddrinfo(server);
                         return connection;
                     }
@@ -986,8 +986,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig config, const char *endpointUrl,
         if (connection.state != UA_CONNECTION_CLOSED)
             ClientNetworkLayerTCP_close(&connection);
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Trying to connect to %s timed out",
-                       endpointUrl);
+                       "Trying to connect to %.*s timed out",
+                       (int)endpointUrl.length, endpointUrl.data);
         return connection;
     }
 

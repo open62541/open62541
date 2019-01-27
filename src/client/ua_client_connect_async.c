@@ -571,7 +571,8 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection = client->config.initConnectionFunc(
-            client->config.localConnectionConfig, endpointUrl,
+            client->config.localConnectionConfig,
+            UA_STRING((char*)(uintptr_t)endpointUrl),
             client->config.timeout, &client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
