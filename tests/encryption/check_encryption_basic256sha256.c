@@ -86,8 +86,8 @@ START_TEST(encryption_connect) {
     size_t endpointArraySize = 0;
     UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
-    /* UA_ByteString *revocationList = NULL; */
-    /* size_t revocationListSize = 0; */
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
     UA_ByteString *remoteCertificate = NULL;
 
     /* Load certificate and private key */
@@ -143,10 +143,12 @@ START_TEST(encryption_connect) {
 
     /* Secure client initialization */
     client = UA_Client_new();
-    /* UA_ClientConfig *cc = UA_Client_getConfig(client); */
-    /* UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, */
-    /*                                      trustList, trustListSize, */
-    /*                                      revocationList, revocationListSize); */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                         trustList, trustListSize,
+                                         revocationList, revocationListSize);
+    cc->securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert_msg(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {

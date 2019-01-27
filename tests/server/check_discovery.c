@@ -274,11 +274,11 @@ static void
 FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerNamesSize,
                       const char *filterUri, const char *filterLocale,
                       const char** filterCapabilities, size_t filterCapabilitiesSize) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_ServerOnNetwork* serverOnNetwork = NULL;
     size_t serverOnNetworkSize = 0;
-
 
     size_t  serverCapabilityFilterSize = 0;
     UA_String *serverCapabilityFilter = NULL;
@@ -363,7 +363,8 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
 static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String expectedEndpointUrls[], size_t expectedEndpointUrlsSize) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
 

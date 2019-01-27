@@ -1,5 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+
 /*
  * A simple server instance which registers with the discovery server.
  * Compared to server_register.c this example waits until the LDS server announces
@@ -15,10 +16,10 @@
 
 #include <signal.h>
 
-UA_Boolean running = true;
-
 const UA_ByteString UA_SECURITY_POLICY_BASIC128_URI =
     {56, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"};
+
+UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -102,12 +103,13 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
  */
 static
 UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServerUrl) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_EndpointDescription *endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_StatusCode retval = UA_Client_getEndpoints(client, discoveryServerUrl,
                                                   &endpointArraySize, &endpointArray);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize,
                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -118,7 +120,7 @@ UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServe
 
     UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Server has %lu endpoints", (unsigned long)endpointArraySize);
     UA_EndpointDescription *foundEndpoint = NULL;
-    for (size_t i = 0; i < endpointArraySize; i++) {
+    for(size_t i = 0; i < endpointArraySize; i++) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "\tURL = %.*s, SecurityMode = %s",
                      (int) endpointArray[i].endpointUrl.length,
                      endpointArray[i].endpointUrl.data,
@@ -128,13 +130,13 @@ UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServe
                      "Invalid"
         );
         // find the endpoint with highest supported security mode
-        if ((UA_String_equal(&endpointArray[i].securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) ||
+        if((UA_String_equal(&endpointArray[i].securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) ||
             UA_String_equal(&endpointArray[i].securityPolicyUri, &UA_SECURITY_POLICY_BASIC128_URI)) && (
             foundEndpoint == NULL || foundEndpoint->securityMode < endpointArray[i].securityMode))
             foundEndpoint = &endpointArray[i];
     }
     UA_EndpointDescription *returnEndpoint = NULL;
-    if (foundEndpoint != NULL) {
+    if(foundEndpoint != NULL) {
         returnEndpoint = UA_EndpointDescription_new();
         UA_EndpointDescription_copy(foundEndpoint, returnEndpoint);
     }
@@ -151,12 +153,12 @@ UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServe
  * @return Returns the file content after parsing */
 static UA_ByteString loadFile(const char *const path) {
     UA_ByteString fileContents = UA_BYTESTRING_NULL;
-    if (path == NULL)
+    if(path == NULL)
         return fileContents;
 
     /* Open the file */
     FILE *fp = fopen(path, "rb");
-    if (!fp) {
+    if(!fp) {
         errno = 0; /* We read errno also from the tcp layer */
         return fileContents;
     }
@@ -165,10 +167,10 @@ static UA_ByteString loadFile(const char *const path) {
     fseek(fp, 0, SEEK_END);
     fileContents.length = (size_t) ftell(fp);
     fileContents.data = (UA_Byte *) UA_malloc(fileContents.length * sizeof(UA_Byte));
-    if (fileContents.data) {
+    if(fileContents.data) {
         fseek(fp, 0, SEEK_SET);
         size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
-        if (read != fileContents.length)
+        if(read != fileContents.length)
             UA_ByteString_clear(&fileContents);
     } else {
         fileContents.length = 0;
@@ -192,18 +194,19 @@ static UA_ByteString loadFile(const char *const path) {
  */
 static
 UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc, char **argv) {
-    if (endpointRegister->securityMode == UA_MESSAGESECURITYMODE_NONE) {
+    if(endpointRegister->securityMode == UA_MESSAGESECURITYMODE_NONE) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Using LDS endpoint with security None");
-        return UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        return client;
     }
 #ifdef UA_ENABLE_ENCRYPTION
-    if (endpointRegister->securityMode == UA_MESSAGESECURITYMODE_SIGN) {
+    if(endpointRegister->securityMode == UA_MESSAGESECURITYMODE_SIGN) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                     "LDS endpoint which only supports Sign is currently not supported");
         return NULL;
     }
 
-    UA_Client *clientRegister;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "Using LDS endpoint with security SignAndEncrypt");
 
@@ -215,7 +218,7 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
     size_t revocationListSize = 0;
 
 
-    if (argc < 3) {
+    if(argc < 3) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "The Certificate and key is missing."
                          "The required arguments are "
@@ -227,33 +230,32 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
     privateKey = loadFile(argv[2]);
 
     /* Load the trustList. Load revocationList is not supported now */
-    if (argc > 3) {
+    if(argc > 3) {
         trustListSize = (size_t) argc - 3;
         UA_StatusCode retval = UA_ByteString_allocBuffer(trustList, trustListSize);
-        if (retval != UA_STATUSCODE_GOOD) {
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_ByteString_clear(&certificate);
             UA_ByteString_clear(&privateKey);
             return NULL;
         }
 
-        for (size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++) {
+        for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++) {
             trustList[trustListCount] = loadFile(argv[trustListCount + 3]);
         }
     }
 
-
     /* Secure client initialization */
-    clientRegister = UA_Client_secure_new(UA_ClientConfig_default,
-                                          certificate, privateKey,
-                                          &endpointRegister->serverCertificate,
-                                          trustList, trustListSize,
-                                          revocationList, revocationListSize,
-                                          UA_SecurityPolicy_Basic128Rsa15);
+    UA_Client *clientRegister = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(clientRegister);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                         trustList, trustListSize,
+                                         revocationList, revocationListSize);
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
-    for (size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
+    for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++)
         UA_ByteString_clear(&trustList[deleteCount]);
-    }
 
     return clientRegister;
 #else
@@ -321,11 +323,12 @@ int main(int argc, char **argv) {
     }
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "LDS-ME server found on %s", discovery_url);
 
-    /* Check if the server supports sign and encrypt. OPC Foundation LDS requires an encrypted session for
-     * RegisterServer call, our server currently uses encrpytion optionally */
+    /* Check if the server supports sign and encrypt. OPC Foundation LDS
+     * requires an encrypted session for RegisterServer call, our server
+     * currently uses encrpytion optionally */
     UA_EndpointDescription *endpointRegister = getRegisterEndpointFromServer(discovery_url);
     UA_free(discovery_url);
-    if (endpointRegister == NULL || endpointRegister->securityMode == UA_MESSAGESECURITYMODE_INVALID) {
+    if(endpointRegister == NULL || endpointRegister->securityMode == UA_MESSAGESECURITYMODE_INVALID) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not find any suitable endpoints on discovery server");
         UA_Server_delete(server);
@@ -334,7 +337,7 @@ int main(int argc, char **argv) {
     }
 
     UA_Client *clientRegister = getRegisterClient(endpointRegister, argc, argv);
-    if (!clientRegister) {
+    if(!clientRegister) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Could not create the client for remote registering");
         UA_Server_delete(server);
@@ -367,7 +370,7 @@ int main(int argc, char **argv) {
 
     // UNregister the server from the discovery server.
     retval = UA_Server_unregister_discovery(server, clientRegister);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not unregister server from discovery server. "
                      "StatusCode %s", UA_StatusCode_name(retval));

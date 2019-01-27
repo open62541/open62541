@@ -122,6 +122,7 @@ endif()
 if(UA_ENABLE_ENCRYPTION)
     add_example(server_basic128rsa15 encryption/server_basic128rsa15.c)
     add_example(server_basic256sha256 encryption/server_basic256sha256.c)
+    add_example(client_encryption encryption/client_encryption.c)
 endif()
 
 add_example(custom_datatype_client custom_datatype/client_types_custom.c)

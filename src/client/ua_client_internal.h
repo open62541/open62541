@@ -126,11 +126,6 @@ typedef struct CustomCallback {
     const UA_DataType *outDataType;
 } CustomCallback;
 
-typedef enum {
-    UA_CLIENTAUTHENTICATION_NONE,
-    UA_CLIENTAUTHENTICATION_USERNAME
-} UA_Client_Authentication;
-
 struct UA_Client {
     /* State */
     UA_ClientState state;
@@ -141,25 +136,18 @@ struct UA_Client {
 
     /* Connection */
     UA_Connection connection;
-    UA_String endpointUrl;
 
     /* SecureChannel */
-    UA_SecurityPolicy securityPolicy; /* TODO: Move supported policies to the config */
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
 
-    /* Authentication */
-    UA_Client_Authentication authenticationMethod;
-    UA_String username;
-    UA_String password;
-
     /* Session */
-    UA_UserTokenPolicy token;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
 
     UA_Boolean endpointsHandshake;
+    UA_String endpointUrl; /* Only for the async connect */
 
     /* Async Service */
     AsyncServiceCall asyncConnectCall;
@@ -186,14 +174,21 @@ struct UA_Client {
 void
 setClientState(UA_Client *client, UA_ClientState state);
 
+/* The endpointUrl must be set in the configuration. If the complete
+ * endpointdescription is not set, a GetEndpoints is performed. */
 UA_StatusCode
-UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
-                          UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
+UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl);
 
 UA_StatusCode
-UA_Client_getEndpointsInternal(UA_Client *client,
-                               size_t* endpointDescriptionsSize,
-                               UA_EndpointDescription** endpointDescriptions);
+UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl);
+
+UA_StatusCode
+UA_Client_connectSession(UA_Client *client);
+
+UA_StatusCode
+UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
+                               size_t *endpointDescriptionsSize,
+                               UA_EndpointDescription **endpointDescriptions);
 
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
@@ -222,6 +217,18 @@ receiveServiceResponseAsync(UA_Client *client, void *response,
 
 UA_StatusCode
 UA_Client_connect_iterate (UA_Client *client);
+
+void
+setUserIdentityPolicyId(const UA_EndpointDescription *endpoint,
+                        const UA_DataType *tokenType,
+                        UA_String *policyId, UA_String *securityPolicyUri);
+
+UA_SecurityPolicy *
+getSecurityPolicy(UA_Client *client, UA_String policyUri);
+
+UA_StatusCode
+encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPolicy,
+                         UA_ExtensionObject *userIdentityToken);
 
 _UA_END_DECLS
 

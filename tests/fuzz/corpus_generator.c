@@ -564,7 +564,9 @@ int main(void) {
     emptyCorpusDir();
     start_server();
 
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     // this will also call getEndpointsRequest
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval == UA_STATUSCODE_GOOD)
@@ -574,7 +576,8 @@ int main(void) {
 
     if(retval == UA_STATUSCODE_GOOD) {
         // now also connect with user/pass so that fuzzer also knows how to do that
-        client = UA_Client_new(UA_ClientConfig_default);
+        client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user", "password");
         retval = retval == UA_STATUSCODE_BADUSERACCESSDENIED ? UA_STATUSCODE_GOOD : retval;
         UA_Client_disconnect(client);
