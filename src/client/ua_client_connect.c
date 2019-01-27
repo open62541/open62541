@@ -51,8 +51,8 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     UA_TcpAcknowledgeMessage ackMessage;
     retval = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Decoding ACK message failed");
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Decoding ACK message failed");
         return retval;
     }
 
@@ -77,8 +77,8 @@ processACKResponse(void *application, UA_Connection *connection, UA_ByteString *
     /* Decode the ACK message */
     retval = UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Decoding ACK message failed");
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Decoding ACK message failed");
         return retval;
     }
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
@@ -111,7 +111,6 @@ HelAckHandshake(UA_Client *client, const UA_String endpointUrl) {
         return retval;
     }
 
-
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
@@ -127,8 +126,8 @@ HelAckHandshake(UA_Client *client, const UA_String endpointUrl) {
     message.length = messageHeader.messageSize;
     retval = conn->send(conn, &message);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Sending HEL failed");
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Sending HEL failed");
         return retval;
     }
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK,
@@ -138,8 +137,8 @@ HelAckHandshake(UA_Client *client, const UA_String endpointUrl) {
     retval = UA_Connection_receiveChunksBlocking(conn, client, processACKResponse,
                                                  client->config.timeout);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Receiving ACK message failed with %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Receiving ACK message failed with %s", UA_StatusCode_name(retval));
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
             client->state = UA_CLIENTSTATE_DISCONNECTED;
         UA_Client_disconnect(client);
@@ -170,11 +169,13 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
     UA_ByteString_init(&response->serverNonce);
 
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "SecureChannel in the server renewed");
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "SecureChannel renewed");
     else
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Opened SecureChannel acknowledged by the server");
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Opened SecureChannel with SecurityPolicy %.*s",
+                    (int)client->channel.securityPolicy->policyUri.length,
+                    client->channel.securityPolicy->policyUri.data);
 
     /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
      * DateTime=Int64 we take 75% of lifetime to start renewing as described in
@@ -744,6 +745,7 @@ UA_StatusCode
 UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
+
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
     client->channel.sendSequenceNumber = 0;
