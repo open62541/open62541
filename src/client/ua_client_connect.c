@@ -289,6 +289,7 @@ checkClientSignature(const UA_SecureChannel *channel,
 }
 
 /* Function to create a signature using remote certificate and nonce */
+#ifdef UA_ENABLE_ENCRYPTION
 UA_StatusCode
 signActivateSessionRequest(UA_SecureChannel *channel,
                            UA_ActivateSessionRequest *request) {
@@ -433,6 +434,7 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
 
     return retval;
 }
+#endif
 
 static UA_StatusCode
 activateSession(UA_Client *client) {
@@ -460,23 +462,23 @@ activateSession(UA_Client *client) {
 
     /* Set the policy-Id from the endpoint. Every IdentityToken starts with a
      * string. */
-    retval |= UA_String_copy(&client->config.userTokenPolicy.policyId,
-                             (UA_String*)request.userIdentityToken.content.decoded.data);
+    retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
+                            (UA_String*)request.userIdentityToken.content.decoded.data);
 
+#ifdef UA_ENABLE_ENCRYPTION
     /* Encrypt the UserIdentityToken */
     const UA_String *userTokenPolicy = &client->channel.securityPolicy->policyUri;
     if(client->config.userTokenPolicy.securityPolicyUri.length > 0)
         userTokenPolicy = &client->config.userTokenPolicy.securityPolicyUri;
     retval |= encryptUserIdentityToken(client, userTokenPolicy, &request.userIdentityToken);
+
+    /* This function call is to prepare a client signature */
+    retval |= signActivateSessionRequest(&client->channel, &request);
+#endif
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ActivateSessionRequest_deleteMembers(&request);
         return retval;
-    }
-
-    /* This function call is to prepare a client signature */
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        signActivateSessionRequest(&client->channel, &request);
     }
 
     UA_ActivateSessionResponse response;
