@@ -66,9 +66,7 @@ UA_Client_getConfig(UA_Client *client);
 /* Get the client context */
 static UA_INLINE void *
 UA_Client_getContext(UA_Client *client) {
-    UA_ClientConfig *config = UA_Client_getConfig(client);
-    if(!config)
-        return NULL;
+    UA_ClientConfig *config = UA_Client_getConfig(client); /* Cannot fail */
     return config->clientContext;
 }
 
