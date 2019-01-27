@@ -308,6 +308,27 @@ setInformationModel(UA_Server *server) {
 #endif
     }
 
+    /* Add Integer and UInteger variables */
+    UA_VariableAttributes iattr = UA_VariableAttributes_default;
+    iattr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INTEGER);
+    iattr.displayName = UA_LOCALIZEDTEXT("en-US", "Integer");
+    iattr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    iattr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+    iattr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+    iattr.valueRank = UA_VALUERANK_SCALAR;
+    UA_QualifiedName iQualifiedName = UA_QUALIFIEDNAME(1, "integer");
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "integer"),
+                              UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              iQualifiedName, baseDataVariableType, iattr, NULL, NULL);
+
+    iattr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINTEGER);
+    iattr.displayName = UA_LOCALIZEDTEXT("en-US", "UInteger");
+    UA_QualifiedName uQualifiedName = UA_QUALIFIEDNAME(1, "uinteger");
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "uinteger"),
+                              UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              uQualifiedName, baseDataVariableType, iattr, NULL, NULL);
+    UA_Variant_clear(&iattr.value);
+
     /* Hierarchy of depth 10 for CTT testing with forward and inverse references */
     /* Enter node "depth 9" in CTT configuration - Project->Settings->Server
        Test->NodeIds->Paths->Starting Node 1 */
