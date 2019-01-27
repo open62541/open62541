@@ -89,9 +89,6 @@ UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 /**************/
 
 UA_StatusCode
-checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResponse *response);
-
-UA_StatusCode
 signActivateSessionRequest(UA_SecureChannel *channel,
                            UA_ActivateSessionRequest *request);
 /**********/

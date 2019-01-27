@@ -4,7 +4,7 @@
  *
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
- *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2017-2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
@@ -100,7 +100,8 @@ HelAckHandshake(UA_Client *client, const UA_String endpointUrl) {
     /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
     UA_String_copy(&endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
-    memcpy(&hello, &client->config.localConnectionConfig, sizeof(UA_ConnectionConfig)); /* same struct layout */
+    memcpy(&hello, &client->config.localConnectionConfig,
+           sizeof(UA_ConnectionConfig)); /* same struct layout */
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
@@ -156,12 +157,13 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
 }
 
 static void
-processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response, UA_Boolean renew) {
+processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response,
+                          UA_Boolean renew) {
     /* Replace the token */
-    if (renew)
-        client->channel.nextSecurityToken = response->securityToken; // Set the next token
+    if(renew)
+        client->channel.nextSecurityToken = response->securityToken;
     else
-        client->channel.securityToken = response->securityToken; // Set initial token
+        client->channel.securityToken = response->securityToken;
 
     /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
@@ -255,16 +257,10 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
 }
 
 /* Function to verify the signature corresponds to ClientNonce
- * using the local certificate.
- *
- * @param  channel      current channel in which the client runs
- * @param  response     create session response from the server
- * @return Returns an error code or UA_STATUSCODE_GOOD. */
-UA_StatusCode
-checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResponse *response) {
-    if(channel == NULL || response == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
+ * using the local certificate */
+static UA_StatusCode
+checkClientSignature(const UA_SecureChannel *channel,
+                     const UA_CreateSessionResponse *response) {
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
        channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_GOOD;
@@ -272,76 +268,66 @@ checkClientSignature(const UA_SecureChannel *channel, const UA_CreateSessionResp
     if(!channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_SecurityPolicy* securityPolicy   = channel->securityPolicy;
-    const UA_ByteString*     localCertificate = &securityPolicy->localCertificate;
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    const UA_ByteString *lc = &sp->localCertificate;
 
-    size_t dataToVerifySize = localCertificate->length + channel->localNonce.length;
+    size_t dataToVerifySize = lc->length + channel->localNonce.length;
     UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
-    memcpy(dataToVerify.data + localCertificate->length,
+    memcpy(dataToVerify.data, lc->data, lc->length);
+    memcpy(dataToVerify.data + lc->length,
            channel->localNonce.data, channel->localNonce.length);
 
-    retval = securityPolicy->
-             certificateSigningAlgorithm.verify(securityPolicy,
-                                                channel->channelContext,
-                                                &dataToVerify,
-                                                &response->serverSignature.signature);
+    retval = sp->certificateSigningAlgorithm.
+        verify(sp, channel->channelContext, &dataToVerify,
+               &response->serverSignature.signature);
     UA_ByteString_deleteMembers(&dataToVerify);
     return retval;
 }
 
-/* Function to create a signature using remote certificate and nonce
- *
- * @param  channel      current channel in which the client runs
- * @param  request      activate session request message to server
- * @return Returns an error or UA_STATUSCODE_GOOD */
+/* Function to create a signature using remote certificate and nonce */
 UA_StatusCode
 signActivateSessionRequest(UA_SecureChannel *channel,
                            UA_ActivateSessionRequest *request) {
-    if(channel == NULL || request == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
        channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_GOOD;
 
-    const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
-    UA_SignatureData *signatureData = &request->clientSignature;
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_SignatureData *sd = &request->clientSignature;
 
     /* Prepare the signature */
-    size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
-                           getLocalSignatureSize(securityPolicy, channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
-                                          &signatureData->algorithm);
+    size_t signatureSize = sp->certificateSigningAlgorithm.
+        getLocalSignatureSize(sp, channel->channelContext);
+    UA_StatusCode retval = UA_String_copy(&sp->certificateSigningAlgorithm.uri,
+                                          &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
+    retval = UA_ByteString_allocBuffer(&sd->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Allocate a temporary buffer */
     size_t dataToSignSize = channel->remoteCertificate.length + channel->remoteNonce.length;
-    /* Prevent stack-smashing. TODO: Compute MaxSenderCertificateSize */
     if(dataToSignSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_ByteString dataToSign;
     retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval; /* signatureData->signature is cleaned up with the response */
+        return retval; /* sd->signature is cleaned up with the response */
 
     /* Sign the signature */
-    memcpy(dataToSign.data, channel->remoteCertificate.data, channel->remoteCertificate.length);
+    memcpy(dataToSign.data, channel->remoteCertificate.data,
+           channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
            channel->remoteNonce.data, channel->remoteNonce.length);
-    retval = securityPolicy->certificateSigningAlgorithm.
-             sign(securityPolicy, channel->channelContext, &dataToSign,
-                  &signatureData->signature);
+    retval = sp->certificateSigningAlgorithm.sign(sp, channel->channelContext,
+                                                  &dataToSign, &sd->signature);
 
     /* Clean up */
     UA_ByteString_deleteMembers(&dataToSign);
@@ -546,7 +532,8 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_StatusCode retval =
-        UA_Client_getEndpointsInternal(client, endpointUrl, &endpointArraySize, &endpointArray);
+        UA_Client_getEndpointsInternal(client, endpointUrl,
+                                       &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -1006,12 +993,12 @@ UA_Client_disconnect(UA_Client *client) {
     /* Close the TCP connection */
     if(client->connection.state != UA_CONNECTION_CLOSED
             && client->connection.state != UA_CONNECTION_OPENING)
-        /*UA_ClientConnectionTCP_init sets initial state to opening */
+        /* UA_ClientConnectionTCP_init sets initial state to opening */
         if(client->connection.close != NULL)
             client->connection.close(&client->connection);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-// TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
+    // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY
     /* We need to clean up the subscriptions */
     UA_Client_Subscriptions_clean(client);
 #endif
