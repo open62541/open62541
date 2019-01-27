@@ -126,7 +126,8 @@ START_TEST(Service_Browse_WithBrowseName) {
 END_TEST
 
 START_TEST(Service_TranslateBrowsePathsToNodeIds) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);

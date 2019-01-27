@@ -37,7 +37,8 @@ static void setup(void) {
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }

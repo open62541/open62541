@@ -65,15 +65,13 @@ static void asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
     UA_fakeSleep(10);
 }
 
-START_TEST(Client_highlevel_async_readValue)
-    {
-        UA_ClientConfig clientConfig = UA_ClientConfig_default;
-        clientConfig.outStandingPublishRequests = 0;
+START_TEST(Client_highlevel_async_readValue) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
+        clientConfig->outStandingPublishRequests = 0;
 
-        UA_Client *client = UA_Client_new(clientConfig);
-
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Client_recv = client->connection.recv;
@@ -105,11 +103,12 @@ START_TEST(Client_highlevel_async_readValue)
 
 
 
-START_TEST(Client_read_async)
-    {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+START_TEST(Client_read_async) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
+
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_UInt16 asyncCounter = 0;
@@ -144,15 +143,13 @@ START_TEST(Client_read_async)
         UA_Client_delete(client);
     }END_TEST
 
-START_TEST(Client_read_async_timed)
-    {
-        UA_ClientConfig clientConfig = UA_ClientConfig_default;
-        clientConfig.outStandingPublishRequests = 0;
+START_TEST(Client_read_async_timed) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
+        clientConfig->outStandingPublishRequests = 0;
 
-        UA_Client *client = UA_Client_new(clientConfig);
-
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Client_recv = client->connection.recv;
@@ -205,17 +202,15 @@ static void inactivityCallback(UA_Client *client) {
     inactivityCallbackTriggered = true;
 }
 
-START_TEST(Client_connectivity_check)
-    {
-        UA_ClientConfig clientConfig = UA_ClientConfig_default;
-        clientConfig.outStandingPublishRequests = 0;
-        clientConfig.inactivityCallback = inactivityCallback;
-        clientConfig.connectivityCheckInterval = 1000;
+START_TEST(Client_connectivity_check) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
+        UA_ClientConfig_setDefault(clientConfig);
+        clientConfig->outStandingPublishRequests = 0;
+        clientConfig->inactivityCallback = inactivityCallback;
+        clientConfig->connectivityCheckInterval = 1000;
 
-        UA_Client *client = UA_Client_new(clientConfig);
-
-        UA_StatusCode retval = UA_Client_connect(client,
-                "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_Client_recv = client->connection.recv;
@@ -231,7 +226,7 @@ START_TEST(Client_connectivity_check)
         UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
         retval = UA_Client_run_iterate(client,
-                (UA_UInt16) (1000 + 1 + clientConfig.timeout));
+                (UA_UInt16) (1000 + 1 + clientConfig->timeout));
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(inactivityCallbackTriggered, true);
 

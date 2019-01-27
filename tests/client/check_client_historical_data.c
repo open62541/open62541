@@ -115,7 +115,8 @@ setup(void)
 
     ck_assert(fillHistoricalDataBackend(setting.historizingBackend));
 #endif
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 

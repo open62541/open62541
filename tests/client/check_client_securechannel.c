@@ -43,11 +43,14 @@ static void teardown(void) {
 }
 
 START_TEST(SecureChannel_timeout_max) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime);
+    UA_ClientConfig *cconfig = UA_Client_getConfig(client);
+    UA_fakeSleep(cconfig->secureChannelLifeTime);
 
     UA_Variant val;
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
@@ -63,11 +66,14 @@ END_TEST
 
 /* Send the next message after the securechannel timed out */
 START_TEST(SecureChannel_timeout_fail) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+    UA_ClientConfig *cconfig = UA_Client_getConfig(client);
+    UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
     UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
 
     UA_Variant val;
@@ -85,7 +91,9 @@ END_TEST
 
 /* Send an async message and receive the response when the securechannel timed out */
 START_TEST(SecureChannel_networkfail) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -99,9 +107,10 @@ START_TEST(SecureChannel_networkfail) {
     rq.nodesToReadSize = 1;
 
     /* Forward the clock after recv in the client */
+    UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_Client_recv = client->connection.recv;
     client->connection.recv = UA_Client_recvTesting;
-    UA_Client_recvSleepDuration = UA_ClientConfig_default.secureChannelLifeTime+1;
+    UA_Client_recvSleepDuration = cconfig->secureChannelLifeTime + 1;
 
     UA_Variant val;
     UA_Variant_init(&val);
@@ -115,7 +124,9 @@ START_TEST(SecureChannel_networkfail) {
 END_TEST
 
 START_TEST(SecureChannel_reconnect) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
@@ -124,7 +135,8 @@ START_TEST(SecureChannel_reconnect) {
     retval = UA_Client_disconnect(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+    UA_ClientConfig *cconfig = UA_Client_getConfig(client);
+    UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
     UA_realSleep(50 + 1);
 
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -135,7 +147,9 @@ START_TEST(SecureChannel_reconnect) {
 END_TEST
 
 START_TEST(SecureChannel_cableunplugged) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

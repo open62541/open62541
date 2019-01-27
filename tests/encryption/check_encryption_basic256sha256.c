@@ -86,8 +86,8 @@ START_TEST(encryption_connect) {
     size_t endpointArraySize = 0;
     UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
+    /* UA_ByteString *revocationList = NULL; */
+    /* size_t revocationListSize = 0; */
     UA_ByteString *remoteCertificate = NULL;
 
     /* Load certificate and private key */
@@ -104,7 +104,8 @@ START_TEST(encryption_connect) {
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
      * and certificate */
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     ck_assert_msg(client != NULL);
     remoteCertificate = UA_ByteString_new();
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
@@ -141,12 +142,11 @@ START_TEST(encryption_connect) {
     UA_Client_delete(client);
 
     /* Secure client initialization */
-    client = UA_Client_secure_new(UA_ClientConfig_default,
-                                  certificate, privateKey,
-                                  remoteCertificate,
-                                  trustList, trustListSize,
-                                  revocationList, revocationListSize,
-                                  UA_SecurityPolicy_Basic256Sha256);
+    client = UA_Client_new();
+    /* UA_ClientConfig *cc = UA_Client_getConfig(client); */
+    /* UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, */
+    /*                                      trustList, trustListSize, */
+    /*                                      revocationList, revocationListSize); */
     ck_assert_msg(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {

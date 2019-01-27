@@ -27,10 +27,12 @@ static void stopHandler(int sign) {
 int main(void) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ClientConfig config = UA_ClientConfig_default;
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+
     /* default timeout is 5 seconds. Set it to 1 second here for demo */
-    config.timeout = 1000;
-    UA_Client *client = UA_Client_new(config);
+    cc->timeout = 1000;
 
     /* Read the value attribute of the node. UA_Client_readValueAttribute is a
      * wrapper for the raw read service available as UA_Client_Service_read. */

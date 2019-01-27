@@ -63,10 +63,10 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
 
 START_TEST(Client_connect_async){
     UA_StatusCode retval;
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-                            &connected);
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
     /*Windows needs time to response*/
     UA_sleep_ms(100);
     UA_UInt32 reqId = 0;
@@ -105,11 +105,12 @@ START_TEST(Client_connect_async){
 END_TEST
 
 START_TEST(Client_no_connection) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_Boolean connected = false;
-    UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-            &connected);
+    UA_StatusCode retval =
+        UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;
@@ -124,10 +125,10 @@ START_TEST(Client_no_connection) {
 END_TEST
 
 START_TEST(Client_without_run_iterate) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-                            &connected);
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
     UA_Client_delete(client);
 }
 END_TEST

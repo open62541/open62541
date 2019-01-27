@@ -32,10 +32,8 @@
 /********************/
 
 static void
-UA_Client_init(UA_Client* client, UA_ClientConfig config) {
+UA_Client_init(UA_Client* client) {
     memset(client, 0, sizeof(UA_Client));
-    /* TODO: Select policy according to the endpoint */
-    client->config = config;
     UA_SecurityPolicy_None(&client->securityPolicy, NULL, UA_BYTESTRING_NULL,
                            &client->config.logger);
     UA_SecureChannel_init(&client->channel);
@@ -49,127 +47,16 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
 }
 
 UA_Client *
-UA_Client_new(UA_ClientConfig config) {
+UA_Client_new() {
     UA_Client *client = (UA_Client*)UA_malloc(sizeof(UA_Client));
     if(!client)
         return NULL;
-    UA_Client_init(client, config);
+    UA_Client_init(client);
     return client;
 }
-
-#ifdef UA_ENABLE_ENCRYPTION
-/* Initializes a secure client with the required configuration, certificate
- * privatekey, trustlist and revocation list.
- *
- * @param  client                   client to store configuration
- * @param  config                   new secure configuration for client
- * @param  certificate              client certificate
- * @param  privateKey               client's private key
- * @param  remoteCertificate        server certificate form the endpoints
- * @param  trustList                list of trustable certificate
- * @param  trustListSize            count of trustList
- * @param  revocationList           list of revoked digital certificate
- * @param  revocationListSize       count of revocationList
- * @param  securityPolicyFunction   securityPolicy function
- * @return Returns a client configuration for secure channel */
-static UA_StatusCode
-UA_Client_secure_init(UA_Client* client, UA_ClientConfig config,
-                      const UA_ByteString certificate,
-                      const UA_ByteString privateKey,
-                      const UA_ByteString *remoteCertificate,
-                      const UA_ByteString *trustList, size_t trustListSize,
-                      const UA_ByteString *revocationList,
-                      size_t revocationListSize,
-                      UA_SecurityPolicy_Func securityPolicyFunction) {
-    if(client == NULL || remoteCertificate == NULL)
-        return STATUS_CODE_BAD_POINTER;
-
-    memset(client, 0, sizeof(UA_Client));
-    client->config = config;
-
-    /* Allocate memory for certificate verification */
-    client->securityPolicy.certificateVerification =
-                           (UA_CertificateVerification *)
-                            UA_malloc(sizeof(UA_CertificateVerification));
-
-    UA_StatusCode retval =
-    UA_CertificateVerification_Trustlist(client->securityPolicy.certificateVerification,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Trust list parsing failed with error %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-
-    /* Initiate client security policy */
-    retval = (*securityPolicyFunction)(&client->securityPolicy,
-                                       client->securityPolicy.certificateVerification,
-                                       certificate, privateKey, &client->config.logger);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->channel.securityPolicy->logger, UA_LOGCATEGORY_CLIENT,
-                     "Failed to setup the SecurityPolicy with error %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-
-    if(client->config.stateCallback)
-        client->config.stateCallback(client, client->state);
-
-    /* Catch error during async connection */
-    client->connectStatus = UA_STATUSCODE_GOOD;
-
-    UA_Timer_init(&client->timer);
-    UA_WorkQueue_init(&client->workQueue);
-
-    /* Initialize the SecureChannel */
-    UA_SecureChannel_init(&client->channel);
-    client->channel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    retval = UA_SecureChannel_setSecurityPolicy(&client->channel, &client->securityPolicy,
-                                                remoteCertificate);
-    return retval;
-}
-
-/* Creates a new secure client.
- *
- * @param  config                   new secure configuration for client
- * @param  certificate              client certificate
- * @param  privateKey               client's private key
- * @param  remoteCertificate        server certificate form the endpoints
- * @param  trustList                list of trustable certificate
- * @param  trustListSize            count of trustList
- * @param  revocationList           list of revoked digital certificate
- * @param  revocationListSize       count of revocationList
- * @param  securityPolicyFunction   securityPolicy function
- * @return Returns a client with secure configuration */
-UA_Client *
-UA_Client_secure_new(UA_ClientConfig config, UA_ByteString certificate,
-                     UA_ByteString privateKey, const UA_ByteString *remoteCertificate,
-                     const UA_ByteString *trustList, size_t trustListSize,
-                     const UA_ByteString *revocationList, size_t revocationListSize,
-                     UA_SecurityPolicy_Func securityPolicyFunction) {
-    if(remoteCertificate == NULL)
-        return NULL;
-
-    UA_Client *client = (UA_Client *)UA_malloc(sizeof(UA_Client));
-    if(!client)
-        return NULL;
-
-    UA_StatusCode retval = UA_Client_secure_init(client, config, certificate, privateKey,
-                                                 remoteCertificate, trustList, trustListSize,
-                                                 revocationList, revocationListSize,
-                                                 securityPolicyFunction);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(client);
-        return NULL;
-    }
-
-    return client;
-}
-#endif
 
 static void
-UA_Client_deleteMembers(UA_Client* client) {
+UA_Client_deleteMembers(UA_Client *client) {
     UA_Client_disconnect(client);
     client->securityPolicy.deleteMembers(&client->securityPolicy);
     /* Commented as UA_SecureChannel_deleteMembers already done
@@ -205,7 +92,7 @@ UA_Client_deleteMembers(UA_Client* client) {
 void
 UA_Client_reset(UA_Client* client) {
     UA_Client_deleteMembers(client);
-    UA_Client_init(client, client->config);
+    UA_Client_init(client);
 }
 
 void
