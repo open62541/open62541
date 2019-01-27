@@ -352,24 +352,24 @@ requestActivateSession (UA_Client *client, UA_UInt32 *requestId) {
 
     /* Set the policy-Id from the endpoint. Every IdentityToken starts with a
      * string. */
-    retval |= UA_String_copy(&client->config.userTokenPolicy.policyId,
-                             (UA_String*)request.userIdentityToken.content.decoded.data);
+    retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
+                            (UA_String*)request.userIdentityToken.content.decoded.data);
 
+#ifdef UA_ENABLE_ENCRYPTION
     /* Encrypt the UserIdentityToken */
     const UA_String *userTokenPolicy = &client->channel.securityPolicy->policyUri;
     if(client->config.userTokenPolicy.securityPolicyUri.length > 0)
         userTokenPolicy = &client->config.userTokenPolicy.securityPolicyUri;
     retval |= encryptUserIdentityToken(client, userTokenPolicy, &request.userIdentityToken);
+
+    /* This function call is to prepare a client signature */
+    retval |= signActivateSessionRequest(&client->channel, &request);
+#endif
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ActivateSessionRequest_deleteMembers(&request);
         client->connectStatus = retval;
         return retval;
-    }
-
-    /* This function call is to prepare a client signature */
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        signActivateSessionRequest(&client->channel, &request);
     }
 
     retval = UA_Client_sendAsyncRequest (
