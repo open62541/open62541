@@ -8,48 +8,39 @@
 #include <ua_client_highlevel.h>
 #include "common.h"
 
-#include <signal.h>
+#define MIN_ARGS 4
+#define FAILURE  1
 
-#define MIN_ARGS           3
-#define FAILURE            1
-#define CONNECTION_STRING  "opc.tcp://192.168.56.1:51510"
-
-/* main function for secure client implementation.
- *
- * @param  argc               count of command line variable provided
- * @param  argv[]             array of strings include certificate, private key,
- *                            trust list and revocation list
- * @return Return an integer representing success or failure of application */
 int main(int argc, char* argv[]) {
-    UA_Client*              client             = NULL;
-    UA_StatusCode           retval             = UA_STATUSCODE_GOOD;
-    UA_ByteString*          revocationList     = NULL;
-    size_t                  revocationListSize = 0;
-    size_t                  trustListSize      = 0;
-    if(argc > MIN_ARGS)
-        trustListSize = (size_t)argc-MIN_ARGS;
-    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
-
     if(argc < MIN_ARGS) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "The Certificate and key is missing."
-                     "The required arguments are "
+                     "Arguments are missing. The required arguments are "
+                     "<opc.tcp://host:port> "
                      "<client-certificate.der> <client-private-key.der> "
                      "[<trustlist1.crl>, ...]");
         return FAILURE;
     }
 
+    const char *endpointUrl = argv[1];
+
     /* Load certificate and private key */
-    UA_ByteString           certificate        = loadFile(argv[1]);
-    UA_ByteString           privateKey         = loadFile(argv[2]);
+    UA_ByteString certificate = loadFile(argv[2]);
+    UA_ByteString privateKey  = loadFile(argv[3]);
 
     /* Load the trustList. Load revocationList is not supported now */
+    size_t trustListSize = 0;
+    if(argc > MIN_ARGS)
+        trustListSize = (size_t)argc-MIN_ARGS;
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
     for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++)
-        trustList[trustListCount] = loadFile(argv[trustListCount+3]);
+        trustList[trustListCount] = loadFile(argv[trustListCount+4]);
 
-    client = UA_Client_new();
-    UA_ClientConfig_setDefaultEncryption(UA_Client_getConfig(client),
-                                         certificate, privateKey,
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
 
@@ -60,8 +51,8 @@ int main(int argc, char* argv[]) {
     }
 
     /* Secure client connect */
-    //retval = UA_Client_connect(client, CONNECTION_STRING);
-    retval = UA_Client_connect_username(client, CONNECTION_STRING, "usr", "pwd");
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT; /* require encryption */
+    UA_StatusCode retval = UA_Client_connect(client, endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;
