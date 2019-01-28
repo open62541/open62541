@@ -751,7 +751,7 @@ UA_Server_processChunk(UA_Server *server, UA_Connection *connection, UA_ByteStri
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
     UA_debug_dumpCompleteChunk(server, connection, chunk);
 #endif
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval;
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
     else
