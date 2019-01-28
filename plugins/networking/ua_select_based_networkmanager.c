@@ -144,7 +144,7 @@ select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
     fd_set fdset;
     FD_ZERO(&fdset);
     UA_fd_set((UA_SOCKET)sock->id, &fdset);
-    struct timeval tmptv = {0, timeout * 1000};
+    struct timeval tmptv = {0, (suseconds_t)timeout * 1000};
 
     int resultsize = UA_select((UA_Int32)(sock->id + 1), NULL, &fdset, NULL, &tmptv);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

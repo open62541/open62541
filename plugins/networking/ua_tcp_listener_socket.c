@@ -200,8 +200,8 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     }
     sock->socketFactory = (UA_SocketFactory *)UA_malloc(sizeof(UA_SocketFactory));
     if(sock->socketFactory == NULL) {
-        UA_free(sock);
         UA_free(sock->internalData);
+        UA_free(sock);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
