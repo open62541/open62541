@@ -405,8 +405,7 @@ UA_ConnectionManager_cleanupTimedOut(UA_ConnectionManager *connectionManager, UA
             TAILQ_REMOVE(&connectionManager->connections, connectionEntry, pointers);
             UA_Connection_free(connectionEntry->connection);
             UA_free(connectionEntry);
-        }
-        if(connectionEntry->connection->state == UA_CONNECTION_CLOSED) {
+        } else if(connectionEntry->connection->state == UA_CONNECTION_CLOSED) {
             UA_LOG_DEBUG(connectionEntry->connection->logger, UA_LOGCATEGORY_NETWORK,
                          "Freeing connection with associated socket %i (closed).", sockid);
             TAILQ_REMOVE(&connectionManager->connections, connectionEntry, pointers);
