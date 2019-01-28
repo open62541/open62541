@@ -2154,7 +2154,6 @@ START_TEST(UA_Variant_Double_json_encode) {
 
         UA_Double srcData = *((UA_Double*)src->data);
         UA_Double outData = *((UA_Double*)out.data);
-        assert(memcmp(&srcData, &outData, sizeof(UA_Double)) == 0);
         ck_assert(memcmp(&srcData, &outData, sizeof(UA_Double)) == 0);
 
         UA_ByteString_deleteMembers(&buf);
