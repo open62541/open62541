@@ -13,6 +13,7 @@
 #include "ua_server.h"
 #include "ua_plugin_log.h"
 #include "ua_plugin_network.h"
+#include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
 

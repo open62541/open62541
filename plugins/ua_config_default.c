@@ -10,8 +10,8 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  */
 
-#include <networking/ua_networkmanagers.h>
-#include <networking/ua_sockets.h>
+#include "networking/ua_networkmanagers.h"
+#include "networking/ua_sockets.h"
 #include "ua_config_default.h"
 #include "ua_client_config.h"
 #include "ua_log_stdout.h"

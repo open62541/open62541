@@ -9,7 +9,6 @@
 #ifndef OPEN62541_UA_PLUGIN_SOCKET_H
 #define OPEN62541_UA_PLUGIN_SOCKET_H
 
-#include "open62541_queue.h"
 #include "ua_types.h"
 #include "ua_plugin_log.h"
 
@@ -44,15 +43,6 @@ typedef struct {
      */
     void *callbackContext;
 } UA_Socket_DataCallback;
-
-typedef struct UA_SocketListEntry {
-    UA_Socket *socket;
-    LIST_ENTRY(UA_SocketListEntry) pointers;
-} UA_SocketListEntry;
-
-typedef struct UA_SocketList {
-    LIST_HEAD(, UA_SocketListEntry) list;
-} UA_SocketList;
 
 typedef UA_StatusCode (*UA_SocketHookFunction)(void *, UA_Socket *);
 

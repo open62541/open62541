@@ -19,7 +19,7 @@
 #endif
 
 #include <stdio.h>
-#include <ua_types.h>
+#include "ua_types.h"
 
 /* Internal headers */
 #include "ua_types_generated.h"

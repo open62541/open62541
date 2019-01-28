@@ -89,10 +89,8 @@ static UA_Boolean
 tcp_sock_mayDelete(UA_Socket *sock) {
     TcpSocketData *const socketData = (TcpSocketData *const)sock->internalData;
 
-    if(socketData->state == UA_SOCKSTATE_CLOSED)
-        return true;
+    return socketData->state == UA_SOCKSTATE_CLOSED;
 
-    return false;
 }
 
 static UA_StatusCode
@@ -133,6 +131,7 @@ tcp_sock_activity(UA_Socket *sock) {
 
 static UA_StatusCode
 tcp_sock_buildSocket(UA_SocketFactory *factory, UA_Socket *listenerSocket, void *additionalData) {
+    (void)additionalData;
     TcpSocketData *const socketData = (TcpSocketData *const)listenerSocket->internalData;
     return UA_TCP_DataSocket_AcceptFrom(listenerSocket, factory->logger,
                                         socketData->sendBufferSize,
@@ -151,6 +150,7 @@ tcp_sock_send(UA_Socket *sock) {
 
 static UA_StatusCode
 tcp_sock_getSendBuffer(UA_Socket *sock, size_t bufferSize, UA_ByteString **p_buffer) {
+    (void)bufferSize, (void)p_buffer;
     UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK,
                  "Getting a send buffer is not supported on listener sockets");
     // TODO: see above

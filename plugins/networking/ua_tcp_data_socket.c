@@ -4,7 +4,7 @@
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <ua_util.h>
+#include "ua_util.h"
 #include "ua_types_generated_handling.h"
 #include "ua_sockets.h"
 #include "ua_types.h"

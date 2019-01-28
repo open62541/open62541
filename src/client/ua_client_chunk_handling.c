@@ -5,7 +5,7 @@
  *    Copyright 2019 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <src_generated/ua_types_generated_encoding_binary.h>
+#include "src_generated/ua_types_generated_encoding_binary.h"
 #include "src_generated/ua_transport_generated_encoding_binary.h"
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"

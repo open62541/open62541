@@ -505,14 +505,14 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/ua_util.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_socket.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${historizing_exported_headers}
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_pki.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_socket.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_network_manager.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h

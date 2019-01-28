@@ -10,6 +10,16 @@
 #include "ua_types_generated_handling.h"
 #include "ua_networkmanagers.h"
 
+typedef struct UA_SocketListEntry {
+    UA_Socket *socket;
+    LIST_ENTRY(UA_SocketListEntry) pointers;
+} UA_SocketListEntry;
+
+typedef struct UA_SocketList {
+    LIST_HEAD(, UA_SocketListEntry) list;
+} UA_SocketList;
+
+
 typedef struct {
     const UA_Logger *logger;
     UA_SocketList sockets;
