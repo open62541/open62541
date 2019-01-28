@@ -298,11 +298,15 @@ UA_TCP_ListenerSockets(UA_SocketConfig *socketConfig, UA_SocketHook creationHook
     for(struct addrinfo *ai = res;
         sockets_size < FD_SETSIZE && ai != NULL;
         ai = ai->ai_next, ++sockets_size) {
-        UA_Socket *sock;
+        UA_Socket *sock = NULL;
         UA_TCP_ListenerSocketFromAddrinfo(ai, socketConfig,
                                           &sock);
         /* Instead of allocating an array to return the sockets, we call a hook for each one */
-        UA_SocketHook_call(creationHook, sock);
+        retval = UA_SocketHook_call(creationHook, sock);
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
+                         "Error calling socket hook %s",
+                         UA_StatusCode_name(retval));
     }
     UA_freeaddrinfo(res);
 

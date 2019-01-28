@@ -278,7 +278,6 @@ UA_TCP_DataSocket_allocate(UA_UInt64 sockFd, UA_UInt32 sendBufferSize,
 error:
     UA_ByteString_deleteMembers(&internalData->receiveBuffer);
     UA_ByteString_deleteMembers(&internalData->sendBuffer);
-    UA_free(internalData);
     UA_free(sock);
     return retval;
 }
@@ -616,7 +615,12 @@ UA_TCP_ClientDataSocket(const char *endpointUrl,
     sock->open = UA_TCP_ClientDataSocket_open;
     sock->free = UA_TCP_ClientDataSocket_free;
 
-    UA_SocketHook_call(creationHook, sock);
+    retval = UA_SocketHook_call(creationHook, sock);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(internalData);
+        UA_free(sock);
+        return retval;
+    }
 
     return retval;
 }
