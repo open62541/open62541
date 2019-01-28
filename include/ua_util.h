@@ -55,6 +55,22 @@ UA_StatusCode UA_EXPORT
 UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
                             UA_UInt16 *vid, UA_Byte *pcp);
 
+/* Convert given byte string to a positive number. Returns the number of valid
+ * digits. Stops if a non-digit char is found and returns the number of digits
+ * up to that point. */
+size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
+
+/* Same as UA_ReadNumber but with a base parameter */
+size_t UA_readNumberWithBase(UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base);
+
+#ifndef UA_MIN
+#define UA_MIN(A,B) (A > B ? B : A)
+#endif
+
+#ifndef UA_MAX
+#define UA_MAX(A,B) (A > B ? A : B)
+#endif
+
 /**
  * Convenience macros for complex types
  * ------------------------------------ */

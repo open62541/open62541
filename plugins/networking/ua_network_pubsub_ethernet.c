@@ -13,7 +13,6 @@
 #include <linux/if_packet.h>
 
 #include "ua_network_pubsub_ethernet.h"
-#include "ua_util_internal.h"
 
 #ifndef ETHERTYPE_UADP
 #define ETHERTYPE_UADP  0xb62c

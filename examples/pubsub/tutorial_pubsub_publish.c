@@ -28,6 +28,7 @@
 #include <ua_config_default.h>
 #include <ua_log_stdout.h>
 #include <ua_network_pubsub_udp.h>
+#include <ua_network_pubsub_ethernet.h>
 
 #include <signal.h>
 

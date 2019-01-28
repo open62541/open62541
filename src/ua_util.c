@@ -7,13 +7,13 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include "ua_types_generated_handling.h"
 #include "ua_util.h"
 #include "ua_util_internal.h"
-#include "ua_plugin_network.h"
 #include "base64.h"
 
 size_t
-UA_readNumberWithBase(u8 *buf, size_t buflen, u32 *number, u8 base) {
+UA_readNumberWithBase(UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
     UA_assert(number);
     u32 n = 0;
@@ -36,7 +36,7 @@ UA_readNumberWithBase(u8 *buf, size_t buflen, u32 *number, u8 base) {
 }
 
 size_t
-UA_readNumber(u8 *buf, size_t buflen, u32 *number)
+UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number)
 {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
