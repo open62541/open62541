@@ -28,7 +28,8 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h ${DOC_SRC_D
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${DOC_SRC_DIR}/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h ${DOC_SRC_DIR}/plugin_log.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/plugin_network.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_networkmanager.h ${DOC_SRC_DIR}/plugin_networkmanager.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_socket.h ${DOC_SRC_DIR}/plugin_socket.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
@@ -55,7 +56,7 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/server_config.rst
           ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
           ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst
-          ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
+          ${DOC_SRC_DIR}/plugin_log.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorials.rst
@@ -90,7 +91,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/server_config.rst
           ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
           ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst
-          ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
+          ${DOC_SRC_DIR}/plugin_log.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorials.rst
