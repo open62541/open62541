@@ -10,7 +10,6 @@
 #include "ua_client.h"
 #include "ua_client_highlevel_async.h"
 #include "ua_config_default.h"
-#include "ua_network_tcp.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "testing_socket.h"

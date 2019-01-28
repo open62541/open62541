@@ -14,7 +14,6 @@
 #include "ua_securitypolicies.h"
 #include "ua_config_default.h"
 #include "ua_client_highlevel.h"
-#include "ua_network_tcp.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"

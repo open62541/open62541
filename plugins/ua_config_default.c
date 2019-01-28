@@ -15,7 +15,6 @@
 #include "ua_config_default.h"
 #include "ua_client_config.h"
 #include "ua_log_stdout.h"
-#include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
 #include "ua_pki_certificate.h"
 #include "ua_nodestore_default.h"

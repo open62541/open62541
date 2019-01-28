@@ -11,7 +11,6 @@
 #include "client/ua_client_internal.h"
 #include "ua_client_highlevel_async.h"
 #include "ua_config_default.h"
-#include "ua_network_tcp.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "testing_socket.h"
@@ -150,9 +149,6 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_connect_async);
     tcase_add_test(tc_client_connect, Client_no_connection);
     tcase_add_test(tc_client_connect, Client_without_run_iterate);
-    (void)Client_connect_async;
-    (void)Client_no_connection;
-    (void)Client_without_run_iterate;
     suite_add_tcase(s,tc_client_connect);
     return s;
 }

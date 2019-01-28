@@ -9,7 +9,6 @@
 #include "check.h"
 #include "ua_server.h"
 #include "ua_config_default.h"
-#include "ua_network_tcp.h"
 #include "thread_wrapper.h"
 
 UA_Server *server_translate_browse;

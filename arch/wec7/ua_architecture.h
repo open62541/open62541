@@ -83,6 +83,10 @@ char *strerror(int errnum);
 #define UA_ERRNO WSAGetLastError()
 #endif
 
+#define UA_SHUT_RD SHUT_RD
+#define UA_SHUT_WR SHUT_WR
+#define UA_SHUT_RDWR SHUT_RDWR
+
 #define UA_getnameinfo getnameinfo
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv recv
@@ -90,6 +94,8 @@ char *strerror(int errnum);
 #define UA_recvfrom(sockfd, buf, len, flags, src_addr, addrlen) recvfrom(sockfd, (char*)(buf), (int)(len), flags, src_addr, addrlen)
 #define UA_htonl htonl
 #define UA_ntohl ntohl
+#define UA_ntohs ntohs
+#define UA_htons htons
 #define UA_close closesocket
 #define UA_select(nfds, readfds, writefds, exceptfds, timeout) select((int)(nfds), readfds, writefds, exceptfds, timeout)
 #define UA_shutdown shutdown

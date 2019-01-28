@@ -1,6 +1,6 @@
 SET(SOURCE_GROUP ${SOURCE_GROUP}\\arch)
 
-ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR}) #to have access to ua_network_tcp.h
+ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_subdirectory(posix)
 add_subdirectory(win32)

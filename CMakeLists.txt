@@ -107,7 +107,6 @@ set(ua_architecture_sources ${ua_architecture_sources}
 )
 
 set(ua_architecture_headers ${ua_architecture_headers}
-            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.h
             ${PROJECT_SOURCE_DIR}/arch/ua_architecture_functions.h
 )
 

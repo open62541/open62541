@@ -34,13 +34,13 @@ tcp_sock_setDiscoveryUrl(UA_Socket *sock, UA_UInt16 port, UA_ByteString *customH
         du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
                                         (int)customHostname->length,
                                         customHostname->data,
-                                        ntohs(port));
+                                        UA_ntohs(port));
         du.data = (UA_Byte *)discoveryUrlBuffer;
     } else {
         char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
             du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
-                                            hostnameBuffer, ntohs(port));
+                                            hostnameBuffer, UA_ntohs(port));
             du.data = (UA_Byte *)discoveryUrlBuffer;
         } else {
             UA_LOG_ERROR(sock->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");

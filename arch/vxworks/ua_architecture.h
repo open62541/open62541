@@ -64,6 +64,10 @@
 
 #define UA_ENABLE_LOG_COLORS
 
+#define UA_SHUT_RD SHUT_RD
+#define UA_SHUT_WR SHUT_WR
+#define UA_SHUT_RDWR SHUT_RDWR
+
 #define UA_getnameinfo getnameinfo
 #define UA_send send
 #define UA_recv recv
@@ -71,6 +75,8 @@
 #define UA_recvfrom recvfrom
 #define UA_htonl htonl
 #define UA_ntohl ntohl
+#define UA_ntohs ntohs
+#define UA_htons htons
 #define UA_close close
 #define UA_select select
 #define UA_shutdown shutdown
