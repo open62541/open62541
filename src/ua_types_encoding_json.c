@@ -2201,8 +2201,8 @@ DECODE_JSON(LocalizedText) {
     }
     
     DecodeEntry entries[2] = {
-        {UA_JSONKEY_LOCALE, &dst->locale, (decodeJsonSignature) String_decodeJson, false},
-        {UA_JSONKEY_TEXT, &dst->text, (decodeJsonSignature) String_decodeJson, false}
+        {UA_JSONKEY_LOCALE, &dst->locale, (decodeJsonSignature) String_decodeJson, false, NULL},
+        {UA_JSONKEY_TEXT, &dst->text, (decodeJsonSignature) String_decodeJson, false, NULL}
     };
 
     return decodeFields(ctx, parseCtx, entries, 2, type);
@@ -2218,8 +2218,8 @@ DECODE_JSON(QualifiedName) {
     }
     
     DecodeEntry entries[2] = {
-        {UA_JSONKEY_NAME, &dst->name, (decodeJsonSignature) String_decodeJson, false},
-        {UA_JSONKEY_URI, &dst->namespaceIndex, (decodeJsonSignature) UInt16_decodeJson, false}
+        {UA_JSONKEY_NAME, &dst->name, (decodeJsonSignature) String_decodeJson, false, NULL},
+        {UA_JSONKEY_URI, &dst->namespaceIndex, (decodeJsonSignature) UInt16_decodeJson, false, NULL}
     };
 
     return decodeFields(ctx, parseCtx, entries, 2, type);
@@ -2724,10 +2724,10 @@ DECODE_JSON(Variant) {
     
     if(isArray) {
         DecodeEntry entries[3] = {
-            {UA_JSONKEY_TYPE, NULL, NULL, false},
-            {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature) Array_decodeJson, false},
+            {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+            {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature) Array_decodeJson, false, NULL},
             {UA_JSONKEY_DIMENSION, &dst->arrayDimensions,
-             (decodeJsonSignature) VariantDimension_decodeJson, false}};
+             (decodeJsonSignature) VariantDimension_decodeJson, false, NULL}};
 
         if(!hasDimension) {
             ret = decodeFields(ctx, parseCtx, entries, 2, bodyType); /*use first 2 fields*/
@@ -2742,13 +2742,13 @@ DECODE_JSON(Variant) {
                 return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         
-        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false},
-            {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false}};
+        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+            {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, NULL}};
         ret = decodeFields(ctx, parseCtx, entries, 2, bodyType);
     } else { /* extensionObject */
-        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false},
+        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
             {UA_JSONKEY_BODY, dst,
-             (decodeJsonSignature) Variant_decodeJsonUnwrapExtensionObject, false}};
+             (decodeJsonSignature) Variant_decodeJsonUnwrapExtensionObject, false, NULL}};
         ret = decodeFields(ctx, parseCtx, entries, 2, bodyType);
     }
     return ret;
@@ -2765,12 +2765,12 @@ DECODE_JSON(DataValue) {
     }
     
     DecodeEntry entries[6] = {
-       {UA_JSONKEY_VALUE, &dst->value, (decodeJsonSignature) Variant_decodeJson, false},
-       {UA_JSONKEY_STATUS, &dst->status, (decodeJsonSignature) StatusCode_decodeJson, false},
-       {UA_JSONKEY_SOURCETIMESTAMP, &dst->sourceTimestamp, (decodeJsonSignature) DateTime_decodeJson, false},
-       {UA_JSONKEY_SOURCEPICOSECONDS, &dst->sourcePicoseconds, (decodeJsonSignature) UInt16_decodeJson, false},
-       {UA_JSONKEY_SERVERTIMESTAMP, &dst->serverTimestamp, (decodeJsonSignature) DateTime_decodeJson, false},
-       {UA_JSONKEY_SERVERPICOSECONDS, &dst->serverPicoseconds, (decodeJsonSignature) UInt16_decodeJson, false}};
+       {UA_JSONKEY_VALUE, &dst->value, (decodeJsonSignature) Variant_decodeJson, false, NULL},
+       {UA_JSONKEY_STATUS, &dst->status, (decodeJsonSignature) StatusCode_decodeJson, false, NULL},
+       {UA_JSONKEY_SOURCETIMESTAMP, &dst->sourceTimestamp, (decodeJsonSignature) DateTime_decodeJson, false, NULL},
+       {UA_JSONKEY_SOURCEPICOSECONDS, &dst->sourcePicoseconds, (decodeJsonSignature) UInt16_decodeJson, false, NULL},
+       {UA_JSONKEY_SERVERTIMESTAMP, &dst->serverTimestamp, (decodeJsonSignature) DateTime_decodeJson, false, NULL},
+       {UA_JSONKEY_SERVERPICOSECONDS, &dst->serverPicoseconds, (decodeJsonSignature) UInt16_decodeJson, false, NULL}};
 
     status ret = decodeFields(ctx, parseCtx, entries, 6, type);
     dst->hasValue = entries[0].found; dst->hasStatus = entries[1].found;
@@ -2893,8 +2893,8 @@ DECODE_JSON(ExtensionObject) {
             size_t decode_index = typeOfBody->builtin ? typeOfBody->typeIndex : UA_BUILTIN_TYPES_COUNT;
             UA_NodeId typeId_dummy;
             DecodeEntry entries[2] = {
-                {UA_JSONKEY_TYPEID, &typeId_dummy, (decodeJsonSignature) NodeId_decodeJson, false},
-                {UA_JSONKEY_BODY, dst->content.decoded.data, (decodeJsonSignature) decodeJsonJumpTable[decode_index], false}
+                {UA_JSONKEY_TYPEID, &typeId_dummy, (decodeJsonSignature) NodeId_decodeJson, false, NULL},
+                {UA_JSONKEY_BODY, dst->content.decoded.data, (decodeJsonSignature) decodeJsonJumpTable[decode_index], false, NULL}
             };
 
             return decodeFields(ctx, parseCtx, entries, 2, typeOfBody);
@@ -2913,9 +2913,9 @@ DECODE_JSON(ExtensionObject) {
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
             UA_UInt16 encodingTypeJson;
             DecodeEntry entries[3] = {
-                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature) UInt16_decodeJson, false},
-                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature) String_decodeJson, false},
-                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature) NodeId_decodeJson, false}
+                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature) UInt16_decodeJson, false, NULL},
+                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature) String_decodeJson, false, NULL},
+                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature) NodeId_decodeJson, false, NULL}
             };
 
             return decodeFields(ctx, parseCtx, entries, 3, type);
@@ -2924,9 +2924,9 @@ DECODE_JSON(ExtensionObject) {
             dst->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
             UA_UInt16 encodingTypeJson;
             DecodeEntry entries[3] = {
-                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature) UInt16_decodeJson, false},
-                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature) String_decodeJson, false},
-                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature) NodeId_decodeJson, false}
+                {UA_JSONKEY_ENCODING, &encodingTypeJson, (decodeJsonSignature) UInt16_decodeJson, false, NULL},
+                {UA_JSONKEY_BODY, &dst->content.encoded.body, (decodeJsonSignature) String_decodeJson, false, NULL},
+                {UA_JSONKEY_TYPEID, &dst->content.encoded.typeId, (decodeJsonSignature) NodeId_decodeJson, false, NULL}
             };
             return decodeFields(ctx, parseCtx, entries, 3, type);
         } else {
@@ -3006,9 +3006,9 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
         UA_NodeId nodeIddummy;
         DecodeEntry entries[3] =
             {
-             {UA_JSONKEY_TYPEID, &nodeIddummy, (decodeJsonSignature) NodeId_decodeJson, false},
-             {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonJumpTable[decode_index], false},
-             {UA_JSONKEY_ENCODING, NULL, NULL, false}};
+             {UA_JSONKEY_TYPEID, &nodeIddummy, (decodeJsonSignature) NodeId_decodeJson, false, NULL},
+             {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonJumpTable[decode_index], false, NULL},
+             {UA_JSONKEY_ENCODING, NULL, NULL, false, NULL}};
 
         ret = decodeFields(ctx, parseCtx, entries, encodingFound ? 3:2, typeOfBody);
         if(ret != UA_STATUSCODE_GOOD) {
@@ -3048,13 +3048,13 @@ DECODE_JSON(DiagnosticInfo) {
         return UA_STATUSCODE_BADDECODINGERROR;
     
     DecodeEntry entries[7] = {
-       {UA_JSONKEY_SYMBOLICID, &dst->symbolicId, (decodeJsonSignature) Int32_decodeJson, false},
-       {UA_JSONKEY_NAMESPACEURI, &dst->namespaceUri, (decodeJsonSignature) Int32_decodeJson, false},
-       {UA_JSONKEY_LOCALIZEDTEXT, &dst->localizedText, (decodeJsonSignature) Int32_decodeJson, false},
-       {UA_JSONKEY_LOCALE, &dst->locale, (decodeJsonSignature) Int32_decodeJson, false},
-       {UA_JSONKEY_ADDITIONALINFO, &dst->additionalInfo, (decodeJsonSignature) String_decodeJson, false},
-       {UA_JSONKEY_INNERSTATUSCODE, &dst->innerStatusCode, (decodeJsonSignature) StatusCode_decodeJson, false},
-       {UA_JSONKEY_INNERDIAGNOSTICINFO, &dst->innerDiagnosticInfo, (decodeJsonSignature) DiagnosticInfoInner_decodeJson, false}};
+       {UA_JSONKEY_SYMBOLICID, &dst->symbolicId, (decodeJsonSignature) Int32_decodeJson, false, NULL},
+       {UA_JSONKEY_NAMESPACEURI, &dst->namespaceUri, (decodeJsonSignature) Int32_decodeJson, false, NULL},
+       {UA_JSONKEY_LOCALIZEDTEXT, &dst->localizedText, (decodeJsonSignature) Int32_decodeJson, false, NULL},
+       {UA_JSONKEY_LOCALE, &dst->locale, (decodeJsonSignature) Int32_decodeJson, false, NULL},
+       {UA_JSONKEY_ADDITIONALINFO, &dst->additionalInfo, (decodeJsonSignature) String_decodeJson, false, NULL},
+       {UA_JSONKEY_INNERSTATUSCODE, &dst->innerStatusCode, (decodeJsonSignature) StatusCode_decodeJson, false, NULL},
+       {UA_JSONKEY_INNERDIAGNOSTICINFO, &dst->innerDiagnosticInfo, (decodeJsonSignature) DiagnosticInfoInner_decodeJson, false, NULL}};
     status ret = decodeFields(ctx, parseCtx, entries, 7, type);
 
     dst->hasSymbolicId = entries[0].found; dst->hasNamespaceUri = entries[1].found;
@@ -3118,9 +3118,16 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx, DecodeEntry *entries,
             parseCtx->index++; /*goto value*/
             CHECK_TOKEN_BOUNDS;
             
+            /* Find the data type.
+             * TODO: get rid of parameter type. Only forward via DecodeEntry.
+             */
+            const UA_DataType *membertype = type;
+            if(entries[index].type)
+                membertype = entries[index].type;
+
             if(entries[index].function != NULL) {
                 ret = entries[index].function(entries[index].fieldPointer,
-                                              type, ctx, parseCtx, true); /*Move Token True*/
+                                              membertype, ctx, parseCtx, true); /*Move Token True*/
                 if(ret != UA_STATUSCODE_GOOD)
                     return ret;
             } else {
@@ -3176,7 +3183,11 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
         return UA_STATUSCODE_BADDECODINGERROR;
     
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
-    
+
+    /* Save the length of the array */
+    size_t *p = (size_t*) dst - 1;
+    *p = length;
+
     /* Return early for empty arrays */
     if(length == 0) {
         *dst = UA_EMPTY_ARRAY_SENTINEL;
@@ -3240,16 +3251,18 @@ decodeJsonInternal(void *dst, const UA_DataType *type, CtxJson *ctx,
             entries[i].fieldPointer = (void*)ptr;
             entries[i].function = decodeJsonJumpTable[fi];
             entries[i].found = false;
+            entries[i].type = membertype;
 
             ptr += memSize;
         } else {
             ptr += member->padding;
-            ptr += sizeof(size_t);
+            ptr += sizeof(size_t); /* length is filled in Array_decodeJson */
             
             entries[i].fieldName = member->memberName;
             entries[i].fieldPointer = (void*)ptr;
             entries[i].function = (decodeJsonSignature)Array_decodeJson;
             entries[i].found = false;
+            entries[i].type = membertype;
 
             ptr += sizeof(void*);
         }
