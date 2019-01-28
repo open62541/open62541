@@ -105,6 +105,7 @@ tcp_sock_free(UA_Socket *sock) {
 
     UA_ByteString_deleteMembers(&sock->discoveryUrl);
     UA_SocketFactory_deleteMembers(sock->socketFactory);
+    UA_close((int)sock->id);
     UA_free(sock->socketFactory);
     UA_free(socketData);
     UA_free(sock);

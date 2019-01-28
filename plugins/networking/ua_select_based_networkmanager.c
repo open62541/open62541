@@ -107,7 +107,7 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
                      socket->id);
 
         retval = socket->activity(socket);
-        if (retval != UA_STATUSCODE_GOOD) {
+        if (retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             socket->close(socket);
         }
 
@@ -135,8 +135,11 @@ select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
     int resultsize = UA_select((UA_Int32)(sock->id + 1), NULL, &fdset, NULL, &tmptv);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(resultsize == 1) {
-        if(sock->mayDelete(sock))
+        if(sock->mayDelete(sock)) {
+            networkManager->unregisterSocket(networkManager, sock);
+            sock->free(sock);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
+        }
         retval = sock->activity(sock);
         if (retval != UA_STATUSCODE_GOOD) {
             sock->close(sock);
