@@ -23,7 +23,7 @@ typedef struct {
 } TcpSocketData;
 
 static UA_StatusCode
-tcp_sock_setDiscoveryUrl(UA_Socket *sock, in_port_t port, UA_ByteString *customHostname) {
+tcp_sock_setDiscoveryUrl(UA_Socket *sock, UA_UInt16 port, UA_ByteString *customHostname) {
     if(sock == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -212,11 +212,11 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     socketData->recvBufferSize = socketConfig->recvBufferSize;
     socketData->sendBufferSize = socketConfig->sendBufferSize;
 
-    in_port_t port;
+    UA_UInt16 port;
     if(addrinfo->ai_addr->sa_family == AF_INET)
-        port = (((struct sockaddr_in *)addrinfo->ai_addr)->sin_port);
+        port = (UA_UInt16)(((struct sockaddr_in *)addrinfo->ai_addr)->sin_port);
     else
-        port = (((struct sockaddr_in6 *)addrinfo->ai_addr)->sin6_port);
+        port = (UA_UInt16)(((struct sockaddr_in6 *)addrinfo->ai_addr)->sin6_port);
     tcp_sock_setDiscoveryUrl(sock, port, &socketConfig->customHostname);
 
     retval = UA_SocketFactory_init(sock->socketFactory, socketConfig->logger);

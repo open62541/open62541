@@ -9,6 +9,10 @@
 #include "ua_sockets.h"
 #include "ua_types.h"
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+
 typedef struct {
     UA_Boolean flaggedForDeletion;
     UA_ByteString receiveBuffer;
@@ -355,10 +359,6 @@ error:
     UA_close(newSockFd);
     return retval;
 }
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
 
 #define UA_HOSTNAME_MAX_LENGTH 512
 
