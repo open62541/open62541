@@ -51,7 +51,7 @@ endif()
 list(APPEND LIBS "${open62541_LIBRARIES}")
 
 # Use different plugins for testing
-set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
+set(fuzzing_plugin_sources
         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
@@ -60,6 +60,9 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_listener_socket.c
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_data_socket.c
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
 )
 
 if(UA_ENABLE_ENCRYPTION)
