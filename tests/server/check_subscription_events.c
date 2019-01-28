@@ -308,7 +308,7 @@ START_TEST(generateEvents) {
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
     UA_comboSleep((UA_UInt32) publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
+    retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
