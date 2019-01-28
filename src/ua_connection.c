@@ -64,7 +64,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
 //    connection->send(connection, &msg);
 //}
 //
-UA_StatusCode
+static UA_StatusCode
 UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
     UA_Socket *const sock = UA_Connection_getSocket(connection);
     if(sock == NULL)

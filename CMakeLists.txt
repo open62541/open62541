@@ -495,6 +495,7 @@ else()
 endif()
 
 set(exported_headers ${exported_headers}
+                     ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
@@ -503,11 +504,11 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_util.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_socket.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_pki.h
@@ -523,7 +524,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel_async.h)
 
-set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
+set(internal_headers
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h

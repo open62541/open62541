@@ -93,10 +93,6 @@ UA_StatusCode
 UA_Connection_new(UA_ConnectionConfig config, UA_Socket *sock, UA_ConnectionManager *connectionManager,
                   UA_Connection **p_connection);
 
-UA_StatusCode
-UA_Connection_sendError(UA_Connection *connection,
-                        UA_TcpErrorMessage *error);
-
 UA_Socket *
 UA_Connection_getSocket(UA_Connection *connection);
 
