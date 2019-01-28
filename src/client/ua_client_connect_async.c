@@ -521,6 +521,7 @@ UA_Client_open_repeatedCallback(UA_Client *client, void *data) {
     if(retval == UA_STATUSCODE_GOOD) {
         UA_Client_removeRepeatedCallback(client, client->openRepeatedCallbackId);
         client->openRepeatedCallbackId = 0;
+        client->repeatedCallbackSocket = NULL;
     }
 }
 
@@ -535,6 +536,7 @@ UA_Client_addOpenCallback(UA_Client *client, UA_Socket *sock) {
             &client->openRepeatedCallbackId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
+        client->repeatedCallbackSocket = sock;
     }
 
     return retval;

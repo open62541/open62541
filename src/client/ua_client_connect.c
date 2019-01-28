@@ -16,6 +16,7 @@
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
+#include "ua_plugin_network_manager.h"
 
 /* Size are refered in bytes */
 #define UA_MINMESSAGESIZE                8192
@@ -779,8 +780,13 @@ UA_Client_disconnect(UA_Client *client) {
 
     /* Close the TCP connection */
     if(client->connection != NULL) {
-        if(client->connection->state != UA_CONNECTION_CLOSED)
+        if(client->connection->state != UA_CONNECTION_CLOSED) {
             UA_Connection_close(client->connection);
+            UA_Socket *const sock = UA_Connection_getSocket(client->connection);
+            client->networkManager.unregisterSocket(&client->networkManager, sock);
+            sock->close(sock);
+            sock->free(sock);
+        }
     }
 
 

@@ -207,6 +207,16 @@ UA_Client_deleteMembers(UA_Client* client) {
     UA_Client_Subscriptions_clean(client);
 #endif
 
+    if(client->repeatedCallbackSocket != NULL) {
+        client->repeatedCallbackSocket->free(client->repeatedCallbackSocket);
+        client->repeatedCallbackSocket = NULL;
+    }
+
+    if(client->openRepeatedCallbackId != 0) {
+        UA_Client_removeRepeatedCallback(client, client->openRepeatedCallbackId);
+        client->openRepeatedCallbackId = 0;
+    }
+
     /* Delete the timed work */
     UA_Timer_deleteMembers(&client->timer);
 

@@ -604,6 +604,10 @@ UA_Connection_close(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
     if(connection->channel != NULL)
         UA_SecureChannel_close(connection->channel);
+    UA_Socket *sock = ((UA_Connection_internalData *)connection->internalData)->sock;
+    if(sock != NULL) {
+        sock->close(sock);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
