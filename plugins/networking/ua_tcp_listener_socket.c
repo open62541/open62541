@@ -30,7 +30,6 @@ tcp_sock_setDiscoveryUrl(UA_Socket *sock, in_port_t port, UA_ByteString *customH
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
-    char hostnameBuffer[256];
     if(!UA_ByteString_equal(customHostname, &UA_BYTESTRING_NULL)) {
         du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
                                         (int)customHostname->length,
@@ -38,6 +37,7 @@ tcp_sock_setDiscoveryUrl(UA_Socket *sock, in_port_t port, UA_ByteString *customH
                                         ntohs(port));
         du.data = (UA_Byte *)discoveryUrlBuffer;
     } else {
+        char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
             du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
                                             hostnameBuffer, ntohs(port));
@@ -223,18 +223,18 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
-    int optval = 1;
+    int optVal = 1;
 #if UA_IPV6
     if(addrinfo->ai_family == AF_INET6 &&
        UA_setsockopt(socket_fd, IPPROTO_IPV6, IPV6_V6ONLY,
-                     (const char *)&optval, sizeof(optval)) == -1) {
+                     (const char *)&optVal, sizeof(optVal)) == -1) {
         UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not set an IPv6 socket to IPv6 only");
         goto error;
     }
 #endif
     if(UA_setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR,
-                     (const char *)&optval, sizeof(optval)) == -1) {
+                     (const char *)&optVal, sizeof(optVal)) == -1) {
         UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
                        "Could not make the socket reusable");
         goto error;
@@ -242,7 +242,7 @@ UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, UA_SocketConfig *so
 
     if(UA_socket_set_nonblocking(socket_fd) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(socketConfig->logger, UA_LOGCATEGORY_NETWORK,
-                       "Could not set the server socket to nonblocking");
+                       "Could not set the server socket to non blocking");
         goto error;
     }
 
@@ -281,18 +281,18 @@ UA_TCP_ListenerSockets(UA_SocketConfig *socketConfig, UA_SocketHook creationHook
         return retval;
     }
 
-    char portno[6];
-    UA_snprintf(portno, 6, "%d", socketConfig->port);
+    char portNumber[6];
+    UA_snprintf(portNumber, 6, "%d", socketConfig->port);
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     hints.ai_protocol = IPPROTO_TCP;
-    if(UA_getaddrinfo(NULL, portno, &hints, &res) != 0)
+    if(UA_getaddrinfo(NULL, portNumber, &hints, &res) != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* There might be serveral addrinfos (for different network cards,
+    /* There might be several addrinfos (for different network cards,
      * IPv4/IPv6). Add a server socket for all of them. */
     size_t sockets_size = 0;
     for(struct addrinfo *ai = res;

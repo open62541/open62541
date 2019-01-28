@@ -34,14 +34,12 @@ client_processCompleteChunkWithoutChannel(UA_Client *client, UA_Connection *conn
     if(sock == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Socket %i | No channel attached to the connection. "
                  "Process the chunk directly", (int)(sock->id));
     size_t offset = 0;
     UA_TcpMessageHeader tcpMessageHeader;
-    retval = UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
+    UA_StatusCode retval = UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -108,7 +106,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     /* Verify the type of the response */
     const UA_DataType *responseType = ac->responseType;
     const UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, ac->responseType->binaryEncodingId);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval;
     if(!UA_NodeId_equal(responseTypeId, &expectedNodeId)) {
         UA_init(response, ac->responseType);
         if(UA_NodeId_equal(responseTypeId, &serviceFaultId)) {
@@ -164,9 +162,6 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
         return;
     }
 
-    /* Forward declaration for the goto */
-    UA_NodeId expectedNodeId = UA_NODEID_NULL;
-
     /* Decode the data type identifier of the response */
     size_t offset = 0;
     UA_NodeId responseId;
@@ -185,7 +180,7 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     rd->received = true;
 
     /* Check that the response type matches */
-    expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
+    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
     if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
             UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
