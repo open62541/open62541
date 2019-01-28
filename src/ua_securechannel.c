@@ -1394,6 +1394,14 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    UA_MessageType messageType = (UA_MessageType)
+        (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
+    UA_ChunkType chunkType = (UA_ChunkType)
+        (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
+
+    if(messageType == UA_MESSAGETYPE_ERR)
+        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
+
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     /* The wrong ChannelId. Non-opened channels have the id zero. */
     if(messageHeader.secureChannelId != channel->securityToken.channelId &&
@@ -1402,10 +1410,6 @@ decryptAddChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
     }
 #endif
 
-    UA_MessageType messageType = (UA_MessageType)
-        (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE);
-    UA_ChunkType chunkType = (UA_ChunkType)
-        (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE);
     UA_UInt32 requestId = 0;
     UA_UInt32 sequenceNumber = 0;
     UA_ByteString chunkPayload;

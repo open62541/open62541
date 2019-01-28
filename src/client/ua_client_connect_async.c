@@ -160,8 +160,8 @@ UA_Client_processOPNAsync(UA_Client *client) {
         goto error;
 
     if(client->state < UA_CLIENTSTATE_SECURECHANNEL) {
-        retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
-        goto error;
+        /* Waiting for the opn response */
+        return UA_STATUSCODE_GOOD;
     }
 
     retval = UA_SecureChannel_generateNewKeys(&client->channel);

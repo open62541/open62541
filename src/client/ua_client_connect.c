@@ -558,6 +558,7 @@ UA_Client_removeConnection(UA_Client *client, UA_Socket *sock) {
     (void)sock;
     UA_StatusCode retval = UA_Connection_free(client->connection);
     client->connection = NULL;
+    client->state = UA_CLIENTSTATE_DISCONNECTED;
     return retval;
 }
 
