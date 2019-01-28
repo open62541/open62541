@@ -120,8 +120,8 @@ setup(void)
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // TODO: new networking api
-//    UA_Client_recv = client->connection.recv;
-//    client->connection.recv = UA_Client_recvTesting;
+//    UA_Socket_activity = client->connection.recv;
+//    client->connection.recv = UA_Socket_activityTesting;
 }
 
 static void

@@ -60,6 +60,7 @@ teardown_secureChannel(void) {
     UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
     UA_Connection_close(testingConnection);
+    UA_Connection_free(testingConnection);
     dummySocket.close(&dummySocket);
 }
 

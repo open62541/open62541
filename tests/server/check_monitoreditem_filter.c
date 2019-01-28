@@ -90,8 +90,8 @@ static void setup(void) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // TODO: new networking api
-//    UA_Client_recv = client->connection.recv;
-//    client->connection.recv = UA_Client_recvTesting;
+//    UA_Socket_activity = client->connection.recv;
+//    client->connection.recv = UA_Socket_activityTesting;
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     request.requestedMaxKeepAliveCount = 100;

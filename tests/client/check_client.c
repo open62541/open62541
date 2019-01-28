@@ -306,7 +306,7 @@ START_TEST(Client_activateSessionTimeout) {
     client->connection.recv = UA_Client_recvTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
@@ -314,7 +314,7 @@ START_TEST(Client_activateSessionTimeout) {
 
     ck_assert_msg(UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionManager.currentSessionCount, 1);

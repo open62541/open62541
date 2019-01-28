@@ -420,7 +420,6 @@ START_TEST(Client_subscription_async_sub) {
 
     UA_NetworkManager_process = client->networkManager.process;
     client->networkManager.process = UA_NetworkManager_processTesting;
-
     UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
     UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
 
@@ -465,7 +464,8 @@ START_TEST(Client_subscription_async_sub) {
     /* Simulate network cable unplugged (no response from server) */
     ck_assert_uint_eq(inactivityCallbackCalled, false);
     UA_Socket_activityTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_run_iterate(client, (UA_UInt16)clientConfig.timeout);
+    UA_fakeSleep(1000);
+    UA_Client_run_iterate(client, (UA_UInt16)(clientConfig.timeout));
     ck_assert_uint_eq(inactivityCallbackCalled, true);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
@@ -547,20 +547,13 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_keepAlive);
     tcase_add_test(tc_client, Client_subscription_without_notification);
     tcase_add_test(tc_client, Client_subscription_async_sub);
-    (void)Client_subscription;
-    (void)Client_subscription_connectionClose;
-    (void)Client_subscription_createDataChanges;
-    (void)Client_subscription_keepAlive;
-    (void)Client_subscription_without_notification;
-    (void)Client_subscription_async_sub;
     suite_add_tcase(s,tc_client);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 #if defined(UA_ENABLE_SUBSCRIPTIONS) && defined(UA_ENABLE_METHODCALLS)
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
     tcase_add_checked_fixture(tc_client2, setup, teardown);
-//    tcase_add_test(tc_client2, Client_methodcall);
-    (void)Client_methodcall;
+    tcase_add_test(tc_client2, Client_methodcall);
     suite_add_tcase(s,tc_client2);
 #endif
 

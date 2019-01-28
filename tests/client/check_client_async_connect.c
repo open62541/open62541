@@ -36,6 +36,8 @@ onConnect (UA_Client *Client, void *connected, UA_UInt32 requestId,
 }
 
 static void setup(void) {
+    UA_Socket_activityTesting_result = UA_STATUSCODE_GOOD;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_GOOD;
     running = true;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
@@ -111,11 +113,20 @@ START_TEST(Client_no_connection) {
             &connected);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    // TODO: New networking api
-//    UA_Client_recv = client->connection.recv;
-//    client->connection.recv = UA_Client_recvTesting;
+    UA_NetworkManager_process = client->networkManager.process;
+    client->networkManager.process = UA_NetworkManager_processTesting;
+
+    /* Wait for connect. Otherwise we wont be able to replace the activity function */
+    for(int i = 0; i < 100 && !connected; ++i) {
+        UA_fakeSleep(1000);
+        UA_Client_run_iterate(client, 0);
+    }
+    UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
+    UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
+
     //simulating unconnected server
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_Socket_activityTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+    UA_NetworkManager_processTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
     UA_Client_disconnect(client);
@@ -139,6 +150,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_connect, Client_connect_async);
     tcase_add_test(tc_client_connect, Client_no_connection);
     tcase_add_test(tc_client_connect, Client_without_run_iterate);
+    (void)Client_connect_async;
+    (void)Client_no_connection;
+    (void)Client_without_run_iterate;
     suite_add_tcase(s,tc_client_connect);
     return s;
 }
