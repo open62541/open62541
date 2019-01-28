@@ -542,6 +542,9 @@ UA_Connection_copyChunkPart(UA_Connection *connection, UA_ByteString *buffer,
 
 UA_StatusCode
 UA_Connection_assembleChunks(UA_Connection *connection, UA_ByteString *buffer, UA_Socket *sock) {
+#ifdef UA_DEBUG_DUMP_PKGS
+    UA_dump_hex_pkg(buffer->data, buffer->length);
+#endif
     size_t offset = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     while(offset < buffer->length) {

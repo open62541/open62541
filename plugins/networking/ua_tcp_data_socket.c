@@ -106,10 +106,6 @@ UA_TCP_DataSocket_activity(UA_Socket *sock) {
 
     sockData->receiveBufferOut.length = (size_t)bytesReceived;
 
-#ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(sockData->receiveBufferOut.data, sockData->receiveBufferOut.length);
-#endif
-
     if(sock->dataCallback.callback == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_Socket_dataCallback(sock, &sockData->receiveBufferOut);
