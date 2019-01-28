@@ -84,9 +84,9 @@
 # define errno
 #endif
 
-#define UA_SHUT_RD SHUT_RD
-#define UA_SHUT_WR SHUT_WR
-#define UA_SHUT_RDWR SHUT_RDWR
+#define UA_SHUT_RD SD_RECEIVE
+#define UA_SHUT_WR SD_SEND
+#define UA_SHUT_RDWR SD_BOTH
 
 #define UA_getnameinfo getnameinfo
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
