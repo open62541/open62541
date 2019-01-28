@@ -546,6 +546,8 @@ UA_StatusCode
 UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
                         UA_ClientAsyncServiceCallback callback,
                         void *userdata) {
+    if(client->openRepeatedCallbackId != 0)
+        return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client internal async");
 
@@ -561,9 +563,6 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     client->channel.sendSequenceNumber = 0;
     client->requestId = 0;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-
     UA_SocketHook openHook;
     openHook.hookContext = client;
     openHook.hook = (UA_SocketHookFunction)UA_Client_createConnection;
@@ -577,7 +576,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     UA_SocketHook creationHook;
     creationHook.hookContext = client;
     creationHook.hook = (UA_SocketHookFunction)UA_Client_addOpenCallback;
-    retval = client->config.clientSocketConfig.
+    UA_StatusCode retval = client->config.clientSocketConfig.
         socketConfig.createSocket((UA_SocketConfig *)&client->config.clientSocketConfig, creationHook);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
