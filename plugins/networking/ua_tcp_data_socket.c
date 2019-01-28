@@ -482,14 +482,14 @@ UA_TCP_ClientDataSocket_open(UA_Socket *sock) {
             }
             while(resultSize == 0);
 #else
-            fd_set fd_set;
-            FD_ZERO(&fd_set);
-            UA_fd_set(client_sockfd, &fd_set);
+            fd_set fdSet;
+            FD_ZERO(&fdSet);
+            UA_fd_set(client_sockfd, &fdSet);
             UA_DateTime timeoutMicroseconds = (dtTimeout - timeSinceStart) / UA_DATETIME_USEC;
             struct timeval tmp_tv = {(long int)(timeoutMicroseconds / 1000000),
                                     (int)(timeoutMicroseconds % 1000000)};
 
-            int resultSize = UA_select((UA_Int32)(client_sockfd + 1), NULL, &fd_set, NULL, &tmp_tv);
+            int resultSize = UA_select((UA_Int32)(client_sockfd + 1), NULL, &fdSet, NULL, &tmp_tv);
 #endif
 
             if(resultSize == 1) {
