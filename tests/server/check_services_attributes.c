@@ -61,6 +61,19 @@ static void setup(void) {
                                        vattr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* Enum VariableNode */
+    UA_MessageSecurityMode m = UA_MESSAGESECURITYMODE_SIGN;
+    UA_Variant_setScalar(&vattr.value, &m, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    vattr.description = UA_LOCALIZEDTEXT("locale","the enum answer");
+    vattr.displayName = UA_LOCALIZEDTEXT("locale","the enum answer");
+    vattr.valueRank = UA_VALUERANK_ANY;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "the.enum.answer"),
+                                       parentNodeId, parentReferenceNodeId,
+                                       UA_QUALIFIEDNAME(1, "the enum answer"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     /* DataSource VariableNode */
     vattr = UA_VariableAttributes_default;
     UA_DataSource temperatureDataSource;
@@ -564,7 +577,7 @@ START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
-START_TEST (ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
+START_TEST(ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_STRING(1, "cpu.temperature");
@@ -735,6 +748,29 @@ START_TEST(WriteSingleAttributeValue) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(resp.hasValue);
     ck_assert_int_eq(20, *(UA_Int32*)resp.value.data);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
+START_TEST(WriteSingleAttributeValueEnum) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Int32 myInteger = 4;
+    UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "the.enum.answer");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.enum.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert_int_eq(4, *(UA_Int32*)resp.value.data);
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -912,6 +948,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeContainsNoLoops);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeEventNotifier);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueEnum);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromArray);

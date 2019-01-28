@@ -39,11 +39,11 @@ static const UA_DataType PointType = {
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
         sizeof(Point),                   /* .memSize */
         0,                               /* .typeIndex, in the array of custom types */
-        3,                               /* .membersSize */
-        false,                           /* .builtin */
+        UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
         true,                            /* .pointerFree */
         false,                           /* .overlayable (depends on endianness and
                                          the absence of padding) */
+        3,                               /* .membersSize */
         0,                               /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */

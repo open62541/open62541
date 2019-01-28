@@ -99,17 +99,13 @@ class Type(object):
             self.typeIndex = makeCIdentifier(outname.upper() + "_" + self.name.upper())
         else:
             self.typeIndex = makeCIdentifier(outname.upper())
-
         self.ns0 = ("true" if namespace == 0 else "false")
         self.outname = outname
+        self.kind = None
         self.description = ""
         self.pointerfree = "false"
         self.overlayable = "false"
-        if self.name in builtin_types:
-            self.builtin = "true"
-        else:
-            self.builtin = "false"
-        self.members = [StructMember("", self, False)] # Returns one member: itself. Overwritten by some types.
+        self.members = []
         if xml is not None:
             for child in xml:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
@@ -131,10 +127,10 @@ class Type(object):
             "    " + typeid + ", /* .typeId */\n" + \
             "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
             "    " + self.typeIndex + ", /* .typeIndex */\n" + \
-            "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
-            "    " + self.builtin + ", /* .builtin */\n" + \
+            "    " + self.kind + ", /* .typeKind */\n" + \
             "    " + self.pointerfree + ", /* .pointerFree */\n" + \
             "    " + self.overlayable + ", /* .overlayable */\n" + \
+            "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
             "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
             "    %s_members" % idName + " /* .members */\n}"
 
@@ -211,6 +207,7 @@ class BuiltinType(Type):
         self.ns0 = "true"
         self.typeIndex = makeCIdentifier("UA_TYPES_" + self.name.upper())
         self.outname = "ua_types"
+        self.kind = "UA_DATATYPEKIND_" + self.name.upper()
         self.description = ""
         self.pointerfree = "false"
         if self.name in builtin_overlayable.keys():
@@ -218,16 +215,15 @@ class BuiltinType(Type):
         self.overlayable = "false"
         if name in builtin_overlayable:
             self.overlayable = builtin_overlayable[name]
-        self.builtin = "true"
-        self.members = [StructMember("", self, False)] # builtin types contain only one member: themselves (drops into the jumptable during processing)
+        self.members = []
 
 class EnumerationType(Type):
     def __init__(self, outname, xml, namespace):
         Type.__init__(self, outname, xml, namespace)
         self.pointerfree = "true"
         self.overlayable = "UA_BINARY_OVERLAYABLE_INTEGER"
-        self.members = [StructMember("", types["Int32"], False)] # encoded as uint32
-        self.builtin = "true"
+        self.members = []
+        self.kind = "UA_DATATYPEKIND_ENUM"
         self.typeIndex = "UA_TYPES_INT32"
         self.elements = OrderedDict()
         for child in xml:
@@ -247,8 +243,9 @@ class EnumerationType(Type):
 class OpaqueType(Type):
     def __init__(self, outname, xml, namespace, baseType):
         Type.__init__(self, outname, xml, namespace)
+        self.kind = "UA_DATATYPEKIND_" + baseType.upper()
         self.baseType = baseType
-        self.members = [StructMember("", types[baseType], False)] # encoded as string
+        self.members = []
 
     def typedef_h(self):
         return "typedef UA_" + self.baseType + " UA_%s;" % self.name
@@ -275,6 +272,7 @@ class StructType(Type):
 
         self.pointerfree = "true"
         self.overlayable = "true"
+        self.kind = "UA_DATATYPEKIND_STRUCTURE"
         before = None
         for m in self.members:
             if m.isArray or m.memberType.pointerfree != "true":

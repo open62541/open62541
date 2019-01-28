@@ -797,22 +797,58 @@ typedef struct {
     UA_Boolean isArray       : 1; /* The member is an array */
 } UA_DataTypeMember;
 
+/* The DataType "kind" is an internal type classification. It is used to
+ * dispatch handling to the correct routines. */
+#define UA_DATATYPEKINDS 31
+typedef enum {
+    UA_DATATYPEKIND_BOOLEAN = 0,
+    UA_DATATYPEKIND_SBYTE = 1,
+    UA_DATATYPEKIND_BYTE = 2,
+    UA_DATATYPEKIND_INT16 = 3,
+    UA_DATATYPEKIND_UINT16 = 4,
+    UA_DATATYPEKIND_INT32 = 5,
+    UA_DATATYPEKIND_UINT32 = 6,
+    UA_DATATYPEKIND_INT64 = 7,
+    UA_DATATYPEKIND_UINT64 = 8,
+    UA_DATATYPEKIND_FLOAT = 9,
+    UA_DATATYPEKIND_DOUBLE = 10,
+    UA_DATATYPEKIND_STRING = 11,
+    UA_DATATYPEKIND_DATETIME = 12,
+    UA_DATATYPEKIND_GUID = 13,
+    UA_DATATYPEKIND_BYTESTRING = 14,
+    UA_DATATYPEKIND_XMLELEMENT = 15,
+    UA_DATATYPEKIND_NODEID = 16,
+    UA_DATATYPEKIND_EXPANDEDNODEID = 17,
+    UA_DATATYPEKIND_STATUSCODE = 18,
+    UA_DATATYPEKIND_QUALIFIEDNAME = 19,
+    UA_DATATYPEKIND_LOCALIZEDTEXT = 20,
+    UA_DATATYPEKIND_EXTENSIONOBJECT = 21,
+    UA_DATATYPEKIND_DATAVALUE = 22,
+    UA_DATATYPEKIND_VARIANT = 23,
+    UA_DATATYPEKIND_DIAGNOSTICINFO = 24,
+    UA_DATATYPEKIND_DECIMAL = 25,
+    UA_DATATYPEKIND_ENUM = 26,
+    UA_DATATYPEKIND_STRUCTURE = 27,
+    UA_DATATYPEKIND_OPTSTRUCT = 28, /* struct with optional fields */
+    UA_DATATYPEKIND_UNION = 29,
+    UA_DATATYPEKIND_BITFIELDCLUSTER = 30 /* bitfields + padding */
+} UA_DataTypeKind;
+
 struct UA_DataType {
 #ifdef UA_ENABLE_TYPENAMES
     const char *typeName;
 #endif
-    UA_NodeId  typeId;           /* The nodeid of the type */
-    UA_UInt16  memSize;          /* Size of the struct in memory */
-    UA_UInt16  typeIndex;        /* Index of the type in the datatypetable */
-    UA_Byte    membersSize;      /* How many members does the type have? */
-    UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
-                                    and encoding functions */
-    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
-                                    pointers that need to be freed */
-    UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
-                                    memory and on the binary stream. */
-    UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */
-    //UA_UInt16  xmlEncodingId;  /* NodeId of datatype when encoded as XML */
+    UA_NodeId typeId;                /* The nodeid of the type */
+    UA_UInt16 memSize;               /* Size of the struct in memory */
+    UA_UInt16 typeIndex;             /* Index of the type in the datatypetable */
+    UA_UInt32 typeKind         : 6;  /* Dispatch index for the handling routines */
+    UA_UInt32 pointerFree      : 1;  /* The type (and its members) contains no
+                                      * pointers that need to be freed */
+    UA_UInt32 overlayable      : 1;  /* The type has the identical memory layout
+                                      * in memory and on the binary stream. */
+    UA_UInt32 membersSize      : 8;  /* How many members does the type have? */
+    UA_UInt32 binaryEncodingId : 16; /* NodeId of datatype when encoded as binary */
+    //UA_UInt16  xmlEncodingId;      /* NodeId of datatype when encoded as XML */
     UA_DataTypeMember *members;
 };
 

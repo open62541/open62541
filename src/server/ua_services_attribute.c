@@ -568,21 +568,12 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 /* Type Checking */
 /*****************/
 
-enum type_equivalence {
-    TYPE_EQUIVALENCE_NONE,
-    TYPE_EQUIVALENCE_ENUM,
-    TYPE_EQUIVALENCE_OPAQUE
-};
-
-static enum type_equivalence
+static UA_DataTypeKind
 typeEquivalence(const UA_DataType *t) {
-    if(t->membersSize != 1 || !t->members[0].namespaceZero)
-        return TYPE_EQUIVALENCE_NONE;
-    if(t->members[0].memberTypeIndex == UA_TYPES_INT32)
-        return TYPE_EQUIVALENCE_ENUM;
-    if(t->members[0].memberTypeIndex == UA_TYPES_BYTE && t->members[0].isArray)
-        return TYPE_EQUIVALENCE_OPAQUE;
-    return TYPE_EQUIVALENCE_NONE;
+    UA_DataTypeKind k = (UA_DataTypeKind)t->typeKind;
+    if(k == UA_DATATYPEKIND_ENUM)
+        return UA_DATATYPEKIND_INT32;
+    return k;
 }
 
 static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERATION}};
@@ -839,9 +830,9 @@ adjustValue(UA_Server *server, UA_Variant *value,
 
     /* An enum was sent as an int32, or an opaque type as a bytestring. This
      * is detected with the typeIndex indicating the "true" datatype. */
-    enum type_equivalence te1 = typeEquivalence(targetDataType);
-    enum type_equivalence te2 = typeEquivalence(value->type);
-    if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
+    UA_DataTypeKind te1 = typeEquivalence(targetDataType);
+    UA_DataTypeKind te2 = typeEquivalence(value->type);
+    if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
         value->type = targetDataType;
         return;
     }
