@@ -53,7 +53,7 @@ list(APPEND LIBS "${open62541_LIBRARIES}")
 # Use different plugins for testing
 set(fuzzing_plugin_sources
         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
-        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c

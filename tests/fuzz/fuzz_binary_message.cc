@@ -7,7 +7,6 @@
 #include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "ua_plugin_log.h"
-#include "testing_networklayers.h"
 
 #define RECEIVE_BUFFER_SIZE 65535
 

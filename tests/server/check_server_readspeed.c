@@ -15,7 +15,6 @@
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 
 static UA_SecureChannel testChannel;

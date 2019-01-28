@@ -15,7 +15,6 @@
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 #include "ua_plugin_historydatabase.h"
 #include "ua_historydatabase_default.h"

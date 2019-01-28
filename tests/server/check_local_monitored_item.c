@@ -12,7 +12,6 @@
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include <stddef.h>
 
 #ifdef UA_ENABLE_STATUSCODE_DESCRIPTIONS

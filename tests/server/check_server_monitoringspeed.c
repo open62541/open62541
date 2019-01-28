@@ -12,7 +12,6 @@
 #include "ua_server_internal.h"
 #include "ua_config_default.h"
 #include "server/ua_subscription.h"
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 
 static UA_SecureChannel testChannel;

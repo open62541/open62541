@@ -12,7 +12,6 @@
 #include "src_generated/ua_transport_generated_handling.h"
 #include "ua_config_default.h"
 #include "testing_socket.h"
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 #include "ua_securechannel.h"
 
