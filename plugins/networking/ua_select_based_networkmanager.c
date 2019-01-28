@@ -37,7 +37,9 @@ select_nm_registerSocket(UA_NetworkManager *networkManager, UA_Socket *socket) {
     SelectNMData *internalData = (SelectNMData *)networkManager->internalData;
 
     LIST_INSERT_HEAD(&internalData->sockets.list, socketListEntry, pointers);
-    UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK, "Registered socket with id %lu", socket->id);
+    UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                 "Registered socket with id %i",
+                 (int)socket->id);
     if(socket->isListener)
         ++internalData->numListenerSockets;
     return UA_STATUSCODE_GOOD;
@@ -56,7 +58,9 @@ select_nm_unregisterSocket(UA_NetworkManager *networkManager, UA_Socket *socket)
             UA_free(socketListEntry);
         }
     }
-    UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK, "Unregistered socket with id %lu", socket->id);
+    UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK,
+                 "Unregistered socket with id %i",
+                 (int)socket->id);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -67,7 +71,7 @@ setFDSet(SelectNMData *nmData, fd_set *fdset) {
 
     UA_SocketListEntry *socketListEntry;
     LIST_FOREACH(socketListEntry, &nmData->sockets.list, pointers) {
-        UA_fd_set(socketListEntry->socket->id, fdset);
+        UA_fd_set((UA_SOCKET)socketListEntry->socket->id, fdset);
         if((UA_Int32)socketListEntry->socket->id > highestfd)
             highestfd = (UA_Int32)socketListEntry->socket->id;
     }
@@ -102,7 +106,7 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
     UA_SocketListEntry *socketListEntry, *e_tmp;
     LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, e_tmp) {
         UA_Socket *const socket = socketListEntry->socket;
-        if(!UA_fd_isset(socket->id, &fdset)) {
+        if(!UA_fd_isset((UA_SOCKET)socket->id, &fdset)) {
             // Check deletion for all not selected sockets to clean them up if necessary.
             if(socket->mayDelete(socket)) {
                 socket->free(socket);
@@ -113,8 +117,8 @@ select_nm_process(UA_NetworkManager *networkManager, UA_UInt16 timeout) {
         }
 
         UA_LOG_TRACE(internalData->logger, UA_LOGCATEGORY_NETWORK,
-                     "Activity on socket with id %lu",
-                     socket->id);
+                     "Activity on socket with id %i",
+                     (int)socket->id);
 
         retval = socket->activity(socket);
         if (retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
@@ -139,7 +143,7 @@ select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     fd_set fdset;
     FD_ZERO(&fdset);
-    UA_fd_set(sock->id, &fdset);
+    UA_fd_set((UA_SOCKET)sock->id, &fdset);
     struct timeval tmptv = {0, timeout * 1000};
 
     int resultsize = UA_select((UA_Int32)(sock->id + 1), NULL, &fdset, NULL, &tmptv);
@@ -206,7 +210,7 @@ select_nm_shutdown(UA_NetworkManager *networkManager) {
     UA_SocketListEntry *socketListEntry;
     LIST_FOREACH(socketListEntry, &internalData->sockets.list, pointers) {
         UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
-                     "Closing remaining socket with id %lu", socketListEntry->socket->id);
+                     "Closing remaining socket with id %i", (int)socketListEntry->socket->id);
         socketListEntry->socket->close(socketListEntry->socket);
     }
 
@@ -226,7 +230,7 @@ select_nm_deleteMembers(UA_NetworkManager *networkManager) {
     UA_SocketListEntry *socketListEntry, *e_tmp;
     LIST_FOREACH_SAFE(socketListEntry, &internalData->sockets.list, pointers, e_tmp) {
         UA_LOG_DEBUG(internalData->logger, UA_LOGCATEGORY_NETWORK,
-                     "Removing remaining socket with id %lu", socketListEntry->socket->id);
+                     "Removing remaining socket with id %i", (int)socketListEntry->socket->id);
         socketListEntry->socket->free(socketListEntry->socket);
         LIST_REMOVE(socketListEntry, pointers);
         UA_free(socketListEntry);
