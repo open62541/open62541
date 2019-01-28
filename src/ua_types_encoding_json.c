@@ -3184,9 +3184,7 @@ Array_decodeJson_internal(void **dst, const UA_DataType *type,
     
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
-    /* save the length of the array.
-     * TODO: is the length ALWAYS one size_t before the array value?
-     */
+    /* Save the length of the array */
     size_t *p = (size_t*) dst - 1;
     *p = length;
 
