@@ -13,9 +13,9 @@
 
 #include "ua_types.h"
 #include "ua_transport_generated.h"
-#include "ua_connection_internal.h"
 #include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_log.h"
+#include "ua_connection.h"
 #include "open62541_queue.h"
 
 _UA_BEGIN_DECLS

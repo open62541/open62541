@@ -13,7 +13,7 @@
 
 #include "ua_server.h"
 #include "ua_plugin_log.h"
-#include "ua_plugin_network.h"
+#include "ua_connection.h"
 #include "ua_plugin_access_control.h"
 #include "ua_plugin_pki.h"
 #include "ua_plugin_securitypolicy.h"

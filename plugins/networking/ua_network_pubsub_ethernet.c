@@ -5,7 +5,7 @@
  *   Copyright 2018 (c) Kontron Europe GmbH (Author: Rudolf Hoyler)
  */
 
-#include "ua_plugin_network.h"
+#include "ua_connection.h"
 #include "ua_log_stdout.h"
 #include "ua_util.h"
 

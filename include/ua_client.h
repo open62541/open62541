@@ -21,7 +21,7 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_plugin_securitypolicy.h"
-#include "ua_plugin_network.h"
+#include "ua_connection.h"
 #include "ua_plugin_log.h"
 #include "ua_client_config.h"
 #include "ua_nodeids.h"

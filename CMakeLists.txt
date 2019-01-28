@@ -503,12 +503,12 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_util.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_socket.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${historizing_exported_headers}
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_pki.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
@@ -534,8 +534,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/ua_workqueue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h

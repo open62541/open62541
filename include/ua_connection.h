@@ -10,12 +10,30 @@
 #ifndef OPEN62541_UA_CONNECTION_H
 #define OPEN62541_UA_CONNECTION_H
 
+#include "ua_transport_generated.h"
 #include "ua_server.h"
 #include "ua_plugin_log.h"
-#include "ua_plugin_network.h"
 #include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
+
+typedef struct {
+    UA_UInt32 protocolVersion;
+    UA_UInt32 recvBufferSize;
+    UA_UInt32 sendBufferSize;
+    UA_UInt32 maxMessageSize; /* Indicated by the remote side (0 = unbounded) */
+    UA_UInt32 maxChunkCount;  /* Indicated by the remote side (0 = unbounded) */
+} UA_ConnectionConfig;
+
+typedef enum {
+    UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
+                                * will be deleted */
+    UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
+                                * is not done */
+    UA_CONNECTION_ESTABLISHED  /* The socket is open and the connection
+                                * configured */
+
+} UA_ConnectionState;
 
 /* Forward declarations */
 typedef struct UA_ConnectionManager UA_ConnectionManager;
