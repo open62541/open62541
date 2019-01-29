@@ -69,8 +69,8 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
     /* Check limits for the number of subscriptions */
-    if((server->config.maxSubscriptionsPerSession != 0) &&
-       (session->numSubscriptions >= server->config.maxSubscriptionsPerSession)) {
+    if((server->config.maxSubscriptions != 0) &&
+       (server->numSubscriptions >= server->config.maxSubscriptions)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -84,7 +84,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_Session_addSubscription(session, newSubscription); /* Also assigns the subscription id */
+    UA_Session_addSubscription(server, session, newSubscription); /* Also assigns the subscription id */
 
     /* Set the subscription parameters */
     newSubscription->publishingEnabled = request->publishingEnabled;
@@ -280,8 +280,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                               const UA_MonitoredItemCreateRequest *request,
                               UA_MonitoredItemCreateResult *result) {
     /* Check available capacity */
-    if(server->config.maxMonitoredItemsPerSubscription != 0 && cmc->sub &&
-       cmc->sub->monitoredItemsSize >= server->config.maxMonitoredItemsPerSubscription) {
+    if(server->config.maxMonitoredItems != 0 && cmc->sub &&
+       server->numMonitoredItems >= server->config.maxMonitoredItems) {
         result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
     }
@@ -354,7 +354,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     /* Add to the subscriptions or the local MonitoredItems */
     if(cmc->sub) {
         newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
-        UA_Subscription_addMonitoredItem(cmc->sub, newMon);
+        UA_Subscription_addMonitoredItem(server, cmc->sub, newMon);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         if(newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
             /* Insert the monitored item into the node's queue */
