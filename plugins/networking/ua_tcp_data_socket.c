@@ -288,7 +288,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
                              UA_Socket_DataCallback dataCallback) {
     struct sockaddr_storage remote;
     socklen_t remote_size = sizeof(remote);
-    UA_SOCKET newSockFd = UA_accept((int)listenerSocket->id,
+    UA_SOCKET newSockFd = UA_accept((UA_SOCKET)listenerSocket->id,
                                     (struct sockaddr *)&remote, &remote_size);
     if(newSockFd == UA_INVALID_SOCKET) {
         UA_LOG_SOCKET_ERRNO_WRAP(

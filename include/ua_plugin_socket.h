@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018-2019 (c) Mark Giraud, Fraunhofer IOSB
  */
 
 
@@ -12,6 +12,8 @@
 #include "ua_types.h"
 #include "ua_plugin_log.h"
 
+_UA_BEGIN_DECLS
+
 typedef struct UA_Socket UA_Socket;
 typedef struct UA_SocketHook UA_SocketHook;
 typedef struct UA_SocketConfig UA_SocketConfig;
@@ -20,10 +22,10 @@ typedef struct UA_SocketFactory UA_SocketFactory;
 /**
      * The signature of the dataCallback that needs to be implemented.
      *
-     * @param callbackContext The context set by the callback owner.
-     * @param data the data buffer the socket received the data to.
+     * \param callbackContext The context set by the callback owner.
+     * \param data the data buffer the socket received the data to.
      *             Data in this buffer will be lost after the call returns.
-     * @param socket the socket that the data was received on. TODO: do we need this param?
+     * \param socket the socket that the data was received on. TODO: do we need this param?
      */
 typedef UA_StatusCode (*UA_Socket_dataCallbackFunction)(void *callbackContext,
                                                         UA_ByteString *data,
@@ -91,24 +93,24 @@ struct UA_Socket {
      * Starts/Opens the socket for operation. This step is separate from the initialization
      * so the sockets can be configured without starting to listen already.
      *
-     * @param socket the socket to perform the operation on.
-     * @return
+     * \param socket the socket to perform the operation on.
+     * \return
      */
     UA_StatusCode (*open)(UA_Socket *socket);
 
     /**
      * Closes the socket. This typically also signals the mayDelete function to return true,
      * indicating that the socket can be safely deleted on the next NetworkManager iteration.
-     * @param socket the socket to perform the operation on.
-     * @return
+     * \param socket the socket to perform the operation on.
+     * \return
      */
     UA_StatusCode (*close)(UA_Socket *socket);
 
     /**
      * Checks if the socket can be deleted because it has been closed by the local application,
      * or if it was closed remotely.
-     * @param socket the socket to perform the operation on.
-     * @return true, if the socket can be deleted, false otherwise.
+     * \param socket the socket to perform the operation on.
+     * \return true, if the socket can be deleted, false otherwise.
      */
     UA_Boolean (*mayDelete)(UA_Socket *socket);
 
@@ -120,8 +122,8 @@ struct UA_Socket {
      * will call all registered deletionHooks so that the references to this
      * socket can be properly cleaned up.
      *
-     * @param socket
-     * @return
+     * \param socket
+     * \return
      */
     UA_StatusCode (*free)(UA_Socket *socket);
 
@@ -136,8 +138,8 @@ struct UA_Socket {
      * Listener sockets will typically create a new socket and call the
      * appropriate creation hooks.
      *
-     * @param socket The socket to perform the operation on.
-     * @return
+     * \param socket The socket to perform the operation on.
+     * \return
      */
     UA_StatusCode (*activity)(UA_Socket *socket);
 
@@ -156,8 +158,8 @@ struct UA_Socket {
      * Always call getSendBuffer to get a buffer and write the data to that buffer.
      * The length needs to be set to the amount of bytes to send.
      * The length may not exceed the originally allocated length.
-     * @param socket the socket to perform the operation on.
-     * @return
+     * \param socket the socket to perform the operation on.
+     * \return
      */
     UA_StatusCode (*send)(UA_Socket *socket);
 
@@ -166,9 +168,9 @@ struct UA_Socket {
      * To send data, directly write to this buffer. Calling send, will send the
      * contained data. The length of the buffer determines the bytes sent.
      *
-     * @param socket the socket to perform the operation on.
-     * @param buffer the pointer the the allocated buffer
-     * @return
+     * \param socket the socket to perform the operation on.
+     * \param buffer the pointer the the allocated buffer
+     * \return
      */
     UA_StatusCode (*getSendBuffer)(UA_Socket *socket, size_t bufferSize, UA_ByteString **p_buffer);
 
@@ -195,8 +197,8 @@ struct UA_SocketConfig {
      * This function is called by the server to create all configured listener sockets.
      * The delayed configuration makes sure, that initialization is done during
      * server startup. Also, only the server will have ownership of the Sockets.
-     * @param config
-     * @param socketHook The socketHook is called once for each socket that is created.
+     * \param config
+     * \param socketHook The socketHook is called once for each socket that is created.
      */
     UA_StatusCode (*createSocket)(UA_SocketConfig *config, UA_SocketHook socketHook);
 };
@@ -205,8 +207,8 @@ struct UA_SocketConfig {
  * Convenience wrapper for calling socket hooks.
  * Does a sanity check before calling the hook.
  *
- * @param hook the hook to call
- * @param sock the socket parameter of the hook.
+ * \param hook the hook to call
+ * \param sock the socket parameter of the hook.
  */
 static inline UA_StatusCode
 UA_SocketHook_call(UA_SocketHook hook, UA_Socket *sock) {
@@ -227,10 +229,10 @@ struct UA_SocketFactory {
      * the deletion hook, which it will then later call when it is deleted, in order to perform
      * proper cleanup.
      *
-     * @param factory the factory to perform the operation on.
-     * @param listenerSocket the socket the DataSocket is created from (accepted from)
-     * @param additionalData Any data that needs to be passed from listener to data sockets.
-     * @return
+     * \param factory the factory to perform the operation on.
+     * \param listenerSocket the socket the DataSocket is created from (accepted from)
+     * \param additionalData Any data that needs to be passed from listener to data sockets.
+     * \return
      */
     UA_StatusCode (*buildSocket)(UA_SocketFactory *factory, UA_Socket *listenerSocket,
                                  void *additionalData);
@@ -262,5 +264,7 @@ UA_Socket_dataCallback(UA_Socket *socket, UA_ByteString *data) {
         return UA_STATUSCODE_BADINTERNALERROR;
     return socket->dataCallback.callback(socket->dataCallback.callbackContext, data, socket);
 }
+
+_UA_END_DECLS
 
 #endif //OPEN62541_UA_PLUGIN_SOCKET_H

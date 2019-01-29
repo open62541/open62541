@@ -2,13 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2018-2019 (c) Mark Giraud, Fraunhofer IOSB
  */
 
 #ifndef OPEN62541_UA_PLUGIN_NETWORK_MANAGER_H
 #define OPEN62541_UA_PLUGIN_NETWORK_MANAGER_H
 
 #include "ua_plugin_socket.h"
+
+_UA_BEGIN_DECLS
 
 typedef struct UA_NetworkManager UA_NetworkManager;
 
@@ -22,9 +24,9 @@ struct UA_NetworkManager {
     /**
      * Checks if the supplied socket has pending activity and calls the activity callback chain
      * if so.
-     * @param networkManager
-     * @param timeout
-     * @return
+     * \param networkManager
+     * \param timeout
+     * \return
      */
     UA_StatusCode (*processSocket)(UA_NetworkManager *networkManager, UA_UInt32 timeout, UA_Socket *sock);
 
@@ -32,9 +34,9 @@ struct UA_NetworkManager {
      * Gets all known discovery urls of listener sockets registered with the network manager.
      * This function will allocate an array of strings, which needs to be freed by the caller.
      *
-     * @param networkManager the network manager to perform the operation on.
-     * @param discoveryUrls the newly allocated array of discoveryUrls.
-     * @param discoveryUrlsSize the size of the discoveryUrls array.
+     * \param networkManager the network manager to perform the operation on.
+     * \param discoveryUrls the newly allocated array of discoveryUrls.
+     * \param discoveryUrlsSize the size of the discoveryUrls array.
      */
     UA_StatusCode (*getDiscoveryUrls)(const UA_NetworkManager *networkManager, UA_String *discoveryUrls[],
                                       size_t *discoveryUrlsSize);
@@ -45,5 +47,7 @@ struct UA_NetworkManager {
 
     void *internalData;
 };
+
+_UA_END_DECLS
 
 #endif //OPEN62541_UA_PLUGIN_NETWORK_MANAGER_H
