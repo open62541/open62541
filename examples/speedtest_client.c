@@ -40,7 +40,7 @@ int main(void) {
 
     /* NodeId of the variable holding the current time */
     //const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-    char *testString = UA_malloc(10); // 1MB string
+    char *testString = (char *)UA_malloc(10);
     memset(testString, 'A', 10);
     const UA_NodeId nodeId = UA_NODEID_BYTESTRING(0, testString);
 
