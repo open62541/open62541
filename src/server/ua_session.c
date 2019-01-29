@@ -76,11 +76,12 @@ void UA_Session_updateLifetime(UA_Session *session) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscription) {
+void UA_Session_addSubscription(UA_Server *server, UA_Session *session, UA_Subscription *newSubscription) {
     newSubscription->subscriptionId = ++session->lastSubscriptionId;
 
     LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
     session->numSubscriptions++;
+    server->numSubscriptions++;
 }
 
 UA_StatusCode
@@ -101,7 +102,9 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
     /* Remove from the session */
     LIST_REMOVE(sub, listEntry);
     UA_assert(session->numSubscriptions > 0);
+    UA_assert(server->numSubscriptions > 0);
     session->numSubscriptions--;
+    server->numSubscriptions--;
     return UA_STATUSCODE_GOOD;
 }
 

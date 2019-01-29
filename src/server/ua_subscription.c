@@ -55,6 +55,8 @@ UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
                             mon->monitoredItemId);
         UA_MonitoredItem_delete(server, mon);
     }
+    UA_assert(server->numMonitoredItems >= sub->monitoredItemsSize);
+    server->numMonitoredItems -= sub->monitoredItemsSize;
     sub->monitoredItemsSize = 0;
 
     /* Delete Retransmission Queue */
@@ -102,7 +104,10 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 
     /* Remove the MonitoredItem */
     LIST_REMOVE(mon, listEntry);
+    UA_assert(sub->monitoredItemsSize > 0);
+    UA_assert(server->numMonitoredItems > 0);
     sub->monitoredItemsSize--;
+    server->numMonitoredItems--;
 
     /* Remove content and delayed free */
     UA_MonitoredItem_delete(server, mon);
@@ -111,8 +116,9 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 }
 
 void
-UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon) {
+UA_Subscription_addMonitoredItem(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *newMon) {
     sub->monitoredItemsSize++;
+    server->numMonitoredItems++;
     LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
 }
 

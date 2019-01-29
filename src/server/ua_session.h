@@ -83,7 +83,8 @@ void UA_Session_updateLifetime(UA_Session *session);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 void
-UA_Session_addSubscription(UA_Session *session,
+UA_Session_addSubscription(UA_Server *server,
+                           UA_Session *session,
                            UA_Subscription *newSubscription);
 
 UA_Subscription *
