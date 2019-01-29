@@ -400,7 +400,8 @@ DECODE_BINARY(Double) {
 /******************/
 
 static status
-Array_encodeBinaryOverlayable(uintptr_t ptr, size_t length, size_t elementMemSize, Ctx *ctx) {
+Array_encodeBinaryOverlayable(uintptr_t ptr, size_t length,
+                              size_t elementMemSize, Ctx *ctx) {
     /* Store the number of already encoded elements */
     size_t finished = 0;
 
@@ -427,7 +428,8 @@ Array_encodeBinaryOverlayable(uintptr_t ptr, size_t length, size_t elementMemSiz
 }
 
 static status
-Array_encodeBinaryComplex(uintptr_t ptr, size_t length, const UA_DataType *type, Ctx *ctx) {
+Array_encodeBinaryComplex(uintptr_t ptr, size_t length,
+                          const UA_DataType *type, Ctx *ctx) {
     /* Encode every element */
     for(size_t i = 0; i < length; ++i) {
         status ret = encodeWithExchangeBuffer((const void*)ptr, type, ctx);
@@ -441,7 +443,8 @@ Array_encodeBinaryComplex(uintptr_t ptr, size_t length, const UA_DataType *type,
 }
 
 static status
-Array_encodeBinary(const void *src, size_t length, const UA_DataType *type, Ctx *ctx) {
+Array_encodeBinary(const void *src, size_t length,
+                   const UA_DataType *type, Ctx *ctx) {
     /* Check and convert the array length to int32 */
     i32 signed_length = -1;
     if(length > UA_INT32_MAX)
@@ -942,7 +945,8 @@ DECODE_BINARY(ExtensionObject) {
 /* Variant */
 
 static status
-Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const UA_Boolean isArray, Ctx *ctx) {
+Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src,
+                                        const UA_Boolean isArray, Ctx *ctx) {
     /* Default to 1 for a scalar. */
     size_t length = 1;
 
@@ -1423,22 +1427,22 @@ decodeBinaryStructure(void *dst, const UA_DataType *type, Ctx *ctx) {
 
     /* Loop over members */
     for(size_t i = 0; i < membersSize && ret == UA_STATUSCODE_GOOD; ++i) {
-        const UA_DataTypeMember *member = &type->members[i];
-        const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
-        ptr += member->padding;
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
+        ptr += m->padding;
 
         /* Array */
-        if(member->isArray) {
+        if(m->isArray) {
             size_t *length = (size_t*)ptr;
             ptr += sizeof(size_t);
-            ret = Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, membertype, ctx);
+            ret = Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, mt , ctx);
             ptr += sizeof(void*);
             continue;
         }
 
         /* Scalar */
-        ret = decodeBinaryJumpTable[membertype->typeKind]((void *UA_RESTRICT)ptr, membertype, ctx);
-        ptr += membertype->memSize;
+        ret = decodeBinaryJumpTable[mt->typeKind]((void *UA_RESTRICT)ptr, mt, ctx);
+        ptr += mt->memSize;
     }
 
     ctx->depth--;
@@ -1530,13 +1534,9 @@ static size_t calcSizeBinary2(const void *_, const UA_DataType *__) { return 2; 
 static size_t calcSizeBinary4(const void *_, const UA_DataType *__) { return 4; }
 static size_t calcSizeBinary8(const void *_, const UA_DataType *__) { return 8; }
 
-CALCSIZE_BINARY(String) {
-    return 4 + src->length;
-}
+CALCSIZE_BINARY(String) { return 4 + src->length; }
 
-CALCSIZE_BINARY(Guid) {
-    return 16;
-}
+CALCSIZE_BINARY(Guid) { return 16; }
 
 CALCSIZE_BINARY(NodeId) {
     size_t s = 1; /* Encoding byte */
