@@ -210,7 +210,7 @@ struct UA_SocketConfig {
  * \param hook the hook to call
  * \param sock the socket parameter of the hook.
  */
-static inline UA_StatusCode
+static UA_INLINE UA_StatusCode
 UA_SocketHook_call(UA_SocketHook hook, UA_Socket *sock) {
     if(hook.hook == NULL || sock == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -240,7 +240,7 @@ struct UA_SocketFactory {
     UA_Socket_DataCallback socketDataCallback;
 };
 
-static inline UA_StatusCode
+static UA_INLINE UA_StatusCode
 UA_SocketFactory_init(UA_SocketFactory *factory, UA_Logger *logger) {
     memset(factory, 0, sizeof(UA_SocketFactory));
     factory->logger = logger;
@@ -248,7 +248,7 @@ UA_SocketFactory_init(UA_SocketFactory *factory, UA_Logger *logger) {
     return UA_STATUSCODE_GOOD;
 }
 
-static inline UA_StatusCode
+static UA_INLINE UA_StatusCode
 UA_SocketFactory_deleteMembers(UA_SocketFactory *factory) {
     memset(factory, 0, sizeof(UA_SocketFactory));
     return UA_STATUSCODE_GOOD;
@@ -258,7 +258,7 @@ UA_SocketFactory_deleteMembers(UA_SocketFactory *factory) {
 /**
  * Convenience Wrapper for calling the dataCallback of a socket.
  */
-static inline UA_StatusCode
+static UA_INLINE UA_StatusCode
 UA_Socket_dataCallback(UA_Socket *socket, UA_ByteString *data) {
     if (socket == NULL || socket->dataCallback.callback == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
