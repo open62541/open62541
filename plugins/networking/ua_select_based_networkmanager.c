@@ -7,6 +7,8 @@
 
 #include "open62541_queue.h"
 #include "ua_plugin_log.h"
+#include "ua_plugin_socket.h"
+#include "ua_plugin_network_manager.h"
 #include "ua_types_generated_handling.h"
 #include "ua_networkmanagers.h"
 

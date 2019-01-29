@@ -8,6 +8,7 @@
  * provides both a server- and clientside API, so creating a client is as easy as
  * creating a server. Copy the following into a file `myClient.c`: */
 
+#include <signal.h>
 #include <ua_client_highlevel.h>
 #include <ua_config_default.h>
 #include <ua_log_stdout.h>
