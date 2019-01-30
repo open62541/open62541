@@ -283,7 +283,8 @@ getHistoryData_service_default(const UA_HistoryDataBackend* backend,
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         *((size_t*)(outContinuationPoint->data)) = skip + *resultSize;
-        memcpy(outContinuationPoint->data + sizeof(size_t), backendOutContinuationPoint.data, backendOutContinuationPoint.length);
+        if(backendOutContinuationPoint.length > 0)
+            memcpy(outContinuationPoint->data + sizeof(size_t), backendOutContinuationPoint.data, backendOutContinuationPoint.length);
     }
     UA_ByteString_deleteMembers(&backendOutContinuationPoint);
     return UA_STATUSCODE_GOOD;
