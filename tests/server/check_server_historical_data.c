@@ -25,9 +25,9 @@
 #include "ua_historydatagathering_default.h"
 #ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
+#include "randomindextest_backend.h"
 #endif
 #include <stddef.h>
-
 
 static UA_Server *server;
 static UA_ServerConfig *config;
@@ -982,6 +982,36 @@ START_TEST(Server_HistorizingBackendMemory)
 }
 END_TEST
 
+START_TEST(Server_HistorizingRandomIndexBackend)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_randomindextest(testData);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 1000;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    serverMutexLock();
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
+    ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    // read all in one
+    UA_UInt32 retval = testHistoricalDataBackend(100);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+
+    // read continuous one at one request
+    retval = testHistoricalDataBackend(1);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+
+    // read continuous two at one request
+    retval = testHistoricalDataBackend(2);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+    UA_HistoryDataBackend_randomindextest_deleteMembers(&backend);
+}
+END_TEST
+
 #endif /*UA_ENABLE_HISTORIZING*/
 
 static Suite* testSuite_Client(void)
@@ -994,6 +1024,7 @@ static Suite* testSuite_Client(void)
     tcase_add_test(tc_server, Server_HistorizingStrategyUser);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
     tcase_add_test(tc_server, Server_HistorizingBackendMemory);
+    tcase_add_test(tc_server, Server_HistorizingRandomIndexBackend);
     tcase_add_test(tc_server, Server_HistorizingUpdateDelete);
     tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
     tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
