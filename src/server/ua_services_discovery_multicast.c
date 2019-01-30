@@ -418,7 +418,8 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     UA_STACKARRAY(char, pathChars, path->length + 1);
     if(createTxt) {
-        memcpy(pathChars, path->data, path->length);
+        if(path->length > 0)
+            memcpy(pathChars, path->data, path->length);
         pathChars[path->length] = 0;
         mdns_create_txt(server, fullServiceDomain, pathChars, capabilites,
                         capabilitiesSize, UA_Discovery_multicastConflict);
