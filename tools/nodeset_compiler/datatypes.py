@@ -263,7 +263,7 @@ class Value(object):
                 logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
                 return None
 
-            if not ebodypart.localName == parentDataTypeNode.browseName.name:
+            if not ebodypart.localName == "OptionSet" and not ebodypart.localName == parentDataTypeNode.browseName.name:
                 logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
                              str(ebodypart.localName) + " instead.")
                 return None
@@ -449,7 +449,7 @@ class ByteString(Value):
         if xmlvalue.firstChild is None:
             self.value = []  # Catch XML <ByteString /> by setting the value to a default
         else:
-            self.value = b64decode(xmlvalue.firstChild.data).decode("utf-8")
+            self.value = b64decode(xmlvalue.firstChild.data)
 
 class ExtensionObject(Value):
     def __init__(self, xmlelement=None):

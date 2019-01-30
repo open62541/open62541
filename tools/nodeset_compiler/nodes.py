@@ -389,6 +389,7 @@ class DataTypeNode(Node):
         self.__encodingBuilt__ = False
         self.__definition__ = []
         self.__isEnum__     = False
+        self.__isOptionSet__ = False
         if xmlelement:
             DataTypeNode.parseXML(self, xmlelement)
 
@@ -491,22 +492,27 @@ class DataTypeNode(Node):
             logger.debug("")
             return self.__baseTypeEncoding__
 
-        if self.__xmlDefinition__ is None:
-            # Check if there is a supertype available
-            for ref in self.references:
-                if ref.isForward:
-                    continue
+
+        # Check if there is a supertype available
+        parentType = None
+        for ref in self.references:
+            if ref.isForward:
+                continue
                 # hasSubtype
-                if ref.referenceType.i == 45:
-                    targetNode = nodeset.nodes[ref.target]
-                    if targetNode is not None and isinstance(targetNode, DataTypeNode):
-                        logger.debug( prefix + "Attempting definition using supertype " + str(targetNode.browseName) + " for DataType " + " " + str(self.browseName))
-                        subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1)
-                        if not targetNode.isEncodable():
-                            self.__encodable__ = False
-                            break
-                        else:
-                            self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
+            if ref.referenceType.i == 45:
+                targetNode = nodeset.nodes[ref.target]
+                if targetNode is not None and isinstance(targetNode, DataTypeNode):
+                    parentType = targetNode
+                    break
+
+        if self.__xmlDefinition__ is None:
+            if parentType is not None:
+                logger.debug( prefix + "Attempting definition using supertype " + str(targetNode.browseName) + " for DataType " + " " + str(self.browseName))
+                subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1)
+                if not targetNode.isEncodable():
+                    self.__encodable__ = False
+                else:
+                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
             if len(self.__baseTypeEncoding__) == 0:
                 logger.debug(prefix + "No viable definition for " + str(self.browseName) + " " + str(self.id) + " found.")
                 self.__encodable__ = False
@@ -522,6 +528,7 @@ class DataTypeNode(Node):
 
         isEnum = True
         isSubType = True
+        isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i==12755
 
         # We need to store the definition as ordered data, but can't use orderedDict
         # for backward compatibility with Python 2.6 and 3.4
@@ -592,6 +599,16 @@ class DataTypeNode(Node):
         # enclosing list.
         while len(self.__baseTypeEncoding__) == 1 and isinstance(self.__baseTypeEncoding__[0], list):
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__[0]
+
+        if isOptionSet == True:
+            self.__isOptionSet__ = True
+            subenc = parentType.getEncoding()
+            if not parentType.isEncodable():
+                self.__encodable__ = False
+            else:
+                self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
+                self.__definition__ = enumDict
+            return self.__baseTypeEncoding__
 
         if isEnum == True:
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + ['Int32']
