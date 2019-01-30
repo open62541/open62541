@@ -110,6 +110,8 @@ UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
     if(s1->length != s2->length)
         return false;
+    if(s1->length == 0)
+        return true;
     i32 is = memcmp((char const*)s1->data,
                     (char const*)s2->data, s1->length);
     return (is == 0) ? true : false;

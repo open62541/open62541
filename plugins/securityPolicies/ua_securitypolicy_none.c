@@ -72,6 +72,9 @@ generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) 
     if(securityPolicy == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    if(out->length == 0)
+        return UA_STATUSCODE_GOOD;
+
     /* Fill blocks of four byte */
     size_t i = 0;
     while(i + 3 < out->length) {
