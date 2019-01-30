@@ -251,6 +251,8 @@ lastIndex_backend_memory(UA_Server *server,
                          void *sessionContext,
                          const UA_NodeId * nodeId) {
     const UA_NodeIdStoreContextItem_backend_memory* item = getNodeIdStoreContextItem_backend_memory((UA_MemoryStoreContext*)context, server, nodeId);;
+    if (item->storeEnd == 0)
+        return 0;
     return item->storeEnd - 1;
 }
 
