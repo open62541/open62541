@@ -301,8 +301,6 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
     def skipType(name):
         if name in excluded_types:
             return True
-        if "Test" in name: # skip all test types
-            return True
         if re.search("NodeId$", name) != None:
             return True
         return False
