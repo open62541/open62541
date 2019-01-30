@@ -42,6 +42,7 @@ int main(void) {
     //const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     char *testString = (char *)UA_malloc(10);
     memset(testString, 'A', 10);
+    testString[9] = 0;
     const UA_NodeId nodeId = UA_NODEID_BYTESTRING(0, testString);
 
     while(running) {
