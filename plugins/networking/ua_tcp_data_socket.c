@@ -300,7 +300,7 @@ UA_TCP_DataSocket_AcceptFrom(UA_Socket *listenerSocket, UA_Logger *logger, UA_UI
     }
     UA_LOG_TRACE(logger, UA_LOGCATEGORY_NETWORK,
                  "New TCP sock (fd: %i) accepted from listener socket (fd: %i)",
-                 newSockFd, (int)listenerSocket->id);
+                 (int)newSockFd, (int)listenerSocket->id);
 
     UA_Socket *sock = NULL;
     void *internalData = UA_malloc(sizeof(TCPDataSocketData));
