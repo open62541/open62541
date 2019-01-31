@@ -330,9 +330,9 @@ int main(int argc, char **argv) {
  cleanup:
     UA_ByteString_deleteMembers(&buf);
     UA_ByteString_deleteMembers(&outbuf);
-    if(in != stdin)
+    if(in != stdin && in)
         fclose(in);
-    if(out != stdout)
+    if(out != stdout && out)
         fclose(out);
     return retcode;
 }
