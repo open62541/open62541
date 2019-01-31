@@ -44,13 +44,17 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
-                        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
-                        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
-                        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
 )
+
+if(UA_ENABLE_HISTORIZING)
+    set(test_plugin_sources ${test_plugin_sources}
+                            ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
+                            ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
+                            ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c)
+endif()
 
 if(UA_ENABLE_ENCRYPTION)
     set(test_plugin_sources ${test_plugin_sources}
@@ -181,9 +185,11 @@ add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open625
 target_link_libraries(check_nodestore ${LIBS})
 add_test_valgrind(nodestore ${TESTS_BINARY_DIR}/check_nodestore)
 
-add_executable(check_server_historical_data server/check_server_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-target_link_libraries(check_server_historical_data ${LIBS})
-add_test_valgrind(server_historical_data ${TESTS_BINARY_DIR}/check_server_historical_data)
+if(UA_ENABLE_HISTORIZING)
+    add_executable(check_server_historical_data server/check_server_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_historical_data ${LIBS})
+    add_test_valgrind(server_historical_data ${TESTS_BINARY_DIR}/check_server_historical_data)
+endif()
 
 add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_session ${LIBS})
@@ -282,9 +288,11 @@ add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_O
 target_link_libraries(check_client_highlevel ${LIBS})
 add_test_valgrind(client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
 
-add_executable(check_client_historical_data client/check_client_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-target_link_libraries(check_client_historical_data ${LIBS})
-add_test_valgrind(client_historical_data ${TESTS_BINARY_DIR}/check_client_historical_data)
+if(UA_ENABLE_HISTORIZING)
+    add_executable(check_client_historical_data client/check_client_historical_data.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_client_historical_data ${LIBS})
+    add_test_valgrind(client_historical_data ${TESTS_BINARY_DIR}/check_client_historical_data)
+endif()
 
 # Test Encryption
 
