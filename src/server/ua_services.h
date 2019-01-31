@@ -328,7 +328,6 @@ void Service_Write(UA_Server *server, UA_Session *session,
 void Service_HistoryRead(UA_Server *server, UA_Session *session,
                          const UA_HistoryReadRequest *request,
                          UA_HistoryReadResponse *response);
-#endif
 
 /**
  * HistoryUpdate Service
@@ -340,6 +339,7 @@ void
 Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                       const UA_HistoryUpdateRequest *request,
                       UA_HistoryUpdateResponse *response);
+#endif
 
 /**
  * .. _method-services:
