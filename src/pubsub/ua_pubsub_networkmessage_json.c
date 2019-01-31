@@ -35,7 +35,8 @@ static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, UA_String *in){
 }
 
 static UA_StatusCode
-UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 dataSetWriterId, CtxJson *ctx){
+UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 dataSetWriterId,
+                                      CtxJson *ctx){
     status rv = writeJsonObjStart(ctx);
 
     /* DataSetWriterId */
@@ -47,7 +48,8 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 da
     /* DataSetMessageSequenceNr */
     if(src->header.dataSetMessageSequenceNrEnabled) {
         rv |= writeJsonKey(ctx, UA_DECODEKEY_SEQUENCENUMBER);
-        rv |= encodeJsonInternal(&(src->header.dataSetMessageSequenceNr), &UA_TYPES[UA_TYPES_UINT16], ctx);
+        rv |= encodeJsonInternal(&(src->header.dataSetMessageSequenceNr),
+                                 &UA_TYPES[UA_TYPES_UINT16], ctx);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
     }
@@ -108,7 +110,8 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src, UA_UInt16 da
                     rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
                 else
                     rv |= writeJsonKey(ctx, "");
-                rv |= encodeJsonInternal(&(src->data.keyFrameData.dataSetFields[i]), &UA_TYPES[UA_TYPES_DATAVALUE], ctx);
+                rv |= encodeJsonInternal(&src->data.keyFrameData.dataSetFields[i],
+                                         &UA_TYPES[UA_TYPES_DATAVALUE], ctx);
                 if(rv != UA_STATUSCODE_GOOD)
                     return rv;
             }
@@ -129,13 +132,14 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
         writeJsonObjStart(ctx);
 
         /* Table 91 – JSON NetworkMessage Definition
-            MessageId | String | A globally unique identifier for the message.
-            This value is mandatory. */
+         * MessageId | String | A globally unique identifier for the message.
+         * This value is mandatory. */
         rv |= writeJsonKey(ctx, UA_DECODEKEY_MESSAGEID);
-        /* if a messageId is given use it, otherwise generate a GUID(-string). MessageId is always decoded as a string. */
+        /* If a messageId is given use it, otherwise generate a GUID(-string).
+         * MessageId is always decoded as a string. */
         if(src->messageIdEnabled){
             rv |= encodeJsonInternal(&src->messageId, &UA_TYPES[UA_TYPES_STRING], ctx);
-        }else{
+        } else {
             UA_Guid guid = UA_Guid_random();
             rv |= encodeJsonInternal(&guid, &UA_TYPES[UA_TYPES_GUID], ctx);
         }
@@ -150,23 +154,28 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
             rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
             switch (src->publisherIdType) {
             case UA_PUBLISHERDATATYPE_BYTE:
-                rv |= encodeJsonInternal(&src->publisherId.publisherIdByte, &UA_TYPES[UA_TYPES_BYTE], ctx);
+                rv |= encodeJsonInternal(&src->publisherId.publisherIdByte,
+                                         &UA_TYPES[UA_TYPES_BYTE], ctx);
                 break;
 
             case UA_PUBLISHERDATATYPE_UINT16:
-                rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt16, &UA_TYPES[UA_TYPES_UINT16], ctx);
+                rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt16,
+                                         &UA_TYPES[UA_TYPES_UINT16], ctx);
                 break;
 
             case UA_PUBLISHERDATATYPE_UINT32:
-                rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt32, &UA_TYPES[UA_TYPES_UINT32], ctx);
+                rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt32,
+                                         &UA_TYPES[UA_TYPES_UINT32], ctx);
                 break;
 
             case UA_PUBLISHERDATATYPE_UINT64:
-                rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt64, &UA_TYPES[UA_TYPES_UINT64], ctx);
+                rv |= encodeJsonInternal(&src->publisherId.publisherIdUInt64,
+                                         &UA_TYPES[UA_TYPES_UINT64], ctx);
                 break;
 
             case UA_PUBLISHERDATATYPE_STRING:
-                rv |= encodeJsonInternal(&src->publisherId.publisherIdString, &UA_TYPES[UA_TYPES_STRING], ctx);
+                rv |= encodeJsonInternal(&src->publisherId.publisherIdString,
+                                         &UA_TYPES[UA_TYPES_STRING], ctx);
                 break;
             }
         }
@@ -194,7 +203,8 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
             for (UA_UInt16 i = 0; i < count; i++) {
                 writeJsonCommaIfNeeded(ctx);
-                rv |= UA_DataSetMessage_encodeJson_internal(&(src->payload.dataSetPayload.dataSetMessages[i]), dataSetWriterIds[i], ctx);
+                rv |= UA_DataSetMessage_encodeJson_internal(&src->payload.dataSetPayload.dataSetMessages[i],
+                                                            dataSetWriterIds[i], ctx);
                 if(rv != UA_STATUSCODE_GOOD)
                     return rv;
                 /* comma is needed if more dsm are present */
@@ -261,14 +271,19 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
 }
 
 /* decode  json */
-static status MetaDataVersion_decodeJsonInternal(void* cvd, const UA_DataType *type, CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken){
-    return decodeJsonInternal(cvd, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE], ctx, parseCtx, UA_TRUE);
+static status
+MetaDataVersion_decodeJsonInternal(void* cvd, const UA_DataType *type, CtxJson *ctx,
+                                   ParseCtx *parseCtx, UA_Boolean moveToken){
+    return decodeJsonInternal(cvd, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE],
+                              ctx, parseCtx, UA_TRUE);
 }
 
-static status DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *type, CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken){
+static status
+DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *type, CtxJson *ctx,
+                                  ParseCtx *parseCtx, UA_Boolean moveToken) {
     UA_DataSetMessage* dsm = (UA_DataSetMessage*)dsmP;
     dsm->header.dataSetMessageValid = UA_TRUE;
-    if(isJsonNull(ctx, parseCtx)){
+    if(isJsonNull(ctx, parseCtx)) {
         parseCtx->index++;
         return UA_STATUSCODE_GOOD;
     }
@@ -277,64 +292,64 @@ static status DataSetPayload_decodeJsonInternal(void* dsmP, const UA_DataType *t
     UA_String *fieldNames = (UA_String*)UA_calloc(length, sizeof(UA_String));
     dsm->data.keyFrameData.fieldNames = fieldNames;
     dsm->data.keyFrameData.fieldCount = (UA_UInt16)length;
-    dsm->data.keyFrameData.dataSetFields =
-                    (UA_DataValue *)UA_Array_new(dsm->data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    dsm->data.keyFrameData.dataSetFields = (UA_DataValue *)
+        UA_Array_new(dsm->data.keyFrameData.fieldCount, &UA_TYPES[UA_TYPES_DATAVALUE]);
 
     status ret = UA_STATUSCODE_GOOD;
+
     parseCtx->index++; // We go to first Object key!
 
     /* iterate over the key/value pairs in the object. Keys are stored in fieldnames. */
     for(size_t i = 0; i < length; ++i) {
         ret = getDecodeSignature(UA_TYPES_STRING)(&fieldNames[i], type, ctx, parseCtx, UA_TRUE);
-        if(ret != UA_STATUSCODE_GOOD){
+        if(ret != UA_STATUSCODE_GOOD)
             return ret;
-        }
-
-        parseCtx->index++;
 
         //TODO: Is field value a variant or datavalue? Current check if type and body present.
-        UA_Boolean isVariant = UA_TRUE;
         size_t searchResult = 0;
         status foundType = lookAheadForKey("Type", ctx, parseCtx, &searchResult);
         status foundBody = lookAheadForKey("Body", ctx, parseCtx, &searchResult);
         if(foundType == UA_STATUSCODE_GOOD && foundBody == UA_STATUSCODE_GOOD){
             dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
-        }else{
-            isVariant = UA_FALSE;
+            ret = getDecodeSignature(UA_TYPES_VARIANT)
+                (&dsm->data.keyFrameData.dataSetFields[i].value, type, ctx, parseCtx, UA_TRUE);
+            dsm->data.keyFrameData.dataSetFields[i].hasValue = UA_TRUE;
+        } else {
             dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
-        }
-
-        UA_DataValue_init(&dsm->data.keyFrameData.dataSetFields[i]);
-
-        if(isVariant){
-            ret = getDecodeSignature(UA_TYPES_VARIANT)(&dsm->data.keyFrameData.dataSetFields[i].value, type, ctx, parseCtx, UA_TRUE);
-            dsm->data.keyFrameData.dataSetFields[i].hasValue = UA_TRUE;
-        }else{
-            ret = getDecodeSignature(UA_TYPES_DATAVALUE)(&dsm->data.keyFrameData.dataSetFields[i], type, ctx, parseCtx, UA_TRUE);
+            ret = getDecodeSignature(UA_TYPES_DATAVALUE)
+                (&dsm->data.keyFrameData.dataSetFields[i], type, ctx, parseCtx, UA_TRUE);
             dsm->data.keyFrameData.dataSetFields[i].hasValue = UA_TRUE;
         }
 
-        if(ret != UA_STATUSCODE_GOOD){
+        if(ret != UA_STATUSCODE_GOOD)
             return ret;
-        }
+
     }
+
     return ret;
 }
 
 static status
-DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataType *type, CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
+DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataType *type,
+                                          CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
     UA_ConfigurationVersionDataType cvd;
     UA_UInt16 dataSetWriterId; /* the id is currently not processed */
 
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
 
     DecodeEntry entries[6] = {
-        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
-        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
-        {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
-        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, getDecodeSignature(UA_TYPES_DATETIME), false, NULL},
-        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, getDecodeSignature(UA_TYPES_UINT16), false, NULL},
-        {UA_DECODEKEY_PAYLOAD, dsm, &DataSetPayload_decodeJsonInternal, false, NULL}
+        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId,
+         getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr,
+         getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_METADATAVERSION, &cvd,
+         &MetaDataVersion_decodeJsonInternal, false, NULL},
+        {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp,
+         getDecodeSignature(UA_TYPES_DATETIME), false, NULL},
+        {UA_DECODEKEY_DSM_STATUS, &dsm->header.status,
+         getDecodeSignature(UA_TYPES_UINT16), false, NULL},
+        {UA_DECODEKEY_PAYLOAD, dsm,
+         &DataSetPayload_decodeJsonInternal, false, NULL}
     };
 
     status ret = decodeFields(ctx, parseCtx, entries, 6, NULL);
@@ -375,17 +390,16 @@ DatasetMessage_Payload_decodeJsonInternal(UA_DataSetMessage* dsm, const UA_DataT
 }
 
 static status
-DatasetMessage_Array_decodeJsonInternal(void *UA_RESTRICT dst, const UA_DataType *type, CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
+DatasetMessage_Array_decodeJsonInternal(void *UA_RESTRICT dst, const UA_DataType *type,
+                                        CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
     /* Array! */
-    if(getJsmnType(parseCtx) != JSMN_ARRAY){
+    if(getJsmnType(parseCtx) != JSMN_ARRAY)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
     size_t length = (size_t)parseCtx->tokenArray[parseCtx->index].size;
 
     /* Return early for empty arrays */
-    if(length == 0) {
+    if(length == 0)
         return UA_STATUSCODE_GOOD;
-    }
 
     /* Allocate memory */
     UA_DataSetMessage *dsm = (UA_DataSetMessage*)UA_calloc(length, sizeof(UA_DataSetMessage));
@@ -402,15 +416,15 @@ DatasetMessage_Array_decodeJsonInternal(void *UA_RESTRICT dst, const UA_DataType
     /* Decode array members */
     for(size_t i = 0; i < length; ++i) {
         ret = DatasetMessage_Payload_decodeJsonInternal(&dsm[i], NULL, ctx, parseCtx, UA_TRUE);
-        if(ret != UA_STATUSCODE_GOOD){
+        if(ret != UA_STATUSCODE_GOOD)
             return ret;
-        }
     }
 
     return ret;
 }
 
-static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx, ParseCtx *parseCtx){
+static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson *ctx,
+                                                ParseCtx *parseCtx) {
     memset(dst, 0, sizeof(UA_NetworkMessage));
     dst->chunkMessage = UA_FALSE;
     dst->groupHeaderEnabled = UA_FALSE;
@@ -420,41 +434,34 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
 
     /* Look forward for publisheId, if present check if type if primitve (Number) or String. */
     u8 publishIdTypeIndex = UA_TYPES_STRING;
-    {
-        size_t searchResultPublishIdType = 0;
-        status found = lookAheadForKey(UA_DECODEKEY_PUBLISHERID, ctx, parseCtx, &searchResultPublishIdType);
-        if(found == UA_STATUSCODE_GOOD){
-            jsmntok_t publishIdToken = parseCtx->tokenArray[searchResultPublishIdType];
-            if(publishIdToken.type == JSMN_PRIMITIVE){
-                publishIdTypeIndex = UA_TYPES_UINT64;
-                dst->publisherIdType = UA_PUBLISHERDATATYPE_UINT64; //store in biggest possible
-            }else if(publishIdToken.type == JSMN_STRING){
-                publishIdTypeIndex = UA_TYPES_STRING;
-                dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
-            }else{
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }
+    size_t searchResultPublishIdType = 0;
+    status found = lookAheadForKey(UA_DECODEKEY_PUBLISHERID, ctx,
+                                   parseCtx, &searchResultPublishIdType);
+    if(found == UA_STATUSCODE_GOOD) {
+        jsmntok_t publishIdToken = parseCtx->tokenArray[searchResultPublishIdType];
+        if(publishIdToken.type == JSMN_PRIMITIVE) {
+            publishIdTypeIndex = UA_TYPES_UINT64;
+            dst->publisherIdType = UA_PUBLISHERDATATYPE_UINT64; //store in biggest possible
+        } else if(publishIdToken.type == JSMN_STRING) {
+            publishIdTypeIndex = UA_TYPES_STRING;
+            dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        } else {
+            return UA_STATUSCODE_BADDECODINGERROR;
         }
     }
 
+    /* Is Messages an Array? How big? */
     size_t messageCount = 0;
-    {
-        //Is Messages an Array? How big?
-        size_t searchResultMessages = 0;
-        status found = lookAheadForKey(UA_DECODEKEY_MESSAGES, ctx, parseCtx, &searchResultMessages);
-        if(found == UA_STATUSCODE_GOOD){
-            jsmntok_t bodyToken = parseCtx->tokenArray[searchResultMessages];
-            if(bodyToken.type == JSMN_ARRAY){
-                messageCount = (size_t)parseCtx->tokenArray[searchResultMessages].size;
-            }else{
-                return UA_STATUSCODE_BADNOTIMPLEMENTED;
-            }
-        }else{
-            return UA_STATUSCODE_BADNOTIMPLEMENTED;
-        }
-    }
+    size_t searchResultMessages = 0;
+    found = lookAheadForKey(UA_DECODEKEY_MESSAGES, ctx, parseCtx, &searchResultMessages);
+    if(found != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    jsmntok_t bodyToken = parseCtx->tokenArray[searchResultMessages];
+    if(bodyToken.type != JSMN_ARRAY)
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    messageCount = (size_t)parseCtx->tokenArray[searchResultMessages].size;
 
-    //Set up custom context for the dataSetwriterId
+    /* Set up custom context for the dataSetwriterId */
     size_t currentCustomIndex = 0;
     parseCtx->custom = (void*)UA_calloc(messageCount, sizeof(UA_UInt16));
     parseCtx->currentCustomIndex = &currentCustomIndex;
@@ -463,65 +470,56 @@ static status NetworkMessage_decodeJsonInternal(UA_NetworkMessage *dst, CtxJson 
     /* MessageType */
     UA_Boolean isUaData = UA_TRUE;
     size_t searchResultMessageType = 0;
-    status found = lookAheadForKey(UA_DECODEKEY_MESSAGETYPE, ctx, parseCtx, &searchResultMessageType);
-    if(found == UA_STATUSCODE_GOOD){
-        size_t size = (size_t)(parseCtx->tokenArray[searchResultMessageType].end - parseCtx->tokenArray[searchResultMessageType].start);
-        char* msgType = (char*)(ctx->pos + parseCtx->tokenArray[searchResultMessageType].start);
-        if(size == 7){ //ua-data
-            if(strncmp(msgType, "ua-data", size) != 0){
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }else{
-                isUaData = UA_TRUE;
-            }
-        }else if(size == 11){ //ua-metadata
-            if(strncmp(msgType, "ua-metadata", size) != 0){
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }else{
-                isUaData = UA_FALSE;
-            }
-        }else{
+    found = lookAheadForKey(UA_DECODEKEY_MESSAGETYPE, ctx, parseCtx, &searchResultMessageType);
+    if(found != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    size_t size = (size_t)(parseCtx->tokenArray[searchResultMessageType].end - parseCtx->tokenArray[searchResultMessageType].start);
+    char* msgType = (char*)(ctx->pos + parseCtx->tokenArray[searchResultMessageType].start);
+    if(size == 7) { //ua-data
+        if(strncmp(msgType, "ua-data", size) != 0)
             return UA_STATUSCODE_BADDECODINGERROR;
-        }
-    }else{
+        isUaData = UA_TRUE;
+    } else if(size == 11) { //ua-metadata
+        if(strncmp(msgType, "ua-metadata", size) != 0)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        isUaData = UA_FALSE;
+    } else {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    if(isUaData){
-        /* Network Message */
-        UA_String messageType;
-        DecodeEntry entries[5] = {
-            {UA_DECODEKEY_MESSAGEID, &dst->messageId, getDecodeSignature(UA_TYPES_STRING), false, NULL},
-            {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-            {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, getDecodeSignature(publishIdTypeIndex), false, NULL},
-            {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, getDecodeSignature(UA_TYPES_GUID), false, NULL},
-            {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
-        };
-
-        //Store publisherId in correct union
-        if(publishIdTypeIndex == UA_TYPES_UINT64)
-            entries[2].fieldPointer = &dst->publisherId.publisherIdUInt64;
-
-        status ret = decodeFields(ctx, parseCtx, entries, 5, NULL);
-        if(ret != UA_STATUSCODE_GOOD){
-            return ret;
-        }
-
-        dst->messageIdEnabled = entries[0].found;
-        dst->publisherIdEnabled = entries[2].found;
-        if(dst->publisherIdEnabled){
-            dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
-        }
-        dst->dataSetClassIdEnabled = entries[3].found;
-        dst->payloadHeaderEnabled = UA_TRUE;
-        dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;
-
-        //Set the dataSetWriterIds. They are filled in the dataSet decoding.
-        dst->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = (UA_UInt16*)parseCtx->custom;
-        return ret;
-    }else{
-        //TODO: MetaData
+    //TODO: MetaData
+    if(!isUaData)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    }
+        
+    /* Network Message */
+    UA_String messageType;
+    DecodeEntry entries[5] = {
+        {UA_DECODEKEY_MESSAGEID, &dst->messageId, getDecodeSignature(UA_TYPES_STRING), false, NULL},
+        {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
+        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId.publisherIdString, getDecodeSignature(publishIdTypeIndex), false, NULL},
+        {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, getDecodeSignature(UA_TYPES_GUID), false, NULL},
+        {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
+    };
+
+    //Store publisherId in correct union
+    if(publishIdTypeIndex == UA_TYPES_UINT64)
+        entries[2].fieldPointer = &dst->publisherId.publisherIdUInt64;
+
+    status ret = decodeFields(ctx, parseCtx, entries, 5, NULL);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    dst->messageIdEnabled = entries[0].found;
+    dst->publisherIdEnabled = entries[2].found;
+    if(dst->publisherIdEnabled)
+        dst->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+    dst->dataSetClassIdEnabled = entries[3].found;
+    dst->payloadHeaderEnabled = UA_TRUE;
+    dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;
+
+    //Set the dataSetWriterIds. They are filled in the dataSet decoding.
+    dst->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = (UA_UInt16*)parseCtx->custom;
+    return ret;
 }
 
 status UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src){
