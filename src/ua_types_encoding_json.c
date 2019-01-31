@@ -2069,6 +2069,8 @@ DECODE_JSON(String) {
     if(tokenSize == 0) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
         dst->length = 0;
+        if(moveToken)
+            parseCtx->index++;
         return UA_STATUSCODE_GOOD;
     }
     
