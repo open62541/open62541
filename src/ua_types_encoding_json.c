@@ -658,30 +658,30 @@ ENCODE_JSON(ByteString) {
 
     status ret = writeJsonQuote(ctx);
     int flen;
-    char *b64 = UA_base64(src->data, (int)src->length, &flen);
+    char *ba64 = UA_base64(src->data, (int)src->length, &flen);
     
     /* Not converted, no mem */
-    if(!b64)
+    if(!ba64)
         return UA_STATUSCODE_BADENCODINGERROR;
 
     /* Check if negative... (TODO: Why is base64 3rd argument type int?) */
     if(flen < 0) {
-        free(b64);
+        free(ba64);
         return UA_STATUSCODE_BADENCODINGERROR;
     }
 
     if(ctx->pos + flen > ctx->end) {
-        free(b64);
+        free(ba64);
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     }
     
     /* Copy flen bytes to output stream. */
     if(!ctx->calcOnly)
-        memcpy(ctx->pos, b64, (size_t)flen);
+        memcpy(ctx->pos, ba64, (size_t)flen);
     ctx->pos += flen;
 
     /* Base64 result no longer needed */
-    free(b64);
+    free(ba64);
     
     ret |= writeJsonQuote(ctx);
     return ret;
