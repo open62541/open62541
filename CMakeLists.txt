@@ -129,7 +129,7 @@ endforeach(arch_ ${architectures})
 
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
-option(UA_ENABLE_HISTORIZING "Enable server and client to provide historical access." ON)
+option(UA_ENABLE_HISTORIZING "Enable server and client to provide historical access." OFF)
 option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features." OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
