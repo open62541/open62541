@@ -89,7 +89,7 @@ struct UA_AccessControl {
     UA_Boolean (*allowDeleteReference)(UA_Server *server, UA_AccessControl *ac,
                                        const UA_NodeId *sessionId, void *sessionContext,
                                        const UA_DeleteReferencesItem *item);
-
+#ifdef UA_ENABLE_HISTORIZING
     /* Allow insert,replace,update of historical data */
     UA_Boolean (*allowHistoryUpdateUpdateData)(UA_Server *server, UA_AccessControl *ac,
                                                const UA_NodeId *sessionId, void *sessionContext,
@@ -104,6 +104,7 @@ struct UA_AccessControl {
                                                       UA_DateTime startTimestamp,
                                                       UA_DateTime endTimestamp,
                                                       bool isDeleteModified);
+#endif
 };
 
 _UA_END_DECLS
