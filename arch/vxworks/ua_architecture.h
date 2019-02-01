@@ -13,6 +13,7 @@
 #include "ua_architecture_base.h"
 
 #include <errno.h>
+#include <time.h>
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
