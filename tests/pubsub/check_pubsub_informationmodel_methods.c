@@ -142,7 +142,8 @@ static UA_NodeId addPubSubConnection(void){
 
 START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
     UA_StatusCode retVal;
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -174,7 +175,8 @@ START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
 
 START_TEST(AddAndRemovePublishedDataSetFolders){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -262,7 +264,8 @@ START_TEST(AddAndRemovePublishedDataSetFolders){
 
 START_TEST(AddAndRemovePublishedDataSetItems){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -316,7 +319,8 @@ START_TEST(AddAndRemovePublishedDataSetItems){
 
 START_TEST(AddAndRemoveWriterGroups){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
