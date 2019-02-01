@@ -401,7 +401,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
 
     # Debug
     if(BUILD_TYPE_LOWER_CASE STREQUAL "debug")
-        if ("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+        if ("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
             message("Sanitizer enabled")
