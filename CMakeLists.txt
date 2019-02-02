@@ -199,7 +199,7 @@ if(UA_ENABLE_MULTITHREADING)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
-option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe" ON)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
 option(UA_ENABLE_DA "Enable data access" ON)
@@ -213,12 +213,12 @@ if(UA_ENABLE_PUBSUB_ETH_UADP)
 	endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
+option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" ON)
 mark_as_advanced(UA_ENABLE_PUBSUB_DELTAFRAMES)
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ON)
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" ON)
 mark_as_advanced(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
     if(NOT UA_ENABLE_PUBSUB_INFORMATIONMODEL)
@@ -281,8 +281,8 @@ option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump 
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 
 # Build Targets
-option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
-option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
+option(UA_BUILD_EXAMPLES "Build example servers and clients" ON)
+option(UA_BUILD_TOOLS "Build OPC UA shell tools" ON)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
