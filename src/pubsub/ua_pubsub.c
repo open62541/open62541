@@ -929,9 +929,10 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     }
 
     /* Sanity-test the configuration */
-    if(dataSetWriterMessageDataType->networkMessageNumber != 0 ||
-       dataSetWriterMessageDataType->dataSetOffset != 0 ||
-       dataSetWriterMessageDataType->configuredSize !=0 ) {
+    if(dataSetWriterMessageDataType &&
+       (dataSetWriterMessageDataType->networkMessageNumber != 0 ||
+        dataSetWriterMessageDataType->dataSetOffset != 0 ||
+        dataSetWriterMessageDataType->configuredSize !=0 )) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Static DSM configuration not supported. Using defaults");
         dataSetWriterMessageDataType->networkMessageNumber = 0;
@@ -1060,7 +1061,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 
 static UA_StatusCode
 sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
-                   UA_UInt16 *writerIds, UA_Byte dsmCount) {
+                   UA_UInt16 *writerIds, UA_Byte dsmCount, UA_ExtensionObject *transportSettings) {
    UA_StatusCode retval = UA_STATUSCODE_BADNOTSUPPORTED;
 #ifdef UA_ENABLE_JSON_ENCODING
     UA_NetworkMessage nm;
@@ -1100,7 +1101,7 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     }
 
     /* Send the prepared messages */
-    retval = connection->channel->send(connection->channel, NULL, &buf);
+    retval = connection->channel->send(connection->channel, transportSettings, &buf);
     if(msgSize > UA_MAX_STACKBUF)
         UA_ByteString_deleteMembers(&buf);
 #endif
@@ -1109,7 +1110,7 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
 
 static UA_StatusCode
 sendNetworkMessage(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
-                   UA_UInt16 *writerIds, UA_Byte dsmCount) {
+                   UA_UInt16 *writerIds, UA_Byte dsmCount, UA_ExtensionObject *transportSettings) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     nm.version = 1;
@@ -1154,7 +1155,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     }
 
     /* Send the prepared messages */
-    retval = connection->channel->send(connection->channel, NULL, &buf);
+    retval = connection->channel->send(connection->channel, transportSettings, &buf);
     if(msgSize > UA_MAX_STACKBUF)
         UA_ByteString_deleteMembers(&buf);
     return retval;
@@ -1233,10 +1234,10 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         if(pds->promotedFieldsCount > 0 || maxDSM == 1) {
             if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
                 res = sendNetworkMessage(connection, &dsmStore[dsmCount],
-                                         &dsw->config.dataSetWriterId, 1);
+                        &dsw->config.dataSetWriterId, 1, &writerGroup->config.transportSettings);
             }else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
                 res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
-                                         &dsw->config.dataSetWriterId, 1);
+                        &dsw->config.dataSetWriterId, 1, &writerGroup->config.transportSettings);
             }
 
             if(res != UA_STATUSCODE_GOOD)
@@ -1260,10 +1261,10 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_StatusCode res3 = UA_STATUSCODE_GOOD;
         if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
             res3 = sendNetworkMessage(connection, &dsmStore[i * maxDSM],
-                                                            &dsWriterIds[i * maxDSM], nmDsmCount);
+                    &dsWriterIds[i * maxDSM], nmDsmCount, &writerGroup->config.transportSettings);
         }else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
             res3 = sendNetworkMessageJson(connection, &dsmStore[i * maxDSM],
-                                                            &dsWriterIds[i * maxDSM], nmDsmCount);
+                    &dsWriterIds[i * maxDSM], nmDsmCount, &writerGroup->config.transportSettings);
         }
 
         if(res3 != UA_STATUSCODE_GOOD)

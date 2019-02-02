@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-
 # Sonar code quality
 if ! [ -z ${SONAR+x} ]; then
     if ([ "${TRAVIS_REPO_SLUG}" != "open62541/open62541" ] ||
@@ -395,6 +394,23 @@ if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm build -rf
 echo -en 'travis_fold:end:script.build.unit_test_ns0_full\\r'
 
+# Minimal NS0
+echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
+cmake \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+    -DUA_BUILD_EXAMPLES=ON \
+    -DUA_BUILD_UNIT_TESTS=ON \
+    -DUA_ENABLE_COVERAGE=OFF \
+    -DUA_ENABLE_ENCRYPTION=ON \
+    -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+    -DUA_NAMESPACE_ZERO=MINIMAL ..
+make -j && make test ARGS="-V"
+if [ $? -ne 0 ] ; then exit 1 ; fi
+cd .. && rm build -rf
+echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
+
+# Debian Package
 if ! [ -z ${DEBIAN+x} ]; then
     echo -e "\r\n== Building the Debian package =="  && echo -en 'travis_fold:start:script.build.debian\\r'
     dpkg-buildpackage -b
@@ -405,9 +421,9 @@ if ! [ -z ${DEBIAN+x} ]; then
     echo -en 'travis_fold:end:script.build.debian\\r'
 fi
 
-
+# MQTT
 if [ "$CC" != "tcc" ]; then
-    echo -e "\r\n== Unit tests (minimal NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_minimal\\r'
+    echo -e "\r\n== Compile PubSub MQTT ==" && echo -en 'travis_fold:start:script.build.mqtt\\r'
     mkdir -p build && cd build
     cmake \
         -DCMAKE_BUILD_TYPE=Debug \
@@ -419,28 +435,34 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
         -DUA_ENABLE_ENCRYPTION=ON \
+        -DUA_ENABLE_JSON_ENCODING=ON \
         -DUA_ENABLE_PUBSUB=ON \
         -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
         -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+        -DUA_ENABLE_PUBSUB_MQTT=ON \
+        -DUA_ENABLE_SUBSCRIPTIONS=ON \
+        -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+        -DUA_NAMESPACE_ZERO=FULL ..
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
-    echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
-
-    # only run coveralls on main repo and when MINGW=true
-    # We only want to build coveralls once, so we just take the travis run where MINGW=true which is only enabled once
-    echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
-    if [ $MINGW = "true" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
-        echo -en "\r\n==   Building codecov.io for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.codecov\\r'
-        cd ..
-        /bin/bash -c "bash <(curl -s https://codecov.io/bash)"
-        if [ $? -ne 0 ] ; then exit 1 ; fi
-        cd build
-        echo -en 'travis_fold:end:script.build.codecov\\r'
-
-        echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
-        coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
-        echo -en 'travis_fold:end:script.build.coveralls\\r'
-    fi
     cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.mqtt\\r'
+fi
+
+# only run coveralls on main repo and when MINGW=true
+# We only want to build coveralls once, so we just take the travis run where MINGW=true which is only enabled once
+echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
+if [ $MINGW = "true" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+    echo -en "\r\n==   Building codecov.io for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.codecov\\r'
+    cd ..
+    /bin/bash -c "bash <(curl -s https://codecov.io/bash)"
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd build
+    echo -en 'travis_fold:end:script.build.codecov\\r'
+
+    echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
+    coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
+    cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.coveralls\\r'
 fi

@@ -250,6 +250,11 @@ if(UA_ENABLE_PUBSUB)
 
         endif()
     endif()
+    if(UA_ENABLE_PUBSUB_MQTT)
+        add_executable(check_pubsub_connection_mqtt pubsub/check_pubsub_connection_mqtt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+        target_link_libraries(check_pubsub_connection_mqtt ${LIBS})
+        add_test_valgrind(check_pubsub_connection_mqtt ${TESTS_BINARY_DIR}/check_pubsub_connection_mqtt)
+    endif()
 endif()
 
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)

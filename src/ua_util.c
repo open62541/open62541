@@ -49,7 +49,8 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
     } else if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
 #ifdef UA_ENABLE_PUBSUB
-        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0) {
+        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0 &&
+                strncmp((char*)endpointUrl->data, "opc.mqtt://", 11) != 0) {
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         }
 #else
