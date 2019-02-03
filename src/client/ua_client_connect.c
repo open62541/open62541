@@ -622,7 +622,6 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
             UA_String *securityPolicyUri = &userToken->securityPolicyUri;
             if(securityPolicyUri->length == 0)
                 securityPolicyUri = &endpoint->securityPolicyUri;
-#endif
 
             /* Log the selected endpoint */
             UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -638,6 +637,7 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
                         (int)userToken->policyId.length, userToken->policyId.data,
                         userTokenTypeNames[userToken->tokenType],
                         (int)securityPolicyUri->length, securityPolicyUri->data);
+#endif
             break;
         }
 
