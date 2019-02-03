@@ -2,26 +2,13 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- * .. _pubsub-tutorial:
  *
- * Working with Publish/Subscribe
- * ------------------------------
+ * OPC UA PUBSUB PLUGFEST PUBLISHER.
  *
- * Work in progress: This Tutorial will be continuously extended during the next
- * PubSub batches. More details about the PubSub extension and corresponding
- * open62541 API are located here: :ref:`pubsub`.
+ * The code adds the defined variables and the specific variable behavior to the information model and publishes the
+ * DataSets: DataSet1 (Simple), DataSet 2 (AllTypes), DataSet 3 (MassTest), DataSet 4 (AllTypes Dynamic) any second,
+ * The Variables and DataSets are defined in the 'Test Matrix & Prototype Administration' draft 1.0 21.01.2018.
  *
- * Publishing Fields
- * ^^^^^^^^^^^^^^^^^
- * The PubSub publish example demonstrate the simplest way to publish
- * informations from the information model over UDP multicast using the UADP
- * encoding.
- *
- * **Connection handling**
- *
- * PubSubConnections can be created and deleted on runtime. More details about
- * the system preconfiguration and connection can be found in
- * ``tutorial_pubsub_connection.c``.
  */
 
 #include <ua_server.h>
@@ -35,61 +22,257 @@
 #include <float.h>
 #include <time.h>
 
-UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
+UA_NodeId connectionIdent, publishedDataSetIdent1, publishedDataSetIdent2, publishedDataSetIdent3, publishedDataSetIdent4, writerGroupIdent;
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl){
-    /* Details about the connection configuration and handling are located
-     * in the pubsub connection tutorial */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
-    connectionConfig.name = UA_STRING("UADP Connection 1");
+    connectionConfig.name = UA_STRING("UADP Plugfest Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherId.numeric = 60;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
-/**
- * **PublishedDataSet handling**
- *
- * The PublishedDataSet (PDS) and PubSubConnection are the toplevel entities and
- * can exist alone. The PDS contains the collection of the published fields. All
- * other PubSub elements are directly or indirectly linked with the PDS or
- * connection. */
 static void
 addPublishedDataSet(UA_Server *server) {
-    /* The PublishedDataSetConfig contains all necessary public
-    * informations for the creation of a new PublishedDataSet */
-    UA_PublishedDataSetConfig publishedDataSetConfig;
-    memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
-    publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
-    publishedDataSetConfig.name = UA_STRING("Demo PDS");
-    /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
-    UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
+    //Plugfest PDS1
+    UA_PublishedDataSetConfig publishedDataSetConfigDS1;
+    memset(&publishedDataSetConfigDS1, 0, sizeof(UA_PublishedDataSetConfig));
+    publishedDataSetConfigDS1.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    publishedDataSetConfigDS1.name = UA_STRING("DataSet 1 (Simple)");
+    UA_Server_addPublishedDataSet(server, &publishedDataSetConfigDS1, &publishedDataSetIdent1);
+    //Plugfest PDS2
+    UA_PublishedDataSetConfig publishedDataSetConfigDS2;
+    memset(&publishedDataSetConfigDS2, 0, sizeof(UA_PublishedDataSetConfig));
+    publishedDataSetConfigDS2.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    publishedDataSetConfigDS2.name = UA_STRING("DataSet 2 (AllTypes)");
+    UA_Server_addPublishedDataSet(server, &publishedDataSetConfigDS2, &publishedDataSetIdent2);
+    //Plugfest PDS3
+    UA_PublishedDataSetConfig publishedDataSetConfigDS3;
+    memset(&publishedDataSetConfigDS3, 0, sizeof(UA_PublishedDataSetConfig));
+    publishedDataSetConfigDS3.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    publishedDataSetConfigDS3.name = UA_STRING_ALLOC("DataSet 3 (MassTest)");
+    UA_Server_addPublishedDataSet(server, &publishedDataSetConfigDS3, &publishedDataSetIdent3);
+    //Plugfest PDS4
+    UA_PublishedDataSetConfig publishedDataSetConfigDS4;
+    memset(&publishedDataSetConfigDS4, 0, sizeof(UA_PublishedDataSetConfig));
+    publishedDataSetConfigDS4.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    publishedDataSetConfigDS4.name = UA_STRING("DataSet 4 (AllTypes Dynamic)");
+    UA_Server_addPublishedDataSet(server, &publishedDataSetConfigDS4, &publishedDataSetIdent4);
+
 }
 
-/**
- * **DataSetField handling**
- *
- * The DataSetField (DSF) is part of the PDS and describes exactly one published
- * field. */
 static void
 addDataSetField(UA_Server *server) {
-    /* Add a field to the previous created PublishedDataSet */
+    //Adding DS Fields - DS1
     UA_NodeId dataSetFieldIdent;
     UA_DataSetFieldConfig dataSetFieldConfig;
     memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("BoolToggle");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    UA_NODEID_NUMERIC(1, 1001);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSetIdent,
+    UA_Server_addDataSetField(server, publishedDataSetIdent1,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Int32");
+    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 1002);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField(server, publishedDataSetIdent1,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Int32Fast");
+    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 1003);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField(server, publishedDataSetIdent1,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("DateTime");
+    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 1004);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField(server, publishedDataSetIdent1,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+    //Adding DS Fields - DS2
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2001);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("BoolToggle");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2002);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Byte");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2003);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Int16");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2004);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Int32");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2005);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("SByte");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2006);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt16");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2007);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt32");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2008);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Float");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 2009);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Double");
+    UA_Server_addDataSetField(server, publishedDataSetIdent2,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    //Adding DS Fields - DS3
+    for (int i = 0; i < 100; ++i) {
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+                UA_NODEID_NUMERIC(1, (UA_UInt32) (3001 + i));
+        char s[8];
+        sprintf(s,"MASS_%i", i);
+        s[7] = '\0';
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING(s);
+        UA_Server_addDataSetField(server, publishedDataSetIdent3,
+                                  &dataSetFieldConfig, &dataSetFieldIdent);
+    }
+
+    //Adding DS Fields - DS4
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4001);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("BoolToggle");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4002);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Byte");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4003);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Int16");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4004);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Int32");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4005);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Int64");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4006);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("SByte");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4007);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt16");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4008);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt32");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4009);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt64");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4010);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Float");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4011);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Double");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4012);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("String");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4013);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("ByteString");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4014);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Guid");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4015);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("DateTime");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
+                              &dataSetFieldConfig, &dataSetFieldIdent);
+
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+            UA_NODEID_NUMERIC(1, 4016);
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("UInt32Array");
+    UA_Server_addDataSetField(server, publishedDataSetIdent4,
                               &dataSetFieldConfig, &dataSetFieldIdent);
 }
 
@@ -104,15 +287,11 @@ addWriterGroup(UA_Server *server) {
      * PubSubConnection. */
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-    writerGroupConfig.name = UA_STRING("Demo WriterGroup");
-    writerGroupConfig.publishingInterval = 100;
+    writerGroupConfig.name = UA_STRING("Plugfest WriterGroup");
+    writerGroupConfig.publishingInterval = 1000;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    /* The configuration flags for the messages are encapsulated inside the
-     * message- and transport settings extension objects. These extension
-     * objects are defined by the standard. e.g.
-     * UadpWriterGroupMessageDataType */
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
 }
 
@@ -129,10 +308,28 @@ addDataSetWriter(UA_Server *server) {
     UA_NodeId dataSetWriterIdent;
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
-    dataSetWriterConfig.dataSetWriterId = 62541;
+    dataSetWriterConfig.name = UA_STRING("DataSet 1 (Simple) Writer");
+    dataSetWriterConfig.dataSetWriterId = 1000;
     dataSetWriterConfig.keyFrameCount = 10;
-    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
+    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent1,
+                               &dataSetWriterConfig, &dataSetWriterIdent);
+    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("DataSet 2 (AllTypes) Writer");
+    dataSetWriterConfig.dataSetWriterId = 2000;
+    dataSetWriterConfig.keyFrameCount = 10;
+    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent2,
+                               &dataSetWriterConfig, &dataSetWriterIdent);
+
+    dataSetWriterConfig.name = UA_STRING("DataSet 3 (MassTest) Writer");
+    dataSetWriterConfig.dataSetWriterId = 3000;
+    dataSetWriterConfig.keyFrameCount = 10;
+    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent3,
+                               &dataSetWriterConfig, &dataSetWriterIdent);
+
+    dataSetWriterConfig.name = UA_STRING("DataSet 4 (AllTypes Dynamic) Writer");
+    dataSetWriterConfig.dataSetWriterId = 4000;
+    dataSetWriterConfig.keyFrameCount = 10;
+    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent4,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
 
@@ -295,49 +492,67 @@ any1secHandler (UA_Server *server, void *data){
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4004), value);
 
     UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4005), &value);
+    UA_Int64 int64DS4 = *((UA_Int64 *)value.data);
+    if(int64DS4 < UA_INT64_MAX)
+        int64DS4++;
+    else
+        int64DS4 = 0;
+    UA_Variant_setScalar(&value, &int64DS4, &UA_TYPES[UA_TYPES_INT64]);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4005), value);
+
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4006), &value);
     UA_SByte sByteDS4 = *((UA_SByte *)value.data);
     if(sByteDS4 < UA_SBYTE_MAX)
         sByteDS4++;
     else
         sByteDS4 = 0;
     UA_Variant_setScalar(&value, &sByteDS4, &UA_TYPES[UA_TYPES_SBYTE]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4005), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4006), value);
 
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4006), &value);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4007), &value);
     UA_UInt16 uint16DS4 = *((UA_UInt16 *)value.data);
     if(uint16DS4 < UA_UINT16_MAX)
         uint16DS4++;
     else
         uint16DS4 = 0;
     UA_Variant_setScalar(&value, &uint16DS4, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4006), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4007), value);
 
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4007), &value);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4008), &value);
     UA_UInt32 uint32DS4 = *((UA_UInt32 *)value.data);
     if(uint32DS4 < UA_UINT32_MAX)
         uint32DS4++;
     else
         uint32DS4 = 0;
     UA_Variant_setScalar(&value, &uint32DS4, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4007), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4008), value);
 
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4008), &value);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4009), &value);
+    UA_UInt64 uint64DS4 = *((UA_UInt64 *) value.data);
+    if(uint64DS4 < UINT64_MAX)
+        uint64DS4++;
+    else
+        uint64DS4 = 0;
+    UA_Variant_setScalar(&value, &uint64DS4, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4009), value);
+
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4010), &value);
     UA_Float floatDS4 = *((UA_Float *)value.data);
     if(floatDS4 < FLT_MAX)
         floatDS4++;
     else
         floatDS4 = 0;
     UA_Variant_setScalar(&value, &floatDS4, &UA_TYPES[UA_TYPES_FLOAT]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4008), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4010), value);
 
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4009), &value);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4011), &value);
     UA_Double doubleDS4 = *((UA_Double *)value.data);
     if(doubleDS4 < DBL_MAX)
         doubleDS4++;
     else
         doubleDS4 = 0;
     UA_Variant_setScalar(&value, &doubleDS4, &UA_TYPES[UA_TYPES_DOUBLE]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4009), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4011), value);
 
     char natoAlphabet[26][20] = {"Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrott", "Golf",
     "Hotel", "India", "Juliet", "Kilo", "Lima", "Mike", "November",
@@ -348,7 +563,7 @@ any1secHandler (UA_Server *server, void *data){
     int32DS4 = *((UA_Int32 *)value.data);
     UA_String stringDS4 = UA_STRING(natoAlphabet[int32DS4 % 26]);
     UA_Variant_setScalar(&value, &stringDS4, &UA_TYPES[UA_TYPES_STRING]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4010), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4012), value);
 
     char alphabets[26] = {'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','u','v','w','x','y','z'};
     char rString[20];
@@ -362,15 +577,15 @@ any1secHandler (UA_Server *server, void *data){
     rString[19] = '\0';
     UA_ByteString byteStringDS4 = UA_BYTESTRING(rString);
     UA_Variant_setScalar(&value, &byteStringDS4, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4011), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4013), value);
 
     UA_Guid guidDS4 = UA_Guid_random();
     UA_Variant_setScalar(&value, &guidDS4, &UA_TYPES[UA_TYPES_GUID]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4012), value);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4014), value);
 
     UA_Variant uint32ArrayVariant;
     UA_UInt32 *uint32Array;
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4014), &value);
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4016), &value);
     uint32Array = (UA_UInt32 *) value.data;
     for (int j = 0; j < 10; ++j) {
         if(uint32Array[j] < UA_UINT32_MAX)
@@ -379,7 +594,7 @@ any1secHandler (UA_Server *server, void *data){
             uint32Array[j] = (UA_UInt32) (j * 10);
     }
     UA_Variant_setArray(&uint32ArrayVariant, uint32Array, 10, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4014), uint32ArrayVariant);
+    UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4016), uint32ArrayVariant);
 
 }
 
@@ -399,6 +614,7 @@ any3secHandler (UA_Server *server, void *data){
 
 static void
 addPlugfestNodes(UA_Server *server) {
+    //add parent objects for the vars of each DS
     UA_NodeId dataSet1ParamtersId, dataSet2ParamtersId, dataSet3ParamtersId, dataSet4ParamtersId;
     UA_ObjectAttributes oattr = UA_ObjectAttributes_default;
     oattr.displayName = UA_LOCALIZEDTEXT("en-US", "Plugfest_DataSet1Parameters");
@@ -424,40 +640,46 @@ addPlugfestNodes(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(0, "Plugfest_DataSet4Parameters"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), oattr, NULL, &dataSet4ParamtersId);
+
     //adding variables DataSet 1
+    UA_Variant value;
+    UA_Boolean boolToggleDS1 = UA_TRUE;
+    UA_Int32 int32DS1 = 0;
+    UA_Int32 int32FastDS1 = 0;
+    UA_DateTime dateTimeDS1 = UA_DateTime_now();
+
     UA_VariableAttributes vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "BoolToggle");
-    UA_Variant value;
-    UA_Boolean boolToggle;
-    UA_Variant_setScalar(&value, &boolToggle, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&value, &boolToggleDS1, &UA_TYPES[UA_TYPES_BOOLEAN]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1001), dataSet1ParamtersId,
             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "BoolToggle"),
             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Int32");
-    UA_Int32 int32;
-    UA_Variant_setScalar(&value, &int32, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&value, &int32DS1, &UA_TYPES[UA_TYPES_INT32]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1002), dataSet1ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Int32"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Int32Fast");
-    UA_Int32 int32Fast;
-    UA_Variant_setScalar(&value, &int32Fast, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&value, &int32FastDS1, &UA_TYPES[UA_TYPES_INT32]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1003), dataSet1ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Int32Fast"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTime");
-    UA_DateTime dateTime;
-    UA_Variant_setScalar(&value, &dateTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&value, &dateTimeDS1, &UA_TYPES[UA_TYPES_DATETIME]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1004), dataSet1ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "DateTime"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     //adding variables DataSet 2
     UA_Boolean boolToggleDS2 = 0;
     UA_Byte byteDS2 = 0;
@@ -466,8 +688,9 @@ addPlugfestNodes(UA_Server *server) {
     UA_SByte sbyteDS2 = 0;
     UA_UInt16 uint16DS2 = 0;
     UA_UInt32 uInt32DS2 = 0;
-    UA_Float floatDS2 = 0;
-    UA_Double doubleDS2 = 0;
+    UA_Float floatDS2 = 0.0;
+    UA_Double doubleDS2 = 0.0;
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "BoolToggle");
     UA_Variant_setScalar(&value, &boolToggleDS2, &UA_TYPES[UA_TYPES_BOOLEAN]);
@@ -475,6 +698,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2001), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "BoolToggle"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Byte");
     UA_Variant_setScalar(&value, &byteDS2, &UA_TYPES[UA_TYPES_BYTE]);
@@ -482,6 +706,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2002), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Byte"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Int16");
     UA_Variant_setScalar(&value, &int16DS2, &UA_TYPES[UA_TYPES_INT16]);
@@ -489,6 +714,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2003), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Int16"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Int32");
     UA_Variant_setScalar(&value, &int32DS2, &UA_TYPES[UA_TYPES_INT32]);
@@ -496,6 +722,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2004), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Int32"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "SByte");
     UA_Variant_setScalar(&value, &sbyteDS2, &UA_TYPES[UA_TYPES_SBYTE]);
@@ -511,6 +738,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2006), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "UInt16"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt32");
     UA_Variant_setScalar(&value, &uInt32DS2, &UA_TYPES[UA_TYPES_UINT32]);
@@ -518,6 +746,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2007), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "UInt32"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Float");
     UA_Variant_setScalar(&value, &floatDS2, &UA_TYPES[UA_TYPES_FLOAT]);
@@ -525,6 +754,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2008), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Float"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Double");
     UA_Variant_setScalar(&value, &doubleDS2, &UA_TYPES[UA_TYPES_DOUBLE]);
@@ -532,6 +762,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 2009), dataSet2ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Double"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
     //adding variables DataSet 3
     UA_UInt32 * uint32ArrayDS3 = (UA_UInt32 *) UA_calloc(100, sizeof(UA_UInt32));
     for (int i = 0; i < 100; ++i) {
@@ -546,80 +777,107 @@ addPlugfestNodes(UA_Server *server) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, s),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     }
+
     //adding variables DataSet 4
+    UA_Boolean boolToggleDS4 = 0;
+    UA_Byte byteDS4 = 0;
+    UA_Int16 int16DS4 = 0;
+    UA_Int32 int32DS4 = 0;
+    UA_Int64 int64DS4 = 0;
+    UA_SByte sbyteDS4 = 0;
+    UA_UInt16 uint16DS4 = 0;
+    UA_UInt32 uInt32DS4 = 0;
+    UA_UInt64 uInt64DS4 = 0;
+    UA_Float floatDS4 = 0.0;
+    UA_Double doubleDS4 = 0.0;
+    UA_String stringDS4 = UA_STRING("Alpha");
+    UA_ByteString byteStringDS4;
+    UA_Guid guidDS4;
+    UA_DateTime dateTimeDS4;
+
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "BoolToggle");
-    UA_Variant_setScalar(&value, &boolToggleDS2, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&value, &boolToggleDS4, &UA_TYPES[UA_TYPES_BOOLEAN]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4001), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "BoolToggle"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Byte");
-    UA_Variant_setScalar(&value, &byteDS2, &UA_TYPES[UA_TYPES_BYTE]);
+    UA_Variant_setScalar(&value, &byteDS4, &UA_TYPES[UA_TYPES_BYTE]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4002), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Byte"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Int16");
-    UA_Variant_setScalar(&value, &int16DS2, &UA_TYPES[UA_TYPES_INT16]);
+    UA_Variant_setScalar(&value, &int16DS4, &UA_TYPES[UA_TYPES_INT16]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4003), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Int16"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Int32");
-    UA_Variant_setScalar(&value, &int32DS2, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&value, &int32DS4, &UA_TYPES[UA_TYPES_INT32]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4004), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Int32"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
-    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "SByte");
-    UA_Variant_setScalar(&value, &sbyteDS2, &UA_TYPES[UA_TYPES_SBYTE]);
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Int64");
+    UA_Variant_setScalar(&value, &int64DS4, &UA_TYPES[UA_TYPES_INT64]);
     vattr.value = value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4005), dataSet4ParamtersId,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Int64"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+    vattr = UA_VariableAttributes_default;
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "SByte");
+    UA_Variant_setScalar(&value, &sbyteDS4, &UA_TYPES[UA_TYPES_SBYTE]);
+    vattr.value = value;
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4006), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "SByte"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
 
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt16");
-    UA_Variant_setScalar(&value, &uint16DS2, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&value, &uint16DS4, &UA_TYPES[UA_TYPES_UINT16]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4006), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4007), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "UInt16"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt32");
-    UA_Variant_setScalar(&value, &uInt32DS2, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&value, &uInt32DS4, &UA_TYPES[UA_TYPES_UINT32]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4007), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4008), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "UInt32"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
-    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Float");
-    UA_Variant_setScalar(&value, &floatDS2, &UA_TYPES[UA_TYPES_FLOAT]);
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt64");
+    UA_Variant_setScalar(&value, &uInt64DS4, &UA_TYPES[UA_TYPES_UINT64]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4008), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4009), dataSet4ParamtersId,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "UInt64"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+    vattr = UA_VariableAttributes_default;
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Float");
+    UA_Variant_setScalar(&value, &floatDS4, &UA_TYPES[UA_TYPES_FLOAT]);
+    vattr.value = value;
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4010), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Float"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Double");
-    UA_Variant_setScalar(&value, &doubleDS2, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_Variant_setScalar(&value, &doubleDS4, &UA_TYPES[UA_TYPES_DOUBLE]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4009), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4011), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Double"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
-    UA_String stringDS4 = UA_STRING("Alpha");
-    UA_ByteString byteStringDS4;
-    UA_Guid guidDS4;
-    UA_DateTime dateTimeDS4;
 
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "String");
     UA_Variant_setScalar(&value, &stringDS4, &UA_TYPES[UA_TYPES_STRING]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4010), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4012), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "String"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
 
@@ -627,7 +885,7 @@ addPlugfestNodes(UA_Server *server) {
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "ByteString");
     UA_Variant_setScalar(&value, &byteStringDS4, &UA_TYPES[UA_TYPES_BYTESTRING]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4011), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4013), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "ByteString"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
 
@@ -635,14 +893,14 @@ addPlugfestNodes(UA_Server *server) {
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "Guid");
     UA_Variant_setScalar(&value, &guidDS4, &UA_TYPES[UA_TYPES_GUID]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4012), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4014), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "Guid"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
     vattr = UA_VariableAttributes_default;
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTime");
     UA_Variant_setScalar(&value, &dateTimeDS4, &UA_TYPES[UA_TYPES_DATETIME]);
     vattr.value = value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4013), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4015), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "DateTime"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
 
@@ -652,7 +910,7 @@ addPlugfestNodes(UA_Server *server) {
     vattr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt32Array");
     UA_Variant_setArray(&valueArray, uint32ArrayDS4, 10, &UA_TYPES[UA_TYPES_UINT32]);
     vattr.value = valueArray;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4014), dataSet4ParamtersId,
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 4016), dataSet4ParamtersId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(0, "UInt32Array"),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
 
@@ -664,21 +922,6 @@ addPlugfestNodes(UA_Server *server) {
 
 }
 
-/**
- * That's it! You're now publishing the selected fields. Open a packet
- * inspection tool of trust e.g. wireshark and take a look on the outgoing
- * packages. The following graphic figures out the packages created by this
- * tutorial.
- *
- * .. figure:: ua-wireshark-pubsub.png
- *     :figwidth: 100 %
- *     :alt: OPC UA PubSub communication in wireshark
- *
- * The open62541 subscriber API will be released later. If you want to process
- * the the datagrams, take a look on the ua_network_pubsub_networkmessage.c
- * which already contains the decoding code for UADP messages.
- *
- * It follows the main server code, making use of the above definitions. */
 UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");

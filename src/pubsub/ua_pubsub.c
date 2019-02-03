@@ -891,6 +891,22 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
     if(!currentDataSet)
         return UA_STATUSCODE_BADNOTFOUND;
 
+    /*Update send timestamps for the plugfest */
+    UA_String compString = UA_STRING("DataSet 1 (Simple) Writer");
+    if(UA_String_equal(&dataSetWriter->config.name, &compString)){
+        UA_Variant value;
+        UA_DateTime dateTimeDS1 = UA_DateTime_now();
+        UA_Variant_setScalar(&value, &dateTimeDS1, &UA_TYPES[UA_TYPES_DATETIME]);
+        UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 1004), value);
+    }
+    compString = UA_STRING("DataSet 4 (AllTypes Dynamic) Writer");
+    if(UA_String_equal(&dataSetWriter->config.name, &compString)){
+        UA_Variant value;
+        UA_DateTime dateTimeDS1 = UA_DateTime_now();
+        UA_Variant_setScalar(&value, &dateTimeDS1, &UA_TYPES[UA_TYPES_DATETIME]);
+        UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4015), value);
+    }
+
     /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
 
@@ -1115,6 +1131,14 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     nm.payloadHeaderEnabled = true;
+    nm.publisherIdEnabled = true;
+    if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
+        nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+        nm.publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
+    } else if (connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
+        nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        nm.publisherId.publisherIdString = connection->config->publisherId.string;
+    }
 
     /* Compute the length of the dsm separately for the header */
     UA_STACKARRAY(UA_UInt16, dsmLengths, dsmCount);

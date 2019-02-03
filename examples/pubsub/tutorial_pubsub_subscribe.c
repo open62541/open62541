@@ -39,7 +39,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
 
     /* Receive the message. Blocks for 5ms */
     UA_StatusCode retval =
-        connection->channel->receive(connection->channel, &buffer, NULL, 5);
+            connection->channel->receive(connection->channel, &buffer, NULL, 5);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
         /* Workaround!! Reset buffer length. Receive can set the length to zero.
          * Then the buffer is not deleted because no memory allocation is
@@ -92,7 +92,7 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
         }
     }
 
- cleanup:
+    cleanup:
     UA_NetworkMessage_clear(&networkMessage);
 }
 
@@ -105,7 +105,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     /* Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
-        UA_calloc(2, sizeof(UA_PubSubTransportLayer));
+            UA_calloc(2, sizeof(UA_PubSubTransportLayer));
     if (!config->pubsubTransportLayers) {
         UA_ServerConfig_delete(config);
         return -1;
@@ -127,7 +127,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     UA_NodeId connectionIdent;
     UA_StatusCode retval =
-        UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+            UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
     if(retval == UA_STATUSCODE_GOOD)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                     "The PubSub Connection was created successfully!");
@@ -136,7 +136,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
      * address and configure a repeated job, which is used to handle received
      * messages. */
     UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
+            UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
     if(connection != NULL) {
         UA_StatusCode rv = connection->channel->regist(connection->channel, NULL);
         if (rv == UA_STATUSCODE_GOOD) {
@@ -163,9 +163,9 @@ usage(char *progname) {
 
 int main(int argc, char **argv) {
     UA_String transportProfile =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+            UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+            {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
 
     if (argc > 1) {
         if (strcmp(argv[1], "-h") == 0) {
@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
             networkAddressUrl.url = UA_STRING(argv[1]);
         } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
             transportProfile =
-                UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+                    UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
             if (argc < 3) {
                 printf("Error: UADP/ETH needs an interface name\n");
                 return 1;
