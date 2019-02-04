@@ -11,8 +11,6 @@
 
 #include <signal.h>
 
-/* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
- * /src_generated directory by CMake */
 #include "ua_namespace_di.h"
 #include "ua_namespace_plc.h"
 
