@@ -261,7 +261,7 @@ else
     rm build -rf
     echo -en 'travis_fold:end:script.build.linux_64\\r'
 
-    echo -e "\r\n== Building the C++ example =="  && echo -en 'travis_fold:start:script.build.example\\r'
+    echo -e "\r\n== Compile with amalgamation =="  && echo -en 'travis_fold:start:script.build.amalgamate\\r'
     mkdir -p build && cd build
     cmake \
         -DBUILD_SHARED_LIBS=ON \
@@ -277,7 +277,7 @@ else
     g++ ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
-    echo -en 'travis_fold:end:script.build.example\\r'
+    echo -en 'travis_fold:end:script.build.amalgamate\\r'
 
     echo "Compile as shared lib version" && echo -en 'travis_fold:start:script.build.shared_libs\\r'
     mkdir -p build && cd build
