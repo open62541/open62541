@@ -1,6 +1,4 @@
-# using c for language overwrites our compilers
-language: generic
-
+language: c
 sudo: required
 
 env:
@@ -13,7 +11,10 @@ dist: trusty
 matrix:
   fast_finish: true
   include:
-    #
+#
+# gcc-4.8 (trusty) full host and cross build:
+# doc, cert, cross-mingw32, cross-mingw64, cross-linux32, cross-raspi, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal, debian-package
     - os: linux
       addons:
         apt:
@@ -21,35 +22,43 @@ matrix:
             # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
             - ubuntu-toolchain-r-test
           packages:
-            - binutils-mingw-w64-i686
-            - build-essential
             - check
-            - cmake
-            - debhelper
-            - fakeroot
-            - gcc-multilib
+            # cross-mingw
+            - mingw-w64
             - g++-mingw-w64-i686
             - g++-mingw-w64-x86-64
+            - binutils-mingw-w64-i686
+            # debian packaging
+            - debhelper
+            - fakeroot
+            #
+            - gcc-multilib
             - g++-multilib
-            - graphviz
             - libsubunit-dev
             - libx11-dev
-            - mingw-w64
             - python-six
-            - python3-six
+            # doc
+            - python-sphinx
+            - graphviz
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            #
             - valgrind
             - wget
             - xutils-dev
             - zip
       env:
-        - CC=gcc-4.8
-        - CXX=g++-4.8
+#        - CC=gcc-4.8
+#        - CXX=g++-4.8
         - PYTHON=python2
         - MINGW=true
         - DEBIAN=true
+#
+# gcc-8 full host build:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
       addons:
         apt:
@@ -57,8 +66,6 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
-            - debhelper
-            - fakeroot
             - gcc-8
             - gcc-8-multilib
             - g++-8
@@ -66,15 +73,23 @@ matrix:
             - graphviz
             - linux-libc-dev:i386
             - python-six
-            - python3-six
+            # doc
+            - python-sphinx
+            - graphviz
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            #
             - valgrind
       env:
         - CC=gcc-8
         - CXX=g++-8
         - PYTHON=python2
+#
+# clang-6 full host build:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
       addons:
         apt:
@@ -85,18 +100,23 @@ matrix:
             - check
             - clang-6.0
             - clang-tidy-6.0
-            - debhelper
-            - fakeroot
+            # doc
+            - python-sphinx
             - graphviz
-            - python-six
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            #
             - valgrind
       env:
         - CC=clang-6.0
         - CXX=clang++-6.0
         - PYTHON=python2
+#
+# clang-6 python-3 full host build:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
       addons:
         apt:
@@ -107,34 +127,44 @@ matrix:
             - check
             - clang-6.0
             - clang-tidy-6.0
-            - debhelper
-            - fakeroot
-            - graphviz
             - python3-six
+            # doc
+            - python3-sphinx
+            - graphviz
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            #
             - valgrind
       env:
         - CC=clang-6.0
         - CXX=clang++-6.0
         - PYTHON=python3
+#
+# tcc full host build:
+# doc, cert, linux64,
+# amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
       addons:
         apt:
           packages:
             - check
-            - graphviz
-            - debhelper
-            - fakeroot
-            - python-six
             - python3-six
+            # doc
+            - python3-sphinx
+            - graphviz
+            - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
-            - texlive-latex-recommended
+            - latexmk
+            #
       env:
         - CC=tcc
         - PYTHON=python2
+#
+# clang-6 python-3 install build and minimal example:
+# linux64, minimal-example
     - os: linux
       addons:
         apt:
@@ -151,6 +181,8 @@ matrix:
         - CC=clang-6.0
         - CXX=clang++-6.0
         - PYTHON=python3
+#
+# gcc-4.8 static code analysis
     - os: linux
       addons:
         apt:
@@ -160,6 +192,8 @@ matrix:
         - ANALYZE=true
         - CC=gcc-4.8
         - CXX=g++-4.8
+#
+# clang-6 static code analysis
     - os: linux
       addons:
         apt:
@@ -167,15 +201,9 @@ matrix:
             - llvm-toolchain-trusty-6.0
             - ubuntu-toolchain-r-test
           packages:
-            - check
+#            - check
             - clang-6.0
             - clang-tidy-6.0
-            - graphviz
-            - python-six
-            - python3-six
-            - texlive-fonts-recommended
-            - texlive-latex-extra
-            - texlive-latex-recommended
       env:
         - ANALYZE=true
         - PYTHON=python3
@@ -184,9 +212,13 @@ matrix:
     #- os: linux
     #  compiler: gcc
     #  env: LINT=true
+#
+# DOCKER build
     - os: linux
       env:
         - DOCKER=true
+#
+# clang-6 FUZZER build
     - os: linux
       addons:
         apt:
@@ -198,10 +230,12 @@ matrix:
             - clang-6.0
             - clang-tidy-6.0
             - libfuzzer-6.0-dev
-            - python-six
-            - python3-six
+#            - python-six
+#            - python3-six
       env:
         - FUZZER=true
+#
+# OSX clang-6 build
     - os: osx
       compiler: clang
       # disable homebrew auto update which takes a lot of time
@@ -209,6 +243,8 @@ matrix:
       cache:
         directories:
           - $HOME/Library/Caches/Homebrew
+#
+# SONAR gcc-4.9 build
     - os: linux
       addons:
         sonarcloud:
@@ -217,9 +253,9 @@ matrix:
             - master
             - sonarcloud
       env:
+        - SONAR=true
         - CC=gcc-4.9
         - CXX=g++-4.9
-        - SONAR=true
         - PYTHON=python2
       cache:
         directories:
