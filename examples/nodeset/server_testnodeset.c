@@ -40,7 +40,6 @@ int main(int argc, char **argv)
     }
     else
     {
-
         UA_Variant out;
         UA_Variant_init(&out);
         UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10002), &out);
