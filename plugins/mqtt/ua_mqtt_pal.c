@@ -6,7 +6,7 @@
  */
 
 #include "../../deps/mqtt-c/mqtt.h"
-#include <ua_network_tcp.h>
+#include "ua_network_tcp.h"
 
 ssize_t
 mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size_t len, int flags) {

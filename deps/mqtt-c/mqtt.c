@@ -1398,8 +1398,10 @@ ssize_t mqtt_unpack_suback_response (struct mqtt_response *mqtt_response, const 
  * va_start(args, (uint16_t)packet_id);
  *                          ^
  */
+#if !defined(_MSC_VER)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wvarargs"
+#endif
 
 /* SUBSCRIBE */
 ssize_t mqtt_pack_subscribe_request(uint8_t *buf, size_t bufsz, uint16_t packet_id, ...) {
@@ -1542,7 +1544,9 @@ ssize_t mqtt_pack_unsubscribe_request(uint8_t *buf, size_t bufsz, uint16_t packe
 
     return buf - start;
 }
+#if !defined(_MSC_VER)
 #pragma GCC diagnostic pop
+#endif
 /* MESSAGE QUEUE */
 void mqtt_mq_init(struct mqtt_message_queue *mq, void *buf, size_t bufsz) 
 {

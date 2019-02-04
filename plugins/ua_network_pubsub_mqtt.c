@@ -61,7 +61,16 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
     
     /* set default values */
     UA_String mqttClientId = UA_STRING("open62541_pub");
-    memcpy(channelDataMQTT, &(UA_PubSubChannelDataMQTT){address, 2000,2000, NULL, NULL,&mqttClientId, NULL, NULL, NULL}, sizeof(UA_PubSubChannelDataMQTT));
+    channelDataMQTT->address = address;
+    channelDataMQTT->mqttRecvBufferSize = 2000;
+    channelDataMQTT->mqttSendBufferSize = 2000;
+    channelDataMQTT->mqttRecvBuffer = NULL;
+    channelDataMQTT->mqttSendBuffer = NULL;
+    channelDataMQTT->mqttClientId = &mqttClientId;
+    channelDataMQTT->mqttClient = NULL;
+    channelDataMQTT->connection = NULL;
+    channelDataMQTT->callback = NULL;
+
     /* iterate over the given KeyValuePair paramters */
     UA_String sendBuffer = UA_STRING("sendBufferSize"), recvBuffer = UA_STRING("recvBufferSize"), clientId = UA_STRING("mqttClientId");
     for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){

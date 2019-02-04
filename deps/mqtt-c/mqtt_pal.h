@@ -11,7 +11,7 @@
  * @defgroup pal Platform abstraction layer
  * @brief Documentation of the types and calls required to port MQTT-C to a new platform.
  * 
- * mqtt_pal.h is the \em only header file included in mqtt.c. Therefore, to port MQTT-C to a 
+ * mqtt_pal.h is the \em only header file included in mqtt.c. Therefore, to port MQTT-C to a
  * new platform the following types, functions, constants, and macros must be defined in 
  * mqtt_pal.h:
  *  - Types:
@@ -39,6 +39,7 @@
  * for sending and receiving data using the platforms socket calls.
  */
 
+#include "ua_util.h"
 
 /* UNIX-like platform support */
 #ifdef __unix__
@@ -61,14 +62,6 @@
     #define MQTT_PAL_MUTEX_LOCK(mtx_ptr) pthread_mutex_lock(mtx_ptr)
     #define MQTT_PAL_MUTEX_UNLOCK(mtx_ptr) pthread_mutex_unlock(mtx_ptr)
 
-    struct my_custom_socket_handle {
-        void* client;
-        void* connection;
-        uint16_t timeout;
-    };
-    
-    typedef struct my_custom_socket_handle* mqtt_pal_socket_handle;
-    
     /*#ifdef MQTT_USE_BIO
         #include <openssl/bio.h>
         typedef BIO* mqtt_pal_socket_handle;
@@ -76,6 +69,40 @@
         typedef int mqtt_pal_socket_handle;
     #endif*/
 #endif
+
+#if defined(_MSC_VER) || defined (__MINGW32__)
+    #include <stddef.h>
+    //#include <stdint.h>
+
+    #include <limits.h>
+    #include <string.h>
+    #include <stdarg.h>
+    #include <time.h>
+    #include <winsock2.h>
+
+    #define MQTT_PAL_HTONS(s) htons(s)
+    #define MQTT_PAL_NTOHS(s) ntohs(s)
+
+    #define MQTT_PAL_TIME() time(NULL)
+
+    typedef time_t mqtt_pal_time_t;
+    typedef HANDLE mqtt_pal_mutex_t;
+
+    /* mutex */
+    #include <windows.h>
+    #define MQTT_PAL_MUTEX_INIT(mtx_ptr) (*(mtx_ptr) = CreateMutex(NULL, FALSE, NULL))
+    #define MQTT_PAL_MUTEX_LOCK(mtx_ptr) WaitForSingleObject((mtx_ptr), INFINITE)
+    #define MQTT_PAL_MUTEX_UNLOCK(mtx_ptr) ReleaseMutex((mtx_ptr))
+#endif
+
+struct my_custom_socket_handle {
+    void* client;
+    void* connection;
+    uint16_t timeout;
+};
+
+typedef struct my_custom_socket_handle* mqtt_pal_socket_handle;
+
 
 /**
  * @brief Sends all the bytes in a buffer.

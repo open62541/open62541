@@ -29,6 +29,7 @@
 #include "ua_pubsub.h"
 #include "ua_network_pubsub_mqtt.h"
 #include "ua_log_stdout.h"
+#include <signal.h>
 
 static UA_Boolean useJson = false;
 static UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
