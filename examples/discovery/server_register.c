@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
         return (int)retval;
     }
 
-    // UNregister the server from the discovery server.
+    // Unregister the server from the discovery server.
     retval = UA_Server_unregister_discovery(server, clientRegister);
     //retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if(retval != UA_STATUSCODE_GOOD)

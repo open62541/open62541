@@ -35,7 +35,7 @@ int main(void) {
      * the list, if it doesn't re-register within the given time frame. A value
      * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
      * bigger than 10 seconds, because cleanup is only triggered approximately
-     * ervery 10 seconds. The server will still be removed depending on the
+     * every 10 seconds. The server will still be removed depending on the
      * state of the semaphore file. */
     // config.discoveryCleanupTimeout = 60*60;
     UA_Server *server = UA_Server_new(config);
