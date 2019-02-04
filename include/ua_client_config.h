@@ -10,6 +10,7 @@
 #define UA_CLIENT_CONFIG_H
 
 #include "ua_config.h"
+#include "ua_plugin_securitypolicy.h"
 #include "ua_plugin_network.h"
 
 _UA_BEGIN_DECLS
