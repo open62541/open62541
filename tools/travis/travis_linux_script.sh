@@ -83,7 +83,7 @@ cmake_minimum_required(VERSION 2.8)
 project(install-test)
 find_package(open62541 REQUIRED COMPONENTS FullNamespace)
 add_executable(install-test-example ../examples/tutorial_server_firststeps.c)
-target_link_libraries(install-test-example open62541)
+target_link_libraries(install-test-example open62541::open62541)
 EOM
     cmake \
         -DCMAKE_PREFIX_PATH=$TRAVIS_BUILD_DIR/open62541_install .

@@ -916,6 +916,9 @@ else()
 
 endif()
 
+# Ensure that the open62541::open62541 alias can be used inside open62541's build
+add_library(open62541::open62541 ALIAS open62541)
+
 # Export Symbols
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -1114,7 +1117,8 @@ write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVer
 
 install(EXPORT open62541Targets
         FILE open62541Targets.cmake
-        DESTINATION "${cmake_configfile_install}")
+        DESTINATION "${cmake_configfile_install}"
+        NAMESPACE open62541::)
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541Config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
