@@ -379,7 +379,7 @@ def parseTypeDescriptions(f, namespaceid):
     csvreader = csv.reader(f, delimiter=',')
     delay_init = []
 
-    for index, row in enumerate(csvreader):
+    for row in csvreader:
         if len(row) < 3:
             continue
         if row[2] == "Object":
