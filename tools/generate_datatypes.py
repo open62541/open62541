@@ -136,7 +136,7 @@ class Type(object):
 
     def members_c(self):
         idName = makeCIdentifier(self.name)
-        if len(self.members)==0:
+        if len(self.members) == 0:
             return "#define %s_members NULL" % (idName)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(self.members))
         before = None
