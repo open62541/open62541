@@ -144,15 +144,11 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
   target_link_libraries(server_certificate open62541 ${open62541_LIBRARIES})
 endif()
 
-if(UA_ENABLE_DISCOVERY)
+if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_server_lds discovery/server_lds.c)
-
     add_example(discovery_server_register discovery/server_register.c)
-
     add_example(discovery_client_find_servers discovery/client_find_servers.c)
-    if(UA_ENABLE_DISCOVERY_MULTICAST)
-        add_example(discovery_server_multicast discovery/server_multicast.c)
-    endif()
+    add_example(discovery_server_multicast discovery/server_multicast.c)
 endif()
 
 add_subdirectory(nodeset)
