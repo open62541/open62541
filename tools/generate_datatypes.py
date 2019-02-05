@@ -556,8 +556,7 @@ printh('''/**
 printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
 printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
-i = 0
-for t in filtered_types:
+for i, t in enumerate(filtered_types):
     printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
@@ -567,7 +566,6 @@ for t in filtered_types:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + makeCIdentifier(outname.upper() + "_" + t.name.upper()) + " " + str(i))
-    i += 1
 
 printh('''
 
