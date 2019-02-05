@@ -627,7 +627,6 @@ for t in filtered_types:
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in filtered_types:
-#    printc("")
     printc("/* " + t.name + " */")
     printc(t.datatype_c() + ",")
 printc("};\n")
