@@ -33,6 +33,8 @@
 #include <signal.h>
 #include <ua_pubsub_networkmessage.h>
 
+//UA_UInt32 publisherId = 11;
+
 UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -51,6 +53,10 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
     UA_StatusCode retval =
         connection->channel->receive(connection->channel, &buffer, NULL, 5);
     if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
+        if (retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "PubSub receive statuscode: %s", UA_StatusCode_name(retval));
+        }
         /* Workaround!! Reset buffer length. Receive can set the length to zero.
          * Then the buffer is not deleted because no memory allocation is
          * assumed.*/
@@ -76,154 +82,176 @@ subscriptionPollingCallback(UA_Server *server, UA_PubSubConnection *connection) 
        networkMessage.payloadHeader.dataSetPayloadHeader.count < 1)
         goto cleanup;
 
-    /* Is this a KeyFrame-DataSetMessage? */
-    UA_DataSetMessage *dsm = &networkMessage.payload.dataSetPayload.dataSetMessages[0];
-    if(dsm == NULL || dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
-    //if(dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
-        goto cleanup;
+ //   if (networkMessage.publisherIdType != UA_PUBLISHERDATATYPE_UINT32 ||
+ //       networkMessage.publisherId.publisherIdUInt32 != publisherId)
+ //       goto cleanup;
 
-    /* print type of received plugfest dataset (attention: only based on field count!)*/
-    switch (dsm->data.keyFrameData.fieldCount){
+    for (size_t j = 0; j < networkMessage.payloadHeader.dataSetPayloadHeader.count; j++) {
+        /* Is this a KeyFrame-DataSetMessage? */
+        UA_DataSetMessage *dsm = &networkMessage.payload.dataSetPayload.dataSetMessages[j];
+        if (dsm == NULL || dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
+            //if(dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
+            goto cleanup;
+
+        /* print type of received plugfest dataset (attention: only based on field count!)*/
+        switch (dsm->data.keyFrameData.fieldCount) {
         case 4:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---- Received DataSet1 (Simple) ----");
+                "---- Received DataSet1 (Simple) ----");
             break;
         case 9:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---- Received DataSet2 (AllTypes) ----");
+                "---- Received DataSet2 (AllTypes) ----");
             break;
         case 100:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---- Received DataSet3 (MassTest) ----");
+                "---- Received DataSet3 (MassTest) ----");
             break;
         case 16:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---- Received DataSet4 (AllTypes Dynamic) ----");
+                "---- Received DataSet4 (AllTypes Dynamic) ----");
             break;
-    }
-    switch (networkMessage.publisherIdType){
+        }
+        switch (networkMessage.publisherIdType) {
         case UA_PUBLISHERDATATYPE_BYTE:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---> Received From PublisherID (BYTE): %u", networkMessage.publisherId.publisherIdByte);
+                "---> Received From PublisherID (BYTE): %u", networkMessage.publisherId.publisherIdByte);
             break;
         case UA_PUBLISHERDATATYPE_UINT16:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---> Received From PublisherID (UNIT16): %u", networkMessage.publisherId.publisherIdUInt16);
+                "---> Received From PublisherID (UNIT16): %u", networkMessage.publisherId.publisherIdUInt16);
             break;
         case UA_PUBLISHERDATATYPE_UINT32:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---> Received From PublisherID (UNIT32): %u", networkMessage.publisherId.publisherIdUInt32);
+                "---> Received From PublisherID (UNIT32): %u", networkMessage.publisherId.publisherIdUInt32);
             break;
         case UA_PUBLISHERDATATYPE_UINT64:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---> Received From PublisherID (UNIT64): %lu", networkMessage.publisherId.publisherIdUInt64);
+                "---> Received From PublisherID (UNIT64): %lu", networkMessage.publisherId.publisherIdUInt64);
             break;
         case UA_PUBLISHERDATATYPE_STRING:
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "---> Received From PublisherID (UA_STRING): %s", networkMessage.publisherId.publisherIdString.data);
+                "---> Received From PublisherID (UA_STRING): %s", networkMessage.publisherId.publisherIdString.data);
             break;
-    }
+        }
 
-    /* Loop over the fields and print well-known content types */
-    for(int i = dsm->data.keyFrameData.fieldCount-1; i >= 0; i--) {
-        const UA_DataType *currentType = dsm->data.keyFrameData.dataSetFields[i].value.type;
-        if(dsm->data.keyFrameData.dataSetFields[i].value.arrayLength > 1) {
-            if(dsm->data.keyFrameData.dataSetFields[i].value.arrayLength == 10){
-                UA_UInt32 *value = (UA_UInt32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Message content: [Array UInt32] "
-                            "Received data: {%u, %u, %u, %u, %u, %u, %u, %u, %u, %u}", value[0], value[1],
-                            value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9]);
-            } else {
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Received an unknown array. No print function defined!");
+        /* Loop over the fields and print well-known content types */
+        for (int i = dsm->data.keyFrameData.fieldCount - 1; i >= 0; i--) {
+            const UA_DataType *currentType = dsm->data.keyFrameData.dataSetFields[i].value.type;
+            if (dsm->data.keyFrameData.dataSetFields[i].value.arrayLength > 1) {
+                if (dsm->data.keyFrameData.dataSetFields[i].value.arrayLength == 10) {
+                    UA_UInt32 *value = (UA_UInt32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Message content: [Array UInt32] "
+                        "Received data: {%u, %u, %u, %u, %u, %u, %u, %u, %u, %u}", value[0], value[1],
+                        value[2], value[3], value[4], value[5], value[6], value[7], value[8], value[9]);
+                }
+                else {
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Received an unknown array. No print function defined!");
+                }
+
             }
-
-        } else if(currentType == &UA_TYPES[UA_TYPES_BYTE]) {
+            else if (currentType == &UA_TYPES[UA_TYPES_BYTE]) {
                 UA_Byte value = *(UA_Byte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Byte] \t\tReceived data: %i", value);
-        } else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
-            UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(value);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [DateTime] \t"
-                        "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
-                        receivedTime.year, receivedTime.month, receivedTime.day,
-                        receivedTime.hour, receivedTime.min, receivedTime.sec);
-        } else if (currentType == &UA_TYPES[UA_TYPES_BOOLEAN]) {
-            UA_Boolean value = *(UA_Boolean *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            char * state;
-            if(value)
-                state = "True\0";
-            else
-                state = "False\0";
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Boolean] \t\t"
-                        "Received State: %s", state);
-        } else if(currentType == &UA_TYPES[UA_TYPES_INT16]) {
-            UA_Int16 value = *(UA_Int16 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Int16] \t\t"
-                        "Received data: %i", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_INT32]) {
-            UA_Int32 value = *(UA_Int32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Int32] \t\t"
-                        "Received data: %i", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_INT64]) {
-            UA_Int64 value = *(UA_Int64 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Int64] \t\t"
-                        "Received data: %li", value);
-        }else if(currentType == &UA_TYPES[UA_TYPES_UINT16]) {
-            UA_UInt16 value = *(UA_UInt16 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [UInt16] \t\t"
-                        "Received data: %u", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_UINT32]) {
-            UA_UInt32 value = *(UA_UInt32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [UInt32] \t\t"
-                        "Received data: %u", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_UINT64]) {
-            UA_UInt64 value = *(UA_UInt64 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [UInt64] \t\t"
-                        "Received data: %lu", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_SBYTE]) {
-            UA_SByte value = *(UA_SByte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [SByte] \t\t"
-                        "Received data: %i", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_FLOAT]) {
-            UA_Float value = *(UA_Float *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Float] \t\t"
-                        "Received data: %f", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_DOUBLE]) {
-            UA_Double value = *(UA_Double *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Double] \t\t"
-                        "Received data: %f", value);
-        } else if(currentType == &UA_TYPES[UA_TYPES_STRING]) {
-            UA_String value = *(UA_String *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [String] \t\t"
-                        "Received data: %s", value.data);
-        } else if(currentType == &UA_TYPES[UA_TYPES_BYTESTRING]) {
-            UA_ByteString value = *(UA_ByteString *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [ByteString] \t"
-                        "Received data: %s", value.data);
-        } else if(currentType == &UA_TYPES[UA_TYPES_GUID]) {
-            UA_Guid value = *(UA_Guid *)dsm->data.keyFrameData.dataSetFields[i].value.data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message content: [Guid] \t\t"
-                        "Received data: {%08u-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
-                        value.data1, value.data2, value.data3, value.data4[0], value.data4[1],
-                        value.data4[2], value.data4[3], value.data4[4], value.data4[5],
-                        value.data4[6], value.data4[7]);
+                    "Message content: [Byte] \t\tReceived data: %i", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_DATETIME]) {
+                UA_DateTime value = *(UA_DateTime *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_DateTimeStruct receivedTime = UA_DateTime_toStruct(value);
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [DateTime] \t"
+                    "Received date: %02i-%02i-%02i Received time: %02i:%02i:%02i",
+                    receivedTime.year, receivedTime.month, receivedTime.day,
+                    receivedTime.hour, receivedTime.min, receivedTime.sec);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+                UA_Boolean value = *(UA_Boolean *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                char * state;
+                if (value)
+                    state = "True\0";
+                else
+                    state = "False\0";
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [Boolean] \t\t"
+                    "Received State: %s", state);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_INT16]) {
+                UA_Int16 value = *(UA_Int16 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [Int16] \t\t"
+                    "Received data: %i", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_INT32]) {
+                UA_Int32 value = *(UA_Int32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [Int32] \t\t"
+                    "Received data: %i", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_INT64]) {
+                UA_Int64 value = *(UA_Int64 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [Int64] \t\t"
+                    "Received data: %li", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_UINT16]) {
+                UA_UInt16 value = *(UA_UInt16 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [UInt16] \t\t"
+                    "Received data: %u", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_UINT32]) {
+                UA_UInt32 value = *(UA_UInt32 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [UInt32] \t\t"
+                    "Received data: %u", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_UINT64]) {
+                UA_UInt64 value = *(UA_UInt64 *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [UInt64] \t\t"
+                    "Received data: %lu", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_SBYTE]) {
+                UA_SByte value = *(UA_SByte *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [SByte] \t\t"
+                    "Received data: %i", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_FLOAT]) {
+                UA_Float value = *(UA_Float *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [Float] \t\t"
+                    "Received data: %f", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_DOUBLE]) {
+                UA_Double value = *(UA_Double *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [Double] \t\t"
+                    "Received data: %f", value);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_STRING]) {
+                UA_String value = *(UA_String *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [String] \t\t"
+                    "Received data: %s", value.data);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_BYTESTRING]) {
+                UA_ByteString value = *(UA_ByteString *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [ByteString] \t"
+                    "Received data: %s", value.data);
+            }
+            else if (currentType == &UA_TYPES[UA_TYPES_GUID]) {
+                UA_Guid value = *(UA_Guid *)dsm->data.keyFrameData.dataSetFields[i].value.data;
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Message content: [Guid] \t\t"
+                    "Received data: {%08u-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}",
+                    value.data1, value.data2, value.data3, value.data4[0], value.data4[1],
+                    value.data4[2], value.data4[3], value.data4[4], value.data4[5],
+                    value.data4[6], value.data4[7]);
+            }
         }
     }
 
