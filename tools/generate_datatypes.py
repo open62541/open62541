@@ -50,9 +50,9 @@ builtin_overlayable = {"Boolean": "true",
                        "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
                        "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " + \
-                       "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
-                       "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " + \
+                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " +
+                       "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " +
+                       "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " +
                        "offsetof(UA_Guid, data4) == (2*sizeof(UA_UInt32)))"}
 
 whitelistFuncAttrWarnUnusedResult = []  # for instances [ "String", "ByteString", "LocalizedText" ]
