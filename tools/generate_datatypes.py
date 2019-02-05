@@ -82,7 +82,7 @@ class StructMember(object):
         self.isArray = isArray
 
 def getNodeidTypeAndId(nodeId):
-    if not '=' in nodeId:
+    if '=' not in nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId)
     if nodeId.startswith("i="):
         return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId[2:])
