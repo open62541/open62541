@@ -71,7 +71,7 @@ echo "=== Install build, then compile minimal example ===" && echo -en 'travis_f
         -DUA_NAMESPACE_ZERO=FULL \
         -DUA_ENABLE_AMALGAMATION=OFF \
         -DCMAKE_INSTALL_PREFIX=$TRAVIS_BUILD_DIR/open62541_install ..
-    make install
+    make -j install
     if [ $? -ne 0 ] ; then exit 1 ; fi
 
     cd .. && rm build -rf
