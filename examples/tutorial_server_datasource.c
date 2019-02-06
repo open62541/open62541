@@ -36,7 +36,7 @@ updateCurrentTime(UA_Server *server) {
     UA_DateTime now = UA_DateTime_now();
     UA_Variant value;
     UA_Variant_setScalar(&value, &now, &UA_TYPES[UA_TYPES_DATETIME]);
-    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time");
+    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-value-callback");
     UA_Server_writeValue(server, currentNodeId, value);
 }
 
@@ -44,12 +44,12 @@ static void
 addCurrentTimeVariable(UA_Server *server) {
     UA_DateTime now = 0;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Current time");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Current time - value callback");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&attr.value, &now, &UA_TYPES[UA_TYPES_DATETIME]);
 
-    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time");
-    UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time");
+    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-value-callback");
+    UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time-value-callback");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -89,7 +89,7 @@ afterWriteTime(UA_Server *server,
 
 static void
 addValueCallbackToCurrentTimeVariable(UA_Server *server) {
-    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time");
+    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-value-callback");
     UA_ValueCallback callback ;
     callback.onRead = beforeReadTime;
     callback.onWrite = afterWriteTime;
