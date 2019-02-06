@@ -5,6 +5,7 @@ env:
   global:
     # GITAUTH:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
+    - PYTHON=python2
 
 dist: trusty
 
@@ -12,31 +13,27 @@ matrix:
   fast_finish: true
   include:
 #
-# gcc-4.8 (trusty) full host and cross build:
+# gcc-4.8 (trusty) full host and cross build with tests:
 # doc, cert, cross-mingw32, cross-mingw64, cross-linux32, cross-raspi, linux64,
 # amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal, debian-package
     - os: linux
+      compiler: gcc-4.8
       addons:
         apt:
           sources:
             # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
             - ubuntu-toolchain-r-test
           packages:
-            - check
-            # cross-mingw
             - mingw-w64
-            - g++-mingw-w64-i686
-            - g++-mingw-w64-x86-64
+            - gcc-mingw-w64-i686
+            - gcc-mingw-w64-x86-64
             - binutils-mingw-w64-i686
+            - g++-multilib
+            - python-six
             # debian packaging
+            - cmake
             - debhelper
             - fakeroot
-            #
-            - gcc-multilib
-            - g++-multilib
-            - libsubunit-dev
-            - libx11-dev
-            - python-six
             # doc
             - python-sphinx
             - graphviz
@@ -44,34 +41,25 @@ matrix:
             - texlive-fonts-recommended
             - texlive-latex-extra
             - latexmk
-            #
+            # tests
+            - check
             - valgrind
-            - wget
-            - xutils-dev
-            - zip
       env:
-#        - CC=gcc-4.8
-#        - CXX=g++-4.8
-        - PYTHON=python2
         - MINGW=true
         - DEBIAN=true
 #
-# gcc-8 full host build:
+# gcc-8 full host build with tests:
 # doc, cert, linux64,
 # amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: gcc-8
       addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - check
             - gcc-8
             - gcc-8-multilib
-            - g++-8
-            - g++-8-multilib
-            - graphviz
-            - linux-libc-dev:i386
             - python-six
             # doc
             - python-sphinx
@@ -80,26 +68,24 @@ matrix:
             - texlive-fonts-recommended
             - texlive-latex-extra
             - latexmk
-            #
+            # tests
+            - check
             - valgrind
-      env:
-        - CC=gcc-8
-        - CXX=g++-8
-        - PYTHON=python2
 #
-# clang-6 full host build:
+# clang-6 full host build with tests:
 # doc, cert, linux64,
 # amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
             - llvm-toolchain-trusty-6.0
             - ubuntu-toolchain-r-test
           packages:
-            - check
             - clang-6.0
             - clang-tidy-6.0
+            - python-six
             # doc
             - python-sphinx
             - graphviz
@@ -107,24 +93,21 @@ matrix:
             - texlive-fonts-recommended
             - texlive-latex-extra
             - latexmk
-            #
+            # tests
+            - check
             - valgrind
-      env:
-        - CC=clang-6.0
-        - CXX=clang++-6.0
-        - PYTHON=python2
 #
-# clang-6 python-3 full host build:
+# clang-6 python-3 full host build with tests:
 # doc, cert, linux64,
 # amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
             - llvm-toolchain-trusty-6.0
             - ubuntu-toolchain-r-test
           packages:
-            - check
             - clang-6.0
             - clang-tidy-6.0
             - python3-six
@@ -135,37 +118,36 @@ matrix:
             - texlive-fonts-recommended
             - texlive-latex-extra
             - latexmk
-            #
+            # tests
+            - check
             - valgrind
       env:
-        - CC=clang-6.0
-        - CXX=clang++-6.0
         - PYTHON=python3
 #
 # tcc full host build:
 # doc, cert, linux64,
 # amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal
     - os: linux
+      compiler: tcc
       addons:
         apt:
           packages:
-            - check
-            - python3-six
+            - python-six
             # doc
-            - python3-sphinx
+            - python-sphinx
             - graphviz
             - texlive-generic-extra
             - texlive-fonts-recommended
             - texlive-latex-extra
             - latexmk
-            #
-      env:
-        - CC=tcc
-        - PYTHON=python2
+            # tests
+            - check
+            - valgrind
 #
 # clang-6 python-3 install build and minimal example:
 # linux64, minimal-example
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
@@ -175,51 +157,51 @@ matrix:
             - clang-6.0
             - clang-tidy-6.0
             - python3-six
-            - valgrind
       env:
         - INSTALL=true
-        - CC=clang-6.0
-        - CXX=clang++-6.0
         - PYTHON=python3
+        - CXX=clang-6.0
 #
 # gcc-4.8 static code analysis
     - os: linux
+      compiler: gcc
       addons:
         apt:
           packages:
             - cppcheck
       env:
         - ANALYZE=true
-        - CC=gcc-4.8
-        - CXX=g++-4.8
 #
 # clang-6 static code analysis
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
             - llvm-toolchain-trusty-6.0
             - ubuntu-toolchain-r-test
           packages:
-#            - check
+            - check
             - clang-6.0
             - clang-tidy-6.0
       env:
         - ANALYZE=true
         - PYTHON=python3
-        - CC=clang-6.0
-        - CXX=clang++-6.0
+#
+# cpplint checking
     #- os: linux
     #  compiler: gcc
     #  env: LINT=true
 #
 # DOCKER build
     - os: linux
+      compiler: gcc
       env:
         - DOCKER=true
 #
 # clang-6 FUZZER build
     - os: linux
+      compiler: clang-6.0
       addons:
         apt:
           sources:
@@ -230,12 +212,11 @@ matrix:
             - clang-6.0
             - clang-tidy-6.0
             - libfuzzer-6.0-dev
-#            - python-six
-#            - python3-six
+            - python-six
       env:
         - FUZZER=true
 #
-# OSX clang-6 build
+# OSX clang build
     - os: osx
       compiler: clang
       # disable homebrew auto update which takes a lot of time
@@ -246,6 +227,7 @@ matrix:
 #
 # SONAR gcc-4.9 build
     - os: linux
+      compiler: gcc-4.9
       addons:
         sonarcloud:
           organization: open62541
@@ -254,9 +236,6 @@ matrix:
             - sonarcloud
       env:
         - SONAR=true
-        - CC=gcc-4.9
-        - CXX=g++-4.9
-        - PYTHON=python2
       cache:
         directories:
           - '$HOME/.sonar/cache'
