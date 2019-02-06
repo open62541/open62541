@@ -110,6 +110,4 @@ int main(void) {
  *
  * The server configuration and lifecycle management is needed for all servers.
  * We will use it in the following tutorials without further comment.
- *
- * .. [#f1] Be careful with global variables in multi-threaded applications. You
- *          might want to allocate the ``running`` variable on the heap. */
+ */
