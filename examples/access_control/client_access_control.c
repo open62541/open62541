@@ -28,10 +28,8 @@ int main(void) {
     newVariableAttributes.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "NewVariable desc");
     newVariableAttributes.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "NewVariable");
     newVariableAttributes.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
-    {
-        UA_UInt32 value = 50;
-        UA_Variant_setScalarCopy(&newVariableAttributes.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
-    }
+    UA_UInt32 value = 50;
+    UA_Variant_setScalarCopy(&newVariableAttributes.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_StatusCode retCode;
 
