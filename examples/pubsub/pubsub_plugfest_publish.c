@@ -56,7 +56,7 @@ addPublishedDataSet(UA_Server *server) {
     UA_PublishedDataSetConfig publishedDataSetConfigDS3;
     memset(&publishedDataSetConfigDS3, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfigDS3.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
-    publishedDataSetConfigDS3.name = UA_STRING_ALLOC("DataSet 3 (MassTest)");
+    publishedDataSetConfigDS3.name = UA_STRING("DataSet 3 (MassTest)");
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfigDS3, &publishedDataSetIdent3);
     //Plugfest PDS4
     UA_PublishedDataSetConfig publishedDataSetConfigDS4;
@@ -343,6 +343,7 @@ any10MsecHandler (UA_Server *server, void *data){
         int32DS1++;
     else
         int32DS1 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &int32DS1, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 1003), value);
 }
@@ -357,6 +358,7 @@ any1secHandler (UA_Server *server, void *data){
         int32DS1++;
     else
         int32DS1 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &int32DS1, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 1002), value);
 
@@ -367,6 +369,7 @@ any1secHandler (UA_Server *server, void *data){
         boolToggle = UA_FALSE;
     else
         boolToggle = UA_TRUE;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &boolToggle, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2001), value);
 
@@ -376,6 +379,7 @@ any1secHandler (UA_Server *server, void *data){
         byteDS2++;
     else
         byteDS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &byteDS2, &UA_TYPES[UA_TYPES_BYTE]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2002), value);
 
@@ -385,6 +389,7 @@ any1secHandler (UA_Server *server, void *data){
         int16DS2++;
     else
         int16DS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &int16DS2, &UA_TYPES[UA_TYPES_INT16]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2003), value);
 
@@ -394,6 +399,7 @@ any1secHandler (UA_Server *server, void *data){
         int32DS2++;
     else
         int32DS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &int32DS2, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2004), value);
 
@@ -403,6 +409,7 @@ any1secHandler (UA_Server *server, void *data){
         sByteDS2++;
     else
         sByteDS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &sByteDS2, &UA_TYPES[UA_TYPES_SBYTE]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2005), value);
 
@@ -412,6 +419,7 @@ any1secHandler (UA_Server *server, void *data){
         uint16DS2++;
     else
         uint16DS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &uint16DS2, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2006), value);
 
@@ -421,6 +429,7 @@ any1secHandler (UA_Server *server, void *data){
         uint32DS2++;
     else
         uint32DS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &uint32DS2, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2007), value);
 
@@ -430,6 +439,7 @@ any1secHandler (UA_Server *server, void *data){
         floatDS2++;
     else
         floatDS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &floatDS2, &UA_TYPES[UA_TYPES_FLOAT]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2008), value);
 
@@ -439,6 +449,7 @@ any1secHandler (UA_Server *server, void *data){
         doubleDS2++;
     else
         doubleDS2 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &doubleDS2, &UA_TYPES[UA_TYPES_DOUBLE]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 2009), value);
 
@@ -450,6 +461,7 @@ any1secHandler (UA_Server *server, void *data){
             uint32DS3++;
         else
             uint32DS3 = (UA_UInt32) (i * 100);
+        UA_Variant_deleteMembers(&value);
         UA_Variant_setScalar(&value, &uint32DS3, &UA_TYPES[UA_TYPES_UINT32]);
         UA_Server_writeValue(server, UA_NODEID_NUMERIC(1,(UA_UInt32) (3001 + i)), value);
     }
@@ -461,6 +473,7 @@ any1secHandler (UA_Server *server, void *data){
         boolToggleDS4 = UA_FALSE;
     else
         boolToggleDS4 = UA_TRUE;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &boolToggleDS4, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4001), value);
 
@@ -470,6 +483,7 @@ any1secHandler (UA_Server *server, void *data){
         byteDS4++;
     else
         byteDS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &byteDS4, &UA_TYPES[UA_TYPES_BYTE]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4002), value);
 
@@ -479,6 +493,7 @@ any1secHandler (UA_Server *server, void *data){
         int16DS4++;
     else
         int16DS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &int16DS4, &UA_TYPES[UA_TYPES_INT16]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4003), value);
 
@@ -488,6 +503,7 @@ any1secHandler (UA_Server *server, void *data){
         int32DS4++;
     else
         int32DS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &int32DS4, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4004), value);
 
@@ -497,6 +513,7 @@ any1secHandler (UA_Server *server, void *data){
         int64DS4++;
     else
         int64DS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &int64DS4, &UA_TYPES[UA_TYPES_INT64]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4005), value);
 
@@ -506,6 +523,7 @@ any1secHandler (UA_Server *server, void *data){
         sByteDS4++;
     else
         sByteDS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &sByteDS4, &UA_TYPES[UA_TYPES_SBYTE]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4006), value);
 
@@ -515,6 +533,7 @@ any1secHandler (UA_Server *server, void *data){
         uint16DS4++;
     else
         uint16DS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &uint16DS4, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4007), value);
 
@@ -524,6 +543,7 @@ any1secHandler (UA_Server *server, void *data){
         uint32DS4++;
     else
         uint32DS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &uint32DS4, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4008), value);
 
@@ -533,6 +553,7 @@ any1secHandler (UA_Server *server, void *data){
         uint64DS4++;
     else
         uint64DS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &uint64DS4, &UA_TYPES[UA_TYPES_UINT64]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4009), value);
 
@@ -542,6 +563,7 @@ any1secHandler (UA_Server *server, void *data){
         floatDS4++;
     else
         floatDS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &floatDS4, &UA_TYPES[UA_TYPES_FLOAT]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4010), value);
 
@@ -551,6 +573,7 @@ any1secHandler (UA_Server *server, void *data){
         doubleDS4++;
     else
         doubleDS4 = 0;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &doubleDS4, &UA_TYPES[UA_TYPES_DOUBLE]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4011), value);
 
@@ -562,6 +585,7 @@ any1secHandler (UA_Server *server, void *data){
     UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 4004), &value);
     int32DS4 = *((UA_Int32 *)value.data);
     UA_String stringDS4 = UA_STRING(natoAlphabet[int32DS4 % 26]);
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &stringDS4, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4012), value);
 
@@ -595,7 +619,7 @@ any1secHandler (UA_Server *server, void *data){
     }
     UA_Variant_setArray(&uint32ArrayVariant, uint32Array, 10, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 4016), uint32ArrayVariant);
-
+    UA_Variant_deleteMembers(&value);
 }
 
 static void
@@ -608,6 +632,7 @@ any3secHandler (UA_Server *server, void *data){
         boolToggle = UA_FALSE;
     else
         boolToggle = UA_TRUE;
+    UA_Variant_deleteMembers(&value);
     UA_Variant_setScalar(&value, &boolToggle, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 1001), value);
 }
@@ -764,7 +789,7 @@ addPlugfestNodes(UA_Server *server) {
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vattr, NULL, NULL);
 
     //adding variables DataSet 3
-    UA_UInt32 * uint32ArrayDS3 = (UA_UInt32 *) UA_calloc(100, sizeof(UA_UInt32));
+    UA_UInt32 uint32ArrayDS3[100];
     for (int i = 0; i < 100; ++i) {
         char s[8];
         sprintf(s,"MASS_%i", i);
@@ -791,7 +816,7 @@ addPlugfestNodes(UA_Server *server) {
     UA_Float floatDS4 = 0.0;
     UA_Double doubleDS4 = 0.0;
     UA_String stringDS4 = UA_STRING("Alpha");
-    UA_ByteString byteStringDS4;
+    UA_ByteString byteStringDS4 = UA_BYTESTRING_NULL;
     UA_Guid guidDS4;
     UA_DateTime dateTimeDS4;
 
@@ -934,7 +959,7 @@ static int run(UA_String *transportProfile,
     signal(SIGTERM, stopHandler);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4840, NULL);
     /* Details about the connection configuration and handling are located in
      * the pubsub connection tutorial */
     config->pubsubTransportLayers =
