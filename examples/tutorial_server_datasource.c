@@ -75,11 +75,7 @@ beforeReadTime(UA_Server *server,
                const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeid, void *nodeContext,
                const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_DateTime now = UA_DateTime_now();
-    UA_Variant value;
-    UA_Variant_setScalar(&value, &now, &UA_TYPES[UA_TYPES_DATETIME]);
-    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time");
-    UA_Server_writeValue(server, currentNodeId, value);
+    updateCurrentTime(server);
 }
 
 static void
