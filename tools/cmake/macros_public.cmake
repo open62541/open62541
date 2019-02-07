@@ -43,6 +43,11 @@ function(ua_generate_nodeid_header)
     add_custom_target(${UA_GEN_ID_TARGET_PREFIX}-${UA_GEN_ID_TARGET_SUFFIX} DEPENDS
         ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
     )
+    
+    # Make sure that the output directory exists 
+    if(NOT EXISTS ${UA_GEN_ID_OUTPUT_DIR})
+        file(MAKE_DIRECTORY ${UA_GEN_ID_OUTPUT_DIR})
+    endif()
 
     # Header containing defines for all NodeIds
     add_custom_command(OUTPUT ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
@@ -148,6 +153,11 @@ function(ua_generate_datatypes)
     foreach(f ${UA_GEN_DT_FILES_BSD})
         set(BSD_FILES_TMP ${BSD_FILES_TMP} "--type-bsd=${f}")
     endforeach()
+    
+    # Make sure that the output directory exists 
+    if(NOT EXISTS ${UA_GEN_DT_OUTPUT_DIR})
+        file(MAKE_DIRECTORY ${UA_GEN_DT_OUTPUT_DIR})
+    endif()
 
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
@@ -293,6 +303,11 @@ function(ua_generate_nodeset)
     foreach(f ${UA_GEN_NS_FILE})
         set(FILE_LIST ${FILE_LIST} "--xml=${f}")
     endforeach()
+    
+    # Make sure that the output directory exists 
+    if(NOT EXISTS ${UA_GEN_NS_OUTPUT_DIR})
+        file(MAKE_DIRECTORY ${UA_GEN_NS_OUTPUT_DIR})
+    endif()
 
     add_custom_command(OUTPUT ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.c
                        ${UA_GEN_NS_OUTPUT_DIR}/ua_namespace${FILE_SUFFIX}.h
