@@ -137,9 +137,19 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
     if(writerGroupIdentifier){
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
     }
-    UA_WriterGroupConfig tmpWriterGroupConfig;
+
     //deep copy of the config
+    UA_WriterGroupConfig tmpWriterGroupConfig;
     retVal |= UA_WriterGroupConfig_copy(writerGroupConfig, &tmpWriterGroupConfig);
+
+    if(!tmpWriterGroupConfig.messageSettings.content.decoded.type) {
+        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
+        tmpWriterGroupConfig.messageSettings.content.decoded.data = wgm;
+        tmpWriterGroupConfig.messageSettings.content.decoded.type =
+            &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        tmpWriterGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    }
+
     newWriterGroup->config = tmpWriterGroupConfig;
     retVal |= UA_WriterGroup_addPublishCallback(server, newWriterGroup);
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
@@ -1125,15 +1135,45 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
 
 static UA_StatusCode
 sendNetworkMessage(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
-                   UA_UInt16 *writerIds, UA_Byte dsmCount) {
+                   UA_UInt16 *writerIds, UA_Byte dsmCount,
+                   UA_ExtensionObject *messageSettings,
+                   UA_ExtensionObject *transportSettings) {
+
+    if(messageSettings->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
+        messageSettings->content.decoded.data;
+
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
+
+    nm.publisherIdEnabled = 
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID);
+    nm.groupHeaderEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER);
+    nm.groupHeader.writerGroupIdEnabled = 
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID);
+    nm.groupHeader.groupVersionEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION);
+    nm.groupHeader.networkMessageNumberEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER);
+    nm.groupHeader.sequenceNumberEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER);
+    nm.payloadHeaderEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    nm.timestampEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP);
+    nm.picosecondsEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS);
+    nm.dataSetClassIdEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID);
+    nm.promotedFieldsEnabled =
+        !!(wgm->networkMessageContentMask | UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS);
+
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    nm.payloadHeaderEnabled = true;
-    nm.publisherIdEnabled = true;
     if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
+        nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
         nm.publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
     } else if (connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
         nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;
@@ -1201,8 +1241,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         return;
 
     /* Binary or Json encoding?  */
-    if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP
-            && writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_JSON) {
+    if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP &&
+       writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_JSON) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Publish failed: Unknown encoding type.");
         return;
@@ -1257,7 +1297,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         if(pds->promotedFieldsCount > 0 || maxDSM == 1) {
             if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
                 res = sendNetworkMessage(connection, &dsmStore[dsmCount],
-                                         &dsw->config.dataSetWriterId, 1);
+                                         &dsw->config.dataSetWriterId, 1,
+                                         &writerGroup->config.messageSettings,
+                                         &writerGroup->config.transportSettings);
             }else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
                 res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
                                          &dsw->config.dataSetWriterId, 1);
@@ -1284,8 +1326,10 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_StatusCode res3 = UA_STATUSCODE_GOOD;
         if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP){
             res3 = sendNetworkMessage(connection, &dsmStore[i * maxDSM],
-                                                            &dsWriterIds[i * maxDSM], nmDsmCount);
-        }else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
+                                      &dsWriterIds[i * maxDSM], nmDsmCount,
+                                      &writerGroup->config.messageSettings,
+                                      &writerGroup->config.transportSettings);
+        } else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
             res3 = sendNetworkMessageJson(connection, &dsmStore[i * maxDSM],
                                                             &dsWriterIds[i * maxDSM], nmDsmCount);
         }

@@ -506,6 +506,51 @@ removePublishedDataSetAction(UA_Server *server,
 /**********************************************/
 /*               WriterGroup                  */
 /**********************************************/
+
+static UA_StatusCode
+readContentMask(UA_Server *server, const UA_NodeId *sessionId,
+                void *sessionContext, const UA_NodeId *nodeId,
+                void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                const UA_NumericRange *range, UA_DataValue *value) {
+    UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
+    if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
+        writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       writerGroup->config.messageSettings.content.decoded.type !=
+       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
+        writerGroup->config.messageSettings.content.decoded.data;
+
+    UA_Variant_setScalarCopy(&value->value, &wgm->networkMessageContentMask,
+                             &UA_TYPES[UA_TYPES_UADPNETWORKMESSAGECONTENTMASK]);
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeContentMask(UA_Server *server, const UA_NodeId *sessionId,
+                 void *sessionContext, const UA_NodeId *nodeId,
+                 void *nodeContext, const UA_NumericRange *range,
+                 const UA_DataValue *value) {
+    UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
+    if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
+        writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       writerGroup->config.messageSettings.content.decoded.type !=
+       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
+        writerGroup->config.messageSettings.content.decoded.data;
+
+    if(!value->value.type)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    if(value->value.type->typeKind != UA_DATATYPEKIND_ENUM &&
+       value->value.type->typeKind != UA_DATATYPEKIND_INT32)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    wgm->networkMessageContentMask = *(UA_UadpNetworkMessageContentMask*)value->value.data;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -552,6 +597,32 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     UA_Server_writeValue(server, priorityNode, value);
     UA_Variant_setScalar(&value, &writerGroup->config.writerGroupId, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_writeValue(server, writerGroupIdNode, value);
+
+    retVal |= addPubSubObjectNode(server, "MessageSettings", 0,
+                                  writerGroup->identifier.identifier.numeric,
+                                  UA_NS0ID_HASCOMPONENT, UA_NS0ID_UADPWRITERGROUPMESSAGETYPE);
+
+    /* Find the variable with the content mask */
+
+    UA_NodeId messageSettingsId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "MessageSettings"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                                       UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+    UA_NodeId contentMaskId = findSingleChildNode(server,
+                                                  UA_QUALIFIEDNAME(0, "NetworkMessageContentMask"),
+                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                                  messageSettingsId);
+
+    /* Set the callback */
+    UA_DataSource ds;
+    ds.read = readContentMask;
+    ds.write = writeContentMask;
+    UA_Server_setVariableNode_dataSource(server, contentMaskId, ds);
+    UA_Server_setNodeContext(server, contentMaskId, writerGroup);
+
+    /* Make writable */
+    UA_Server_writeAccessLevel(server, contentMaskId,
+                               UA_ACCESSLEVELTYPE_CURRENTREAD | UA_ACCESSLEVELTYPE_CURRENTWRITE);
+
     return retVal;
 }
 
@@ -618,12 +689,18 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     dswName[dataSetWriter->config.name.length] = '\0';
     //This code block must use a lock
     UA_Nodestore_remove(server, &dataSetWriter->identifier);
-    retVal |= addPubSubObjectNode(server, dswName, dataSetWriter->identifier.identifier.numeric, dataSetWriter->linkedWriterGroup.identifier.numeric,
-                            UA_NS0ID_HASDATASETWRITER, UA_NS0ID_DATASETWRITERTYPE);
+    retVal |= addPubSubObjectNode(server, dswName, dataSetWriter->identifier.identifier.numeric,
+                                  dataSetWriter->linkedWriterGroup.identifier.numeric,
+                                  UA_NS0ID_HASDATASETWRITER, UA_NS0ID_DATASETWRITERTYPE);
     //End lock zone
     retVal |= UA_Server_addReference(server, dataSetWriter->connectedDataSet,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
                                      UA_EXPANDEDNODEID_NUMERIC(0, dataSetWriter->identifier.identifier.numeric), true);
+
+
+    retVal |= addPubSubObjectNode(server, "MessageSettings", 0,
+                                  dataSetWriter->identifier.identifier.numeric,
+                                  UA_NS0ID_HASCOMPONENT, UA_NS0ID_UADPDATASETWRITERMESSAGETYPE);
     return retVal;
 }
 
