@@ -16,7 +16,7 @@ import itertools
 import argparse
 import csv
 import json
-from nodeset_compiler.opaque_type_mapping import opaque_type_mapping, get_base_type_for_opaque as get_base_type_for_opaque_ns0
+from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
