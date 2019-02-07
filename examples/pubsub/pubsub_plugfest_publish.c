@@ -24,6 +24,8 @@
 
 UA_NodeId connectionIdent, publishedDataSetIdent1, publishedDataSetIdent2, publishedDataSetIdent3, publishedDataSetIdent4, writerGroupIdent;
 
+UA_UInt32 publisherId = 60;
+
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl){
@@ -34,7 +36,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = 60;
+    connectionConfig.publisherId.numeric = publisherId;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -292,6 +294,14 @@ addWriterGroup(UA_Server *server) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+
+    UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
+    wgm->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)63;
+    writerGroupConfig.messageSettings.content.decoded.data = wgm;
+    writerGroupConfig.messageSettings.content.decoded.type =
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
 }
 
@@ -993,7 +1003,7 @@ static int run(UA_String *transportProfile,
 
 static void
 usage(char *progname) {
-    printf("usage: %s <uri> [device]\n", progname);
+    printf("usage: %s <publisherId> <opc.udp://host:port>\n", progname);
 }
 
 int main(int argc, char **argv) {
@@ -1006,21 +1016,14 @@ int main(int argc, char **argv) {
         if (strcmp(argv[1], "-h") == 0) {
             usage(argv[0]);
             return 0;
-        } else if (strncmp(argv[1], "opc.udp://", 10) == 0) {
-            networkAddressUrl.url = UA_STRING(argv[1]);
-        } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
-            transportProfile =
-                UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-            if (argc < 3) {
-                printf("Error: UADP/ETH needs an interface name\n");
-                return 1;
-            }
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
-            networkAddressUrl.url = UA_STRING(argv[1]);
-        } else {
-            printf("Error: unknown URI\n");
-            return 1;
+
         }
+
+        sscanf(argv[1], "%u", &publisherId);
+    }
+
+    if(argc > 2 && strncmp(argv[1], "opc.udp://", 10) == 0) {
+        networkAddressUrl.url = UA_STRING(argv[2]);
     }
 
     return run(&transportProfile, &networkAddressUrl);
