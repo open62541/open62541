@@ -6,6 +6,7 @@
 #include <ua_log_stdout.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
@@ -49,5 +50,5 @@ int main(int argc, char** argv) {
 
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

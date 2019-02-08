@@ -12,7 +12,9 @@
 #include <ua_historydatagathering_default.h>
 #include <ua_historydatabase_default.h>
 #include <ua_historydatabackend_memory.h>
+
 #include <signal.h>
+#include <stdlib.h>
 
 static UA_Boolean running = true;
 static void stopHandler(int sign) {
@@ -20,7 +22,6 @@ static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
-
 
 int main(void) {
     signal(SIGINT, stopHandler);
@@ -137,5 +138,5 @@ int main(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -20,6 +20,7 @@
 #include <ua_config_default.h>
 #include <ua_log_stdout.h>
 
+#include <stdlib.h>
 
 static void
 variables_basic(void) {
@@ -135,5 +136,5 @@ int main(void) {
     variables_basic();
     variables_nodeids();
     variables_variants();
-    return 0;
+    return EXIT_SUCCESS;
 }

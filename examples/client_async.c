@@ -6,6 +6,8 @@
 #include <ua_log_stdout.h>
 #include <ua_client_highlevel_async.h>
 
+#include <stdlib.h>
+
 #define NODES_EXIST
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
@@ -198,5 +200,5 @@ main(int argc, char *argv[]) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 
-    return (int) UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

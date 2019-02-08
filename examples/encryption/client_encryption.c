@@ -8,8 +8,9 @@
 #include <ua_client_highlevel.h>
 #include "common.h"
 
+#include <stdlib.h>
+
 #define MIN_ARGS 4
-#define FAILURE  1
 
 int main(int argc, char* argv[]) {
     if(argc < MIN_ARGS) {
@@ -18,7 +19,7 @@ int main(int argc, char* argv[]) {
                      "<opc.tcp://host:port> "
                      "<client-certificate.der> <client-private-key.der> "
                      "[<trustlist1.crl>, ...]");
-        return FAILURE;
+        return EXIT_FAILURE;
     }
 
     const char *endpointUrl = argv[1];
@@ -55,7 +56,7 @@ int main(int argc, char* argv[]) {
     UA_StatusCode retval = UA_Client_connect(client, endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     UA_Variant value;
@@ -76,5 +77,5 @@ int main(int argc, char* argv[]) {
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

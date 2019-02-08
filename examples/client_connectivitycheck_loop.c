@@ -6,6 +6,7 @@
 #include <ua_log_stdout.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 
@@ -49,5 +50,5 @@ int main(void) {
 
     /* Clean up */
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

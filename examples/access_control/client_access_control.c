@@ -9,6 +9,8 @@
 #include <ua_config_default.h>
 #include <ua_client_highlevel.h>
 
+#include <stdlib.h>
+
 int main(void) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -16,7 +18,7 @@ int main(void) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     UA_NodeId newVariableIdRequest = UA_NODEID_NUMERIC(1, 1001);
@@ -63,5 +65,5 @@ int main(void) {
     /* Clean up */
     UA_VariableAttributes_clear(&newVariableAttributes);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

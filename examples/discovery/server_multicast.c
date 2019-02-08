@@ -15,6 +15,7 @@
 #include <ua_securitypolicies.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 const UA_ByteString UA_SECURITY_POLICY_BASIC128_URI =
     {56, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"};
@@ -309,7 +310,7 @@ int main(int argc, char **argv) {
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
         UA_free(discovery_url);
-        return 1;
+        return EXIT_FAILURE;
     }
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "Server started. Waiting for announce of LDS Server.");
@@ -319,7 +320,7 @@ int main(int argc, char **argv) {
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
         UA_free(discovery_url);
-        return 1;
+        return EXIT_FAILURE;
     }
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "LDS-ME server found on %s", discovery_url);
 
@@ -333,7 +334,7 @@ int main(int argc, char **argv) {
                      "Could not find any suitable endpoints on discovery server");
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     UA_Client *clientRegister = getRegisterClient(endpointRegister, argc, argv);
@@ -342,7 +343,7 @@ int main(int argc, char **argv) {
                      "Could not create the client for remote registering");
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     /* Connect the client */
@@ -360,7 +361,7 @@ int main(int argc, char **argv) {
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
-        return 1;
+        return EXIT_FAILURE;
     }
 
     while (running)
@@ -380,5 +381,5 @@ int main(int argc, char **argv) {
     UA_Client_delete(clientRegister);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -1,10 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <stdio.h>
 #include <ua_client_highlevel.h>
 #include <ua_client.h>
 #include <ua_config_default.h>
+
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 static void
@@ -140,7 +142,7 @@ int main(int argc, char *argv[]) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:53530/OPCUA/SimulationServer");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     /* Read historical values (uint32) */
@@ -175,5 +177,5 @@ int main(int argc, char *argv[]) {
 #endif
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return (int) retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

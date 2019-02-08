@@ -9,6 +9,8 @@
 #include <ua_config_default.h>
 #include <ua_log_stdout.h>
 
+#include <stdlib.h>
+
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
 int main(void) {
@@ -31,7 +33,7 @@ int main(void) {
                          "Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
             UA_Client_delete(client);
-            return (int) retval;
+            return EXIT_FAILURE;
         }
 
         // output all the returned/registered servers
@@ -69,7 +71,7 @@ int main(void) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
                 "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
-        return (int) retval;
+        return EXIT_FAILURE;
     }
 
     // output all the returned/registered servers
@@ -184,5 +186,5 @@ int main(void) {
     UA_Array_delete(applicationDescriptionArray, applicationDescriptionArraySize,
                     &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
 
-    return (int) UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }
