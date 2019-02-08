@@ -12,6 +12,8 @@
 #include <ua_config_default.h>
 #include <ua_log_stdout.h>
 
+#include <stdlib.h>
+
 int main(void) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -41,7 +43,7 @@ int main(void) {
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }
 
 /**

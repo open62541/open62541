@@ -9,6 +9,7 @@
 #include "common.h"
 
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -25,7 +26,7 @@ int main(int argc, char* argv[]) {
                      "Missing arguments. Arguments are "
                      "<server-certificate.der> <private-key.der> "
                      "[<trustlist1.crl>, ...]");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     /* Load certificate and private key */
@@ -56,12 +57,12 @@ int main(int argc, char* argv[]) {
     if(!config) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Could not create the server config");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     UA_Server *server = UA_Server_new(config);
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

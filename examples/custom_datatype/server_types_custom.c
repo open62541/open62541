@@ -7,6 +7,7 @@
 #include "custom_datatype.h"
 
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 
@@ -86,5 +87,5 @@ int main(void) {
 
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return 0;
+    return EXIT_SUCCESS;
 }

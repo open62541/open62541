@@ -8,6 +8,7 @@
 #include <ua_log_stdout.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {
@@ -56,5 +57,5 @@ int main(int argc, char** argv) {
  cleanup:
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

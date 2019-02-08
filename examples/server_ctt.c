@@ -16,6 +16,7 @@
 # include "common.h"
 
 #include <signal.h>
+#include <stdlib.h>
 
 /* This server is configured to the Compliance Testing Tools (CTT) against. The
  * corresponding CTT configuration is available at
@@ -459,13 +460,13 @@ int main(int argc, char **argv) {
         if(certificate.length == 0) {
             UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                            "Unable to load file %s.", argv[1]);
-            return 1;
+            return EXIT_FAILURE;
         }
         UA_ByteString privateKey = loadFile(argv[2]);
         if(privateKey.length == 0) {
             UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                            "Unable to load file %s.", argv[2]);
-            return 1;
+            return EXIT_FAILURE;
         }
 
         /* Load the trustlist */
@@ -503,7 +504,7 @@ int main(int argc, char **argv) {
     if(!config) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Could not create the server config");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     /* Override with a custom access control policy */
@@ -514,7 +515,7 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new(config);
     if(server == NULL)
-        return 1;
+        return EXIT_FAILURE;
 
     setInformationModel(server);
 
@@ -522,5 +523,5 @@ int main(int argc, char **argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -1,8 +1,10 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-# include "open62541.h"
+#include "open62541.h"
+
 #include <signal.h>
+#include <stdlib.h>
 
 /* Build Instructions (Linux)
  * - gcc -std=c99 -c open62541.c
@@ -46,5 +48,5 @@ int main() {
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

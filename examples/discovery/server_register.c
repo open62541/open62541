@@ -10,6 +10,7 @@
 #include <ua_log_stdout.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
@@ -107,7 +108,7 @@ int main(int argc, char **argv) {
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     retval = UA_Server_run(server, &running);
@@ -119,7 +120,7 @@ int main(int argc, char **argv) {
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
-        return (int)retval;
+        return EXIT_FAILURE;
     }
 
     // Unregister the server from the discovery server.
@@ -134,5 +135,5 @@ int main(int argc, char **argv) {
     UA_Client_delete(clientRegister);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;;
 }

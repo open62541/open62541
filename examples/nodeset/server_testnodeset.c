@@ -8,6 +8,7 @@
 #include <ua_server.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 #include "ua_namespace_testnodeset.h"
 
@@ -49,5 +50,5 @@ int main(int argc, char **argv)
     }
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

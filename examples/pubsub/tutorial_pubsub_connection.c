@@ -8,6 +8,7 @@
 #include <ua_network_pubsub_udp.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {
@@ -85,5 +86,5 @@ int main(void) {
     retval |= UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -5,6 +5,8 @@
 #include <ua_config_default.h>
 #include "custom_datatype.h"
 
+#include <stdlib.h>
+
 int main(void) {
     /* Make your custom datatype known to the stack */
     UA_DataType types[1];
@@ -41,5 +43,5 @@ int main(void) {
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

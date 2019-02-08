@@ -10,6 +10,7 @@
 #endif
 
 #include <signal.h>
+#include <stdlib.h>
 
 #include "ua_namespace_di.h"
 #include "ua_namespace_plc.h"
@@ -34,18 +35,18 @@ int main(int argc, char** argv) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the DI namespace failed. Please check previous error output.");
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
-        return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
+        return EXIT_FAILURE;
     }
     retval |= ua_namespace_plc(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the PLCopen namespace failed. Please check previous error output.");
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
-        return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
+        return EXIT_FAILURE;
     }
 
     retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
-    return (int)retval;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
