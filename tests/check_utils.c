@@ -4,9 +4,7 @@
 
 #include <stdlib.h>
 
-#include "ua_types.h"
-#include "ua_client.h"
-#include "ua_util.h"
+#include <open62541/client.h>
 #include "ua_util_internal.h"
 #include "check.h"
 

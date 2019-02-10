@@ -7,8 +7,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_types_generated_handling.h"
-#include "ua_util.h"
+#include <open62541/util.h>
+#include <open62541/types_generated_handling.h>
 #include "ua_util_internal.h"
 #include "base64.h"
 

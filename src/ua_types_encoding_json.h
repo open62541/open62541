@@ -9,15 +9,13 @@
 #ifndef UA_TYPES_ENCODING_JSON_H_
 #define UA_TYPES_ENCODING_JSON_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+#include <open62541/types.h>
 #include "ua_util_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_encoding_json.h"
-#include "ua_types.h"
 #include "../deps/jsmn/jsmn.h"
+
+_UA_BEGIN_DECLS
  
 #define TOKENCOUNT 1000
     
@@ -162,8 +160,6 @@ jsmntype_t getJsmnType(const ParseCtx *parseCtx);
 UA_StatusCode tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src);
 UA_Boolean isJsonNull(const CtxJson *ctx, const ParseCtx *parseCtx);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* UA_TYPES_ENCODING_JSON_H_ */

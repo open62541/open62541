@@ -8,9 +8,8 @@
 
 #include "ua_types_encoding_json.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
-#include "ua_plugin_log.h"
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
 
 #include <math.h>
 #include <float.h>

@@ -14,11 +14,12 @@
 #define UA_CLIENT_INTERNAL_H_
 
 #define UA_INTERNAL
+#include <open62541/client.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_subscriptions.h>
+
 #include "ua_securechannel.h"
 #include "ua_workqueue.h"
-#include "ua_client.h"
-#include "ua_client_highlevel.h"
-#include "ua_client_subscriptions.h"
 #include "ua_timer.h"
 #include "open62541_queue.h"
 

@@ -5,8 +5,9 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_historydatabase_default.h"
 #include <limits.h>
+#include <open62541/plugin/historydatabase_default.h>
+#include "ua_historydatagathering_default.h"
 
 typedef struct {
     UA_HistoryDataGathering gathering;

@@ -11,7 +11,7 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_namespace0.h"
+#include "open62541/ua_namespace0.h"
 #include "ua_subscription.h"
 #include "ua_session.h"
 

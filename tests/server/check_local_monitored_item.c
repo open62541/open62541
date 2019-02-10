@@ -5,10 +5,10 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client_subscriptions.h"
-#include "ua_config_default.h"
+#include <open62541/types.h>
+#include <open62541/server.h>
+#include <open62541/client_subscriptions.h>
+#include <open62541/server_config_default.h>
 #include "ua_network_tcp.h"
 
 #include "check.h"

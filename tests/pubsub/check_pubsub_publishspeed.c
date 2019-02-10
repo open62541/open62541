@@ -9,12 +9,10 @@
 #include <stdio.h>
 #include <check.h>
 
-#include "ua_server_pubsub.h"
-#include "src_generated/ua_types_generated_encoding_binary.h"
-#include "ua_types.h"
-#include "ua_pubsub.h"
-#include "ua_config_default.h"
-#include "ua_network_pubsub_udp.h"
+#include <open62541/server_pubsub.h>
+#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/server_config_default.h>
+#include <open62541/plugin/pubsub_udp.h>
 #include "ua_server_internal.h"
 
 UA_Server *server = NULL;

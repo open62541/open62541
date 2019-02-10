@@ -14,12 +14,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <ua_types.h>
-#include <server/ua_server_internal.h>
 #include <unistd.h>
+#include <open62541/types.h>
+#include "server/ua_server_internal.h"
 
-#include "ua_transport_generated_encoding_binary.h"
-#include "ua_types_generated_encoding_binary.h"
+#include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/types_generated_encoding_binary.h>
 
 // This number is added to the end of every corpus data as 4 bytes.
 // It allows to generate valid corpus and then the fuzzer will use

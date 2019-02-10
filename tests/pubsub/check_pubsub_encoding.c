@@ -5,9 +5,8 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  */
 
-#include "ua_types.h"
-#include "ua_client.h"
-#include "ua_util.h"
+#include <open62541/types.h>
+#include <open62541/client.h>
 #include "ua_pubsub_networkmessage.h"
 #include "check.h"
 

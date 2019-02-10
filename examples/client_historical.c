@@ -1,9 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_client_highlevel.h>
-#include <ua_client.h>
-#include <ua_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_config_default.h>
 
 #include <stdio.h>
 #include <stdlib.h>

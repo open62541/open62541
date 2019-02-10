@@ -10,11 +10,9 @@
  *
  * This example is very similar to the tutorial_client_firststeps.c. */
 
-
-#include <ua_client_highlevel.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
-
+#include <open62541/client_highlevel.h>
+#include <open62541/client_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 #include <signal.h>
 #include <stdlib.h>
 

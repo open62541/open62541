@@ -7,14 +7,10 @@
  */
 
 #include "server/ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "ua_server_pubsub.h"
 #include "ua_pubsub.h"
-#include "ua_pubsub_manager.h"
-#include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"

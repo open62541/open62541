@@ -8,8 +8,8 @@
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
 
+#include <open62541/util.h>
 #include "ua_securechannel.h"
-#include "ua_util.h"
 
 _UA_BEGIN_DECLS
 

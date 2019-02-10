@@ -127,7 +127,8 @@ Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server
 and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
 #include <signal.h>
-#include "open62541.h"
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
 UA_Boolean running = true;
 void signalHandler(int sig) {
@@ -171,7 +172,8 @@ int main(int argc, char** argv)
 ### Example Client Implementation
 ```c
 #include <stdio.h>
-#include "open62541.h"
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 
 int main(int argc, char *argv[])
 {

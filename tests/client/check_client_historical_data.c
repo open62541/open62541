@@ -5,29 +5,26 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "server/ua_server_internal.h"
-#include "ua_client.h"
-#include "client/ua_client_internal.h"
-#include "ua_client_highlevel.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
+#include <check.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client.h>
+#include <open62541/plugin/historydatabase.h>
+#include <open62541/plugin/historydatabase_default.h>
 
-#include "check.h"
+#include "client/ua_client_internal.h"
+#include "ua_network_tcp.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
-#include "ua_plugin_historydatabase.h"
-#include "ua_historydatabase_default.h"
-#include "ua_plugin_history_data_gathering.h"
+#include "ua_plugin_history_data_backend.h"
 #include "ua_historydatabackend_memory.h"
 #include "ua_historydatagathering_default.h"
 #ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
 #endif
 #include <stddef.h>
-
 
 static UA_Server *server;
 static UA_ServerConfig *config;

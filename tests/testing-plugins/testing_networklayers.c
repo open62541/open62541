@@ -6,7 +6,7 @@
 #include <assert.h>
 #include "testing_networklayers.h"
 #include "testing_clock.h"
-#include "ua_config_default.h"
+#include <open62541/server_config_default.h>
 
 static UA_ByteString *vBuffer;
 static UA_ByteString sendBuffer;

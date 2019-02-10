@@ -2,10 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this 
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_types.h"
-#include "ua_types_generated_handling.h"
+#include <open62541/types.h>
+#include <open62541/types_generated_handling.h>
 #include "ua_types_encoding_binary.h"
-#include "ua_util.h"
 #include "check.h"
 
 #ifdef __clang__

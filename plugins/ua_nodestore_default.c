@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_nodestore_default.h"
+#include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 
 #ifdef UA_ENABLE_MULTITHREADING

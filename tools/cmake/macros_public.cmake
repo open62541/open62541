@@ -32,7 +32,7 @@ function(ua_generate_nodeid_header)
 
     # Set default value for output dir
     if(NOT UA_GEN_ID_OUTPUT_DIR OR "${UA_GEN_ID_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_ID_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+        set(UA_GEN_ID_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
     endif()
     # Set default target prefix
     if(NOT UA_GEN_ID_TARGET_PREFIX OR "${UA_GEN_ID_TARGET_PREFIX}" STREQUAL "")
@@ -43,8 +43,8 @@ function(ua_generate_nodeid_header)
     add_custom_target(${UA_GEN_ID_TARGET_PREFIX}-${UA_GEN_ID_TARGET_SUFFIX} DEPENDS
         ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
     )
-    
-    # Make sure that the output directory exists 
+
+    # Make sure that the output directory exists
     if(NOT EXISTS ${UA_GEN_ID_OUTPUT_DIR})
         file(MAKE_DIRECTORY ${UA_GEN_ID_OUTPUT_DIR})
     endif()
@@ -129,13 +129,12 @@ function(ua_generate_datatypes)
 
     # Set default value for output dir
     if(NOT UA_GEN_DT_OUTPUT_DIR OR "${UA_GEN_DT_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_DT_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+        set(UA_GEN_DT_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
     endif()
     # Set default target prefix
     if(NOT UA_GEN_DT_TARGET_PREFIX OR "${UA_GEN_DT_TARGET_PREFIX}" STREQUAL "")
         set(UA_GEN_DT_TARGET_PREFIX "open62541-generator")
     endif()
-
 
     # ------ Add custom command and target -----
 
@@ -149,7 +148,6 @@ function(ua_generate_datatypes)
         set(UA_GEN_DT_INTERNAL_ARG "--internal")
     endif()
 
-
     set(SELECTED_TYPES_TMP "")
     foreach(f ${UA_GEN_DT_FILES_SELECTED})
         set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
@@ -159,8 +157,8 @@ function(ua_generate_datatypes)
     foreach(f ${UA_GEN_DT_FILES_BSD})
         set(BSD_FILES_TMP ${BSD_FILES_TMP} "--type-bsd=${f}")
     endforeach()
-    
-    # Make sure that the output directory exists 
+
+    # Make sure that the output directory exists
     if(NOT EXISTS ${UA_GEN_DT_OUTPUT_DIR})
         file(MAKE_DIRECTORY ${UA_GEN_DT_OUTPUT_DIR})
     endif()
@@ -257,7 +255,7 @@ function(ua_generate_nodeset)
 
     # Set default value for output dir
     if(NOT UA_GEN_NS_OUTPUT_DIR OR "${UA_GEN_NS_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+        set(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
     endif()
 
     # Set default target prefix
@@ -310,8 +308,8 @@ function(ua_generate_nodeset)
     foreach(f ${UA_GEN_NS_FILE})
         set(FILE_LIST ${FILE_LIST} "--xml=${f}")
     endforeach()
-    
-    # Make sure that the output directory exists 
+
+    # Make sure that the output directory exists
     if(NOT EXISTS ${UA_GEN_NS_OUTPUT_DIR})
         file(MAKE_DIRECTORY ${UA_GEN_NS_OUTPUT_DIR})
     endif()
@@ -450,7 +448,7 @@ function(ua_generate_nodeset_and_datatypes)
 
     # Set default value for output dir
     if(NOT UA_GEN_OUTPUT_DIR OR "${UA_GEN_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated)
+        set(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
     endif()
     # Set default target prefix
     if(NOT UA_GEN_TARGET_PREFIX OR "${UA_GEN_TARGET_PREFIX}" STREQUAL "")

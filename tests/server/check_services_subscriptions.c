@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_server.h"
+#include <check.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
 #include "server/ua_subscription.h"
-#include "ua_config_default.h"
 
-#include "check.h"
 #include "testing_clock.h"
 
 static UA_Server *server = NULL;

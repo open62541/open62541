@@ -64,7 +64,7 @@ printc(u'''/**********************************************************
  * Generated from %s with script %s
  *********************************************************/
 
-#include "ua_types.h"''' % (args.statuscodes, sys.argv[0]))
+#include <open62541/types.h>''' % (args.statuscodes, sys.argv[0]))
 
 count = 2 + len(rows)
 

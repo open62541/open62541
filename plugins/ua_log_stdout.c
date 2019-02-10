@@ -6,8 +6,8 @@
  */
 
 #include <stdio.h>
-#include "ua_log_stdout.h"
-#include "ua_types.h"
+#include <open62541/types.h>
+#include <open62541/plugin/log_stdout.h>
 
 #ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>

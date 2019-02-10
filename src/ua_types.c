@@ -15,9 +15,9 @@
  */
 
 #include "ua_util_internal.h"
-#include "ua_types.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
 
 #include "pcg_basic.h"
 #include "libc_time.h"

@@ -15,7 +15,7 @@
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
 
-#include "ua_server.h"
+#include <open62541/server.h>
 #include "ua_session.h"
 
 _UA_BEGIN_DECLS

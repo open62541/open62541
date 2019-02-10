@@ -8,8 +8,6 @@
 #ifndef UA_PLUGIN_HISTORY_DATA_GATHERING_H_
 #define UA_PLUGIN_HISTORY_DATA_GATHERING_H_
 
-#include "ua_types.h"
-#include "ua_server.h"
 #include "ua_plugin_history_data_backend.h"
 
 _UA_BEGIN_DECLS

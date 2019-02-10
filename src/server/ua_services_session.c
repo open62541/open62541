@@ -15,7 +15,6 @@
 #include "ua_services.h"
 #include "ua_server_internal.h"
 #include "ua_session_manager.h"
-#include "ua_types_generated_handling.h"
 
 static UA_StatusCode
 signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,

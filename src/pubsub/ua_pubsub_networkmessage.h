@@ -8,8 +8,8 @@
 #ifndef UA_PUBSUB_NETWORKMESSAGE_H_
 #define UA_PUBSUB_NETWORKMESSAGE_H_
 
-#include "ua_types.h"
-#include "ua_types_generated.h"
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
 
 _UA_BEGIN_DECLS
 

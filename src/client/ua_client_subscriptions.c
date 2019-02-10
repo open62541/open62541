@@ -11,9 +11,9 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
-#include "ua_util.h"
+#include <open62541/client_highlevel.h>
+#include <open62541/client_highlevel_async.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 

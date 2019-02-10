@@ -8,7 +8,7 @@
 
 #ifdef UA_ARCHITECTURE_POSIX
 
-#include "ua_types.h"
+#include <open62541/types.h>
 #include <time.h>
 #include <sys/time.h>
 

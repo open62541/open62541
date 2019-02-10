@@ -6,12 +6,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
+#include <open62541/util.h>
+#include <open62541/server.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
 #include "ua_types_encoding_binary.h"
-#include "ua_util.h"
 #include "check.h"
 
 /* Define types to a dummy value if they are not available (e.g. not built with

@@ -5,7 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_accesscontrol_default.h"
+#include <open62541/plugin/accesscontrol_default.h>
 
 /* Example access control management. Anonymous and username / password login.
  * The access rights are maximally permissive. */

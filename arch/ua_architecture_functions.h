@@ -12,11 +12,9 @@
 #ifndef PLUGINS_ARCH_UA_ARCHITECTURE_FUNCTIONS_H_
 #define PLUGINS_ARCH_UA_ARCHITECTURE_FUNCTIONS_H_
 
-#include "ua_config.h"
+#include <open62541/config.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 /*
  * Allocation functions
@@ -204,11 +202,6 @@ int UA_access(const char *pathname, int mode); //equivalent implementation of ht
 
 #include "ua_architecture_definitions.h"
 
-#ifdef __cplusplus
-}
-#endif
-
-
-
+_UA_END_DECLS
 
 #endif /* PLUGINS_ARCH_UA_ARCHITECTURE_FUNCTIONS_H_ */

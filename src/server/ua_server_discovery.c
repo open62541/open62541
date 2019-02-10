@@ -6,8 +6,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include <open62541/client.h>
 #include "ua_server_internal.h"
-#include "ua_client.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 

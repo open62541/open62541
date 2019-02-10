@@ -6,10 +6,9 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "ua_types.h"
-#include "ua_plugin_nodestore.h"
-#include "ua_nodestore_default.h"
-#include "ua_util.h"
+#include <open62541/types.h>
+#include <open62541/util.h>
+#include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 #include "check.h"
 

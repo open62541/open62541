@@ -4,14 +4,14 @@
  * Copyright 2019 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include <ua_server.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
-#include <ua_plugin_historydatabase.h>
-#include <ua_plugin_history_data_gathering.h>
-#include <ua_historydatagathering_default.h>
-#include <ua_historydatabase_default.h>
-#include <ua_historydatabackend_memory.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/historydatabase.h>
+#include <open62541/plugin/historydatabase_default.h>
+
+#include "historydata/ua_historydatagathering_default.h"
+#include "historydata/ua_historydatabackend_memory.h"
 
 #include <signal.h>
 #include <stdlib.h>

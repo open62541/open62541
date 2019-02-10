@@ -24,11 +24,11 @@
 #ifndef PCG_BASIC_H_
 #define PCG_BASIC_H_
 
+#include <open62541/config.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "ua_config.h"
 
 typedef struct pcg_state_setseq_64 {
     uint64_t state;  /* RNG state.  All values are possible. */

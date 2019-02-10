@@ -7,7 +7,6 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_util.h"
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 

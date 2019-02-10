@@ -7,9 +7,9 @@
 #ifndef UA_NETWORK_TCP_H_
 #define UA_NETWORK_TCP_H_
 
-#include "ua_server.h"
-#include "ua_client.h"
-#include "ua_plugin_log.h"
+#include <open62541/server.h>
+#include <open62541/client.h>
+#include <open62541/plugin/log.h>
 
 _UA_BEGIN_DECLS
 

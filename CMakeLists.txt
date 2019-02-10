@@ -301,24 +301,6 @@ if(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
     endif()
 endif()
 
-if(UA_ENABLE_HISTORIZING)
-    set(historizing_exported_headers
-        ${PROJECT_SOURCE_DIR}/include/ua_plugin_historydatabase.h
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_backend.h
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_gathering.h
-        )
-    set(historizing_default_plugin_headers
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.h
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.h
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.h
-        )
-    set(historizing_default_plugin_sources
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c
-        )
-endif()
-
 option(UA_BUILD_FUZZING_CORPUS "Build the fuzzing corpus" OFF)
 mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
@@ -411,12 +393,12 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     if (NOT MINGW)
         if(UA_ENABLE_HARDENING)
             check_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
-            check_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8    
+            check_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
             check_cc_flag_untested("-mcet -fcf-protection") # future use (control flow integrity protection)
         endif()
 
         # IPO requires too much memory for unit tests
-        # GCC docu recommends to compile all files with the same options, therefore ignore it completely 
+        # GCC docu recommends to compile all files with the same options, therefore ignore it completely
         if(NOT UA_BUILD_UNIT_TESTS)
             # needed to check if IPO is supported (check needs cmake > 3.9)
             if("${CMAKE_VERSION}" VERSION_GREATER 3.9)
@@ -429,7 +411,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
             endif()
         endif()
     endif()
-	
+
     if(UA_ENABLE_AMALGAMATION)
         add_definitions(-Wno-unused-function)
     endif()
@@ -454,7 +436,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     endif()
 
     if(UA_ENABLE_HARDENING AND (CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
-        check_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)    
+        check_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
     endif()
 
     # Strip release builds
@@ -514,8 +496,8 @@ endif()
 #########################
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
-configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
-configure_file("include/open62541.pc.in" "${PROJECT_BINARY_DIR}/src_generated/open62541.pc" @ONLY)
+configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
+configure_file(open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
@@ -523,7 +505,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 set(exported_headers ${exported_headers}
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/arch/ua_architecture_base.h
                      ${ua_architecture_headers_beginning}
                      )
@@ -539,29 +521,29 @@ endif()
 set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_constants.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_types.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_util.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_server.h
-                     ${historizing_exported_headers}
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_pki.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_config.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel_async.h)
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/constants.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/types.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/util.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server_config.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_config.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
@@ -570,10 +552,10 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_encoding_binary.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
+                     ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/ua_workqueue.h
@@ -593,9 +575,9 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
-                ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
+                ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
+                ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
+                ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_workqueue.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
@@ -638,36 +620,47 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c)
 
-set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
-                           ${historizing_default_plugin_headers}
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicies.h
+set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydatabase_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pki_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
 )
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-                           ${historizing_default_plugin_sources}
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
 )
 
 if(UA_GENERATED_NAMESPACE_ZERO)
-    list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
-    list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c)
+    list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/ua_namespace0.h)
+    list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/ua_namespace0.c)
 endif()
 
 list(APPEND default_plugin_headers
-    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.h)
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.h)
 list(APPEND default_plugin_sources
-    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
-    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
-    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+
+if(UA_ENABLE_HISTORIZING)
+    list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.h
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.h
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_backend.h
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_gathering.h
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c)
+endif()
 
 if(UA_ENABLE_DISCOVERY)
     list(INSERT internal_headers 13 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
@@ -675,11 +668,11 @@ if(UA_ENABLE_DISCOVERY)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_udp.h)
-    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_udp.c)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.h)
+    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
-        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_ethernet.h)
-        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/networking/ua_network_pubsub_ethernet.c)
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/ua_pubsub_ethernet.h)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/networking/ua_pubsub_ethernet.c)
     endif()
 endif()
 
@@ -798,7 +791,7 @@ endif()
 # standard-defined data types
 ua_generate_datatypes(
     BUILTIN
-    NAME "ua_types"
+    NAME "types"
     TARGET_SUFFIX "types"
     NAMESPACE_IDX 0
     FILE_CSV "${UA_FILE_NODEIDS}"
@@ -809,7 +802,7 @@ ua_generate_datatypes(
 # transport data types
 ua_generate_datatypes(
     INTERNAL
-    NAME "ua_transport"
+    NAME "transport"
     TARGET_SUFFIX "transport"
     NAMESPACE_IDX 1
     FILE_CSV "${UA_FILE_NODEIDS}"
@@ -818,17 +811,17 @@ ua_generate_datatypes(
 )
 
 # statuscode explanation
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
+                          ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
         PRE_BUILD
         COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-        ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes
+        ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
                 ${UA_FILE_STATUSCODES})
 
 # Header containing defines for all NodeIds
 ua_generate_nodeid_header(
-    NAME "ua_nodeids"
+    NAME "nodeids"
     ID_PREFIX "NS0"
     TARGET_SUFFIX "ids-ns0"
     FILE_CSV "${UA_FILE_NODEIDS}"
@@ -837,9 +830,9 @@ ua_generate_nodeid_header(
 # we need a custom target to avoid that the generator is called concurrently and
 # thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-statuscode DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.c)
+        ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
+        ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
+        ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c)
 
 if (UA_ENABLE_AMALGAMATION)
     # single-file release
@@ -970,11 +963,11 @@ else()
 
     # Public includes
     include_directories_public(${ua_architecture_directories_to_include}
-                               "${PROJECT_BINARY_DIR}/src_generated"
-                               "${PROJECT_SOURCE_DIR}/deps"
                                "${PROJECT_SOURCE_DIR}/include"
-                               "${PROJECT_SOURCE_DIR}/plugins"
-                               "${PROJECT_SOURCE_DIR}/plugins/securityPolicies")
+                               "${PROJECT_SOURCE_DIR}/plugins/include"
+                               "${PROJECT_SOURCE_DIR}/deps"
+                               "${PROJECT_SOURCE_DIR}/src/pubsub"
+                               "${PROJECT_BINARY_DIR}/src_generated")
 
     # Private includes
     include_directories_private("${PROJECT_BINARY_DIR}"
@@ -1210,7 +1203,6 @@ if(NOT UA_ENABLE_AMALGAMATION)
     install(FILES ${internal_headers}
                   ${exported_headers}
                   ${default_plugin_headers}
-                  ${historizing_default_plugin_headers}
                   ${ua_architecture_headers}
             DESTINATION ${open62541_install_include_dir})
 else()

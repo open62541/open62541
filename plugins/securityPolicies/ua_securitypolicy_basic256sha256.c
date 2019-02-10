@@ -6,12 +6,15 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  */
 
-#include "ua_types.h"
-#include "ua_plugin_pki.h"
-#include "ua_securitypolicies.h"
-#include "ua_securitypolicy_mbedtls_common.h"
-#include "ua_types_generated_handling.h"
-#include "ua_util.h"
+
+#include <open62541/plugin/securitypolicy_default.h>
+
+//#include "ua_types.h"
+//#include "ua_plugin_pki.h"
+//#include "ua_securitypolicies.h"
+//#include "ua_securitypolicy_mbedtls_common.h"
+//#include "ua_types_generated_handling.h"
+//#include "ua_util.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
 
@@ -251,7 +254,7 @@ sym_verify_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
 
     Basic256Sha256_PolicyContext *pc =
         (Basic256Sha256_PolicyContext *)securityPolicy->policyContext;
-    
+
     unsigned char mac[UA_SHA256_LENGTH];
     mbedtls_hmac(&pc->sha256MdContext, &cc->remoteSymSigningKey, message, mac);
 
