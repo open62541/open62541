@@ -705,26 +705,34 @@ createSession(UA_Client *client) {
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
 
-    if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-        (client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-         client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)) {
-        UA_ByteString_deleteMembers(&client->channel.remoteNonce);
-        UA_ByteString_copy(&response.serverNonce, &client->channel.remoteNonce);
+    if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
+        /* Verify the encrypted response */
+        if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+           client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
 
-        if(!UA_ByteString_equal(&response.serverCertificate,
-                                &client->channel.remoteCertificate)) {
-            return UA_STATUSCODE_BADCERTIFICATEINVALID;
+            if(!UA_ByteString_equal(&response.serverCertificate,
+                                    &client->channel.remoteCertificate)) {
+                retval = UA_STATUSCODE_BADCERTIFICATEINVALID;
+                goto cleanup;
+            }
+
+            /* Verify the client signature */
+            retval = checkClientSignature(&client->channel, &response);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
         }
 
-        /* Verify the client signature */
-        retval = checkClientSignature(&client->channel, &response);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        /* Copy nonce and and authenticationtoken */
+        UA_ByteString_deleteMembers(&client->channel.remoteNonce);
+        retval |= UA_ByteString_copy(&response.serverNonce, &client->channel.remoteNonce);
+
+        UA_NodeId_deleteMembers(&client->authenticationToken);
+        retval |= UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
     }
 
-    UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
+    retval |= response.responseHeader.serviceResult;
 
-    retval = response.responseHeader.serviceResult;
+ cleanup:
     UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
     return retval;
