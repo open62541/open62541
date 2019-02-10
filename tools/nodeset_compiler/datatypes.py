@@ -196,9 +196,20 @@ class Value(object):
                     else:
                         t = self.getTypeByString(enc[0], enc)
                         t.alias = alias
-                        t.parseXML(xmlvalue, namespaceMapping=namespaceMapping)
                         t.valueRank = valueRank
-                        return t
+
+                        if valueRank == 1:
+                            values = []
+                            for el in xmlvalue.childNodes:
+                                if not el.nodeType == el.ELEMENT_NODE:
+                                    continue
+                                val = self.getTypeByString(enc[0], enc)
+                                val.parseXML(el, namespaceMapping=namespaceMapping)
+                                values.append(val)
+                            return values
+                        else:
+                            t.parseXML(xmlvalue, namespaceMapping=namespaceMapping)
+                            return t
                 else:
                     if not valueIsInternalType(xmlvalue.localName):
                         logger.error(str(parent.id) + ": Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.localName + " instead")

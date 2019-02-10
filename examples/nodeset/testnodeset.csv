@@ -16,3 +16,4 @@ BaseDataTypes_String1_scalar,16001,Variable
 BaseDataTypes_ByteString_Scalar,16002,Variable
 PointWithArray,3003,DataType
 NestedPoint,10008,DataType
+PointWithPointArray,3004,DataType
