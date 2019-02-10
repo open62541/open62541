@@ -70,6 +70,7 @@ def generateObjectNodeCode(node):
     return code
 
 def generateVariableNodeCode(node, nodeset, encode_binary_size):
+
     code = []
     codeCleanup = []
     codeGlobal = []
@@ -167,14 +168,6 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
     logger.debug("Value    " + str(node.value))
     logger.debug("Encoding " + str(node.encodingRule))
 
-    # If there are any ExtensionObjects inside this ExtensionObject, we need to
-    # generate one-time-structs for them too before we can proceed;
-    for subv in node.value:
-        if isinstance(subv, list):
-            logger.error("ExtensionObject contains an ExtensionObject, which is currently not encodable!")
-            return
-
-
     typeBrowseNode = makeCIdentifier(nodeset.getDataTypeNode(parent.dataType).browseName.name)
     #TODO: review this
     if typeBrowseNode == "NumericRange":
@@ -200,8 +193,28 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
     for subv in node.value:
         encField = node.encodingRule[encFieldIdx]
         encFieldIdx = encFieldIdx + 1
-        memberName= lowerFirstChar(encField[0])
-        logger.debug(
+        memberName = lowerFirstChar(encField[0])
+        if isinstance(subv, list):
+            if len(subv) == 0:
+                continue
+            logger.info("ExtensionObject contains array")
+            memberName = lowerFirstChar(encField[0])
+            encTypeString = "UA_" + subv[0].__class__.__name__
+            code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceName + "_" + memberName+", {0});".format(len(subv)))
+            encTypeArr = nodeset.getDataTypeNode(subv[0].__class__.__name__).typesArray
+            encTypeArrayString = encTypeArr + "[" + encTypeArr + "_" + subv[0].__class__.__name__.upper() + "]"
+            code.append("UA_init({ref}{instanceName}, &{typeArrayString});".format(ref="&" if isArrayElement else "",
+                                                                                instanceName=instanceName + "_" + memberName,
+                                                                                typeArrayString=encTypeArrayString))
+
+            subArrayIdx = 0
+            for val in subv:
+                code.append(generateNodeValueCode(instanceName + "_" + memberName + "[" + str(subArrayIdx) + "]" +" = ", val, instanceName,instanceName + "_gehtNed_member", global_var_code, asIndirect=False))
+                subArrayIdx = subArrayIdx + 1
+            code.append(instanceName + "->" + memberName + " = " + instanceName+"_"+ memberName+";")
+            continue
+        else:
+            logger.debug(
             "Encoding of field " + memberName + " is " + str(subv.encodingRule) + "defined by " + str(encField))
         # Check if this is an array
         accessor = "." if isArrayElement else "->"

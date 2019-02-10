@@ -467,7 +467,7 @@ class DataTypeNode(Node):
             used.
         """
 
-        prefix = " " + "|"*indent+ "+"
+        prefix = " " + "|" * indent + "+"
 
         if force==True:
             self.__encodingBuilt__ = False
