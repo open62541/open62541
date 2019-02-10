@@ -228,6 +228,11 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
                     "Could not decode the response with id %u due to %s",
                     requestId, UA_StatusCode_name(retval));
         ((UA_ResponseHeader*)response)->serviceResult = retval;
+    } else if(((UA_ResponseHeader*)response)->serviceResult != UA_STATUSCODE_GOOD) {
+        /* Decode as a ServiceFault, i.e. only the response header */
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "The ServiceResult has the StatusCode %s",
+                    UA_StatusCode_name(((UA_ResponseHeader*)response)->serviceResult));
     }
 
     /* Call the callback */
@@ -282,11 +287,14 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
     if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
-            UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Received a ServiceFault response");
             UA_init(rd->response, rd->responseType);
             retval = UA_decodeBinary(message, &offset, rd->response,
                                      &UA_TYPES[UA_TYPES_SERVICEFAULT], NULL);
+            if(retval != UA_STATUSCODE_GOOD)
+                ((UA_ResponseHeader*)rd->response)->serviceResult = retval;
+            UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Received a ServiceFault response with StatusCode %s",
+                        UA_StatusCode_name(((UA_ResponseHeader*)rd->response)->serviceResult));
         } else {
             /* Close the connection */
             UA_LOG_ERROR(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
