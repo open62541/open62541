@@ -107,7 +107,7 @@ class Type(object):
         self.name = None
         if xml is not None:
             self.name = xml.get("Name")
-            self.typeIndex = makeCIdentifier(outname.upper() + "_" + self.name.upper())
+            self.typeIndex = "UA_" + makeCIdentifier(outname.upper() + "_" + self.name.upper())
         else:
             self.typeIndex = makeCIdentifier(outname.upper())
         self.ns0 = ("true" if namespace == 0 else "false")
@@ -161,7 +161,7 @@ class Type(object):
             if len(memberName) > 0:
                 memberNameCapital = memberName[0].upper() + memberName[1:]
             m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % memberNameCapital
-            m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), makeCIdentifier(member.memberType.name.upper()))
+            m += "    UA_%s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), makeCIdentifier(member.memberType.name.upper()))
             m += "    "
             if not before:
                 m += "0,"
@@ -185,7 +185,7 @@ class Type(object):
         return members + "};"
 
     def datatype_ptr(self):
-        return "&" + self.outname.upper() + "[" + makeCIdentifier(self.outname.upper() + "_" + self.name.upper()) + "]"
+        return "&UA_" + self.outname.upper() + "[UA_" + makeCIdentifier(self.outname.upper() + "_" + self.name.upper()) + "]"
 
     def functions_c(self):
         idName = makeCIdentifier(self.name)
@@ -220,7 +220,7 @@ class BuiltinType(Type):
         self.name = name
         self.ns0 = "true"
         self.typeIndex = makeCIdentifier("UA_TYPES_" + self.name.upper())
-        self.outname = "ua_types"
+        self.outname = "types"
         self.kind = "UA_DATATYPEKIND_" + self.name.upper()
         self.description = ""
         self.pointerfree = "false"
@@ -570,8 +570,8 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifdef UA_ENABLE_AMALGAMATION
 #include "open62541.h"
 #else
-#include "ua_types.h"
-''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+#include <open62541/types.h>
+''' + ('#include <open62541/types_generated.h>\n' if outname != "types" else '') + '''
 #endif
 
 _UA_BEGIN_DECLS
@@ -584,8 +584,8 @@ printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
-printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
+printh("#define UA_" + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
+printh("extern UA_EXPORT const UA_DataType UA_" + outname.upper() + "[UA_" + outname.upper() + "_COUNT];")
 
 for i, t in enumerate(filtered_types):
     printh("\n/**\n * " +  t.name)
@@ -596,7 +596,7 @@ for i, t in enumerate(filtered_types):
         printh(" * " + t.description + " */")
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
-    printh("#define " + makeCIdentifier(outname.upper() + "_" + t.name.upper()) + " " + str(i))
+    printh("#define UA_" + makeCIdentifier(outname.upper() + "_" + t.name.upper()) + " " + str(i))
 
 printh('''
 
@@ -615,7 +615,7 @@ printf('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifndef ''' + outname.upper() + '''_GENERATED_HANDLING_H_
 #define ''' + outname.upper() + '''_GENERATED_HANDLING_H_
 
-#include "''' + outname + '''_generated.h"
+#include "''' + args.outfile + '''_generated.h"
 
 _UA_BEGIN_DECLS
 
@@ -647,14 +647,14 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "''' + outname + '''_generated.h"''')
+#include "''' + args.outfile + '''_generated.h"''')
 
 for t in filtered_types:
     printc("")
     printc("/* " + t.name + " */")
     printc(t.members_c())
 
-printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
+printc("const UA_DataType UA_%s[UA_%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in filtered_types:
     printc("/* " + t.name + " */")
     printc(t.datatype_c() + ",")
@@ -672,7 +672,7 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 # include "open62541.h"
 #else
 # include "ua_types_encoding_binary.h"
-# include "''' + outname + '''_generated.h"
+# include "''' + args.outfile + '''_generated.h"
 #endif
 
 ''')

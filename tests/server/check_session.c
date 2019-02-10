@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ua_types.h"
+#include <open62541/types.h>
 #include "server/ua_services.h"
 #include "check.h"
 

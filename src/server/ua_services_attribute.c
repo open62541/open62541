@@ -23,7 +23,7 @@
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_HISTORIZING
-#include "ua_plugin_historydatabase.h"
+#include <open62541/plugin/historydatabase.h>
 #endif
 
 /******************/

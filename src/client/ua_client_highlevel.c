@@ -11,11 +11,9 @@
  *    Copyright 2018 (c) Peter Rustler, basyskom GmbH
  */
 
-#include "ua_client.h"
 #include "ua_client_internal.h"
-#include "ua_client_highlevel.h"
-#include "ua_client_highlevel_async.h"
-#include "ua_util.h"
+#include <open62541/client_highlevel.h>
+#include <open62541/client_highlevel_async.h>
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
@@ -499,8 +497,8 @@ __UA_Client_HistoryRead_service(UA_Client *client, const UA_NodeId *nodeId,
                                    void *callbackContext) {
 
     UA_ByteString continuationPoint = UA_BYTESTRING_NULL;
-    UA_Boolean continuationAvail = UA_FALSE;
-    UA_Boolean fetchMore = UA_FALSE;
+    UA_Boolean continuationAvail = false;
+    UA_Boolean fetchMore = false;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     do {
@@ -608,7 +606,7 @@ UA_Client_HistoryRead_raw(UA_Client *client, const UA_NodeId *nodeId,
                              UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
 
     return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
-                                                     numValuesPerNode, UA_FALSE, timestampsToReturn, callbackContext);
+                                                     numValuesPerNode, false, timestampsToReturn, callbackContext);
 }
 
 #ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
@@ -620,7 +618,7 @@ UA_Client_HistoryRead_modified(UA_Client *client, const UA_NodeId *nodeId,
                                   UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
 
     return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
-                                                     maxItems, UA_TRUE, timestampsToReturn, callbackContext);
+                                                     maxItems, true, timestampsToReturn, callbackContext);
 }
 #endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
 

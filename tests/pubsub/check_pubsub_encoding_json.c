@@ -5,11 +5,11 @@
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Lukas Meling)
  */
 
-#include "ua_types.h"
-#include "ua_client.h"
-#include "ua_util.h"
+#include <check.h>
+#include <open62541/types.h>
+#include <open62541/client.h>
+#include <open62541/util.h>
 #include "ua_pubsub_networkmessage.h"
-#include "check.h"
 
 START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     UA_NetworkMessage m;

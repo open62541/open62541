@@ -14,9 +14,9 @@
 #ifndef UA_SUBSCRIPTION_H_
 #define UA_SUBSCRIPTION_H_
 
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
 #include "ua_util_internal.h"
-#include "ua_types.h"
-#include "ua_types_generated.h"
 #include "ua_session.h"
 #include "ua_workqueue.h"
 #include "ua_plugin_nodestore.h"

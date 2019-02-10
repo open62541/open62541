@@ -17,17 +17,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <ua_types.h>
 #include <sys/stat.h>
 #include <server/ua_server_internal.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <ua_client_highlevel.h>
-#include <ua_client_subscriptions.h>
-#include <client/ua_client_internal.h>
-
-#include "ua_config_default.h"
+#include <open62541/types.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_subscriptions.h>
+#include <open62541/client_config_default.h>
+#include <open62541/server_config_default.h>
+#include "client/ua_client_internal.h"
 
 UA_Server *server;
 UA_ServerConfig *config;

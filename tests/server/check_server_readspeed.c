@@ -5,12 +5,10 @@
    not open a TCP port. */
 
 #include <time.h>
-#include <stdio.h>
 #include <check.h>
 
-#include "ua_server.h"
+#include <open62541/server_config_default.h>
 #include "ua_server_internal.h"
-#include "ua_config_default.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 

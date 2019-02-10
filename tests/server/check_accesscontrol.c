@@ -2,13 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdlib.h>
-
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client.h"
-#include "ua_config_default.h"
-#include "check.h"
+#include <check.h>
+#include <open62541/types.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 
 #include "thread_wrapper.h"
 

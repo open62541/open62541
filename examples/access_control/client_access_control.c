@@ -5,9 +5,8 @@
  * Using access_control_server
  */
 
-#include <ua_client.h>
-#include <ua_config_default.h>
-#include <ua_client_highlevel.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_config_default.h>
 
 #include <stdlib.h>
 

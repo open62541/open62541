@@ -11,8 +11,8 @@
 #ifndef UA_CONNECTION_INTERNAL_H_
 #define UA_CONNECTION_INTERNAL_H_
 
-#include "ua_plugin_network.h"
-#include "ua_transport_generated.h"
+#include <open62541/plugin/network.h>
+#include <open62541/transport_generated.h>
 
 _UA_BEGIN_DECLS
 

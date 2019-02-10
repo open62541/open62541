@@ -1,11 +1,9 @@
 #ifndef CERTIFICATES_H_
 #define CERTIFICATES_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <open62541/types.h>
 
-#include "ua_types.h"
+_UA_BEGIN_DECLS
 
 #define KEY_DER_LENGTH 1193
 UA_Byte KEY_DER_DATA[1193] = {
@@ -151,8 +149,6 @@ UA_Byte CERT_DER_DATA[968] = {
     0xda, 0x31, 0x3e, 0xd2, 0x8c, 0xfe, 0xd7, 0x51  
     };
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+_UA_END_DECLS
 
 #endif /* CERTIFICATES_H_ */

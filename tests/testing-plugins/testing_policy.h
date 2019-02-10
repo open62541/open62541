@@ -5,12 +5,10 @@
 #ifndef OPEN62541_TESTING_POLICY_H
 #define OPEN62541_TESTING_POLICY_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/securitypolicy.h>
 
-#include "ua_plugin_securitypolicy.h"
-#include "ua_plugin_log.h"
+_UA_BEGIN_DECLS
 
 typedef struct funcs_called {
     UA_Boolean asym_enc;
@@ -58,8 +56,6 @@ UA_StatusCode UA_EXPORT
 TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
               funcs_called *fCalled, const key_sizes *kSizes);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif //OPEN62541_TESTING_POLICY_H

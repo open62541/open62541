@@ -8,8 +8,7 @@
 #ifndef UA_PLUGIN_HISTORY_DATA_BACKEND_H_
 #define UA_PLUGIN_HISTORY_DATA_BACKEND_H_
 
-#include "ua_types.h"
-#include "ua_server.h"
+#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 

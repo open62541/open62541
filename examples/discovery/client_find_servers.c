@@ -5,9 +5,9 @@
  * and then calls GetEndpoints on the returned list of servers.
  */
 
-#include <ua_client.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <stdlib.h>
 

@@ -5,8 +5,8 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Lukas Meling)
  */
 
-#include "ua_types.h"
-#include "ua_types_generated_handling.h"
+#include <open62541/types.h>
+#include <open62541/types_generated_handling.h>
 #include "ua_types_encoding_json.h"
 #include "ua_pubsub_networkmessage.h"
 

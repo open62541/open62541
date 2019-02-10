@@ -18,7 +18,6 @@
  * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
 #ifndef ITOA_H
 #define ITOA_H
 
@@ -26,8 +25,8 @@
 extern "C" {
 #endif
     
-#include "ua_types.h"
-    
+#include <open62541/types.h>
+
 UA_UInt16 itoaUnsigned(UA_UInt64 value, char* buffer, UA_Byte base);
 UA_UInt16 itoaSigned(UA_Int64 value, char* buffer);
 

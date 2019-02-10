@@ -5,13 +5,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <check.h>
 
-#include "check.h"
-#include "server/ua_services.h"
-#include "ua_client.h"
-#include "ua_types.h"
-#include "ua_config_default.h"
 #include "server/ua_server_internal.h"
+#include <open62541/server_config_default.h>
+#include "server/ua_services.h"
 
 static UA_Server *server = NULL;
 static UA_ServerConfig *config = NULL;

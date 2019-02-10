@@ -17,23 +17,23 @@ function(generate_rst in out)
 endfunction()
 
 # Doc from headers
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_types.h ${DOC_SRC_DIR}/types.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_constants.h ${DOC_SRC_DIR}/constants.rst)
-generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
-generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${DOC_SRC_DIR}/types_generated.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server_config.h ${DOC_SRC_DIR}/server_config.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${DOC_SRC_DIR}/server.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_config.h ${DOC_SRC_DIR}/client_config.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_subscriptions.h ${DOC_SRC_DIR}/client_subscriptions.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${DOC_SRC_DIR}/client.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h ${DOC_SRC_DIR}/plugin_log.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/plugin_network.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/types.h ${DOC_SRC_DIR}/types.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/constants.h ${DOC_SRC_DIR}/constants.rst)
+generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
+generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h ${DOC_SRC_DIR}/types_generated.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_config.h ${DOC_SRC_DIR}/server_config.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server.h ${DOC_SRC_DIR}/server.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_config.h ${DOC_SRC_DIR}/client_config.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h ${DOC_SRC_DIR}/client_subscriptions.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client.h ${DOC_SRC_DIR}/client.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h ${DOC_SRC_DIR}/plugin_log.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h ${DOC_SRC_DIR}/plugin_network.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h ${DOC_SRC_DIR}/plugin_accesscontrol.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_pubsub.h ${DOC_SRC_DIR}/plugin_pubsub_connection.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server_pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h ${DOC_SRC_DIR}/plugin_pubsub_connection.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)
@@ -56,7 +56,7 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
           ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
-          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
+          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_accesscontrol.rst
           ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorials.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
@@ -91,7 +91,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_subscriptions.rst
           ${DOC_SRC_DIR}/client_highlevel.rst ${DOC_SRC_DIR}/client_config.rst
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
-          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
+          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_accesscontrol.rst
           ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorials.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst

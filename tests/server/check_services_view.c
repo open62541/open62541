@@ -4,11 +4,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <server/ua_server_internal.h>
+#include <check.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/client_config_default.h>
 
-#include "check.h"
-#include "ua_server.h"
-#include "ua_config_default.h"
+#include "server/ua_server_internal.h"
 #include "ua_network_tcp.h"
 #include "thread_wrapper.h"
 

@@ -6,7 +6,7 @@
 
 #ifdef UA_ARCHITECTURE_POSIX
 
-#include "ua_types.h"
+#include <open62541/types.h>
 
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
   int opts = fcntl(sockfd, F_GETFL);

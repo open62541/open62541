@@ -5,11 +5,9 @@
 #ifndef TESTING_NETWORKLAYERS_H_
 #define TESTING_NETWORKLAYERS_H_
 
-#include "ua_server_config.h"
+#include <open62541/server_config.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+_UA_BEGIN_DECLS
 
 /**
  * Create the TCP networklayer and listen to the specified port
@@ -20,10 +18,6 @@ extern "C" {
  *        received. */
 UA_Connection createDummyConnection(size_t sendBufferSize,
                                     UA_ByteString *verificationBuffer);
-
-/**
- * Simulate network timing conditions
- * ---------------------------------- */
 
 extern UA_UInt32 UA_Client_recvSleepDuration;
 extern UA_StatusCode (*UA_Client_recv)(UA_Connection *connection, UA_ByteString *response,
@@ -38,8 +32,6 @@ UA_StatusCode
 UA_Client_recvTesting(UA_Connection *connection, UA_ByteString *response,
                     UA_UInt32 timeout);
 
-#ifdef __cplusplus
-}
-#endif
+_UA_END_DECLS
 
 #endif /* TESTING_NETWORKLAYERS_H_ */

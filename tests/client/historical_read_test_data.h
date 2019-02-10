@@ -11,7 +11,7 @@
 #ifndef UA_HISTORICAL_READ_TEST_DATA_H_
 #define UA_HISTORICAL_READ_TEST_DATA_H_
 
-#include "ua_types.h"
+#include <open62541/types.h>
 #include <limits.h>
 
 #define TESTDATA_START_TIME 1

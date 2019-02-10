@@ -1,17 +1,17 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_server.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <signal.h>
 #include <stdlib.h>
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
-#include "ua_namespace_example.h"
-#include "example_nodeids.h"
+#include "open62541/ua_namespace_example.h"
+#include "open62541/example_nodeids.h"
 
 UA_Boolean running = true;
 

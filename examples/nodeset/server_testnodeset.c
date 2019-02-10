@@ -2,22 +2,22 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-#include <ua_client_highlevel.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
-#include <ua_server.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_config_default.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <signal.h>
 #include <stdlib.h>
 
-#include "ua_namespace_testnodeset.h"
+#include "open62541/ua_namespace_testnodeset.h"
 
 UA_Boolean running = true;
 
 UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTNODESET_COUNT, UA_TYPES_TESTNODESET};
 
-static void stopHandler(int sign)
-{
+static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
@@ -32,15 +32,12 @@ int main(int argc, char **argv)
 
     UA_StatusCode retval;
     /* create nodes from nodeset */
-    if (ua_namespace_testnodeset(server) != UA_STATUSCODE_GOOD)
-    {
+    if(ua_namespace_testnodeset(server) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not add the example nodeset. "
                      "Check previous output for any error.");
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-    else
-    {
+    } else {
         UA_Variant out;
         UA_Variant_init(&out);
         UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10002), &out);
