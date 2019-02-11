@@ -102,8 +102,7 @@ GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
 list(SORT architectures)
 set_property(CACHE UA_ARCHITECTURE PROPERTY STRINGS None ${architectures})
 
-GET_PROPERTY(ua_directories_to_include GLOBAL PROPERTY UA_INCLUDE_DIRECTORIES)
-include_directories(${ua_directories_to_include})
+GET_PROPERTY(ua_architecture_directories_to_include GLOBAL PROPERTY UA_INCLUDE_DIRECTORIES)
 
 GET_PROPERTY(ua_architecture_headers GLOBAL PROPERTY UA_ARCHITECTURE_HEADERS)
 
@@ -477,20 +476,6 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
-
-if(UA_ENABLE_DISCOVERY)
-    include_directories(${PROJECT_SOURCE_DIR}/src/client)
-endif()
-
-include_directories(${PROJECT_SOURCE_DIR}/include
-                    ${PROJECT_SOURCE_DIR}/plugins
-                    ${PROJECT_SOURCE_DIR}/plugins/networking
-                    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies
-                    ${PROJECT_SOURCE_DIR}/deps
-                    ${PROJECT_SOURCE_DIR}/src/pubsub
-                    ${PROJECT_BINARY_DIR}
-                    ${PROJECT_BINARY_DIR}/src_generated
-                    ${MBEDTLS_INCLUDE_DIRS})
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
@@ -871,6 +856,9 @@ assign_source_group(${ua_architecture_sources})
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
+    if(UA_ENABLE_ENCRYPTION)
+        target_include_directories(open62541-object PRIVATE ${MBEDTLS_INCLUDE_DIRS})
+    endif()
 
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
@@ -883,6 +871,9 @@ if(UA_ENABLE_AMALGAMATION)
                      open62541-amalgamation-source)
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
+    # the only directory that needs to be included if open62541 (amalgameted) target from
+    # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
+    target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
@@ -914,6 +905,51 @@ else()
         set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
     endif()
 
+    # Declare include directories
+    function(include_directories_private)
+        foreach(_include_dir IN ITEMS ${ARGN})
+            target_include_directories(open62541-object PRIVATE ${_include_dir})
+            target_include_directories(open62541-plugins PRIVATE ${_include_dir})
+        endforeach()
+    endfunction()
+
+    function(include_directories_public)
+        include_directories_private(${ARGN})
+        foreach(_include_dir IN ITEMS ${ARGN})
+            target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
+        endforeach()
+    endfunction()
+
+    # Public includes
+    include_directories_public("${ua_architecture_directories_to_include}"
+                               "${PROJECT_BINARY_DIR}/src_generated"
+                               "${PROJECT_SOURCE_DIR}/deps"
+                               "${PROJECT_SOURCE_DIR}/include"
+                               "${PROJECT_SOURCE_DIR}/plugins"
+                               "${PROJECT_SOURCE_DIR}/plugins/securityPolicies")
+
+    # Private includes
+    include_directories_private("${PROJECT_BINARY_DIR}"
+                                "${PROJECT_SOURCE_DIR}/deps"
+                                "${PROJECT_BINARY_DIR}/src_generated")
+    if(UA_ENABLE_ENCRYPTION) 
+        include_directories_private(${MBEDTLS_INCLUDE_DIRS})
+    endif()
+
+    # Option-specific includes
+    if(UA_ENABLE_DISCOVERY)
+        include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
+    endif()
+
+    if(UA_ENABLE_HISTORIZING)
+        include_directories_public("${PROJECT_SOURCE_DIR}/plugins/historydata")
+    endif()
+
+    if(UA_ENABLE_PUBSUB)
+        include_directories_public("${PROJECT_SOURCE_DIR}/plugins/networking"
+                                   "${PROJECT_SOURCE_DIR}/src/pubsub"
+                                   "${PROJECT_BINARY_DIR}")
+    endif()
 endif()
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build

@@ -1,10 +1,3 @@
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/plugins)
-include_directories(${PROJECT_BINARY_DIR})
-include_directories(${PROJECT_SOURCE_DIR}/examples)
-include_directories(${PROJECT_SOURCE_DIR}/arch)
-include_directories(${PROJECT_SOURCE_DIR}/plugins/historydata)
-
 set(examples_headers
     ${examples_headers}
     ${PROJECT_SOURCE_DIR}/examples/common.h
@@ -123,6 +116,10 @@ if(UA_ENABLE_ENCRYPTION)
     add_example(server_basic128rsa15 encryption/server_basic128rsa15.c)
     add_example(server_basic256sha256 encryption/server_basic256sha256.c)
     add_example(client_encryption encryption/client_encryption.c)
+    # common.h
+    target_include_directories(server_basic128rsa15 PRIVATE "${PROJECT_SOURCE_DIR}/examples")
+    target_include_directories(server_basic256sha256 PRIVATE "${PROJECT_SOURCE_DIR}/examples")
+    target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
 endif()
 
 add_example(custom_datatype_client custom_datatype/client_types_custom.c)
