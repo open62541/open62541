@@ -561,7 +561,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     buf.length = finalLength;
     retval = connection->send(connection, &buf);
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
-    retval |= sendAsym_sendFailure
+    retval |= sendAsym_sendFailure;
 #endif
     return retval;
 
