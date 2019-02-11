@@ -1140,7 +1140,14 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
     "tools/generate_statuscode_descriptions.py")
 
-install(DIRECTORY ${UA_install_tools_dirs} DESTINATION ${open62541_install_tools_dir} USE_SOURCE_PERMISSIONS)
+install(DIRECTORY ${UA_install_tools_dirs} 
+    DESTINATION ${open62541_install_tools_dir} 
+    USE_SOURCE_PERMISSIONS
+    FILES_MATCHING
+    PATTERN "*"
+    PATTERN "*.pyc" EXCLUDE
+    )
+
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
 if(NOT UA_ENABLE_AMALGAMATION)
