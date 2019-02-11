@@ -12,15 +12,20 @@ if(CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD")
     add_definitions(-Wno-gnu-zero-variadic-macro-arguments)
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/deps)
-include_directories(${PROJECT_SOURCE_DIR}/src)
-include_directories(${PROJECT_SOURCE_DIR}/src/server)
-include_directories(${PROJECT_SOURCE_DIR}/src/pubsub)
-include_directories(${PROJECT_SOURCE_DIR}/plugins)
-include_directories(${PROJECT_SOURCE_DIR}/plugins/historydata)
-include_directories(${PROJECT_BINARY_DIR}/src_generated)
-include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
+get_property(open62541_BUILD_INCLUDE_DIRS TARGET open62541 PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
+include_directories(${open62541_BUILD_INCLUDE_DIRS})
+# ua_server_internal.h
+include_directories("${PROJECT_SOURCE_DIR}/src")
+include_directories("${PROJECT_SOURCE_DIR}/src/server")
+# testing_clock.h
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
+# #include <src_generated/<...>.h>
+include_directories("${PROJECT_BINARY_DIR}")
+
+if(UA_ENABLE_ENCRYPTION)
+    # mbedtls includes
+    include_directories(${MBEDTLS_INCLUDE_DIRS})
+endif()
 
 add_definitions(-DUA_sleep_ms=UA_comboSleep)
 
