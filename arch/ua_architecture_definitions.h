@@ -20,7 +20,7 @@
 #ifdef UNDER_CE
 # include "stdint.h"
 #endif
-#if !defined(_MSC_VER) || _MSC_VER >= 1600
+#if !defined(_MSC_VER) || _MSC_VER >= 1800
 # include <stdint.h>
 # include <stdbool.h> /* C99 Boolean */
 #else
