@@ -161,6 +161,12 @@ if ! [ -z ${ANALYZE+x} ]; then
           make -j
         cd .. && rm build -rf
 
+        #mkdir -p build && cd build
+        #cmake -DUA_ENABLE_STATIC_ANALYZER=REDUCED ..
+        ## previous clang-format to reduce to non-trivial warnings
+        #make clangformat
+        #make
+        #cd .. && rm build -rf
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \
