@@ -165,7 +165,6 @@ createDefaultConfig(void) {
     conf->nodeLifecycle.constructor = NULL;
     conf->nodeLifecycle.destructor = NULL;
 
-    /* Access Control. Anonymous Login only. */
     if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
     		usernamePasswords) != UA_STATUSCODE_GOOD) {
     	UA_ServerConfig_delete(conf);
