@@ -97,8 +97,8 @@ UA_ServerConfig_set_customHostname(UA_ServerConfig *config, const UA_String cust
     UA_String_copy(&customHostname, &config->customHostname);
 }
 
-const size_t usernamePasswordsSize = 2;
-UA_UsernamePasswordLogin usernamePasswords[2] = {
+static const size_t usernamePasswordsSize = 2;
+static UA_UsernamePasswordLogin usernamePasswords[2] = {
     {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
     {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
 
