@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -9,6 +9,7 @@
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #include "ua_services.h"
@@ -76,7 +77,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         /* Compare the clientCertificate with the remoteCertificate of the channel.
          * Both the clientCertificate of this request and the remoteCertificate
          * of the channel may contain a partial or a complete certificate chain.
-         * The compareCertificate function of the channelModule will compare the 
+         * The compareCertificate function of the channelModule will compare the
          * first certificate of each chain. The end certificate shall be located
          * first in the chain according to the OPC UA specification Part 6 (1.04),
          * chapter 6.2.3.*/
@@ -317,7 +318,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* No matching endpoint found */
     if(!ed) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         return;
     }
 
