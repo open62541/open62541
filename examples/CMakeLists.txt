@@ -1,15 +1,52 @@
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/plugins)
-include_directories(${PROJECT_BINARY_DIR})
-include_directories(${PROJECT_SOURCE_DIR}/examples)
-include_directories(${PROJECT_SOURCE_DIR}/arch)
-include_directories(${PROJECT_SOURCE_DIR}/plugins/historydata)
-
-set(examples_headers
-    ${examples_headers}
-    ${PROJECT_SOURCE_DIR}/examples/common.h
-    )
-
+if(UA_EXAMPLES_STANDALONE)
+    #
+    # test Debian packaging resp. build only examples
+    #
+    # cp -a /usr/share/open62541/examples .
+    # OR
+    # cp -a <path-to-open62541-src-tree/examples .
+    # cd examples
+    # mkdir build
+    # cd build
+    # cmake -DUA_EXAMPLES_STANDALONE=ON ..
+    # OR
+    # cmake -DUA_EXAMPLES_STANDALONE=ON -DUA_NAMESPACE_ZERO=FULL ..
+    # make
+    cmake_minimum_required(VERSION 3.0)
+    project(open62541)
+    find_package(open62541 0.4.0 REQUIRED)
+    if(UA_TOOLS_DIR)
+        # build with tools from open62541 source_dir
+        # cmake -DUA_EXAMPLES_STANDALONE=ON -DUA_TOOLS_DIR="<path-to-tools-dir>" ..
+        get_filename_component(ABSOLUTE_PATH ${UA_TOOLS_DIR} ABSOLUTE)
+        set(CMAKE_MODULE_PATH "${ABSOLUTE_PATH}/cmake")
+    else()
+        # build with installed tools, i.e. from /usr/share/open62541/tools
+        # cmake -DUA_EXAMPLES_STANDALONE=ON ..
+        set(CMAKE_MODULE_PATH "${open62541_TOOLS_DIR}/cmake")
+        set(UA_TOOLS_DIR ${open62541_TOOLS_DIR})
+    endif()
+    message("I: CMAKE_MODULE_PATH = ${CMAKE_MODULE_PATH}")
+    include(AssignSourceGroup)
+    include_directories(${PROJECT_BINARY_DIR}/src_generated)
+    add_custom_target(open62541-object)
+    file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+    set(examples_headers
+        ${examples_headers}
+        ${PROJECT_SOURCE_DIR}/common.h
+        )
+else()
+    include_directories(${PROJECT_SOURCE_DIR}/include)
+    include_directories(${PROJECT_SOURCE_DIR}/plugins)
+    include_directories(${PROJECT_BINARY_DIR})
+    include_directories(${PROJECT_SOURCE_DIR}/examples)
+    include_directories(${PROJECT_SOURCE_DIR}/arch)
+    include_directories(${PROJECT_SOURCE_DIR}/plugins/historydata)
+    set(examples_headers
+        ${examples_headers}
+        ${PROJECT_SOURCE_DIR}/examples/common.h
+        )
+endif()
 
 if(UA_ENABLE_AMALGAMATION)
     add_definitions(-DUA_ENABLE_AMALGAMATION)

@@ -1132,6 +1132,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 endif()
 
 set(UA_install_tools_dirs "tools/certs"
+    "tools/cmake"    
     "tools/nodeset_compiler"
     "tools/schema"
     "deps/ua-nodeset")
