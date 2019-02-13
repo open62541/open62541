@@ -279,6 +279,11 @@ mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 option(UA_ENABLE_HARDENING "Enable Hardening measures (e.g. Stack-Protectors and Fortify)" ON)
 mark_as_advanced(UA_ENABLE_HARDENING)
 
+if(CMAKE_VERSION VERSION_GREATER 3.6)
+    set(UA_ENABLE_STATIC_ANALYZER "OFF" CACHE STRING "Enable installed static analyzer during build process (off/minimal/reduced/full)")
+    SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
+endif()
+
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
@@ -349,6 +354,12 @@ endif()
 if(UA_ENABLE_MULTITHREADING)
     MESSAGE(WARNING "UA_ENABLE_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
+
+########################
+# Linting during build #
+########################
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include(linting_build)
 
 ######################
 # External Libraries #
@@ -1055,43 +1066,10 @@ if(UA_BUILD_TOOLS)
     endif()
 endif()
 
-############################
-# Linting run (clang-tidy) #
-############################
-
-find_package(ClangTools)
-add_custom_target(lint ${CLANG_TIDY_PROGRAM}
-                  ${lib_sources}
-                  -checks=cert-*,performance-*,readability-*,-readability-braces-around-statements
-                  -warnings-as-errors=cert-*,performance-*,readability-*,-readability-braces-around-statements
-                  --
-                  -std=c99
-                  -I${PROJECT_SOURCE_DIR}/include
-                  -I${PROJECT_SOURCE_DIR}/plugins
-                  -I${PROJECT_SOURCE_DIR}/deps
-                  -I${PROJECT_SOURCE_DIR}/src
-                  -I${PROJECT_SOURCE_DIR}/src/server
-                  -I${PROJECT_SOURCE_DIR}/src/client
-                  -I${PROJECT_BINARY_DIR}/src_generated
-                  DEPENDS ${lib_sources}
-                  COMMENT "Run clang-tidy on the library")
-add_dependencies(lint open62541)
-
-add_custom_target(cpplint cpplint
-                  ${lib_sources}
-                  ${internal_headers}
-                  ${default_plugin_headers}
-                  ${default_plugin_sources}
-                  ${ua_architecture_headers}
-                  ${ua_architecture_sources}
-                  DEPENDS ${lib_sources}
-                          ${internal_headers}
-                          ${default_plugin_headers}
-                          ${default_plugin_sources}
-                          ${ua_architecture_headers}
-                          ${ua_architecture_sources}
-
-                  COMMENT "Run cpplint code style checker on the library")
+########################
+# Linting as target    #
+########################
+include(linting_target)
 
 ##########################
 # Installation           #
@@ -1250,7 +1228,7 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
-set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
+set_target_properties(clang-tidy PROPERTIES FOLDER "CodeAnalysis")
 if (UA_ENABLE_AMALGAMATION)
     set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
     set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
