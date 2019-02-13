@@ -91,7 +91,9 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
         (struct my_custom_socket_handle*)UA_calloc(1, sizeof(struct my_custom_socket_handle));
     if(!handle){
         UA_free(channelData->connection);
-        UA_free(client);
+        UA_free(channelData->mqttClient);
+        channelData->connection = NULL;
+        channelData->mqttClient = NULL;
 
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -103,8 +105,11 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     enum MQTTErrors mqttErr = mqtt_init(client, handle, channelData->mqttSendBuffer, channelData->mqttSendBufferSize,
                 channelData->mqttRecvBuffer, channelData->mqttRecvBufferSize, publish_callback);
     if(mqttErr != MQTT_OK){
+        UA_free(client->socketfd);
         UA_free(channelData->connection);
-        UA_free(client);
+        UA_free(channelData->mqttClient);
+        channelData->connection = NULL;
+        channelData->mqttClient = NULL;
 
         const char* errorStr = mqtt_error_str(mqttErr);
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. MQTT error: %s", errorStr);
@@ -120,8 +125,11 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     char* clientId = (char*)calloc(1,channelData->mqttClientId->length + 1);
     if(!clientId){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed. Out of memory.");
+        UA_free(client->socketfd);
         UA_free(channelData->connection);
-        UA_free(client);
+        UA_free(channelData->mqttClient);
+        channelData->connection = NULL;
+        channelData->mqttClient = NULL;
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     memcpy(clientId, channelData->mqttClientId->data, channelData->mqttClientId->length);
@@ -130,8 +138,11 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     mqttErr = mqtt_connect(client, clientId, NULL, NULL, 0, NULL, NULL, 0, 400);
     UA_free(clientId);
     if(mqttErr != MQTT_OK){
+        UA_free(client->socketfd);
         UA_free(channelData->connection);
-        UA_free(client);
+        UA_free(channelData->mqttClient);
+        channelData->connection = NULL;
+        channelData->mqttClient = NULL;
 
         const char* errorStr = mqtt_error_str(mqttErr);
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "%s", errorStr);
@@ -142,8 +153,11 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
        After that yield must be called frequently to exchange mqtt messages. */
     UA_StatusCode ret = yieldMqtt(channelData, 100);
     if(ret != UA_STATUSCODE_GOOD){
+        UA_free(client->socketfd);
         UA_free(channelData->connection);
-        UA_free(client);
+        UA_free(channelData->mqttClient);
+        channelData->connection = NULL;
+        channelData->mqttClient = NULL;
         return ret;
     }
     return UA_STATUSCODE_GOOD;
