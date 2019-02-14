@@ -347,7 +347,7 @@ client_processChunk(void *application, UA_Connection *connection, UA_ByteString 
  * timout finishes */
 UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
-                       UA_DateTime maxDate, UA_UInt32 *synchronousRequestId) {
+                       UA_DateTime maxDate, const UA_UInt32 *synchronousRequestId) {
     /* Prepare the response and the structure we give into processServiceResponse */
     SyncResponseDescription rd = { client, false, 0, response, responseType };
 

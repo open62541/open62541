@@ -151,10 +151,9 @@ UA_Client_Subscriptions_delete(UA_Client *client, const UA_DeleteSubscriptionsRe
                         "No internal representation of subscription %u",
                         request.subscriptionIds[i]);
             continue;
-        } else {
-            LIST_INSERT_HEAD(&client->subscriptions, subs[i], listEntry);
         }
-
+        
+        LIST_INSERT_HEAD(&client->subscriptions, subs[i], listEntry);
         UA_Client_Subscription_deleteInternal(client, subs[i]);
     }
 
@@ -202,6 +201,7 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 void
 UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
                                UA_Client_MonitoredItem *mon) {
+    // NOLINTNEXTLINE
     LIST_REMOVE(mon, listEntry);
     if(mon->deleteCallback)
         mon->deleteCallback(client, sub->subscriptionId, sub->context,
@@ -343,11 +343,11 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
 UA_CreateMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_createEvents(UA_Client *client,
             const UA_CreateMonitoredItemsRequest request, void **contexts,
-            UA_Client_EventNotificationCallback *callbacks,
-            UA_Client_DeleteMonitoredItemCallback *deleteCallbacks) {
+            UA_Client_EventNotificationCallback *callback,
+            UA_Client_DeleteMonitoredItemCallback *deleteCallback) {
     UA_CreateMonitoredItemsResponse response;
     __UA_Client_MonitoredItems_create(client, &request, contexts,
-                (void**)(uintptr_t)callbacks, deleteCallbacks, &response);
+                (void**)(uintptr_t)callback, deleteCallback, &response);
     return response;
 }
 
@@ -399,7 +399,8 @@ UA_Client_MonitoredItems_delete(UA_Client *client, const UA_DeleteMonitoredItems
         /* Delete the internal representation */
         UA_Client_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-            if(mon->monitoredItemId == request.monitoredItemIds[i]) {
+            // NOLINTNEXTLINE
+            if (mon->monitoredItemId == request.monitoredItemIds[i]) {
                 UA_Client_MonitoredItem_remove(client, sub, mon);
                 break;
             }

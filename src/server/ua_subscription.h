@@ -18,6 +18,8 @@
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_session.h"
+#include "ua_workqueue.h"
+#include "ua_plugin_nodestore.h"
 
 _UA_BEGIN_DECLS
 
@@ -134,8 +136,8 @@ struct UA_MonitoredItem {
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub);
-void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
-void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 

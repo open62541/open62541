@@ -144,11 +144,10 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
 
     if (UA_Variant_isScalar(value)) {
         return outOfDeadBand(value->data, oldValue->data, 0, value->type, deadbandValue);
-    } else {
-        for (size_t i = 0; i < value->arrayLength; ++i) {
-            if (outOfDeadBand(value->data, oldValue->data, i, value->type, deadbandValue))
-                return true;
-        }
+    }
+    for (size_t i = 0; i < value->arrayLength; ++i) {
+        if (outOfDeadBand(value->data, oldValue->data, i, value->type, deadbandValue))
+            return true;
     }
     return false;
 }
@@ -165,11 +164,10 @@ updateNeededForFilteredPercentValue(const UA_Variant *value, const UA_Variant *o
 
     if (UA_Variant_isScalar(value)) {
         return outOfPercentDeadBand(value->data, oldValue->data, 0, value->type, deadbandValue, euRange);
-    } else {
-        for (size_t i = 0; i < value->arrayLength; ++i) {
-            if (outOfPercentDeadBand(value->data, oldValue->data, i, value->type, deadbandValue, euRange))
-                return true;
-        }
+    }
+    for (size_t i = 0; i < value->arrayLength; ++i) {
+        if (outOfPercentDeadBand(value->data, oldValue->data, i, value->type, deadbandValue, euRange))
+            return true;
     }
     return false;
 }

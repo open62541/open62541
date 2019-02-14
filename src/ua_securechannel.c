@@ -1300,8 +1300,8 @@ checkSymHeader(UA_SecureChannel *const channel,
         if(tokenId != channel->nextSecurityToken.tokenId) {
             if(allowPreviousToken)
                 return checkPreviousToken(channel, tokenId);
-            else
-                return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
+
+            return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         }
         /* If the token is indeed the next token, revolve the tokens */
         UA_StatusCode retval = UA_SecureChannel_revolveTokens(channel);

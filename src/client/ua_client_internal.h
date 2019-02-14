@@ -206,7 +206,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew);
 UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response,
                        const UA_DataType *responseType, UA_DateTime maxDate,
-                       UA_UInt32 *synchronousRequestId);
+                       const UA_UInt32 *synchronousRequestId);
 
 UA_StatusCode
 receiveServiceResponseAsync(UA_Client *client, void *response,
