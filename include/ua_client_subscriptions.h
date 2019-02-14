@@ -150,7 +150,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
 UA_CreateMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_createEvents(UA_Client *client,
             const UA_CreateMonitoredItemsRequest request, void **contexts,
-            UA_Client_EventNotificationCallback *callbacks,
+            UA_Client_EventNotificationCallback *callback,
             UA_Client_DeleteMonitoredItemCallback *deleteCallback);
 
 UA_MonitoredItemCreateResult UA_EXPORT

@@ -139,7 +139,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 
 static void
 Operation_SetPublishingMode(UA_Server *Server, UA_Session *session,
-                            UA_Boolean *publishingEnabled, UA_UInt32 *subscriptionId,
+                            const UA_Boolean *publishingEnabled, const UA_UInt32 *subscriptionId,
                             UA_StatusCode *result) {
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
     if(!sub) {
@@ -529,7 +529,7 @@ struct setMonitoringContext {
 static void
 Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
                             struct setMonitoringContext *smc,
-                            UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
+                            const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(smc->sub, *monitoredItemId);
     if(!mon) {
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
@@ -740,7 +740,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
 static void
 Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
-                             UA_UInt32 *subscriptionId, UA_StatusCode *result) {
+                             const UA_UInt32 *subscriptionId, UA_StatusCode *result) {
     *result = UA_Session_deleteSubscription(server, session, *subscriptionId);
     if(*result == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
@@ -776,7 +776,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 
 static void
 Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
-                              UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
+                              const UA_UInt32 *monitoredItemId, UA_StatusCode *result) {
     *result = UA_Subscription_deleteMonitoredItem(server, sub, *monitoredItemId);
 }
 

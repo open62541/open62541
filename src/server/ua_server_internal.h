@@ -250,7 +250,7 @@ UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 void
-Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
+Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue

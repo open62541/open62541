@@ -116,9 +116,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             retval = UA_STATUSCODE_GOOD;
-    }
-
-    else{
+    } else {
         UA_DateTime now = UA_DateTime_nowMonotonic();
         UA_Timer_process(&client->timer, now,
                          (UA_TimerExecutionCallback)clientExecuteRepeatedCallback, client);

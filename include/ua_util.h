@@ -61,7 +61,7 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
 size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
 /* Same as UA_ReadNumber but with a base parameter */
-size_t UA_readNumberWithBase(UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base);
+size_t UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base);
 
 #ifndef UA_MIN
 #define UA_MIN(A,B) (A > B ? B : A)

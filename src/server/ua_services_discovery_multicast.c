@@ -62,10 +62,11 @@ static UA_StatusCode
 multicastListenStop(UA_Server* server) {
     mdnsd_shutdown(server->discoveryManager.mdnsDaemon);
     // wake up select
-    if(write(server->discoveryManager.mdnsSocket, "\0", 1)){}; //TODO: move to arch?
-    if(pthread_join(server->discoveryManager.mdnsThread, NULL)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Multicast error: Can not stop thread.");
+    if (write(server->discoveryManager.mdnsSocket, "\0", 1)) {
+        // TODO: if makes no sense here?
+    }  // TODO: move to arch?
+    if (pthread_join(server->discoveryManager.mdnsThread, NULL)) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast error: Can not stop thread.");
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     return UA_STATUSCODE_BADNOTIMPLEMENTED;

@@ -71,8 +71,8 @@ UA_Server_getConfig(UA_Server *server)
 {
   if(!server)
     return NULL;
-  else
-    return &server->config;
+
+  return &server->config;
 }
 
 UA_StatusCode
@@ -504,7 +504,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 }
 
 UA_StatusCode
-UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
+UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

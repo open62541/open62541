@@ -259,7 +259,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
 
 /* Start to browse with no previous cp */
 void
-Operation_Browse(UA_Server *server, UA_Session *session, UA_UInt32 *maxrefs,
+Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
     UA_STACKARRAY(ContinuationPointEntry, cp, 1);
@@ -352,7 +352,7 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescriptio
 }
 
 static void
-Operation_BrowseNext(UA_Server *server, UA_Session *session, UA_Boolean *releaseContinuationPoints,
+Operation_BrowseNext(UA_Server *server, UA_Session *session, const UA_Boolean *releaseContinuationPoints,
                      const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
     ContinuationPointEntry *cp;
@@ -633,7 +633,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
 
 static void
 Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
-                                       UA_UInt32 *nodeClassMask, const UA_BrowsePath *path,
+                                       const UA_UInt32 *nodeClassMask, const UA_BrowsePath *path,
                                        UA_BrowsePathResult *result) {
     if(path->relativePath.elementsSize <= 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;

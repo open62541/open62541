@@ -145,7 +145,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
             if(!publishedDataSet)
                 return;
             switch(((UA_NodePropertyContext *) nodeContext)->elementClassiefier) {
-                case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA:;
+                case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA:
                     pvd = (UA_PublishedVariableDataType *)
                             UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
                     UA_DataSetField *field;

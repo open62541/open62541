@@ -445,8 +445,8 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
 
           return UA_STATUSCODE_BADNOMATCH;
         }
-        else
-          return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
     UA_UInt32 sizeOfOutput = 0;

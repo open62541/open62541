@@ -270,6 +270,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 #endif
         }
 
+        // NOLINTNEXTLINE
         UA_assert(del && del->mon == mon);
 
         /* Move after_del right after del in the global queue. (It is already
@@ -343,13 +344,12 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         /* Set the infobits */
         if(mon->maxQueueSize > 1) {
             /* Add the infobits either to the newest or the new last entry */
-            indicator->data.value.hasStatus = true;
-            indicator->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE |
-                                             UA_STATUSCODE_INFOBITS_OVERFLOW);
+            indicator->data.value.hasStatus = true;  // NOLINT
+            indicator->data.value.status |= (UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);
         } else {
             /* If the queue size is reduced to one, remove the infobits */
-            indicator->data.value.status &= ~(UA_StatusCode)(UA_STATUSCODE_INFOTYPE_DATAVALUE |
-                                                             UA_STATUSCODE_INFOBITS_OVERFLOW);
+            indicator->data.value.status &=  // NOLINT
+                ~(UA_StatusCode)(UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW);  // NOLINT
         }
     }
 

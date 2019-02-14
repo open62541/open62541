@@ -13,7 +13,7 @@
 #include "base64.h"
 
 size_t
-UA_readNumberWithBase(UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
+UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
     UA_assert(number);
     u32 n = 0;
@@ -47,7 +47,8 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-    } else if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
+    }
+    if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
 #ifdef UA_ENABLE_PUBSUB
         if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0 &&
                 strncmp((char*)endpointUrl->data, "opc.mqtt://", 11) != 0) {
@@ -117,11 +118,12 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
 
 UA_StatusCode
 UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
-                            UA_UInt16 *vid, UA_Byte *prio) {
+                            UA_UInt16 *vid, UA_Byte *pcp) {
     /* Url must begin with "opc.eth://" */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADINTERNALERROR;
-    } else if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
+    }
+    if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -170,7 +172,7 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
     if(curr != endpointUrl->length) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    *prio = (UA_Byte) value;
+    *pcp = (UA_Byte) value;
 
     return UA_STATUSCODE_GOOD;
 }
