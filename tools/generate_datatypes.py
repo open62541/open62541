@@ -15,10 +15,12 @@ import xml.etree.ElementTree as etree
 import itertools
 import argparse
 import csv
-from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
+import json
+from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
+user_opaque_type_mapping = {} # contains user defined opaque type mapping
 
 excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
                   "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
@@ -70,6 +72,12 @@ def makeCLiteral(value):
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
     return re.sub(r'[^\w]', '', value)
+
+def get_base_type_for_opaque(name):
+    if name in user_opaque_type_mapping:
+        return user_opaque_type_mapping[name]
+    else:
+        return get_base_type_for_opaque_ns0(name)
 
 ################
 # Type Classes #
@@ -457,6 +465,14 @@ parser.add_argument('--no-builtin',
                     dest="no_builtin",
                     help='Do not generate builtin types')
 
+parser.add_argument('--opaque-map',
+                    metavar="<opaqueTypeMap>",
+                    type=argparse.FileType('r'),
+                    dest="opaque_map",
+                    action='append',
+                    default=[],
+                    help='JSON file with opaque type mapping: { \'typename\': { \'ns\': 0,  \'id\': 7, \'name\': \'UInt32\' }, ... }')
+
 parser.add_argument('-t', '--type-bsd',
                     metavar="<typeBsds>",
                     type=argparse.FileType('r'),
@@ -480,6 +496,9 @@ inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
 
 for builtin in builtin_types:
     types[builtin] = BuiltinType(builtin)
+
+for f in args.opaque_map:
+    user_opaque_type_mapping.update(json.load(f))
 
 for f in args.type_bsd:
     parseTypeDefinitions(outname, f, args.namespace)
