@@ -6,4 +6,4 @@ The initial implementation has been contributed by a research project of the cha
 
 ## Documentation
 
-Usage documantation and How-Tos can be found on the webpage: <https://open62541.org/doc/current/nodeset_compiler.html> 
+Usage documentation and How-Tos can be found on the webpage: <https://open62541.org/doc/current/nodeset_compiler.html> 
