@@ -162,19 +162,15 @@ START_TEST(UA_PubSub_EnDecode) {
     UA_Variant_setScalarCopy(&m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.dataSetFields[1].value, &iv64, &UA_TYPES[UA_TYPES_INT64]);
     m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.dataSetFields[1].hasValue = true;
 
-    UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
-
     size_t size = UA_NetworkMessage_calcSizeJson(&m, NULL, 0, NULL, 0, true);
-    ck_assert(size == 318);
 
     UA_ByteString buffer;
-    rv = UA_ByteString_allocBuffer(&buffer, size);
+    UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, size);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_Byte *bufPos = buffer.data;
     memset(bufPos, 0, size);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-
 
     rv = UA_NetworkMessage_encodeJson(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     //*bufPos = 0;

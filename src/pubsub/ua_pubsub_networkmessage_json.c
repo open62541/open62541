@@ -133,16 +133,10 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
         /* Table 91 – JSON NetworkMessage Definition
          * MessageId | String | A globally unique identifier for the message.
-         * This value is mandatory. */
+         * This value is mandatory. But we don't check uniqueness in the
+         * encoding layer. */
         rv |= writeJsonKey(ctx, UA_DECODEKEY_MESSAGEID);
-        /* If a messageId is given use it, otherwise generate a GUID(-string).
-         * MessageId is always decoded as a string. */
-        if(src->messageIdEnabled){
-            rv |= encodeJsonInternal(&src->messageId, &UA_TYPES[UA_TYPES_STRING], ctx);
-        } else {
-            UA_Guid guid = UA_Guid_random();
-            rv |= encodeJsonInternal(&guid, &UA_TYPES[UA_TYPES_GUID], ctx);
-        }
+        rv |= encodeJsonInternal(&src->messageId, &UA_TYPES[UA_TYPES_STRING], ctx);
 
         /* MessageType */
         rv |= writeJsonKey(ctx, UA_DECODEKEY_MESSAGETYPE);
