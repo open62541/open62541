@@ -60,7 +60,7 @@ typedef struct {
 } CtxJson;
 
 UA_StatusCode writeJsonObjStart(CtxJson *ctx);
-UA_StatusCode writeJsonObjElm(CtxJson *ctx, UA_String *key,
+UA_StatusCode writeJsonObjElm(CtxJson *ctx, const char *key,
                               const void *value, const UA_DataType *type);
 UA_StatusCode writeJsonObjEnd(CtxJson *ctx);
 
@@ -81,7 +81,7 @@ calcJsonObjStart(CtxJson *ctx) {
 }
 
 static UA_INLINE UA_StatusCode
-calcJsonObjElm(CtxJson *ctx, UA_String *key,
+calcJsonObjElm(CtxJson *ctx, const char *key,
                const void *value, const UA_DataType *type) {
     UA_assert(ctx->calcOnly);
     return writeJsonObjElm(ctx, key, value, type);
