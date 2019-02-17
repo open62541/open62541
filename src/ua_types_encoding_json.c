@@ -145,14 +145,9 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
     return ret;
 }
 
-status writeJsonObjElm(CtxJson *ctx, UA_String *key,
+status writeJsonObjElm(CtxJson *ctx, const char *key,
                        const void *value, const UA_DataType *type){
-    UA_STACKARRAY(char, out, key->length + 1);
-    memcpy(out, key->data, key->length);
-    out[key->length] = 0;
-    status ret = writeJsonKey(ctx, out);
-    ret |= encodeJsonInternal(value, type, ctx);
-    return ret;
+    return writeJsonKey(ctx, key) | encodeJsonInternal(value, type, ctx);
 }
 
 status writeJsonNull(CtxJson *ctx) {
