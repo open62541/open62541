@@ -1454,7 +1454,7 @@ const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS] = {
     (encodeJsonSignature)Variant_encodeJson,
     (encodeJsonSignature)DiagnosticInfo_encodeJson,
     (encodeJsonSignature)encodeJsonNotImplemented, /* Decimal */
-    (encodeJsonSignature)encodeJsonNotImplemented, /* Enum */
+    (encodeJsonSignature)Int32_encodeJson, /* Enum */
     (encodeJsonSignature)encodeJsonStructure,
     (encodeJsonSignature)encodeJsonNotImplemented, /* Structure with optional fields */
     (encodeJsonSignature)encodeJsonNotImplemented, /* Union */
@@ -3277,7 +3277,7 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
     (decodeJsonSignature)Variant_decodeJson,
     (decodeJsonSignature)DiagnosticInfo_decodeJson,
     (decodeJsonSignature)decodeJsonNotImplemented, /* Decimal */
-    (decodeJsonSignature)decodeJsonNotImplemented, /* Enum */
+    (decodeJsonSignature)Int32_decodeJson, /* Enum */
     (decodeJsonSignature)decodeJsonStructure,
     (decodeJsonSignature)decodeJsonNotImplemented, /* Structure with optional fields */
     (decodeJsonSignature)decodeJsonNotImplemented, /* Union */
