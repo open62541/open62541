@@ -233,7 +233,7 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
         LIST_FOREACH(writerGroup, &server->pubSubManager.connections[i].writerGroups, listEntry){
             UA_DataSetWriter *currentWriter, *tmpWriterGroup;
             LIST_FOREACH_SAFE(currentWriter, &writerGroup->writers, listEntry, tmpWriterGroup){
-                if(UA_NodeId_equal(&currentWriter->identifier, &publishedDataSet->identifier)){
+                if(UA_NodeId_equal(&currentWriter->connectedDataSet, &publishedDataSet->identifier)){
                     UA_Server_removeDataSetWriter(server, currentWriter->identifier);
                 }
             }

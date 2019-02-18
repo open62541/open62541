@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
 
     UA_PubSubChannel *psc =
         udpLayer.createPubSubChannel(&connectionConfig);
-    psc->regist(psc, NULL);
+    psc->regist(psc, NULL, NULL);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     while(running && retval == UA_STATUSCODE_GOOD)
