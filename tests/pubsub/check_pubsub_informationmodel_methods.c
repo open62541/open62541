@@ -94,13 +94,15 @@ static UA_NodeId addPubSubConnection(void){
     pubSubConnection.publisherId = publisherId;
     pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
+
     UA_ExtensionObject eo;
-    eo.encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
     UA_NetworkAddressUrlDataType networkAddressDataType = {UA_STRING("eth0"), UA_STRING("opc.udp://224.0.0.22:4840/")};
-    UA_ByteString_allocBuffer(&eo.content.encoded.body, UA_NetworkAddressUrlDataType_calcSizeBinary(&networkAddressDataType));
-    UA_Byte *bufPos = eo.content.encoded.body.data;
-    UA_NetworkAddressUrlDataType_encodeBinary(&networkAddressDataType, &bufPos, &(eo.content.encoded.body.data[eo.content.encoded.body.length]));
-    eo.content.encoded.typeId = UA_NODEID_NUMERIC(0, UA_TYPES_NETWORKADDRESSURLDATATYPE);
+    UA_NetworkAddressUrlDataType* identityToken = UA_NetworkAddressUrlDataType_new();
+    UA_NetworkAddressUrlDataType_init(identityToken);
+    UA_NetworkAddressUrlDataType_copy(&networkAddressDataType, identityToken);
+    eo.encoding = UA_EXTENSIONOBJECT_DECODED;
+    eo.content.decoded.type = &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE];
+    eo.content.decoded.data = identityToken;
     pubSubConnection.address = eo;
     pubSubConnection.connectionPropertiesSize = 2;
     UA_KeyValuePair connectionOptions[2];
