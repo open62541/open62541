@@ -995,7 +995,7 @@ ENCODE_BINARY(Variant) {
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
     const UA_Boolean isEnum = (src->type->typeKind == UA_DATATYPEKIND_ENUM);
     if(isBuiltin)
-        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeIndex + 1);
+        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeKind + 1);
     else if(isEnum)
         encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_INT32 + 1);
     else
@@ -1088,14 +1088,16 @@ DECODE_BINARY(Variant) {
     const UA_Boolean isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
 
     /* Get the datatype of the content. The type must be a builtin data type.
-     * All not-builtin types are wrapped in an ExtensionObject. */
-    size_t typeIndex = (size_t)((encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
-    if(typeIndex > UA_TYPES_DIAGNOSTICINFO)
+     * All not-builtin types are wrapped in an ExtensionObject. The "type kind"
+     * for types up to DiagnsticInfo equals to the index in the encoding
+     * byte. */
+    size_t typeKind = (size_t)((encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
+    if(typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* A variant cannot contain a variant. But it can contain an array of
      * variants */
-    if(typeIndex == UA_TYPES_VARIANT && !isArray)
+    if(typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Check the recursion limit */
@@ -1104,14 +1106,14 @@ DECODE_BINARY(Variant) {
     ctx->depth++;
 
     /* Decode the content */
-    dst->type = &UA_TYPES[typeIndex];
+    dst->type = &UA_TYPES[typeKind];
     if(isArray) {
         ret = Array_decodeBinary(&dst->data, &dst->arrayLength, dst->type, ctx);
-    } else if(typeIndex != UA_TYPES_EXTENSIONOBJECT) {
+    } else if(typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
         dst->data = UA_new(dst->type);
         if(!dst->data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        ret = decodeBinaryJumpTable[typeIndex](dst->data, dst->type, ctx);
+        ret = decodeBinaryJumpTable[typeKind](dst->data, dst->type, ctx);
     } else {
         ret = Variant_decodeBinaryUnwrapExtensionObject(dst, ctx);
     }
