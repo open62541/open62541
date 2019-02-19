@@ -2720,12 +2720,12 @@ DECODE_JSON(Variant) {
     
     /* Get the datatype of the content. The type must be a builtin data type.
     * All not-builtin types are wrapped in an ExtensionObject. */
-    if(bodyType->typeIndex > UA_TYPES_DIAGNOSTICINFO)
+    if(bodyType->typeKind > UA_TYPES_DIAGNOSTICINFO)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* A variant cannot contain a variant. But it can contain an array of
         * variants */
-    if(bodyType->typeIndex == UA_TYPES_VARIANT && !isArray)
+    if(bodyType->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
         return UA_STATUSCODE_BADDECODINGERROR;
     
     if(isArray) {
@@ -2740,7 +2740,7 @@ DECODE_JSON(Variant) {
         } else {
             ret = decodeFields(ctx, parseCtx, entries, 3, bodyType); /*use all fields*/
         }      
-    } else if(bodyType->typeIndex != UA_TYPES_EXTENSIONOBJECT) {
+    } else if(bodyType->typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
         /* Allocate Memory for Body */
         if(!isBodyNull) {
             dst->data = UA_new(bodyType);
