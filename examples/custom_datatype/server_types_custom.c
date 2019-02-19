@@ -86,6 +86,8 @@ int main(void) {
     UA_Server_run(server, &running);
 
     UA_Server_delete(server);
+    UA_free(members);
+    UA_free(types);
     UA_ServerConfig_delete(config);
     return EXIT_SUCCESS;
 }
