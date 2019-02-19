@@ -7,18 +7,20 @@
 #ifndef ARCH_COMMON_LWIP62541_H_
 #define ARCH_COMMON_LWIP62541_H_
 
-#define LWIP_TIMEVAL_PRIVATE 0
-#define LWIP_POSIX_SOCKETS_IO_NAMES 0
-#ifdef LWIP_COMPAT_SOCKETS
-#undef LWIP_COMPAT_SOCKETS
-#endif
-#define LWIP_COMPAT_SOCKETS 0
-
+/*
+ * Needed flags to be set before including this file. Normally done in lwipopts.h
+ * #define LWIP_COMPAT_SOCKETS 0 // Don't do name define-transformation in networking function names.
+ * #define LWIP_SOCKET 1 // Enable Socket API (normally already set)
+ * #define LWIP_DNS 1 // enable the lwip_getaddrinfo function, struct addrinfo and more.
+ * #define SO_REUSE 1 // Allows to set the socket as reusable
+ * #define LWIP_TIMEVAL_PRIVATE 0 // This is optional. Set this flag if you get a compilation error about redefinition of struct timeval
+ *
+ * Why not define these here? This stack is used as middleware so other code might use this header file with other flags (specially LWIP_COMPAT_SOCKETS)
+ */
 #include <lwip/tcpip.h>
 #include <lwip/netdb.h>
 #include <lwip/init.h>
 #include <lwip/sockets.h>
-#define sockaddr_storage sockaddr
 
 #define OPTVAL_TYPE int
 
@@ -72,7 +74,7 @@ unsigned int lwip_if_nametoindex(const char *ifname);
 # endif
 #endif
 
-int gethostname_lwip(char* name, size_t len);
+int gethostname_lwip(char* name, size_t len); //gethostname is not present in LwIP. We implement here a dummy. See ../freertosLWIP/ua_architecture_functions.c
 
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
