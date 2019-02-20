@@ -10,6 +10,7 @@
 ua_generate_nodeset_and_datatypes(
     NAME "example"
     FILE_NS "${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml"
+    DEPENDS "${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml"
 )
 
 # The .csv file can be created from within UaModeler or manually
