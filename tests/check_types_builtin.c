@@ -996,6 +996,19 @@ START_TEST(UA_DateTime_toStructShallWorkOnExample) {
 }
 END_TEST
 
+START_TEST(UA_QualifiedName_equalShallWorkOnExample) {
+    // given
+    UA_QualifiedName qn1 = UA_QUALIFIEDNAME(5, "tEsT123!");
+    UA_QualifiedName qn2 = UA_QUALIFIEDNAME(3, "tEsT123!");
+    UA_QualifiedName qn3 = UA_QUALIFIEDNAME(5, "tEsT1");
+    UA_QualifiedName qn4 = UA_QUALIFIEDNAME(5, "tEsT123!");
+
+    ck_assert(UA_QualifiedName_equal(&qn1, &qn2) == UA_FALSE);
+    ck_assert(UA_QualifiedName_equal(&qn1, &qn3) == UA_FALSE);
+    ck_assert(UA_QualifiedName_equal(&qn1, &qn4) == UA_TRUE);
+}
+END_TEST
+
 START_TEST(UA_ExtensionObject_copyShallWorkOnExample) {
     // given
     /* UA_Byte data[3] = { 1, 2, 3 }; */
@@ -1506,6 +1519,10 @@ static Suite *testSuite_builtin(void) {
     TCase *tc_convert = tcase_create("convert");
     tcase_add_test(tc_convert, UA_DateTime_toStructShallWorkOnExample);
     suite_add_tcase(s, tc_convert);
+
+    TCase *tc_equal = tcase_create("equal");
+    tcase_add_test(tc_equal, UA_QualifiedName_equalShallWorkOnExample);
+    suite_add_tcase(s, tc_equal);
 
     TCase *tc_copy = tcase_create("copy");
     tcase_add_test(tc_copy, UA_Array_copyByteArrayShallWorkOnExample);
