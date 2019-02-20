@@ -1275,7 +1275,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         CHECK_USERWRITEMASK(UA_WRITEMASK_EVENTNOTIFIER);
         CHECK_DATATYPE_SCALAR(BYTE);
-        ((UA_ViewNode*)node)->eventNotifier = *(const UA_Byte*)value;
+        if(node->nodeClass == UA_NODECLASS_VIEW) {
+            ((UA_ViewNode*)node)->eventNotifier = *(const UA_Byte*)value;
+        } else {
+            ((UA_ObjectNode*)node)->eventNotifier = *(const UA_Byte*)value;
+        }
         break;
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
