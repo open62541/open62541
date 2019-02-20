@@ -200,6 +200,9 @@ START_TEST(readNumberWithBase) {
     ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"f", 1, &result, 16), 1);
     ck_assert_uint_eq(result, 15);
 
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"F", 1, &result, 16), 1);
+    ck_assert_uint_eq(result, 15);
+
     ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"1x", 2, &result, 16), 1);
     ck_assert_uint_eq(result, 1);
 
