@@ -220,7 +220,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, const UA_NodeId *re
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(responseMessage, offset, response, responseType, NULL);
+    retval = UA_decodeBinary(responseMessage, offset, response, responseType, client->config.customDataTypes);
 
  process:
     if(retval != UA_STATUSCODE_GOOD) {
@@ -289,7 +289,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
         if(UA_NodeId_equal(&responseId, &serviceFaultId)) {
             UA_init(rd->response, rd->responseType);
             retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], NULL);
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT],
+                                     rd->client->config.customDataTypes);
             if(retval != UA_STATUSCODE_GOOD)
                 ((UA_ResponseHeader*)rd->response)->serviceResult = retval;
             UA_LOG_INFO(&rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
