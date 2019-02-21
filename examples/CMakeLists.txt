@@ -1,8 +1,57 @@
-set(examples_headers
-    ${examples_headers}
-    ${PROJECT_SOURCE_DIR}/examples/common.h
-    )
+cmake_minimum_required(VERSION 3.0)
+project(open62541-examples)
 
+# This examples folder can also be built standalone.
+# First install open62541 using `make install` then
+# copy this folder to any other location and call CMake directly:
+#
+# cp -r open62541/examples $HOME/open62541_examples
+# cd $HOME/open62541_examples
+# mkdir build && cd build
+# cmake -DUA_NAMESPACE_ZERO=FULL ..
+# make -j
+
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    # Examples are built standalone.
+
+    find_package(open62541 REQUIRED)
+    if(UA_TOOLS_DIR)
+        # build with cmake tools from open62541 source_dir
+        # cmake -DUA_TOOLS_DIR="<path-to-tools-dir>" ..
+        get_filename_component(ABSOLUTE_PATH ${UA_TOOLS_DIR} ABSOLUTE)
+        set(CMAKE_MODULE_PATH "${ABSOLUTE_PATH}/cmake")
+    else()
+        # build with installed cmake tools, i.e. from /usr/share/open62541/tools/cmake
+        # cmake ..
+        set(CMAKE_MODULE_PATH "${open62541_TOOLS_DIR}/cmake")
+        set(UA_TOOLS_DIR ${open62541_TOOLS_DIR})
+    endif()
+
+    function(assign_source_group)
+        # define empty function. We don't need it in standalone
+    endfunction(assign_source_group)
+
+    include_directories(${PROJECT_BINARY_DIR}/src_generated)
+    add_custom_target(open62541-object)
+    file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+    set(examples_headers
+        ${examples_headers}
+        ${PROJECT_SOURCE_DIR}/common.h
+        )
+else()
+    # Examples are built inside the main repo
+
+    include_directories(${CMAKE_SOURCE_DIR}/include)
+    include_directories(${CMAKE_SOURCE_DIR}/plugins)
+    include_directories(${CMAKE_BINARY_DIR})
+    include_directories(${CMAKE_SOURCE_DIR}/examples)
+    include_directories(${CMAKE_SOURCE_DIR}/arch)
+    include_directories(${CMAKE_SOURCE_DIR}/plugins/historydata)
+    set(examples_headers
+        ${examples_headers}
+        ${PROJECT_SOURCE_DIR}/common.h
+        )
+endif()
 
 if(UA_ENABLE_AMALGAMATION)
     add_definitions(-DUA_ENABLE_AMALGAMATION)
@@ -133,9 +182,9 @@ endif()
 if(UA_BUILD_SELFSIGNED_CERTIFICATE)
   find_package(OpenSSL REQUIRED)
   add_custom_command(OUTPUT server_cert.der
-                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
-                     DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
-                             ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
+                     COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
+                     DEPENDS ${CMAKE_SOURCE_DIR}/tools/certs/create_self-signed.py
+                             ${CMAKE_SOURCE_DIR}/tools/certs/localhost.cnf)
   add_custom_target(selfsigned ALL DEPENDS server_cert.der)
   add_executable(server_certificate server_certificate.c ${STATIC_OBJECTS} server_cert.der)
   target_link_libraries(server_certificate open62541 ${open62541_LIBRARIES})
