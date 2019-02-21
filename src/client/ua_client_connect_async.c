@@ -582,6 +582,8 @@ UA_StatusCode
 UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
                         UA_ClientAsyncServiceCallback callback,
                         void *userdata) {
+    if(client->connection.connectCallbackID != 0)
+        return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client internal async");
 
