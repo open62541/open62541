@@ -224,7 +224,8 @@ is_multicast_address(const UA_Byte *address) {
  */
 static UA_StatusCode
 UA_PubSubChannelEthernet_regist(UA_PubSubChannel *channel,
-                                UA_ExtensionObject *transportSettings) {
+                                UA_ExtensionObject *transportSettings,
+                                void (*notUsedHere)(UA_ByteString *encodedBuffer, UA_ByteString *topic)) {
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
