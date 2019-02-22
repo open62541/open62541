@@ -72,8 +72,8 @@ def sortNodes(nodeset):
     # used in a reference, it must exist. A Variable node may point to a
     # DataTypeNode in the datatype attribute and not via an explicit reference.
 
-    Q = {node for node in R.values() if in_degree[node.id] == 0 and
-         (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))}
+    Q = [node for node in R.values() if in_degree[node.id] == 0 and
+         (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))]
     while Q:
         u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
         L.append(u)
@@ -88,10 +88,10 @@ def sortNodes(nodeset):
                 continue
             in_degree[ref.target] -= 1
             if in_degree[ref.target] == 0:
-                Q.add(R[ref.target])
+                Q.append(R[ref.target])
 
     # Order the remaining nodes
-    Q = {node for node in R.values() if in_degree[node.id] == 0}
+    Q = [node for node in R.values() if in_degree[node.id] == 0]
     while Q:
         u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
         L.append(u)
@@ -106,7 +106,7 @@ def sortNodes(nodeset):
                 continue
             in_degree[ref.target] -= 1
             if in_degree[ref.target] == 0:
-                Q.add(R[ref.target])
+                Q.append(R[ref.target])
 
     # reverse hastype references
     for u in nodeset.nodes.values():
