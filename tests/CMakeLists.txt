@@ -169,6 +169,10 @@ add_executable(check_services_nodemanagement server/check_services_nodemanagemen
 target_link_libraries(check_services_nodemanagement ${LIBS})
 add_test_valgrind(services_nodemanagement ${TESTS_BINARY_DIR}/check_services_nodemanagement)
 
+add_executable(check_services_call server/check_services_call.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_services_call ${LIBS})
+add_test_valgrind(services_call ${TESTS_BINARY_DIR}/check_services_call)
+
 add_executable(check_services_subscriptions server/check_services_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_subscriptions ${LIBS})
 add_test_valgrind(services_subscriptions ${TESTS_BINARY_DIR}/check_services_subscriptions)
