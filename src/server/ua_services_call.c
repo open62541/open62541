@@ -171,7 +171,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
                            session->sessionHandle, &request->methodId, method->context,
                            &request->objectId, object->context);
     if(!executable) {
-        result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
+        result->statusCode = UA_STATUSCODE_BADNOTEXECUTABLE;
         return;
     }
 
