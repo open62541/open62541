@@ -245,7 +245,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
         server->config.nodestore.getNode(server->config.nodestore.context,
                                          &request->objectId);
     if(!object) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         server->config.nodestore.releaseNode(server->config.nodestore.context,
                                              (const UA_Node*)method);
         return;
