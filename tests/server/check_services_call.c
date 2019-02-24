@@ -103,6 +103,30 @@ START_TEST(callMethodAndObjectExistsButMethodHasWrongNodeClass) {
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADNODECLASSINVALID);
 } END_TEST
 
+START_TEST(callMethodAndObjectExistsButObjectHasWrongNodeClass) {
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE);
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING);  // not an object
+
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    result = UA_Server_call(server, &callMethodRequest);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADNODECLASSINVALID);
+} END_TEST
+
+START_TEST(callMethodOnUnrelatedObject) {
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE);
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);  // not connected via hasComponent
+
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    result = UA_Server_call(server, &callMethodRequest);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADMETHODINVALID);
+} END_TEST
+
 START_TEST(callMethodAndObjectExistsButNoFunctionPointerAttached) {
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
@@ -135,8 +159,10 @@ int main(void) {
     tcase_add_test(tc_call, callUnknownMethod);
     tcase_add_test(tc_call, callKnownMethodOnUnknownObject);
     tcase_add_test(tc_call, callMethodAndObjectExistsButMethodHasWrongNodeClass);
+    tcase_add_test(tc_call, callMethodAndObjectExistsButObjectHasWrongNodeClass);
     tcase_add_test(tc_call, callMethodAndObjectExistsButNoFunctionPointerAttached);
-    tcase_add_test(tc_call, callMethodNonExecutable);;
+    tcase_add_test(tc_call, callMethodNonExecutable);
+    tcase_add_test(tc_call, callMethodOnUnrelatedObject);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);
