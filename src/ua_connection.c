@@ -160,9 +160,6 @@ UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
                             UA_Connection_processChunk processCallback,
                             const UA_ByteString *packet) {
-    /* The connection has already prepended any incomplete chunk during recv */
-    UA_assert(connection->incompleteChunk.length == 0);
-
     /* Loop over the received chunks. pos is increased with each chunk. */
     const UA_Byte *pos = packet->data;
     const UA_Byte *end = &packet->data[packet->length];
