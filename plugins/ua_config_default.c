@@ -751,11 +751,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->logger.context = NULL;
     config->logger.clear = UA_Log_Stdout_clear;
 
-    config->localConnectionConfig.protocolVersion = 0;
-    config->localConnectionConfig.sendBufferSize = 65535;
-    config->localConnectionConfig.recvBufferSize = 65535;
-    config->localConnectionConfig.maxMessageSize = 0; /* 0 -> unlimited */
-    config->localConnectionConfig.maxChunkCount = 0; /* 0 -> unlimited */
+    config->localConnectionConfig = UA_ConnectionConfig_default;
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
