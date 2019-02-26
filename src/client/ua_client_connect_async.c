@@ -320,8 +320,10 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
 #endif
 
      /* Call onConnect (client_async.c) callback */
-    client->asyncConnectCall.callback(client, client->asyncConnectCall.userdata, requestId + 1,
-                                      &activateResponse->responseHeader.serviceResult);
+    if(client->asyncConnectCall.callback)
+        client->asyncConnectCall.callback(client, client->asyncConnectCall.userdata,
+                                          requestId + 1,
+                                          &activateResponse->responseHeader.serviceResult);
 }
 
 static UA_StatusCode
