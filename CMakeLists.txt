@@ -761,6 +761,7 @@ ua_generate_datatypes(
 
 # transport data types
 ua_generate_datatypes(
+    INTERNAL
     NAME "ua_transport"
     TARGET_SUFFIX "transport"
     NAMESPACE_IDX 1

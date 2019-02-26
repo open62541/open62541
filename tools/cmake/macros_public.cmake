@@ -79,6 +79,7 @@ endfunction()
 #   Options:
 #
 #   [BUILTIN]       Optional argument. If given, then builtin types will be generated.
+#   [INTERNAL]      Optional argument. If given, then the given types file is seen as internal file (e.g. does not require a .csv)
 #
 #   Arguments taking one value:
 #
@@ -100,7 +101,7 @@ endfunction()
 #
 #
 function(ua_generate_datatypes)
-    set(options BUILTIN)
+    set(options BUILTIN INTERNAL)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX NAMESPACE_IDX OUTPUT_DIR FILE_CSV)
     set(multiValueArgs FILES_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
@@ -143,6 +144,11 @@ function(ua_generate_datatypes)
         set(UA_GEN_DT_NO_BUILTIN "")
     endif()
 
+    set(UA_GEN_DT_INTERNAL_ARG "")
+    if (UA_GEN_DT_INTERNAL)
+        set(UA_GEN_DT_INTERNAL_ARG "--internal")
+    endif()
+
 
     set(SELECTED_TYPES_TMP "")
     foreach(f ${UA_GEN_DT_FILES_SELECTED})
@@ -170,6 +176,7 @@ function(ua_generate_datatypes)
         ${BSD_FILES_TMP}
         --type-csv=${UA_GEN_DT_FILE_CSV}
         ${UA_GEN_DT_NO_BUILTIN}
+        ${UA_GEN_DT_INTERNAL_ARG}
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}
         DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${UA_GEN_DT_FILES_BSD}
