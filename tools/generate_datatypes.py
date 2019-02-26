@@ -36,6 +36,9 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
 
+# If set to False, every defined datatype must have a corresponding ID entry in the csv file
+isInternalTypes = False
+
 # Some types can be memcpy'd off the binary stream. That's especially important
 # for arrays. But we need to check if they contain padding and whether the
 # endianness is correct. This dict gives the C-statement that must be true for the
@@ -129,7 +132,10 @@ class Type(object):
             # xmlEncodingId = description.xmlEncodingId
             binaryEncodingId = description.binaryEncodingId
         else:
-            typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
+            if not isInternalTypes:
+                raise RuntimeError("NodeId for " + self.name + " not found in .csv file")
+            else:
+                typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
         idName = makeCIdentifier(self.name)
         return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
             "    " + typeid + ", /* .typeId */\n" + \
@@ -473,6 +479,11 @@ parser.add_argument('--opaque-map',
                     default=[],
                     help='JSON file with opaque type mapping: { \'typename\': { \'ns\': 0,  \'id\': 7, \'name\': \'UInt32\' }, ... }')
 
+parser.add_argument('--internal',
+                    action='store_true',
+                    dest="internal",
+                    help='Given bsd are internal types which do not have any .csv file')
+
 parser.add_argument('-t', '--type-bsd',
                     metavar="<typeBsds>",
                     type=argparse.FileType('r'),
@@ -489,6 +500,7 @@ args = parser.parse_args()
 outname = args.outfile.split("/")[-1]
 inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
 
+isInternalTypes = args.internal
 
 ################
 # Create Types #
