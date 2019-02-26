@@ -60,8 +60,8 @@ fi
 
 # INSTALL build test
 if ! [ -z ${INSTALL+x} ]; then
-echo "=== Install build, then compile minimal example ===" && echo -en 'travis_fold:start:script.build.install\\r'
-    # Use make install to deploy files and then test if we can build an example based on the installed files
+echo "=== Install build, then compile examples ===" && echo -en 'travis_fold:start:script.build.install\\r'
+    # Use make install to deploy files and then test if we can build the examples based on the installed files
     mkdir -p build
     cd build
     cmake \
@@ -79,19 +79,14 @@ echo "=== Install build, then compile minimal example ===" && echo -en 'travis_f
 
     echo -en 'travis_fold:start:script.build.mini-example\\r'
     # Now create a simple CMake Project which uses the installed file
-    mkdir compile && cd compile
-    cat > CMakeLists.txt << EOM
-cmake_minimum_required(VERSION 2.8)
-project(install-test)
-find_package(open62541 REQUIRED COMPONENTS FullNamespace)
-add_executable(install-test-example ../examples/tutorial_server_firststeps.c)
-target_link_libraries(install-test-example open62541::open62541)
-EOM
+    mkdir compile
+    cp -r examples compile/examples && cd compile/examples
     cmake \
-        -DCMAKE_PREFIX_PATH=$TRAVIS_BUILD_DIR/open62541_install .
+        -DCMAKE_PREFIX_PATH=$TRAVIS_BUILD_DIR/open62541_install \
+        -DUA_NAMESPACE_ZERO=FULL .
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
-    cd ..
+    cd ../..
     rm -rf compile
     echo -en 'travis_fold:end:script.build.mini-example\\r'
     exit 0
