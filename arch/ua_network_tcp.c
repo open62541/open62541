@@ -570,11 +570,12 @@ ClientNetworkLayerTCP_close(UA_Connection *connection) {
 
 static void
 ClientNetworkLayerTCP_free(UA_Connection *connection) {
-    if (connection->handle){
+    if(connection->handle) {
         TCPClientConnection *tcpConnection = (TCPClientConnection *)connection->handle;
         if(tcpConnection->server)
-          UA_freeaddrinfo(tcpConnection->server);
+            UA_freeaddrinfo(tcpConnection->server);
         UA_free(tcpConnection);
+        connection->handle = NULL;
     }
 }
 
