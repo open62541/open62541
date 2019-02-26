@@ -315,15 +315,13 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
     setClientState(client, UA_CLIENTSTATE_SESSION);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-        /* A new session has been created. We need to clean up the subscriptions */
-        UA_Client_Subscriptions_clean(client);
+    /* A new session has been created. We need to clean up the subscriptions */
+    UA_Client_Subscriptions_clean(client);
 #endif
 
-     /* call onConnect (client_async.c) callback */
-    AsyncServiceCall ac = client->asyncConnectCall;
-
-    ac.callback(client, ac.userdata, requestId + 1,
-                &activateResponse->responseHeader.serviceResult);
+     /* Call onConnect (client_async.c) callback */
+    client->asyncConnectCall.callback(client, client->asyncConnectCall.userdata, requestId + 1,
+                                      &activateResponse->responseHeader.serviceResult);
 }
 
 static UA_StatusCode
