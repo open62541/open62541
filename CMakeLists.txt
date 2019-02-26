@@ -933,7 +933,7 @@ else()
     include_directories_private("${PROJECT_BINARY_DIR}"
                                 "${PROJECT_SOURCE_DIR}/deps"
                                 "${PROJECT_BINARY_DIR}/src_generated")
-    if(UA_ENABLE_ENCRYPTION) 
+    if(UA_ENABLE_ENCRYPTION)
         include_directories_private(${MBEDTLS_INCLUDE_DIRS})
     endif()
 

@@ -12,18 +12,15 @@ project(open62541-examples)
 # make -j
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    # Examples are built standalone.
+    # Examples are built standalone. Find installed open62541
 
-    find_package(open62541 REQUIRED)
-    if(UA_TOOLS_DIR)
-        # build with cmake tools from open62541 source_dir
-        # cmake -DUA_TOOLS_DIR="<path-to-tools-dir>" ..
-        get_filename_component(ABSOLUTE_PATH ${UA_TOOLS_DIR} ABSOLUTE)
-        set(CMAKE_MODULE_PATH "${ABSOLUTE_PATH}/cmake")
+    if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+        find_package(open62541 REQUIRED COMPONENTS FullNamespace)
     else()
-        # build with installed cmake tools, i.e. from /usr/share/open62541/tools/cmake
-        # cmake ..
-        set(CMAKE_MODULE_PATH "${open62541_TOOLS_DIR}/cmake")
+        find_package(open62541 REQUIRED)
+    endif()
+
+    if(NOT UA_TOOLS_DIR)
         set(UA_TOOLS_DIR ${open62541_TOOLS_DIR})
     endif()
 
@@ -32,26 +29,10 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     endfunction(assign_source_group)
 
     include_directories(${PROJECT_BINARY_DIR}/src_generated)
-    add_custom_target(open62541-object)
-    file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
-    set(examples_headers
-        ${examples_headers}
-        ${PROJECT_SOURCE_DIR}/common.h
-        )
-else()
-    # Examples are built inside the main repo
-
-    include_directories(${CMAKE_SOURCE_DIR}/include)
-    include_directories(${CMAKE_SOURCE_DIR}/plugins)
-    include_directories(${CMAKE_BINARY_DIR})
-    include_directories(${CMAKE_SOURCE_DIR}/examples)
-    include_directories(${CMAKE_SOURCE_DIR}/arch)
-    include_directories(${CMAKE_SOURCE_DIR}/plugins/historydata)
-    set(examples_headers
-        ${examples_headers}
-        ${PROJECT_SOURCE_DIR}/common.h
-        )
 endif()
+
+# Required for common.h header file used in examples
+include_directories(${CMAKE_CURRENT_LIST_DIR})
 
 if(UA_ENABLE_AMALGAMATION)
     add_definitions(-DUA_ENABLE_AMALGAMATION)
@@ -68,14 +49,13 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR}/bin/exampl
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR}/bin/examples)
 
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
-  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN} ${examples_headers})
-  target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
+  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN} ${PROJECT_SOURCE_DIR}/common.h)
+  target_link_libraries(${EXAMPLE_NAME} open62541::open62541)
   assign_source_group(${EXAMPLE_SOURCE})
-  add_dependencies(${EXAMPLE_NAME} open62541-object)
   set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
   set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
   if(UA_COMPILE_AS_CXX)
-    set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
+      set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
   endif()
 endmacro()
 
@@ -92,7 +72,7 @@ add_example(tutorial_server_variable tutorial_server_variable.c)
 add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
+    add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
 endif()
 
 add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
@@ -100,7 +80,7 @@ add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 add_example(tutorial_server_object tutorial_server_object.c)
 
 if(UA_ENABLE_METHODCALLS)
-  add_example(tutorial_server_method tutorial_server_method.c)
+    add_example(tutorial_server_method tutorial_server_method.c)
 endif()
 
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
@@ -108,7 +88,7 @@ add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 add_example(tutorial_client_events tutorial_client_events.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-  add_example(tutorial_server_events tutorial_server_events.c)
+    add_example(tutorial_server_events tutorial_server_events.c)
 endif()
 
 ##################
@@ -142,7 +122,7 @@ add_example(client_connect_loop client_connect_loop.c)
 add_example(client_connectivitycheck_loop client_connectivitycheck_loop.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-add_example(client_subscription_loop client_subscription_loop.c)
+    add_example(client_subscription_loop client_subscription_loop.c)
 endif()
 
 ####################
