@@ -216,11 +216,21 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         }
     } else if(maxrefs != 0 && referencesCount >= maxrefs) {
         /* create a cp */
+        if(session->availableContinuationPoints <= 0) {
+            /* If no ContinuationPoints are available, delete the last one */
+            struct ContinuationPointEntry *cpLoop = NULL, *cpLast = NULL;
+            LIST_FOREACH(cpLoop, &session->continuationPoints, pointers)
+                cpLast = cpLoop;
+            if(cpLast)
+                removeCp(cpLast, session);
+        }
+
         if(session->availableContinuationPoints <= 0 ||
            !(cp = UA_malloc(sizeof(struct ContinuationPointEntry)))) {
             result->statusCode = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
             return;
         }
+
         UA_BrowseDescription_copy(descr, &cp->browseDescription);
         cp->maxReferences = maxrefs;
         cp->continuationIndex = (UA_UInt32)referencesCount;
