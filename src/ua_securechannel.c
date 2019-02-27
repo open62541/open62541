@@ -196,6 +196,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
 UA_StatusCode
 UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                    const void *content, const UA_DataType *contentType) {
+    if(!channel)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
