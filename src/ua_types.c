@@ -40,7 +40,7 @@ UA_findDataType(const UA_NodeId *typeId) {
 /* Random Number Generator */
 /***************************/
 
-static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
+static pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 void
 UA_random_seed(UA_UInt64 seed) {
