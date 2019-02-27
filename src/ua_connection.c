@@ -95,6 +95,7 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
 static UA_StatusCode
 bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos,
                       const UA_Byte *end) {
+    UA_assert(connection->incompleteChunk.length == 0);
     UA_assert(pos < end);
     size_t length = (uintptr_t)end - (uintptr_t)pos;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&connection->incompleteChunk, length);
@@ -160,24 +161,44 @@ UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
                             UA_Connection_processChunk processCallback,
                             const UA_ByteString *packet) {
-    /* The connection has already prepended any incomplete chunk during recv */
+    const UA_Byte *pos = packet->data;
+    const UA_Byte *end = &packet->data[packet->length];
+    UA_ByteString appended = connection->incompleteChunk;
+
+    /* Prepend the incomplete last chunk. This is usually done in the
+     * networklayer. But we test for a buffered incomplete chunk here again to
+     * work around "lazy" network layers. */
+    if(appended.length > 0) {
+        connection->incompleteChunk = UA_BYTESTRING_NULL;
+        UA_Byte *t = (UA_Byte*)UA_realloc(appended.data, appended.length + packet->length);
+        if(!t) {
+            UA_ByteString_deleteMembers(&appended);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        memcpy(&t[appended.length], pos, packet->length);
+        appended.data = t;
+        appended.length += packet->length;
+        pos = t;
+        end = &t[appended.length];
+    }
+
     UA_assert(connection->incompleteChunk.length == 0);
 
     /* Loop over the received chunks. pos is increased with each chunk. */
-    const UA_Byte *pos = packet->data;
-    const UA_Byte *end = &packet->data[packet->length];
     UA_Boolean done = false;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     while(!done) {
         retval = processChunk(connection, application, processCallback, &pos, end, &done);
         /* If an irrecoverable error happens: do not buffer incomplete chunk */
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
 
     if(end > pos)
         retval = bufferIncompleteChunk(connection, pos, end);
 
+ cleanup:
+    UA_ByteString_deleteMembers(&appended);
     return retval;
 }
 
