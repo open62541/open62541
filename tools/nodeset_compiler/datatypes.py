@@ -19,7 +19,8 @@
 import sys
 import logging
 from datetime import datetime
-
+import xml.dom.minidom as dom
+from base64 import *
 
 __all__ = ['valueIsInternalType', 'Value', 'Boolean', 'Number', 'Integer',
            'UInteger', 'Byte', 'SByte',
@@ -29,17 +30,15 @@ __all__ = ['valueIsInternalType', 'Value', 'Boolean', 'Number', 'Integer',
            'DiagnosticInfo', 'Guid']
 
 logger = logging.getLogger(__name__)
-import xml.dom.minidom as dom
-
-from base64 import *
-
-import six
 
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
         return s
 
+    string_types = str
+else:
+    string_types = basestring 
 
 def getNextElementNode(xmlvalue):
     if xmlvalue is None:
@@ -187,7 +186,7 @@ class Value(object):
         if len(enc) == 1:
             # 0: ['BuiltinType']          either builtin type
             # 1: [ [ 'Alias', [...], n] ] or single alias for possible multipart
-            if isinstance(enc[0], six.string_types):
+            if isinstance(enc[0], string_types):
                 # 0: 'BuiltinType'
                 if alias is not None:
                     if not xmlvalue.localName == alias and not xmlvalue.localName == enc[0]:
@@ -224,7 +223,7 @@ class Value(object):
                 return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent,
                                                   namespaceMapping=namespaceMapping,
                                                   alias=alias, encodingPart=enc[0], valueRank=enc[2] if len(enc)>2 else None)
-        elif len(enc) == 3 and isinstance(enc[0], six.string_types):
+        elif len(enc) == 3 and isinstance(enc[0], string_types):
             # [ 'Alias', [...], 0 ]          aliased multipart
             if alias is None:
                 alias = enc[0]
