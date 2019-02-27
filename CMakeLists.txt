@@ -6,12 +6,6 @@ string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
-# Verify that the six python module is correctly installed 
-execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c"  "import six"
-                RESULT_VARIABLE import_six_return OUTPUT_QUIET ERROR_QUIET)
-if(NOT ${import_six_return} EQUAL 0)
-   message(FATAL_ERROR "Python interpreter found, but required six python module is not installed.")
-endif()
 find_package(Git)
 include(AssignSourceGroup)
 
