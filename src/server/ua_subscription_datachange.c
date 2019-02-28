@@ -431,6 +431,10 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
     if(sub)
         session = sub->session;
 
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
+                         "MonitoredItem %i | Sample callback called",
+                         sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId);
+
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
                              "MonitoredItem %i | Not a data change notification",
