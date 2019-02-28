@@ -28,7 +28,7 @@
 # define UA_realloc realloc
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
 # ifndef UA_fileExists
 #  define UA_fileExists(X) (0) //file managing is not part of freeRTOS. If the system provides it, please define it before
 # endif // UA_fileExists
