@@ -189,13 +189,6 @@ updateNeededForStatusCode(const UA_DataValue *value, const UA_MonitoredItem *mon
 static UA_Boolean
 detectValueChangeWithFilter(UA_Server *server, UA_Subscription *sub, UA_MonitoredItem *mon,
                             UA_DataValue *value, UA_ByteString *encoding) {
-
-#ifdef UA_ENABLE_DA
-  	if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS) {
-      	if(!updateNeededForStatusCode(value, mon))
-          	return false;
-  	}
-#endif
     if(UA_DataType_isNumeric(value->value.type) &&
        (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
         mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
