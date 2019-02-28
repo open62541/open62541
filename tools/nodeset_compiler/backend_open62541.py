@@ -23,6 +23,7 @@ from os.path import basename
 import logging
 import codecs
 import os
+import re
 try:
     from StringIO import StringIO
 except ImportError:
@@ -136,6 +137,8 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
     outfilec = StringIO()
 
+    guard_define = '_' + re.sub(r'\W', '_', outfilebase).upper()
+
     def writeh(line):
         print(unicode(line), end='\n', file=outfileh)
 
@@ -155,7 +158,7 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
 
 #ifndef %s_H_
 #define %s_H_
-""" % (outfilebase.upper(), outfilebase.upper()))
+""" % (guard_define, guard_define))
     if internal_headers:
         writeh("""
 #ifdef UA_ENABLE_AMALGAMATION
@@ -210,7 +213,7 @@ extern UA_StatusCode %s(UA_Server *server);
 _UA_END_DECLS
 
 #endif /* %s_H_ */""" % \
-           (outfilebase, outfilebase.upper()))
+           (outfilebase, guard_define))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
