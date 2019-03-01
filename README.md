@@ -26,37 +26,40 @@ General Project Info:
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
 
+### Features and Certification
 
-### Features
+open62541 implements the OPC UA binary protocol stack as well as a client and server SDK. The final server binaries can be well under 100kb, depending on the selected features and the size of the information model.
 
-For a complete list of features check: [open62541 Features](FEATURES.md)
-
-open62541 implements the OPC UA binary protocol stack as well as a client and server SDK. It currently supports the Micro Embedded Device Server Profile plus some additional features. The final server binaries can be well under 100kb, depending on the size of the information model.
 - Communication Stack
   - OPC UA binary protocol
-  - Chunking (splitting of large messages)
+  - OPC UA JSON encoding
+  - Secure communication with encrypted messages
   - Exchangeable network layer (plugin) for using custom networking APIs (e.g. on embedded targets)
-- Information model
-  - Support for all OPC UA node types (including method nodes)
+  - Support for generating data types from standard XML definitions
+- Server
+  - Support for all OPC UA node types
+  - Access control for individual nodes
+  - Support for generating server-side information models from standard XML definitions (nodesets)
   - Support for adding and removing nodes and references also at runtime.
   - Support for inheritance and instantiation of object- and variable-types (custom constructor/destructor, instantiation of child nodes)
-- Subscriptions
-  - Support for subscriptions/monitoreditems for data change notifications
-  - Very low resource consumption for each monitored value (event-based server architecture)
-- Code-Generation
-  - Support for generating data types from standard XML definitions
-  - Support for generating server-side information models (nodesets) from standard XML definitions
-  
-Features currently being implemented:
-- Target 0.3 release (to be released in the coming weeks):
-  - Secure communication with encrypted messages (Done)
-  - Access control for individual nodes (Done)
-  - Asynchronous service requests in the client (Done)
-- Target 0.4 release:
-  - Events (notifications emitted by objects, data change notifications are implemented), (Done)
-  - Event-loop (background tasks) in the client
-  - Publish/Subscribe based on UDP (Specification Part 14), WIP @ Fraunhofer IOSB
+  - Support for subscriptions/monitoreditems (data change notifications and events)
+- Client
+  - All OPC UA services supported
+  - Asynchronous service requests
+  - Background handling of subscriptions
+- Publish/Subscribe
+  - UADP Binary protocol with UDP-multicast or Ethernet communication
+  - PubSub JSON encoding
 
+open62541 is currently self-certifying. That is, the Conformance Testing Tools (CTT) of the OPC Foundation are regularly applied. But the SDK has not started an official certification so far.
+The CTT configuration and results are tracked at https://github.com/open62541/open62541-ctt. The OPC UA profiles under regular test in the CTT are currently:
+
+- Micro Embedded Device Server
+- Method Server Facet
+
+The goal for the upcoming 0.4 release is to support the *Embedded UA Server* profile in the CTT.
+See the page on [open62541 Features](FEATURES.md) for an in-depth look at the support for the conformance units that make up the OPC UA profiles.
+  
 ### Dependencies
 
 On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://open62541.org/doc/current/building.html) for details.
