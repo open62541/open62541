@@ -368,29 +368,36 @@ ENCODE_JSON(Int32) {
 
 /* UInt64 */
 ENCODE_JSON(UInt64) {
-    char buf[21];
-    UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
+    char buf[23];
+    buf[0] = '\"';
+    UA_UInt16 digits = itoaUnsigned(*src, buf + 1, 10);
+    buf[digits + 1] = '\"';
+    UA_UInt16 length = (UA_UInt16)(digits + 2);
 
-    if(ctx->pos + digits > ctx->end)
+    if(ctx->pos + length > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
 
     if(!ctx->calcOnly)
-        memcpy(ctx->pos, buf, digits);
-    ctx->pos += digits;
+        memcpy(ctx->pos, buf, length);
+
+    ctx->pos += length;
     return UA_STATUSCODE_GOOD;
 }
 
 /* Int64 */
 ENCODE_JSON(Int64) {
-    char buf[21];
-    UA_UInt16 digits = itoaSigned(*src, buf);
+    char buf[23];
+    buf[0] = '\"';
+    UA_UInt16 digits = itoaSigned(*src, buf + 1);
+    buf[digits + 1] = '\"';
+    UA_UInt16 length = (UA_UInt16)(digits + 2);
 
-    if(ctx->pos + digits > ctx->end)
+    if(ctx->pos + length > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
 
     if(!ctx->calcOnly)
-        memcpy(ctx->pos, buf, digits);
-    ctx->pos += digits;
+        memcpy(ctx->pos, buf, length);
+    ctx->pos += length;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1788,7 +1795,7 @@ DECODE_JSON(UInt32) {
 
 DECODE_JSON(UInt64) {
     CHECK_TOKEN_BOUNDS;
-    CHECK_PRIMITIVE;
+    CHECK_STRING;
     GET_TOKEN;
 
     UA_UInt64 out = 0;
@@ -1844,7 +1851,7 @@ DECODE_JSON(Int32) {
 
 DECODE_JSON(Int64) {
     CHECK_TOKEN_BOUNDS;
-    CHECK_PRIMITIVE;
+    CHECK_STRING;
     GET_TOKEN;
 
     UA_Int64 out = 0;
