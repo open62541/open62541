@@ -52,7 +52,7 @@
 #define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
 #define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80
 
-#define UA_JSON_DATETIME_LENGTH 24
+#define UA_JSON_DATETIME_LENGTH 30
 
 /* Max length of numbers for the allocation of temp buffers. Don't forget that
  * printf adds an additional \0 at the end!
@@ -747,41 +747,37 @@ printNumber(u16 n, u8 *pos, size_t digits) {
     }
 }
 
-UA_String
-UA_DateTime_toJSON(UA_DateTime t) {
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
-
-    /* Format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z' is used. 24 bytes.*/
-    UA_String str = {UA_JSON_DATETIME_LENGTH, 
-        (u8*) UA_malloc(UA_JSON_DATETIME_LENGTH)};
-    if(!str.data)
-        return UA_STRING_NULL;
-    
-    printNumber(tSt.year, str.data, 4);
-    str.data[4] = '-';
-    printNumber(tSt.month, &str.data[5], 2);
-    str.data[7] = '-';
-    printNumber(tSt.day, &str.data[8], 2);
-    str.data[10] = 'T';
-    printNumber(tSt.hour, &str.data[11], 2);
-    str.data[13] = ':';
-    printNumber(tSt.min, &str.data[14], 2);
-    str.data[16] = ':';
-    printNumber(tSt.sec, &str.data[17], 2);
-    str.data[19] = '.';
-    printNumber(tSt.milliSec, &str.data[20], 3);
-    str.data[23] = 'Z';
-    return str;
-}
-
 ENCODE_JSON(DateTime) {
-    if(ctx->pos + UA_JSON_DATETIME_LENGTH > ctx->end)
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    
-    UA_String str = UA_DateTime_toJSON(*src);
-    UA_StatusCode ret = ENCODE_DIRECT_JSON(&str, String);
-    UA_String_deleteMembers(&str);
-    return ret;
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(*src);
+
+    /* Format: yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 30 bytes.*/
+    UA_Byte buffer[UA_JSON_DATETIME_LENGTH];
+
+    printNumber(tSt.year, &buffer[0], 4);
+    buffer[4] = '-';
+    printNumber(tSt.month, &buffer[5], 2);
+    buffer[7] = '-';
+    printNumber(tSt.day, &buffer[8], 2);
+    buffer[10] = 'T';
+    printNumber(tSt.hour, &buffer[11], 2);
+    buffer[13] = ':';
+    printNumber(tSt.min, &buffer[14], 2);
+    buffer[16] = ':';
+    printNumber(tSt.sec, &buffer[17], 2);
+    buffer[19] = '.';
+    printNumber(tSt.milliSec, &buffer[20], 3);
+    printNumber(tSt.microSec, &buffer[23], 3);
+    printNumber(tSt.nanoSec, &buffer[26], 3);
+
+    size_t length = 28;
+    while (buffer[length] == '0')
+        length--;
+    if (length != 19)
+         length++;
+
+    buffer[length] = 'Z';
+    UA_String str = {length + 1, buffer};
+    return ENCODE_DIRECT_JSON(&str, String);
 }
 
 /* NodeId */
