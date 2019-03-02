@@ -1261,51 +1261,57 @@ ENCODE_JSON(Variant) {
 
 /* DataValue */
 ENCODE_JSON(DataValue) {
-    if(!src->hasServerPicoseconds && !src->hasServerTimestamp &&
-       !src->hasSourcePicoseconds && !src->hasSourceTimestamp &&
-       !src->hasStatus && !src->hasValue) {
+    UA_Boolean hasValue = src->hasValue && src->value.type != NULL;
+    UA_Boolean hasStatus = src->hasStatus && src->status;
+    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp && src->sourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds && src->sourcePicoseconds;
+    UA_Boolean hasServerTimestamp = src->hasServerTimestamp && src->serverTimestamp;
+    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds && src->serverPicoseconds;
+
+    if(!hasValue && !hasStatus && !hasSourceTimestamp && !hasSourcePicoseconds &&
+       !hasServerTimestamp && !hasServerPicoseconds) {
         return writeJsonNull(ctx); /*no element, encode as null*/
     }
-    
-    status ret = UA_STATUSCODE_GOOD; 
+
+    status ret = UA_STATUSCODE_GOOD;
     ret |= writeJsonObjStart(ctx);
 
-    if(src->hasValue) {
+    if(hasValue) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_VALUE);
         ret |= ENCODE_DIRECT_JSON(&src->value, Variant);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
 
-    if(src->hasStatus) {
+    if(hasStatus) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_STATUS);
         ret |= ENCODE_DIRECT_JSON(&src->status, StatusCode);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasSourceTimestamp) {
+
+    if(hasSourceTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCETIMESTAMP);
         ret |= ENCODE_DIRECT_JSON(&src->sourceTimestamp, DateTime);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasSourcePicoseconds) {
+
+    if(hasSourcePicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCEPICOSECONDS);
         ret |= ENCODE_DIRECT_JSON(&src->sourcePicoseconds, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasServerTimestamp) {
+
+    if(hasServerTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERTIMESTAMP);
         ret |= ENCODE_DIRECT_JSON(&src->serverTimestamp, DateTime);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasServerPicoseconds) {
+
+    if(hasServerPicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERPICOSECONDS);
         ret |= ENCODE_DIRECT_JSON(&src->serverPicoseconds, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
