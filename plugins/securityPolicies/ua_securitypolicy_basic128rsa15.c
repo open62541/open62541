@@ -19,6 +19,7 @@
 #include "ua_plugin_pki.h"
 #include "ua_securitypolicies.h"
 #include "ua_types_generated_handling.h"
+#include "ua_util.h"
 
 /* Notes:
  * mbedTLS' AES allows in-place encryption and decryption. Sow we don't have to
@@ -346,7 +347,7 @@ sym_verify_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     md_hmac(&pc->sha1MdContext, &cc->remoteSymSigningKey, message, mac);
 
     /* Compare with Signature */
-    if(memcmp(signature->data, mac, UA_SHA1_LENGTH) != 0)
+    if(!UA_constantTimeEqual(signature->data, mac, UA_SHA1_LENGTH))
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     return UA_STATUSCODE_GOOD;
 }

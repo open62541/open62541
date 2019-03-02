@@ -108,6 +108,25 @@ UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str);
 UA_StatusCode UA_EXPORT
 UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr);
 
+/*
+ * Compare memory in constant time to mitigate timing attacks.
+ *
+ * @return true if ptr1 and ptr2 are equal for length bytes.
+ */
+static UA_INLINE UA_Boolean
+UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
+    volatile const UA_Byte *a = (volatile const UA_Byte *)ptr1;
+    volatile const UA_Byte *b = (volatile const UA_Byte *)ptr2;
+    volatile UA_Byte c = 0;
+
+    for(size_t i = 0; i < length; ++i) {
+        UA_Byte x = a[i], y = b[i];
+        c |= x ^ y;
+    }
+
+    return !c;
+}
+
 _UA_END_DECLS
 
 #endif /* UA_HELPER_H_ */
