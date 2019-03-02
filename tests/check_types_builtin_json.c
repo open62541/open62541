@@ -780,7 +780,7 @@ START_TEST(UA_UInt64_Max_Number_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "18446744073709551615";
+    char* result = "\"18446744073709551615\"";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf);
     UA_UInt64_delete(src);
@@ -805,7 +805,7 @@ START_TEST(UA_UInt64_Min_Number_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "0";
+    char* result = "\"0\"";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf);
     UA_UInt64_delete(src);
@@ -871,7 +871,7 @@ START_TEST(UA_Int64_Max_Number_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "9223372036854775807";
+    char* result = "\"9223372036854775807\"";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf); 
     UA_Int64_delete(src);
@@ -909,7 +909,7 @@ START_TEST(UA_Int64_Min_Number_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "-9223372036854775808";
+    char* result = "\"-9223372036854775808\"";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf); 
     UA_Int64_delete(src);
@@ -934,7 +934,7 @@ START_TEST(UA_Int64_Zero_Number_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "0";
+    char* result = "\"0\"";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf); 
     UA_Int64_delete(src);
@@ -2113,7 +2113,7 @@ START_TEST(UA_Variant_Number_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "{\"Type\":9,\"Body\":345634563456}";
+    char* result = "{\"Type\":9,\"Body\":\"345634563456\"}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf); 
     UA_Variant_delete(src);
@@ -3577,7 +3577,7 @@ END_TEST
 START_TEST(UA_UInt64_Min_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":9,\"Body\":0}");
+    UA_ByteString buf = UA_STRING("{\"Type\":9,\"Body\":\"0\"}");
     // when
     
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -3600,7 +3600,7 @@ END_TEST
 START_TEST(UA_UInt64_Max_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":9,\"Body\":18446744073709551615}");
+    UA_ByteString buf = UA_STRING("{\"Type\":9,\"Body\":\"18446744073709551615\"}");
     // when
     
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -3623,7 +3623,7 @@ END_TEST
 START_TEST(UA_UInt64_Overflow_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":9,\"Body\":18446744073709551616}");
+    UA_ByteString buf = UA_STRING("{\"Type\":9,\"Body\":\"18446744073709551616\"}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -3736,7 +3736,7 @@ END_TEST
 START_TEST(UA_Int64_Min_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":-9223372036854775808}");
+    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":\"-9223372036854775808\"}");
     // when
     
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -3760,7 +3760,7 @@ END_TEST
 START_TEST(UA_Int64_Max_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":9223372036854775807}");
+    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":\"9223372036854775807\"}");
     // when
     
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -3784,7 +3784,7 @@ END_TEST
 START_TEST(UA_Int64_Overflow_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":9223372036854775808}");
+    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":\"9223372036854775808\"}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -3798,7 +3798,7 @@ END_TEST
 START_TEST(UA_Int64_TooBig_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":111111111111111111111111111111}");
+    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":\"111111111111111111111111111111\"}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -3812,7 +3812,7 @@ END_TEST
 START_TEST(UA_Int64_NoDigit_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":a}");
+    UA_ByteString buf = UA_STRING("{\"Type\":8,\"Body\":\"a\"}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
