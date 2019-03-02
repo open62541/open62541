@@ -3135,13 +3135,13 @@ START_TEST(UA_DataValue_json_encode) {
     src->hasStatus = UA_TRUE;
     src->hasValue = UA_TRUE;
 
-    UA_DateTime srcts = UA_DateTime_fromUnixTime(1234567);
-    UA_DateTime srvts = UA_DateTime_fromUnixTime(1234567);
+    UA_DateTime srcts = UA_DateTime_fromUnixTime(1234567) + 8901234;
+    UA_DateTime srvts = UA_DateTime_fromUnixTime(2345678) + 9012345;
 
     src->sourceTimestamp = srcts;
     src->serverTimestamp = srvts;
-    src->sourcePicoseconds = 0;
-    src->serverPicoseconds = 0;
+    src->sourcePicoseconds = 5678;
+    src->serverPicoseconds = 6789;
     
     UA_Variant variant;
     UA_Variant_init(&variant);
@@ -3164,7 +3164,7 @@ START_TEST(UA_DataValue_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"SourcePicoseconds\":0,\"ServerTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerPicoseconds\":0}";
+    char* result = "{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07.8901234Z\",\"SourcePicoseconds\":5678,\"ServerTimestamp\":\"1970-01-28T03:34:38.9012345Z\",\"ServerPicoseconds\":6789}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf);
     UA_DataValue_delete(src);
@@ -3293,7 +3293,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":0,\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":[],\"AdditionalHeader\":{\"TypeId\":{\"Id\":1},\"Body\":false}},\"Results\":[{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"SourcePicoseconds\":0,\"ServerTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerPicoseconds\":0}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
+    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":0,\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":[],\"AdditionalHeader\":{\"TypeId\":{\"Id\":1},\"Body\":false}},\"Results\":[{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf);
     UA_ReadResponse_deleteMembers(&src); //TODO
@@ -3439,7 +3439,7 @@ START_TEST(UA_WriteRequest_json_encode) {
     *bufPos = 0;
     // then
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-    char* result = "{\"RequestHeader\":{\"AuthenticationToken\":{\"IdType\":1,\"Id\":\"authToken\"},\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ReturnDiagnostics\":1,\"AuditEntryId\":\"Auditentryid\",\"TimeoutHint\":120,\"AdditionalHeader\":{\"TypeId\":{\"Id\":1},\"Body\":false}},\"NodesToWrite\":[{\"NodeId\":{\"IdType\":1,\"Id\":\"a1111\"},\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"SourcePicoseconds\":0,\"ServerTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerPicoseconds\":0}},{\"NodeId\":{\"IdType\":1,\"Id\":\"a2222\"},\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"SourcePicoseconds\":0,\"ServerTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerPicoseconds\":0}}]}";
+    char* result = "{\"RequestHeader\":{\"AuthenticationToken\":{\"IdType\":1,\"Id\":\"authToken\"},\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ReturnDiagnostics\":1,\"AuditEntryId\":\"Auditentryid\",\"TimeoutHint\":120,\"AdditionalHeader\":{\"TypeId\":{\"Id\":1},\"Body\":false}},\"NodesToWrite\":[{\"NodeId\":{\"IdType\":1,\"Id\":\"a1111\"},\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}},{\"NodeId\":{\"IdType\":1,\"Id\":\"a2222\"},\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}}]}";
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_deleteMembers(&buf);
     UA_WriteRequest_deleteMembers(&src);
