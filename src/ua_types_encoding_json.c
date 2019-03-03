@@ -2350,6 +2350,7 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
     /* Id must always be present */
     entries[*fieldCount].fieldName = UA_JSONKEY_ID;
     entries[*fieldCount].found = false;
+    entries[*fieldCount].type = NULL;
     
     /* IdType */
     UA_Boolean hasIdType = false;
@@ -2391,6 +2392,7 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
         entries[*fieldCount].fieldPointer = NULL;
         entries[*fieldCount].function = NULL;
         entries[*fieldCount].found = false;
+        entries[*fieldCount].type = NULL;
         
         /* IdType */
         (*fieldCount)++;
@@ -2398,6 +2400,7 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
         dst->identifierType = UA_NODEIDTYPE_NUMERIC;
         entries[*fieldCount].fieldPointer = &dst->identifier.numeric;
         entries[*fieldCount].function = (decodeJsonSignature) UInt32_decodeJson;
+        entries[*fieldCount].type = NULL;
         (*fieldCount)++;
     }
     
@@ -2430,6 +2433,7 @@ DECODE_JSON(NodeId) {
         entries[fieldCount].fieldPointer = &dst->namespaceIndex;
         entries[fieldCount].function = (decodeJsonSignature) UInt16_decodeJson;
         entries[fieldCount].found = false;
+        entries[fieldCount].type = NULL;
         fieldCount++;
     } else {
         dst->namespaceIndex = 0;
@@ -2484,6 +2488,7 @@ DECODE_JSON(ExpandedNodeId) {
             entries[fieldCount].function = (decodeJsonSignature) UInt16_decodeJson;
         }
         entries[fieldCount].found = false;
+        entries[fieldCount].type = NULL;
         fieldCount++; 
     }
     
@@ -2492,6 +2497,7 @@ DECODE_JSON(ExpandedNodeId) {
         entries[fieldCount].fieldPointer = &dst->serverIndex;
         entries[fieldCount].function = (decodeJsonSignature) UInt32_decodeJson;
         entries[fieldCount].found = false;
+        entries[fieldCount].type = NULL;
         fieldCount++;  
     } else {
         dst->serverIndex = 0;
