@@ -204,6 +204,10 @@ add_executable(check_session server/check_session.c $<TARGET_OBJECTS:open62541-o
 target_link_libraries(check_session ${LIBS})
 add_test_valgrind(session ${TESTS_BINARY_DIR}/check_session)
 
+add_executable(check_server server/check_server.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_server ${LIBS})
+add_test_valgrind(server ${TESTS_BINARY_DIR}/check_server)
+
 add_executable(check_server_jobs server/check_server_jobs.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_jobs ${LIBS})
 add_test_valgrind(server_jobs ${TESTS_BINARY_DIR}/check_server_jobs)
