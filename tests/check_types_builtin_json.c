@@ -5174,6 +5174,20 @@ START_TEST(UA_VariantBool_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_VariantBoolNull_json_decode) {
+    // given
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_ByteString buf = UA_STRING("{\"Type\":1,\"Body\":null}");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
+    UA_Variant_deleteMembers(&out);
+}
+END_TEST
+
 START_TEST(UA_VariantStringArray_json_decode) {
     // given
     
@@ -5351,11 +5365,11 @@ START_TEST(UA_VariantStringArray_WithoutDimension_json_decode) {
 END_TEST
 
 
-START_TEST(UA_Variant_BooleanNull_json_decode) {
+START_TEST(UA_Variant_BooleanArray_json_decode) {
     // given
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":1,\"Body\":[null, null, null]}");
+    UA_ByteString buf = UA_STRING("{\"Type\":1,\"Body\":[true, false, true]}");
     // when
     
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -5365,9 +5379,9 @@ START_TEST(UA_Variant_BooleanNull_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     //decoded as False
-    ck_assert_int_eq(testArray[0], 0);
+    ck_assert_int_eq(testArray[0], 1);
     ck_assert_int_eq(testArray[1], 0);
-    ck_assert_int_eq(testArray[2], 0);
+    ck_assert_int_eq(testArray[2], 1);
     ck_assert_int_eq(out.arrayDimensionsSize, 0);
     ck_assert_int_eq(out.arrayLength, 3);
     ck_assert_int_eq(out.type->typeIndex, UA_TYPES_BOOLEAN);
@@ -5947,13 +5961,14 @@ static Suite *testSuite_builtin_json(void) {
     
     //Variant
     tcase_add_test(tc_json_decode, UA_VariantBool_json_decode);
+    tcase_add_test(tc_json_decode, UA_VariantBoolNull_json_decode);
     tcase_add_test(tc_json_decode, UA_VariantStringArray_json_decode);
     tcase_add_test(tc_json_decode, UA_VariantStringArrayNull_json_decode);
     tcase_add_test(tc_json_decode, UA_VariantLocalizedTextArrayNull_json_decode);
     tcase_add_test(tc_json_decode, UA_VariantVariantArrayNull_json_decode);
     tcase_add_test(tc_json_decode, UA_VariantVariantArrayEmpty_json_decode);
     tcase_add_test(tc_json_decode, UA_VariantStringArray_WithoutDimension_json_decode);
-    tcase_add_test(tc_json_decode, UA_Variant_BooleanNull_json_decode);
+    tcase_add_test(tc_json_decode, UA_Variant_BooleanArray_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_bad1_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectWrap_json_decode);
     

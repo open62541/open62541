@@ -1624,7 +1624,6 @@ static UA_SByte jsoneq(const char *json, jsmntok_t *tok, const char *searchKey) 
 }
 
 DECODE_JSON(Boolean) {
-    ALLOW_NULL;
     CHECK_PRIMITIVE;
     CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
