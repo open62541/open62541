@@ -137,6 +137,11 @@ START_TEST(EndpointUrl_ethernet) {
     ck_assert_uint_eq(vid, 0);
     ck_assert_uint_eq(pcp, 0);
 
+    // long enough, but malformed
+    endPointUrl = UA_STRING("opc.eth.//target:");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+
     // valid without vid and pcp but leading ':'
     endPointUrl = UA_STRING("opc.eth://target:");
     ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
