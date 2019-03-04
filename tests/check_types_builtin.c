@@ -904,6 +904,36 @@ START_TEST(UA_ExpandedNodeId_encodeShallWorkOnExample) {
 }
 END_TEST
 
+START_TEST(UA_DataValue_encodeShallWorkOnNullValues) {
+    // given
+    UA_DataValue src;
+    UA_DataValue_init(&src);
+    src.value.type = NULL;
+    src.hasValue = true;
+    src.status = 0;
+    src.hasStatus = true;
+    src.serverTimestamp = 0;
+    src.hasServerTimestamp = true;
+    src.sourceTimestamp = 0;
+    src.hasSourceTimestamp = true;
+
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
+    UA_ByteString dst = { 24, data };
+    UA_Byte *pos = dst.data;
+    const UA_Byte *end = &dst.data[dst.length];
+
+    // when
+    UA_StatusCode retval = UA_DataValue_encodeBinary(&src, &pos, end);
+    // then
+    ck_assert_int_eq((uintptr_t)(pos - dst.data), 1);
+    ck_assert_uint_eq(1, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_DATAVALUE]));
+    ck_assert_int_eq(dst.data[0], 0x00); // encodingMask
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     // given
     UA_DataValue src;
@@ -1511,6 +1541,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_encode, UA_Double_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_String_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_ExpandedNodeId_encodeShallWorkOnExample);
+    tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnNullValues);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithoutVariant);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);
     tcase_add_test(tc_encode, UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject);

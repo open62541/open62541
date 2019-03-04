@@ -1129,14 +1129,21 @@ DECODE_BINARY(Variant) {
 
 /* DataValue */
 ENCODE_BINARY(DataValue) {
+    UA_Boolean hasValue = src->hasValue && src->value.type != NULL;
+    UA_Boolean hasStatus = src->hasStatus && src->status;
+    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp && src->sourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds && src->sourcePicoseconds;
+    UA_Boolean hasServerTimestamp = src->hasServerTimestamp && src->serverTimestamp;
+    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds && src->serverPicoseconds;
+
     /* Set up the encoding mask */
     u8 encodingMask = (u8)
-        (((u8)src->hasValue) |
-         ((u8)src->hasStatus << 1) |
-         ((u8)src->hasSourceTimestamp << 2) |
-         ((u8)src->hasServerTimestamp << 3) |
-         ((u8)src->hasSourcePicoseconds << 4) |
-         ((u8)src->hasServerPicoseconds << 5));
+        (((u8)hasValue) |
+         ((u8)hasStatus << 1) |
+         ((u8)hasSourceTimestamp << 2) |
+         ((u8)hasServerTimestamp << 3) |
+         ((u8)hasSourcePicoseconds << 4) |
+         ((u8)hasServerPicoseconds << 5));
 
     /* Encode the encoding byte */
     status ret = ENCODE_DIRECT(&encodingMask, Byte);
@@ -1144,21 +1151,21 @@ ENCODE_BINARY(DataValue) {
         return ret;
 
     /* Encode the variant. */
-    if(src->hasValue) {
+    if(hasValue) {
         ret = ENCODE_DIRECT(&src->value, Variant);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
 
-    if(src->hasStatus)
+    if(hasStatus)
         ret |= ENCODE_WITHEXCHANGE(&src->status, UA_TYPES_STATUSCODE);
-    if(src->hasSourceTimestamp)
+    if(hasSourceTimestamp)
         ret |= ENCODE_WITHEXCHANGE(&src->sourceTimestamp, UA_TYPES_DATETIME);
-    if(src->hasSourcePicoseconds)
+    if(hasSourcePicoseconds)
         ret |= ENCODE_WITHEXCHANGE(&src->sourcePicoseconds, UA_TYPES_UINT16);
-    if(src->hasServerTimestamp)
+    if(hasServerTimestamp)
         ret |= ENCODE_WITHEXCHANGE(&src->serverTimestamp, UA_TYPES_DATETIME);
-    if(src->hasServerPicoseconds)
+    if(hasServerPicoseconds)
         ret |= ENCODE_WITHEXCHANGE(&src->serverPicoseconds, UA_TYPES_UINT16);
     return ret;
 }
@@ -1649,17 +1656,17 @@ CALCSIZE_BINARY(Variant) {
 
 CALCSIZE_BINARY(DataValue) {
     size_t s = 1; /* Encoding byte */
-    if(src->hasValue)
+    if(src->hasValue && src->value.type != NULL)
         s += Variant_calcSizeBinary(&src->value, NULL);
-    if(src->hasStatus)
+    if(src->hasStatus && src->status)
         s += 4;
-    if(src->hasSourceTimestamp)
+    if(src->hasSourceTimestamp && src->sourceTimestamp)
         s += 8;
-    if(src->hasSourcePicoseconds)
+    if(src->hasSourcePicoseconds && src->sourcePicoseconds)
         s += 2;
-    if(src->hasServerTimestamp)
+    if(src->hasServerTimestamp && src->serverTimestamp)
         s += 8;
-    if(src->hasServerPicoseconds)
+    if(src->hasServerPicoseconds && src->serverPicoseconds)
         s += 2;
     return s;
 }
