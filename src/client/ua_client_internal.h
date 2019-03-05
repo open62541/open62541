@@ -112,16 +112,19 @@ void UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
 
 void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
+typedef void (*CustomCallbackDataDeleter)(void *);
+
 typedef struct CustomCallback {
     LIST_ENTRY(CustomCallback)
     pointers;
     //to find the correct callback
     UA_UInt32 callbackId;
 
-    UA_ClientAsyncServiceCallback callback;
+    UA_ClientAsyncServiceCallback userCallback;
+    void *userData;
 
-    UA_AttributeId attributeId;
-    const UA_DataType *outDataType;
+    void *clientData;
+    CustomCallbackDataDeleter clientDataDeleter;
 } CustomCallback;
 
 struct UA_Client {
@@ -168,6 +171,34 @@ struct UA_Client {
     UA_DateTime lastConnectivityCheck;
     UA_Boolean pendingConnectivityCheck;
 };
+
+static UA_INLINE CustomCallback *
+CustomCallback_new(void) {
+    CustomCallback *cc = (CustomCallback *)UA_malloc(sizeof(CustomCallback));
+    if (cc)
+        memset(cc, 0, sizeof(CustomCallback));
+    return cc;
+}
+
+// removes the callback from the client and frees it and its clientData (if clientDataDeleter is set)
+static UA_INLINE void
+CustomCallback_remove(CustomCallback *cc, bool removeList) {
+    if(removeList)
+        LIST_REMOVE(cc, pointers);
+    if(cc->clientDataDeleter && cc->clientData)
+        cc->clientDataDeleter(cc->clientData);
+    UA_free(cc);
+}
+
+static UA_INLINE CustomCallback *
+UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
+    CustomCallback *cc;
+    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
+        if(cc->callbackId == requestId)
+            break;
+    }
+    return cc;
+}
 
 void
 setClientState(UA_Client *client, UA_ClientState state);
