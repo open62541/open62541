@@ -269,6 +269,11 @@ In your own CMake project you can then include the open62541 library using:
 
 .. code-block:: cmake
 
-   find_package(open62541 0.4.0 REQUIRED COMPONENTS Events DiscoveryMulticast)
+   # optionally you can also specify a specific version
+   # e.g. find_package(open62541 0.3.0)
+   find_package(open62541 REQUIRED COMPONENTS FullNamespace DiscoveryMulticast)
    add_executable(main main.cpp )
    target_link_libraries(main open62541)
+
+
+A full list of enabled features during build time is stored in the CMake Variable ``open62541_COMPONENTS_ALL``
