@@ -256,6 +256,9 @@ UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber,
                                  UA_UInt32 sendBufferSize,
                                  UA_UInt32 recvBufferSize) {
     UA_ServerConfig *conf = createDefaultConfig();
+    if (!conf) {
+        return NULL;
+    }
 
     UA_StatusCode retval = UA_Nodestore_default_new(&conf->nodestore);
     if(retval != UA_STATUSCODE_GOOD) {
