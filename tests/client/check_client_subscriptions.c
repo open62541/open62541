@@ -75,6 +75,7 @@ START_TEST(Client_subscription) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subId = response.subscriptionId;
 
+    // a valid UA_Client_Subscriptions_modify
     UA_ModifySubscriptionRequest modifySubscriptionRequest;
     UA_ModifySubscriptionRequest_init(&modifySubscriptionRequest);
     modifySubscriptionRequest.subscriptionId = response.subscriptionId;
@@ -83,6 +84,11 @@ START_TEST(Client_subscription) {
     modifySubscriptionRequest.requestedMaxKeepAliveCount = response.revisedMaxKeepAliveCount;
     UA_ModifySubscriptionResponse modifySubscriptionResponse = UA_Client_Subscriptions_modify(client,modifySubscriptionRequest);
     ck_assert_int_eq(modifySubscriptionResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    // an invalid UA_Client_Subscriptions_modify
+    modifySubscriptionRequest.subscriptionId = 99999; // invalid
+    modifySubscriptionResponse = UA_Client_Subscriptions_modify(client,modifySubscriptionRequest);
+    ck_assert_int_eq(modifySubscriptionResponse.responseHeader.serviceResult, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
 
     /* monitor the server state */
     UA_MonitoredItemCreateRequest monRequest =
