@@ -544,6 +544,7 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
     UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                           "Transport/uatcp-uasc-uabinary");
 
+    UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Found %d endpoints", endpointArraySize);
     for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* Match Binary TransportProfile?
@@ -553,23 +554,31 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
             continue;
 
         /* Valid SecurityMode? */
-        if(endpoint->securityMode < 1 || endpoint->securityMode > 3)
+        if(endpoint->securityMode < 1 || endpoint->securityMode > 3) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %d: invalid security mode", i);
             continue;
+        }
 
         /* Selected SecurityMode? */
         if(client->config.securityMode > 0 &&
-           client->config.securityMode != endpoint->securityMode)
+           client->config.securityMode != endpoint->securityMode) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %d: security mode doesn't match", i);
             continue;
+        }
 
         /* Matching SecurityPolicy? */
         if(client->config.securityPolicyUri.length > 0 &&
            !UA_String_equal(&client->config.securityPolicyUri,
-                            &endpoint->securityPolicyUri))
+                            &endpoint->securityPolicyUri)) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %d: security policy doesn't match", i);
             continue;
+        }
 
         /* SecurityPolicy available? */
-        if(!getSecurityPolicy(client, endpoint->securityPolicyUri))
+        if(!getSecurityPolicy(client, endpoint->securityPolicyUri)) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %d: security policy not available", i);
             continue;
+        }
 
         endpointFound = true;
 
@@ -760,18 +769,28 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     if(!client->channel.securityPolicy) {
         /* Set the channel SecurityPolicy to #None if no endpoint is selected */
         UA_String sps = client->config.endpoint.securityPolicyUri;
-        if(client->config.endpoint.securityPolicyUri.length == 0)
+        if(sps.length == 0) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "SecurityPolicy not specified -> use default #None");
             sps = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+        }
+
         UA_SecurityPolicy *sp = getSecurityPolicy(client, sps);
         if(!sp) {
+            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Failed to find the required security policy");
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
-        retval =
-            UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
-                                               &client->config.endpoint.serverCertificate);
-        if(retval != UA_STATUSCODE_GOOD)
+        
+        
+        retval = UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
+                                                    &client->config.endpoint.serverCertificate);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Failed to set the security policy");
             goto cleanup;
+        }
     }
 
     /* Open a TCP connection */
@@ -877,8 +896,7 @@ UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
                 "Connecting to endpoint %.*s", (int)endpointUrl.length,
                 endpointUrl.data);
 
-    /* Get endpoints only if the description has not been touched (memset to
-     * zero) */
+    /* Get endpoints only if the description has not been touched (memset to zero) */
     UA_Byte test = 0;
     UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
     for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
@@ -890,9 +908,12 @@ UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
 
     /* Connect up to the SecureChannel */
     UA_StatusCode retval = UA_Client_connectTCPSecureChannel(client, endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD)
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Couldn't connect the client to a TCP secure channel");
         goto cleanup;
-
+    }
+    
     /* Get and select endpoints if required */
     if(getEndpoints) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,

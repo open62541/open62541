@@ -51,8 +51,11 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                                    const UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate) {
     /* Is a policy already configured? */
-    if(channel->securityPolicy)
+    if(channel->securityPolicy) {
+        UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Security policy already configured");
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     UA_StatusCode retval;
     if(securityPolicy->certificateVerification != NULL) {
@@ -279,12 +282,18 @@ UA_StatusCode
 UA_SecureChannel_generateNewKeys(UA_SecureChannel *channel) {
     UA_StatusCode retval =
         UA_SecureChannel_generateLocalKeys(channel, channel->securityPolicy);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(channel->securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
+            "Could not generate a local key");
         return retval;
+    }
 
     retval = UA_SecureChannel_generateRemoteKeys(channel, channel->securityPolicy);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(channel->securityPolicy->logger, UA_LOGCATEGORY_SECURECHANNEL,
+            "Could not generate a remote key");
         return retval;
+    }
 
     return retval;
 }
