@@ -58,7 +58,6 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst
-          ${DOC_SRC_DIR}/tutorials.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
           ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
           ${DOC_SRC_DIR}/tutorial_server_firststeps.rst
@@ -93,7 +92,6 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst
-          ${DOC_SRC_DIR}/tutorials.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
           ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
           ${DOC_SRC_DIR}/tutorial_server_firststeps.rst
