@@ -225,7 +225,7 @@ if ! [ -z ${MINGW+x} ]; then
     echo -e "\r\n== Cross compile release build for RaspberryPi =="  && echo -en 'travis_fold:start:script.build.cross_raspi\\r'
     mkdir -p build && cd build
     git clone https://github.com/raspberrypi/tools
-    export PATH=$PATH:./tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
+    export PATH=$PATH:${TRAVIS_BUILD_DIR}/build/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
     cmake \
         -DBUILD_SHARED_LIBS=ON \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
