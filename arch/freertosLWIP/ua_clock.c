@@ -8,7 +8,7 @@
 
 #ifdef UA_ARCHITECTURE_FREERTOSLWIP
 
-#include "ua_types.h"
+#include <open62541/types.h>
 #include <task.h>
 
 /* The current time in UTC time */

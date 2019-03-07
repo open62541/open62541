@@ -48,7 +48,7 @@ To port to a new architecture you should follow these steps:
     # ---- End of the CMakeLists.txt template -----
     # ---------------------------------------------------
     ```
-5. Create a ua_clock.c file that implements the following functions defined in ua_types.h:
+5. Create a ua_clock.c file that implements the following functions defined in open62541/types.h:
 
    * UA_DateTime UA_DateTime_now(void);
    

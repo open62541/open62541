@@ -20,7 +20,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include "ua_types.h"
+#include <open62541/types.h>
 
 UA_DateTime UA_DateTime_now(void){
   struct timeval tv;
