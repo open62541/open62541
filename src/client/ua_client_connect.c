@@ -834,21 +834,33 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     /* Perform the HEL/ACK handshake */
     client->connection.config = client->config.localConnectionConfig;
     retval = HelAckHandshake(client, endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "HEL/ACK handshake failed");
         goto cleanup;
+    }
     setClientState(client, UA_CLIENTSTATE_CONNECTED);
 
     /* Open a SecureChannel. */
     retval = UA_SecureChannel_generateLocalNonce(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Generating a local nonce failed");
         goto cleanup;
+    }
     client->channel.connection = &client->connection;
     retval = openSecureChannel(client, false);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Opening a secure channel failed");
         goto cleanup;
+    }
     retval = UA_SecureChannel_generateNewKeys(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Generating new keys failed");
         return retval;
+    }
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 
     return retval;
