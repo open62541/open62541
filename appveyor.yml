@@ -6,6 +6,10 @@ clone_depth: 20
 # Avoid building branch if it is part of a PR and built anyways
 skip_branch_with_pr: true
 
+# Fast finish (stop other builds if one fails) to speed up appveyor builds
+# matrix:
+#  fast_finish: true
+
 environment:
     global:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
@@ -53,19 +57,14 @@ install:
 
 before_build:
   # Add installed tools to PATH
-  - set PATH=C:\Python27;C:\msys64\mingw64\bin;C:\Program Files (x86)\Dr. Memory\bin;C:\Program Files\CMake\bin;%PATH%
-  # Workaround for CMake not wanting sh.exe on PATH for MinGW
+  - set PATH=C:\msys64\mingw64\bin;%PATH%
+  # Workaround for CMake not wanting sh.exe on PATH for MinGW (necessary for CMake 3.12.2)
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  ## Miktex
-  #- set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
-  ## autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
-  ## this adds this to the registry!
-  #- initexmf --set-config-value [MPM]AutoInstall=1
-  #- initexmf --update-fndb
 
 build_script:
 - ps: '& "./tools/appveyor/build.ps1"'
 
 after_build:
+  # Only push artifact if make install is defined
   - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-static.zip
   - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-dynamic.zip
