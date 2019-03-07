@@ -252,6 +252,10 @@ __Subscriptions_delete_prepare(UA_Client *client,
     data = (Subscriptions_DeleteData *)UA_calloc(1, sizeof(Subscriptions_DeleteData));
     if (!data)
         goto cleanup;
+
+    cc->clientData = data;
+    cc->clientDataDeleter = (CustomCallbackDataDeleter) (uintptr_t) __Subscriptions_DeleteData_free;
+
     data->request = UA_DeleteSubscriptionsRequest_new();
     if (!data->request)
         goto cleanup;
@@ -259,9 +263,6 @@ __Subscriptions_delete_prepare(UA_Client *client,
         UA_calloc(request->subscriptionIdsSize, sizeof(UA_Client_Subscription*));
     if(!data->subs)
         goto cleanup;
-
-    cc->clientData = data;
-    cc->clientDataDeleter = (CustomCallbackDataDeleter) (uintptr_t) __Subscriptions_DeleteData_free;
 
     /* the async handler needs a copy of the request parameters */
     UA_DeleteSubscriptionsRequest_copy(request, data->request);
@@ -420,6 +421,9 @@ typedef struct {
 
 static void
 MonitoredItems_CreateData_free(MonitoredItems_CreateData *data, UA_Client *client) {
+    if (!data)
+        return;
+
     for(size_t i = 0; i < data->request->itemsToCreateSize; i++) {
         if (data->mis[i]) {
             if (data->deleteCallbacks[i]) {
@@ -434,8 +438,10 @@ MonitoredItems_CreateData_free(MonitoredItems_CreateData *data, UA_Client *clien
     }
 
     if(data->asyncData) {
-        UA_free(data->mis);
-        UA_CreateMonitoredItemsRequest_delete(data->request);
+        if (data->mis)
+            UA_free(data->mis);
+        if (data->request)
+            UA_CreateMonitoredItemsRequest_delete(data->request);
         UA_free(data);
     }
 }
@@ -547,6 +553,9 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
     data.deleteCallbacks = deleteCallbacks;
     data.mis = mis;
 
+    cc->clientData = &data;
+    cc->clientDataDeleter = (CustomCallbackDataDeleter)(uintptr_t)MonitoredItems_CreateData_free;
+
     /* Get the subscription */
     data.sub = findSubscription(client, request->subscriptionId);
     if(!data.sub) {
@@ -564,13 +573,10 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
     __UA_Client_Service(client, request, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
                         response, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
 
-    cc->clientData = &data;
-    cc->clientDataDeleter = (CustomCallbackDataDeleter)(uintptr_t)MonitoredItems_CreateData_free;
-
     __MonitoredItems_create_handler(client, cc, 0, response);
     return;
   cleanup:
-    MonitoredItems_CreateData_free(&data, client);
+    CustomCallback_remove(cc, false);
 }
 
 static UA_StatusCode
