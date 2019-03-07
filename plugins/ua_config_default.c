@@ -272,12 +272,12 @@ UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber,
     }
 
     /* Allocate the SecurityPolicies */
-    conf->securityPoliciesSize = 1;
     conf->securityPolicies = (UA_SecurityPolicy *)UA_malloc(sizeof(UA_SecurityPolicy));
     if(!conf->securityPolicies) {
        UA_ServerConfig_delete(conf);
        return NULL;
     }
+    conf->securityPoliciesSize = 1;
 
     /* Populate the SecurityPolicies */
     UA_ByteString localCertificate = UA_BYTESTRING_NULL;
