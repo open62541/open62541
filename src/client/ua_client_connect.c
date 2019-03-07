@@ -592,7 +592,7 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
                 !getSecurityPolicy(client, userToken->securityPolicyUri)) {
                 UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu in endpoint %lu: security policy '%.*s' not available",
                 j, i,
-                userToken->securityPolicyUri.length, userToken->securityPolicyUri.data);
+                (int)userToken->securityPolicyUri.length, userToken->securityPolicyUri.data);
                 continue;
             }
 
@@ -630,12 +630,23 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
             UA_EndpointDescription temp = *endpoint;
             temp.userIdentityTokensSize = 0;
             temp.userIdentityTokens = NULL;
-            retval = UA_EndpointDescription_copy(&temp, &client->config.endpoint);
             UA_UserTokenPolicy_deleteMembers(&client->config.userTokenPolicy);
-            retval |= UA_UserTokenPolicy_copy(userToken, &client->config.userTokenPolicy);
 
-            if(retval != UA_STATUSCODE_GOOD)
+            retval = UA_EndpointDescription_copy(&temp, &client->config.endpoint);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Copying endpoint description failed with error code %s",
+                    UA_StatusCode_name(retval));
                 break;
+            }
+
+            retval = UA_UserTokenPolicy_copy(userToken, &client->config.userTokenPolicy);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Copying user token policy failed with error code %s",
+                    UA_StatusCode_name(retval));
+                break;
+            }
 
 #if UA_LOGLEVEL <= 300
             const char *securityModeNames[3] = {"None", "Sign", "SignAndEncrypt"};
