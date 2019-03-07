@@ -7,7 +7,7 @@
 
 #ifdef UA_ARCHITECTURE_FREERTOSLWIP
 
-#include "ua_types.h"
+#include <open62541/types.h>
 
 unsigned int UA_socket_set_blocking(UA_SOCKET sockfd){
   int on = 0;
