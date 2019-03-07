@@ -247,9 +247,8 @@ __Subscriptions_delete_prepare(UA_Client *client,
     CustomCallback *cc = CustomCallback_new();
     if (!cc)
         goto cleanup;
-    Subscriptions_DeleteData *data = NULL;
-
-    data = (Subscriptions_DeleteData *)UA_calloc(1, sizeof(Subscriptions_DeleteData));
+    Subscriptions_DeleteData *data =
+        (Subscriptions_DeleteData *)UA_calloc(1, sizeof(Subscriptions_DeleteData));
     if (!data)
         goto cleanup;
 
@@ -622,7 +621,8 @@ __UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
     memcpy(data->contexts, contexts, request.itemsToCreateSize * sizeof(void*));
     data->deleteCallbacks = (UA_Client_DeleteMonitoredItemCallback *)
         (array + (2 * request.itemsToCreateSize));
-    memcpy(data->deleteCallbacks, deleteCallbacks, request.itemsToCreateSize * sizeof(void*));
+    memcpy(data->deleteCallbacks, deleteCallbacks,
+           request.itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
     data->handlingCallbacks = array + (3 * request.itemsToCreateSize);
     memcpy(data->handlingCallbacks, callbacks, request.itemsToCreateSize * sizeof(void*));
 
