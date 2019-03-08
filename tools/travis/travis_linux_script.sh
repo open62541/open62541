@@ -92,6 +92,39 @@ echo "=== Install build, then compile examples ===" && echo -en 'travis_fold:sta
     exit 0
 fi
 
+if ! [ -z ${CLANG_FORMAT+x} ]; then
+
+    # Only run clang format on Pull requests, not on direct push
+    if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+        echo -en "\\nSkipping clang-format on non-pull request\\n"
+        exit 0
+    fi
+
+    echo "=== Running clang-format with diff against branch '$TRAVIS_BRANCH' ===" && echo -en 'travis_fold:start:script.clang-format\\r'
+
+    # add clang-format-ci
+    curl -Ls "https://raw.githubusercontent.com/llvm-mirror/clang/c510fac5695e904b43d5bf0feee31cc9550f110e/tools/clang-format/git-clang-format" -o "$LOCAL_PKG/bin/git-clang-format"
+    chmod +x $LOCAL_PKG/bin/git-clang-format
+
+    # We want to get colored diff output into the variable
+    git config color.diff always
+
+    # clang-format the diff to the target branch of the PR
+    difference="$($LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH)"
+
+    if ! case $difference in *"no modified files to format"*) false;; esac; then
+        echo "====== clang-format did not find any issues. Well done! ======"
+        exit 0
+    fi
+
+    echo "====== clang-format Format Errors ======"
+    echo -e "Please fix the following issues:\n\n"
+    echo "${difference}"
+
+    echo -en 'travis_fold:start:script.clang-format\\r'
+    exit 1
+fi
+
 if ! [ -z ${ANALYZE+x} ]; then
     echo "=== Running static code analysis ===" && echo -en 'travis_fold:start:script.analyze\\r'
     if ! case $CC in clang*) false;; esac; then
