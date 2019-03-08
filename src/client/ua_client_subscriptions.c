@@ -423,16 +423,18 @@ MonitoredItems_CreateData_free(MonitoredItems_CreateData *data, UA_Client *clien
     if (!data)
         return;
 
-    for(size_t i = 0; i < data->request->itemsToCreateSize; i++) {
-        if (data->mis[i]) {
-            if (data->deleteCallbacks[i]) {
-                if(data->sub)
-                    data->deleteCallbacks[i](client, data->sub->subscriptionId,
-                                             data->sub->context, 0, data->contexts[i]);
-                else
-                    data->deleteCallbacks[i](client, 0, NULL, 0, data->contexts[i]);
+    if (data->request && data->mis && data->deleteCallbacks && data->contexts) {
+        for(size_t i = 0; i < data->request->itemsToCreateSize; i++) {
+            if (data->mis[i]) {
+                if (data->deleteCallbacks[i]) {
+                    if(data->sub)
+                        data->deleteCallbacks[i](client, data->sub->subscriptionId,
+                                                 data->sub->context, 0, data->contexts[i]);
+                    else
+                        data->deleteCallbacks[i](client, 0, NULL, 0, data->contexts[i]);
+                }
+                UA_free(data->mis[i]);
             }
-            UA_free(data->mis[i]);
         }
     }
 
