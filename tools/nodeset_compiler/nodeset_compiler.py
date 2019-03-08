@@ -82,12 +82,6 @@ parser.add_argument('-t', '--types-array',
                     default=[],
                     help='Types array for the given namespace. Can be used mutliple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
 
-parser.add_argument('--encode-binary-size',
-                    type=int,
-                    dest="encode_binary_size",
-                    default=32000,
-                    help='Size of the temporary array used to encode custom datatypes. If you don\'t know what it is, do not use this option')
-
 parser.add_argument('-v', '--verbose', action='count',
                     default=1,
                     help='Make the script more verbose. Can be applied up to 4 times')
@@ -202,7 +196,7 @@ logger.info("Generating Code for Backend: {}".format(args.backend))
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
     from backend_open62541 import generateOpen62541Code
-    generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray, args.encode_binary_size)
+    generateOpen62541Code(ns, args.outputFile, args.generate_ns0, args.internal_headers, args.typesArray)
 elif args.backend == "graphviz":
     from backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)

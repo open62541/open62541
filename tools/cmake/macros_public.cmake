@@ -225,7 +225,6 @@ endfunction()
 #   NAME            Name of the nodeset, e.g. 'di'
 #   [TYPES_ARRAY]   Optional name of the types array containing the custom datatypes of this node set.
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
-#   [ENCODE_BINARY_SIZE]    Optional array size for binary encoding extension objects.
 #   [IGNORE]        Optional file containing a list of node ids which should be ignored. The file should have one id per line.
 #   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
 #
@@ -240,7 +239,7 @@ endfunction()
 function(ua_generate_nodeset)
 
     set(options INTERNAL )
-    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR ENCODE_BINARY_SIZE IGNORE TARGET_PREFIX)
+    set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -290,12 +289,6 @@ function(ua_generate_nodeset)
     if (UA_GEN_NS_IGNORE)
         set(GEN_IGNORE "--ignore=${UA_GEN_NS_IGNORE}")
     endif()
-
-    set(GEN_BIN_SIZE "")
-    if (UA_GEN_NS_ENCODE_BINARY_SIZE OR "${UA_GEN_NS_ENCODE_BINARY_SIZE}" STREQUAL "0")
-        set(GEN_BIN_SIZE "--encode-binary-size=${UA_GEN_NS_ENCODE_BINARY_SIZE}")
-    endif()
-
 
     set(TYPES_ARRAY_LIST "")
     foreach(f ${UA_GEN_NS_DEPENDS_TYPES})

@@ -905,16 +905,11 @@ if (UA_ENABLE_AMALGAMATION)
                      open62541-generator-transport open62541-generator-statuscode)
 endif()
 
-if(NOT UA_NODESET_ENCODE_BINARY_SIZE)
-    set(UA_NODESET_ENCODE_BINARY_SIZE 32000)
-endif()
-
 ua_generate_nodeset(
     NAME "ns0"
     FILE ${UA_FILE_NODESETS}
     INTERNAL
     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
-    ENCODE_BINARY_SIZE ${UA_NODESET_ENCODE_BINARY_SIZE}
     DEPENDS_TARGET "open62541-generator-types"
 )
 
