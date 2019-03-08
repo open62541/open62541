@@ -182,6 +182,22 @@ matrix:
         - ANALYZE=true
         - PYTHON=python3
 #
+# clang-format code analysis
+    - os: linux
+      compiler: clang-6.0
+      addons:
+        apt:
+          sources:
+            - llvm-toolchain-trusty-6.0
+            - ubuntu-toolchain-r-test
+          packages:
+            - clang-6.0
+            - clang-tidy-6.0
+            - clang-format-6.0
+      env:
+        - CLANG_FORMAT=true
+        - PYTHON=python3
+#
 # cpplint checking
     #- os: linux
     #  compiler: gcc
