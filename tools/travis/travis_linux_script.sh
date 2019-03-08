@@ -128,6 +128,14 @@ if ! [ -z ${ANALYZE+x} ]; then
           make -j
         cd .. && rm build -rf
 
+        if ! [ -z ${TRAVIS_PULL_REQUEST_SLUG+x} ]; then
+            difference="$(git clang-format-6.0 --diff $TRAVIS_BRANCH)"
+            if ! [ "${difference}" = "no modified files to format" ]; then
+                echo $difference
+                exit 1
+            fi
+        fi
+
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \
