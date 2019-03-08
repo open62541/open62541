@@ -364,7 +364,7 @@ sym_verify_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
 
     Basic256Sha256_PolicyContext *pc =
         (Basic256Sha256_PolicyContext *)securityPolicy->policyContext;
-
+    
     unsigned char mac[UA_SHA256_LENGTH];
     md_hmac_Basic256Sha256(&pc->sha256MdContext, &cc->remoteSymSigningKey, message, mac);
 
@@ -464,7 +464,7 @@ sym_decrypt_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t encryptionBlockSize =
-        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalBlockSize(securityPolicy, cc);
+        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getRemoteBlockSize(securityPolicy, cc);
 
     if(cc->remoteSymIv.length != encryptionBlockSize)
         return UA_STATUSCODE_BADINTERNALERROR;

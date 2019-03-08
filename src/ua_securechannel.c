@@ -1299,7 +1299,14 @@ checkSymHeader(UA_SecureChannel *const channel,
             else
                 return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         }
-        return UA_SecureChannel_revolveTokens(channel);
+        UA_StatusCode retval = UA_SecureChannel_revolveTokens(channel);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        if(channel->securityToken.tokenId == tokenId) {
+            retval = UA_SecureChannel_generateRemoteKeys(channel, channel->securityPolicy);
+            UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
+            return retval;
+        }
     }
 
     if(channel->previousSecurityToken.tokenId != 0) {

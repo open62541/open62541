@@ -442,7 +442,7 @@ sym_decrypt_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t encryptionBlockSize =
-        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalBlockSize(securityPolicy, cc);
+        securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.getRemoteBlockSize(securityPolicy, cc);
 
     if(cc->remoteSymIv.length != encryptionBlockSize)
         return UA_STATUSCODE_BADINTERNALERROR;
