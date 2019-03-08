@@ -276,6 +276,10 @@ before_install: |
  export PATH=$PATH:$HOME/.local/bin # linux
  export PATH=$PATH:$HOME/Library/Python #OS X
  export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
+ # add clang-format-ci
+ curl -Ls "https://raw.githubusercontent.com/llvm-mirror/clang/c510fac5695e904b43d5bf0feee31cc9550f110e/tools/clang-format/git-clang-format" -o "$LOCAL_PKG/bin/git-clang-format"
+ chmod +x $LOCAL_PKG/bin/git-clang-format
+ git clone --branch v1.2.0 https://github.com/material-foundation/clang-format-ci.git $LOCAL_PKG/clang-format-ci
 
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi

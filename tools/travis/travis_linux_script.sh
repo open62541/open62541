@@ -128,6 +128,9 @@ if ! [ -z ${ANALYZE+x} ]; then
           make -j
         cd .. && rm build -rf
 
+        # add clang-format-ci
+        if [ -n "$TRAVIS_PULL_REQUEST_SLUG" ]; then $LOCAL_PKG/clang-format-ci/check-pull-request.sh --api_token "$GITAUTH" --repo "$TRAVIS_PULL_REQUEST_SLUG" --pr "$TRAVIS_PULL_REQUEST" --commit "$TRAVIS_PULL_REQUEST_SHA" --target_branch "$TRAVIS_BRANCH"; fi
+
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \
