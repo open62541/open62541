@@ -309,8 +309,13 @@ script: |
  }
  trap errorTrap 0
 
- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
+ echo ${TRAVIS_OS_NAME}
+ echo ${TRAVIS_OSX_IMAGE}
+ if [ ${TRAVIS_OSX_IMAGE} == "xcode10" ] || [ ${TRAVIS_OS_NAME} == "osx" ]; then
+   sh ./tools/travis/travis_osx_script.sh
+ elif [ ${TRAVIS_OS_NAME} == "linux" ]; then
+   sh ./tools/travis/travis_linux_script.sh 
+ fi
 
 after_success: |
  set -eE

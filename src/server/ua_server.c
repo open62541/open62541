@@ -70,7 +70,7 @@ UA_ServerConfig*
 UA_Server_getConfig(UA_Server *server)
 {
   if(!server)
-    return NULL;
+        return NULL;
   else
     return &server->config;
 }
