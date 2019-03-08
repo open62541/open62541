@@ -1,4 +1,4 @@
- cmake_minimum_required(VERSION 3.0...3.12)
+cmake_minimum_required(VERSION 3.0...3.12)
 project(open62541)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
