@@ -824,7 +824,14 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client, const UA_DeleteMonitore
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    cc->clientData = (void*)(uintptr_t)&request;
+
+    UA_DeleteMonitoredItemsRequest *req_copy = UA_DeleteMonitoredItemsRequest_new();
+    if (!req_copy) {
+        UA_free(cc);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    UA_DeleteMonitoredItemsRequest_copy(&request, req_copy);
+    cc->clientData = req_copy;
     cc->clientDataDeleter = (CustomCallbackDataDeleter)(uintptr_t)UA_DeleteMonitoredItemsRequest_delete;
     cc->userCallback = callback;
     cc->userData = userdata;
