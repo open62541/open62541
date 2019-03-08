@@ -13,6 +13,11 @@ matrix:
   fast_finish: true
   include:
 #
+# clang-format-ci requires swift
+    - osx_image: xcode10
+      env:
+        - CLANG_FORMAT_CI=true
+#
 # gcc-4.8 (trusty) full host and cross build with tests:
 # doc, cert, cross-mingw32, cross-mingw64, cross-linux32, cross-raspi, linux64,
 # amalgamated, shared, multithread, encryption, discovery, json, test-ns0-full, test-ns0-minimal, debian-package

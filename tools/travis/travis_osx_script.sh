@@ -66,3 +66,10 @@ cmake \
 make -j && make test ARGS="-V"
 cd .. && rm -rf build
 echo -en 'travis_fold:end:script.build.unit_test\\r'
+
+# add clang-format-ci
+if ! [ -z ${CLANG_FORMAT_CI+x} ] && [ -n "$TRAVIS_PULL_REQUEST_SLUG" ]; then
+    echo "Run clang-format-ci" && echo -en 'travis_fold:start:script.analyze.format\\r'
+    $LOCAL_PKG/clang-format-ci/check-pull-request.sh --api_token "$GITAUTH2" --repo "$TRAVIS_PULL_REQUEST_SLUG" --pr "$TRAVIS_PULL_REQUEST" --commit "$TRAVIS_PULL_REQUEST_SHA" --target_branch "$TRAVIS_BRANCH"; 
+fi
+
