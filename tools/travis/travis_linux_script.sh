@@ -129,9 +129,9 @@ if ! [ -z ${ANALYZE+x} ]; then
         cd .. && rm build -rf
 
         if ! [ -z ${TRAVIS_PULL_REQUEST_SLUG+x} ]; then
-            difference="$(git clang-format-6.0 --diff $TRAVIS_BRANCH)"
+            difference="$($LOCAL_PKG/bin/git-clang-format --diff $TRAVIS_BRANCH)"
+            echo ${difference}
             if ! [ "${difference}" = "no modified files to format" ]; then
-                echo $difference
                 exit 1
             fi
         fi
