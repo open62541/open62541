@@ -432,7 +432,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
 
     # Debug
     if(BUILD_TYPE_LOWER_CASE STREQUAL "debug")
-        if ("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+        if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
             message("Sanitizer enabled")
@@ -442,7 +442,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         endif()
     endif()
 
-    if(UA_ENABLE_HARDENING AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(UA_ENABLE_HARDENING AND (CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
         check_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)    
     endif()
 
@@ -451,7 +451,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         add_definitions(-ffunction-sections -fdata-sections -fno-unwind-tables
                         -fno-asynchronous-unwind-tables -fno-math-errno -fno-ident)
         # remove stack-protector with MinSizeRel
-        if (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+        if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
             add_definitions(-fno-stack-protector)
         endif()
         if(NOT OS9)
