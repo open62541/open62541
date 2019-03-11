@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.0...3.12)
 project(open62541)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
+if(${CMAKE_VERSION} VERSION_LESS 3.12)
+    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
+endif()
 
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
@@ -273,6 +276,9 @@ endif()
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 
+option(UA_ENABLE_HARDENING "Enable Hardening measures (e.g. Stack-Protectors and Fortify)" ON)
+mark_as_advanced(UA_ENABLE_HARDENING)
+
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
@@ -370,6 +376,7 @@ endif()
 # Compiler Settings #
 #####################
 
+include(CompilerFlags)
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
     add_definitions(-std=c99 -pipe
@@ -385,8 +392,33 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wnested-externs
                     -Wmultichar
                     -Wundef
-                    -Wc++-compat)
+                    -Wc++-compat
+                    -fno-strict-aliasing # fewer compiler assumptions about pointer types
+                    -fexceptions # recommended for multi-threaded C code, also in combination with C++ code
+                    )
 
+    if (NOT MINGW)
+        if(UA_ENABLE_HARDENING)
+            check_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
+            check_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8    
+            check_cc_flag_untested("-mcet -fcf-protection") # future use (control flow integrity protection)
+        endif()
+
+        # IPO requires too much memory for unit tests
+        # GCC docu recommends to compile all files with the same options, therefore ignore it completely 
+        if(NOT UA_BUILD_UNIT_TESTS)
+            # needed to check if IPO is supported (check needs cmake > 3.9)
+            if("${CMAKE_VERSION}" VERSION_GREATER 3.9)
+                cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
+                include(CheckIPOSupported)
+                check_ipo_supported(RESULT CC_HAS_IPO) # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
+                if(CC_HAS_IPO)
+                    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+                endif()
+            endif()
+        endif()
+    endif()
+	
     if(UA_ENABLE_AMALGAMATION)
         add_definitions(-Wno-unused-function)
     endif()
@@ -400,7 +432,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
 
     # Debug
     if(BUILD_TYPE_LOWER_CASE STREQUAL "debug")
-        if ("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+        if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
             message("Sanitizer enabled")
@@ -410,10 +442,18 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         endif()
     endif()
 
+    if(UA_ENABLE_HARDENING AND (CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+        check_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)    
+    endif()
+
     # Strip release builds
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
+        add_definitions(-ffunction-sections -fdata-sections -fno-unwind-tables
                         -fno-asynchronous-unwind-tables -fno-math-errno -fno-ident)
+        # remove stack-protector with MinSizeRel
+        if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+            add_definitions(-fno-stack-protector)
+        endif()
         if(NOT OS9)
             set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
             set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
