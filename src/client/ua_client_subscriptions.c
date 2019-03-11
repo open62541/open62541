@@ -619,13 +619,13 @@ __UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
         goto cleanup;
     }
     data->mis = (UA_Client_MonitoredItem **)array;
-    data->contexts = array + (request.itemsToCreateSize);
+    data->contexts = (void **) ((uintptr_t) array + (sizeof(void*) * request.itemsToCreateSize));
     memcpy(data->contexts, contexts, request.itemsToCreateSize * sizeof(void*));
     data->deleteCallbacks = (UA_Client_DeleteMonitoredItemCallback *)
-        (array + (2 * request.itemsToCreateSize));
+      ((uintptr_t) array + (2 * request.itemsToCreateSize * sizeof(void*)));
     memcpy(data->deleteCallbacks, deleteCallbacks,
            request.itemsToCreateSize * sizeof(UA_Client_DeleteMonitoredItemCallback));
-    data->handlingCallbacks = array + (3 * request.itemsToCreateSize);
+    data->handlingCallbacks = (void **) ((uintptr_t) array + (3 * request.itemsToCreateSize * sizeof(void*)));
     memcpy(data->handlingCallbacks, callbacks, request.itemsToCreateSize * sizeof(void*));
 
     data->request = UA_CreateMonitoredItemsRequest_new();
