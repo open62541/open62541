@@ -1282,6 +1282,7 @@ static UA_StatusCode
 checkSymHeader(UA_SecureChannel *const channel,
                const UA_UInt32 tokenId, UA_Boolean allowPreviousToken) {
 
+    /* If the message uses the currently active token, check if it is still valid */
     if(tokenId == channel->securityToken.tokenId) {
         if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
            (channel->securityToken.createdAt +
@@ -1292,16 +1293,23 @@ checkSymHeader(UA_SecureChannel *const channel,
         }
     }
 
+    /* If the message uses a different token, check if it is the next token. */
     if(tokenId != channel->securityToken.tokenId) {
+        /* If it isn't the next token, we might be dealing with a message, that
+         * still uses the old token, so check if the old one is still valid.*/
         if(tokenId != channel->nextSecurityToken.tokenId) {
             if(allowPreviousToken)
                 return checkPreviousToken(channel, tokenId);
             else
                 return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         }
+        /* If the token is indeed the next token, revolve the tokens */
         UA_StatusCode retval = UA_SecureChannel_revolveTokens(channel);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
+
+        /* If the message now uses the currently active token also generate
+         * new remote keys to correctly decrypt. */
         if(channel->securityToken.tokenId == tokenId) {
             retval = UA_SecureChannel_generateRemoteKeys(channel, channel->securityPolicy);
             UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
@@ -1309,6 +1317,10 @@ checkSymHeader(UA_SecureChannel *const channel,
         }
     }
 
+    /* It is possible that the sent messages already use the new token, but
+     * the received messages still use the old token. If we receive a message
+     * with the new token, we will need to generate the keys and discard the
+     * old token now*/
     if(channel->previousSecurityToken.tokenId != 0) {
         UA_StatusCode retval =
             UA_SecureChannel_generateRemoteKeys(channel, channel->securityPolicy);
