@@ -247,6 +247,8 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
                                     &requestId);
 
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Receiving service response failed with error %s", UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
         return retval;
     }
