@@ -12,6 +12,7 @@
  *    Copyright 2016 (c) TorbenD
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -557,6 +558,12 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Prepare the ResponseHeader */
     ((UA_ResponseHeader*)response)->requestHandle = requestHeader->requestHandle;
     ((UA_ResponseHeader*)response)->timestamp = UA_DateTime_now();
+
+    /* Check timestamp in the request header */
+    if(!(requestHeader->timestamp)) {
+        return sendServiceFault(channel, msg, requestPos, responseType,
+                                requestId, UA_STATUSCODE_BADINVALIDTIMESTAMP);
+    }
 
     /* Process normal services before initializing the message context.
      * Some services may initialize new message contexts and to support network
