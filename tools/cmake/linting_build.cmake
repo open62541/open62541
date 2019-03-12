@@ -31,23 +31,3 @@ elseif(UA_ENABLE_STATIC_ANALYZER STREQUAL FULL)
     endif()
 endif()
 
-# adds new target "clangformat" to enforce clang-format rules
-find_program(CLANG_FORMAT_EXE NAMES "clang-format")
-if(CLANG_FORMAT_EXE)
-  file(GLOB_RECURSE FILES_TO_FORMAT
-       ${PROJECT_SOURCE_DIR}/arch/*.c
-       ${PROJECT_SOURCE_DIR}/plugins/*.c
-       ${PROJECT_SOURCE_DIR}/src/*.c
-       ${PROJECT_SOURCE_DIR}/arch/*.h
-       ${PROJECT_SOURCE_DIR}/include/*.h
-       ${PROJECT_SOURCE_DIR}/plugins/*.h
-       ${PROJECT_SOURCE_DIR}/src/*.h
-    )
-  add_custom_target(
-    clangformat COMMAND ${CLANG_FORMAT_EXE}
-        -style=file
-        -i
-        ${FILES_TO_FORMAT}
-  )
-endif()
-

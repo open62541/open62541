@@ -1228,7 +1228,6 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
-set_target_properties(clang-tidy PROPERTIES FOLDER "CodeAnalysis")
 if (UA_ENABLE_AMALGAMATION)
     set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
     set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
