@@ -967,7 +967,7 @@ else()
     endfunction()
 
     # Public includes
-    include_directories_public("${ua_architecture_directories_to_include}"
+    include_directories_public(${ua_architecture_directories_to_include}
                                "${PROJECT_BINARY_DIR}/src_generated"
                                "${PROJECT_SOURCE_DIR}/deps"
                                "${PROJECT_SOURCE_DIR}/include"
