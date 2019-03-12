@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Chris Iatrou
@@ -269,7 +269,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
     TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue, globalEntry, notification_tmp) {
         if(totalNotifications >= notifications)
             break;
-        
+
         UA_MonitoredItem *mon = notification->mon;
 
         /* Remove from the queues and decrease the counters */
@@ -417,15 +417,17 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_NotificationMessage *message = &response->notificationMessage;
     UA_NotificationMessageEntry *retransmission = NULL;
     if(notifications > 0) {
-        /* Allocate the retransmission entry */
-        retransmission = (UA_NotificationMessageEntry*)UA_malloc(sizeof(UA_NotificationMessageEntry));
-        if(!retransmission) {
-            UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
-                                   "Subscription %u | Could not allocate memory for retransmission. "
-                                   "The subscription is late.", sub->subscriptionId);
-            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-            UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
-            return;
+        if(server->config.enableRetransmissionQueue) {
+            /* Allocate the retransmission entry */
+            retransmission = (UA_NotificationMessageEntry*)UA_malloc(sizeof(UA_NotificationMessageEntry));
+            if(!retransmission) {
+                UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
+                                       "Subscription %u | Could not allocate memory for retransmission. "
+                                       "The subscription is late.", sub->subscriptionId);
+                sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+                UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
+                return;
+            }
         }
 
         /* Prepare the response */
@@ -434,7 +436,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             UA_LOG_WARNING_SESSION(&server->config.logger, sub->session,
                                    "Subscription %u | Could not prepare the notification message. "
                                    "The subscription is late.", sub->subscriptionId);
-            UA_free(retransmission);
+            /* If the retransmission queue is enabled a retransmission message is allocated */
+            if(retransmission)
+                UA_free(retransmission);
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
             return;
@@ -459,11 +463,14 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     message->sequenceNumber = sub->nextSequenceNumber;
 
     if(notifications > 0) {
-        /* Put the notification message into the retransmission queue. This
-         * needs to be done here, so that the message itself is included in the
-         * available sequence numbers for acknowledgement. */
-        retransmission->message = response->notificationMessage;
-        UA_Subscription_addRetransmissionMessage(server, sub, retransmission);
+        /* If the retransmission queue is enabled a retransmission message is allocated */
+        if(retransmission) {
+            /* Put the notification message into the retransmission queue. This
+             * needs to be done here, so that the message itself is included in the
+             * available sequence numbers for acknowledgement. */
+            retransmission->message = response->notificationMessage;
+            UA_Subscription_addRetransmissionMessage(server, sub, retransmission);
+        }
         /* Only if a notification was created, the sequence number must be increased.
          * For a keepalive the sequence number can be reused. */
         sub->nextSequenceNumber = UA_Subscription_nextSequenceNumber(sub->nextSequenceNumber);
