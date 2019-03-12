@@ -187,6 +187,7 @@ createDefaultConfig(void) {
     conf->lifeTimeCountLimits = UA_UINT32RANGE(3, 15000);
     conf->keepAliveCountLimits = UA_UINT32RANGE(1, 100);
     conf->maxNotificationsPerPublish = 1000;
+    conf->enableRetransmissionQueue = true;
     conf->maxRetransmissionQueueSize = 0; /* unlimited */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     conf->maxEventsPerNode = 0; /* unlimited */

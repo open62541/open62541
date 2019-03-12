@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -155,6 +155,7 @@ struct UA_ServerConfig {
     UA_UInt32Range lifeTimeCountLimits;
     UA_UInt32Range keepAliveCountLimits;
     UA_UInt32 maxNotificationsPerPublish;
+    UA_Boolean enableRetransmissionQueue;
     UA_UInt32 maxRetransmissionQueueSize; /* 0 -> unlimited size */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_UInt32 maxEventsPerNode; /* 0 -> unlimited size */
@@ -200,10 +201,10 @@ struct UA_ServerConfig {
     /* Historical Access */
 #ifdef UA_ENABLE_HISTORIZING
     UA_HistoryDatabase historyDatabase;
-    
+
     UA_Boolean accessHistoryDataCapability;
     UA_UInt32  maxReturnDataValues; /* 0 -> unlimited size */
-    
+
     UA_Boolean accessHistoryEventsCapability;
     UA_UInt32  maxReturnEventValues; /* 0 -> unlimited size */
 
@@ -213,10 +214,10 @@ struct UA_ServerConfig {
 
     UA_Boolean replaceDataCapability;
     UA_Boolean replaceEventCapability;
-    
+
     UA_Boolean updateDataCapability;
     UA_Boolean updateEventCapability;
-    
+
     UA_Boolean deleteRawCapability;
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;
