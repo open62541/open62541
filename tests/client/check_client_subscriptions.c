@@ -158,9 +158,8 @@ START_TEST(Client_subscription_async) {
 
     UA_UInt32 requestId = 0;
     UA_CreateSubscriptionResponse response;
-    retval = UA_Client_Subscriptions_create_async(client, request, NULL, NULL, NULL,
-                                                  createSubscriptionCallback, &response,
-                                                  &requestId);
+    retval = UA_Client_Subscriptions_create_async(client, request, NULL, NULL, NULL, createSubscriptionCallback,
+                                                  &response, &requestId);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_realSleep(50); // wait until response is
@@ -177,8 +176,7 @@ START_TEST(Client_subscription_async) {
     modifySubscriptionRequest.requestedMaxKeepAliveCount = response.revisedMaxKeepAliveCount;
     UA_ModifySubscriptionResponse modifySubscriptionResponse;
 
-    retval = UA_Client_Subscriptions_modify_async(client, modifySubscriptionRequest,
-                                                  modifySubscriptionCallback,
+    retval = UA_Client_Subscriptions_modify_async(client, modifySubscriptionRequest, modifySubscriptionCallback,
                                                   &modifySubscriptionResponse, &requestId);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -200,9 +198,8 @@ START_TEST(Client_subscription_async) {
     monRequest.itemsToCreate = &singleMonRequest;
     monRequest.itemsToCreateSize = 1;
     UA_CreateMonitoredItemsResponse monResponse;
-    retval = UA_Client_MonitoredItems_createDataChanges_async(client, monRequest,
-                                                              &contexts, &notifications, &deleteCallbacks,
-                                                              createDataChangesCallback, &monResponse,
+    retval = UA_Client_MonitoredItems_createDataChanges_async(client, monRequest, &contexts, &notifications,
+                                                              &deleteCallbacks, createDataChangesCallback, &monResponse,
                                                               &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_realSleep(50); // need to wait until response is at the client
@@ -217,7 +214,7 @@ START_TEST(Client_subscription_async) {
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     notificationReceived = false;
 
-    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval +1));
+    retval = UA_Client_run_iterate(client, (UA_UInt16)(publishingInterval + 1));
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
@@ -229,9 +226,8 @@ START_TEST(Client_subscription_async) {
     monDeleteRequest.monitoredItemIdsSize = 1;
     UA_DeleteMonitoredItemsResponse monDeleteResponse;
 
-    retval = UA_Client_MonitoredItems_delete_async(client, monDeleteRequest,
-                                                   deleteMonitoredItemsCallback, &monDeleteResponse,
-                                                   &requestId);
+    retval = UA_Client_MonitoredItems_delete_async(client, monDeleteRequest, deleteMonitoredItemsCallback,
+                                                   &monDeleteResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_realSleep(50); // need to wait until response is at the client
     retval = UA_Client_run_iterate(client, 0);
@@ -247,9 +243,8 @@ START_TEST(Client_subscription_async) {
     subDeleteRequest.subscriptionIdsSize = 1;
     UA_DeleteSubscriptionsResponse subDeleteResponse;
     printf("will delete\n");
-    retval = UA_Client_Subscriptions_delete_async(client, subDeleteRequest,
-                                                  deleteSubscriptionsCallback, &subDeleteResponse,
-                                                  &requestId);
+    retval = UA_Client_Subscriptions_delete_async(client, subDeleteRequest, deleteSubscriptionsCallback,
+                                                  &subDeleteResponse, &requestId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_realSleep(50); // need to wait until response is at the client
@@ -385,8 +380,7 @@ START_TEST(Client_subscription_createDataChanges_async) {
     // Async subscription creation is tested in Client_subscription_async
     // simplify test case using synchronous here
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-                                                                            NULL, NULL, NULL);
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subId = response.subscriptionId;
 
@@ -422,10 +416,9 @@ START_TEST(Client_subscription_createDataChanges_async) {
     createRequest.itemsToCreateSize = 3;
     UA_CreateMonitoredItemsResponse createResponse;
 
-    retval = UA_Client_MonitoredItems_createDataChanges_async(client, createRequest, contexts,
-                                                              callbacks, deleteCallbacks,
-                                                              createDataChangesCallback,
-                                                              &createResponse, &reqId);
+    retval =
+        UA_Client_MonitoredItems_createDataChanges_async(client, createRequest, contexts, callbacks, deleteCallbacks,
+                                                         createDataChangesCallback, &createResponse, &reqId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_realSleep(50);
     retval = UA_Client_run_iterate(client, 0);
@@ -466,9 +459,8 @@ START_TEST(Client_subscription_createDataChanges_async) {
         deleteRequest.monitoredItemIdsSize = 3;
 
         UA_DeleteMonitoredItemsResponse deleteResponse;
-        retval = UA_Client_MonitoredItems_delete_async(client, deleteRequest,
-                                                       deleteMonitoredItemsCallback, &deleteResponse,
-                                                       &reqId);
+        retval = UA_Client_MonitoredItems_delete_async(client, deleteRequest, deleteMonitoredItemsCallback,
+                                                       &deleteResponse, &reqId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         UA_realSleep(50); // need to wait until response is at the client
         retval = UA_Client_run_iterate(client, 0);

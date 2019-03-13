@@ -774,12 +774,11 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
     UA_Boolean done = false;
     AsyncReadData *data = (AsyncReadData *)cc->clientData;
     if(rr->resultsSize == 1 && res != NULL && res->hasValue) {
-        if(data->attributeId == UA_ATTRIBUTEID_VALUE) {
+        if (data->attributeId == UA_ATTRIBUTEID_VALUE) {
             /* Call directly with the variant */
             cc->userCallback(client, cc->userData, requestId, &res->value);
             done = true;
-        } else if(UA_Variant_isScalar(&res->value) &&
-                  res->value.type == data->outDataType) {
+        } else if (UA_Variant_isScalar(&res->value) && res->value.type == data->outDataType) {
             /* Unpack the value */
             UA_STACKARRAY(UA_Byte, value, data->outDataType->memSize);
             memcpy(&value, res->value.data, data->outDataType->memSize);
@@ -811,9 +810,8 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
     request.nodesToRead = &item;
     request.nodesToReadSize = 1;
 
-    __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                             ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE],
-                             NULL, reqId);
+    __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST], ValueAttributeRead,
+                             &UA_TYPES[UA_TYPES_READRESPONSE], NULL, reqId);
 
     CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
     if (!cc)
@@ -825,8 +823,8 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
 
     cc->clientData = UA_malloc(sizeof(AsyncReadData));
     if (!cc->clientData) {
-      UA_free(cc);
-      return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_free(cc);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     cc->clientDataDeleter = UA_free;
     AsyncReadData *rd = (AsyncReadData *)cc->clientData;
