@@ -377,8 +377,8 @@ UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
     UA_Variant var;
     UA_StatusCode result = UA_STATUSCODE_GOOD;
-	
-	/* At least one endpoint has to be configured */
+    
+    /* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "There has to be at least one endpoint.");

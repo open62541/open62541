@@ -124,9 +124,9 @@ createDefaultConfig(void) {
                                 UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
     #ifdef UA_PACK_DEBIAN
     conf->buildInfo.buildNumber = UA_STRING_ALLOC("deb");
-	#else
+    #else
     conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
-	#endif
+    #endif
     conf->buildInfo.buildDate = 0;
 
     conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
@@ -166,9 +166,9 @@ createDefaultConfig(void) {
     conf->nodeLifecycle.destructor = NULL;
 
     if (UA_AccessControl_default(&conf->accessControl, true, usernamePasswordsSize,
-    		usernamePasswords) != UA_STATUSCODE_GOOD) {
-    	UA_ServerConfig_delete(conf);
-    	return NULL;
+            usernamePasswords) != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
     }
 
     /* Relax constraints for the InformationModel */

@@ -144,7 +144,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
         return false;
     }
     
-	/* Get the EventType Property Node */
+    /* Get the EventType Property Node */
     UA_Variant tOutVariant;
     UA_Variant_init(&tOutVariant);
 
@@ -166,7 +166,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) ||
        isNodeInTree(&server->config.nodestore, tEventType,
-    		         &conditionTypeId, &hasSubtypeId, 1)){
+                     &conditionTypeId, &hasSubtypeId, 1)){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Alarms and Conditions are not supported yet!");
         UA_BrowsePathResult_deleteMembers(&bpr);

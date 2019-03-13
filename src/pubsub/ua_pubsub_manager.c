@@ -168,7 +168,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     if(UA_PublishedDataSetConfig_copy(publishedDataSetConfig, &tmpPublishedDataSetConfig) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Configuration copy failed.");
-		result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+        result.addResult = UA_STATUSCODE_BADINTERNALERROR;
         return result;
     }
     //create new PDS and add to UA_PubSubManager
@@ -179,8 +179,8 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
         UA_PublishedDataSetConfig_deleteMembers(&tmpPublishedDataSetConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Out of Memory.");
-		result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return result;
+        result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
     }
     server->pubSubManager.publishedDataSets = newPubSubDataSetField;
     UA_PublishedDataSet *newPubSubDataSet = &server->pubSubManager.publishedDataSets[(server->pubSubManager.publishedDataSetsSize)];
@@ -202,11 +202,11 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
         UA_NodeId_copy(&newPubSubDataSet->identifier, pdsIdentifier);
     }
     server->pubSubManager.publishedDataSetsSize++;
-	result.addResult = UA_STATUSCODE_GOOD;
-	result.fieldAddResults = NULL;
-	result.fieldAddResultsSize = 0;
-	result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-	result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    result.addResult = UA_STATUSCODE_GOOD;
+    result.fieldAddResults = NULL;
+    result.fieldAddResultsSize = 0;
+    result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPublishedDataItemsRepresentation(server, newPubSubDataSet);
 #endif

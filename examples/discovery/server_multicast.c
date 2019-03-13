@@ -260,7 +260,7 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
 
     return clientRegister;
 #else
-	return NULL;
+    return NULL;
 #endif
 }
 

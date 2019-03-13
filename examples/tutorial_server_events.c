@@ -62,7 +62,7 @@ setUpEvent(UA_Server *server, UA_NodeId *outId) {
     UA_DateTime eventTime = UA_DateTime_now();
     UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "Time"),
                                          &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
-												 
+
     UA_UInt16 eventSeverity = 100;
     UA_Server_writeObjectProperty_scalar(server, *outId, UA_QUALIFIEDNAME(0, "Severity"),
                                          &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);

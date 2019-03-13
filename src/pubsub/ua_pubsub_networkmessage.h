@@ -190,7 +190,7 @@ typedef struct {
     UA_DateTime timestamp;
     UA_UInt16 picoseconds;
     UA_UInt16 promotedFieldsSize;
-    UA_Variant* promotedFields;	/* BaseDataType */
+    UA_Variant* promotedFields; /* BaseDataType */
     
     UA_NetworkMessageSecurityHeader securityHeader;
 
