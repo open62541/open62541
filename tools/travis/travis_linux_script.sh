@@ -121,8 +121,10 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
     fi
 
     echo "====== clang-format Format Errors ======"
-    echo -e "Please fix the following issues:\n\n"
+    echo -e "Please fix the following issues. \n\nYou can also copy the output between the lines here and save it as file 'fixup.patch'.\nThen apply it with 'git apply fixup.patch'\n\n"
+    echo -e "=============== COPY HERE - START =================\n"
     echo "${difference}"
+    echo -e "\n============= COPY HERE - END ===================="
 
     echo -en 'travis_fold:start:script.clang-format\\r'
     exit 1
