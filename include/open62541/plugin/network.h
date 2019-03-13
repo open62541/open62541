@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -9,8 +9,8 @@
 #ifndef UA_PLUGIN_NETWORK_H_
 #define UA_PLUGIN_NETWORK_H_
 
-#include <open62541/server.h>
 #include <open62541/plugin/log.h>
+#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 
@@ -26,7 +26,7 @@ typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
 
 /**
  * .. _networking:
- * 
+ *
  * Networking Plugin API
  * =====================
  *
@@ -49,28 +49,28 @@ typedef struct {
 } UA_ConnectionConfig;
 
 typedef enum {
-    UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
-                                * will be deleted */
-    UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
-                                * is not done */
-    UA_CONNECTION_ESTABLISHED  /* The socket is open and the connection
-                                * configured */
+    UA_CONNECTION_CLOSED,     /* The socket has been closed and the connection
+                               * will be deleted */
+    UA_CONNECTION_OPENING,    /* The socket is open, but the HEL/ACK handshake
+                               * is not done */
+    UA_CONNECTION_ESTABLISHED /* The socket is open and the connection
+                               * configured */
 
 } UA_ConnectionState;
 
 struct UA_Connection {
     UA_ConnectionState state;
     UA_ConnectionConfig config;
-    UA_SecureChannel *channel;       /* The securechannel that is attached to
-                                      * this connection */
-    UA_SOCKET sockfd;                 /* Most connectivity solutions run on
-                                      * sockets. Having the socket id here
-                                      * simplifies the design. */
-    UA_DateTime openingDate;         /* The date the connection was created */
-    void *handle;                    /* A pointer to internal data */
-    UA_ByteString incompleteChunk;   /* A half-received chunk (TCP is a
-                                      * streaming protocol) is stored here */
-    UA_UInt64 connectCallbackID;     /* Callback Id, for the connect-loop */
+    UA_SecureChannel *channel;     /* The securechannel that is attached to
+                                    * this connection */
+    UA_SOCKET sockfd;              /* Most connectivity solutions run on
+                                    * sockets. Having the socket id here
+                                    * simplifies the design. */
+    UA_DateTime openingDate;       /* The date the connection was created */
+    void *handle;                  /* A pointer to internal data */
+    UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
+                                    * streaming protocol) is stored here */
+    UA_UInt64 connectCallbackID;   /* Callback Id, for the connect-loop */
     /* Get a buffer for sending */
     UA_StatusCode (*getSendBuffer)(UA_Connection *connection, size_t length,
                                    UA_ByteString *buf);
@@ -167,7 +167,7 @@ struct UA_ServerNetworkLayer {
      *
      * @param nl The network layer
      * @param server The server for processing the incoming packets and for
-     *               closing connections. 
+     *               closing connections.
      * @param timeout The timeout during which an event must arrive in
      *                milliseconds
      * @return A statuscode for the status of the network layer. */

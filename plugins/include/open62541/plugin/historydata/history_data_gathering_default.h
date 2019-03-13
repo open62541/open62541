@@ -8,7 +8,7 @@
 #ifndef UA_HISTORYDATAGATHERING_DEFAULT_H_
 #define UA_HISTORYDATAGATHERING_DEFAULT_H_
 
-#include "ua_plugin_history_data_gathering.h"
+#include "history_data_gathering.h"
 
 _UA_BEGIN_DECLS
 

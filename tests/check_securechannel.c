@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/transport_generated.h>
+#include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/transport_generated_handling.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_encoding_binary.h>
+
 #include "ua_securechannel.h"
 #include <ua_types_encoding_binary.h>
-#include <open62541/types_generated.h>
-#include <open62541/transport_generated_encoding_binary.h>
-#include <open62541/transport_generated.h>
-#include <open62541/types_generated_encoding_binary.h>
-#include <open62541/transport_generated_handling.h>
-
-#include "testing_networklayers.h"
-#include "testing_policy.h"
 
 #include "check.h"
+#include "testing_networklayers.h"
+#include "testing_policy.h"
 
 #define UA_BYTESTRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)(s)}
 

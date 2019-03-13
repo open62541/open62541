@@ -5,15 +5,16 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include <check.h>
-#include <open62541/server.h>
 #include <open62541/client.h>
-#include <open62541/client_highlevel.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
 #include "ua_network_tcp.h"
+
+#include <check.h>
 
 #include "testing_clock.h"
 #include "testing_networklayers.h"

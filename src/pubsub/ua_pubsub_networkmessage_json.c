@@ -7,8 +7,9 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
-#include "ua_types_encoding_json.h"
+
 #include "ua_pubsub_networkmessage.h"
+#include "ua_types_encoding_json.h"
 
 /* Json keys for dsm */
 const char * UA_DECODEKEY_MESSAGES = ("Messages");

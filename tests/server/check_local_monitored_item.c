@@ -5,16 +5,18 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include <open62541/types.h>
-#include <open62541/server.h>
 #include <open62541/client_subscriptions.h>
+#include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/types.h>
+
 #include "ua_network_tcp.h"
+
+#include <stddef.h>
 
 #include "check.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
-#include <stddef.h>
 
 #ifdef UA_ENABLE_STATUSCODE_DESCRIPTIONS
     #define ASSERT_STATUSCODE(a,b) ck_assert_str_eq(UA_StatusCode_name(a),UA_StatusCode_name(b));

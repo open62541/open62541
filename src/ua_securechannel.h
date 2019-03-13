@@ -11,12 +11,13 @@
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
 
-#include <open62541/types.h>
-#include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/log.h>
+#include <open62541/plugin/securitypolicy.h>
 #include <open62541/transport_generated.h>
-#include "ua_connection_internal.h"
+#include <open62541/types.h>
+
 #include "open62541_queue.h"
+#include "ua_connection_internal.h"
 
 _UA_BEGIN_DECLS
 

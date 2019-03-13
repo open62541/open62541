@@ -5,9 +5,11 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  */
 
-#include <open62541/types.h>
 #include <open62541/client.h>
+#include <open62541/types.h>
+
 #include "ua_pubsub_networkmessage.h"
+
 #include "check.h"
 
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {

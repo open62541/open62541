@@ -16,6 +16,7 @@
 #define UA_SERVICES_H_
 
 #include <open62541/server.h>
+
 #include "ua_session.h"
 
 _UA_BEGIN_DECLS

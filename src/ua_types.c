@@ -14,13 +14,14 @@
  *    Copyright 2016 (c) Lorenz Haas
  */
 
-#include "ua_util_internal.h"
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
-#include "pcg_basic.h"
+#include "ua_util_internal.h"
+
 #include "libc_time.h"
+#include "pcg_basic.h"
 
 /* Datatype Handling
  * -----------------

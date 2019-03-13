@@ -8,7 +8,7 @@
 #ifndef UA_HISTORYDATABACKEND_MEMORY_H_
 #define UA_HISTORYDATABACKEND_MEMORY_H_
 
-#include "ua_plugin_history_data_backend.h"
+#include "history_data_backend.h"
 
 _UA_BEGIN_DECLS
 

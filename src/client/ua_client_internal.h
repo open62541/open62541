@@ -18,10 +18,10 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
 
-#include "ua_securechannel.h"
-#include "ua_workqueue.h"
-#include "ua_timer.h"
 #include "open62541_queue.h"
+#include "ua_securechannel.h"
+#include "ua_timer.h"
+#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 

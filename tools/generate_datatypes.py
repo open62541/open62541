@@ -615,7 +615,7 @@ printf('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifndef ''' + outname.upper() + '''_GENERATED_HANDLING_H_
 #define ''' + outname.upper() + '''_GENERATED_HANDLING_H_
 
-#include "''' + args.outfile + '''_generated.h"
+#include "''' + outname + '''_generated.h"
 
 _UA_BEGIN_DECLS
 
@@ -647,7 +647,7 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "''' + args.outfile + '''_generated.h"''')
+#include "''' + outname + '''_generated.h"''')
 
 for t in filtered_types:
     printc("")
@@ -672,7 +672,7 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 # include "open62541.h"
 #else
 # include "ua_types_encoding_binary.h"
-# include "''' + args.outfile + '''_generated.h"
+# include "''' + outname + '''_generated.h"
 #endif
 
 ''')

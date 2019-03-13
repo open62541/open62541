@@ -24,11 +24,11 @@
  * ``tutorial_pubsub_connection.c``.
  */
 
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #include <signal.h>
 

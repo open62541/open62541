@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -8,8 +8,8 @@
 #ifndef UA_ACCESSCONTROL_DEFAULT_H_
 #define UA_ACCESSCONTROL_DEFAULT_H_
 
-#include <open62541/server.h>
 #include <open62541/plugin/accesscontrol.h>
+#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 

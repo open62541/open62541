@@ -10,10 +10,12 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <open62541/transport_generated.h>
 #include "ua_securechannel_manager.h"
-#include "ua_session.h"
+
+#include <open62541/transport_generated.h>
+
 #include "ua_server_internal.h"
+#include "ua_session.h"
 
 #define STARTCHANNELID 1
 #define STARTTOKENID 1

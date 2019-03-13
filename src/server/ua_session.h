@@ -9,6 +9,7 @@
 #define UA_SESSION_H_
 
 #include <open62541/util.h>
+
 #include "ua_securechannel.h"
 
 _UA_BEGIN_DECLS

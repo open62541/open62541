@@ -16,11 +16,12 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config.h>
-#include "ua_util_internal.h"
-#include "ua_timer.h"
+
 #include "ua_connection_internal.h"
-#include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
+#include "ua_session_manager.h"
+#include "ua_timer.h"
+#include "ua_util_internal.h"
 #include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS

@@ -10,13 +10,15 @@
 #define UA_TYPES_ENCODING_JSON_H_
 
 #include <open62541/types.h>
-#include "ua_util_internal.h"
+
 #include "ua_types_encoding_binary.h"
 #include "ua_types_encoding_json.h"
+#include "ua_util_internal.h"
+
 #include "../deps/jsmn/jsmn.h"
 
 _UA_BEGIN_DECLS
- 
+
 #define TOKENCOUNT 1000
     
 size_t

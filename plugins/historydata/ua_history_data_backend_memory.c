@@ -5,7 +5,8 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_historydatabackend_memory.h"
+#include <open62541/plugin/historydata/history_data_backend_memory.h>
+
 #include <limits.h>
 #include <string.h>
 

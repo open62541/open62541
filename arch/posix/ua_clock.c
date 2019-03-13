@@ -9,7 +9,9 @@
 #ifdef UA_ARCHITECTURE_POSIX
 
 #include <open62541/types.h>
+
 #include <time.h>
+
 #include <sys/time.h>
 
 #if defined(__APPLE__) || defined(__MACH__)

@@ -5,12 +5,15 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <check.h>
-#include <open62541/server_pubsub.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
+
 #include "open62541/types_generated_encoding_binary.h"
+
 #include "ua_server_internal.h"
+
+#include <check.h>
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;

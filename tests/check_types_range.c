@@ -4,7 +4,9 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+
 #include "ua_server_internal.h"
+
 #include "check.h"
 
 START_TEST(parseRange) {

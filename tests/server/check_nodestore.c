@@ -2,15 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/plugin/nodestore_default.h>
+#include <open62541/types.h>
+#include <open62541/util.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include <open62541/types.h>
-#include <open62541/util.h>
-#include <open62541/plugin/nodestore_default.h>
-#include "ziptree.h"
 #include "check.h"
+#include "ziptree.h"
 
 /* container_of */
 #define container_of(ptr, type, member) \

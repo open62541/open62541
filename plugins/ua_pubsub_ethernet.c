@@ -5,17 +5,15 @@
  *   Copyright 2018 (c) Kontron Europe GmbH (Author: Rudolf Hoyler)
  */
 
-#include "ua_plugin_network.h"
-#include "ua_log_stdout.h"
-#include "ua_util.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/util.h>
 
-#include <netinet/ether.h>
 #include <linux/if_packet.h>
-
-#include "ua_network_pubsub_ethernet.h"
+#include <netinet/ether.h>
 
 #ifndef ETHERTYPE_UADP
-#define ETHERTYPE_UADP  0xb62c
+#define ETHERTYPE_UADP 0xb62c
 #endif
 
 /* Ethernet network layer specific internal data */

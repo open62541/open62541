@@ -1,19 +1,21 @@
-#include "ua_types.h"
-#include "ua_plugin_pki.h"
-#include "ua_securitypolicies.h"
-#include "ua_securitypolicy_mbedtls_common.h"
+#include <open62541/plugin/securitypolicy.h>
 
 #ifdef UA_ENABLE_ENCRYPTION
 
+#include <open62541/plugin/pki.h>
+#include <open62541/types.h>
+
+#include "ua_securitypolicy_mbedtls_common.h"
+
 #include <mbedtls/aes.h>
-#include <mbedtls/md.h>
-#include <mbedtls/x509_crt.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
 #include <mbedtls/error.h>
-#include <mbedtls/version.h>
+#include <mbedtls/md.h>
 #include <mbedtls/sha1.h>
+#include <mbedtls/version.h>
+#include <mbedtls/x509_crt.h>
 
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {

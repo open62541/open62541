@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <check.h>
 #include <open62541/types.h>
 
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
+
+#include <check.h>
 
 UA_ByteString *buffers;
 size_t bufIndex;

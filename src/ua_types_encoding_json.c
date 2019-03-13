@@ -7,12 +7,14 @@
  */
 
 #include "ua_types_encoding_json.h"
-#include "ua_types_encoding_binary.h"
+
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
-#include <math.h>
+#include "ua_types_encoding_binary.h"
+
 #include <float.h>
+#include <math.h>
 
 #ifdef UA_ENABLE_CUSTOM_LIBC
 #include "../deps/musl/floatscan.h"

@@ -11,13 +11,13 @@
 #ifndef UA_SERVER_CONFIG_H_
 #define UA_SERVER_CONFIG_H_
 
-#include <open62541/server.h>
+#include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/pki.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/server.h>
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>

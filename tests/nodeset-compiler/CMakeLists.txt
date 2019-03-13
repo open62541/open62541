@@ -1,4 +1,3 @@
-file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated/tests")
 include_directories("${PROJECT_BINARY_DIR}/src_generated/tests")
 
 ###############################################
@@ -7,82 +6,58 @@ include_directories("${PROJECT_BINARY_DIR}/src_generated/tests")
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
-    # Generate types for DI namespace
-    ua_generate_datatypes(
-        NAME "ua_types_di"
-        TARGET_SUFFIX "tests-types-di"
-        NAMESPACE_IDX 2
-        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
-        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
-        FILES_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
-    )
+    set(GENERATE_OUTPUT_DIR "${CMAKE_BINARY_DIR}/src_generated/tests")
 
-    # Generate types for ADI namespace
-    ua_generate_datatypes(
-        NAME "ua_types_adi"
-        TARGET_SUFFIX "tests-types-adi"
-        NAMESPACE_IDX 3
-        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
-        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/OpcUaAdiModel.csv"
-        FILES_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd"
-    )
-
-    # generate DI namespace
-    ua_generate_nodeset(
+    # Generate types and namespace for DI
+    ua_generate_nodeset_and_datatypes(
         NAME "tests-di"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
-        TYPES_ARRAY "UA_TYPES_DI"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv"
+        FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd"
+        NAMESPACE_IDX 2
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
-        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
-        DEPENDS_TYPES "UA_TYPES"
-        DEPENDS_NS    "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
-        DEPENDS_TARGET "open62541-generator-tests-types-di"
     )
 
-    # generate PLCopen namespace which is using DI
-    ua_generate_nodeset(
+    # Generate types and namespace for ADI
+    ua_generate_nodeset_and_datatypes(
         NAME "tests-adi"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.NodeSet2.xml"
-        TYPES_ARRAY "UA_TYPES_ADI"
+        FILE_CSV "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/OpcUaAdiModel.csv"
+        FILE_BSD "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd"
+        NAMESPACE_IDX 3
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/ADI/Opc.Ua.Adi.NodeSet2.xml"
+        DEPENDS "tests-di"
         INTERNAL
-        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
-        DEPENDS_TYPES
-        "UA_TYPES" "UA_TYPES_DI"
-        DEPENDS_NS
-        "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
-        "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
-        DEPENDS_TARGET "open62541-generator-ns-tests-di" "open62541-generator-tests-types-adi"
-    )
-
-
-    # generate PLCopen namespace which is using DI
-    ua_generate_nodeset(
-        NAME "tests-plc"
-        FILE "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
-        INTERNAL
-        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
-        DEPENDS_TYPES
-        "UA_TYPES" "UA_TYPES_DI"
-        DEPENDS_NS
-        "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
-        "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"
-        DEPENDS_TARGET "open62541-generator-ns-tests-di"
     )
 
     add_executable(check_nodeset_compiler_adi check_nodeset_compiler_adi.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_di_generated.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_di.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_adi_generated.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_adi.c
+                   ${UA_NODESET_TESTS_DI_SOURCES}
+                   ${UA_NODESET_TESTS_ADI_SOURCES}
+                   ${UA_TYPES_TESTS_DI_SOURCES}
+                   ${UA_TYPES_TESTS_ADI_SOURCES}
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_adi open62541-generator-ns-tests-adi)
     target_link_libraries(check_nodeset_compiler_adi ${LIBS})
     add_test_valgrind(nodeset_compiler_adi ${TESTS_BINARY_DIR}/check_nodeset_compiler_adi)
 
+
+    # generate PLCopen namespace which is using DI
+    ua_generate_nodeset_and_datatypes(
+        NAME "tests-plc"
+        # PLCopen does not define custom types. Only generate the nodeset
+        FILE_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml"
+        # PLCopen depends on the di nodeset, which must be generated before
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        DEPENDS "tests-di"
+        INTERNAL
+    )
+
     add_executable(check_nodeset_compiler_plc check_nodeset_compiler_plc.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_di_generated.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_di.c
-                   ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_plc.c
+                   ${UA_NODESET_TESTS_DI_SOURCES}
+                   ${UA_NODESET_TESTS_PLC_SOURCES}
+                   ${UA_TYPES_TESTS_DI_SOURCES}
+                   ${UA_TYPES_TESTS_PLC_SOURCES}
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
     target_link_libraries(check_nodeset_compiler_plc ${LIBS})
@@ -93,30 +68,21 @@ endif()
 
 #generate testnodeset
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    
-    ua_generate_datatypes(
-        NAME "ua_types_testnodeset"
-        TARGET_SUFFIX "tests-types-testnodeset"
-        NAMESPACE_IDX 2
-        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
-        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
-        FILES_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
-    )
-   
-    ua_generate_nodeset(
+
+
+    # Generate types and namespace for ADI
+    ua_generate_nodeset_and_datatypes(
         NAME "tests-testnodeset"
-        FILE "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
-        TYPES_ARRAY "UA_TYPES_TESTNODESET"
-        INTERNAL
-        OUTPUT_DIR "${PROJECT_BINARY_DIR}/src_generated/tests"
-        DEPENDS_TYPES "UA_TYPES"
-        DEPENDS_NS    "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml"
-        DEPENDS_TARGET "open62541-generator-tests-types-testnodeset"
-    )   
+        FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
+        FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
+        NAMESPACE_IDX 2
+        OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+        FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
+    )
 
     add_executable(check_nodeset_compiler_testnodeset check_nodeset_compiler_testnodeset.c
-                ${PROJECT_BINARY_DIR}/src_generated/tests/ua_namespace_tests_testnodeset.c
-                ${PROJECT_BINARY_DIR}/src_generated/tests/ua_types_testnodeset_generated.c
+                   ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
+                   ${UA_TYPES_TESTS_TESTNODESET_SOURCES}
                 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
     target_link_libraries(check_nodeset_compiler_testnodeset ${LIBS})

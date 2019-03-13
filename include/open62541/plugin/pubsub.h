@@ -86,7 +86,7 @@ struct UA_PubSubChannel {
 
 typedef struct {
     UA_String transportProfileUri;
-    UA_PubSubChannel * (*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
+    UA_PubSubChannel *(*createPubSubChannel)(UA_PubSubConnectionConfig *connectionConfig);
 } UA_PubSubTransportLayer;
 
 /**

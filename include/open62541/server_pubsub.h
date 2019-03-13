@@ -241,7 +241,7 @@ typedef struct {
         //events need other config later
     } field;
 } UA_DataSetFieldConfig;
-    
+
 void UA_EXPORT
 UA_DataSetFieldConfig_deleteMembers(UA_DataSetFieldConfig *dataSetFieldConfig);
 
@@ -366,7 +366,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
 #endif /* UA_ENABLE_PUBSUB */
-    
+
 _UA_END_DECLS
 
 #endif /* UA_SERVER_PUBSUB_H */

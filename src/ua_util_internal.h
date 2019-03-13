@@ -15,8 +15,8 @@
 #define UA_UTIL_H_
 
 #define UA_INTERNAL
-#include <open62541/util.h>
 #include <open62541/types.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 

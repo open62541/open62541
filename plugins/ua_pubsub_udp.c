@@ -6,11 +6,11 @@
  * Copyright 2018 (c) Jose Cabral, fortiss GmbH
  */
 
-#include <open62541/util.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/util.h>
 
-//UDP multicast network layer specific internal data
+// UDP multicast network layer specific internal data
 typedef struct {
     int ai_family;                        //Protocol family for socket.  IPv4/IPv6
     struct sockaddr_storage *ai_addr;     //https://msdn.microsoft.com/de-de/library/windows/desktop/ms740496(v=vs.85).aspx

@@ -17,9 +17,9 @@
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
 
-#include <open62541/types.h>
-#include <open62541/nodeids.h>
 #include <open62541/client_config.h>
+#include <open62541/nodeids.h>
+#include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 

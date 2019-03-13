@@ -9,12 +9,14 @@
  */
 
 #define UA_INTERNAL
-#include <open62541/util.h>
-#include <open62541/plugin/log_stdout.h>
 #include "ua_network_tcp.h"
+
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/util.h>
+
 #include "open62541_queue.h"
 
-#include <string.h> // memset
+#include <string.h>  // memset
 
 #ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL 0

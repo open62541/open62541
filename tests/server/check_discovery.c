@@ -5,12 +5,14 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
+
 #include "server/ua_server_internal.h"
 #include "ua_network_tcp.h"
-#include "testing_clock.h"
-#include "thread_wrapper.h"
 
 #include <fcntl.h>
+
+#include "testing_clock.h"
+#include "thread_wrapper.h"
 #ifndef WIN32
 #include <sys/stat.h>
 #endif

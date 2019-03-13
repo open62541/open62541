@@ -10,8 +10,8 @@
  *
  * This example is very similar to the tutorial_client_firststeps.c. */
 
-#include <open62541/client_subscriptions.h>
 #include <open62541/client_config_default.h>
+#include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 
 #include <signal.h>

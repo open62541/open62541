@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -31,7 +31,7 @@ struct UA_AccessControl {
     /* Supported login mechanisms. The server endpoints are created from here. */
     size_t userTokenPoliciesSize;
     UA_UserTokenPolicy *userTokenPolicies;
-    
+
     /* Authenticate a session. The session context is attached to the session
      * and later passed into the node-based access control callbacks. The new
      * session is rejected if a StatusCode other than UA_STATUSCODE_GOOD is

@@ -15,10 +15,12 @@
  *    Copyright 2017 (c) Henrik Norrman
  */
 
+#include "ua_types_encoding_binary.h"
+
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
+
 #include "ua_util_internal.h"
-#include "ua_types_encoding_binary.h"
 
 /**
  * Type Encoding and Decoding

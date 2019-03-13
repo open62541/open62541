@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_client_internal.h"
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_handling.h>
 #include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated_encoding_binary.h>
+
+#include "ua_client_internal.h"
 
 #define UA_MINMESSAGESIZE                8192
 #define UA_SESSION_LOCALNONCELENGTH      32
