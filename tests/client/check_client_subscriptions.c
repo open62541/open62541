@@ -59,23 +59,28 @@ dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
 }
 
 static void createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId, void *r) {
-    UA_CreateSubscriptionResponse_copy(r, userdata);
+    UA_CreateSubscriptionResponse_copy((const UA_CreateSubscriptionResponse *)r,
+                                       (UA_CreateSubscriptionResponse *)userdata);
 }
 
 static void modifySubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId, void *r) {
-    UA_ModifySubscriptionResponse_copy(r, userdata);
+    UA_ModifySubscriptionResponse_copy((const UA_ModifySubscriptionResponse *)r,
+                                       (UA_ModifySubscriptionResponse *)userdata);
 }
 
 static void createDataChangesCallback(UA_Client *client, void *userdata, UA_UInt32 requestId, void *r) {
-    UA_CreateMonitoredItemsResponse_copy(r, userdata);
+    UA_CreateMonitoredItemsResponse_copy((const UA_CreateMonitoredItemsResponse *)r,
+                                         (UA_CreateMonitoredItemsResponse *)userdata);
 }
 
 static void deleteMonitoredItemsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId, void *r) {
-    UA_DeleteMonitoredItemsResponse_copy(r, userdata);
+    UA_DeleteMonitoredItemsResponse_copy((const UA_DeleteMonitoredItemsResponse *)r,
+                                         (UA_DeleteMonitoredItemsResponse *)userdata);
 }
 
 static void deleteSubscriptionsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId, void *r) {
-    UA_DeleteSubscriptionsResponse_copy(r, userdata);
+    UA_DeleteSubscriptionsResponse_copy((const UA_DeleteSubscriptionsResponse *)r,
+                                        (UA_DeleteSubscriptionsResponse *)userdata);
 }
 
 START_TEST(Client_subscription) {
