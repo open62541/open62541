@@ -324,7 +324,8 @@ cmake \
     -DCMAKE_INSTALL_PREFIX=${TRAVIS_BUILD_DIR}/open62541-linux64 \
     -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
     -DUA_BUILD_EXAMPLES=OFF \
-    -DUA_ENABLE_AMALGAMATION=ON ..
+    -DUA_ENABLE_AMALGAMATION=ON \
+    -DUA_ENABLE_HISTORIZING=ON  ..
 make -j
 cp open62541.h ../.. # copy single file-release
 cp open62541.c ../.. # copy single file-release
@@ -345,18 +346,6 @@ make -j
 if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm build -rf
 echo -en 'travis_fold:end:script.build.shared_libs\\r'
-
-echo "Compile as shared lib version with amalgamation" && echo -en 'travis_fold:start:script.build.shared_libs_amalgamate\\r'
-mkdir -p build && cd build
-cmake \
-    -DBUILD_SHARED_LIBS=ON \
-    -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-    -DUA_BUILD_EXAMPLES=OFF \
-    -DUA_ENABLE_AMALGAMATION=ON ..
-make -j
-if [ $? -ne 0 ] ; then exit 1 ; fi
-cd .. && rm build -rf
-echo -en 'travis_fold:end:script.build.shared_libs_amalgamate\\r'
 
 if [ "$CC" != "tcc" ]; then
     echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'

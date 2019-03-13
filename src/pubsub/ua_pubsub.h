@@ -11,8 +11,9 @@
 #include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
-#include "ua_pubsub_networkmessage.h"
+
 #include "open62541_queue.h"
+#include "ua_pubsub_networkmessage.h"
 
 _UA_BEGIN_DECLS
 

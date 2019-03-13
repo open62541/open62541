@@ -15,6 +15,7 @@
 #define UA_DISCOVERY_MANAGER_H_
 
 #include <open62541/server.h>
+
 #include "open62541_queue.h"
 
 _UA_BEGIN_DECLS

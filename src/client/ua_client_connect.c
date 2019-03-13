@@ -9,11 +9,12 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  */
 
-#include "ua_client_internal.h"
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_handling.h>
 #include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated_encoding_binary.h>
+
+#include "ua_client_internal.h"
 
 /* Size are refered in bytes */
 #define UA_MINMESSAGESIZE                8192

@@ -14,20 +14,23 @@
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <sys/stat.h>
-#include <server/ua_server_internal.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <open62541/types.h>
+#include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
-#include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
+#include <open62541/types.h>
+
 #include "client/ua_client_internal.h"
+#include <server/ua_server_internal.h>
+
+#include <dirent.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <sys/stat.h>
 
 UA_Server *server;
 UA_ServerConfig *config;

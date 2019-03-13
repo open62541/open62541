@@ -13,10 +13,11 @@
 #define UA_SESSION_MANAGER_H_
 
 #include <open62541/server.h>
-#include "ua_workqueue.h"
-#include "ua_util_internal.h"
-#include "ua_session.h"
+
 #include "open62541_queue.h"
+#include "ua_session.h"
+#include "ua_util_internal.h"
+#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 

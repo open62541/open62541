@@ -24,7 +24,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-    
+
 #include <open62541/types.h>
 
 UA_UInt16 itoaUnsigned(UA_UInt64 value, char* buffer, UA_Byte base);

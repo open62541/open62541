@@ -518,6 +518,13 @@ else()
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture.h)
 endif()
 
+
+if(UA_ENABLE_HISTORIZING)
+    # Historizing needs to be included before server_config.h
+    set(historizing_exported_headers
+         ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h)
+endif()
+
 set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h
@@ -529,7 +536,6 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h
@@ -538,6 +544,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
+                     ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
@@ -621,7 +628,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c)
 
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydatabase_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pki_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
@@ -639,8 +645,8 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
 )
 
 if(UA_GENERATED_NAMESPACE_ZERO)
-    list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/ua_namespace0.h)
-    list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/ua_namespace0.c)
+    list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
+    list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
 endif()
 
 list(APPEND default_plugin_headers
@@ -652,14 +658,19 @@ list(APPEND default_plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 
 if(UA_ENABLE_HISTORIZING)
+
+    list(APPEND default_plugin_headers
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_backend.h
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_gathering.h
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_database_default.h
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_gathering_default.h
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_backend_memory.h
+         )
     list(APPEND default_plugin_sources
-         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.h
-         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.h
-         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_backend.h
-         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_plugin_history_data_gathering.h
-         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabackend_memory.c
-         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatagathering_default.c
-         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_historydatabase_default.c)
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_gathering_default.c
+         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_database_default.c
+         )
 endif()
 
 if(UA_ENABLE_DISCOVERY)
@@ -668,11 +679,11 @@ if(UA_ENABLE_DISCOVERY)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.h)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
-        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/ua_pubsub_ethernet.h)
-        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/networking/ua_pubsub_ethernet.c)
+        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
+        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
     endif()
 endif()
 
@@ -881,7 +892,7 @@ if(UA_PACK_DEBIAN OR (NOT "$ENV{APPVEYOR}" STREQUAL "") OR (
             (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_C_COMPILER_VERSION VERSION_LESS 7.0))
         )
    ))
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
 endif()
 
 #####################
@@ -970,9 +981,8 @@ else()
                                "${PROJECT_BINARY_DIR}/src_generated")
 
     # Private includes
-    include_directories_private("${PROJECT_BINARY_DIR}"
-                                "${PROJECT_SOURCE_DIR}/deps"
-                                "${PROJECT_BINARY_DIR}/src_generated")
+    include_directories_private("${PROJECT_BINARY_DIR}")
+
     if(UA_ENABLE_ENCRYPTION)
         include_directories_private(${MBEDTLS_INCLUDE_DIRS})
     endif()
@@ -982,15 +992,6 @@ else()
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
     endif()
 
-    if(UA_ENABLE_HISTORIZING)
-        include_directories_public("${PROJECT_SOURCE_DIR}/plugins/historydata")
-    endif()
-
-    if(UA_ENABLE_PUBSUB)
-        include_directories_public("${PROJECT_SOURCE_DIR}/plugins/networking"
-                                   "${PROJECT_SOURCE_DIR}/src/pubsub"
-                                   "${PROJECT_BINARY_DIR}")
-    endif()
 endif()
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build

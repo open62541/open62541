@@ -4,16 +4,16 @@
 #ifdef UA_ENABLE_AMALGAMATION
 #include "open62541.h"
 #else
-#include "ua_server.h"
-#include "ua_log_stdout.h"
-#include "ua_config_default.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 #endif
+
+#include "open62541/namespace_di_generated.h"
+#include "open62541/namespace_plc_generated.h"
 
 #include <signal.h>
 #include <stdlib.h>
-
-#include "ua_namespace_di.h"
-#include "ua_namespace_plc.h"
 
 UA_Boolean running = true;
 
@@ -30,14 +30,14 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new(config);
 
     /* create nodes from nodeset */
-    UA_StatusCode retval = ua_namespace_di(server);
+    UA_StatusCode retval = namespace_di_generated(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the DI namespace failed. Please check previous error output.");
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
         return EXIT_FAILURE;
     }
-    retval |= ua_namespace_plc(server);
+    retval |= namespace_plc_generated(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the PLCopen namespace failed. Please check previous error output.");
         UA_Server_delete(server);

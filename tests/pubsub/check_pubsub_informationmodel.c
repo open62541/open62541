@@ -5,16 +5,19 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <string.h>
-#include <math.h>
-#include "ua_types.h"
-#include "ua_server_pubsub.h"
-#include "src_generated/ua_types_generated.h"
-#include "ua_network_pubsub_udp.h"
+#include <open62541/plugin/pubsub.h>
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
+
 #include "ua_server_internal.h"
+
+#include <math.h>
+#include <string.h>
+
 #include "check.h"
-#include "ua_plugin_pubsub.h"
-#include "ua_config_default.h"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;

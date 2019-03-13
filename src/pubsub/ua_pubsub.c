@@ -16,6 +16,10 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
+#include "ua_types_encoding_binary.h"
+#endif
+
 #define UA_MAX_STACKBUF 512 /* Max size of network messages on the stack */
 
 /* Forward declaration */

@@ -9,6 +9,7 @@
 #define UA_PUBSUB_MANAGER_H_
 
 #include <open62541/server_pubsub.h>
+
 #include "ua_pubsub.h"
 
 _UA_BEGIN_DECLS

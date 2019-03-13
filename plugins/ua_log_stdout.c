@@ -5,9 +5,10 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
-#include <stdio.h>
-#include <open62541/types.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/types.h>
+
+#include <stdio.h>
 
 #ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>

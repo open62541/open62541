@@ -11,14 +11,16 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <open62541/plugin/securitypolicy.h>
-#include <open62541/types_generated_handling.h>
-#include <open62541/types_generated_encoding_binary.h>
-#include <open62541/transport_generated_handling.h>
-#include <open62541/transport_generated_encoding_binary.h>
-#include "ua_util_internal.h"
 #include "ua_securechannel.h"
+
+#include <open62541/plugin/securitypolicy.h>
+#include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/transport_generated_handling.h>
+#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/types_generated_handling.h>
+
 #include "ua_types_encoding_binary.h"
+#include "ua_util_internal.h"
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffff
 #define UA_BITMASK_CHUNKTYPE 0xff000000

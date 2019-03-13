@@ -1,7 +1,7 @@
 #ifndef BACKEND_H
 #define BACKEND_H
 
-#include "ua_plugin_history_data_backend.h"
+#include <open62541/plugin/historydata/history_data_backend.h>
 
 struct tupel {
     size_t index;

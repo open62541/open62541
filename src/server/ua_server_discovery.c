@@ -7,6 +7,7 @@
  */
 
 #include <open62541/client.h>
+
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_DISCOVERY

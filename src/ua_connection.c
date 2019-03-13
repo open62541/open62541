@@ -10,13 +10,14 @@
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  */
 
+#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/types_generated_encoding_binary.h>
 #include <open62541/types_generated_handling.h>
-#include <open62541/transport_generated_encoding_binary.h>
-#include "ua_util_internal.h"
+
 #include "ua_connection_internal.h"
-#include "ua_types_encoding_binary.h"
 #include "ua_securechannel.h"
+#include "ua_types_encoding_binary.h"
+#include "ua_util_internal.h"
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteChunk);

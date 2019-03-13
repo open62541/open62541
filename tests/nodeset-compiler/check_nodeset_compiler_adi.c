@@ -2,13 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_server.h"
-#include "ua_config_default.h"
-
-#include "tests/ua_namespace_tests_di.h"
-#include "tests/ua_namespace_tests_adi.h"
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
 #include "check.h"
+#include "namespace_tests_adi_generated.h"
+#include "namespace_tests_di_generated.h"
 #include "testing_clock.h"
 
 UA_Server *server = NULL;
@@ -28,13 +27,13 @@ static void teardown(void) {
 
 
 START_TEST(Server_addDiNodeset) {
-    UA_StatusCode retval = ua_namespace_tests_di(server);
+    UA_StatusCode retval = namespace_tests_di_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(Server_addAdiNodeset) {
-    UA_StatusCode retval = ua_namespace_tests_adi(server);
+    UA_StatusCode retval = namespace_tests_adi_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
@@ -10,9 +10,9 @@
 #ifndef UA_PLUGIN_SECURITYPOLICY_H_
 #define UA_PLUGIN_SECURITYPOLICY_H_
 
-#include <open62541/server.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
+#include <open62541/server.h>
 
 _UA_BEGIN_DECLS
 
@@ -356,7 +356,7 @@ struct UA_SecurityPolicy {
     const UA_Logger *logger;
 
     /*Updates the ApplicationInstanceCertificate and the corresponding
-    * private key at runtime. */
+     * private key at runtime. */
     UA_StatusCode (*updateCertificateAndPrivateKey)(UA_SecurityPolicy *policy,
                                                     const UA_ByteString newCertificate,
                                                     const UA_ByteString newPrivateKey);

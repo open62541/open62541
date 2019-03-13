@@ -7,7 +7,7 @@
 #ifndef UA_SECURITYPOLICY_MBEDTLS_COMMON_H_
 #define UA_SECURITYPOLICY_MBEDTLS_COMMON_H_
 
-#include "ua_plugin_securitypolicy.h"
+#include <open62541/plugin/securitypolicy.h>
 
 #ifdef UA_ENABLE_ENCRYPTION
 

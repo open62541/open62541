@@ -5,9 +5,11 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include <string.h>
 #include <open62541/client_subscriptions.h>
-#include "ua_historydatagathering_default.h"
+#include <open62541/plugin/historydata/history_data_gathering_default.h>
+#include <open62541/plugin/historydata/history_database_default.h>
+
+#include <string.h>
 
 typedef struct {
     UA_NodeId nodeId;

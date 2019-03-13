@@ -4,9 +4,11 @@
 
 #ifndef __clang_analyzer__
 
-#include <check.h>
-#include <open62541/plugin/log_stdout.h>
 #include "testing_policy.h"
+
+#include <open62541/plugin/log_stdout.h>
+
+#include <check.h>
 
 #define SET_CALLED(func) funcsCalled->func = true
 

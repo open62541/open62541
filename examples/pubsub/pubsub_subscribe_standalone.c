@@ -10,16 +10,18 @@
  * PubSub subscriber API.
  */
 
-#include <signal.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/pubsub.h>
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
 #include "ua_pubsub_networkmessage.h"
-#include "ua_log_stdout.h"
-#include "ua_config_default.h"
-#include "ua_pubsub.h"
-#include "ua_network_pubsub_udp.h"
+
+#include <signal.h>
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
 #include "ua_network_pubsub_ethernet.h"
 #endif
-#include "src_generated/ua_types_generated.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {

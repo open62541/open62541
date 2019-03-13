@@ -15,14 +15,15 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
-#include <open62541/types_generated_handling.h>
-#include <open62541/types_generated_encoding_binary.h>
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_handling.h>
 #include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/transport_generated_handling.h>
+#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/types_generated_handling.h>
+
+#include "ua_securechannel_manager.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
