@@ -280,26 +280,26 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
                           UA_NodeId *fieldIdentifier) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-	UA_DataSetFieldResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, {0, 0}};
+    UA_DataSetFieldResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, {0, 0}};
     if(!fieldConfig)
         return result;
 
     UA_PublishedDataSet *currentDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet);
-	if(currentDataSet == NULL){
-		result.result = UA_STATUSCODE_BADNOTFOUND;
+    if(currentDataSet == NULL){
+        result.result = UA_STATUSCODE_BADNOTFOUND;
         return result;
-	}
+    }
 
-	if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-		result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
+    if(currentDataSet->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
+        result.result = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return result;
-	}
+    }
 
     UA_DataSetField *newField = (UA_DataSetField *) UA_calloc(1, sizeof(UA_DataSetField));
-	if(!newField){
-		result.result = UA_STATUSCODE_BADINTERNALERROR;
+    if(!newField){
+        result.result = UA_STATUSCODE_BADINTERNALERROR;
         return result;
-	}
+    }
 
     UA_DataSetFieldConfig tmpFieldConfig;
     retVal |= UA_DataSetFieldConfig_copy(fieldConfig, &tmpFieldConfig);
@@ -315,9 +315,9 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     if(newField->config.field.variable.promotedField)
         currentDataSet->promotedFieldsCount++;
     currentDataSet->fieldSize++;
-	result.result = retVal;
-	result.configurationVersion.majorVersion = currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
-	result.configurationVersion.minorVersion = currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
+    result.result = retVal;
+    result.configurationVersion.majorVersion = currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
+    result.configurationVersion.minorVersion = currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
     return result;
 }
 
@@ -325,7 +325,7 @@ UA_DataSetFieldResult
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_DataSetField *currentField = UA_DataSetField_findDSFbyId(server, dsf);
     UA_DataSetFieldResult result = {UA_STATUSCODE_BADNOTFOUND, {0, 0}};
-	if(!currentField)
+    if(!currentField)
         return result;
 
     UA_PublishedDataSet *parentPublishedDataSet =
@@ -345,9 +345,9 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     LIST_REMOVE(currentField, listEntry);
     UA_free(currentField);
 
-	result.result = UA_STATUSCODE_GOOD;
-	result.configurationVersion.majorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion;
-	result.configurationVersion.minorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.minorVersion;
+    result.result = UA_STATUSCODE_GOOD;
+    result.configurationVersion.majorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion;
+    result.configurationVersion.minorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.minorVersion;
     return result;
 }
 

@@ -199,21 +199,21 @@ detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataVal
                 return UA_STATUSCODE_GOOD;
         }
 #ifdef UA_ENABLE_DA
-		else if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
-			UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
-			UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
-			if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) { //if branch is not entried, property has been found
-				  UA_BrowsePathResult_deleteMembers(&bpr);
-				  return UA_STATUSCODE_GOOD;
-			}
-			const UA_VariableNode* node = (const UA_VariableNode*) UA_Nodestore_get(server, &bpr.targets->targetId.nodeId);
-			UA_Range* euRange = (UA_Range*) node->value.data.value.value.data;
-			if(!updateNeededForFilteredPercentValue(&value->value, &mon->lastValue,
-			                                        mon->filter.dataChangeFilter.deadbandValue, euRange)) {
-				if(!updateNeededForStatusCode(value, mon)) //when same value, but different status code is written
-				  return UA_STATUSCODE_GOOD;
-			}
-		}
+        else if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
+            UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
+            UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
+            if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) { //if branch is not entried, property has been found
+                  UA_BrowsePathResult_deleteMembers(&bpr);
+                  return UA_STATUSCODE_GOOD;
+            }
+            const UA_VariableNode* node = (const UA_VariableNode*) UA_Nodestore_get(server, &bpr.targets->targetId.nodeId);
+            UA_Range* euRange = (UA_Range*) node->value.data.value.value.data;
+            if(!updateNeededForFilteredPercentValue(&value->value, &mon->lastValue,
+                                                    mon->filter.dataChangeFilter.deadbandValue, euRange)) {
+                if(!updateNeededForStatusCode(value, mon)) //when same value, but different status code is written
+                  return UA_STATUSCODE_GOOD;
+            }
+        }
 #endif
     }
 

@@ -102,7 +102,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_Variant value;
     UA_Variant_init(&value);
     UA_NodeId myNodeId;
-	UA_WriterGroup *writerGroup = NULL;
+    UA_WriterGroup *writerGroup = NULL;
     UA_PubSubConnection *pubSubConnection = NULL;
     UA_PublishedDataSet *publishedDataSet = NULL;
     UA_PublishedVariableDataType *pvd = NULL;
@@ -176,7 +176,7 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         const UA_NumericRange *range, const UA_DataValue *data){
     UA_Variant value;
     UA_NodeId myNodeId;
-	UA_WriterGroup *writerGroup = NULL;
+    UA_WriterGroup *writerGroup = NULL;
     switch(((UA_NodePropertyContext *) nodeContext)->parentCalssifier){
         case UA_NS0ID_PUBSUBCONNECTIONTYPE:
             //no runtime writable attributes
