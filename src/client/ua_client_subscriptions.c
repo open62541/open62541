@@ -339,6 +339,8 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
     CustomCallback *cc = __Subscriptions_delete_prepare(client, &request, &retval);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
+    cc->userCallback = callback;
+    cc->userData = userdata;
 
     return __UA_Client_AsyncService(client, &request,
                                     &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
