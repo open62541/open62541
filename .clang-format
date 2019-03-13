@@ -2,9 +2,16 @@
 Language:        Cpp
 BasedOnStyle:    llvm
 IndentWidth:     4
-ColumnLimit:     120
+ColumnLimit:     90
 SpacesBeforeTrailingComments: 2
-#SpaceBeforeRangeBasedForLoopColon: false
-#ForEachMacros:   [ foreach, LIST_FOREACH, LIST_FOREACH_SAFE ]
+ForEachMacros:   [ foreach, LIST_FOREACH, LIST_FOREACH_SAFE ]
 DisableFormat:   false
 
+# No space between if and parentheses
+SpaceBeforeParens: Never
+
+# Format function declarations
+BinPackParameters: true
+AllowAllParametersOfDeclarationOnNextLine: true
+AlignAfterOpenBracket: Align
+AlwaysBreakAfterReturnType: All

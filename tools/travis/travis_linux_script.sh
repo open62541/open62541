@@ -109,6 +109,9 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
     # We want to get colored diff output into the variable
     git config color.diff always
 
+    # Ignore files in the deps directory diff by resetting them to master
+    git diff --name-only $TRAVIS_BRANCH | grep 'deps/*' | xargs git checkout $TRAVIS_BRANCH --
+
     # clang-format the diff to the target branch of the PR
     difference="$($LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH)"
 
