@@ -119,6 +119,10 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
         echo "====== clang-format did not find any issues. Well done! ======"
         exit 0
     fi
+    if ! case $difference in *"clang-format did not modify any files"*) false;; esac; then
+        echo "====== clang-format did not find any issues. Well done! ======"
+        exit 0
+    fi
 
     echo "====== clang-format Format Errors ======"
     echo -e "Please fix the following issues. \n\nYou can also copy the output between the lines here and save it as file 'fixup.patch'.\nThen apply it with 'git apply fixup.patch'\n\n"
