@@ -662,8 +662,12 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 if(UA_ENABLE_ENCRYPTION)
+    list(APPEND default_plugin_headers
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.h)
     list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
          ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
          ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
