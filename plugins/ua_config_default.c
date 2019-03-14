@@ -548,7 +548,7 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
 
     /* Allocate the SecurityPolicies */
     conf->securityPoliciesSize = 0;
-    conf->securityPolicies = (UA_SecurityPolicy *)UA_malloc(sizeof(UA_SecurityPolicy) * 3);
+    conf->securityPolicies = (UA_SecurityPolicy *)UA_malloc(sizeof(UA_SecurityPolicy) * 4);
     if(!conf->securityPolicies) {
        UA_ServerConfig_delete(conf);
        return NULL;
@@ -578,7 +578,15 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
     }
     ++conf->securityPoliciesSize;
     retval =
-        UA_SecurityPolicy_Basic256Sha256(&conf->securityPolicies[2], &conf->certificateVerification,
+        UA_SecurityPolicy_Basic256(&conf->securityPolicies[2], &conf->certificateVerification,
+                                   localCertificate, localPrivateKey, &conf->logger);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+    ++conf->securityPoliciesSize;
+    retval =
+        UA_SecurityPolicy_Basic256Sha256(&conf->securityPolicies[3], &conf->certificateVerification,
                                          localCertificate, localPrivateKey, &conf->logger);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
@@ -587,7 +595,7 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
 
     /* Allocate the endpoints */
     conf->endpointsSize = 0;
-    conf->endpoints = (UA_EndpointDescription *)UA_malloc(sizeof(UA_EndpointDescription) * 5);
+    conf->endpoints = (UA_EndpointDescription *)UA_malloc(sizeof(UA_EndpointDescription) * 7);
     if(!conf->endpoints) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -627,6 +635,22 @@ UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
     }
 
     retval = createEndpoint(conf, &conf->endpoints[conf->endpointsSize], &conf->securityPolicies[2],
+                            UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    ++conf->endpointsSize;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = createEndpoint(conf, &conf->endpoints[conf->endpointsSize], &conf->securityPolicies[3],
+                            UA_MESSAGESECURITYMODE_SIGN);
+    ++conf->endpointsSize;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
+    retval = createEndpoint(conf, &conf->endpoints[conf->endpointsSize], &conf->securityPolicies[3],
                             UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
     ++conf->endpointsSize;
     if(retval != UA_STATUSCODE_GOOD) {
@@ -817,7 +841,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 
     /* Populate SecurityPolicies */
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
-        realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * 3);
+        realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * 4);
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
@@ -829,7 +853,14 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
         return retval;
     ++config->securityPoliciesSize;
 
-    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[2],
+    retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[2],
+                                        &config->certificateVerification,
+                                        localCertificate, privateKey, &config->logger);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    ++config->securityPoliciesSize;
+
+    retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[3],
                                               &config->certificateVerification,
                                               localCertificate, privateKey, &config->logger);
     if(retval != UA_STATUSCODE_GOOD)

@@ -62,10 +62,11 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 if(UA_ENABLE_ENCRYPTION)
-    set(test_plugin_sources ${test_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c)
-    set(test_plugin_sources ${test_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+  list(APPEND test_plugin_sources
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
