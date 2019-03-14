@@ -477,16 +477,10 @@ swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {
     *bufB = tmp;
 }
 
-static UA_StatusCode
-sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
-                                 const UA_ByteString *secret, const UA_ByteString *seed,
-                                 UA_ByteString *out) {
-    if(securityPolicy == NULL || secret == NULL || seed == NULL || out == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    Basic128Rsa15_PolicyContext *pc =
-        (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
-
+UA_StatusCode
+generateKey_sha1p(mbedtls_md_context_t *sha1MdContext,
+                  const UA_ByteString *secret, const UA_ByteString *seed,
+                  UA_ByteString *out) {
     size_t hashLen = 0;
     const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
     hashLen = (size_t)mbedtls_md_get_size(mdInfo);
@@ -509,7 +503,7 @@ sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
         ANext_and_seed.data
     };
 
-    md_hmac(&pc->sha1MdContext, secret, seed, A.data);
+    md_hmac(sha1MdContext, secret, seed, A.data);
 
     UA_StatusCode retval = 0;
     for(size_t offset = 0; offset < out->length; offset += hashLen) {
@@ -531,8 +525,8 @@ sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
             bufferAllocated = UA_TRUE;
         }
 
-        md_hmac(&pc->sha1MdContext, secret, &A_and_seed, outSegment.data);
-        md_hmac(&pc->sha1MdContext, secret, &A, ANext.data);
+        md_hmac(sha1MdContext, secret, &A_and_seed, outSegment.data);
+        md_hmac(sha1MdContext, secret, &A, ANext.data);
 
         if(retval != UA_STATUSCODE_GOOD) {
             if(bufferAllocated)
@@ -554,6 +548,19 @@ sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     UA_ByteString_deleteMembers(&A_and_seed);
     UA_ByteString_deleteMembers(&ANext_and_seed);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+sym_generateKey_sp_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
+                                 const UA_ByteString *secret, const UA_ByteString *seed,
+                                 UA_ByteString *out) {
+    if(securityPolicy == NULL || secret == NULL || seed == NULL || out == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Basic128Rsa15_PolicyContext *pc =
+        (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
+
+    return generateKey_sha1p(&pc->sha1MdContext, secret, seed, out);
 }
 
 static UA_StatusCode
