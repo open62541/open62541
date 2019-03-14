@@ -106,9 +106,6 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
     curl -Ls "https://raw.githubusercontent.com/llvm-mirror/clang/c510fac5695e904b43d5bf0feee31cc9550f110e/tools/clang-format/git-clang-format" -o "$LOCAL_PKG/bin/git-clang-format"
     chmod +x $LOCAL_PKG/bin/git-clang-format
 
-    # We want to get colored diff output into the variable
-    git config color.diff always
-
     # Ignore files in the deps directory diff by resetting them to master
     git diff --name-only $TRAVIS_BRANCH | grep 'deps/*' | xargs git checkout $TRAVIS_BRANCH --
 
@@ -125,10 +122,20 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
     fi
 
     echo "====== clang-format Format Errors ======"
-    echo -e "Please fix the following issues. \n\nYou can also copy the output between the lines here and save it as file 'fixup.patch'.\nThen apply it with 'git apply fixup.patch'\n\n"
-    echo -e "=============== COPY HERE - START =================\n"
-    echo "${difference}"
-    echo -e "\n============= COPY HERE - END ===================="
+
+    echo "Uploading the patch to a pastebin page ..."
+    pastebinUrl="$($LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH | curl -F 'sprunge=<-' http://sprunge.us)"
+
+    echo "Created a patch file under: $pastebinUrl"
+
+    echo "Please fix the following issues.\n\n"
+    echo "You can also use the following command to apply the diff to your source locally:\n-------------\n"
+    echo "curl -o format.patch $pastebinUrl && git apply format.patch\n-------------\n"
+    echo "=============== DIFFERENCE - START =================\n"
+    # We want to get colored diff output into the variable
+    git config color.diff always
+    $LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH
+    echo "\n============= DIFFERENCE - END ===================="
 
     echo -en 'travis_fold:start:script.clang-format\\r'
     exit 1
