@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ev
+set -e
 
 if [ -z ${LOCAL_PKG+x} ] || [ -z "$LOCAL_PKG" ]; then
     echo "LOCAL_PKG is not set. Aborting..."

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ev
+set -e
 
 # We only want to push the docs once, so we just take the travis run where MINGW=true which is only enabled once
 if [ "$MINGW" = "true" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ] && [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then
