@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ev
+set -e
 
 brew install check
 brew install --HEAD valgrind
