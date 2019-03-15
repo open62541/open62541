@@ -44,17 +44,21 @@ IncludeBlocks: Regroup
 
 IncludeCategories:
     # Public open62541 includes starting with <open62541/
-  - Regex:           '^((<|")(open62541)\/)'
-    Priority:        3
+  - Regex:           '^(<(open62541)\/)'
+    Priority:        10
+
+    # Public open62541 includes starting with "open62541/
+  - Regex:           '^("(open62541)\/)'
+    Priority:        20
 
     # Internal open62541 includes starting with "ua_" or "open62541_"
   - Regex:           '^((<|")(([[:alnum:]]+\/)?ua_|open62541_))'
-    Priority:        4
+    Priority:        30
 
     # All other system header
   - Regex:           '<[[:alnum:].]+>'
-    Priority:        5
+    Priority:        40
 
     # The rest
   - Regex:           '.*'
-    Priority:        6
+    Priority:        50
