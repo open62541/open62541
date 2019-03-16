@@ -247,6 +247,8 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
                                     &requestId);
 
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Receiving service response failed with error %s", UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
         return retval;
     }
@@ -544,6 +546,7 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
     UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
                                           "Transport/uatcp-uasc-uabinary");
 
+    UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Found %lu endpoints", (long unsigned)endpointArraySize);
     for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* Match Binary TransportProfile?
@@ -553,67 +556,99 @@ selectEndpoint(UA_Client *client, const UA_String endpointUrl) {
             continue;
 
         /* Valid SecurityMode? */
-        if(endpoint->securityMode < 1 || endpoint->securityMode > 3)
+        if(endpoint->securityMode < 1 || endpoint->securityMode > 3) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %lu: invalid security mode", (long unsigned)i);
             continue;
+        }
 
         /* Selected SecurityMode? */
         if(client->config.securityMode > 0 &&
-           client->config.securityMode != endpoint->securityMode)
+           client->config.securityMode != endpoint->securityMode) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %lu: security mode doesn't match", (long unsigned)i);
             continue;
+        }
 
         /* Matching SecurityPolicy? */
         if(client->config.securityPolicyUri.length > 0 &&
            !UA_String_equal(&client->config.securityPolicyUri,
-                            &endpoint->securityPolicyUri))
+                            &endpoint->securityPolicyUri)) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %lu: security policy doesn't match", (long unsigned)i);
             continue;
+        }
 
         /* SecurityPolicy available? */
-        if(!getSecurityPolicy(client, endpoint->securityPolicyUri))
+        if(!getSecurityPolicy(client, endpoint->securityPolicyUri)) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting endpoint %lu: security policy not available", (long unsigned)i);
             continue;
+        }
 
         endpointFound = true;
 
         /* Select a matching UserTokenPolicy inside the endpoint */
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Endpoint %lu has %lu user token policies", (long unsigned)i, (long unsigned)endpoint->userIdentityTokensSize);
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
 
             /* Usertokens also have a security policy... */
-            if(userToken->securityPolicyUri.length > 0 &&
-               !getSecurityPolicy(client, userToken->securityPolicyUri))
+            if (userToken->securityPolicyUri.length > 0 &&
+                !getSecurityPolicy(client, userToken->securityPolicyUri)) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu in endpoint %lu: security policy '%.*s' not available",
+                (long unsigned)j, (long unsigned)i,
+                (int)userToken->securityPolicyUri.length, userToken->securityPolicyUri.data);
                 continue;
+            }
 
-            if(userToken->tokenType > 3)
+            if(userToken->tokenType > 3) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu in endpoint %lu: invalid token type", (long unsigned)j, (long unsigned)i);
                 continue;
+            }
 
             /* Does the token type match the client configuration? */
-            if((userToken->tokenType == UA_USERTOKENTYPE_ANONYMOUS &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
-                client->config.userIdentityToken.content.decoded.type != NULL) ||
-               (userToken->tokenType == UA_USERTOKENTYPE_USERNAME &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) ||
-               (userToken->tokenType == UA_USERTOKENTYPE_CERTIFICATE &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) ||
-               (userToken->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN &&
-                client->config.userIdentityToken.content.decoded.type !=
-                &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]))
+            if (userToken->tokenType == UA_USERTOKENTYPE_ANONYMOUS &&
+                client->config.userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
+                client->config.userIdentityToken.content.decoded.type != NULL) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu (anonymous) in endpoint %lu: configuration doesn't match", (long unsigned)j, (long unsigned)i);
                 continue;
+            }
+            if (userToken->tokenType == UA_USERTOKENTYPE_USERNAME &&
+                client->config.userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu (username) in endpoint %lu: configuration doesn't match", (long unsigned)j, (long unsigned)i);
+                continue;
+            }
+            if (userToken->tokenType == UA_USERTOKENTYPE_CERTIFICATE &&
+                client->config.userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu (certificate) in endpoint %lu: configuration doesn't match", (long unsigned)j, (long unsigned)i);
+                continue;
+            }
+            if (userToken->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN &&
+                client->config.userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
+                UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Rejecting UserTokenPolicy %lu (token) in endpoint %lu: configuration doesn't match", (long unsigned)j, (long unsigned)i);
+                continue;
+            }
 
-            /* Endpoint with matching UserTokenPolicy found. Copy to the
-             * configuration. */
+            /* Endpoint with matching UserTokenPolicy found. Copy to the configuration. */
             tokenFound = true;
             UA_EndpointDescription_deleteMembers(&client->config.endpoint);
             UA_EndpointDescription temp = *endpoint;
             temp.userIdentityTokensSize = 0;
             temp.userIdentityTokens = NULL;
-            retval = UA_EndpointDescription_copy(&temp, &client->config.endpoint);
             UA_UserTokenPolicy_deleteMembers(&client->config.userTokenPolicy);
-            retval |= UA_UserTokenPolicy_copy(userToken, &client->config.userTokenPolicy);
 
-            if(retval != UA_STATUSCODE_GOOD)
+            retval = UA_EndpointDescription_copy(&temp, &client->config.endpoint);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Copying endpoint description failed with error code %s",
+                    UA_StatusCode_name(retval));
                 break;
+            }
+
+            retval = UA_UserTokenPolicy_copy(userToken, &client->config.userTokenPolicy);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Copying user token policy failed with error code %s",
+                    UA_StatusCode_name(retval));
+                break;
+            }
 
 #if UA_LOGLEVEL <= 300
             const char *securityModeNames[3] = {"None", "Sign", "SignAndEncrypt"};
@@ -760,18 +795,28 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     if(!client->channel.securityPolicy) {
         /* Set the channel SecurityPolicy to #None if no endpoint is selected */
         UA_String sps = client->config.endpoint.securityPolicyUri;
-        if(client->config.endpoint.securityPolicyUri.length == 0)
+        if(sps.length == 0) {
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "SecurityPolicy not specified -> use default #None");
             sps = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+        }
+
         UA_SecurityPolicy *sp = getSecurityPolicy(client, sps);
         if(!sp) {
+            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Failed to find the required security policy");
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
-        retval =
-            UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
-                                               &client->config.endpoint.serverCertificate);
-        if(retval != UA_STATUSCODE_GOOD)
+        
+        
+        retval = UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
+                                                    &client->config.endpoint.serverCertificate);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Failed to set the security policy");
             goto cleanup;
+        }
     }
 
     /* Open a TCP connection */
@@ -791,21 +836,33 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     /* Perform the HEL/ACK handshake */
     client->connection.config = client->config.localConnectionConfig;
     retval = HelAckHandshake(client, endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "HEL/ACK handshake failed");
         goto cleanup;
+    }
     setClientState(client, UA_CLIENTSTATE_CONNECTED);
 
     /* Open a SecureChannel. */
     retval = UA_SecureChannel_generateLocalNonce(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Generating a local nonce failed");
         goto cleanup;
+    }
     client->channel.connection = &client->connection;
     retval = openSecureChannel(client, false);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Opening a secure channel failed");
         goto cleanup;
+    }
     retval = UA_SecureChannel_generateNewKeys(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Generating new keys failed");
         return retval;
+    }
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 
     return retval;
@@ -877,8 +934,7 @@ UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
                 "Connecting to endpoint %.*s", (int)endpointUrl.length,
                 endpointUrl.data);
 
-    /* Get endpoints only if the description has not been touched (memset to
-     * zero) */
+    /* Get endpoints only if the description has not been touched (memset to zero) */
     UA_Byte test = 0;
     UA_Byte *pos = (UA_Byte*)&client->config.endpoint;
     for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
@@ -890,9 +946,12 @@ UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
 
     /* Connect up to the SecureChannel */
     UA_StatusCode retval = UA_Client_connectTCPSecureChannel(client, endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD)
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Couldn't connect the client to a TCP secure channel");
         goto cleanup;
-
+    }
+    
     /* Get and select endpoints if required */
     if(getEndpoints) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
