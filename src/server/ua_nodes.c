@@ -307,19 +307,17 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     /* Copy the value */
     node->valueSource = UA_VALUESOURCE_DATA;
     UA_NodeId extensionObject = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
-    /* if we have an extension object which is still encoded (e.g. from the nodeset compiler)
-     * we need to decode it and set the decoded value instead of the encoded object */
+    /* If we have an extension object which is still encoded (e.g. from the
+     * nodeset compiler) we need to decode it and set the decoded value instead
+     * of the encoded object */
     UA_Boolean valueSet = false;
     if(attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
-
-        if (attr->value.data == UA_EMPTY_ARRAY_SENTINEL) {
-            /* do nothing since we got an empty array of extension objects */
+        /* Do nothing since we got an empty array of extension objects */
+        if(attr->value.data == UA_EMPTY_ARRAY_SENTINEL)
             return UA_STATUSCODE_GOOD;
-        }
 
         const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
         if(obj && obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
-
             /* TODO: Once we generate type description in the nodeset compiler,
              * UA_findDatatypeByBinary can be made internal to the decoding
              * layer. */
@@ -424,7 +422,6 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
 UA_StatusCode
 UA_Node_setAttributes(UA_Node *node, const void *attributes,
                       const UA_DataType *attributeType) {
-
     /* Copy the attributes into the node */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(node->nodeClass) {
