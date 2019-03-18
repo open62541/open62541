@@ -784,6 +784,11 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&config->certificateVerification);
 
+    /* With encryption enabled, the applicationUri needs to match the URI from
+     * the certificate */
+    config->clientDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
+    config->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
+
     if(config->securityPoliciesSize > 0) {
         UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK,
                      "Could not initialize a config that already has SecurityPolicies");
