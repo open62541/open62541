@@ -41,6 +41,7 @@ int main(int argc, char* argv[]) {
 
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
