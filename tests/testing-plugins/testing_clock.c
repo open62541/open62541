@@ -5,7 +5,9 @@
 #include "testing_clock.h"
 #include <time.h>
 
-UA_DateTime testingClock = 0;
+/* To avoid zero timestamp value in header, the testingClock
+ * is assigned with non-zero timestamp to pass unit tests */
+UA_DateTime testingClock = 0x5C8F735D;
 
 UA_DateTime UA_DateTime_now(void) {
     return testingClock;
