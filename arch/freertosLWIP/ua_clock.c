@@ -13,7 +13,7 @@
 
 /* The current time in UTC time */
 UA_DateTime UA_DateTime_now(void) {
-  UA_DateTime microSeconds = xTaskGetTickCount() * (1000000 / configTICK_RATE_HZ);
+  UA_DateTime microSeconds = ((UA_DateTime)xTaskGetTickCount()) * (1000000 / configTICK_RATE_HZ);
   return ((microSeconds / 1000000) * UA_DATETIME_SEC) + ((microSeconds % 1000000) * UA_DATETIME_USEC) + UA_DATETIME_UNIX_EPOCH;
 }
 
@@ -25,7 +25,7 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
 /* CPU clock invariant to system time changes. Use only to measure durations,
  * not absolute time. */
 UA_DateTime UA_DateTime_nowMonotonic(void) {
-  return (xTaskGetTickCount() * 1000 / configTICK_RATE_HZ) * UA_DATETIME_MSEC;
+  return (((UA_DateTime)xTaskGetTickCount()) * 1000 / configTICK_RATE_HZ) * UA_DATETIME_MSEC;
 }
 
 #endif /* UA_ARCHITECTURE_FREERTOSLWIP */
