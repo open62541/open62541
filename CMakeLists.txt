@@ -650,9 +650,9 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 list(APPEND default_plugin_headers
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.h)
+     ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_mbedtls_common.h)
 list(APPEND default_plugin_sources
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
@@ -1079,7 +1079,6 @@ set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake
 set(macros_install_dest_name "${cmake_configfile_install}/open62541Macros.cmake")
 set(open62541_install_tools_dir share/open62541/tools)
 set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
-set(open62541_install_include_dir include/open62541)
 
 # This list of components allows to define a find_package requirement.
 # E.g.:
@@ -1200,12 +1199,51 @@ install(DIRECTORY ${UA_install_tools_dirs}
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
 if(NOT UA_ENABLE_AMALGAMATION)
-    # Assume no files have identical names and place everything in the include folder
-    install(FILES ${internal_headers}
-                  ${exported_headers}
-                  ${default_plugin_headers}
-                  ${ua_architecture_headers}
-            DESTINATION ${open62541_install_include_dir})
+    # Recreate the include folder structure from the source also in /usr/lib/include/open62541
+    #INSTALL( DIRECTORY ${PROJECT_SOURCE_DIR}/include/open62541 DESTINATION include )
+    #INSTALL( DIRECTORY ${PROJECT_SOURCE_DIR}/plugins/include/open62541 DESTINATION include )
+
+#    install(FILES ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
+#            DESTINATION include/open62541)
+#
+#
+#
+#    install(FILES ${ua_architecture_headers}
+#            ${ua_architecture_headers_beginning}
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
+#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
+#            DESTINATION include/open62541)
+
+    set(FILES_TO_INSTALL
+        ${exported_headers}
+        ${default_plugin_headers}
+        ${ua_architecture_headers})
+
+    set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
+    set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
+    set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
+    set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
+    set(BASE_PATH_DEPS "${PROJECT_SOURCE_DIR}/deps")
+
+    foreach ( file ${FILES_TO_INSTALL} )
+        # Construct a relative path by replacing any occurence of the absolute path
+        set(full_path ${file})
+        string(REPLACE ${BASE_PATH_MAIN} "" file ${file})
+        string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})
+        string(REPLACE ${BASE_PATH_ARCH} "" file ${file})
+        string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
+        string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
+
+        get_filename_component( dir ${file} DIRECTORY )
+        install( FILES ${full_path} DESTINATION include/open62541${dir} )
+    endforeach()
+
 else()
     # Export amalgamated header open62541.h which is generated due to build of 
     # open62541-object
