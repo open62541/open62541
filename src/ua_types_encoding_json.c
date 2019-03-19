@@ -52,7 +52,7 @@
 #define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
 #define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80
 
-#define UA_JSON_DATETIME_LENGTH 24
+#define UA_JSON_DATETIME_LENGTH 30
 
 /* Max length of numbers for the allocation of temp buffers. Don't forget that
  * printf adds an additional \0 at the end!
@@ -368,29 +368,36 @@ ENCODE_JSON(Int32) {
 
 /* UInt64 */
 ENCODE_JSON(UInt64) {
-    char buf[21];
-    UA_UInt16 digits = itoaUnsigned(*src, buf, 10);
+    char buf[23];
+    buf[0] = '\"';
+    UA_UInt16 digits = itoaUnsigned(*src, buf + 1, 10);
+    buf[digits + 1] = '\"';
+    UA_UInt16 length = (UA_UInt16)(digits + 2);
 
-    if(ctx->pos + digits > ctx->end)
+    if(ctx->pos + length > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
 
     if(!ctx->calcOnly)
-        memcpy(ctx->pos, buf, digits);
-    ctx->pos += digits;
+        memcpy(ctx->pos, buf, length);
+
+    ctx->pos += length;
     return UA_STATUSCODE_GOOD;
 }
 
 /* Int64 */
 ENCODE_JSON(Int64) {
-    char buf[21];
-    UA_UInt16 digits = itoaSigned(*src, buf);
+    char buf[23];
+    buf[0] = '\"';
+    UA_UInt16 digits = itoaSigned(*src, buf + 1);
+    buf[digits + 1] = '\"';
+    UA_UInt16 length = (UA_UInt16)(digits + 2);
 
-    if(ctx->pos + digits > ctx->end)
+    if(ctx->pos + length > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
 
     if(!ctx->calcOnly)
-        memcpy(ctx->pos, buf, digits);
-    ctx->pos += digits;
+        memcpy(ctx->pos, buf, length);
+    ctx->pos += length;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -740,41 +747,37 @@ printNumber(u16 n, u8 *pos, size_t digits) {
     }
 }
 
-UA_String
-UA_DateTime_toJSON(UA_DateTime t) {
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
-
-    /* Format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z' is used. 24 bytes.*/
-    UA_String str = {UA_JSON_DATETIME_LENGTH, 
-        (u8*) UA_malloc(UA_JSON_DATETIME_LENGTH)};
-    if(!str.data)
-        return UA_STRING_NULL;
-    
-    printNumber(tSt.year, str.data, 4);
-    str.data[4] = '-';
-    printNumber(tSt.month, &str.data[5], 2);
-    str.data[7] = '-';
-    printNumber(tSt.day, &str.data[8], 2);
-    str.data[10] = 'T';
-    printNumber(tSt.hour, &str.data[11], 2);
-    str.data[13] = ':';
-    printNumber(tSt.min, &str.data[14], 2);
-    str.data[16] = ':';
-    printNumber(tSt.sec, &str.data[17], 2);
-    str.data[19] = '.';
-    printNumber(tSt.milliSec, &str.data[20], 3);
-    str.data[23] = 'Z';
-    return str;
-}
-
 ENCODE_JSON(DateTime) {
-    if(ctx->pos + UA_JSON_DATETIME_LENGTH > ctx->end)
-        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    
-    UA_String str = UA_DateTime_toJSON(*src);
-    UA_StatusCode ret = ENCODE_DIRECT_JSON(&str, String);
-    UA_String_deleteMembers(&str);
-    return ret;
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(*src);
+
+    /* Format: yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 30 bytes.*/
+    UA_Byte buffer[UA_JSON_DATETIME_LENGTH];
+
+    printNumber(tSt.year, &buffer[0], 4);
+    buffer[4] = '-';
+    printNumber(tSt.month, &buffer[5], 2);
+    buffer[7] = '-';
+    printNumber(tSt.day, &buffer[8], 2);
+    buffer[10] = 'T';
+    printNumber(tSt.hour, &buffer[11], 2);
+    buffer[13] = ':';
+    printNumber(tSt.min, &buffer[14], 2);
+    buffer[16] = ':';
+    printNumber(tSt.sec, &buffer[17], 2);
+    buffer[19] = '.';
+    printNumber(tSt.milliSec, &buffer[20], 3);
+    printNumber(tSt.microSec, &buffer[23], 3);
+    printNumber(tSt.nanoSec, &buffer[26], 3);
+
+    size_t length = 28;
+    while (buffer[length] == '0')
+        length--;
+    if (length != 19)
+         length++;
+
+    buffer[length] = 'Z';
+    UA_String str = {length + 1, buffer};
+    return ENCODE_DIRECT_JSON(&str, String);
 }
 
 /* NodeId */
@@ -1258,51 +1261,57 @@ ENCODE_JSON(Variant) {
 
 /* DataValue */
 ENCODE_JSON(DataValue) {
-    if(!src->hasServerPicoseconds && !src->hasServerTimestamp &&
-       !src->hasSourcePicoseconds && !src->hasSourceTimestamp &&
-       !src->hasStatus && !src->hasValue) {
+    UA_Boolean hasValue = src->hasValue && src->value.type != NULL;
+    UA_Boolean hasStatus = src->hasStatus && src->status;
+    UA_Boolean hasSourceTimestamp = src->hasSourceTimestamp && src->sourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = src->hasSourcePicoseconds && src->sourcePicoseconds;
+    UA_Boolean hasServerTimestamp = src->hasServerTimestamp && src->serverTimestamp;
+    UA_Boolean hasServerPicoseconds = src->hasServerPicoseconds && src->serverPicoseconds;
+
+    if(!hasValue && !hasStatus && !hasSourceTimestamp && !hasSourcePicoseconds &&
+       !hasServerTimestamp && !hasServerPicoseconds) {
         return writeJsonNull(ctx); /*no element, encode as null*/
     }
-    
-    status ret = UA_STATUSCODE_GOOD; 
+
+    status ret = UA_STATUSCODE_GOOD;
     ret |= writeJsonObjStart(ctx);
 
-    if(src->hasValue) {
+    if(hasValue) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_VALUE);
         ret |= ENCODE_DIRECT_JSON(&src->value, Variant);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
 
-    if(src->hasStatus) {
+    if(hasStatus) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_STATUS);
         ret |= ENCODE_DIRECT_JSON(&src->status, StatusCode);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasSourceTimestamp) {
+
+    if(hasSourceTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCETIMESTAMP);
         ret |= ENCODE_DIRECT_JSON(&src->sourceTimestamp, DateTime);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasSourcePicoseconds) {
+
+    if(hasSourcePicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SOURCEPICOSECONDS);
         ret |= ENCODE_DIRECT_JSON(&src->sourcePicoseconds, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasServerTimestamp) {
+
+    if(hasServerTimestamp) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERTIMESTAMP);
         ret |= ENCODE_DIRECT_JSON(&src->serverTimestamp, DateTime);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
-    
-    if(src->hasServerPicoseconds) {
+
+    if(hasServerPicoseconds) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERPICOSECONDS);
         ret |= ENCODE_DIRECT_JSON(&src->serverPicoseconds, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
@@ -1531,14 +1540,29 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
     size_t tokenSize = (size_t)(parseCtx->tokenArray[parseCtx->index].end - parseCtx->tokenArray[parseCtx->index].start); \
     char* tokenData = (char*)(ctx->pos + parseCtx->tokenArray[parseCtx->index].start);
 
+#define ALLOW_NULL                  \
+    if(isJsonNull(ctx, parseCtx)) { \
+        parseCtx->index++;          \
+        return UA_STATUSCODE_GOOD;  \
+    }
+
 #define CHECK_TOKEN_BOUNDS                        \
     if(parseCtx->index >= parseCtx->tokenCount)   \
         return UA_STATUSCODE_BADDECODINGERROR;
 
 #define CHECK_PRIMITIVE                           \
-    jsmntype_t tokenType = getJsmnType(parseCtx); \
-    if(tokenType != JSMN_PRIMITIVE) {             \
+    if(getJsmnType(parseCtx) != JSMN_PRIMITIVE) { \
         return UA_STATUSCODE_BADDECODINGERROR;    \
+    }
+
+#define CHECK_STRING                           \
+    if(getJsmnType(parseCtx) != JSMN_STRING) { \
+        return UA_STATUSCODE_BADDECODINGERROR; \
+    }
+
+#define CHECK_OBJECT                           \
+    if(getJsmnType(parseCtx) != JSMN_OBJECT) { \
+        return UA_STATUSCODE_BADDECODINGERROR; \
     }
 
 /* Forward declarations*/
@@ -1609,19 +1633,7 @@ static UA_SByte jsoneq(const char *json, jsmntok_t *tok, const char *searchKey) 
 }
 
 DECODE_JSON(Boolean) {
-    if(isJsonNull(ctx, parseCtx)) {
-        /* Any value for a Built-In type that is NULL shall be encoded as the
-         * JSON literal ‘null’ if the value is an element of an array. If the
-         * NULL value is a field within a Structure or Union, the field shall
-         * not be encoded. */
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    jsmntype_t tokenType = getJsmnType(parseCtx);
-    if(tokenType != JSMN_PRIMITIVE)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
+    CHECK_PRIMITIVE;
     CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
 
@@ -1784,7 +1796,7 @@ DECODE_JSON(UInt32) {
 
 DECODE_JSON(UInt64) {
     CHECK_TOKEN_BOUNDS;
-    CHECK_PRIMITIVE;
+    CHECK_STRING;
     GET_TOKEN;
 
     UA_UInt64 out = 0;
@@ -1840,7 +1852,7 @@ DECODE_JSON(Int32) {
 
 DECODE_JSON(Int64) {
     CHECK_TOKEN_BOUNDS;
-    CHECK_PRIMITIVE;
+    CHECK_STRING;
     GET_TOKEN;
 
     UA_Int64 out = 0;
@@ -2023,17 +2035,8 @@ static UA_Guid UA_Guid_fromChars(const char* chars) {
 }
 
 DECODE_JSON(Guid) {
+    CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
-    
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    jsmntype_t tokenType = getJsmnType(parseCtx);
-    if(tokenType != JSMN_STRING && tokenType != JSMN_PRIMITIVE)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
     GET_TOKEN;
 
     if(tokenSize != 36)
@@ -2057,17 +2060,10 @@ DECODE_JSON(Guid) {
 }
 
 DECODE_JSON(String) {
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    jsmntype_t tokenType = getJsmnType(parseCtx);
-    if(tokenType != JSMN_STRING)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    GET_TOKEN;
+    ALLOW_NULL;
+    CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
+    GET_TOKEN;
 
     /* Empty string? */
     if(tokenSize == 0) {
@@ -2165,16 +2161,10 @@ cleanup:
     return UA_STATUSCODE_BADDECODINGERROR;
 }
 
-DECODE_JSON(ByteString) { 
-    jsmntype_t tokenType = getJsmnType(parseCtx);
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-    if(tokenType != JSMN_STRING && tokenType != JSMN_PRIMITIVE) {
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
+DECODE_JSON(ByteString) {
+    ALLOW_NULL;
+    CHECK_STRING;
+    CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
 
     /* Empty bytestring? */
@@ -2198,14 +2188,9 @@ DECODE_JSON(ByteString) {
 }
 
 DECODE_JSON(LocalizedText) {
-    if(getJsmnType(parseCtx) != JSMN_OBJECT) {
-        if(isJsonNull(ctx, parseCtx)) {
-            parseCtx->index++;
-            return UA_STATUSCODE_GOOD;
-        }
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
+    ALLOW_NULL;
+    CHECK_OBJECT;
+
     DecodeEntry entries[2] = {
         {UA_JSONKEY_LOCALE, &dst->locale, (decodeJsonSignature) String_decodeJson, false, NULL},
         {UA_JSONKEY_TEXT, &dst->text, (decodeJsonSignature) String_decodeJson, false, NULL}
@@ -2215,14 +2200,9 @@ DECODE_JSON(LocalizedText) {
 }
 
 DECODE_JSON(QualifiedName) {
-    if(getJsmnType(parseCtx) != JSMN_OBJECT) {
-        if(isJsonNull(ctx, parseCtx)) {
-            parseCtx->index++;
-            return UA_STATUSCODE_GOOD;
-        }
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
+    ALLOW_NULL;
+    CHECK_OBJECT;
+
     DecodeEntry entries[2] = {
         {UA_JSONKEY_NAME, &dst->name, (decodeJsonSignature) String_decodeJson, false, NULL},
         {UA_JSONKEY_URI, &dst->namespaceIndex, (decodeJsonSignature) UInt16_decodeJson, false, NULL}
@@ -2376,6 +2356,7 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
     /* Id must always be present */
     entries[*fieldCount].fieldName = UA_JSONKEY_ID;
     entries[*fieldCount].found = false;
+    entries[*fieldCount].type = NULL;
     
     /* IdType */
     UA_Boolean hasIdType = false;
@@ -2417,6 +2398,7 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
         entries[*fieldCount].fieldPointer = NULL;
         entries[*fieldCount].function = NULL;
         entries[*fieldCount].found = false;
+        entries[*fieldCount].type = NULL;
         
         /* IdType */
         (*fieldCount)++;
@@ -2424,6 +2406,7 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
         dst->identifierType = UA_NODEIDTYPE_NUMERIC;
         entries[*fieldCount].fieldPointer = &dst->identifier.numeric;
         entries[*fieldCount].function = (decodeJsonSignature) UInt32_decodeJson;
+        entries[*fieldCount].type = NULL;
         (*fieldCount)++;
     }
     
@@ -2431,14 +2414,9 @@ prepareDecodeNodeIdJson(UA_NodeId *dst, CtxJson *ctx, ParseCtx *parseCtx,
 }
 
 DECODE_JSON(NodeId) {
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    if(getJsmnType(parseCtx) != JSMN_OBJECT)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
+    ALLOW_NULL;
+    CHECK_OBJECT;
+
     /* NameSpace */
     UA_Boolean hasNamespace = false;
     size_t searchResultNamespace = 0;
@@ -2461,6 +2439,7 @@ DECODE_JSON(NodeId) {
         entries[fieldCount].fieldPointer = &dst->namespaceIndex;
         entries[fieldCount].function = (decodeJsonSignature) UInt16_decodeJson;
         entries[fieldCount].found = false;
+        entries[fieldCount].type = NULL;
         fieldCount++;
     } else {
         dst->namespaceIndex = 0;
@@ -2470,14 +2449,9 @@ DECODE_JSON(NodeId) {
 }
 
 DECODE_JSON(ExpandedNodeId) {
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    if(getJsmnType(parseCtx) != JSMN_OBJECT)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
+    ALLOW_NULL;
+    CHECK_OBJECT;
+
     /* Keep track over number of keys present, incremented if key found */
     u8 fieldCount = 0;
     
@@ -2520,6 +2494,7 @@ DECODE_JSON(ExpandedNodeId) {
             entries[fieldCount].function = (decodeJsonSignature) UInt16_decodeJson;
         }
         entries[fieldCount].found = false;
+        entries[fieldCount].type = NULL;
         fieldCount++; 
     }
     
@@ -2528,6 +2503,7 @@ DECODE_JSON(ExpandedNodeId) {
         entries[fieldCount].fieldPointer = &dst->serverIndex;
         entries[fieldCount].function = (decodeJsonSignature) UInt32_decodeJson;
         entries[fieldCount].found = false;
+        entries[fieldCount].type = NULL;
         fieldCount++;  
     } else {
         dst->serverIndex = 0;
@@ -2537,14 +2513,8 @@ DECODE_JSON(ExpandedNodeId) {
 }
 
 DECODE_JSON(DateTime) {
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    if(getJsmnType(parseCtx) != JSMN_STRING)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
+    CHECK_STRING;
+    CHECK_TOKEN_BOUNDS;
     GET_TOKEN;
     
     /* TODO: proper ISO 8601:2004 parsing, musl strptime!*/
@@ -2599,11 +2569,6 @@ DECODE_JSON(DateTime) {
 }
 
 DECODE_JSON(StatusCode) {
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-    
     status ret = DECODE_DIRECT_JSON(dst, UInt32);
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
@@ -2621,26 +2586,12 @@ VariantDimension_decodeJson(void * dst, const UA_DataType *type,
 }
 
 DECODE_JSON(Variant) {
-    status ret = UA_STATUSCODE_GOOD;
-    
-    if(getJsmnType(parseCtx) != JSMN_OBJECT) {
-        /* If type is 0 (NULL) the Variant contains a NULL value and the
-         * containing JSON object shall be omitted or replaced by the JSON
-         * literal ‘null’ (when an element of a JSON array). */
-        if(isJsonNull(ctx, parseCtx)) {
-            /*set an empty Variant*/
-            UA_Variant_init(dst);
-            dst->type = NULL;
-            parseCtx->index++;
-            return UA_STATUSCODE_GOOD;
-        }
-        
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
+    ALLOW_NULL;
+    CHECK_OBJECT;
+
     /* First search for the variant type in the json object. */
     size_t searchResultType = 0;
-    ret = lookAheadForKey(UA_JSONKEY_TYPE, ctx, parseCtx, &searchResultType);
+    status ret = lookAheadForKey(UA_JSONKEY_TYPE, ctx, parseCtx, &searchResultType);
     if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
@@ -2761,15 +2712,9 @@ DECODE_JSON(Variant) {
 }
 
 DECODE_JSON(DataValue) {
-    if(getJsmnType(parseCtx) != JSMN_OBJECT) {
-        if(isJsonNull(ctx, parseCtx)) {
-            dst = NULL;
-            parseCtx->index++;
-            return UA_STATUSCODE_GOOD;
-        }
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
+    ALLOW_NULL;
+    CHECK_OBJECT;
+
     DecodeEntry entries[6] = {
        {UA_JSONKEY_VALUE, &dst->value, (decodeJsonSignature) Variant_decodeJson, false, NULL},
        {UA_JSONKEY_STATUS, &dst->status, (decodeJsonSignature) StatusCode_decodeJson, false, NULL},
@@ -2786,16 +2731,9 @@ DECODE_JSON(DataValue) {
 }
 
 DECODE_JSON(ExtensionObject) {
-    if(isJsonNull(ctx, parseCtx)) {
-        /* If the Body is empty, the ExtensionObject is NULL and is omitted or
-        * encoded as a JSON null. */
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    if(getJsmnType(parseCtx) != JSMN_OBJECT)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
+    ALLOW_NULL;
+    CHECK_OBJECT;
+
     /* Search for Encoding */
     size_t searchEncodingResult = 0;
     status ret = lookAheadForKey(UA_JSONKEY_ENCODING, ctx, parseCtx, &searchEncodingResult);
@@ -3045,14 +2983,9 @@ status DiagnosticInfoInner_decodeJson(void* dst, const UA_DataType* type,
         CtxJson* ctx, ParseCtx* parseCtx, UA_Boolean moveToken);
 
 DECODE_JSON(DiagnosticInfo) {
-    if(isJsonNull(ctx, parseCtx)) {
-        parseCtx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
+    ALLOW_NULL;
+    CHECK_OBJECT;
 
-    if(getJsmnType(parseCtx) != JSMN_OBJECT)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    
     DecodeEntry entries[7] = {
        {UA_JSONKEY_SYMBOLICID, &dst->symbolicId, (decodeJsonSignature) Int32_decodeJson, false, NULL},
        {UA_JSONKEY_NAMESPACEURI, &dst->namespaceUri, (decodeJsonSignature) Int32_decodeJson, false, NULL},

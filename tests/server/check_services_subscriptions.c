@@ -15,7 +15,7 @@ static UA_Server *server = NULL;
 static UA_ServerConfig *config = NULL;
 static UA_Session *session = NULL;
 
-UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
+static UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
 
 static void
 monitoredRegisterCallback(UA_Server *s,
@@ -56,8 +56,8 @@ static void teardown(void) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-UA_UInt32 subscriptionId;
-UA_UInt32 monitoredItemId;
+static UA_UInt32 subscriptionId;
+static UA_UInt32 monitoredItemId;
 
 static void
 createSubscription(void) {

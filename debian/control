@@ -6,7 +6,6 @@ Build-Depends: debhelper (>= 7.0.50~),
  git,
  graphviz,
  python (>= 2.7),
- python-six
 Standards-Version: 4.1.2
 Section: libs
 Homepage: https://open62541.org/

@@ -20,11 +20,11 @@ The recommended cmake options for a default installation are:
 
    git submodule update --init --recursive
    mkdir build && cd build
-   cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_ENABLE_FULL_NS0=ON ..
+   cmake -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL ..
    make
    sudo make install
 
-This will enable the following features in 0.3:
+This will enable the following features in 0.4:
 
  * Discovery
  * FullNamespace
@@ -48,7 +48,9 @@ In your own CMake project you can then include the open62541 library using:
 
 .. code-block:: cmake
 
-   find_package(open62541 0.3.0 REQUIRED COMPONENTS FullNamespace DiscoveryMulticast)
+   # optionally you can also specify a specific version
+   # e.g. find_package(open62541 0.4.0)
+   find_package(open62541 REQUIRED COMPONENTS Events FullNamespace)
    add_executable(main main.cpp)
    target_link_libraries(main open62541::open62541)
 

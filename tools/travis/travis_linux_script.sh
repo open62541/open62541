@@ -92,6 +92,55 @@ echo "=== Install build, then compile examples ===" && echo -en 'travis_fold:sta
     exit 0
 fi
 
+if ! [ -z ${CLANG_FORMAT+x} ]; then
+
+    # Only run clang format on Pull requests, not on direct push
+    if [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+        echo -en "\\nSkipping clang-format on non-pull request\\n"
+        exit 0
+    fi
+
+    echo "=== Running clang-format with diff against branch '$TRAVIS_BRANCH' ===" && echo -en 'travis_fold:start:script.clang-format\\r'
+
+    # add clang-format-ci
+    curl -Ls "https://raw.githubusercontent.com/llvm-mirror/clang/c510fac5695e904b43d5bf0feee31cc9550f110e/tools/clang-format/git-clang-format" -o "$LOCAL_PKG/bin/git-clang-format"
+    chmod +x $LOCAL_PKG/bin/git-clang-format
+
+    # Ignore files in the deps directory diff by resetting them to master
+    git diff --name-only $TRAVIS_BRANCH | grep 'deps/*' | xargs git checkout $TRAVIS_BRANCH --
+
+    # clang-format the diff to the target branch of the PR
+    difference="$($LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH)"
+
+    if ! case $difference in *"no modified files to format"*) false;; esac; then
+        echo "====== clang-format did not find any issues. Well done! ======"
+        exit 0
+    fi
+    if ! case $difference in *"clang-format did not modify any files"*) false;; esac; then
+        echo "====== clang-format did not find any issues. Well done! ======"
+        exit 0
+    fi
+
+    echo "====== clang-format Format Errors ======"
+
+    echo "Uploading the patch to a pastebin page ..."
+    pastebinUrl="$($LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH | curl -F 'sprunge=<-' http://sprunge.us)"
+
+    echo "Created a patch file under: $pastebinUrl"
+
+    echo "Please fix the following issues.\n\n"
+    echo "You can also use the following command to apply the diff to your source locally:\n-------------\n"
+    echo "curl -o format.patch $pastebinUrl && git apply format.patch\n-------------\n"
+    echo "=============== DIFFERENCE - START =================\n"
+    # We want to get colored diff output into the variable
+    git config color.diff always
+    $LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH
+    echo "\n============= DIFFERENCE - END ===================="
+
+    echo -en 'travis_fold:start:script.clang-format\\r'
+    exit 1
+fi
+
 if ! [ -z ${ANALYZE+x} ]; then
     echo "=== Running static code analysis ===" && echo -en 'travis_fold:start:script.analyze\\r'
     if ! case $CC in clang*) false;; esac; then
@@ -128,6 +177,12 @@ if ! [ -z ${ANALYZE+x} ]; then
           make -j
         cd .. && rm build -rf
 
+        #mkdir -p build && cd build
+        #cmake -DUA_ENABLE_STATIC_ANALYZER=REDUCED ..
+        ## previous clang-format to reduce to non-trivial warnings
+        #make clangformat
+        #make
+        #cd .. && rm build -rf
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \
@@ -225,7 +280,7 @@ if ! [ -z ${MINGW+x} ]; then
     echo -e "\r\n== Cross compile release build for RaspberryPi =="  && echo -en 'travis_fold:start:script.build.cross_raspi\\r'
     mkdir -p build && cd build
     git clone https://github.com/raspberrypi/tools
-    export PATH=$PATH:./tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
+    export PATH=$PATH:${TRAVIS_BUILD_DIR}/build/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
     cmake \
         -DBUILD_SHARED_LIBS=ON \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -414,6 +469,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
         -DUA_ENABLE_ENCRYPTION=ON \
+        -DUA_ENABLE_JSON_ENCODING=ON \
         -DUA_ENABLE_PUBSUB=ON \
         -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \

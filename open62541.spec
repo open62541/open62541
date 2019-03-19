@@ -6,7 +6,7 @@ License:  MPLv2.0
 URL:      http://open62541.org
 Source0:  https://github.com/open62541/open62541/archive/%{name}-%{version}.tar.gz
 
-BuildRequires: cmake3, python, python-six
+BuildRequires: cmake3, python
 
 %description
 open62541 is a C-based library (linking with C++ projects is possible)

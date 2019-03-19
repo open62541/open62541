@@ -66,6 +66,10 @@ START_TEST(EndpointUrl_split) {
     ck_assert_uint_eq(port, 1234);
     ck_assert(UA_String_equal(&path, &expectedPath));
 
+    // invalid IPv6: missing ]
+    endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+
     // empty hostname
     endPointUrl = UA_STRING("opc.tcp://:");
     port = 0;
@@ -132,6 +136,11 @@ START_TEST(EndpointUrl_ethernet) {
                       UA_STATUSCODE_BADINTERNALERROR);
     ck_assert_uint_eq(vid, 0);
     ck_assert_uint_eq(pcp, 0);
+
+    // long enough, but malformed
+    endPointUrl = UA_STRING("opc.eth.//target:");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
 
     // valid without vid and pcp but leading ':'
     endPointUrl = UA_STRING("opc.eth://target:");
@@ -247,6 +256,11 @@ static void assertNodeIdString(const UA_String *gotStr, const char* expectedStr)
     ck_assert_str_eq(gotChars, expectedStr);
     UA_free(gotChars);
 }
+
+START_TEST(idToStringNull) {
+    UA_String str = UA_STRING_NULL;
+    ck_assert_int_eq(UA_NodeId_toString(NULL, &str), UA_STATUSCODE_GOOD);
+} END_TEST
 
 START_TEST(idToStringNumeric) {
     UA_NodeId n;
@@ -396,6 +410,7 @@ static Suite* testSuite_Utils(void) {
 
 
     TCase *tc1 = tcase_create("test nodeid string");
+    tcase_add_test(tc1, idToStringNull);
     tcase_add_test(tc1, idToStringNumeric);
     tcase_add_test(tc1, idToStringString);
     tcase_add_test(tc1, idToStringGuid);

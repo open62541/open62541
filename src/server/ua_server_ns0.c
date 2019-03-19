@@ -96,6 +96,14 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
                        &hassubtype_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
+    UA_ReferenceTypeAttributes aggregates_attr = UA_ReferenceTypeAttributes_default;
+    aggregates_attr.displayName = UA_LOCALIZEDTEXT("", "Aggregates");
+    aggregates_attr.isAbstract = false;
+    aggregates_attr.symmetric = false;
+    aggregates_attr.inverseName = UA_LOCALIZEDTEXT("", "AggregatedBy");
+    ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_AGGREGATES, "Aggregates",
+                       &aggregates_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
+
     ret |= addReferenceTypeNode(server, "HierarchicalReferences", NULL,
                          UA_NS0ID_HIERARCHICALREFERENCES, true, false, UA_NS0ID_REFERENCES);
 
@@ -126,8 +134,8 @@ UA_Server_createNS0_base(UA_Server *server) {
     ret |= addReferenceTypeNode(server, "GeneratesEvent", "GeneratedBy", UA_NS0ID_GENERATESEVENT,
                          false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
-    ret |= addReferenceTypeNode(server, "Aggregates", "AggregatedBy", UA_NS0ID_AGGREGATES,
-                         false, false, UA_NS0ID_HASCHILD);
+    /* Complete bootstrap of Aggregates */
+    ret |= addNode_finish(server, UA_NS0ID_AGGREGATES, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE);
 
     /* Complete bootstrap of HasSubtype */
     ret |= addNode_finish(server, UA_NS0ID_HASSUBTYPE, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE);
@@ -431,9 +439,9 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
         if(LIST_EMPTY(&session->serverSubscriptions))
         {
           UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]), 
-		                      0, &UA_TYPES[UA_TYPES_UINT32]);
+                              0, &UA_TYPES[UA_TYPES_UINT32]);
           UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]), 
-		                      0, &UA_TYPES[UA_TYPES_UINT32]);
+                              0, &UA_TYPES[UA_TYPES_UINT32]);
 
           return UA_STATUSCODE_BADNOMATCH;
         }

@@ -60,9 +60,8 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
         UA_LOG_DEBUG_SESSION(&server->config.logger, subscription->session,
                              "Subscription %u | Could not register publish callback with error code %s",
                              subscription->subscriptionId, UA_StatusCode_name(retval));
-        return retval;
     }
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 void

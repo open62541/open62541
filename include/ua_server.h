@@ -526,8 +526,8 @@ UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
   *
   * @param server
   * @param client the client which is used to call the RegisterServer.
-  * 		It must not yet be connected and will be connected for every register call
-  * 		to the given discoveryServerUrl.
+  *         It must not yet be connected and will be connected for every register call
+  *         to the given discoveryServerUrl.
   * @param discoveryServerUrl if set to NULL, the default value
   *        'opc.tcp://localhost:4840' will be used
   * @param intervalMs

@@ -546,10 +546,10 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
 }
 
 typedef struct TCPClientConnection {
-	struct addrinfo hints, *server;
-	UA_DateTime connStart;
-	char* endpointURL;
-	UA_UInt32 timeout;
+    struct addrinfo hints, *server;
+    UA_DateTime connStart;
+    char* endpointURL;
+    UA_UInt32 timeout;
 } TCPClientConnection;
 
 /***************************/

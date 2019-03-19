@@ -1,17 +1,14 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.0...3.12)
 project(open62541)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
+if(${CMAKE_VERSION} VERSION_LESS 3.12)
+    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
+endif()
 
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
-# Verify that the six python module is correctly installed 
-execute_process(COMMAND "${PYTHON_EXECUTABLE}" "-c"  "import six"
-                RESULT_VARIABLE import_six_return OUTPUT_QUIET ERROR_QUIET)
-if(NOT ${import_six_return} EQUAL 0)
-   message(FATAL_ERROR "Python interpreter found, but required six python module is not installed.")
-endif()
 find_package(Git)
 include(AssignSourceGroup)
 
@@ -279,6 +276,14 @@ endif()
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 
+option(UA_ENABLE_HARDENING "Enable Hardening measures (e.g. Stack-Protectors and Fortify)" ON)
+mark_as_advanced(UA_ENABLE_HARDENING)
+
+if(CMAKE_VERSION VERSION_GREATER 3.6)
+    set(UA_ENABLE_STATIC_ANALYZER "OFF" CACHE STRING "Enable installed static analyzer during build process (off/minimal/reduced/full)")
+    SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
+endif()
+
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
@@ -350,6 +355,12 @@ if(UA_ENABLE_MULTITHREADING)
     MESSAGE(WARNING "UA_ENABLE_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
+########################
+# Linting during build #
+########################
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include(linting_build)
+
 ######################
 # External Libraries #
 ######################
@@ -376,6 +387,7 @@ endif()
 # Compiler Settings #
 #####################
 
+include(CompilerFlags)
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
     add_definitions(-std=c99 -pipe
@@ -391,8 +403,33 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wnested-externs
                     -Wmultichar
                     -Wundef
-                    -Wc++-compat)
+                    -Wc++-compat
+                    -fno-strict-aliasing # fewer compiler assumptions about pointer types
+                    -fexceptions # recommended for multi-threaded C code, also in combination with C++ code
+                    )
 
+    if (NOT MINGW)
+        if(UA_ENABLE_HARDENING)
+            check_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
+            check_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8    
+            check_cc_flag_untested("-mcet -fcf-protection") # future use (control flow integrity protection)
+        endif()
+
+        # IPO requires too much memory for unit tests
+        # GCC docu recommends to compile all files with the same options, therefore ignore it completely 
+        if(NOT UA_BUILD_UNIT_TESTS)
+            # needed to check if IPO is supported (check needs cmake > 3.9)
+            if("${CMAKE_VERSION}" VERSION_GREATER 3.9)
+                cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
+                include(CheckIPOSupported)
+                check_ipo_supported(RESULT CC_HAS_IPO) # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
+                if(CC_HAS_IPO)
+                    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+                endif()
+            endif()
+        endif()
+    endif()
+	
     if(UA_ENABLE_AMALGAMATION)
         add_definitions(-Wno-unused-function)
     endif()
@@ -406,7 +443,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
 
     # Debug
     if(BUILD_TYPE_LOWER_CASE STREQUAL "debug")
-        if ("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+        if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
             message("Sanitizer enabled")
@@ -416,10 +453,18 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         endif()
     endif()
 
+    if(UA_ENABLE_HARDENING AND (CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+        check_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)    
+    endif()
+
     # Strip release builds
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
+        add_definitions(-ffunction-sections -fdata-sections -fno-unwind-tables
                         -fno-asynchronous-unwind-tables -fno-math-errno -fno-ident)
+        # remove stack-protector with MinSizeRel
+        if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+            add_definitions(-fno-stack-protector)
+        endif()
         if(NOT OS9)
             set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
             set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
@@ -617,8 +662,12 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 if(UA_ENABLE_ENCRYPTION)
+    list(APPEND default_plugin_headers
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.h)
     list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
          ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
+         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
          ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
@@ -922,7 +971,7 @@ else()
     endfunction()
 
     # Public includes
-    include_directories_public("${ua_architecture_directories_to_include}"
+    include_directories_public(${ua_architecture_directories_to_include}
                                "${PROJECT_BINARY_DIR}/src_generated"
                                "${PROJECT_SOURCE_DIR}/deps"
                                "${PROJECT_SOURCE_DIR}/include"
@@ -1021,43 +1070,10 @@ if(UA_BUILD_TOOLS)
     endif()
 endif()
 
-############################
-# Linting run (clang-tidy) #
-############################
-
-find_package(ClangTools)
-add_custom_target(lint ${CLANG_TIDY_PROGRAM}
-                  ${lib_sources}
-                  -checks=cert-*,performance-*,readability-*,-readability-braces-around-statements
-                  -warnings-as-errors=cert-*,performance-*,readability-*,-readability-braces-around-statements
-                  --
-                  -std=c99
-                  -I${PROJECT_SOURCE_DIR}/include
-                  -I${PROJECT_SOURCE_DIR}/plugins
-                  -I${PROJECT_SOURCE_DIR}/deps
-                  -I${PROJECT_SOURCE_DIR}/src
-                  -I${PROJECT_SOURCE_DIR}/src/server
-                  -I${PROJECT_SOURCE_DIR}/src/client
-                  -I${PROJECT_BINARY_DIR}/src_generated
-                  DEPENDS ${lib_sources}
-                  COMMENT "Run clang-tidy on the library")
-add_dependencies(lint open62541)
-
-add_custom_target(cpplint cpplint
-                  ${lib_sources}
-                  ${internal_headers}
-                  ${default_plugin_headers}
-                  ${default_plugin_sources}
-                  ${ua_architecture_headers}
-                  ${ua_architecture_sources}
-                  DEPENDS ${lib_sources}
-                          ${internal_headers}
-                          ${default_plugin_headers}
-                          ${default_plugin_sources}
-                          ${ua_architecture_headers}
-                          ${ua_architecture_sources}
-
-                  COMMENT "Run cpplint code style checker on the library")
+########################
+# Linting as target    #
+########################
+include(linting_target)
 
 ##########################
 # Installation           #
@@ -1216,7 +1232,6 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
-set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
 if (UA_ENABLE_AMALGAMATION)
     set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
     set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")

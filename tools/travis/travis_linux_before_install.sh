@@ -6,6 +6,11 @@ if [ -z ${LOCAL_PKG+x} ] || [ -z "$LOCAL_PKG" ]; then
     exit 1
 fi
 
+if ! [ -z ${CLANG_FORMAT+x} ]; then
+    echo "CLANG_FORMAT does not need any dependencies. Done."
+    exit 0
+fi
+
 if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	# Only on non-docker builds required
 
