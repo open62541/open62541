@@ -6,19 +6,21 @@
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  */
 
-#include <mbedtls/aes.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/entropy_poll.h>
-#include <mbedtls/error.h>
-#include <mbedtls/version.h>
-#include <mbedtls/sha1.h>
-
 #include "ua_types.h"
 #include "ua_plugin_pki.h"
 #include "ua_securitypolicies.h"
 #include "ua_securitypolicy_mbedtls_common.h"
 #include "ua_types_generated_handling.h"
 #include "ua_util.h"
+
+#ifdef UA_ENABLE_ENCRYPTION
+
+#include <mbedtls/aes.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/entropy_poll.h>
+#include <mbedtls/error.h>
+#include <mbedtls/version.h>
+#include <mbedtls/sha1.h>
 
 /* Notes:
  * mbedTLS' AES allows in-place encryption and decryption. Sow we don't have to
@@ -811,3 +813,5 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
 
     return policyContext_newContext_sp_basic256(policy, localPrivateKey);
 }
+
+#endif

@@ -1,3 +1,10 @@
+#include "ua_types.h"
+#include "ua_plugin_pki.h"
+#include "ua_securitypolicies.h"
+#include "ua_securitypolicy_mbedtls_common.h"
+
+#ifdef UA_ENABLE_ENCRYPTION
+
 #include <mbedtls/aes.h>
 #include <mbedtls/md.h>
 #include <mbedtls/x509_crt.h>
@@ -7,11 +14,6 @@
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
 #include <mbedtls/sha1.h>
-
-#include "ua_types.h"
-#include "ua_plugin_pki.h"
-#include "ua_securitypolicies.h"
-#include "ua_securitypolicy_mbedtls_common.h"
 
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {
@@ -237,3 +239,5 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
     data->length = outOffset;
     return UA_STATUSCODE_GOOD;
 }
+
+#endif

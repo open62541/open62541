@@ -661,15 +661,13 @@ if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION)
-    list(APPEND default_plugin_headers
-         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.h)
-    list(APPEND default_plugin_sources
-         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
-         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
-         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-         ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
-endif()
+list(APPEND default_plugin_headers
+    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.h)
+list(APPEND default_plugin_sources
+    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_mbedtls_common.c
+    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
+    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
+    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 
 if(UA_ENABLE_DISCOVERY)
     list(INSERT internal_headers 13 ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
