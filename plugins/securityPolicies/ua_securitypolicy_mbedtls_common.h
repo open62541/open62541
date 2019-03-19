@@ -8,6 +8,9 @@
 #define UA_SECURITYPOLICY_MBEDTLS_COMMON_H_
 
 #include "ua_plugin_securitypolicy.h"
+
+#ifdef UA_ENABLE_ENCRYPTION
+
 #include <mbedtls/md.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/ctr_drbg.h>
@@ -15,8 +18,6 @@
 #define UA_SHA1_LENGTH 20
 
 _UA_BEGIN_DECLS
-
-#ifdef UA_ENABLE_ENCRYPTION
 
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB);
@@ -56,8 +57,8 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
                         mbedtls_ctr_drbg_context *drbgContext,
                         UA_ByteString *data);
 
-#endif
-
 _UA_END_DECLS
+
+#endif
 
 #endif /* UA_SECURITYPOLICY_MBEDTLS_COMMON_H_ */
