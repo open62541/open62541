@@ -98,6 +98,6 @@
 # endif
 #endif
 
-#include "ua_architecture.h"
+#include "${UA_ARCHITECTURE}/ua_architecture.h"
 
 #endif /* UA_CONFIG_H_ */

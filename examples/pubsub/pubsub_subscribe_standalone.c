@@ -19,8 +19,9 @@
 #include "ua_pubsub_networkmessage.h"
 
 #include <signal.h>
+
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include "ua_network_pubsub_ethernet.h"
+#include <open62541/plugin/pubsub_ethernet.h>
 #endif
 
 UA_Boolean running = true;
