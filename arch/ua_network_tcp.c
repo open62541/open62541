@@ -144,9 +144,11 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     }
 
     /* Preprend the last incompleteChunk into the buffer */
-    memcpy(response->data, connection->incompleteChunk.data,
-           connection->incompleteChunk.length);
-    UA_ByteString_deleteMembers(&connection->incompleteChunk);
+    if (connection->incompleteChunk.length > 0) {
+        memcpy(response->data, connection->incompleteChunk.data,
+               connection->incompleteChunk.length);
+        UA_ByteString_deleteMembers(&connection->incompleteChunk);
+    }
 
     /* Set the length of the received buffer */
     response->length = offset + (size_t)ret;
