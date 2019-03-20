@@ -247,6 +247,15 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                           UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric));
 
+    if (UA_NodeId_equal(&addressNode, &UA_NODEID_NULL) ||
+        UA_NodeId_equal(&urlNode, &UA_NODEID_NULL) ||
+        UA_NodeId_equal(&interfaceNode, &UA_NODEID_NULL) ||
+        UA_NodeId_equal(&publisherIdNode, &UA_NODEID_NULL) ||
+        UA_NodeId_equal(&connectionPropertieNode, &UA_NODEID_NULL) ||
+        UA_NodeId_equal(&transportProfileUri, &UA_NODEID_NULL)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
     retVal |= writePubSubNs0VariableArray(server, connectionPropertieNode.identifier.numeric,
                                           connection->config->connectionProperties,
                                           connection->config->connectionPropertiesSize,
@@ -467,14 +476,21 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     configurationVersionNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                                    UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if (UA_NodeId_equal(&configurationVersionNode, &UA_NODEID_NULL)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
-    UA_Server_writeValue(server, configurationVersionNode, value);
+    retVal |= UA_Server_writeValue(server, configurationVersionNode, value);
 
     publishedDataNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                             UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if (UA_NodeId_equal(&publishedDataNode, &UA_NODEID_NULL)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
 
     UA_NodePropertyContext * publishingIntervalContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     publishingIntervalContext->parentNodeId = publishedDataSet->identifier;
@@ -657,6 +673,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     publishingIntervalNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                                  UA_NODEID_NUMERIC(0, writerGroup->identifier.identifier.numeric));
+    if (UA_NodeId_equal(&keepAliveNode, &UA_NODEID_NULL) ||
+        UA_NodeId_equal(&publishingIntervalNode, &UA_NODEID_NULL)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
     UA_NodePropertyContext * publishingIntervalContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     publishingIntervalContext->parentNodeId = writerGroup->identifier;
     publishingIntervalContext->parentCalssifier = UA_NS0ID_WRITERGROUPTYPE;
@@ -697,7 +717,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
                                                   UA_QUALIFIEDNAME(0, "NetworkMessageContentMask"),
                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                                   messageSettingsId);
-
+    if (UA_NodeId_equal(&messageSettingsId, &UA_NODEID_NULL) ||
+        UA_NodeId_equal(&contentMaskId, &UA_NODEID_NULL)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
     /* Set the callback */
     UA_DataSource ds;
     ds.read = readContentMask;
