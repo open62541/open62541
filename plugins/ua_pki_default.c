@@ -87,13 +87,13 @@ certificateVerification_verify(void *verificationContext,
         /*              UA_LOGCATEGORY_SECURITYPOLICY, */
         /*              "Verifying the certificate failed with error: %s", buff); */
 
-        if(flags & MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
+        if(flags & (uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
             retval = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
-        } else if (flags & MBEDTLS_X509_BADCERT_FUTURE ||
-           flags & MBEDTLS_X509_BADCERT_EXPIRED) {
+        } else if(flags & (uint32_t)MBEDTLS_X509_BADCERT_FUTURE ||
+                  flags & (uint32_t)MBEDTLS_X509_BADCERT_EXPIRED) {
             retval = UA_STATUSCODE_BADCERTIFICATETIMEINVALID;
-        } else if(flags & MBEDTLS_X509_BADCERT_REVOKED ||
-           flags & MBEDTLS_X509_BADCRL_EXPIRED) {
+        } else if(flags & (uint32_t)MBEDTLS_X509_BADCERT_REVOKED ||
+                  flags & (uint32_t)MBEDTLS_X509_BADCRL_EXPIRED) {
             retval = UA_STATUSCODE_BADCERTIFICATEREVOKED;
         } else {
             retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -209,21 +209,24 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
 
     int err = 0;
     for(size_t i = 0; i < certificateTrustListSize; i++) {
-        err |= mbedtls_x509_crt_parse(&ci->certificateTrustList,
-                                      certificateTrustList[i].data,
-                                      certificateTrustList[i].length);
+        err = mbedtls_x509_crt_parse(&ci->certificateTrustList,
+                                     certificateTrustList[i].data,
+                                     certificateTrustList[i].length);
+        if(err)
+            goto error;
     }
     for(size_t i = 0; i < certificateRevocationListSize; i++) {
-        err |= mbedtls_x509_crl_parse(&ci->certificateRevocationList,
-                                      certificateRevocationList[i].data,
-                                      certificateRevocationList[i].length);
+        err = mbedtls_x509_crl_parse(&ci->certificateRevocationList,
+                                     certificateRevocationList[i].data,
+                                     certificateRevocationList[i].length);
+        if(err)
+            goto error;
     }
 
-    if(err) {
-        certificateVerification_deleteMembers(cv);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
     return UA_STATUSCODE_GOOD;
+error:
+    certificateVerification_deleteMembers(cv);
+    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 #endif

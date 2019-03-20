@@ -43,7 +43,7 @@
 # include <assert.h>
 # define UA_assert(ignore) assert(ignore)
 #else
-# define UA_assert(ignore)
+# define UA_assert(ignore) do {} while(0)
 #endif
 
 /* Outputs an error message at compile time if the assert fails.

@@ -565,12 +565,12 @@ DECODE_BINARY(Guid) {
 }
 
 /* NodeId */
-#define UA_NODEIDTYPE_NUMERIC_TWOBYTE 0
-#define UA_NODEIDTYPE_NUMERIC_FOURBYTE 1
-#define UA_NODEIDTYPE_NUMERIC_COMPLETE 2
+#define UA_NODEIDTYPE_NUMERIC_TWOBYTE 0u
+#define UA_NODEIDTYPE_NUMERIC_FOURBYTE 1u
+#define UA_NODEIDTYPE_NUMERIC_COMPLETE 2u
 
-#define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
-#define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80
+#define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40u
+#define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80u
 
 /* For ExpandedNodeId, we prefill the encoding mask. */
 static status
@@ -597,22 +597,19 @@ NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, u8 encoding, Ctx *ctx)
             ret |= ENCODE_DIRECT(&identifier8, Byte);
         }
         break;
-    case UA_NODEIDTYPE_STRING:
-        encoding |= UA_NODEIDTYPE_STRING;
+    case UA_NODEIDTYPE_STRING:encoding |= (u8)UA_NODEIDTYPE_STRING;
         ret |= ENCODE_DIRECT(&encoding, Byte);
         ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
         ret = ENCODE_DIRECT(&src->identifier.string, String);
         break;
-    case UA_NODEIDTYPE_GUID:
-        encoding |= UA_NODEIDTYPE_GUID;
+    case UA_NODEIDTYPE_GUID:encoding |= (u8)UA_NODEIDTYPE_GUID;
         ret |= ENCODE_DIRECT(&encoding, Byte);
         ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
         ret |= ENCODE_DIRECT(&src->identifier.guid, Guid);
         break;
-    case UA_NODEIDTYPE_BYTESTRING:
-        encoding |= UA_NODEIDTYPE_BYTESTRING;
+    case UA_NODEIDTYPE_BYTESTRING:encoding |= (u8)UA_NODEIDTYPE_BYTESTRING;
         ret |= ENCODE_DIRECT(&encoding, Byte);
         ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
         if(ret != UA_STATUSCODE_GOOD)
@@ -744,8 +741,8 @@ DECODE_BINARY(QualifiedName) {
 }
 
 /* LocalizedText */
-#define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE 0x01
-#define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02
+#define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE 0x01u
+#define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02u
 
 ENCODE_BINARY(LocalizedText) {
     /* Set up the encoding mask */
@@ -982,9 +979,9 @@ Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src,
 }
 
 enum UA_VARIANT_ENCODINGMASKTYPE {
-    UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK = 0x3F,        /* bits 0:5 */
-    UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS  = (0x01 << 6), /* bit 6 */
-    UA_VARIANT_ENCODINGMASKTYPE_ARRAY       = (0x01 << 7)  /* bit 7 */
+    UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK = 0x3Fu,        /* bits 0:5 */
+    UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS = (u8)(0x01u << 6u), /* bit 6 */
+    UA_VARIANT_ENCODINGMASKTYPE_ARRAY = (u8)(0x01u << 7u)  /* bit 7 */
 };
 
 ENCODE_BINARY(Variant) {
@@ -997,19 +994,19 @@ ENCODE_BINARY(Variant) {
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
     const UA_Boolean isEnum = (src->type->typeKind == UA_DATATYPEKIND_ENUM);
     if(isBuiltin)
-        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeKind + 1);
+        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeKind + 1u)));
     else if(isEnum)
-        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_INT32 + 1);
+        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_INT32 + 1u)));
     else
-        encoding |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1);
+        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1u)));
 
     /* Set the array type in the encoding mask */
     const UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     if(isArray) {
-        encoding |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+        encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
         if(hasDimensions)
-            encoding |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+            encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
     }
 
     /* Encode the encoding byte */
@@ -1087,13 +1084,13 @@ DECODE_BINARY(Variant) {
         return UA_STATUSCODE_GOOD;
 
     /* Does the variant contain an array? */
-    const UA_Boolean isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
+    const UA_Boolean isArray = (encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
 
     /* Get the datatype of the content. The type must be a builtin data type.
      * All not-builtin types are wrapped in an ExtensionObject. The "type kind"
      * for types up to DiagnsticInfo equals to the index in the encoding
      * byte. */
-    size_t typeKind = (size_t)((encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
+    size_t typeKind = (size_t)((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
     if(typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO)
         return UA_STATUSCODE_BADDECODINGERROR;
 
@@ -1121,7 +1118,7 @@ DECODE_BINARY(Variant) {
     }
 
     /* Decode array dimensions */
-    if(isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0)
+    if(isArray && (encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0)
         ret |= Array_decodeBinary((void**)&dst->arrayDimensions, &dst->arrayDimensionsSize,
                                   &UA_TYPES[UA_TYPES_INT32], ctx);
 
@@ -1132,13 +1129,12 @@ DECODE_BINARY(Variant) {
 /* DataValue */
 ENCODE_BINARY(DataValue) {
     /* Set up the encoding mask */
-    u8 encodingMask = (u8)
-        (((u8)src->hasValue) |
-         ((u8)src->hasStatus << 1) |
-         ((u8)src->hasSourceTimestamp << 2) |
-         ((u8)src->hasServerTimestamp << 3) |
-         ((u8)src->hasSourcePicoseconds << 4) |
-         ((u8)src->hasServerPicoseconds << 5));
+    u8 encodingMask = src->hasValue;
+    encodingMask |= (u8)(src->hasStatus << 1u);
+    encodingMask |= (u8)(src->hasSourceTimestamp << 2u);
+    encodingMask |= (u8)(src->hasServerTimestamp << 3u);
+    encodingMask |= (u8)(src->hasSourcePicoseconds << 4u);
+    encodingMask |= (u8)(src->hasServerPicoseconds << 5u);
 
     /* Encode the encoding byte */
     status ret = ENCODE_DIRECT(&encodingMask, Byte);
@@ -1180,29 +1176,29 @@ DECODE_BINARY(DataValue) {
     ctx->depth++;
 
     /* Decode the content */
-    if(encodingMask & 0x01) {
+    if(encodingMask & 0x01u) {
         dst->hasValue = true;
         ret |= DECODE_DIRECT(&dst->value, Variant);
     }
-    if(encodingMask & 0x02) {
+    if(encodingMask & 0x02u) {
         dst->hasStatus = true;
         ret |= DECODE_DIRECT(&dst->status, UInt32); /* StatusCode */
     }
-    if(encodingMask & 0x04) {
+    if(encodingMask & 0x04u) {
         dst->hasSourceTimestamp = true;
         ret |= DECODE_DIRECT(&dst->sourceTimestamp, UInt64); /* DateTime */
     }
-    if(encodingMask & 0x10) {
+    if(encodingMask & 0x10u) {
         dst->hasSourcePicoseconds = true;
         ret |= DECODE_DIRECT(&dst->sourcePicoseconds, UInt16);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
-    if(encodingMask & 0x08) {
+    if(encodingMask & 0x08u) {
         dst->hasServerTimestamp = true;
         ret |= DECODE_DIRECT(&dst->serverTimestamp, UInt64); /* DateTime */
     }
-    if(encodingMask & 0x20) {
+    if(encodingMask & 0x20u) {
         dst->hasServerPicoseconds = true;
         ret |= DECODE_DIRECT(&dst->serverPicoseconds, UInt16);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
@@ -1217,10 +1213,12 @@ DECODE_BINARY(DataValue) {
 /* DiagnosticInfo */
 ENCODE_BINARY(DiagnosticInfo) {
     /* Set up the encoding mask */
-    u8 encodingMask = (u8)
-        ((u8)src->hasSymbolicId | ((u8)src->hasNamespaceUri << 1) |
-        ((u8)src->hasLocalizedText << 2) | ((u8)src->hasLocale << 3) |
-        ((u8)src->hasAdditionalInfo << 4) | ((u8)src->hasInnerDiagnosticInfo << 5));
+    u8 encodingMask = src->hasSymbolicId;
+    encodingMask |= (u8)(src->hasNamespaceUri << 1u);
+    encodingMask |= (u8)(src->hasLocalizedText << 2u);
+    encodingMask |= (u8)(src->hasLocale << 3u);
+    encodingMask |= (u8)(src->hasAdditionalInfo << 4u);
+    encodingMask |= (u8)(src->hasInnerDiagnosticInfo << 5u);
 
     /* Encode the numeric content */
     status ret = ENCODE_DIRECT(&encodingMask, Byte);
@@ -1265,31 +1263,31 @@ DECODE_BINARY(DiagnosticInfo) {
         return ret;
 
     /* Decode the content */
-    if(encodingMask & 0x01) {
+    if(encodingMask & 0x01u) {
         dst->hasSymbolicId = true;
         ret |= DECODE_DIRECT(&dst->symbolicId, UInt32); /* Int32 */
     }
-    if(encodingMask & 0x02) {
+    if(encodingMask & 0x02u) {
         dst->hasNamespaceUri = true;
         ret |= DECODE_DIRECT(&dst->namespaceUri, UInt32); /* Int32 */
     }
-    if(encodingMask & 0x04) {
+    if(encodingMask & 0x04u) {
         dst->hasLocalizedText = true;
         ret |= DECODE_DIRECT(&dst->localizedText, UInt32); /* Int32 */
     }
-    if(encodingMask & 0x08) {
+    if(encodingMask & 0x08u) {
         dst->hasLocale = true;
         ret |= DECODE_DIRECT(&dst->locale, UInt32); /* Int32 */
     }
-    if(encodingMask & 0x10) {
+    if(encodingMask & 0x10u) {
         dst->hasAdditionalInfo = true;
         ret |= DECODE_DIRECT(&dst->additionalInfo, String);
     }
-    if(encodingMask & 0x20) {
+    if(encodingMask & 0x20u) {
         dst->hasInnerStatusCode = true;
         ret |= DECODE_DIRECT(&dst->innerStatusCode, UInt32); /* StatusCode */
     }
-    if(encodingMask & 0x40) {
+    if(encodingMask & 0x40u) {
         /* innerDiagnosticInfo is allocated on the heap */
         dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)
             UA_calloc(1, sizeof(UA_DiagnosticInfo));
@@ -1346,6 +1344,7 @@ encodeBinaryStruct(const void *src, const UA_DataType *type, Ctx *ctx) {
 
 static status
 encodeBinaryNotImplemented(const void *src, const UA_DataType *type, Ctx *ctx) {
+    (void)src, (void)type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
@@ -1414,6 +1413,7 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
 
 static status
 decodeBinaryNotImplemented(void *dst, const UA_DataType *type, Ctx *ctx) {
+    (void)dst, (void)type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
@@ -1533,10 +1533,10 @@ Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *type) {
     return s;
 }
 
-static size_t calcSizeBinary1(const void *_, const UA_DataType *__) { return 1; }
-static size_t calcSizeBinary2(const void *_, const UA_DataType *__) { return 2; }
-static size_t calcSizeBinary4(const void *_, const UA_DataType *__) { return 4; }
-static size_t calcSizeBinary8(const void *_, const UA_DataType *__) { return 8; }
+static size_t calcSizeBinary1(const void *_, const UA_DataType *__) { (void)_, (void)__; return 1; }
+static size_t calcSizeBinary2(const void *_, const UA_DataType *__) { (void)_, (void)__; return 2; }
+static size_t calcSizeBinary4(const void *_, const UA_DataType *__) { (void)_, (void)__; return 4; }
+static size_t calcSizeBinary8(const void *_, const UA_DataType *__) { (void)_, (void)__; return 8; }
 
 CALCSIZE_BINARY(String) { return 4 + src->length; }
 
@@ -1717,6 +1717,7 @@ calcSizeBinaryStructure(const void *p, const UA_DataType *type) {
 
 static size_t
 calcSizeBinaryNotImplemented(const void *p, const UA_DataType *type) {
+    (void)p, (void)type;
     return 0;
 }
 

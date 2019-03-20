@@ -22,8 +22,8 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
-#define UA_BITMASK_MESSAGETYPE 0x00ffffff
-#define UA_BITMASK_CHUNKTYPE 0xff000000
+#define UA_BITMASK_MESSAGETYPE 0x00ffffffu
+#define UA_BITMASK_CHUNKTYPE 0xff000000u
 #define UA_ASYMMETRIC_ALG_SECURITY_HEADER_FIXED_LENGTH 12
 #define UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH 4
 #define UA_SEQUENCE_HEADER_LENGTH 8
@@ -455,7 +455,7 @@ padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *const buf,
         (plainTextBlockSize - ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize));
 
     /* Write the padding. This is <= because the paddingSize byte also has to be written */
-    UA_Byte paddingSize = (UA_Byte)(totalPaddingSize & 0xff);
+    UA_Byte paddingSize = (UA_Byte)(totalPaddingSize & 0xffu);
     for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
         **buf_pos = paddingSize;
         ++*buf_pos;
@@ -464,7 +464,7 @@ padChunkAsym(UA_SecureChannel *channel, const UA_ByteString *const buf,
     /* Write the extra padding byte if required */
     if(securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
        getRemoteKeyLength(securityPolicy, channel->channelContext) > 2048) {
-        UA_Byte extraPaddingSize = (UA_Byte)(totalPaddingSize >> 8);
+        UA_Byte extraPaddingSize = (UA_Byte)(totalPaddingSize >> 8u);
         **buf_pos = extraPaddingSize;
         ++*buf_pos;
     }
@@ -598,7 +598,7 @@ calculatePaddingSym(const UA_SecurityPolicy *securityPolicy, const void *channel
     size_t padding = (encryptionBlockSize -
                       ((bytesToWrite + signatureSize + 1) % encryptionBlockSize));
     *paddingSize = (UA_Byte)padding;
-    *extraPaddingSize = (UA_Byte)(padding >> 8);
+    *extraPaddingSize = (UA_Byte)(padding >> 8u);
     return (UA_UInt16)padding;
 }
 
@@ -697,7 +697,7 @@ setBufPos(UA_MessageContext *mc) {
         /* PaddingSize and ExtraPaddingSize fields */
         size_t encryptionBlockSize = securityPolicy->symmetricModule.cryptoModule.
             encryptionAlgorithm.getLocalBlockSize(securityPolicy, channel->channelContext);
-        mc->buf_end -= 1 + ((encryptionBlockSize >> 8) ? 1 : 0);
+        mc->buf_end -= 1 + ((encryptionBlockSize >> 8u) ? 1 : 0);
 
         /* Reduce the message body size with the remainder of the operation
          * maxEncryptedDataSize modulo EncryptionBlockSize to get a whole
@@ -770,7 +770,6 @@ encodeHeadersSym(UA_MessageContext *const messageContext, size_t totalLength) {
 
 static UA_StatusCode
 sendSymmetricChunk(UA_MessageContext *messageContext) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_SecureChannel *const channel = messageContext->channel;
     const UA_SecurityPolicy *securityPolicy = channel->securityPolicy;
     UA_Connection *const connection = channel->connection;
@@ -778,7 +777,7 @@ sendSymmetricChunk(UA_MessageContext *messageContext) {
         return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t bodyLength = 0;
-    res = checkLimitsSym(messageContext, &bodyLength);
+    UA_StatusCode res = checkLimitsSym(messageContext, &bodyLength);
     if(res != UA_STATUSCODE_GOOD)
         goto error;
 
@@ -1124,7 +1123,7 @@ decodeChunkPaddingSize(const UA_SecureChannel *const channel,
     size_t keyLength = cryptoModule->encryptionAlgorithm.
         getRemoteKeyLength(channel->securityPolicy, channel->channelContext);
     if(keyLength > 2048) {
-        paddingSize <<= 8;
+        paddingSize <<= 8u;
         paddingSize += 1;
         paddingSize += chunk->data[chunkSizeAfterDecryption - sigsize - 2];
     }
@@ -1250,7 +1249,6 @@ processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
 static UA_StatusCode
 checkAsymHeader(UA_SecureChannel *const channel,
                 UA_AsymmetricAlgorithmSecurityHeader *const asymHeader) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
 
     if(!UA_ByteString_equal(&securityPolicy->policyUri,
@@ -1264,7 +1262,7 @@ checkAsymHeader(UA_SecureChannel *const channel,
     if(retval != UA_STATUSCODE_GOOD)
     return retval;
     */
-    retval = securityPolicy->asymmetricModule.
+    UA_StatusCode retval = securityPolicy->asymmetricModule.
         compareCertificateThumbprint(securityPolicy,
                                      &asymHeader->receiverCertificateThumbprint);
     if(retval != UA_STATUSCODE_GOOD) {

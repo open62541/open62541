@@ -664,7 +664,6 @@ createSecureChannel(void *application, UA_Connection *connection,
     /* Iterate over available endpoints and choose the correct one */
     UA_EndpointDescription *endpoint = NULL;
     UA_SecurityPolicy *securityPolicy = NULL;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.endpointsSize; ++i) {
         UA_EndpointDescription *endpointCandidate = &server->config.endpoints[i];
         if(!UA_ByteString_equal(&asymHeader->securityPolicyUri,
@@ -675,7 +674,7 @@ createSecureChannel(void *application, UA_Connection *connection,
         if(!securityPolicy)
             return UA_STATUSCODE_BADINTERNALERROR;
 
-        retval = securityPolicy->asymmetricModule.
+        UA_StatusCode retval = securityPolicy->asymmetricModule.
             compareCertificateThumbprint(securityPolicy,
                                          &asymHeader->receiverCertificateThumbprint);
         if(retval != UA_STATUSCODE_GOOD)
@@ -711,7 +710,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
         return retval;
 
     // Only HEL and OPN messages possible without a channel (on the server side)
-    switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
+    switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffffu) {
     case UA_MESSAGETYPE_HEL:
         retval = processHEL(server, connection, message, &offset);
         break;

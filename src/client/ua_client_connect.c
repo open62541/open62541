@@ -37,8 +37,8 @@ setClientState(UA_Client *client, UA_ClientState state) {
 /* Open the Connection */
 /***********************/
 
-#define UA_BITMASK_MESSAGETYPE 0x00ffffff
-#define UA_BITMASK_CHUNKTYPE 0xff000000
+#define UA_BITMASK_MESSAGETYPE 0x00ffffffu
+#define UA_BITMASK_CHUNKTYPE 0xff000000u
 
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
