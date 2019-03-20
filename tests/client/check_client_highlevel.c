@@ -116,6 +116,8 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    /* Minimal nodeset does not contain UA_NS0ID_INTEGER node */
+    #ifdef UA_GENERATED_NAMESPACE_ZERO
     // Create Int128 DataType within Integer Datatype
     {
         UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
@@ -127,6 +129,7 @@ START_TEST(Node_Add) {
                                            UA_QUALIFIEDNAME(1, "Int128"), attr, &newDataTypeId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
+    #endif
 
     // Create PointType VariableType within BaseDataVariableType
     {
@@ -542,7 +545,9 @@ static void checkNodeClass(UA_Client *clientNc, const UA_NodeId nodeId, const UA
 START_TEST(Node_ReadWrite_Class) {
     checkNodeClass(client, nodeReadWriteInt, UA_NODECLASS_VARIABLE);
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
-#ifdef UA_ENABLE_METHODCALLS
+
+    /* Minimal nodeset does not contain UA_NS0ID_SERVER_GETMONITOREDITEMS node */
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_GENERATED_NAMESPACE_ZERO)
     checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
 #endif
 

@@ -25,7 +25,7 @@ static void teardown(void) {
     UA_ServerConfig_delete(config);
 }
 
-
+#ifdef UA_GENERATED_NAMESPACE_ZERO
 /* finds the NodeId of a StateNumber child of a given node id */
 static void
 findChildId(UA_NodeId stateId, UA_NodeId referenceType,
@@ -51,7 +51,7 @@ findChildId(UA_NodeId stateId, UA_NodeId referenceType,
     UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, result);
     UA_BrowsePathResult_deleteMembers(&bpr);
 }
-
+#endif
 
 START_TEST(Nodes_createCustomStateType) {
     // Create a type "CustomStateType" with a variable "CustomStateNumber" as property
@@ -94,12 +94,14 @@ START_TEST(Nodes_createCustomStateType) {
                                        NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+/* Minimal nodeset does not contain the modelling rule mandatory */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 6001),
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
                                     true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
+#endif
 }
 END_TEST
 
@@ -130,6 +132,8 @@ START_TEST(Nodes_createCustomObjectType) {
                                      oAttr, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+/* Minimal nodeset does not contain the modelling rule mandatory */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     /* modelling rule is mandatory so it will be inherited for the object
      * created from CustomDemoType */
     retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 6011),
@@ -137,8 +141,6 @@ START_TEST(Nodes_createCustomObjectType) {
                                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
                                     true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-
 
 
     /* assign a default value to the attribute "StateNumber" inside the state
@@ -153,6 +155,8 @@ START_TEST(Nodes_createCustomObjectType) {
 
     retval = UA_Server_writeValue(server, childID, stateNum);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+#endif
 
 }
 END_TEST
@@ -173,6 +177,8 @@ START_TEST(Nodes_createInheritedObject) {
 END_TEST
 
 START_TEST(Nodes_checkInheritedValue) {
+/* Minimal nodeset does not contain the modelling rule mandatory, therefore there is no CustomStateNumber */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     UA_NodeId childState;
     findChildId(UA_NODEID_NUMERIC(1, 6020),
                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -192,6 +198,7 @@ START_TEST(Nodes_checkInheritedValue) {
 
     ck_assert_int_eq(*value, valueToBeInherited);
     UA_Variant_deleteMembers(&inheritedValue);
+#endif
 }
 END_TEST
 

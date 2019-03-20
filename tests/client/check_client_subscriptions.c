@@ -499,7 +499,6 @@ START_TEST(Client_methodcall) {
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                             NULL, NULL, NULL);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    UA_UInt32 subId = response.subscriptionId;
 
     /* monitor the server state */
     UA_MonitoredItemCreateRequest monRequest =
@@ -511,7 +510,10 @@ START_TEST(Client_methodcall) {
                                                   monRequest, NULL, NULL, NULL);
     ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
 
+/* Minimal nodeset does not contain any method we can call here */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     UA_UInt32 monId = monResponse.monitoredItemId;
+    UA_UInt32 subId = response.subscriptionId;
 
     /* call a method to get monitored item id */
     UA_Variant input;
@@ -542,6 +544,7 @@ START_TEST(Client_methodcall) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
 
     UA_Variant_deleteMembers(&input);
+#endif
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
