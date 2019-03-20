@@ -15,8 +15,8 @@
 #define BEGIN_CRITSECT(NODEMAP) pthread_mutex_lock(&(NODEMAP)->mutex)
 #define END_CRITSECT(NODEMAP) pthread_mutex_unlock(&(NODEMAP)->mutex)
 #else
-#define BEGIN_CRITSECT(NODEMAP)
-#define END_CRITSECT(NODEMAP)
+#define BEGIN_CRITSECT(NODEMAP) do {} while(0)
+#define END_CRITSECT(NODEMAP) do {} while(0)
 #endif
 
 /* container_of */

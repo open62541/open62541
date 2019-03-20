@@ -303,7 +303,7 @@ addPubSubConnectionAction(UA_Server *server,
             if(UA_NetworkAddressUrlDataType_copy((UA_NetworkAddressUrlDataType *) eo.content.decoded.data,
                                                  &networkAddressUrlDataType) != UA_STATUSCODE_GOOD){
                 return UA_STATUSCODE_BADOUTOFMEMORY;
-            };
+            }
         }
     }
     UA_PubSubConnectionConfig connectionConfig;
@@ -332,13 +332,13 @@ addPubSubConnectionAction(UA_Server *server,
 
     if(retVal != UA_STATUSCODE_GOOD){
         return retVal;
-    };
+    }
     for(size_t i = 0; i < pubSubConnectionDataType.writerGroupsSize; i++){
         //UA_PubSubConnection_addWriterGroup(server, UA_NODEID_NULL, NULL, NULL);
-    };
+    }
     for(size_t i = 0; i < pubSubConnectionDataType.readerGroupsSize; i++){
         //UA_PubSubConnection_addReaderGroup(server, NULL, NULL, NULL);
-    };
+    }
     UA_NetworkAddressUrlDataType_deleteMembers(&networkAddressUrlDataType);
     //set ouput value
     UA_Variant_setScalarCopy(output, &connectionId, &UA_TYPES[UA_TYPES_NODEID]);

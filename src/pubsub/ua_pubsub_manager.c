@@ -222,7 +222,7 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
         if(UA_NodeId_equal(&server->pubSubManager.publishedDataSets[publishedDataSetIndex].identifier, &pds)){
             publishedDataSet = &server->pubSubManager.publishedDataSets[publishedDataSetIndex];
             break;
-        };
+        }
     }
     if(!publishedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;

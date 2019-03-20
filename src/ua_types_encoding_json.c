@@ -165,16 +165,6 @@ status writeJsonNull(CtxJson *ctx) {
     return UA_STATUSCODE_GOOD;
 }
 
-#define UA_STRING_TO_CSTRING(in,out)            \
-    UA_STACKARRAY(char, out, in->length + 1);   \
-    memcpy(out, in->data, in->length);          \
-    out[in->length] = 0;
-
-#define NULL_TERMINATE(in, inlength, out)       \
-    UA_STACKARRAY(char, out, inlength + 1);     \
-    memcpy(out, in, inlength);                  \
-    out[inlength] = 0;
-
 /* Keys for JSON */
 
 /* LocalizedText */
@@ -537,8 +527,11 @@ ENCODE_JSON(String) {
     if(!src->data)
         return writeJsonNull(ctx);
 
-    if(src->length == 0)
-        return writeJsonQuote(ctx) | writeJsonQuote(ctx);
+    if(src->length == 0) {
+        status retval = writeJsonQuote(ctx);
+        retval |= writeJsonQuote(ctx);
+        return  retval;
+    }
 
     UA_StatusCode ret = writeJsonQuote(ctx);
     
@@ -548,14 +541,14 @@ ENCODE_JSON(String) {
     const char *pos = str;
     const char *end = str;
     const char *lim = str + src->length;
-    UA_Int32 codepoint = 0;
+    UA_UInt32 codepoint = 0;
     while(1) {
         const char *text;
         u8 seq[13];
         size_t length;
 
         while(end < lim) {
-            end = utf8_iterate(pos, (size_t)(lim - pos), &codepoint);
+            end = utf8_iterate(pos, (size_t)(lim - pos), (int32_t *)&codepoint);
             if(!end)
                 return UA_STATUSCODE_BADENCODINGERROR;
 
@@ -563,6 +556,7 @@ ENCODE_JSON(String) {
             if(codepoint == '\\' || codepoint == '"' || codepoint < 0x20)
                 break;
 
+            /* TODO: Why is this commented? */
             /* slash 
             if((flags & JSON_ESCAPE_SLASH) && codepoint == '/')
                 break;*/
@@ -601,38 +595,38 @@ ENCODE_JSON(String) {
                 /* codepoint is in BMP */
                 seq[0] = '\\';
                 seq[1] = 'u';
-                UA_Byte b1 = (UA_Byte)(codepoint >> 8);
-                UA_Byte b2 = (UA_Byte)(codepoint >> 0);
-                seq[2] = hexmapLower[(b1 & 0xF0) >> 4];
-                seq[3] = hexmapLower[b1 & 0x0F];
-                seq[4] = hexmapLower[(b2 & 0xF0) >> 4];
-                seq[5] = hexmapLower[b2 & 0x0F];
+                UA_Byte b1 = (UA_Byte)(codepoint >> 8u);
+                UA_Byte b2 = (UA_Byte)(codepoint >> 0u);
+                seq[2] = hexmapLower[(b1 & 0xF0u) >> 4u];
+                seq[3] = hexmapLower[b1 & 0x0Fu];
+                seq[4] = hexmapLower[(b2 & 0xF0u) >> 4u];
+                seq[5] = hexmapLower[b2 & 0x0Fu];
                 length = 6;
             } else {
                 /* not in BMP -> construct a UTF-16 surrogate pair */
                 codepoint -= 0x10000;
-                UA_Int32 first = 0xD800 | ((codepoint & 0xffc00) >> 10);
-                UA_Int32 last = 0xDC00 | (codepoint & 0x003ff);
+                UA_UInt32 first = 0xD800u | ((codepoint & 0xffc00u) >> 10u);
+                UA_UInt32 last = 0xDC00u | (codepoint & 0x003ffu);
 
-                UA_Byte fb1 = (UA_Byte)(first >> 8);
-                UA_Byte fb2 = (UA_Byte)(first >> 0);
+                UA_Byte fb1 = (UA_Byte)(first >> 8u);
+                UA_Byte fb2 = (UA_Byte)(first >> 0u);
                     
-                UA_Byte lb1 = (UA_Byte)(last >> 8);
-                UA_Byte lb2 = (UA_Byte)(last >> 0);
+                UA_Byte lb1 = (UA_Byte)(last >> 8u);
+                UA_Byte lb2 = (UA_Byte)(last >> 0u);
                     
                 seq[0] = '\\';
                 seq[1] = 'u';
-                seq[2] = hexmapLower[(fb1 & 0xF0) >> 4];
-                seq[3] = hexmapLower[fb1 & 0x0F];
-                seq[4] = hexmapLower[(fb2 & 0xF0) >> 4];
-                seq[5] = hexmapLower[fb2 & 0x0F];
+                seq[2] = hexmapLower[(fb1 & 0xF0u) >> 4u];
+                seq[3] = hexmapLower[fb1 & 0x0Fu];
+                seq[4] = hexmapLower[(fb2 & 0xF0u) >> 4u];
+                seq[5] = hexmapLower[fb2 & 0x0Fu];
                     
                 seq[6] = '\\';
                 seq[7] = 'u';
-                seq[8] = hexmapLower[(lb1 & 0xF0) >> 4];
-                seq[9] = hexmapLower[lb1 & 0x0F];
-                seq[10] = hexmapLower[(lb2 & 0xF0) >> 4];
-                seq[11] = hexmapLower[lb2 & 0x0F];
+                seq[8] = hexmapLower[(lb1 & 0xF0u) >> 4u];
+                seq[9] = hexmapLower[lb1 & 0x0Fu];
+                seq[10] = hexmapLower[(lb2 & 0xF0u) >> 4u];
+                seq[11] = hexmapLower[lb2 & 0x0Fu];
                 length = 12;
             }
             text = (char*)seq;
@@ -655,8 +649,11 @@ ENCODE_JSON(ByteString) {
     if(!src->data)
         return writeJsonNull(ctx);
 
-    if(src->length == 0)
-        return writeJsonQuote(ctx) | writeJsonQuote(ctx);
+    if(src->length == 0) {
+        status retval = writeJsonQuote(ctx);
+        retval |= writeJsonQuote(ctx);
+        return retval;
+    }
 
     status ret = writeJsonQuote(ctx);
     int flen;
@@ -708,22 +705,22 @@ static void UA_Guid_to_hex(const UA_Guid *guid, u8* out) {
 #endif
     size_t i = 0, j = 28;
     for(; i<8;i++,j-=4)         /* pos 0-7, 4byte, (a) */
-        out[i] = hexmap[(guid->data1 >> j) & 0x0F];
+        out[i] = hexmap[(guid->data1 >> j) & 0x0Fu];
     out[i++] = '-';             /* pos 8 */
     for(j=12; i<13;i++,j-=4)    /* pos 9-12, 2byte, (b) */
-        out[i] = hexmap[(guid->data2 >> j) & 0x0F];
+        out[i] = hexmap[(uint16_t)(guid->data2 >> j) & 0x0Fu];
     out[i++] = '-';             /* pos 13 */
     for(j=12; i<18;i++,j-=4)    /* pos 14-17, 2byte (c) */
-        out[i] = hexmap[(guid->data3 >> j) & 0x0F];
+        out[i] = hexmap[(uint16_t)(guid->data3 >> j) & 0x0Fu];
     out[i++] = '-';             /* pos 18 */
     for(j=0;i<23;i+=2,j++) {     /* pos 19-22, 2byte (d) */
-        out[i] = hexmap[(guid->data4[j] & 0xF0) >> 4];
-        out[i+1] = hexmap[guid->data4[j] & 0x0F];
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
     }
     out[i++] = '-';             /* pos 23 */
     for(j=2; i<36;i+=2,j++) {    /* pos 24-35, 6byte (e) */
-        out[i] = hexmap[(guid->data4[j] & 0xF0) >> 4];
-        out[i+1] = hexmap[guid->data4[j] & 0x0F];
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
     }
 }
 
@@ -841,8 +838,8 @@ ENCODE_JSON(NodeId) {
             }
         }
     }
-    
-    ret = writeJsonObjEnd(ctx);
+
+    ret |= writeJsonObjEnd(ctx);
     return ret;
 }
 
@@ -1410,13 +1407,13 @@ encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
         if(!m->isArray) {
             ptr += m->padding;
             size_t memSize = mt->memSize;
-            ret = encodeJsonJumpTable[mt->typeKind]((const void*) ptr, mt, ctx);
+            ret |= encodeJsonJumpTable[mt->typeKind]((const void*) ptr, mt, ctx);
             ptr += memSize;
         } else {
             ptr += m->padding;
             const size_t length = *((const size_t*) ptr);
             ptr += sizeof (size_t);
-            ret = encodeJsonArray(ctx, *(void * const *)ptr, length, mt);
+            ret |= encodeJsonArray(ctx, *(void * const *)ptr, length, mt);
             ptr += sizeof (void*);
         }
     }
@@ -1429,6 +1426,7 @@ encodeJsonStructure(const void *src, const UA_DataType *type, CtxJson *ctx) {
 
 static status
 encodeJsonNotImplemented(const void *src, const UA_DataType *type, CtxJson *ctx) {
+    (void) src, (void) type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
@@ -1537,34 +1535,35 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
 
 /* Macro which gets current size and char pointer of current Token. Needs
  * ParseCtx (parseCtx) and CtxJson (ctx). Does NOT increment index of Token. */
-#define GET_TOKEN                                                       \
-    size_t tokenSize = (size_t)(parseCtx->tokenArray[parseCtx->index].end - parseCtx->tokenArray[parseCtx->index].start); \
-    char* tokenData = (char*)(ctx->pos + parseCtx->tokenArray[parseCtx->index].start);
+#define GET_TOKEN(data, size) do {                                               \
+    (size) = (size_t)(parseCtx->tokenArray[parseCtx->index].end - parseCtx->tokenArray[parseCtx->index].start); \
+    (data) = (char*)(ctx->pos + parseCtx->tokenArray[parseCtx->index].start); } while(0)
 
-#define ALLOW_NULL                  \
+#define ALLOW_NULL do {             \
     if(isJsonNull(ctx, parseCtx)) { \
         parseCtx->index++;          \
         return UA_STATUSCODE_GOOD;  \
-    }
+    }} while(0)
 
-#define CHECK_TOKEN_BOUNDS                        \
+#define CHECK_TOKEN_BOUNDS do {                   \
     if(parseCtx->index >= parseCtx->tokenCount)   \
-        return UA_STATUSCODE_BADDECODINGERROR;
+        return UA_STATUSCODE_BADDECODINGERROR;    \
+    } while(0)
 
-#define CHECK_PRIMITIVE                           \
+#define CHECK_PRIMITIVE do {                      \
     if(getJsmnType(parseCtx) != JSMN_PRIMITIVE) { \
         return UA_STATUSCODE_BADDECODINGERROR;    \
-    }
+    }} while(0)
 
-#define CHECK_STRING                           \
+#define CHECK_STRING do {                      \
     if(getJsmnType(parseCtx) != JSMN_STRING) { \
         return UA_STATUSCODE_BADDECODINGERROR; \
-    }
+    }} while(0)
 
-#define CHECK_OBJECT                           \
+#define CHECK_OBJECT do {                      \
     if(getJsmnType(parseCtx) != JSMN_OBJECT) { \
         return UA_STATUSCODE_BADDECODINGERROR; \
-    }
+    }} while(0)
 
 /* Forward declarations*/
 #define DECODE_JSON(TYPE) static status                        \
@@ -1636,7 +1635,9 @@ static UA_SByte jsoneq(const char *json, jsmntok_t *tok, const char *searchKey) 
 DECODE_JSON(Boolean) {
     CHECK_PRIMITIVE;
     CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     if(tokenSize == 4 &&
        tokenData[0] == 't' && tokenData[1] == 'r' &&
@@ -1729,7 +1730,9 @@ parseSignedInteger(char* inputBuffer, size_t sizeOfBuffer,
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* convert to null terminated string  */
-    NULL_TERMINATE(inputBuffer, sizeOfBuffer, string);
+    UA_STACKARRAY(char, string, sizeOfBuffer + 1);
+    memcpy(string, inputBuffer, sizeOfBuffer);
+    string[sizeOfBuffer] = 0;
 
     /* Conversion */
     char *endptr, *str;
@@ -1756,7 +1759,9 @@ parseSignedInteger(char* inputBuffer, size_t sizeOfBuffer,
 DECODE_JSON(Byte) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1770,7 +1775,9 @@ DECODE_JSON(Byte) {
 DECODE_JSON(UInt16) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1784,7 +1791,9 @@ DECODE_JSON(UInt16) {
 DECODE_JSON(UInt32) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1798,7 +1807,9 @@ DECODE_JSON(UInt32) {
 DECODE_JSON(UInt64) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = parseUnsignedInteger(tokenData, tokenSize, &out);
@@ -1812,7 +1823,9 @@ DECODE_JSON(UInt64) {
 DECODE_JSON(SByte) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1826,7 +1839,9 @@ DECODE_JSON(SByte) {
 DECODE_JSON(Int16) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1840,7 +1855,9 @@ DECODE_JSON(Int16) {
 DECODE_JSON(Int32) {
     CHECK_TOKEN_BOUNDS;
     CHECK_PRIMITIVE;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1854,7 +1871,9 @@ DECODE_JSON(Int32) {
 DECODE_JSON(Int64) {
     CHECK_TOKEN_BOUNDS;
     CHECK_STRING;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     UA_Int64 out = 0;
     UA_StatusCode s = parseSignedInteger(tokenData, tokenSize, &out);
@@ -1880,7 +1899,9 @@ static UA_UInt32 hex2int(char ch) {
 */
 DECODE_JSON(Float) {
     CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
     
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 149
@@ -1946,7 +1967,9 @@ DECODE_JSON(Float) {
 /* Either a JSMN_STRING or JSMN_PRIMITIVE */
 DECODE_JSON(Double) {
     CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
     
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 1074
@@ -2024,13 +2047,13 @@ static UA_Guid UA_Guid_fromChars(const char* chars) {
         dst.data2 |= (UA_UInt16)(hex2int(chars[9+i]) << (12 - (i*4)));
         dst.data3 |= (UA_UInt16)(hex2int(chars[14+i]) << (12 - (i*4)));
     }
-    dst.data4[0] |= (UA_Byte)(hex2int(chars[19]) << 4);
-    dst.data4[0] |= (UA_Byte)(hex2int(chars[20]) << 0);
-    dst.data4[1] |= (UA_Byte)(hex2int(chars[21]) << 4);
-    dst.data4[1] |= (UA_Byte)(hex2int(chars[22]) << 0);
+    dst.data4[0] |= (UA_Byte)(hex2int(chars[19]) << 4u);
+    dst.data4[0] |= (UA_Byte)(hex2int(chars[20]) << 0u);
+    dst.data4[1] |= (UA_Byte)(hex2int(chars[21]) << 4u);
+    dst.data4[1] |= (UA_Byte)(hex2int(chars[22]) << 0u);
     for(size_t i = 0; i < 6; i++) {
-        dst.data4[2+i] |= (UA_Byte)(hex2int(chars[24 + i*2]) << 4);
-        dst.data4[2+i] |= (UA_Byte)(hex2int(chars[25 + i*2]) << 0);
+        dst.data4[2+i] |= (UA_Byte)(hex2int(chars[24 + i*2]) << 4u);
+        dst.data4[2+i] |= (UA_Byte)(hex2int(chars[25 + i*2]) << 0u);
     }
     return dst;
 }
@@ -2038,7 +2061,9 @@ static UA_Guid UA_Guid_fromChars(const char* chars) {
 DECODE_JSON(Guid) {
     CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     if(tokenSize != 36)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -2064,7 +2089,9 @@ DECODE_JSON(String) {
     ALLOW_NULL;
     CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     /* Empty string? */
     if(tokenSize == 0) {
@@ -2117,9 +2144,10 @@ DECODE_JSON(String) {
         /* Unicode */
         if(p + 4 >= end)
             goto cleanup;
-        int32_t value = decode_unicode_escape(p);
-        if(value < 0)
+        int32_t value_signed = decode_unicode_escape(p);
+        if(value_signed < 0)
             goto cleanup;
+        uint32_t value = (uint32_t)value_signed;
         p += 5;
 
         if(0xD800 <= value && value <= 0xDBFF) {
@@ -2128,10 +2156,10 @@ DECODE_JSON(String) {
                 goto cleanup;
             if(*p != '\\' || *(p + 1) != 'u')
                 goto cleanup;
-            int32_t value2 = decode_unicode_escape(p+1);
+            int32_t value2 = decode_unicode_escape(p + 1);
             if(value2 < 0xDC00 || value2 > 0xDFFF)
                 goto cleanup;
-            value = ((value - 0xD800) << 10) + (value2 - 0xDC00) + 0x10000;
+            value = ((value - 0xD800u) << 10u) + (uint32_t)((value2 - 0xDC00) + 0x10000);
             p += 6;
         } else if(0xDC00 <= value && value <= 0xDFFF) {
             /* Invalid Unicode '\\u%04X' */
@@ -2139,7 +2167,7 @@ DECODE_JSON(String) {
         }
 
         size_t length;
-        if(utf8_encode(value, pos, &length))
+        if(utf8_encode((int32_t)value, pos, &length))
             goto cleanup;
 
         pos += length;
@@ -2166,7 +2194,9 @@ DECODE_JSON(ByteString) {
     ALLOW_NULL;
     CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
 
     /* Empty bytestring? */
     if(tokenSize == 0) {
@@ -2516,7 +2546,9 @@ DECODE_JSON(ExpandedNodeId) {
 DECODE_JSON(DateTime) {
     CHECK_STRING;
     CHECK_TOKEN_BOUNDS;
-    GET_TOKEN;
+    size_t tokenSize;
+    char* tokenData;
+    GET_TOKEN(tokenData, tokenSize);
     
     /* TODO: proper ISO 8601:2004 parsing, musl strptime!*/
     /* DateTime  ISO 8601:2004 without milli is 20 Characters, with millis 24 */
@@ -2582,6 +2614,7 @@ DECODE_JSON(StatusCode) {
 static status
 VariantDimension_decodeJson(void * dst, const UA_DataType *type, 
                             CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
+    (void) type;
     const UA_DataType *dimType = &UA_TYPES[UA_TYPES_UINT32];
     return Array_decodeJson_internal((void**)dst, dimType, ctx, parseCtx, moveToken);
 }
@@ -2884,9 +2917,10 @@ DECODE_JSON(ExtensionObject) {
 static status
 Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type, 
                                         CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
+    (void) type, (void) moveToken;
     /*EXTENSIONOBJECT POSITION!*/
     UA_UInt16 old_index = parseCtx->index;
-    UA_Boolean typeIdFound = false;
+    UA_Boolean typeIdFound;
     
     /* Decode the DataType */
     UA_NodeId typeId;
@@ -3084,7 +3118,8 @@ decodeFields(CtxJson *ctx, ParseCtx *parseCtx, DecodeEntry *entries,
 static status
 Array_decodeJson_internal(void **dst, const UA_DataType *type, 
         CtxJson *ctx, ParseCtx *parseCtx, UA_Boolean moveToken) {
-    status ret = UA_STATUSCODE_GOOD;
+    (void) moveToken;
+    status ret;
     
     if(parseCtx->tokenArray[parseCtx->index].type != JSMN_ARRAY)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -3132,6 +3167,7 @@ Array_decodeJson(void * dst, const UA_DataType *type, CtxJson *ctx,
 static status
 decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx, 
                     ParseCtx *parseCtx, UA_Boolean moveToken) {
+    (void) moveToken;
     /* Check the recursion limit */
     if(ctx->depth > UA_JSON_ENCODING_MAX_RECURSION)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -3176,6 +3212,7 @@ decodeJsonStructure(void *dst, const UA_DataType *type, CtxJson *ctx,
 static status
 decodeJsonNotImplemented(void *dst, const UA_DataType *type, CtxJson *ctx, 
                          ParseCtx *parseCtx, UA_Boolean moveToken) {
+    (void)dst, (void)type, (void)ctx, (void)parseCtx, (void)moveToken;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 

@@ -858,8 +858,6 @@ UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src)
 UA_StatusCode
 UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte **bufPos,
                                      const UA_Byte *bufEnd) {
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
-
     UA_Byte v;
     // DataSetFlags1 
     v = (UA_Byte)src->fieldEncoding;
@@ -945,15 +943,12 @@ UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte
             return rv;
     }
 
-    retval = UA_STATUSCODE_GOOD;
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
                                      UA_DataSetMessageHeader* dst) {
-    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
-
     memset(dst, 0, sizeof(UA_DataSetMessageHeader));
     UA_Byte v = 0;
     UA_StatusCode rv = UA_Byte_decodeBinary(src, offset, &v);
@@ -1045,8 +1040,7 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
         dst->configVersionMinorVersion = 0;
     }
 
-    retval = UA_STATUSCODE_GOOD;
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 size_t
