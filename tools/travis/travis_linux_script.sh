@@ -134,7 +134,7 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
     echo "=============== DIFFERENCE - START =================\n"
     # We want to get colored diff output into the variable
     git config color.diff always
-    $LOCAL_PKG/bin/git-clang-format --style=file --diff $TRAVIS_BRANCH
+    $LOCAL_PKG/bin/git-clang-format --binary=clang-format-6.0 --style=file --diff $TRAVIS_BRANCH
     echo "\n============= DIFFERENCE - END ===================="
 
     echo -en 'travis_fold:start:script.clang-format\\r'
