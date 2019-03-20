@@ -94,7 +94,7 @@ START_TEST(callKnownMethodOnUnknownObject) {
 START_TEST(callMethodAndObjectExistsButMethodHasWrongNodeClass) {
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING);  // not a method
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);  // not a method
     callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     UA_CallMethodResult result;
@@ -104,6 +104,8 @@ START_TEST(callMethodAndObjectExistsButMethodHasWrongNodeClass) {
 } END_TEST
 
 START_TEST(callMethodOnUnrelatedObject) {
+    /* Minimal nodeset does not add any method nodes we may call here */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
     callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
@@ -113,6 +115,7 @@ START_TEST(callMethodOnUnrelatedObject) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADMETHODINVALID);
+#endif
 } END_TEST
 
 START_TEST(callMethodAndObjectExistsButNoFunctionPointerAttached) {
@@ -140,6 +143,8 @@ START_TEST(callMethodNonExecutable) {
 } END_TEST
 
 START_TEST(callMethodWithMissingArguments) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     UA_CallMethodRequest callMethodRequest;
     UA_CallMethodRequest_init(&callMethodRequest);
     callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
@@ -149,9 +154,12 @@ START_TEST(callMethodWithMissingArguments) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADARGUMENTSMISSING);
+#endif
 } END_TEST
 
 START_TEST(callMethodWithTooManyArguments) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     UA_Variant inputArguments[2];
     UA_Variant_init(&inputArguments[0]);
     UA_Variant_init(&inputArguments[1]);
@@ -167,9 +175,12 @@ START_TEST(callMethodWithTooManyArguments) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADTOOMANYARGUMENTS);
+#endif
 } END_TEST
 
 START_TEST(callMethodWithWronglyTypedArguments) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
     UA_Variant inputArgument;
     UA_Variant_init(&inputArgument);
     UA_Double wrongType = 1.0;
@@ -186,10 +197,12 @@ START_TEST(callMethodWithWronglyTypedArguments) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
 
+    ck_assert_int_gt(result.inputArgumentResultsSize, 0);
     ck_assert_int_eq(result.inputArgumentResults[0], UA_STATUSCODE_BADTYPEMISMATCH);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
 
     UA_Array_delete(result.inputArgumentResults, result.inputArgumentResultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+#endif
 } END_TEST
 
 int main(void) {
