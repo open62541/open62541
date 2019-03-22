@@ -796,13 +796,13 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    config->securityPolicies = (UA_SecurityPolicy*)malloc(sizeof(UA_SecurityPolicy));
+    config->securityPolicies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
     if(!config->securityPolicies)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode retval = UA_SecurityPolicy_None(config->securityPolicies, NULL,
                                                   UA_BYTESTRING_NULL, &config->logger);
     if(retval != UA_STATUSCODE_GOOD) {
-        free(config->securityPolicies);
+        UA_free(config->securityPolicies);
         config->securityPolicies = NULL;
         return retval;
     }
@@ -847,7 +847,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 
     /* Populate SecurityPolicies */
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
-        realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * 4);
+        UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * 4);
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
