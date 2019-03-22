@@ -409,7 +409,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
 
 static UA_StatusCode
 recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
-                              const UA_Node *node, const UA_Node *type);
+                              const UA_Node **node, const UA_Node *type);
 
 static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
@@ -870,17 +870,18 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
 
 static UA_StatusCode
 recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
-                              const UA_Node *node, const UA_Node *type) {
-    UA_assert(node != NULL);
+                              const UA_Node **nodeptr, const UA_Node *type) {
     UA_assert(type != NULL);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    const UA_Node *node = *nodeptr;
 
     /* Use attributes from the type. The value and value constraints are the
      * same for the variable and variabletype attribute structs. */
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
-        retval = useVariableTypeAttributes(server, session, (const UA_VariableNode**)&node,
+        retval = useVariableTypeAttributes(server, session, (const UA_VariableNode**)nodeptr,
                                            (const UA_VariableTypeNode*)type);
+        node = *nodeptr; /* If the node was replaced */
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                                "AddNodes: Using attributes for %.*s from the variable type "
@@ -1060,7 +1061,7 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             goto cleanup;
         }
 
-        retval = recursiveTypeCheckAddChildren(server, session, node, type);
+        retval = recursiveTypeCheckAddChildren(server, session, &node, type);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
