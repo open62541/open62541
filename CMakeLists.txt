@@ -227,6 +227,15 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     endif()
 endif()
 
+option(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+       "Use a custom implementation for the publish callback handling" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
+if(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_INTERRUPT)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "Custom publish callback handling cannot be used with PubSub function disabled")
+    endif()
+endif()
+
 option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_JSON_ENCODING)
 
