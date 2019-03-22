@@ -251,6 +251,15 @@ mark_as_advanced(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS)
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
+option(UA_ENABLE_MALLOC_SINGLETON
+       "Use a global variable pointer for malloc (and free, ...) that can be switched at runtime" OFF)
+mark_as_advanced(UA_ENABLE_MALLOC_SINGLETON)
+if(UA_ENABLE_MALLOC_SINGLETON)
+    if(NOT "${UA_ARCHITECTURE}" MATCHES "posix")
+        message(FATAL_ERROR "The singleton malloc is available only for the posix architecture")
+    endif()
+endif()
+
 option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
 
