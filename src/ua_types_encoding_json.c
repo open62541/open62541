@@ -665,12 +665,12 @@ ENCODE_JSON(ByteString) {
 
     /* Check if negative... (TODO: Why is base64 3rd argument type int?) */
     if(flen < 0) {
-        free(ba64);
+        UA_free(ba64);
         return UA_STATUSCODE_BADENCODINGERROR;
     }
 
     if(ctx->pos + flen > ctx->end) {
-        free(ba64);
+        UA_free(ba64);
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     }
     
@@ -680,7 +680,7 @@ ENCODE_JSON(ByteString) {
     ctx->pos += flen;
 
     /* Base64 result no longer needed */
-    free(ba64);
+    UA_free(ba64);
     
     ret |= writeJsonQuote(ctx);
     return ret;
@@ -3328,7 +3328,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     ret = decodeJsonJumpTable[type->typeKind](dst, type, &ctx, &parseCtx, true);
 
     cleanup:
-    free(parseCtx.tokenArray);
+    UA_free(parseCtx.tokenArray);
     
     /* sanity check if all Tokens were processed */
     if(!(parseCtx.index == parseCtx.tokenCount ||
