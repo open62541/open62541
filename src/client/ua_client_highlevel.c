@@ -794,7 +794,9 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
                     "Cannot process the response to the async read "
                     "request %u", requestId);
 
-    CustomCallback_remove(cc, true);
+    UA_free(cc->clientData);
+    LIST_REMOVE(cc, pointers);
+    UA_free(cc);
 }
 
 /*Read Attributes*/
@@ -828,7 +830,6 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
         UA_free(cc);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    cc->clientDataDeleter = UA_free;
     AsyncReadData *rd = (AsyncReadData *)cc->clientData;
     rd->attributeId = attributeId;
     rd->outDataType = outDataType;
