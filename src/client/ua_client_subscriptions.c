@@ -428,7 +428,8 @@ typedef struct {
 } MonitoredItems_CreateData;
 
 static void
-MonitoredItems_CreateData_deleteItems(MonitoredItems_CreateData *data, UA_Client *client) {
+MonitoredItems_CreateData_deleteItems(MonitoredItems_CreateData *data,
+                                      UA_Client *client) {
     if(!data)
         return;
 
@@ -513,7 +514,7 @@ __MonitoredItems_create_handler(UA_Client *client, void *d, UA_UInt32 requestId,
     }
 cleanup:
     MonitoredItems_CreateData_deleteItems(data, client);
-    if (cc->isAsync) {
+    if(cc->isAsync) {
         if(cc->userCallback)
             cc->userCallback(client, cc->userData, requestId, response);
         MonitoredItems_CreateData_free(data);
@@ -803,7 +804,7 @@ __MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId,
 #endif
     }
 cleanup:
-    if (cc->isAsync) {
+    if(cc->isAsync) {
         if(cc->userCallback)
             cc->userCallback(client, cc->userData, requestId, response);
         UA_DeleteMonitoredItemsRequest_delete(request);
