@@ -172,26 +172,30 @@ struct UA_Client {
     UA_Boolean pendingConnectivityCheck;
 };
 
-static UA_INLINE CustomCallback *CustomCallback_new(void) {
+static UA_INLINE CustomCallback *
+CustomCallback_new(void) {
     CustomCallback *cc = (CustomCallback *)UA_malloc(sizeof(CustomCallback));
-    if (cc)
+    if(cc)
         memset(cc, 0, sizeof(CustomCallback));
     return cc;
 }
 
-// removes the callback from the client and frees it and its clientData (if clientDataDeleter is set)
-static UA_INLINE void CustomCallback_remove(CustomCallback *cc, bool removeList) {
-    if (removeList)
+// removes the callback from the client and frees it and its clientData (if
+// clientDataDeleter is set)
+static UA_INLINE void
+CustomCallback_remove(CustomCallback *cc, bool removeList) {
+    if(removeList)
         LIST_REMOVE(cc, pointers);
-    if (cc->clientDataDeleter && cc->clientData)
+    if(cc->clientDataDeleter && cc->clientData)
         cc->clientDataDeleter(cc->clientData);
     UA_free(cc);
 }
 
-static UA_INLINE CustomCallback *UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
+static UA_INLINE CustomCallback *
+UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
     CustomCallback *cc;
-    LIST_FOREACH (cc, &client->customCallbacks, pointers) {
-        if (cc->callbackId == requestId)
+    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
+        if(cc->callbackId == requestId)
             break;
     }
     return cc;
