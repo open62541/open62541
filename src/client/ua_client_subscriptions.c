@@ -598,12 +598,11 @@ __UA_Client_MonitoredItems_createDataChanges_async(
     cc->userCallback = createCallback;
     cc->userData = userdata;
     MonitoredItems_CreateData *data =
-        (MonitoredItems_CreateData *)UA_malloc(sizeof(MonitoredItems_CreateData));
+        (MonitoredItems_CreateData *)UA_calloc(1, sizeof(MonitoredItems_CreateData));
     if(!data) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
-    memset(data, 0, sizeof(MonitoredItems_CreateData));
     data->asyncData = true;
     cc->clientData = data;
     cc->clientDataDeleter =
