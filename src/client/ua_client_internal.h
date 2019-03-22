@@ -172,14 +172,6 @@ struct UA_Client {
     UA_Boolean pendingConnectivityCheck;
 };
 
-static UA_INLINE CustomCallback *
-CustomCallback_new(void) {
-    CustomCallback *cc = (CustomCallback *)UA_malloc(sizeof(CustomCallback));
-    if(cc)
-        memset(cc, 0, sizeof(CustomCallback));
-    return cc;
-}
-
 // removes the callback from the client and frees it and its clientData (if
 // clientDataDeleter is set)
 static UA_INLINE void
