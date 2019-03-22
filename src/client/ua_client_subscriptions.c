@@ -302,7 +302,7 @@ cleanup:
     if(cc->isAsync) {
         if(cc->userCallback)
             cc->userCallback(client, cc->userData, requestId, response);
-        __Subscriptions_DeleteData_free(cc->clientData);
+        __Subscriptions_DeleteData_free(delData);
         UA_free(cc);
     }
 }
@@ -341,7 +341,7 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
         __Subscriptions_delete_handler, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
         cc, requestId);
 cleanup:
-    __Subscriptions_DeleteData_free(cc->clientData);
+    __Subscriptions_DeleteData_free(data);
     UA_free(cc);
     return UA_STATUSCODE_BADOUTOFMEMORY;
 }
@@ -512,11 +512,11 @@ __MonitoredItems_create_handler(UA_Client *client, void *d, UA_UInt32 requestId,
         mis[i] = NULL;
     }
 cleanup:
-    MonitoredItems_CreateData_deleteItems(cc->clientData, client);
+    MonitoredItems_CreateData_deleteItems(data, client);
     if (cc->isAsync) {
         if(cc->userCallback)
             cc->userCallback(client, cc->userData, requestId, response);
-        MonitoredItems_CreateData_free(cc->clientData);
+        MonitoredItems_CreateData_free(data);
         UA_free(cc);
     }
 }
@@ -806,7 +806,7 @@ cleanup:
     if (cc->isAsync) {
         if(cc->userCallback)
             cc->userCallback(client, cc->userData, requestId, response);
-        UA_DeleteMonitoredItemsRequest_delete(cc->clientData);
+        UA_DeleteMonitoredItemsRequest_delete(request);
         UA_free(cc);
     }
 }
