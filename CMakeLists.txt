@@ -1200,25 +1200,6 @@ install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_di
 
 if(NOT UA_ENABLE_AMALGAMATION)
     # Recreate the include folder structure from the source also in /usr/lib/include/open62541
-    #INSTALL( DIRECTORY ${PROJECT_SOURCE_DIR}/include/open62541 DESTINATION include )
-    #INSTALL( DIRECTORY ${PROJECT_SOURCE_DIR}/plugins/include/open62541 DESTINATION include )
-
-#    install(FILES ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
-#            DESTINATION include/open62541)
-#
-#
-#
-#    install(FILES ${ua_architecture_headers}
-#            ${ua_architecture_headers_beginning}
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
-#            ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
-#            DESTINATION include/open62541)
 
     set(FILES_TO_INSTALL
         ${exported_headers}
