@@ -731,13 +731,17 @@ DECODE_BINARY(ExpandedNodeId) {
 
 /* QualifiedName */
 ENCODE_BINARY(QualifiedName) {
-    return ENCODE_DIRECT(&src->namespaceIndex, UInt16) |
-           ENCODE_DIRECT(&src->name, String);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+    retval |= ENCODE_DIRECT(&src->name, String);
+    return retval;
 }
 
 DECODE_BINARY(QualifiedName) {
-    return DECODE_DIRECT(&dst->namespaceIndex, UInt16) |
-           DECODE_DIRECT(&dst->name, String);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval |= DECODE_DIRECT(&dst->namespaceIndex, UInt16);
+    retval |= DECODE_DIRECT(&dst->name, String);
+    return retval;
 }
 
 /* LocalizedText */
