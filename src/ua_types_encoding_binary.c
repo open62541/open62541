@@ -731,13 +731,15 @@ DECODE_BINARY(ExpandedNodeId) {
 
 /* QualifiedName */
 ENCODE_BINARY(QualifiedName) {
-    return ENCODE_DIRECT(&src->namespaceIndex, UInt16) |
-           ENCODE_DIRECT(&src->name, String);
+    status ret = ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+    ret |= ENCODE_DIRECT(&src->name, String);
+    return ret;
 }
 
 DECODE_BINARY(QualifiedName) {
-    return DECODE_DIRECT(&dst->namespaceIndex, UInt16) |
-           DECODE_DIRECT(&dst->name, String);
+    status ret = DECODE_DIRECT(&dst->namespaceIndex, UInt16);
+    ret |= DECODE_DIRECT(&dst->name, String);
+    return ret;
 }
 
 /* LocalizedText */
