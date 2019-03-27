@@ -83,6 +83,9 @@ UA_Client_Subscriptions_create(UA_Client *client,
 
     CustomCallback cc;
     memset(&cc, 0, sizeof(CustomCallback));
+#ifdef __clang_analyzer__
+    cc.isAsync = false;
+#endif
 
     UA_StatusCode retval = __Subscriptions_create_prepare(
         &cc, &request, subscriptionContext, statusChangeCallback, deleteCallback);
@@ -354,6 +357,9 @@ UA_Client_Subscriptions_delete(UA_Client *client,
 
     CustomCallback cc;
     memset(&cc, 0, sizeof(CustomCallback));
+#ifdef __clang_analyzer__
+    cc.isAsync = false;
+#endif
 
     Subscriptions_DeleteData data;
     cc.clientData = &data;
@@ -552,6 +558,9 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
     }
     CustomCallback cc;
     memset(&cc, 0, sizeof(CustomCallback));
+#ifdef __clang_analyzer__
+    cc.isAsync = false;
+#endif
 
     /* Fix clang warning */
     size_t itemsToCreateSize = request->itemsToCreateSize;
@@ -816,6 +825,9 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
     UA_DeleteMonitoredItemsResponse response;
     CustomCallback cc;
     memset(&cc, 0, sizeof(CustomCallback));
+#ifdef __clang_analyzer__
+    cc.isAsync = false;
+#endif
     cc.clientData = (void *)(uintptr_t)&request;
 
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
