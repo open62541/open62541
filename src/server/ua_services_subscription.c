@@ -69,8 +69,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
     /* Check limits for the number of subscriptions */
-    if((server->config.maxSubscriptions != 0) &&
-       (server->numSubscriptions >= server->config.maxSubscriptions)) {
+    if(((server->config.maxSubscriptions != 0) &&
+        (server->numSubscriptions >= server->config.maxSubscriptions)) ||
+       ((server->config.maxSubscriptionsPerSession != 0) &&
+        (session->numSubscriptions >= server->config.maxSubscriptionsPerSession))) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
     }
@@ -280,8 +282,11 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                               const UA_MonitoredItemCreateRequest *request,
                               UA_MonitoredItemCreateResult *result) {
     /* Check available capacity */
-    if(server->config.maxMonitoredItems != 0 && cmc->sub &&
-       server->numMonitoredItems >= server->config.maxMonitoredItems) {
+    if(cmc->sub &&
+       (((server->config.maxMonitoredItems != 0) &&
+         (server->numMonitoredItems >= server->config.maxMonitoredItems)) ||
+        ((server->config.maxMonitoredItemsPerSubscription != 0) &&
+         (cmc->sub->monitoredItemsSize >= server->config.maxMonitoredItemsPerSubscription)))) {
         result->statusCode = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
     }
