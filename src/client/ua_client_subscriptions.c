@@ -72,7 +72,7 @@ cleanup:
     }
 }
 
-UA_CreateSubscriptionResponse UA_EXPORT
+UA_CreateSubscriptionResponse
 UA_Client_Subscriptions_create(UA_Client *client,
                                const UA_CreateSubscriptionRequest request,
                                void *subscriptionContext,
@@ -101,7 +101,7 @@ UA_Client_Subscriptions_create(UA_Client *client,
     return response;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_Subscriptions_create_async(
     UA_Client *client, const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
@@ -162,7 +162,7 @@ __Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 requestI
     }
 }
 
-UA_ModifySubscriptionResponse UA_EXPORT
+UA_ModifySubscriptionResponse
 UA_Client_Subscriptions_modify(UA_Client *client, const UA_ModifySubscriptionRequest request) {
     UA_ModifySubscriptionResponse response;
     UA_ModifySubscriptionResponse_init(&response);
@@ -185,7 +185,7 @@ UA_Client_Subscriptions_modify(UA_Client *client, const UA_ModifySubscriptionReq
     return response;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_Subscriptions_modify_async(UA_Client *client,
                                      const UA_ModifySubscriptionRequest request,
                                      UA_ClientAsyncServiceCallback callback,
@@ -307,7 +307,7 @@ cleanup:
     }
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_Subscriptions_delete_async(UA_Client *client,
                                      const UA_DeleteSubscriptionsRequest request,
                                      UA_ClientAsyncServiceCallback callback,
@@ -346,7 +346,7 @@ cleanup:
     return UA_STATUSCODE_BADOUTOFMEMORY;
 }
 
-UA_DeleteSubscriptionsResponse UA_EXPORT
+UA_DeleteSubscriptionsResponse
 UA_Client_Subscriptions_delete(UA_Client *client,
                                const UA_DeleteSubscriptionsRequest request) {
     UA_STACKARRAY(UA_Client_Subscription *, subs, request.subscriptionIdsSize);
@@ -372,7 +372,7 @@ UA_Client_Subscriptions_delete(UA_Client *client,
     return response;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId) {
     UA_DeleteSubscriptionsRequest request;
     UA_DeleteSubscriptionsRequest_init(&request);
@@ -662,7 +662,7 @@ cleanup:
     return retval;
 }
 
-UA_CreateMonitoredItemsResponse UA_EXPORT
+UA_CreateMonitoredItemsResponse
 UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
             const UA_CreateMonitoredItemsRequest request, void **contexts,
             UA_Client_DataChangeNotificationCallback *callbacks,
@@ -673,7 +673,7 @@ UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
     return response;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_MonitoredItems_createDataChanges_async(
     UA_Client *client, const UA_CreateMonitoredItemsRequest request, void **contexts,
     UA_Client_DataChangeNotificationCallback *callbacks,
@@ -684,7 +684,7 @@ UA_Client_MonitoredItems_createDataChanges_async(
         createCallback, userdata, requestId);
 }
 
-UA_MonitoredItemCreateResult UA_EXPORT
+UA_MonitoredItemCreateResult
 UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscriptionId,
           UA_TimestampsToReturn timestampsToReturn, const UA_MonitoredItemCreateRequest item,
           void *context, UA_Client_DataChangeNotificationCallback callback,
@@ -713,7 +713,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
     return result;
 }
 
-UA_CreateMonitoredItemsResponse UA_EXPORT
+UA_CreateMonitoredItemsResponse
 UA_Client_MonitoredItems_createEvents(UA_Client *client,
             const UA_CreateMonitoredItemsRequest request, void **contexts,
             UA_Client_EventNotificationCallback *callback,
@@ -725,7 +725,7 @@ UA_Client_MonitoredItems_createEvents(UA_Client *client,
 }
 
 /* Monitor the EventNotifier attribute only */
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_MonitoredItems_createEvents_async(
     UA_Client *client, const UA_CreateMonitoredItemsRequest request, void **contexts,
     UA_Client_EventNotificationCallback *callbacks,
@@ -736,7 +736,7 @@ UA_Client_MonitoredItems_createEvents_async(
         createCallback, userdata, requestId);
 }
 
-UA_MonitoredItemCreateResult UA_EXPORT
+UA_MonitoredItemCreateResult
 UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId,
           UA_TimestampsToReturn timestampsToReturn, const UA_MonitoredItemCreateRequest item,
           void *context, UA_Client_EventNotificationCallback callback,
@@ -809,7 +809,7 @@ cleanup:
     }
 }
 
-UA_DeleteMonitoredItemsResponse UA_EXPORT
+UA_DeleteMonitoredItemsResponse
 UA_Client_MonitoredItems_delete(UA_Client *client,
                                 const UA_DeleteMonitoredItemsRequest request) {
     /* Send the request */
@@ -825,7 +825,7 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
     return response;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_MonitoredItems_delete_async(UA_Client *client,
                                       const UA_DeleteMonitoredItemsRequest request,
                                       UA_ClientAsyncServiceCallback callback,
@@ -852,7 +852,7 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
         cc, requestId);
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId,
                                       UA_UInt32 monitoredItemId) {
     UA_DeleteMonitoredItemsRequest request;
