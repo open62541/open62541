@@ -360,13 +360,10 @@ UA_Client_Subscriptions_delete(UA_Client *client,
     data.request = (UA_DeleteSubscriptionsRequest *)(uintptr_t)&request;
     data.subs = subs;
 
-    /* Send the request */
-    UA_DeleteSubscriptionsResponse response;
-
     __Subscriptions_delete_prepare(client, &data);
 
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        return response;
+    /* Send the request */
+    UA_DeleteSubscriptionsResponse response;
 
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
