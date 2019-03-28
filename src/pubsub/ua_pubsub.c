@@ -247,8 +247,7 @@ UA_PubSubConnection_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifi
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    removeGroupRepresentation(server, &readerGroup->identifier);
-    //removePubSubWriterGroupRepresentation(server, writerGroup);
+    //removeGroupRepresentation(server, &readerGroup->identifier);
 #endif
     // UA_PubSubReaderGroup_delete also removes itself from the list
     UA_PubSubReaderGroup_delete(server, readerGroup);

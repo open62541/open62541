@@ -28,6 +28,9 @@ UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
 
 UA_StatusCode
+addReaderGroupRepresentation(UA_Server *server, UA_PubSubReaderGroup *readerGroup);
+
+UA_StatusCode
 removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
 
 UA_StatusCode
@@ -41,6 +44,12 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
 
 UA_StatusCode
 removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+
+UA_StatusCode
+addDataSetReaderRepresentation(UA_Server *server, UA_PubSubDataSetReader *dataSetReader);
+
+UA_StatusCode
+removeDataSetReaderRepresentation(UA_Server *server, UA_PubSubDataSetReader *dataSetReader);
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 

@@ -183,11 +183,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 #endif
     UA_Server *server = UA_Server_new(config);
 
-    /* Build PubSub information model */
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    UA_Server_initPubSubNS0(server);
-#endif
-
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addReaderGroup(server);
     addDataSetReader(server);
