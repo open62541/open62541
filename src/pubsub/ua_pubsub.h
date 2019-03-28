@@ -23,19 +23,22 @@ _UA_BEGIN_DECLS
 struct UA_WriterGroup;
 typedef struct UA_WriterGroup UA_WriterGroup;
 
+struct UA_PubSubReaderGroup;
+typedef struct UA_PubSubReaderGroup UA_PubSubReaderGroup;
+
 /* The configuration structs (public part of PubSub entities) are defined in include/ua_plugin_pubsub.h */
 
 /**********************************************/
 /*            PublishedDataSet                */
 /**********************************************/
-typedef struct{
+typedef struct {
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
     LIST_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
     UA_NodeId identifier;
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
-} UA_PublishedDataSet;
+}UA_PublishedDataSet;
 
 UA_StatusCode
 UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src, UA_PublishedDataSetConfig *dst);
@@ -48,13 +51,15 @@ UA_PublishedDataSet_deleteMembers(UA_Server *server, UA_PublishedDataSet *publis
 /*               Connection                   */
 /**********************************************/
 //the connection config (public part of connection) object is defined in include/ua_plugin_pubsub.h
-typedef struct{
+typedef struct {
     UA_PubSubConnectionConfig *config;
     //internal fields
     UA_PubSubChannel *channel;
     UA_NodeId identifier;
     LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
-} UA_PubSubConnection;
+    LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_PubSubReaderGroup) readerGroups;
+    size_t readerGroupsSize;
+}UA_PubSubConnection;
 
 UA_StatusCode
 UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src, UA_PubSubConnectionConfig *dst);
@@ -70,13 +75,13 @@ UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connec
 /**********************************************/
 
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
-typedef struct UA_DataSetWriterSample{
+typedef struct UA_DataSetWriterSample {
     UA_Boolean valueChanged;
     UA_DataValue value;
-} UA_DataSetWriterSample;
+}UA_DataSetWriterSample;
 #endif
 
-typedef struct UA_DataSetWriter{
+typedef struct UA_DataSetWriter {
     UA_DataSetWriterConfig config;
     //internal fields
     LIST_ENTRY(UA_DataSetWriter) listEntry;
@@ -90,7 +95,7 @@ typedef struct UA_DataSetWriter{
     UA_DataSetWriterSample *lastSamples;
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
-} UA_DataSetWriter;
+}UA_DataSetWriter;
 
 UA_StatusCode
 UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src, UA_DataSetWriterConfig *dst);
@@ -101,7 +106,7 @@ UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
 /*               WriterGroup                  */
 /**********************************************/
 
-struct UA_WriterGroup{
+struct UA_WriterGroup {
     UA_WriterGroupConfig config;
     //internal fields
     LIST_ENTRY(UA_WriterGroup) listEntry;
@@ -122,21 +127,81 @@ UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
 /*               DataSetField                 */
 /**********************************************/
 
-typedef struct UA_DataSetField{
+typedef struct UA_DataSetField {
     UA_DataSetFieldConfig config;
     //internal fields
     LIST_ENTRY(UA_DataSetField) listEntry;
     UA_NodeId identifier;
-    UA_NodeId publishedDataSet;             //ref to parent pds
+    UA_NodeId publishedDataSet;//ref to parent pds
     UA_FieldMetaData fieldMetaData;
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
-} UA_DataSetField;
+}UA_DataSetField;
 
 UA_StatusCode
 UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConfig *dst);
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
+
+/**********************************************/
+/*               DataSetReader                */
+/**********************************************/
+
+typedef enum {
+    UA_PUBSUB_SDS_TARGET,
+    UA_PUBSUB_SDS_MIRROR
+}UA_SubscribedDataSetEnumType;
+
+typedef struct UA_PubSubDataSetReader {
+    UA_PubSubDataSetReaderConfig config;
+    //implementation defined fields
+    UA_NodeId identifier;
+    UA_NodeId linkedReaderGroup;
+    LIST_ENTRY(UA_PubSubDataSetReader) listEntry;
+    UA_SubscribedDataSetEnumType subscribedDataSetType;
+    UA_TargetVariablesDataType subscribedDataSetTarget;
+    UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
+}UA_PubSubDataSetReader;
+
+void UA_PubSubDataSetReader_delete(UA_Server *server, UA_PubSubDataSetReader *dataSetReader);
+
+void UA_PubSubDataSetReader_process(UA_Server *server, UA_PubSubDataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg);
+
+UA_StatusCode UA_PubSubDataSetReaderConfig_copy(const UA_PubSubDataSetReaderConfig *src, UA_PubSubDataSetReaderConfig *dst);
+
+UA_StatusCode
+UA_PubSubDataSetReader_addTargetVariables(UA_Server* server, UA_NodeId* parentNode, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetEnumType sdsType);
+
+/**********************************************/
+/*                ReaderGroup                 */
+/**********************************************/
+
+struct UA_PubSubReaderGroup {
+    UA_PubSubReaderGroupConfig config;
+    UA_NodeId identifier;
+    UA_NodeId linkedConnection;
+    LIST_ENTRY(UA_PubSubReaderGroup) listEntry;
+
+    LIST_HEAD(UA_ListOfPubSubDataSetReader, UA_PubSubDataSetReader) readers;
+    UA_UInt32 readersCount;            //simplified information access
+    UA_UInt64 subscribeCallbackId;
+    UA_Boolean subscribeCallbackIsRegistered;
+};
+
+void UA_PubSubReaderGroup_delete(UA_Server *server, UA_PubSubReaderGroup *readerGroup);
+
+UA_StatusCode
+UA_PubSubReaderGroupConfig_copy(const UA_PubSubReaderGroupConfig *src, UA_PubSubReaderGroupConfig *dst);
+
+UA_StatusCode
+UA_PubSubConnection_processNetworkMessage(UA_Server *server, UA_NetworkMessage* pMsg, UA_PubSubConnection *pConnection);
+
+/* prototypes */
+
+//prototypes for internal util functions - some functions maybe removed later
+//(currently moved from public to internal)
+UA_PubSubReaderGroup *UA_PubSubReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier);
+UA_PubSubDataSetReader *UA_PubSubDataSetReader_findDSRbyId(UA_Server *server, UA_NodeId identifier);
 
 /*********************************************************/
 /*               PublishValues handling                  */
@@ -146,6 +211,15 @@ UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+
+/*********************************************************/
+/*               SubscribeValues handling                */
+/*********************************************************/
+
+UA_StatusCode
+UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_PubSubReaderGroup *readerGroup);
+void
+UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_PubSubReaderGroup *readerGroup);
 
 #endif /* UA_ENABLE_PUBSUB */
 

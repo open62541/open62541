@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
     UA_String transportProfile =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+        {UA_STRING_NULL , UA_STRING("opc.udp://239.0.0.11:4840/")};
 
     if (argc > 1) {
         if (strcmp(argv[1], "-h") == 0) {

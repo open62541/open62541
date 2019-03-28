@@ -365,6 +365,82 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
 UA_StatusCode UA_EXPORT
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
 
+/**********************************************/
+/*               DataSetReader                */
+/**********************************************/
+typedef struct {
+    UA_Int32 securityMode;          // placeholder datatype 'NessageSecurityMode'
+    UA_String securityGroupId;
+    //UA_Int32 keyServers[];        // placeholder datatype 'NessageSecurityMode'
+    size_t keyServersSize;
+    UA_Int32 *keyServers;
+} UA_PubSubSecurityParameters;
+
+typedef struct {
+    UA_String name;
+    UA_Variant publisherId;
+    UA_UInt16 writerGroupId;
+    UA_UInt16 dataSetWriterId;
+    UA_DataSetMetaDataType dataSetMetaData;
+    UA_DataSetFieldContentMask dataSetFieldContentMask;
+    UA_Double messageReceiveTimeout;
+    UA_PubSubSecurityParameters securityParameters;
+    //size_t dataSetReaderPropertiesSize;
+    //UA_KeyValuePair *dataSetReaderProperties;
+    UA_UadpDataSetReaderMessageDataType messageSettings;
+    UA_TargetVariablesDataType subscribedDataSetTarget;
+} UA_PubSubDataSetReaderConfig;
+
+
+UA_StatusCode
+UA_PubSubDataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                                    const UA_PubSubDataSetReaderConfig *config);
+UA_StatusCode
+UA_PubSubDataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                                 UA_PubSubDataSetReaderConfig *config);
+
+UA_StatusCode
+UA_PubSubDataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier, UA_TargetVariablesDataType* targetVariables);
+
+UA_StatusCode
+UA_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetMirrorDataType* mirror);
+
+
+/**********************************************/
+/*               ReaderGroup                  */
+/**********************************************/
+//TODO implement Reader functionality
+
+typedef struct {
+    UA_String name;
+    UA_PubSubSecurityParameters securityParameters;
+} UA_PubSubReaderGroupConfig;
+
+UA_StatusCode
+UA_PubSubReaderGroup_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
+        //UA_NodeId dataSetIdentifier,
+                                      const UA_PubSubDataSetReaderConfig *dataSetReaderConfig,
+                                      UA_NodeId *readerIdentifier);
+
+UA_StatusCode
+UA_PubSubReaderGroup_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
+
+UA_StatusCode
+UA_PubSubReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                                  const UA_PubSubReaderGroupConfig *config);
+
+UA_StatusCode
+UA_PubSubReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                               UA_PubSubReaderGroupConfig *config);
+
+UA_StatusCode
+UA_PubSubConnection_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
+                                   const UA_PubSubReaderGroupConfig *readerGroupConfig,
+                                   UA_NodeId *readerGroupIdentifier);
+
+UA_StatusCode
+UA_PubSubConnection_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
