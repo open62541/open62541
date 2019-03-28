@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
 #ifndef UA_PUBSUB_H_
@@ -19,9 +20,13 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-//forward declarations
+/* forward declarations */
 struct UA_WriterGroup;
 typedef struct UA_WriterGroup UA_WriterGroup;
+
+/* Declaration for ReaderGroup */
+struct UA_ReaderGroup;
+typedef struct UA_ReaderGroup UA_ReaderGroup;
 
 /* The configuration structs (public part of PubSub entities) are defined in include/ua_plugin_pubsub.h */
 
@@ -54,6 +59,8 @@ typedef struct{
     UA_PubSubChannel *channel;
     UA_NodeId identifier;
     LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
+    LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
+    size_t readerGroupsSize;
 } UA_PubSubConnection;
 
 UA_StatusCode
@@ -138,6 +145,74 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src, UA_DataSetFieldConf
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 
+/**********************************************/
+/*               DataSetReader                */
+/**********************************************/
+
+/* SubscribedDataSetDataType Definition */
+typedef enum {
+    UA_PUBSUB_SDS_TARGET,
+    UA_PUBSUB_SDS_MIRROR
+}UA_SubscribedDataSetEnumType;
+
+/* DataSetReader Type definition */
+typedef struct UA_DataSetReader {
+    UA_DataSetReaderConfig config;
+    /* implementation defined fields */
+    UA_NodeId identifier;
+    UA_NodeId linkedReaderGroup;
+    LIST_ENTRY(UA_DataSetReader) listEntry;
+    UA_SubscribedDataSetEnumType subscribedDataSetType;
+    UA_TargetVariablesDataType subscribedDataSetTarget;
+    /* To Do UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+}UA_DataSetReader;
+
+/* Delete DataSetReader */
+void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader);
+
+/* Process Network Message using DataSetReader */
+void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg);
+
+/* Copy the configuration of DataSetReader */
+UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_DataSetReaderConfig *dst);
+
+/* Add TargetVariables */
+UA_StatusCode
+UA_Server_DataSetReader_addTargetVariables(UA_Server* server, UA_NodeId* parentNode, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetEnumType sdsType);
+
+/**********************************************/
+/*                ReaderGroup                 */
+/**********************************************/
+/* ReaderGroup Type Definition*/
+
+struct UA_ReaderGroup {
+    UA_ReaderGroupConfig config;
+    UA_NodeId identifier;
+    UA_NodeId linkedConnection;
+    LIST_ENTRY(UA_ReaderGroup) listEntry;
+    LIST_HEAD(UA_ListOfPubSubDataSetReader, UA_DataSetReader) readers;
+    /* for simplified information access */
+    UA_UInt32 readersCount;
+    UA_UInt64 subscribeCallbackId;
+    UA_Boolean subscribeCallbackIsRegistered;
+};
+
+/* Delete ReaderGroup */
+void UA_Server_ReaderGroup_delete(UA_Server *server, UA_ReaderGroup *readerGroup);
+
+/* Copy configuration of ReaderGroup */
+UA_StatusCode
+UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src, UA_ReaderGroupConfig *dst);
+
+/* Process Network Message */
+UA_StatusCode
+UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage* pMsg, UA_PubSubConnection *pConnection);
+
+/* Prototypes for internal util functions - some functions maybe removed later
+ *(currently moved from public to internal)*/
+UA_ReaderGroup *UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier);
+UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier);
+
 /*********************************************************/
 /*               PublishValues handling                  */
 /*********************************************************/
@@ -146,6 +221,15 @@ UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+
+/*********************************************************/
+/*               SubscribeValues handling                */
+/*********************************************************/
+
+UA_StatusCode
+UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
+void
+UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup);
 
 #endif /* UA_ENABLE_PUBSUB */
 

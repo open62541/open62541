@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
 #ifndef UA_SERVER_PUBSUB_H
@@ -238,8 +239,8 @@ typedef enum {
 typedef struct {
     UA_DataSetFieldType dataSetFieldType;
     union {
+        /* events need other config later */
         UA_DataSetVariableConfig variable;
-        //events need other config later
     } field;
 } UA_DataSetFieldConfig;
 
@@ -365,6 +366,100 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
 
 UA_StatusCode UA_EXPORT
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw);
+
+/**
+ * DataSetReader
+ * -------------
+ * DataSetReader can receive NetworkMessages with the DataSet
+ * of interest sent by the Publisher. DataSetReaders represent
+ * the configuration necessary to receive and process DataSetMessages
+ * on the Subscriber side */
+
+/* Parameters for PubSubSecurity */
+typedef struct {
+    UA_Int32 securityMode;          /* placeholder datatype 'MessageSecurityMode' */
+    UA_String securityGroupId;
+    size_t keyServersSize;
+    UA_Int32 *keyServers;
+} UA_PubSubSecurityParameters;
+
+/* Parameters for PubSub DataSetReader Configuration */
+typedef struct {
+    UA_String name;
+    UA_Variant publisherId;
+    UA_UInt16 writerGroupId;
+    UA_UInt16 dataSetWriterId;
+    UA_DataSetMetaDataType dataSetMetaData;
+    UA_DataSetFieldContentMask dataSetFieldContentMask;
+    UA_Double messageReceiveTimeout;
+    UA_PubSubSecurityParameters securityParameters;
+    UA_UadpDataSetReaderMessageDataType messageSettings;
+    UA_TargetVariablesDataType subscribedDataSetTarget;
+} UA_DataSetReaderConfig;
+
+/* Update configuration to the dataSetReader */
+UA_StatusCode
+UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                                   UA_NodeId readerGroupIdentifier, const UA_DataSetReaderConfig *config);
+
+/* Get configuration of the dataSetReader */
+UA_StatusCode
+UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                                 UA_DataSetReaderConfig *config);
+
+/* Return Status Code after creating TargetVariables in Subscriber AddressSpace
+ * TargetVariables define a list of variable mappings between received DataSet fields
+ * and the TargetVariables in the Subscriber AddressSpace */
+UA_StatusCode
+UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                                             UA_TargetVariablesDataType* targetVariables);
+
+/* To Do:Implementation of SubscribedDataSetMirrorType
+ * UA_StatusCode
+ * A_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+ * UA_SubscribedDataSetMirrorDataType* mirror) */
+
+/**
+ * ReaderGroup
+ * -----------
+ * All ReaderGroups are created within a PubSubConnection and automatically
+ * deleted if the connection is removed. */
+
+/* ReaderGroup configuration */
+typedef struct {
+    UA_String name;
+    UA_PubSubSecurityParameters securityParameters;
+} UA_ReaderGroupConfig;
+
+/* Add DataSetReader to the ReaderGroup */
+UA_StatusCode
+UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                                      const UA_DataSetReaderConfig *dataSetReaderConfig,
+                                      UA_NodeId *readerIdentifier);
+
+/* Remove DataSetReader from ReaderGroup */
+UA_StatusCode
+UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
+
+/* To Do: Update Configuration of ReaderGroup */
+UA_StatusCode
+UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                                  const UA_ReaderGroupConfig *config);
+
+/* Get configuraiton of ReaderGroup */
+UA_StatusCode
+UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                               UA_ReaderGroupConfig *config);
+
+/* Add ReaderGroup to the created connection */
+UA_StatusCode
+UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
+                                   const UA_ReaderGroupConfig *readerGroupConfig,
+                                   UA_NodeId *readerGroupIdentifier);
+
+/* Remove ReaderGroup from connection */
+UA_StatusCode
+UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier);
 
 #endif /* UA_ENABLE_PUBSUB */
 
