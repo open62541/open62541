@@ -33,3 +33,7 @@ BrokerConnectionTransportDataType
 BrokerWriterGroupTransportDataType
 BrokerDataSetWriterTransportDataType
 BrokerWriterGroupTransportType
+UadpDataSetReaderMessageDataType
+TargetVariablesDataType
+FieldTargetDataType
+OverrideValueHandling
