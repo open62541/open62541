@@ -418,7 +418,7 @@ typedef struct {
 
 UA_StatusCode
 UA_PubSubReaderGroup_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-        //UA_NodeId dataSetIdentifier,
+                                      //UA_NodeId dataSetIdentifier,
                                       const UA_PubSubDataSetReaderConfig *dataSetReaderConfig,
                                       UA_NodeId *readerIdentifier);
 

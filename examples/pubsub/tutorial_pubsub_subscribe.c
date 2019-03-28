@@ -2,13 +2,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-/**
- * IMPORTANT ANNOUNCEMENT
- * The PubSub subscriber API is currently not finished. This examples can be used to
- * receive and print the values, which are published by the tutorial_pubsub_publish
- * example. The following code uses internal API which will be later replaced by the
- * higher-level PubSub subscriber API. */
-
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
@@ -28,56 +21,54 @@
 UA_NodeId connectionIdentifier, readerGroupIdentifier, readerIdentifier;
 UA_PubSubDataSetReaderConfig readerConfig;
 
-static void FillTestDataSet1MetaData(UA_DataSetMetaDataType* pMetaData);
+static void FillTestDataSet1MetaData(UA_DataSetMetaDataType *pMetaData);
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl) {
-	//creation configuration for the connection creation
-	UA_PubSubConnectionConfig connectionConfig;
-	memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-	connectionConfig.name = UA_STRING("UDPMC Connection 1");
-	connectionConfig.transportProfileUri = *transportProfile;
-	connectionConfig.enabled = UA_TRUE;
-	UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
-						 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-	connectionConfig.publisherId.numeric = UA_UInt32_random();
-	//adding new connection to server
-	UA_StatusCode retval = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
-	if(retval == UA_STATUSCODE_GOOD)
-		UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-					"The PubSub Connection was created successfully!");
+    //creation configuration for the connection creation
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("UDPMC Connection 1");
+    connectionConfig.transportProfileUri = *transportProfile;
+    connectionConfig.enabled = UA_TRUE;
+    UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    //adding new connection to server
+    UA_StatusCode retval = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
+    if(retval == UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                    "The PubSub Connection was created successfully!");
 }
 
 static void
 addReaderGroup(UA_Server *server) {
-	UA_PubSubReaderGroupConfig readerGroupConfig;
-	memset(&readerGroupConfig, 0, sizeof(UA_PubSubReaderGroupConfig));
-	readerGroupConfig.name = UA_STRING("ReaderGroup1");
-	UA_NodeId_init(&readerGroupIdentifier);
-	UA_StatusCode retval = UA_PubSubConnection_addReaderGroup(server, connectionIdentifier, &readerGroupConfig, &readerGroupIdentifier);
-	if (retval == UA_STATUSCODE_GOOD)
-		UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-					"The Reader Group was created successfully!");
+    UA_PubSubReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(UA_PubSubReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup1");
+    UA_NodeId_init(&readerGroupIdentifier);
+    UA_StatusCode retval = UA_PubSubConnection_addReaderGroup(server, connectionIdentifier, &readerGroupConfig, &readerGroupIdentifier);
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                    "The Reader Group was created successfully!");
 }
 
 static void
 addDataSetReader(UA_Server *server) {
-	memset(&readerConfig, 0, sizeof(UA_PubSubDataSetReaderConfig));
-	readerConfig.name = UA_STRING("DataSet Reader 1");
-	readerConfig.dataSetWriterId = 1;
-	//readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
-
-	//Setting up Meta data configuration in DataSet Reader
-	FillTestDataSet1MetaData(&readerConfig.dataSetMetaData);
-
-	UA_StatusCode retval = UA_PubSubReaderGroup_addDataSetReader(server, readerGroupIdentifier, &readerConfig, &readerIdentifier);
-	if (retval == UA_STATUSCODE_GOOD)
-		UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-					"The DataSet Reader was created successfully!");
+    memset(&readerConfig, 0, sizeof(UA_PubSubDataSetReaderConfig));
+    readerConfig.name = UA_STRING("DataSet Reader 1");
+    readerConfig.dataSetWriterId = 1;
+    //readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    //Setting up Meta data configuration in DataSet Reader
+    FillTestDataSet1MetaData(&readerConfig.dataSetMetaData);
+    UA_StatusCode retval = UA_PubSubReaderGroup_addDataSetReader(server, readerGroupIdentifier, &readerConfig, &readerIdentifier);
+    if (retval == UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                    "The DataSet Reader was created successfully!");
 }
 
-static void AddSubscribedVariables(UA_Server* server, UA_NodeId dataSetReaderId) {
+static void AddSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId) {
     UA_NodeId folderId;
     UA_String folderName = readerConfig.dataSetMetaData.name;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -94,21 +85,17 @@ static void AddSubscribedVariables(UA_Server* server, UA_NodeId dataSetReaderId)
     }
 
     UA_Server_addObjectNode(server, UA_NODEID_NULL,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-        folderBrowseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-        oAttr, NULL, &folderId);
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                            folderBrowseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                            oAttr, NULL, &folderId);
 
-    //UA_PubSubDataSetReader* pDataSetReader = UA_PubSubDataSetReader_findDSRbyId(server, dataSetReaderId);
-    //if (pDataSetReader->config.subscribedDataSetType == UA_PUBSUB_SDS_TARGET)
-    //{
     UA_PubSubDataSetReader_addTargetVariables(server, &folderId, dataSetReaderId, UA_PUBSUB_SDS_TARGET);
-    //}
 }
 
-static void FillTestDataSet1MetaData(UA_DataSetMetaDataType* pMetaData) {
+static void FillTestDataSet1MetaData(UA_DataSetMetaDataType *pMetaData) {
     if (pMetaData == NULL)
-    	return;
+        return;
 
     UA_DataSetMetaDataType_init(pMetaData);
 
@@ -121,13 +108,13 @@ static void FillTestDataSet1MetaData(UA_DataSetMetaDataType* pMetaData) {
 
     //DateTime DataType
     UA_FieldMetaData_init(&pMetaData->fields[0]);
-	UA_NodeId_copy(&UA_TYPES[UA_TYPES_DATETIME].typeId, &pMetaData->fields[0].dataType);
-	pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
-	strTmp = UA_STRING("DateTime");
-	UA_String_copy(&strTmp, &pMetaData->fields[0].name);
-	pMetaData->fields[0].valueRank = -1; // scalar
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_DATETIME].typeId, &pMetaData->fields[0].dataType);
+    pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
+    strTmp = UA_STRING("DateTime");
+    UA_String_copy(&strTmp, &pMetaData->fields[0].name);
+    pMetaData->fields[0].valueRank = -1; // scalar
 
-	//Int32 DataType
+    //Int32 DataType
     UA_FieldMetaData_init(&pMetaData->fields[1]);
     UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId, &pMetaData->fields[1].dataType);
     pMetaData->fields[1].builtInType = UA_NS0ID_INT32;
@@ -210,22 +197,21 @@ int main(int argc, char **argv) {
             usage(argv[0]);
             return EXIT_SUCCESS;
         } else if (strncmp(argv[1], "opc.udp://", 10) == 0) {
-            networkAddressUrl.url = UA_STRING(argv[1]);
+              networkAddressUrl.url = UA_STRING(argv[1]);
         } else if (strncmp(argv[1], "opc.eth://", 10) == 0) {
-            transportProfile =
-                UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-            if (argc < 3) {
-                printf("Error: UADP/ETH needs an interface name\n");
+              transportProfile =
+              UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+              if (argc < 3) {
+                  printf("Error: UADP/ETH needs an interface name\n");
+                  return EXIT_FAILURE;
+              }
+              networkAddressUrl.networkInterface = UA_STRING(argv[2]);
+              networkAddressUrl.url = UA_STRING(argv[1]);
+          } else {
+                printf("Error: unknown URI\n");
                 return EXIT_FAILURE;
             }
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
-            networkAddressUrl.url = UA_STRING(argv[1]);
-        } else {
-            printf("Error: unknown URI\n");
-            return EXIT_FAILURE;
-        }
     }
 
     return run(&transportProfile, &networkAddressUrl);
 }
-

@@ -36,7 +36,7 @@ UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
-                    UA_NetworkAddressUrlDataType *networkAddressUrl){
+                    UA_NetworkAddressUrlDataType *networkAddressUrl) {
     /* Details about the connection configuration and handling are located
      * in the pubsub connection tutorial */
     UA_PubSubConnectionConfig connectionConfig;
