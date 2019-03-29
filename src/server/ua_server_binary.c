@@ -519,8 +519,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         session = &anonymousSession;
     }
 
-    /* Trying to use a non-activated session? */
-    if(sessionRequired && !session->activated) {
+    /* Trying to use a non-activated session?
+     * Do not allow if request is of type CloseSessionRequest */
+    if(sessionRequired && !session->activated && requestType != &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "Calling service %i on a non-activated session",
                                requestType->binaryEncodingId);
