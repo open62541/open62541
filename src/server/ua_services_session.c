@@ -213,6 +213,11 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
        channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return UA_STATUSCODE_GOOD;
 
+    /* Check for zero signature length in client signature */
+    if(request->clientSignature.signature.length == 0) {
+        return UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
+    }
+
     if(!channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
     const UA_SecurityPolicy *securityPolicy = channel->securityPolicy;
