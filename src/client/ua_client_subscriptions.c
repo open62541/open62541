@@ -436,10 +436,17 @@ MonitoredItems_CreateData_deleteItems(MonitoredItems_CreateData *data,
     if(!data)
         return;
 
-    if(data->request && data->mis && data->deleteCallbacks && data->contexts) {
+#ifdef __clang_analyzer__
+    /* The clang analyzer requires the information that the loop below is executed
+       which is already checked in the __UA_Client_MonitoredItems_create */
+    assert(data->request->itemsToCreateSize);
+#endif
+
+    bool hasCallbacks = data->deleteCallbacks != NULL && data->contexts != NULL;
+    if(data->request && data->mis) {
         for(size_t i = 0; i < data->request->itemsToCreateSize; i++) {
             if(data->mis[i]) {
-                if(data->deleteCallbacks[i]) {
+                if(hasCallbacks && data->deleteCallbacks[i]) {
                     if(data->sub)
                         data->deleteCallbacks[i](client, data->sub->subscriptionId,
                                                  data->sub->context, 0,
