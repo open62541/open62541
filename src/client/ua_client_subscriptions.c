@@ -666,6 +666,7 @@ __UA_Client_MonitoredItems_createDataChanges_async(
         __MonitoredItems_create_handler, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
         cc, requestId);
 cleanup:
+    MonitoredItems_CreateData_deleteItems(data, client);
     MonitoredItems_CreateData_free(data);
     UA_free(cc);
     return retval;
