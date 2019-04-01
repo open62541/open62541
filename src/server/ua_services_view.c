@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
@@ -26,14 +26,14 @@
 /* Target node on top of the stack */
 static UA_StatusCode
 fillReferenceDescription(UA_Server *server, const UA_Node *curr,
-                         const UA_NodeReferenceKind *ref,
+                         const UA_NodeId *referenceTypeId, const UA_Boolean refIsInverse,
                          UA_UInt32 mask, UA_ReferenceDescription *descr) {
     UA_ReferenceDescription_init(descr);
     UA_StatusCode retval = UA_NodeId_copy(&curr->nodeId, &descr->nodeId.nodeId);
     if(mask & UA_BROWSERESULTMASK_REFERENCETYPEID)
-        retval |= UA_NodeId_copy(&ref->referenceTypeId, &descr->referenceTypeId);
+        retval |= UA_NodeId_copy(referenceTypeId, &descr->referenceTypeId);
     if(mask & UA_BROWSERESULTMASK_ISFORWARD)
-        descr->isForward = !ref->isInverse;
+        descr->isForward = !refIsInverse;
     if(mask & UA_BROWSERESULTMASK_NODECLASS)
         retval |= UA_NodeClass_copy(&curr->nodeClass, &descr->nodeClass);
     if(mask & UA_BROWSERESULTMASK_BROWSENAME)
@@ -93,6 +93,8 @@ browseReferences(UA_Server *server, const UA_Node *node,
         return true;
     }
 
+    UA_assert(node->references || node->browseNode);
+
     /* Follow all references? */
     UA_Boolean browseAll = UA_NodeId_isNull(&descr->referenceTypeId);
 
@@ -110,85 +112,127 @@ browseReferences(UA_Server *server, const UA_Node *node,
         }
     }
 
-    /* Allocate the results array */
-    size_t refs_size = 2; /* True size of the array */
-    result->references = (UA_ReferenceDescription*)
-        UA_Array_new(refs_size, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
-    if(!result->references) {
-        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        return false;
-    }
+    if(node->references) {
+        /* Allocate the results array */
+        size_t refs_size = 2; /* True size of the array */
+        result->references = (UA_ReferenceDescription*)
+            UA_Array_new(refs_size, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
+        if(!result->references) {
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return false;
+        }
 
-    size_t referenceKindIndex = cp->referenceKindIndex;
-    size_t targetIndex = cp->targetIndex;
+        size_t referenceKindIndex = cp->referenceKindIndex;
+        size_t targetIndex = cp->targetIndex;
 
-    /* Loop over the node's references */
-    for(; referenceKindIndex < node->referencesSize; ++referenceKindIndex) {
-        UA_NodeReferenceKind *rk = &node->references[referenceKindIndex];
+        /* Loop over the node's references */
+        for(; referenceKindIndex < node->referencesSize; ++referenceKindIndex) {
+            UA_NodeReferenceKind *rk = &node->references[referenceKindIndex];
 
-        /* Reference in the right direction? */
-        if(rk->isInverse && descr->browseDirection == UA_BROWSEDIRECTION_FORWARD)
-            continue;
-        if(!rk->isInverse && descr->browseDirection == UA_BROWSEDIRECTION_INVERSE)
-            continue;
-
-        /* Is the reference part of the hierarchy of references we look for? */
-        if(!browseAll && !relevantReference(server, descr->includeSubtypes,
-                                            &descr->referenceTypeId, &rk->referenceTypeId))
-            continue;
-
-        /* Loop over the targets */
-        for(; targetIndex < rk->targetIdsSize; ++targetIndex) {
-            /* Get the node */
-            const UA_Node *target = UA_Nodestore_get(server, &rk->targetIds[targetIndex].nodeId);
-            if(!target)
+            /* Reference in the right direction? */
+            if(rk->isInverse && descr->browseDirection == UA_BROWSEDIRECTION_FORWARD)
+                continue;
+            if(!rk->isInverse && descr->browseDirection == UA_BROWSEDIRECTION_INVERSE)
                 continue;
 
-            /* Test if the node class matches */
-            if(!matchClassMask(target, descr->nodeClassMask)) {
-                UA_Nodestore_release(server, target);
+            /* Is the reference part of the hierarchy of references we look for? */
+            if(!browseAll && !relevantReference(server, descr->includeSubtypes,
+                                                &descr->referenceTypeId, &rk->referenceTypeId))
                 continue;
-            }
 
-            /* A match! Can we return it? */
-            if(result->referencesSize >= maxrefs) {
-                /* There are references we could not return */
-                cp->referenceKindIndex = referenceKindIndex;
-                cp->targetIndex = targetIndex;
-                UA_Nodestore_release(server, target);
-                return false;
-            }
+            /* Loop over the targets */
+            for(; targetIndex < rk->targetIdsSize; ++targetIndex) {
+                /* Get the node */
+                const UA_Node *target = UA_Nodestore_get(server, &rk->targetIds[targetIndex].nodeId);
+                if(!target)
+                    continue;
 
-            /* Make enough space in the array */
-            if(result->referencesSize >= refs_size) {
-                refs_size *= 2;
-                if(refs_size > maxrefs)
-                    refs_size = maxrefs;
-                UA_ReferenceDescription *rd = (UA_ReferenceDescription*)
-                    UA_realloc(result->references, sizeof(UA_ReferenceDescription) * refs_size);
-                if(!rd) {
-                    result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+                /* Test if the node class matches */
+                if(!matchClassMask(target, descr->nodeClassMask)) {
                     UA_Nodestore_release(server, target);
-                    goto error_recovery;
+                    continue;
                 }
-                result->references = rd;
+
+                /* A match! Can we return it? */
+                if(result->referencesSize >= maxrefs) {
+                    /* There are references we could not return */
+                    cp->referenceKindIndex = referenceKindIndex;
+                    cp->targetIndex = targetIndex;
+                    UA_Nodestore_release(server, target);
+                    return false;
+                }
+
+                /* Make enough space in the array */
+                if(result->referencesSize >= refs_size) {
+                    refs_size *= 2;
+                    if(refs_size > maxrefs)
+                        refs_size = maxrefs;
+                    UA_ReferenceDescription *rd = (UA_ReferenceDescription*)
+                        UA_realloc(result->references, sizeof(UA_ReferenceDescription) * refs_size);
+                    if(!rd) {
+                        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+                        UA_Nodestore_release(server, target);
+                        goto error_recovery;
+                    }
+                    result->references = rd;
+                }
+
+                /* Copy the node description. Target is on top of the stack */
+                result->statusCode =
+                    fillReferenceDescription(server, target, &rk->referenceTypeId,
+                                             rk->isInverse, descr->resultMask,
+                                             &result->references[result->referencesSize]);
+
+                UA_Nodestore_release(server, target);
+
+                if(result->statusCode != UA_STATUSCODE_GOOD)
+                    goto error_recovery;
+
+                /* Increase the counter */
+                result->referencesSize++;
             }
 
-            /* Copy the node description. Target is on top of the stack */
-            result->statusCode =
-                fillReferenceDescription(server, target, rk, descr->resultMask,
-                                         &result->references[result->referencesSize]);
+            targetIndex = 0; /* Start at index 0 for the next reference kind */
+        }
+    }
+    else
+    {
+        size_t numrefs;
+        size_t targetIndex;
+        UA_Boolean morerefs;
 
+        const UA_NodeReferenceEntry *references =
+            node->browseNode(node, descr, maxrefs, cp->targetIndex, &numrefs, &morerefs);
+        UA_assert( numrefs <= maxrefs);
+
+        result->references = (UA_ReferenceDescription*)
+            UA_Array_new(numrefs, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
+        if(!result->references) {
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return false;
+        }
+
+        result->referencesSize = numrefs;
+
+        for(targetIndex = 0; targetIndex < numrefs; ++targetIndex) {
+            const UA_Node *target = UA_Nodestore_get(server, &references[targetIndex].targetId.nodeId);
+            result->statusCode =
+                fillReferenceDescription(server, target,
+                                         &references[targetIndex].referenceTypeId,
+                                         references[targetIndex].isInverse,
+                                         descr->resultMask,
+                                         &result->references[result->referencesSize]);
             UA_Nodestore_release(server, target);
 
             if(result->statusCode != UA_STATUSCODE_GOOD)
                 goto error_recovery;
-
-            /* Increase the counter */
-            result->referencesSize++;
         }
 
-        targetIndex = 0; /* Start at index 0 for the next reference kind */
+        if((numrefs == maxrefs) && morerefs) {
+            /* There are references we could not return */
+            cp->targetIndex += maxrefs;
+            return false;
+        }
     }
 
     /* No relevant references, return array of length zero */
