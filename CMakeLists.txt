@@ -1096,8 +1096,6 @@ include(linting_target)
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
 set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake/open62541)
-set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
-set(macros_install_dest_name "${cmake_configfile_install}/open62541Macros.cmake")
 set(open62541_install_tools_dir share/open62541/tools)
 set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
 
@@ -1166,9 +1164,7 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
-                              PATH_VARS target_install_dest_name
-                                        macros_install_dest_name
-                                        open62541_install_tools_dir
+                              PATH_VARS open62541_install_tools_dir
                                         open62541_install_nodeset_dir
                                         open62541_enabled_components
                               )
@@ -1185,15 +1181,18 @@ install(EXPORT open62541Targets
         DESTINATION "${cmake_configfile_install}"
         NAMESPACE open62541::)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541Config.cmake"
+export(
+    TARGETS open62541
+    NAMESPACE open62541::
+    FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake
+)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/macros_public.cmake" "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake" COPYONLY)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+              "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake"
         DESTINATION "${cmake_configfile_install}")
-
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/macros_public.cmake"
-        DESTINATION "${cmake_configfile_install}"
-        RENAME "open62541Macros.cmake"
-        )
-
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
