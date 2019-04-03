@@ -42,7 +42,7 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 
 	if [ "$CC" = "tcc" ]; then
 		mkdir tcc_install && cd tcc_install
-		wget https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2
+		wget https://mirror.netcologne.de/savannah/tinycc/tcc-0.9.27.tar.bz2
 		tar xf tcc-0.9.27.tar.bz2
 		cd tcc-0.9.27
 		./configure --prefix=$LOCAL_PKG
