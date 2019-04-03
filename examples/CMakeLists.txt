@@ -26,6 +26,10 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
         set(UA_TOOLS_DIR ${open62541_TOOLS_DIR})
     endif()
 
+    if(NOT UA_NODESET_DIR)
+        set(UA_NODESET_DIR ${open62541_NODESET_DIR})
+    endif()
+
     function(assign_source_group)
         # define empty function. We don't need it in standalone
     endfunction(assign_source_group)

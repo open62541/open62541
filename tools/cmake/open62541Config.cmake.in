@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-include ("@PACKAGE_target_install_dest_name@")
+include("${CMAKE_CURRENT_LIST_DIR}/open62541Targets.cmake")
 
 set (open62541_TOOLS_DIR @PACKAGE_open62541_install_tools_dir@ CACHE PATH "Path to the directory that contains the tooling of the stack")
 set (open62541_NODESET_DIR @PACKAGE_open62541_install_nodeset_dir@ CACHE PATH "Path to the directory that contains the OPC UA schema repository")
@@ -8,7 +8,7 @@ set (open62541_NODESET_DIR @PACKAGE_open62541_install_nodeset_dir@ CACHE PATH "P
 include(CMakeFindDependencyMacro)
 find_dependency(PythonInterp REQUIRED)
 
-include("@PACKAGE_macros_install_dest_name@")
+include("${CMAKE_CURRENT_LIST_DIR}/open62541Macros.cmake")
 
 set(open62541_COMPONENTS_ALL @open62541_enabled_components@)
 
