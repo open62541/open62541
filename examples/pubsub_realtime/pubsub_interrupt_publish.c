@@ -93,17 +93,20 @@ publishInterrupt(int sig, siginfo_t* si, void* uc) {
     /* Save the duration of the publish callback */
     timespec_diff(&begin, &end, &cycleDuration[publisherMeasurementsCounter]);
 
-    /* Save the calculated starting time for the next cycle */
-    calculatedCycleStartTime[publisherMeasurementsCounter + 1].tv_nsec +=
-        calculatedCycleStartTime[publisherMeasurementsCounter].tv_nsec + pubIntervalNs;
-    calculatedCycleStartTime[publisherMeasurementsCounter + 1].tv_sec =
-        calculatedCycleStartTime[publisherMeasurementsCounter].tv_sec;
-    nanoSecondFieldConversion(&calculatedCycleStartTime[publisherMeasurementsCounter + 1]);
-
     publisherMeasurementsCounter++;
 
+    /* Save the calculated starting time for the next cycle */
+    calculatedCycleStartTime[publisherMeasurementsCounter].tv_nsec =
+        calculatedCycleStartTime[publisherMeasurementsCounter - 1].tv_nsec + pubIntervalNs;
+    calculatedCycleStartTime[publisherMeasurementsCounter].tv_sec =
+        calculatedCycleStartTime[publisherMeasurementsCounter - 1].tv_sec;
+    nanoSecondFieldConversion(&calculatedCycleStartTime[publisherMeasurementsCounter]);
+
+    /* Write the pubsub measurement data */
     if(publisherMeasurementsCounter == MAX_MEASUREMENTS) {
-        /* Write the pubsub measurement data */
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Logging the measurements to %s", MEASUREMENT_OUTPUT);
+
         FILE *fpPublisher = fopen(MEASUREMENT_OUTPUT, "w");
         for(UA_UInt32 i = 0; i < publisherMeasurementsCounter; i++) {
             fprintf(fpPublisher, "%u, %u, %ld.%09ld, %ld.%09ld, %ld.%09ld\n",
@@ -135,6 +138,9 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server,
                        "At most one publisher can be registered for interrupt callbacks");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "Adding a publisher with a cycle time of %lf milliseconds", interval_ms);
 
     /* Set global values for the publish callback */
     int resultTimerCreate = 0;
@@ -189,6 +195,9 @@ UA_StatusCode
 UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server,
                                                 UA_UInt64 callbackId,
                                                 UA_Double interval_ms) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "Switching the publisher cycle to %lf milliseconds", interval_ms);
+
     struct itimerspec timerspec;
     int resultTimerCreate = 0;
     pubIntervalNs = (UA_Int64) (interval_ms * MILLI_AS_NANO_SECONDS);
@@ -240,7 +249,6 @@ addPubSubConfiguration(UA_Server* server) {
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     publishedDataSetConfig.name = UA_STRING("Demo PDS");
-    /* Create new PublishedDataSet based on the PublishedDataSetConfig. */
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig,
                                   &publishedDataSetIdent);
 
