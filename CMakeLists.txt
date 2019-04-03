@@ -1164,7 +1164,7 @@ endif()
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
-                              "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541Config.cmake"
+                              "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
                               PATH_VARS target_install_dest_name
                                         macros_install_dest_name
