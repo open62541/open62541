@@ -68,13 +68,13 @@ def RefOrAlias(s):
 
 class Node(object):
     def __init__(self):
-        self.id = NodeId()
-        self.browseName = QualifiedName()
-        self.displayName = LocalizedText()
-        self.description = LocalizedText()
-        self.symbolicName = String()
-        self.writeMask = 0
-        self.userWriteMask = 0
+        self.id = None
+        self.browseName = None
+        self.displayName = None
+        self.description = None
+        self.symbolicName = None
+        self.writeMask = None
+        self.userWriteMask = None
         self.references = set()
         self.hidden = False
         self.modelUri = None

@@ -430,12 +430,16 @@ def generateNodeCode_begin(node, nodeset, generate_ns0, parentref, encode_binary
         code.extend(generateDataTypeNodeCode(node))
     elif isinstance(node, ViewNode):
         code.extend(generateViewNodeCode(node))
-    code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, alloc=False) + ";")
-    code.append("#ifdef UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS")
-    code.append("attr.description = " + generateLocalizedTextCode(node.description, alloc=False) + ";")
-    code.append("#endif")
-    code.append("attr.writeMask = %d;" % node.writeMask)
-    code.append("attr.userWriteMask = %d;" % node.userWriteMask)
+    if node.displayName is not None:
+        code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, alloc=False) + ";")
+    if node.description is not None:
+        code.append("#ifdef UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS")
+        code.append("attr.description = " + generateLocalizedTextCode(node.description, alloc=False) + ";")
+        code.append("#endif")
+    if node.writeMask is not None:
+        code.append("attr.writeMask = %d;" % node.writeMask)
+    if node.userWriteMask is not None:
+        code.append("attr.userWriteMask = %d;" % node.userWriteMask)
 
     # AddNodes call
     code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".
