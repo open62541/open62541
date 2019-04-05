@@ -282,9 +282,20 @@ static UA_StatusCode
 copyStandardAttributes(UA_Node *node, const UA_NodeAttributes *attr) {
     /* retval  = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId); */
     /* retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName); */
-    UA_StatusCode retval = UA_LocalizedText_copy(&attr->displayName,
-                                                 &node->displayName);
-    retval |= UA_LocalizedText_copy(&attr->description, &node->description);
+
+	UA_StatusCode retval;
+    /* The new nodeset format has optional display name.
+     * See https://github.com/open62541/open62541/issues/2627
+     * If display name is NULL, then we take the name part of the browse name */
+    if (attr->displayName.text.length == 0) {
+		retval = UA_String_copy(&node->browseName.name,
+									   &node->displayName.text);
+    } else {
+		retval = UA_LocalizedText_copy(&attr->displayName,
+													 &node->displayName);
+		retval |= UA_LocalizedText_copy(&attr->description, &node->description);
+    }
+
     node->writeMask = attr->writeMask;
     return retval;
 }
