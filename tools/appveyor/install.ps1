@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 try {
+    & git submodule sync
     & git submodule --quiet update --init --recursive
 
     Write-Host -ForegroundColor Green "`n### CMake and Python pre-installed AppVeyor Windows build VMs ###`n"
