@@ -216,8 +216,8 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
  * Historical Access
  * ^^^^^^^^^^^^^^^^^
  * The following functions can be used to read a single node historically.
- * Use the regular service to read several nodes at once.
- */
+ * Use the regular service to read several nodes at once. */
+
 #ifdef UA_ENABLE_HISTORIZING
 typedef UA_Boolean
 (*UA_HistoricalIteratorCallback)(UA_Client *client,
@@ -272,12 +272,14 @@ UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
                                   UA_DateTime endTimestamp);
 
 #endif // UA_ENABLE_HISTORIZING
+
 /**
  * Write Attributes
  * ^^^^^^^^^^^^^^^^
  *
  * The following functions can be use to write a single node attribute at a
  * time. Use the regular write service to write several attributes at once. */
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -455,6 +457,7 @@ UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId
 /**
  * Method Calling
  * ^^^^^^^^^^^^^^ */
+
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 UA_Client_call(UA_Client *client, const UA_NodeId objectId,
@@ -466,6 +469,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
  * Node Management
  * ^^^^^^^^^^^^^^^
  * See the section on :ref:`server-side node management <addnodes>`. */
+
 UA_StatusCode UA_EXPORT
 UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId,
                        const UA_NodeId referenceTypeId, UA_Boolean isForward,
@@ -627,6 +631,7 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
 /**
  * Misc Highlevel Functionality
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
 /* Get the namespace-index of a namespace-URI
  *
  * @param client The UA_Client struct for this connection
@@ -648,7 +653,7 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean i
 
 UA_StatusCode UA_EXPORT
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
-                               UA_NodeIteratorCallback callback, void *handle) ;
+                               UA_NodeIteratorCallback callback, void *handle);
 
 _UA_END_DECLS
 
