@@ -67,7 +67,9 @@ generateEventId(UA_ByteString *generatedId) {
 UA_StatusCode
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) {
     if(!outNodeId) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "outNodeId cannot be NULL!");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "outNodeId must not be NULL. The event's NodeId must be returned "
+                     "so it can be triggered.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
