@@ -68,6 +68,7 @@ _UA_BEGIN_DECLS
  *                 |    +-----------------+
  *                 +----> UA_DataSetField |  UA_PublishedDataSet_addDataSetField
  *                      +-----------------+
+ *
  * PubSub compile flags
  * --------------------
  *
@@ -81,7 +82,7 @@ _UA_BEGIN_DECLS
  *  Enable the information model representation of the PubSub configuration. For more details take a look at the following section `PubSub Information Model Representation`. Disabled by default.
  *
  * PubSub Information Model Representation
- * ----------------------------------------
+ * ---------------------------------------
  * .. _pubsub_informationmodel:
  *
  * The complete PubSub configuration is available inside the information model.

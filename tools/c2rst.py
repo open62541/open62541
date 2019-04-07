@@ -51,9 +51,13 @@ def first_line(c):
 
 def last_line(c):
     "Searches for the latest ifdef (closing the include guard)"
+    reg = re.compile("^#ifdef")
+    for i in range(len(c)-1,1,-1):
+        if "_UA_END_DECLS" in c[i]:
+            reg = re.compile("^_UA_END_DECLS")
     last = 1
     for i in range(len(c)-1,1,-1):
-        m = re.search("^#ifdef", c[i])
+        m = reg.match(c[i])
         if m:
             last = i
             break
