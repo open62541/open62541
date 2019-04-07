@@ -56,10 +56,13 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
 /* Convert given byte string to a positive number. Returns the number of valid
  * digits. Stops if a non-digit char is found and returns the number of digits
  * up to that point. */
-size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
+size_t UA_EXPORT
+UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
 /* Same as UA_ReadNumber but with a base parameter */
-size_t UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base);
+size_t UA_EXPORT
+UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
+                      UA_UInt32 *number, UA_Byte base);
 
 #ifndef UA_MIN
 #define UA_MIN(A,B) (A > B ? B : A)
@@ -83,45 +86,37 @@ size_t UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *numbe
 /**
  * Helper functions for converting data types
  * ------------------------------------ */
-/*
- * Converts a bytestring to the corresponding base64 encoded string representation.
+
+/* Converts a bytestring to the corresponding base64 encoded string
+ * representation.
  *
  * @param byteString the original byte string
  * @param str the resulting base64 encoded byte string
  *
- * @return UA_STATUSCODE_GOOD on success.
- */
+ * Returns UA_STATUSCODE_GOOD on success. */
 UA_StatusCode UA_EXPORT
 UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_String *str);
 
-/*
- * Converts a node id to the corresponding string representation.
+/* Converts a node id to the corresponding string representation.
  * It can be one of:
  * - Numeric: ns=0;i=123
  * - String: ns=0;s=Some String
  * - Guid: ns=0;g=A123456C-0ABC-1A2B-815F-687212AAEE1B
- * - ByteString: ns=0;b=AA==
- *
- */
+ * - ByteString: ns=0;b=AA== */
 UA_StatusCode UA_EXPORT
 UA_NodeId_toString(const UA_NodeId *nodeId, UA_String *nodeIdStr);
 
-/*
- * Compare memory in constant time to mitigate timing attacks.
- *
- * @return true if ptr1 and ptr2 are equal for length bytes.
- */
+/* Compare memory in constant time to mitigate timing attacks.
+ * Returns true if ptr1 and ptr2 are equal for length bytes. */
 static UA_INLINE UA_Boolean
 UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
     volatile const UA_Byte *a = (volatile const UA_Byte *)ptr1;
     volatile const UA_Byte *b = (volatile const UA_Byte *)ptr2;
     volatile UA_Byte c = 0;
-
     for(size_t i = 0; i < length; ++i) {
         UA_Byte x = a[i], y = b[i];
         c |= x ^ y;
     }
-
     return !c;
 }
 
