@@ -53,7 +53,7 @@ printh(u'''/*---------------------------------------------------------
 ''' % (args.statuscodes, sys.argv[0]))
 
 for row in rows:
-    printh(u"#define UA_STATUSCODE_%s %s /* %s */" % (row[0].upper(), row[1], row[2]))
+    printh(u"/* %s */\n#define UA_STATUSCODE_%s %s\n" % (row[2], row[0].upper(), row[1]))
 
 #########################
 # Print the source file #
