@@ -50,26 +50,19 @@ struct getNodesHandle {
     LIST_HEAD(Events_nodeList, Events_nodeListElement) nodes;
 };
 
-/* generates a unique event id */
+/* We use a 16-Byte ByteString as an identifier */
 static UA_StatusCode
-UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId) {
-    /* EventId is a ByteString, which is basically just a string
-     * We will use a 16-Byte ByteString as an identifier */
-    generatedId->length = 16;
+generateEventId(UA_ByteString *generatedId) {
     generatedId->data = (UA_Byte *) UA_malloc(16 * sizeof(UA_Byte));
-    if(!generatedId->data) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-                       "Server unable to allocate memory for EventId data.");
+    if(!generatedId->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    generatedId->length = 16;
 
-    /* GUIDs are unique, have a size of 16 byte and already have
-     * a generator so use that.
-     * Make sure GUIDs really do have 16 byte, in case someone may
-     * have changed that struct */
-    UA_assert(sizeof(UA_Guid) == 16);
-    UA_Guid tmpGuid = UA_Guid_random();
-    memcpy(generatedId->data, &tmpGuid, 16);
+    UA_UInt32 *ids = (UA_UInt32*)generatedId->data;
+    ids[0] = UA_UInt32_random();
+    ids[1] = UA_UInt32_random();
+    ids[2] = UA_UInt32_random();
+    ids[3] = UA_UInt32_random();
     return UA_STATUSCODE_GOOD;
 }
 
@@ -341,7 +334,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 
     /* Set the EventId */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = UA_Event_generateEventId(server, &eventId);
+    retval = generateEventId(&eventId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     name = UA_QUALIFIEDNAME(0, "EventId");
