@@ -15,27 +15,27 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
     UA_assert(node->nodeClass == UA_NODECLASS_OBJECT);
     UA_ObjectNode *on = (UA_ObjectNode*)node;
+    UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
     if(!on->monitoredItemQueue)
         return UA_STATUSCODE_GOOD;
 
-    /* data is the monitoredItemID */
-    /* catch edge case that it's the first element */
-    if(data == on->monitoredItemQueue) {
-        on->monitoredItemQueue = on->monitoredItemQueue->next;
+    /* Edge case that it's the first element */
+    if(on->monitoredItemQueue == remove) {
+        on->monitoredItemQueue = remove->next;
         return UA_STATUSCODE_GOOD;
     }
 
     UA_MonitoredItem *prev = on->monitoredItemQueue;
-    for(UA_MonitoredItem *entry = prev->next; entry != NULL; entry = entry->next) {
-        if(entry == (UA_MonitoredItem *)data) {
+    UA_MonitoredItem *entry = prev->next;
+    for(; entry != NULL; prev = entry, entry = entry->next) {
+        if(entry == remove) {
             prev->next = entry->next;
-            break;
+            return UA_STATUSCODE_GOOD;
         }
-        prev = entry;
     }
 
-    return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 typedef struct Events_nodeListElement {
