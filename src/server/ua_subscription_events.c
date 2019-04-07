@@ -13,9 +13,7 @@
 UA_StatusCode
 UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
-    if(node->nodeClass != UA_NODECLASS_OBJECT)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
+    UA_assert(node->nodeClass == UA_NODECLASS_OBJECT);
     UA_ObjectNode *on = (UA_ObjectNode*)node;
 
     if(!on->monitoredItemQueue)
