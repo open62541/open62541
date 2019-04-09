@@ -119,29 +119,11 @@ As an open source project, new contributors are encouraged to help improve open6
 - Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
 
-### Success Stories
+### Success Stories and Users of open62541
 
-Our OPC UA stack is used in various other open source and commercial projects. Here are some selected examples (ordered alphabetically):
+A list of projects and companies using our open62541 stack can be found in our Wiki:
 
-- [Cern LHC](https://github.com/quasar-team/quasar), LGPL  
-  Quick opcUA Server generAtion fRamework. open62541 is used as the link between the Scada layer and CANopen.
-  See also [https://opcconnect.opcfoundation.org/2015/06/opc-news/](https://opcconnect.opcfoundation.org/2015/06/opc-news/)
-
-- [ChimeraTK, DESY / HZDR Accelerator](https://github.com/ChimeraTK), LGPL
-  Control system and Hardware Interface with Mapped and Extensible Register-based device Abstraction Tool Kit. ChimeraTK Framework uses open62541
-
-- [Eclipse 4diac](https://www.eclipse.org/4diac/), Eclipse Public License  
-  Open source infrastructure for distributed industrial process measurement and control systems based on the IEC61499 standard.  
-  open62541 is the basis for OPC UA function blocks.
-
-- [Qt OPC UA](https://doc-snapshots.qt.io/qtopcua/index.html), Qt License (LGPL, GPL)  
-  Qt API to interact with OPC UA on top of a 3rd party OPC UA stack.  
-  open62541 is one of the supported OPC UA stacks
-
-- [URcaps OPC UA](https://www.universal-robots.com/plus/software/opc-ua-clientserver/), Commercial  
-  Adds OPC UA Client and Server functionality to Universal Robots.  
-
-If you would like to add your own project, please create a Pull Request.
+https://github.com/open62541/open62541/wiki/References-to-open62541
 
 ## Examples
 
