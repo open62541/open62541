@@ -27,7 +27,6 @@
 #define checkWait registerTimeout + 11
 
 UA_Server *server_lds;
-UA_ServerConfig *config_lds;
 UA_Boolean *running_lds;
 THREAD_HANDLE server_thread_lds;
 UA_Client *clientRegisterRepeated;
@@ -42,7 +41,11 @@ static void setup_lds(void) {
     // start LDS server
     running_lds = UA_Boolean_new();
     *running_lds = true;
-    config_lds = UA_ServerConfig_new_default();
+
+    server_lds = UA_Server_new();
+    UA_ServerConfig *config_lds = UA_Server_getConfig(server_lds);
+    UA_ServerConfig_setDefault(config_lds);
+
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_deleteMembers(&config_lds->applicationDescription.applicationUri);
     config_lds->applicationDescription.applicationUri =
@@ -56,7 +59,7 @@ static void setup_lds(void) {
     *caps = UA_String_fromChars("LDS");
     config_lds->serverCapabilities = caps;
     config_lds->discoveryCleanupTimeout = registerTimeout;
-    server_lds = UA_Server_new(config_lds);
+
     UA_Server_run_startup(server_lds);
     THREAD_CREATE(server_thread_lds, serverloop_lds);
 
@@ -71,11 +74,9 @@ static void teardown_lds(void) {
     UA_Server_run_shutdown(server_lds);
     UA_Boolean_delete(running_lds);
     UA_Server_delete(server_lds);
-    UA_ServerConfig_delete(config_lds);
 }
 
 UA_Server *server_register;
-UA_ServerConfig *config_register;
 UA_Boolean *running_register;
 THREAD_HANDLE server_thread_register;
 
@@ -91,7 +92,11 @@ static void setup_register(void) {
     // start register server
     running_register = UA_Boolean_new();
     *running_register = true;
-    config_register = UA_ServerConfig_new_minimal(16664, NULL);
+
+    server_register = UA_Server_new();
+    UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
+    UA_ServerConfig_setMinimal(config_register, 16664, NULL);
+
     UA_String_deleteMembers(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_register");
@@ -99,7 +104,7 @@ static void setup_register(void) {
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
     config_register->mdnsServerName = UA_String_fromChars("Register_test");
-    server_register = UA_Server_new(config_register);
+
     UA_Server_run_startup(server_register);
     THREAD_CREATE(server_thread_register, serverloop_register);
 }
@@ -110,7 +115,6 @@ static void teardown_register(void) {
     UA_Server_run_shutdown(server_register);
     UA_Boolean_delete(running_register);
     UA_Server_delete(server_register);
-    UA_ServerConfig_delete(config_register);
 }
 
 START_TEST(Server_register) {

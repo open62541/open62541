@@ -22,7 +22,6 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
@@ -61,14 +60,15 @@ static void setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    config = UA_ServerConfig_new_basic256sha256(4840, &certificate, &privateKey,
-                                                trustList, trustListSize,
-                                                revocationList, revocationListSize);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefaultWithSecurityPolicies(UA_Server_getConfig(server),
+                                                   4840, &certificate, &privateKey,
+                                                   trustList, trustListSize,
+                                                   revocationList, revocationListSize);
 
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_deleteMembers(&trustList[i]);
 
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -78,7 +78,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(encryption_connect) {
@@ -89,7 +88,6 @@ START_TEST(encryption_connect) {
     size_t trustListSize = 0;
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
-    UA_ByteString *remoteCertificate = NULL;
 
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -108,19 +106,10 @@ START_TEST(encryption_connect) {
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     ck_assert_msg(client != NULL);
-    remoteCertificate = UA_ByteString_new();
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    for(size_t endPointCount = 0; endPointCount < endpointArraySize; endPointCount++) {
-        if(endpointArray[endPointCount].securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-            UA_ByteString_copy(&endpointArray[endPointCount].serverCertificate, remoteCertificate);
-    }
-
-    if(UA_ByteString_equal(remoteCertificate, &UA_BYTESTRING_NULL)) {
-        ck_abort_msg("Server does not support Security Mode of UA_MESSAGESECURITYMODE_SIGNANDENCRYPT");
-    }
+    ck_assert(endpointArraySize > 0);
 
     UA_Array_delete(endpointArray, endpointArraySize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
@@ -166,8 +155,6 @@ START_TEST(encryption_connect) {
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_deleteMembers(&val);
-
-    UA_ByteString_delete(remoteCertificate);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

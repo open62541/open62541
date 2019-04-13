@@ -17,18 +17,17 @@
 #include <check.h>
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
-    }
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
-    server = UA_Server_new(config);
+
     UA_Server_run_startup(server);
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -43,7 +42,6 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(SinglePublishDataSetField){

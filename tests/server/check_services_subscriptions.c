@@ -14,9 +14,7 @@
 #include "testing_clock.h"
 
 static UA_Server *server = NULL;
-static UA_ServerConfig *config = NULL;
 static UA_Session *session = NULL;
-
 static UA_UInt32 monitored = 0; /* Number of active MonitoredItems */
 
 static void
@@ -41,9 +39,10 @@ createSession(void) {
 }
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
     config->monitoredItemRegisterCallback = monitoredRegisterCallback;
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
     createSession();
 }
@@ -51,8 +50,6 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-
     ck_assert_uint_eq(monitored, 0); /* All MonitoredItems have been de-registered */
 }
 

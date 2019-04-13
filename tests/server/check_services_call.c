@@ -19,7 +19,6 @@
 #include "check.h"
 
 static UA_Server *server = NULL;
-static UA_ServerConfig *config = NULL;
 
 static UA_StatusCode
 methodCallback(UA_Server *serverArg,
@@ -33,8 +32,8 @@ methodCallback(UA_Server *serverArg,
 }
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_MethodAttributes noFpAttr = UA_MethodAttributes_default;
     noFpAttr.description = UA_LOCALIZEDTEXT("en-US","No function pointer attached");
@@ -63,7 +62,6 @@ static void setup(void) {
 
 static void teardown(void) {
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(callUnknownMethod) {

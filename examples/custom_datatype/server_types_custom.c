@@ -64,7 +64,10 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     /* Make your custom datatype known to the stack */
     UA_DataType *types = (UA_DataType*)UA_malloc(sizeof(UA_DataType));
     UA_DataTypeMember *members = (UA_DataTypeMember*)UA_malloc(sizeof(UA_DataTypeMember) * 3);
@@ -79,8 +82,6 @@ int main(void) {
     UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
     config->customDataTypes = &customDataTypes;
 
-    UA_Server *server = UA_Server_new(config);
-
     add3PointDataType(server);
     add3DPointVariable(server);
 
@@ -89,6 +90,5 @@ int main(void) {
     UA_Server_delete(server);
     UA_free(members);
     UA_free(types);
-    UA_ServerConfig_delete(config);
     return EXIT_SUCCESS;
 }

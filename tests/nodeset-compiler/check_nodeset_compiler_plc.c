@@ -13,20 +13,17 @@
 #include "unistd.h"
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
-
 
 START_TEST(Server_addDiNodeset) {
     UA_StatusCode retval = namespace_tests_di_generated(server);

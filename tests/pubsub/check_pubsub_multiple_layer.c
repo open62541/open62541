@@ -16,7 +16,6 @@
 #include <check.h>
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 UA_NodeId connection1, connection2;
 
 static void setup(void) {
@@ -26,7 +25,9 @@ static void teardown(void) {
 }
 
 START_TEST(AddMultipleTransportLayers){
-    config = UA_ServerConfig_new_default();
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
 
     UA_PubSubTransportLayer pubsubTransportLayer;
 
@@ -44,13 +45,8 @@ START_TEST(AddMultipleTransportLayers){
     UA_ServerConfig_addPubSubTransportLayer(config, &pubsubTransportLayer);
     ck_assert_int_eq(config->pubsubTransportLayersSize, 3);
 
-    server = UA_Server_new(config);
     UA_Server_delete(server);
-
-    UA_ServerConfig_delete(config);
-
-    } END_TEST
-
+} END_TEST
 
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub Layer allocation");

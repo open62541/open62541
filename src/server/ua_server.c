@@ -168,6 +168,9 @@ void UA_Server_delete(UA_Server *server) {
     /* Clean up the nodestore */
     UA_Nodestore_delete(server->nsCtx);
 
+    /* Clean up the config */
+    UA_ServerConfig_clean(&server->config);
+
     /* Delete the server itself */
     UA_free(server);
 }
@@ -188,18 +191,11 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 /********************/
 
 UA_Server *
-UA_Server_new(const UA_ServerConfig *config) {
-    /* A config is required */
-    if(!config)
-        return NULL;
-
+UA_Server_new() {
     /* Allocate the server */
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
-
-    /* Set the config */
-    server->config = *config;
 
     /* Init start time to zero, the actual start time will be sampled in
      * UA_Server_run_startup() */
@@ -234,11 +230,6 @@ UA_Server_new(const UA_ServerConfig *config) {
     /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
                                   10000.0, NULL);
-
-    /* Initialized discovery */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_init(&server->discoveryManager, server);
-#endif
 
     /* Initialize namespace 0*/
     UA_StatusCode retVal = UA_Nodestore_new(&server->nsCtx);
@@ -404,14 +395,19 @@ verifyServerApplicationURI(const UA_Server *server) {
 
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
-    UA_Variant var;
-    UA_StatusCode result = UA_STATUSCODE_GOOD;
+    if(server->state > UA_SERVERLIFECYCLE_FRESH)
+        return UA_STATUSCODE_GOOD;
     
     /* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "There has to be at least one endpoint.");
     }
+
+    /* Initialized discovery */
+#ifdef UA_ENABLE_DISCOVERY
+    UA_DiscoveryManager_init(&server->discoveryManager, server);
+#endif
 
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
@@ -420,6 +416,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Sample the start time and set it to the Server object */
     server->startTime = UA_DateTime_now();
+    UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
     UA_Server_writeValue(server,
@@ -427,6 +424,7 @@ UA_Server_run_startup(UA_Server *server) {
                          var);
 
     /* Start the networklayers */
+    UA_StatusCode result = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         result |= nl->start(nl, &server->config.customHostname);
@@ -445,6 +443,8 @@ UA_Server_run_startup(UA_Server *server) {
        UA_APPLICATIONTYPE_DISCOVERYSERVER)
         startMulticastDiscoveryServer(server);
 #endif
+
+    server->state = UA_SERVERLIFECYCLE_FRESH;
 
     return result;
 }

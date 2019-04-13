@@ -24,7 +24,9 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
 
     /* Add the PubSubTransportLayer implementation to the server config.
      * The PubSubTransportLayer is a factory to create new connections
@@ -33,16 +35,13 @@ int main(void) {
      */
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
     if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
+        UA_Server_delete(server);
         return -1;
     }
     /* It is possible to use multiple PubSubTransportLayers on runtime. The correct factory
-     * is selected on runtime by the standard defined PubSub TransportProfileUri's.
-     */
+     * is selected on runtime by the standard defined PubSub TransportProfileUri's. */
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
-
-    UA_Server *server = UA_Server_new(config);
 
     /* Create a new ConnectionConfig. The addPubSubConnection function takes the
      * config and create a new connection. The Connection identifier is
@@ -53,14 +52,12 @@ int main(void) {
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.enabled = UA_TRUE;
     /* The address and interface is part of the standard
-     * defined UA_NetworkAddressUrlDataType.
-     */
+     * defined UA_NetworkAddressUrlDataType. */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.numeric = UA_UInt32_random();
     /* Connection options are given as Key/Value Pairs. The available options are
-     * maybe standard or vendor defined.
-     */
+     * maybe standard or vendor defined. */
     UA_KeyValuePair connectionOptions[3];
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "ttl");
     UA_UInt32 ttl = 10;
@@ -74,8 +71,7 @@ int main(void) {
     connectionConfig.connectionProperties = connectionOptions;
     connectionConfig.connectionPropertiesSize = 3;
     /* Create a new concrete connection and add the connection
-     * to the current PubSub configuration.
-     */
+     * to the current PubSub configuration. */
     UA_NodeId connectionIdentifier;
     UA_StatusCode retval = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     if(retval == UA_STATUSCODE_GOOD){
@@ -84,7 +80,7 @@ int main(void) {
     }
 
     retval |= UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

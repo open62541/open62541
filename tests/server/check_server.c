@@ -19,16 +19,14 @@
 #include "check.h"
 
 static UA_Server *server = NULL;
-static UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 }
 
 static void teardown(void) {
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(checkGetConfig) {

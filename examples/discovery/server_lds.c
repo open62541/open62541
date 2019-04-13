@@ -21,7 +21,10 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+    
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
@@ -32,17 +35,17 @@ int main(void) {
     UA_String *caps = UA_String_new();
     *caps = UA_String_fromChars("LDS");
     config->serverCapabilities = caps;
+
     /* timeout in seconds when to automatically remove a registered server from
      * the list, if it doesn't re-register within the given time frame. A value
      * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
      * bigger than 10 seconds, because cleanup is only triggered approximately
      * every 10 seconds. The server will still be removed depending on the
      * state of the semaphore file. */
-    // config.discoveryCleanupTimeout = 60*60;
-    UA_Server *server = UA_Server_new(config);
+    // config->discoveryCleanupTimeout = 60*60;
 
     UA_StatusCode retval = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -17,7 +17,8 @@ _UA_BEGIN_DECLS
 /* Default Connection */
 /**********************/
 
-extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_default;
+extern const UA_EXPORT
+UA_ConnectionConfig UA_ConnectionConfig_default;
 
 /*************************/
 /* Default Server Config */
@@ -37,74 +38,45 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_default;
  * @param recvBufferSize The size in bytes for the network receive buffer
  *
  */
-UA_EXPORT UA_ServerConfig *
-UA_ServerConfig_new_customBuffer(UA_UInt16 portNumber, const UA_ByteString *certificate,
-                                 UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config,
+                                       UA_UInt16 portNumber,
+                                       const UA_ByteString *certificate,
+                                       UA_UInt32 sendBufferSize,
+                                       UA_UInt32 recvBufferSize);
 
 /* Creates a new server config with one endpoint.
  *
  * The config will set the tcp network layer to the given port and adds a single
  * endpoint with the security policy ``SecurityPolicy#None`` to the server. A
- * server certificate may be supplied but is optional.
- *
- * @param portNumber The port number for the tcp network layer
- * @param certificate Optional certificate for the server endpoint. Can be
- *        ``NULL``. */
-static UA_INLINE UA_ServerConfig *
-UA_ServerConfig_new_minimal(UA_UInt16 portNumber, const UA_ByteString *certificate) {
-    return UA_ServerConfig_new_customBuffer(portNumber, certificate, 0 ,0);
+ * server certificate may be supplied but is optional. */
+static UA_INLINE UA_StatusCode
+UA_ServerConfig_setMinimal(UA_ServerConfig *config, UA_UInt16 portNumber,
+                           const UA_ByteString *certificate) {
+    return UA_ServerConfig_setMinimalCustomBuffer(config, portNumber,
+                                                  certificate, 0, 0);
 }
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-UA_EXPORT UA_ServerConfig *
-UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
-                                  const UA_ByteString *certificate,
-                                  const UA_ByteString *privateKey,
-                                  const UA_ByteString *trustList,
-                                  size_t trustListSize,
-                                  const UA_ByteString *revocationList,
-                                  size_t revocationListSize);
-
-UA_EXPORT UA_ServerConfig *
-UA_ServerConfig_new_basic256sha256(UA_UInt16 portNumber,
-                                   const UA_ByteString *certificate,
-                                   const UA_ByteString *privateKey,
-                                   const UA_ByteString *trustList,
-                                   size_t trustListSize,
-                                   const UA_ByteString *revocationList,
-                                   size_t revocationListSize);
-
-UA_EXPORT UA_ServerConfig *
-UA_ServerConfig_new_allSecurityPolicies(UA_UInt16 portNumber,
-                                        const UA_ByteString *certificate,
-                                        const UA_ByteString *privateKey,
-                                        const UA_ByteString *trustList,
-                                        size_t trustListSize,
-                                        const UA_ByteString *revocationList,
-                                        size_t revocationListSize);
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
+                                               UA_UInt16 portNumber,
+                                               const UA_ByteString *certificate,
+                                               const UA_ByteString *privateKey,
+                                               const UA_ByteString *trustList,
+                                               size_t trustListSize,
+                                               const UA_ByteString *revocationList,
+                                               size_t revocationListSize);
 
 #endif
 
 /* Creates a server config on the default port 4840 with no server
  * certificate. */
-static UA_INLINE UA_ServerConfig *
-UA_ServerConfig_new_default(void) {
-    return UA_ServerConfig_new_minimal(4840, NULL);
+static UA_INLINE UA_StatusCode
+UA_ServerConfig_setDefault(UA_ServerConfig *config) {
+    return UA_ServerConfig_setMinimal(config, 4840, NULL);
 }
-
-/* Set a custom hostname in server configuration
- *
- * @param config A valid server configuration
- * @param customHostname The custom hostname used by the server */
-
-UA_EXPORT void
-UA_ServerConfig_set_customHostname(UA_ServerConfig *config,
-                                   const UA_String customHostname);
-
-/* Frees allocated memory in the server config */
-UA_EXPORT void
-UA_ServerConfig_delete(UA_ServerConfig *config);
 
 _UA_END_DECLS
 

@@ -146,8 +146,8 @@ int main(int argc, char** argv)
     signal(SIGINT, signalHandler); /* catch ctrl-c */
 
     /* Create a server listening on port 4840 */
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_initDefault(UA_Server_getConfig(server));
 
     /* Add a variable node */
     /* 1) Define the node attributes */
@@ -169,8 +169,8 @@ int main(int argc, char** argv)
 
     /* Run the server loop */
     UA_StatusCode status = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return status;
 }
 ```

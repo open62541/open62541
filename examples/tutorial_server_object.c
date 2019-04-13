@@ -318,8 +318,8 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     manuallyDefinePump(server);
     defineObjectTypes(server);
@@ -330,7 +330,7 @@ int main(void) {
     addPumpObjectInstance(server, "pump5");
 
     UA_StatusCode retval = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

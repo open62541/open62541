@@ -18,7 +18,6 @@
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
@@ -30,16 +29,16 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void
-onConnect (UA_Client *Client, void *connected, UA_UInt32 requestId,
-           void *response) {
+onConnect(UA_Client *Client, void *connected,
+          UA_UInt32 requestId, void *response) {
     if (UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
         *(UA_Boolean *)connected = true;
 }
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
     /* Waiting server is up */
@@ -51,7 +50,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void
@@ -80,7 +78,7 @@ START_TEST(Client_connect_async){
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     /* Connected gets updated when client is connected */
 
-    do{
+    do {
         if(connected) {
             /* If not connected requests are not sent */
             UA_Client_sendAsyncBrowseRequest (client, &bReq, asyncBrowseCallback,
