@@ -173,14 +173,10 @@ typedef struct {
 } UA_SecurityPolicyEncryptionAlgorithm;
 
 typedef struct {
-    /*
-     * The algorithm used to sign and verify certificates.
-     */
+    /* The algorithm used to sign and verify certificates. */
     UA_SecurityPolicySignatureAlgorithm signatureAlgorithm;
 
-    /*
-     * The algorithm used to encrypt and decrypt messages.
-     */
+    /* The algorithm used to encrypt and decrypt messages. */
     UA_SecurityPolicyEncryptionAlgorithm encryptionAlgorithm;
 
 } UA_SecurityPolicyCryptoModule;
@@ -355,8 +351,8 @@ struct UA_SecurityPolicy {
 
     const UA_Logger *logger;
 
-    /*Updates the ApplicationInstanceCertificate and the corresponding
-     * private key at runtime. */
+    /* Updates the ApplicationInstanceCertificate and the corresponding private
+     * key at runtime. */
     UA_StatusCode (*updateCertificateAndPrivateKey)(UA_SecurityPolicy *policy,
                                                     const UA_ByteString newCertificate,
                                                     const UA_ByteString newPrivateKey);
