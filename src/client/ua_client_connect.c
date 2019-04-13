@@ -889,10 +889,14 @@ UA_Client_connectSession(UA_Client *client) {
     if((!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) && (createNewSession)) {
         UA_StatusCode res = activateSession(client);
         if(res != UA_STATUSCODE_BADSESSIONIDINVALID) {
-            if(res == UA_STATUSCODE_GOOD)
+            if(res == UA_STATUSCODE_GOOD) {
                 setClientState(client, UA_CLIENTSTATE_SESSION_RENEWED);
-            else
+            } else {
+                UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                             "Could not activate the Session with StatusCode %s",
+                             UA_StatusCode_name(retval));
                 UA_Client_disconnect(client);
+            }
             return res;
         }
     }
@@ -905,6 +909,9 @@ UA_Client_connectSession(UA_Client *client) {
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT, "Create a new session");
     UA_StatusCode retval = createSession(client);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Could not open a Session with StatusCode %s",
+                     UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
         return retval;
     }
@@ -918,6 +925,9 @@ UA_Client_connectSession(UA_Client *client) {
     /* Activate the session */
     retval = activateSession(client);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Could not activate the Session with StatusCode %s",
+                     UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
         return retval;
     }
