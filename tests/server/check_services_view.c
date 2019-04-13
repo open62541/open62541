@@ -16,7 +16,6 @@
 #include "thread_wrapper.h"
 
 UA_Server *server_translate_browse;
-UA_ServerConfig *server_translate_config;
 UA_Boolean *running_translate_browse;
 THREAD_HANDLE server_thread_translate_browse;
 
@@ -30,11 +29,14 @@ static void setup_server(void) {
     // start server
     running_translate_browse = UA_Boolean_new();
     *running_translate_browse = true;
-    server_translate_config = UA_ServerConfig_new_default();
+
+    server_translate_browse = UA_Server_new();
+    UA_ServerConfig *server_translate_config = UA_Server_getConfig(server_translate_browse);
+    UA_ServerConfig_setDefault(server_translate_config);
+
     UA_String_deleteMembers(&server_translate_config->applicationDescription.applicationUri);
     server_translate_config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_translate_browse");
-    server_translate_browse = UA_Server_new(server_translate_config);
     UA_Server_run_startup(server_translate_browse);
     THREAD_CREATE(server_thread_translate_browse, serverloop_register);
 }
@@ -45,7 +47,6 @@ static void teardown_server(void) {
     UA_Server_run_shutdown(server_translate_browse);
     UA_Boolean_delete(running_translate_browse);
     UA_Server_delete(server_translate_browse);
-    UA_ServerConfig_delete(server_translate_config);
 }
 
 static size_t
@@ -78,8 +79,8 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
 }
 
 START_TEST(Service_Browse_WithMaxResults) {
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -101,13 +102,12 @@ START_TEST(Service_Browse_WithMaxResults) {
     }
     
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 END_TEST
 
 START_TEST(Service_Browse_WithBrowseName) {
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -124,7 +124,6 @@ START_TEST(Service_Browse_WithBrowseName) {
 
     UA_BrowseResult_deleteMembers(&br);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 END_TEST
 

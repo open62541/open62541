@@ -19,7 +19,6 @@
 #endif
 
 static UA_Server *server = NULL;
-static UA_ServerConfig *config = NULL;
 
 static UA_StatusCode
 readCPUTemperature(UA_Server *server_,
@@ -35,12 +34,11 @@ readCPUTemperature(UA_Server *server_,
 
 static void teardown(void) {
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* VariableNode */
@@ -146,8 +144,7 @@ static void setup(void) {
 
 static UA_VariableNode* makeCompareSequence(void) {
     UA_VariableNode *node = (UA_VariableNode*)
-        config->nodestore.newNode(config->nodestore.context,
-                                  UA_NODECLASS_VARIABLE);
+        UA_Nodestore_newNode(server->nsCtx, UA_NODECLASS_VARIABLE);
 
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -282,7 +279,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     ck_assert(UA_String_equal(&comp.text, &respval->text));
     ck_assert(UA_String_equal(&compNode->displayName.locale, &respval->locale));
     UA_DataValue_deleteMembers(&resp);
-    config->nodestore.deleteNode(config->nodestore.context, (UA_Node*)compNode);
+    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
@@ -300,7 +297,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     ck_assert(UA_String_equal(&compNode->description.locale, &respval->locale));
     ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
     UA_DataValue_deleteMembers(&resp);
-    config->nodestore.deleteNode(config->nodestore.context, (UA_Node*)compNode);
+    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp) {
@@ -478,7 +475,7 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
 
     /* Uncommented since the accesslevel is always 0xff for the local admin user */
     /* const UA_VariableNode* compNode = */
-    /*     (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &rvi.nodeId); */
+    /*     (const UA_VariableNode*)UA_NodeStore_getNode(server->nsCtx, &rvi.nodeId); */
     /* ck_assert_int_eq(0, resp.value.arrayLength); */
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type); */
     /* ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->accessLevel & 0xFF); // 0xFF is the default userAccessLevel */
@@ -500,7 +497,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_DOUBLE] == resp.value.type);
     ck_assert(*respval == comp);
     UA_DataValue_deleteMembers(&resp);
-    config->nodestore.deleteNode(config->nodestore.context, (UA_Node*)compNode);
+    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {

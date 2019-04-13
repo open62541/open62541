@@ -148,12 +148,9 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 if(UA_ENABLE_ENCRYPTION)
-    add_example(server_basic128rsa15 encryption/server_basic128rsa15.c)
-    add_example(server_basic256sha256 encryption/server_basic256sha256.c)
+    add_example(server_encryption encryption/server_encryption.c)
     add_example(client_encryption encryption/client_encryption.c)
-    # common.h
-    target_include_directories(server_basic128rsa15 PRIVATE "${PROJECT_SOURCE_DIR}/examples")
-    target_include_directories(server_basic256sha256 PRIVATE "${PROJECT_SOURCE_DIR}/examples")
+    target_include_directories(server_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
     target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
 endif()
 

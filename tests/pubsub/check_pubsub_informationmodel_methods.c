@@ -7,21 +7,16 @@
 
 #include <string.h>
 #include <math.h>
-#include "src_generated/ua_types_generated.h"
-#include "ua_types.h"
-#include "src_generated/ua_types_generated_encoding_binary.h"
-#include "ua_types.h"
-#include "ua_server_pubsub.h"
-#include "src_generated/ua_types_generated.h"
-#include "ua_network_pubsub_udp.h"
-#include "ua_server_internal.h"
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
+#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include "check.h"
-#include "ua_plugin_pubsub.h"
-#include "ua_config_default.h"
 #include "thread_wrapper.h"
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
 
@@ -33,14 +28,13 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
-    }
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
+        UA_malloc(sizeof(UA_PubSubTransportLayer));
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -50,7 +44,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static UA_NodeId

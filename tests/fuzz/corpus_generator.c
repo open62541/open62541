@@ -33,7 +33,6 @@
 #include <sys/stat.h>
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 pthread_t server_thread;
 
@@ -45,8 +44,8 @@ static void * serverloop(void *_) {
 
 static void start_server(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
 }
@@ -56,7 +55,6 @@ static void teardown_server(void) {
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void emptyCorpusDir(void) {

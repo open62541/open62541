@@ -19,7 +19,6 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 static UA_Server *server;
-static UA_ServerConfig *config;
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 static MUTEX_HANDLE serverMutex;
@@ -180,10 +179,14 @@ setup(void) {
         exit(1);
     }
     running = true;
-    config = UA_ServerConfig_new_default();
+
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     config->maxPublishReqPerSession = 5;
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
+
     addNewEventType();
     setupSelectClauses();
     THREAD_CREATE(server_thread, serverloop);
@@ -208,7 +211,6 @@ teardown(void) {
     removeSubscription();
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
 
     UA_Client_disconnect(client);
@@ -219,10 +221,12 @@ teardown(void) {
     }
 }
 
-static UA_StatusCode triggerEventLocked(const UA_NodeId eventNodeId, const UA_NodeId origin,
-                                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
+static UA_StatusCode
+triggerEventLocked(const UA_NodeId eventNodeId, const UA_NodeId origin,
+                   UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
     serverMutexLock();
-    UA_StatusCode retval = UA_Server_triggerEvent(server, eventNodeId, origin, outEventId, deleteEventNode);
+    UA_StatusCode retval = UA_Server_triggerEvent(server, eventNodeId, origin,
+                                                  outEventId, deleteEventNode);
     serverMutexUnlock();
     return retval;
 }

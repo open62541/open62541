@@ -9,20 +9,17 @@
 #include <check.h>
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
-
 UA_UInt32 valueToBeInherited = 42;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO

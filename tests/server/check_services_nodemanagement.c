@@ -13,7 +13,6 @@
 #include <time.h>
 
 static UA_Server *server = NULL;
-static UA_ServerConfig *config = NULL;
 static UA_Int32 handleCalled = 0;
 
 static UA_StatusCode
@@ -25,21 +24,22 @@ globalInstantiationMethod(UA_Server *server_,
 }
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     UA_GlobalNodeLifecycle lifecycle;
     lifecycle.constructor = globalInstantiationMethod;
     lifecycle.destructor = NULL;
     config->nodeLifecycle = lifecycle;
-    server = UA_Server_new(config);
 }
 
 static void teardown(void) {
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(AddVariableNode) {
-    /* add a variable node to the address space */
+    /* Add a variable node to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);

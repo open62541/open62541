@@ -222,6 +222,14 @@ struct UA_ServerConfig {
 #endif
 };
 
+void UA_EXPORT
+UA_ServerConfig_clean(UA_ServerConfig *config);
+
+/* Set a custom hostname in server configuration */
+UA_EXPORT void
+UA_ServerConfig_setCustomHostname(UA_ServerConfig *config,
+                                  const UA_String customHostname);
+
 _UA_END_DECLS
 
 #endif /* UA_SERVER_CONFIG_H_ */

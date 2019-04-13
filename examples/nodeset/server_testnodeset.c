@@ -26,9 +26,12 @@ int main(int argc, char **argv)
 {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     config->customDataTypes = &customTypesArray;
-    UA_Server *server = UA_Server_new(config);
 
     UA_StatusCode retval;
     /* create nodes from nodeset */
@@ -45,7 +48,7 @@ int main(int argc, char **argv)
         printf("point 2d x: %f y: %f \n", p->x, p->y);
         retval = UA_Server_run(server, &running);
     }
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

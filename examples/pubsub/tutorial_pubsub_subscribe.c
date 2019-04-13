@@ -105,13 +105,16 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4801, NULL);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setMinimal(config, 4801, NULL);
+
     /* Details about the PubSubTransportLayer can be found inside the
      * tutorial_pubsub_connection */
     config->pubsubTransportLayers = (UA_PubSubTransportLayer *)
         UA_calloc(2, sizeof(UA_PubSubTransportLayer));
-    if (!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
+    if(!config->pubsubTransportLayers) {
+        UA_Server_delete(server);
         return EXIT_FAILURE;
     }
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
@@ -120,7 +123,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 #endif
-    UA_Server *server = UA_Server_new(config);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
@@ -154,8 +156,8 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     }
 
     retval |= UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;;
 }
 

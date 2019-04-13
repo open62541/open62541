@@ -31,7 +31,6 @@
 #include <stddef.h>
 
 static UA_Server *server;
-static UA_ServerConfig *config;
 #ifdef UA_ENABLE_HISTORIZING
 static UA_HistoryDataGathering *gathering;
 #endif
@@ -60,8 +59,7 @@ static void serverMutexUnlock(void) {
     }
 }
 
-THREAD_CALLBACK(serverloop)
-{
+THREAD_CALLBACK(serverloop) {
     while(running) {
         serverMutexLock();
         UA_Server_run_iterate(server, false);
@@ -70,27 +68,30 @@ THREAD_CALLBACK(serverloop)
     return 0;
 }
 
-static void
-setup(void)
-{
+static void setup(void) {
     if (!(MUTEX_INIT(serverMutex))) {
         fprintf(stderr, "Server mutex was not created correctly.\n");
         exit(1);
     }
     running = true;
-    config = UA_ServerConfig_new_default();
+
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
 #ifdef UA_ENABLE_HISTORIZING
     gathering = (UA_HistoryDataGathering*)UA_calloc(1, sizeof(UA_HistoryDataGathering));
     *gathering = UA_HistoryDataGathering_Default(1);
     config->historyDatabase = UA_HistoryDatabase_default(*gathering);
 #endif
-    server = UA_Server_new(config);
+
     UA_StatusCode retval = UA_Server_run_startup(server);
-    if (retval != UA_STATUSCODE_GOOD)
-    {
+    if(retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Error while calling Server_run_startup. %s\n", UA_StatusCode_name(retval));
+        UA_Server_delete(server);
         exit(1);
     }
+
     THREAD_CREATE(server_thread, serverloop);
     /* Define the attribute of the uint32 variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -108,27 +109,23 @@ setup(void)
     parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId_init(&outNodeId);
-    retval = UA_Server_addVariableNode(server,
-                                                uint32NodeId,
-                                                parentNodeId,
-                                                parentReferenceNodeId,
-                                                uint32Name,
-                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                                attr,
-                                                NULL,
-                                                &outNodeId);
-    if (retval != UA_STATUSCODE_GOOD)
-    {
+    retval = UA_Server_addVariableNode(server, uint32NodeId, parentNodeId,
+                                       parentReferenceNodeId, uint32Name,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       attr, NULL, &outNodeId);
+    if (retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Error adding variable node. %s\n", UA_StatusCode_name(retval));
+        UA_Server_delete(server);
         exit(1);
     }
 
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if (retval != UA_STATUSCODE_GOOD)
-    {
+    if (retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s\n", UA_StatusCode_name(retval));
+        UA_Client_delete(client);
+        UA_Server_delete(server);
         exit(1);
     }
 
@@ -136,9 +133,7 @@ setup(void)
     client->connection.recv = UA_Client_recvTesting;
 }
 
-static void
-teardown(void)
-{
+static void teardown(void) {
     /* cleanup */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -149,7 +144,6 @@ teardown(void)
     UA_NodeId_deleteMembers(&outNodeId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 #ifdef UA_ENABLE_HISTORIZING
     UA_free(gathering);
 #endif

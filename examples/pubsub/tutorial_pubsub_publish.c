@@ -159,14 +159,16 @@ static int run(UA_String *transportProfile,
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     /* Details about the connection configuration and handling are located in
      * the pubsub connection tutorial */
     config->pubsubTransportLayers =
         (UA_PubSubTransportLayer *) UA_calloc(2, sizeof(UA_PubSubTransportLayer));
     if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
+        UA_Server_delete(server);
         return EXIT_FAILURE;
     }
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
@@ -175,7 +177,6 @@ static int run(UA_String *transportProfile,
     config->pubsubTransportLayers[1] = UA_PubSubTransportLayerEthernet();
     config->pubsubTransportLayersSize++;
 #endif
-    UA_Server *server = UA_Server_new(config);
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
@@ -183,9 +184,9 @@ static int run(UA_String *transportProfile,
     addWriterGroup(server);
     addDataSetWriter(server);
 
-    retval |= UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

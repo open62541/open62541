@@ -64,7 +64,10 @@ int main(int argc, char **argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_minimal(4841, NULL);;
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setMinimal(config, 4841, NULL);
+
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_register");
@@ -73,8 +76,6 @@ int main(int argc, char **argv) {
     //config.serverCapabilitiesSize = 1;
     //UA_String caps = UA_String_fromChars("LDS");
     //config.serverCapabilities = &caps;
-
-    UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
     UA_Int32 myInteger = 42;
@@ -109,11 +110,12 @@ int main(int argc, char **argv) {
         UA_Client_disconnect(clientRegister);
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
+        UA_Server_delete(server);
         return EXIT_FAILURE;
     }
 
     retval = UA_Server_run(server, &running);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
@@ -121,7 +123,6 @@ int main(int argc, char **argv) {
         UA_Client_disconnect(clientRegister);
         UA_Client_delete(clientRegister);
         UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
         return EXIT_FAILURE;
     }
 
@@ -136,6 +137,5 @@ int main(int argc, char **argv) {
     UA_Client_disconnect(clientRegister);
     UA_Client_delete(clientRegister);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;;
 }

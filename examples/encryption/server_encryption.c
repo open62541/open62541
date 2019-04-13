@@ -46,24 +46,24 @@ int main(int argc, char* argv[]) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    UA_ServerConfig *config =
-        UA_ServerConfig_new_basic256sha256(4840, &certificate, &privateKey,
-                                          trustList, trustListSize,
-                                          revocationList, revocationListSize);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    UA_StatusCode retval =
+        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+                                                       &certificate, &privateKey,
+                                                       trustList, trustListSize,
+                                                       revocationList, revocationListSize);
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_clear(&trustList[i]);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
-    if(!config) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Could not create the server config");
-        return EXIT_FAILURE;
-    }
+    retval = UA_Server_run(server, &running);
 
-    UA_Server *server = UA_Server_new(config);
-    UA_StatusCode retval = UA_Server_run(server, &running);
+ cleanup:
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

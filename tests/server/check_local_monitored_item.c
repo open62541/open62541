@@ -23,18 +23,16 @@
 #endif
 
 UA_Server *server;
-UA_ServerConfig *config;
 size_t callbackCount = 0;
 
 UA_NodeId parentNodeId;
 UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
 
-static void
-setup(void)
-{
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+static void setup(void) {
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
     /* Define the attribute of the uint32 variable node */
@@ -63,16 +61,13 @@ setup(void)
                                                 &outNodeId), UA_STATUSCODE_GOOD);
 }
 
-static void
-teardown(void)
-{
+static void teardown(void) {
     /* cleanup */
     UA_NodeId_deleteMembers(&parentNodeId);
     UA_NodeId_deleteMembers(&parentReferenceNodeId);
     UA_NodeId_deleteMembers(&outNodeId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void

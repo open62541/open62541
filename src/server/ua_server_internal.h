@@ -49,6 +49,11 @@ typedef struct {
 
 #endif
 
+typedef enum {
+    UA_SERVERLIFECYCLE_FRESH,
+    UA_SERVERLIFECYLE_RUNNING
+} UA_ServerLifecycle;
+
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -56,6 +61,8 @@ struct UA_Server {
 
     /* Nodestore */
     void *nsCtx;
+
+    UA_ServerLifecycle state;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;
