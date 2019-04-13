@@ -490,9 +490,13 @@ typedef struct {
                     UA_NodestoreVisitor visitor);
 } UA_Nodestore;
 
+
 /**
- * The following methods specialize internally for the different node classes
- * (distinguished by the nodeClass member) */
+ * Node Handling
+ * =============
+ *
+ * The following methods specialize internally for the different node classes,
+ * distinguished by the NodeClass attribute. */
 
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
  * and so on). The attributes are copied. Note that the attributes structs do
