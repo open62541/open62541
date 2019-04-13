@@ -360,6 +360,32 @@ UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
     return NULL;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION
+/* The local ApplicationURI has to match the certificates of the
+ * SecurityPolicies */
+static void
+verifyServerApplicationURI(const UA_Server *server) {
+#if UA_LOGLEVEL <= 400
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(!sp->certificateVerification)
+            continue;
+        UA_StatusCode retval =
+            sp->certificateVerification->
+            verifyApplicationURI(sp->certificateVerification->context,
+                                 &sp->localCertificate,
+                                 &server->config.applicationDescription.applicationUri);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "The configured ApplicationURI does not match the URI "
+                           "specified in the certificate for the SecurityPolicy %.*s",
+                           (int)sp->policyUri.length, sp->policyUri.data);
+        }
+    }
+#endif
+}
+#endif
+
 /********************/
 /* Main Server Loop */
 /********************/
@@ -383,6 +409,11 @@ UA_Server_run_startup(UA_Server *server) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "There has to be at least one endpoint.");
     }
+
+    /* Does the ApplicationURI match the local certificates? */
+#ifdef UA_ENABLE_ENCRYPTION
+    verifyServerApplicationURI(server);
+#endif
 
     /* Sample the start time and set it to the Server object */
     server->startTime = UA_DateTime_now();
