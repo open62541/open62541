@@ -80,8 +80,11 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
          * first certificate of each chain. The end certificate shall be located
          * first in the chain according to the OPC UA specification Part 6 (1.04),
          * chapter 6.2.3.*/
-        if(channel->securityPolicy->channelModule.compareCertificate(channel->channelContext,
-                                                                     &request->clientCertificate) != UA_STATUSCODE_GOOD) {
+        UA_StatusCode retval = channel->securityPolicy->channelModule.
+            compareCertificate(channel->channelContext, &request->clientCertificate);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                                   "The client certificate did not validate");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
             return;
         }
@@ -105,16 +108,19 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult =
             cv->verifyApplicationURI(cv->context, &request->clientCertificate,
                                      &request->clientDescription.applicationUri);
-        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                                   "The client's ApplicationURI did not match the certificate");
             return;
+        }
     }
 
     UA_Session *newSession = NULL;
     response->responseHeader.serviceResult =
         UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
-                             "Processing CreateSessionRequest failed");
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "Processing CreateSessionRequest failed");
         return;
     }
 
@@ -201,9 +207,9 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
-                         "Session " UA_PRINTF_GUID_FORMAT " created",
-                         UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
+    UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+                        "Session " UA_PRINTF_GUID_FORMAT " created",
+                        UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
 
 static UA_StatusCode
