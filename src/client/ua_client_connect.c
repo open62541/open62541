@@ -925,6 +925,32 @@ UA_Client_connectSession(UA_Client *client) {
     return retval;
 }
 
+#ifdef UA_ENABLE_ENCRYPTION
+/* The local ApplicationURI has to match the certificates of the
+ * SecurityPolicies */
+static void
+verifyClientApplicationURI(const UA_Client *client) {
+#if UA_LOGLEVEL <= 400
+    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
+        if(!sp->certificateVerification)
+            continue;
+        UA_StatusCode retval =
+            sp->certificateVerification->
+            verifyApplicationURI(sp->certificateVerification->context,
+                                 &sp->localCertificate,
+                                 &client->config.clientDescription.applicationUri);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "The configured ApplicationURI does not match the URI "
+                           "specified in the certificate for the SecurityPolicy %.*s",
+                           (int)sp->policyUri.length, sp->policyUri.data);
+        }
+    }
+#endif
+}
+#endif
+
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
@@ -933,6 +959,10 @@ UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl) {
     UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                 "Connecting to endpoint %.*s", (int)endpointUrl.length,
                 endpointUrl.data);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    verifyClientApplicationURI(client);
+#endif
 
     /* Get endpoints only if the description has not been touched (memset to zero) */
     UA_Byte test = 0;
