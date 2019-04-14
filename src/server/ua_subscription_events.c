@@ -79,7 +79,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
     /* Make sure the eventType is a subtype of BaseEventType */
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if(!isNodeInTree(&server->config.nodestore, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree(server->nsCtx, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -165,8 +165,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) ||
-       isNodeInTree(&server->config.nodestore, tEventType,
-                     &conditionTypeId, &hasSubtypeId, 1)){
+       isNodeInTree(server->nsCtx, tEventType, &conditionTypeId, &hasSubtypeId, 1)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Alarms and Conditions are not supported yet!");
         UA_BrowsePathResult_deleteMembers(&bpr);
@@ -176,7 +175,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent, const UA_Node
 
     /* check whether Valid Event other than Conditions */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(&server->config.nodestore, tEventType,
+    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server->nsCtx, tEventType,
                                                    &baseEventTypeId, &hasSubtypeId, 1);
 
     UA_BrowsePathResult_deleteMembers(&bpr);
@@ -375,11 +374,12 @@ getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
         return UA_STATUSCODE_GOOD;
 
     /* Is this a hierarchical reference? */
-    if(!isNodeInTree(&handle->server->config.nodestore, &referenceTypeId,
+    if(!isNodeInTree(handle->server->nsCtx, &referenceTypeId,
                      &hierarchicalReferences, &subtypeId, 1))
         return UA_STATUSCODE_GOOD;
 
-    Events_nodeListElement *entry = (Events_nodeListElement *) UA_malloc(sizeof(Events_nodeListElement));
+    Events_nodeListElement *entry = (Events_nodeListElement *)
+        UA_malloc(sizeof(Events_nodeListElement));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -435,9 +435,10 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
     UA_NodeId *parentTypeHierachy = NULL;
     size_t parentTypeHierachySize = 0;
-    getTypesHierarchy(&server->config.nodestore, parentReferences_events, 2,
+    getTypesHierarchy(server->nsCtx, parentReferences_events, 2,
                       &parentTypeHierachy, &parentTypeHierachySize, true);
-    UA_Boolean isInObjectsFolder = isNodeInTree(&server->config.nodestore, &origin, &objectsFolderId, parentTypeHierachy, parentTypeHierachySize);
+    UA_Boolean isInObjectsFolder = isNodeInTree(server->nsCtx, &origin, &objectsFolderId,
+                                                parentTypeHierachy, parentTypeHierachySize);
     UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
     if (!isInObjectsFolder) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
@@ -469,7 +470,8 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     /* Add the event to each node's monitored items */
     Events_nodeListElement *parentIter, *tmp_parentIter;
     LIST_FOREACH_SAFE(parentIter, &parentHandle.nodes, listEntry, tmp_parentIter) {
-        const UA_ObjectNode *node = (const UA_ObjectNode *) UA_Nodestore_get(server, &parentIter->nodeId);
+        const UA_ObjectNode *node = (const UA_ObjectNode*)
+            UA_Nodestore_getNode(server->nsCtx, &parentIter->nodeId);
         if(node->nodeClass == UA_NODECLASS_OBJECT) {
             for(UA_MonitoredItem *monIter = node->monitoredItemQueue; monIter != NULL; monIter = monIter->next) {
                 retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
@@ -480,7 +482,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
                 }
             }
         }
-        UA_Nodestore_release(server, (const UA_Node *) node);
+        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)node);
 
         LIST_REMOVE(parentIter, listEntry);
         UA_NodeId_deleteMembers(&parentIter->nodeId);

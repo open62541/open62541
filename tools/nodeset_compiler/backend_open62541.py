@@ -166,7 +166,7 @@ def generateOpen62541Code(nodeset, outfilename, generate_ns0=False, internal_hea
 
 /* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
 
-# ifndef UA_Nodestore_remove //this definition is needed to hide this code in the amalgamated .c file
+# ifndef UA_INTERNAL //this definition is needed to hide this code in the amalgamated .c file
 
 typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
                                                  const UA_Byte **bufEnd);
@@ -188,7 +188,7 @@ UA_calcSizeBinary(void *p, const UA_DataType *type);
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId);
 
-# endif // UA_Nodestore_remove
+# endif // UA_INTERNAL
 
 #else // UA_ENABLE_AMALGAMATION
 # include <open62541/server.h>

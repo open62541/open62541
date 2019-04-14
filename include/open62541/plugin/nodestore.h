@@ -428,7 +428,8 @@ typedef struct {
 
 /**
  * Nodestore Plugin API
- * --------------------
+ * ====================
+ *
  * The following definitions are used for implementing custom node storage
  * backends. **Most users will want to use the default nodestore and don't need
  * to work with the nodestore API**.
@@ -437,66 +438,73 @@ typedef struct {
  * nodes. Please use the OPC UA services for that. Otherwise, all consistency
  * checks are omitted. This can crash the application eventually. */
 
-typedef void (*UA_NodestoreVisitor)(void *visitorContext, const UA_Node *node);
+/* For non-multithreaded access, some nodestores allow that nodes are edited
+ * without a copy/replace. This is not possible when the node is only an
+ * intermediate representation and stored e.g. in a database backend. */
+extern const UA_Boolean inPlaceEditAllowed;
 
-typedef struct {
-    /* Nodestore context and lifecycle */
-    void *context;
-    void (*deleteNodestore)(void *nodestoreContext);
+/* Nodestore context and lifecycle */
+UA_StatusCode UA_Nodestore_new(void **nsCtx);
+void UA_Nodestore_delete(void *nsCtx);
 
-    /* For non-multithreaded access, some nodestores allow that nodes are edited
-     * without a copy/replace. This is not possible when the node is only an
-     * intermediate representation and stored e.g. in a database backend. */
-    UA_Boolean inPlaceEditAllowed;
+/**
+ * The following definitions are used to create empty nodes of the different
+ * node types. The memory is managed by the nodestore. Therefore, the node has
+ * to be removed via a special deleteNode function. (If the new node is not
+ * added to the nodestore.) */
 
-    /* The following definitions are used to create empty nodes of the different
-     * node types. The memory is managed by the nodestore. Therefore, the node
-     * has to be removed via a special deleteNode function. (If the new node is
-     * not added to the nodestore.) */
-    UA_Node * (*newNode)(void *nodestoreContext, UA_NodeClass nodeClass);
+UA_Node *
+UA_Nodestore_newNode(void *nsCtx, UA_NodeClass nodeClass);
 
-    void (*deleteNode)(void *nodestoreContext, UA_Node *node);
+void
+UA_Nodestore_deleteNode(void *nsCtx, UA_Node *node);
 
-    /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
-     * that the pointer is no longer accessed afterwards. */
+/**
+ *``Get`` returns a pointer to an immutable node. ``Release`` indicates that the
+ * pointer is no longer accessed afterwards. */
 
-    const UA_Node * (*getNode)(void *nodestoreContext, const UA_NodeId *nodeId);
+const UA_Node *
+UA_Nodestore_getNode(void *nsCtx, const UA_NodeId *nodeId);
 
-    void (*releaseNode)(void *nodestoreContext, const UA_Node *node);
+void
+UA_Nodestore_releaseNode(void *nsCtx, const UA_Node *node);
 
-    /* Returns an editable copy of a node (needs to be deleted with the
-     * deleteNode function or inserted / replaced into the nodestore). */
-    UA_StatusCode (*getNodeCopy)(void *nodestoreContext, const UA_NodeId *nodeId,
-                                 UA_Node **outNode);
+/* Returns an editable copy of a node (needs to be deleted with the
+ * deleteNode function or inserted / replaced into the nodestore). */
+UA_StatusCode
+UA_Nodestore_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
+                         UA_Node **outNode);
 
-    /* Inserts a new node into the nodestore. If the NodeId is zero, then a
-     * fresh numeric NodeId is assigned. If insertion fails, the node is
-     * deleted. */
-    UA_StatusCode (*insertNode)(void *nodestoreContext, UA_Node *node,
-                                UA_NodeId *addedNodeId);
+/* Inserts a new node into the nodestore. If the NodeId is zero, then a fresh
+ * numeric NodeId is assigned. If insertion fails, the node is deleted. */
+UA_StatusCode
+UA_Nodestore_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId);
 
-    /* To replace a node, get an editable copy of the node, edit and replace
-     * with this function. If the node was already replaced since the copy was
-     * made, UA_STATUSCODE_BADINTERNALERROR is returned. If the NodeId is not
-     * found, UA_STATUSCODE_BADNODEIDUNKNOWN is returned. In both error cases,
-     * the editable node is deleted. */
-    UA_StatusCode (*replaceNode)(void *nodestoreContext, UA_Node *node);
+/* To replace a node, get an editable copy of the node, edit and replace with
+ * this function. If the node was already replaced since the copy was made,
+ * UA_STATUSCODE_BADINTERNALERROR is returned. If the NodeId is not found,
+ * UA_STATUSCODE_BADNODEIDUNKNOWN is returned. In both error cases, the editable
+ * node is deleted. */
+UA_StatusCode
+UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node);
 
-    /* Removes a node from the nodestore. */
-    UA_StatusCode (*removeNode)(void *nodestoreContext, const UA_NodeId *nodeId);
+/* Removes a node from the nodestore. */
+UA_StatusCode
+UA_Nodestore_removeNode(void *nsCtx, const UA_NodeId *nodeId);
 
-    /* Execute a callback for every node in the nodestore. */
-    void (*iterate)(void *nodestoreContext, void* visitorContext,
-                    UA_NodestoreVisitor visitor);
-} UA_Nodestore;
-
+/* Execute a callback for every node in the nodestore. */
+typedef void (*UA_NodestoreVisitor)(void *visitorCtx, const UA_Node *node);
+void
+UA_Nodestore_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
+                     void *visitorCtx);
 
 /**
  * Node Handling
  * =============
  *
- * The following methods specialize internally for the different node classes,
- * distinguished by the NodeClass attribute. */
+ * To be used only in the nodestore and internally in the SDK. The following
+ * methods specialize internally for the different node classes, distinguished
+ * by the NodeClass attribute. */
 
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
  * and so on). The attributes are copied. Note that the attributes structs do

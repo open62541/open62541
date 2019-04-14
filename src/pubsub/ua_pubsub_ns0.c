@@ -219,7 +219,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     memcpy(connectionName, connection->config->name.data, connection->config->name.length);
     connectionName[connection->config->name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_remove(server, &connection->identifier);
+    UA_Nodestore_removeNode(server->nsCtx, &connection->identifier);
     UA_NodeId pubSubConnectionNodeId;
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("de-DE", connectionName);
@@ -799,7 +799,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     memcpy(dswName, dataSetWriter->config.name.data, dataSetWriter->config.name.length);
     dswName[dataSetWriter->config.name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_remove(server, &dataSetWriter->identifier);
+    UA_Nodestore_removeNode(server->nsCtx, &dataSetWriter->identifier);
     retVal |= addPubSubObjectNode(server, dswName, dataSetWriter->identifier.identifier.numeric,
                                   dataSetWriter->linkedWriterGroup.identifier.numeric,
                                   UA_NS0ID_HASDATASETWRITER, UA_NS0ID_DATASETWRITERTYPE);

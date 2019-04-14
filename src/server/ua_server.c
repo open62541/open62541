@@ -93,9 +93,7 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-    const UA_Node *parent =
-        server->config.nodestore.getNode(server->config.nodestore.context,
-                                         &parentNodeId);
+    const UA_Node *parent = UA_Nodestore_getNode(server->nsCtx, &parentNodeId);
     if(!parent)
         return UA_STATUSCODE_BADNODEIDINVALID;
 
@@ -108,7 +106,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
      * */
     UA_Node *parentCopy = UA_Node_copy_alloc(parent);
     if(!parentCopy) {
-        server->config.nodestore.releaseNode(server->config.nodestore.context, parent);
+        UA_Nodestore_releaseNode(server->nsCtx, parent);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
@@ -127,7 +125,7 @@ cleanup:
     UA_Node_deleteMembers(parentCopy);
     UA_free(parentCopy);
 
-    server->config.nodestore.releaseNode(server->config.nodestore.context, parent);
+    UA_Nodestore_releaseNode(server->nsCtx, parent);
     return retval;
 }
 
@@ -166,6 +164,9 @@ void UA_Server_delete(UA_Server *server) {
 
     /* Delete the timed work */
     UA_Timer_deleteMembers(&server->timer);
+
+    /* Clean up the nodestore */
+    UA_Nodestore_delete(server->nsCtx);
 
     /* Delete the server itself */
     UA_free(server);
@@ -240,15 +241,13 @@ UA_Server_new(const UA_ServerConfig *config) {
 #endif
 
     /* Initialize namespace 0*/
-    UA_StatusCode retVal = UA_Server_initNS0(server);
-    if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
-                     "Namespace 0 could not be bootstrapped with error %s. "
-                     "Shutting down the server.",
-                     UA_StatusCode_name(retVal));
-        UA_Server_delete(server);
-        return NULL;
-    }
+    UA_StatusCode retVal = UA_Nodestore_new(&server->nsCtx);
+    if(retVal != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retVal = UA_Server_initNS0(server);
+    if(retVal != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Build PubSub information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -256,6 +255,10 @@ UA_Server_new(const UA_ServerConfig *config) {
 #endif
 
     return server;
+
+ cleanup:
+    UA_Server_delete(server);
+    return NULL;
 }
 
 /*******************/
@@ -590,4 +593,4 @@ UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
     return true;
 
 }
-#endif // UA_ENABLE_HISTORIZING
+#endif /* UA_ENABLE_HISTORIZING */

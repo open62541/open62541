@@ -14,7 +14,6 @@
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/network.h>
-#include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/pki.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/server.h>
@@ -85,9 +84,6 @@ struct UA_ServerConfig {
      * .. note:: See the section on :ref:`generic-types`. Examples for working
      *    with custom data types are provided in
      *    ``/examples/custom_datatype/``. */
-
-    /* Nodestore */
-    UA_Nodestore nodestore;
 
     /* Networking */
     size_t networkLayersSize;

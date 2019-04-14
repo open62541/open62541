@@ -46,6 +46,7 @@
 #endif
 
 /* Advanced Options */
+#cmakedefine UA_ENABLE_CUSTOM_NODESTORE
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
 #cmakedefine UA_ENABLE_TYPENAMES
 #cmakedefine UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS
