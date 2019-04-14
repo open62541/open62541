@@ -204,7 +204,8 @@ detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataVal
                   UA_BrowsePathResult_deleteMembers(&bpr);
                   return UA_STATUSCODE_GOOD;
             }
-            const UA_VariableNode* node = (const UA_VariableNode*) UA_Nodestore_get(server, &bpr.targets->targetId.nodeId);
+            const UA_VariableNode* node =
+                (const UA_VariableNode*) UA_Nodestore_getNode(server->nsCtx, &bpr.targets->targetId.nodeId);
             UA_Range* euRange = (UA_Range*) node->value.data.value.value.data;
             if(!updateNeededForFilteredPercentValue(&value->value, &mon->lastValue,
                                                     mon->filter.dataChangeFilter.deadbandValue, euRange)) {
@@ -408,7 +409,7 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
     }
 
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_get(server, &monitoredItem->monitoredNodeId);
+    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &monitoredItem->monitoredNodeId);
 
     /* Sample the value. The sample can still point into the node. */
     UA_DataValue value;
@@ -439,7 +440,7 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
     if(!movedValue)
         UA_DataValue_deleteMembers(&value); /* Does nothing for UA_VARIANT_DATA_NODELETE */
     if(node)
-        UA_Nodestore_release(server, node);
+        UA_Nodestore_releaseNode(server->nsCtx, node);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

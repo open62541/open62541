@@ -217,12 +217,12 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
         mon->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY;
         const UA_VariableNode *vn = (const UA_VariableNode *)
-            UA_Nodestore_get(server, &mon->monitoredNodeId);
+            UA_Nodestore_getNode(server->nsCtx, &mon->monitoredNodeId);
         if(vn) {
             if(vn->nodeClass == UA_NODECLASS_VARIABLE &&
                samplingInterval < vn->minimumSamplingInterval)
                 samplingInterval = vn->minimumSamplingInterval;
-            UA_Nodestore_release(server, (const UA_Node *)vn);
+            UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node *)vn);
         }
     } else if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* TODO: events should not need a samplinginterval */

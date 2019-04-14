@@ -16,6 +16,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config.h>
+#include <open62541/plugin/nodestore.h>
 
 #include "ua_connection_internal.h"
 #include "ua_securechannel_manager.h"
@@ -52,6 +53,9 @@ struct UA_Server {
     /* Config */
     UA_ServerConfig config;
     UA_DateTime startTime;
+
+    /* Nodestore */
+    void *nsCtx;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;
@@ -100,27 +104,6 @@ struct UA_Server {
 /* Node Handling */
 /*****************/
 
-#define UA_Nodestore_get(SERVER, NODEID)                                \
-    (SERVER)->config.nodestore.getNode((SERVER)->config.nodestore.context, NODEID)
-
-#define UA_Nodestore_release(SERVER, NODEID)                            \
-    (SERVER)->config.nodestore.releaseNode((SERVER)->config.nodestore.context, NODEID)
-
-#define UA_Nodestore_new(SERVER, NODECLASS)                               \
-    (SERVER)->config.nodestore.newNode((SERVER)->config.nodestore.context, NODECLASS)
-
-#define UA_Nodestore_getCopy(SERVER, NODEID, OUTNODE)                   \
-    (SERVER)->config.nodestore.getNodeCopy((SERVER)->config.nodestore.context, NODEID, OUTNODE)
-
-#define UA_Nodestore_insert(SERVER, NODE, OUTNODEID)                    \
-    (SERVER)->config.nodestore.insertNode((SERVER)->config.nodestore.context, NODE, OUTNODEID)
-
-#define UA_Nodestore_delete(SERVER, NODE)                               \
-    (SERVER)->config.nodestore.deleteNode((SERVER)->config.nodestore.context, NODE)
-
-#define UA_Nodestore_remove(SERVER, NODEID)                             \
-    (SERVER)->config.nodestore.removeNode((SERVER)->config.nodestore.context, NODEID)
-
 /* Deletes references from the node which are not matching any type in the given
  * array. Could be used to e.g. delete all the references, except
  * 'HASMODELINGRULE' */
@@ -152,7 +135,7 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode,
+isNodeInTree(void *nsCtx, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
@@ -166,16 +149,16 @@ isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode,
  * If set to FALSE it will get all the parent types of the given
  * leafType (including leafType)*/
 UA_StatusCode
-getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
+getTypeHierarchy(void *nsCtx, const UA_NodeId *leafType,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
                  UA_Boolean walkDownwards);
 
 /* Same as getTypeHierarchy but takes multiple leafTypes as parameter and returns
  * an combined list of all the found types for all the leaf types */
 UA_StatusCode
-getTypesHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType, size_t leafTypeSize,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                 UA_Boolean walkDownwards);
+getTypesHierarchy(void *nsCtx, const UA_NodeId *leafType, size_t leafTypeSize,
+                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
+                  UA_Boolean walkDownwards);
 
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */
