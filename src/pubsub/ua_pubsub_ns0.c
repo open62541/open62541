@@ -223,12 +223,20 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_NodeId pubSubConnectionNodeId;
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("de-DE", connectionName);
-    retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric),
-    UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPUBSUBCONNECTION),
-    UA_QUALIFIEDNAME(0, connectionName), UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE), (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &pubSubConnectionNodeId);
-    addPubSubObjectNode(server, "Address", connection->identifier.identifier.numeric+1, pubSubConnectionNodeId.identifier.numeric,  UA_NS0ID_HASCOMPONENT, UA_NS0ID_NETWORKADDRESSURLTYPE);
+    retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT,
+                                      UA_NODEID_NUMERIC(0, connection->identifier.identifier.numeric),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASPUBSUBCONNECTION),
+                                      UA_QUALIFIEDNAME(0, connectionName),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_PUBSUBCONNECTIONTYPE),
+                                      (const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                      NULL, &pubSubConnectionNodeId);
+    addPubSubObjectNode(server, "Address", connection->identifier.identifier.numeric+1,
+                        pubSubConnectionNodeId.identifier.numeric,  UA_NS0ID_HASCOMPONENT,
+                        UA_NS0ID_NETWORKADDRESSURLTYPE);
     UA_Server_addNode_finish(server, pubSubConnectionNodeId);
     //End lock zone
+
     UA_NodeId addressNode, urlNode, interfaceNode, publisherIdNode, connectionPropertieNode, transportProfileUri;
     addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -468,9 +476,10 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     memcpy(pdsName, publishedDataSet->config.name.data, publishedDataSet->config.name.length);
     pdsName[publishedDataSet->config.name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_remove(server, &publishedDataSet->identifier);
-    retVal |= addPubSubObjectNode(server, pdsName, publishedDataSet->identifier.identifier.numeric, UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS,
-                            UA_NS0ID_HASPROPERTY, UA_NS0ID_PUBLISHEDDATAITEMSTYPE);
+    UA_Nodestore_removeNode(server->nsCtx, &publishedDataSet->identifier);
+    retVal |= addPubSubObjectNode(server, pdsName, publishedDataSet->identifier.identifier.numeric,
+                                  UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS,
+                                  UA_NS0ID_HASPROPERTY, UA_NS0ID_PUBLISHEDDATAITEMSTYPE);
     //End lock zone
     UA_NodeId configurationVersionNode, publishedDataNode;
     configurationVersionNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
@@ -482,7 +491,8 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
 
     UA_Variant value;
     UA_Variant_init(&value);
-    UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
+    UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
+                         &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
     retVal |= UA_Server_writeValue(server, configurationVersionNode, value);
 
     publishedDataNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
@@ -662,9 +672,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     memcpy(wgName, writerGroup->config.name.data, writerGroup->config.name.length);
     wgName[writerGroup->config.name.length] = '\0';
     //This code block must use a lock
-    UA_Nodestore_remove(server, &writerGroup->identifier);
-    retVal |= addPubSubObjectNode(server, wgName, writerGroup->identifier.identifier.numeric, writerGroup->linkedConnection.identifier.numeric,
-                            UA_NS0ID_HASCOMPONENT, UA_NS0ID_WRITERGROUPTYPE);
+    UA_Nodestore_removeNode(server->nsCtx, &writerGroup->identifier);
+    retVal |= addPubSubObjectNode(server, wgName, writerGroup->identifier.identifier.numeric,
+                                  writerGroup->linkedConnection.identifier.numeric,
+                                  UA_NS0ID_HASCOMPONENT, UA_NS0ID_WRITERGROUPTYPE);
     //End lock zone
     UA_NodeId keepAliveNode, publishingIntervalNode, priorityNode, writerGroupIdNode;
     keepAliveNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeepAliveTime"),
