@@ -10,7 +10,7 @@
 
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/server.h>
-#include "ua_plugin_securitypolicy.h"
+#include <open62541/plugin/securitypolicy.h>
 
 _UA_BEGIN_DECLS
 
