@@ -48,7 +48,7 @@ int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
     if (size <4)
         return 0;
     // just cast the last 4 bytes to uint32
-    const uint32_t *newLimit = (const void*)&(data[size-4]);
+    const uint32_t *newLimit = (const uint32_t*)(uintptr_t)&(data[size-4]);
     UA_memoryManager_setLimit(*newLimit);
     return 1;
 }
