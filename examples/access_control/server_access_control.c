@@ -59,7 +59,8 @@ int main(void) {
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     // disable anonymous logins, enable two user/password logins
     config->accessControl.deleteMembers(&config->accessControl);
-    if (UA_AccessControl_default(&config->accessControl, false, 2, logins) != UA_STATUSCODE_GOOD) {
+    if (UA_AccessControl_default(&config->accessControl, false, 2, logins,
+                                 config->securityPoliciesSize, config->securityPolicies) != UA_STATUSCODE_GOOD) {
         return EXIT_FAILURE;
     }
 
