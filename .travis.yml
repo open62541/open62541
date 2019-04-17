@@ -223,6 +223,10 @@ matrix:
 # OSX clang build
     - os: osx
       compiler: clang
+      # OSX may have different hostnames between processes, which causes multicast unit test to fail.
+      # Hardcode the hostname here
+      addons:
+        hostname: travis-osx
       # disable homebrew auto update which takes a lot of time
       env: HOMEBREW_NO_AUTO_UPDATE=1
       cache:
