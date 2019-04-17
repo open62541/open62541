@@ -6,7 +6,6 @@
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
-#include "ua_network_tcp.h"
 #include "ua_server_internal.h"
 
 #include <check.h>

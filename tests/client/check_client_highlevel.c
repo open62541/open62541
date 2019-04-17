@@ -8,8 +8,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_network_tcp.h"
-
 #include <check.h>
 
 #include "thread_wrapper.h"

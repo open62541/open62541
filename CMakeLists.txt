@@ -108,12 +108,12 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
-            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
 )
 
 set(ua_architecture_headers ${ua_architecture_headers}
-            ${PROJECT_SOURCE_DIR}/arch/ua_network_tcp.h
-            ${PROJECT_SOURCE_DIR}/arch/ua_architecture_functions.h
+    ${PROJECT_SOURCE_DIR}/include/open62541/network_tcp.h
+    ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
 
@@ -527,7 +527,7 @@ endif()
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-                     ${PROJECT_SOURCE_DIR}/arch/ua_architecture_base.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_base.h
                      ${ua_architecture_headers_beginning}
                      )
 
@@ -548,7 +548,7 @@ endif()
 
 set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
-                     ${PROJECT_SOURCE_DIR}/arch/ua_architecture_definitions.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/constants.h
@@ -1142,20 +1142,14 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
-if(NOT UA_ENABLE_AMALGAMATION)
-install(TARGETS open62541
-        EXPORT open62541Targets
-        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
-        INCLUDES DESTINATION include/open62541 include)
-else()
 install(TARGETS open62541
         EXPORT open62541Targets
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
         INCLUDES DESTINATION include)
+
+if(UA_ENABLE_AMALGAMATION)
 # Our default way of installation is the non-amalgamated version.
 # See also https://github.com/open62541/open62541/pull/2292#discussion_r241106424
 install(CODE "MESSAGE(WARNING \"Installation with UA_ENABLE_AMALGAMATION=ON is not recommended.\")")

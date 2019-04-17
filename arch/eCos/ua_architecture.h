@@ -82,7 +82,7 @@ int gethostname_ecos(char* name, size_t len);
     LOG; \
 }
 
-#include "ua_architecture_functions.h"
+#include <open62541/architecture_functions.h>
 
 #endif /* PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_ */
 
