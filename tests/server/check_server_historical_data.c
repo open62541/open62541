@@ -18,7 +18,6 @@
 
 #include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
-#include "ua_network_tcp.h"
 
 #include <check.h>
 

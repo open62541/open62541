@@ -200,7 +200,7 @@ int UA_access(const char *pathname, int mode); //equivalent implementation of ht
 #define UA_fileExists(X) ( UA_access(X, 0) == 0)
 #endif
 
-#include "ua_architecture_definitions.h"
+#include <open62541/architecture_definitions.h>
 
 _UA_END_DECLS
 

@@ -10,7 +10,7 @@
 #ifndef PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 
-#include "ua_architecture_base.h"
+#include <open62541/architecture_base.h>
 
 #include <errno.h>
 #include <time.h>
@@ -108,7 +108,7 @@
     LOG; \
 }
 
-#include "ua_architecture_functions.h"
+#include <open62541/architecture_functions.h>
 
 #endif /* PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_ */
 

@@ -7,7 +7,6 @@
 #include <open62541/server_config_default.h>
 
 #include "server/ua_server_internal.h"
-#include "ua_network_tcp.h"
 
 #include <fcntl.h>
 

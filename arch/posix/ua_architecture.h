@@ -10,7 +10,7 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-#include "ua_architecture_base.h"
+#include <open62541/architecture_base.h>
 
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE)
@@ -146,7 +146,7 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
     LOG; \
 }
 
-#include "ua_architecture_functions.h"
+#include <open62541/architecture_functions.h>
 
 #if defined(__APPLE__)  && defined(_SYS_QUEUE_H_)
 //  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't have all functions
