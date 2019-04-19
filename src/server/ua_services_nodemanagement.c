@@ -820,7 +820,7 @@ AddNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         goto create_error;
 
     retval = UA_Node_setAttributes(node, item->nodeAttributes.content.decoded.data,
-                                    item->nodeAttributes.content.decoded.type);
+                                   item->nodeAttributes.content.decoded.type);
     if(retval != UA_STATUSCODE_GOOD)
         goto create_error;
 
@@ -1028,10 +1028,14 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 
 static void
 recursiveDeconstructNode(UA_Server *server, UA_Session *session,
+                         size_t hierarchicalReferencesSize,
+                         UA_NodeId *hierarchicalReferences,
                          const UA_Node *node);
 
 static void
 recursiveDeleteNode(UA_Server *server, UA_Session *session,
+                    size_t hierarchicalReferencesSize,
+                    UA_NodeId *hierarchicalReferences,
                     const UA_Node *node, UA_Boolean removeTargetRefs);
 
 /* Children, references, type-checking, constructors. */
@@ -1081,8 +1085,8 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
     if(type)
         UA_Nodestore_releaseNode(server->nsCtx, type);
     if(retval != UA_STATUSCODE_GOOD) {
-        recursiveDeconstructNode(server, session, node);
-        recursiveDeleteNode(server, session, node, true);
+        recursiveDeconstructNode(server, session, 0, NULL, node);
+        recursiveDeleteNode(server, session, 0, NULL, node, true);
     }
     UA_Nodestore_releaseNode(server->nsCtx, node);
     return retval;
@@ -1213,10 +1217,45 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
     }
 }
 
+/* A node can only be deleted if it has at most one incoming hierarchical
+ * reference. If hierarchicalReferences is NULL, always remove. */
+static UA_Boolean
+multipleHierarchies(size_t hierarchicalRefsSize, UA_NodeId *hierarchicalRefs,
+                    const UA_Node *node) {
+    if(!hierarchicalRefs)
+        return false;
+
+    size_t incomingRefs = 0;
+    for(size_t i = 0; i < node->referencesSize; i++) {
+        const UA_NodeReferenceKind *k = &node->references[i];
+        if(!k->isInverse)
+            continue;
+
+        UA_Boolean hierarchical = false;
+        for(size_t j = 0; j < hierarchicalRefsSize; j++) {
+            if(UA_NodeId_equal(&hierarchicalRefs[j],
+                               &k->referenceTypeId)) {
+                hierarchical = true;
+                break;
+            }
+        }
+        if(!hierarchical)
+            continue;
+
+        incomingRefs += k->targetIdsSize;
+        if(incomingRefs > 1)
+            return true;
+    }
+
+    return false;
+}
+
 /* Recursively call the destructors of this node and all child nodes.
  * Deconstructs the parent before its children. */
 static void
 recursiveDeconstructNode(UA_Server *server, UA_Session *session,
+                         size_t hierarchicalRefsSize,
+                         UA_NodeId *hierarchicalRefs,
                          const UA_Node *node) {
     /* Was the constructor called for the node? */
     if(!node->constructed)
@@ -1273,7 +1312,10 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
         const UA_Node *child = UA_Nodestore_getNode(server->nsCtx, &rd->nodeId.nodeId);
         if(!child)
             continue;
-        recursiveDeconstructNode(server, session, child);
+        /* Only delete child nodes that have no other parent */
+        if(!multipleHierarchies(hierarchicalRefsSize, hierarchicalRefs, child))
+            recursiveDeconstructNode(server, session, hierarchicalRefsSize,
+                                     hierarchicalRefs, child);
         UA_Nodestore_releaseNode(server->nsCtx, child);
     }
 
@@ -1282,6 +1324,8 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
 
 static void
 recursiveDeleteNode(UA_Server *server, UA_Session *session,
+                    size_t hierarchicalRefsSize,
+                    UA_NodeId *hierarchicalRefs,
                     const UA_Node *node, UA_Boolean removeTargetRefs) {
     /* Browse to get all children of the node */
     UA_BrowseDescription bd;
@@ -1305,10 +1349,13 @@ recursiveDeleteNode(UA_Server *server, UA_Session *session,
         if(UA_NodeId_equal(&node->nodeId, &rd->nodeId.nodeId))
             continue;
         const UA_Node *child = UA_Nodestore_getNode(server->nsCtx, &rd->nodeId.nodeId);
-        if(child) {
-            recursiveDeleteNode(server, session, child, true);
-            UA_Nodestore_releaseNode(server->nsCtx, child);
-        }
+        if(!child)
+            continue;
+        /* Only delete child nodes that have no other parent */
+        if(!multipleHierarchies(hierarchicalRefsSize, hierarchicalRefs, child))
+            recursiveDeleteNode(server, session, hierarchicalRefsSize,
+                                hierarchicalRefs, child, true);
+        UA_Nodestore_releaseNode(server->nsCtx, child);
     }
 
     UA_BrowseResult_deleteMembers(&br);
@@ -1349,8 +1396,28 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     /* TODO: Check if the information model consistency is violated */
     /* TODO: Check if the node is a mandatory child of a parent */
 
-    recursiveDeconstructNode(server, session, node);
-    recursiveDeleteNode(server, session, node, item->deleteTargetReferences);
+    /* A node can be referenced with hierarchical references from several
+     * parents in the information model. (But not in a circular way.) The
+     * hierarchical references are checked to see if a node can be deleted.
+     * Getting the type hierarchy can fail in case of low RAM. In that case the
+     * nodes are always deleted. */
+    UA_NodeId *hierarchicalRefs = NULL;
+    size_t hierarchicalRefsSize = 0;
+    UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    getTypeHierarchy(server->nsCtx, &hr, &hierarchicalRefs, &hierarchicalRefsSize, true);
+    if(!hierarchicalRefs) {
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "Delete Nodes: Cannot test for hierarchical "
+                               "references. Deleting the node and all child nodes.");
+    }
+
+    recursiveDeconstructNode(server, session, hierarchicalRefsSize, hierarchicalRefs, node);
+    recursiveDeleteNode(server, session, hierarchicalRefsSize, hierarchicalRefs, node,
+                        item->deleteTargetReferences);
+
+    UA_Array_delete(hierarchicalRefs, hierarchicalRefsSize,
+                    &UA_TYPES[UA_TYPES_NODEID]);
+    
     UA_Nodestore_releaseNode(server->nsCtx, node);
 }
 
