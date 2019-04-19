@@ -78,16 +78,13 @@ UA_Server_getConfig(UA_Server *server)
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
-  for(size_t idx = 0; idx < server->namespacesSize; idx++)
-  {
-    if(UA_String_equal(&server->namespaces[idx], &namespaceUri) == true)
-    {
-      (*foundIndex) = idx;
-      return UA_STATUSCODE_GOOD;
+    for(size_t idx = 0; idx < server->namespacesSize; idx++) {
+        if(!UA_String_equal(&server->namespaces[idx], &namespaceUri))
+            continue;
+        (*foundIndex) = idx;
+        return UA_STATUSCODE_GOOD;
     }
-  }
-
-  return UA_STATUSCODE_BADNOTFOUND;
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 UA_StatusCode
