@@ -336,9 +336,6 @@ option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 
 # Advanced Build Targets
-option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
-mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
-
 option(UA_PACK_DEBIAN "Special build switch used in .deb packaging" OFF)
 mark_as_advanced(UA_PACK_DEBIAN)
 

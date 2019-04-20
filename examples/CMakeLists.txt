@@ -162,17 +162,6 @@ if(UA_ENABLE_NODEMANAGEMENT)
     add_example(access_control_client access_control/client_access_control.c)
 endif()
 
-if(UA_BUILD_SELFSIGNED_CERTIFICATE)
-  find_package(OpenSSL REQUIRED)
-  add_custom_command(OUTPUT server_cert.der
-                     COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
-                     DEPENDS ${CMAKE_SOURCE_DIR}/tools/certs/create_self-signed.py
-                             ${CMAKE_SOURCE_DIR}/tools/certs/localhost.cnf)
-  add_custom_target(selfsigned ALL DEPENDS server_cert.der)
-  add_executable(server_certificate server_certificate.c ${STATIC_OBJECTS} server_cert.der)
-  target_link_libraries(server_certificate open62541 ${open62541_LIBRARIES})
-endif()
-
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_server_lds discovery/server_lds.c)
     add_example(discovery_server_register discovery/server_register.c)

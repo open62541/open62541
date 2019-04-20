@@ -204,20 +204,17 @@ fi
 
 echo -en "\r\n=== Building ===\r\n"
 
-echo -e "\r\n== Documentation and certificate build =="  && echo -en 'travis_fold:start:script.build.doc\\r'
+echo -e "\r\n== Documentation build =="  && echo -en 'travis_fold:start:script.build.doc\\r'
 mkdir -p build
 cd build
 cmake \
     -DCMAKE_BUILD_TYPE=Release \
     -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
-    -DUA_BUILD_EXAMPLES=ON \
-    -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
+    -DUA_BUILD_EXAMPLES=ON ..
 make doc
 make doc_pdf
-make selfsigned
 cp -r doc ../../
 cp -r doc_latex ../../
-cp ./examples/server_cert.der ../../
 cd .. && rm build -rf
 echo -en 'travis_fold:end:script.build.doc\\r'
 
