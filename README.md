@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 
     /* Create a server listening on port 4840 */
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_initDefault(UA_Server_getConfig(server));
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* Add a variable node */
     /* 1) Define the node attributes */
