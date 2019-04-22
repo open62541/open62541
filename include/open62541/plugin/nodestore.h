@@ -73,6 +73,15 @@ typedef struct {
     UA_ExpandedNodeId *targetIds;
 } UA_NodeReferenceKind;
 
+/* Reference type, direction and target */
+typedef struct {
+    UA_NodeId referenceTypeId;
+    UA_Boolean isInverse;
+    UA_ExpandedNodeId targetId;
+} UA_NodeReferenceEntry;
+
+typedef struct UA_Node UA_Node;
+
 #define UA_NODE_BASEATTRIBUTES                  \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
@@ -80,16 +89,30 @@ typedef struct {
     UA_LocalizedText displayName;               \
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
+    /* A nodestore can chose to either provide all references per reference kind or provide a browse method.
+     * referencesSize equals Number of reference kinds if references != NULL or total number
+     * of references if browseNode != NULL. */  \
     size_t referencesSize;                      \
     UA_NodeReferenceKind *references;           \
+    /* Upon a browse the nodestore shall return a list of node references with maximum length of maxReferences.
+     * The returned references must match the browseDescription. The targetIndex points out which index to
+     * start returning from of the list of references matching the browseDescription. The number of returned
+     * references shall be written to numReferences and moreReferences shall be set to true if more references
+     * exists. The returned node references are released when either releaseNode() or browseNode() is called
+     * for this node. */                                                                      \
+    const UA_NodeReferenceEntry * (*browseNode)(const UA_Node *node,                          \
+                                                const UA_BrowseDescription *browseDescription,\
+                                                size_t maxReferences, size_t targetIndex,     \
+                                                size_t *numReferences,                        \
+                                                UA_Boolean *moreReferences);                  \
                                                 \
     /* Members specific to open62541 */         \
     void *context;                              \
     UA_Boolean constructed; /* Constructors were called */
 
-typedef struct {
+struct UA_Node {
     UA_NODE_BASEATTRIBUTES
-} UA_Node;
+};
 
 /**
  * VariableNode
