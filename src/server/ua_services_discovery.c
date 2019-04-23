@@ -565,7 +565,7 @@ struct PeriodicServerRegisterCallback {
  * > errors occurred. The recommended approach would double the period each attempt until reaching the maximum.
  *
  * We will do so by using the additional data parameter which holds information
- * if the next interval is default or if it is a repeaded call. */
+ * if the next interval is default or if it is a repeated call. */
 static void
 periodicServerRegister(UA_Server *server, void *data) {
     UA_assert(data != NULL);
