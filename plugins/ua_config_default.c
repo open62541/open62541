@@ -8,6 +8,7 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #include <open62541/client_config_default.h>
@@ -69,6 +70,9 @@ createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
     UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
     endpoint->transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+    /* Add security level value for the corresponding message security mode */
+    endpoint->securityLevel = (UA_Byte) securityMode;
 
     /* Enable all login mechanisms from the access control plugin  */
     UA_StatusCode retval = UA_Array_copy(conf->accessControl.userTokenPolicies,
