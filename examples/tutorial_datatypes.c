@@ -14,7 +14,7 @@
  * Basic Data Handling
  * ^^^^^^^^^^^^^^^^^^^
  * This section shows the basic interaction patterns for data types. Make
- * sure to compare with the type definitions in ``ua_types.h``. */
+ * sure to compare with the type definitions in ``types.h``. */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
