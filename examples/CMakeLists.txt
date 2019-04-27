@@ -113,6 +113,8 @@ install(PROGRAMS $<TARGET_FILE:server_ctt>
 
 add_example(client client.c)
 
+add_example(client_connect client_connect.c)
+
 if(UA_ENABLE_HISTORIZING)
     add_example(client_historical client_historical.c)
 endif()
@@ -122,8 +124,6 @@ install(PROGRAMS $<TARGET_FILE:client>
         RENAME ua_client)
 
 add_example(client_async client_async.c)
-
-add_example(client_connect_loop client_connect_loop.c)
 
 add_example(client_connectivitycheck_loop client_connectivitycheck_loop.c)
 
