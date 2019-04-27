@@ -652,9 +652,8 @@ UA_StatusCode UA_ClientConnectionTCP_poll(UA_Client *client, void *data) {
     if (error == -1 && (UA_ERRNO == UA_ERR_CONNECTION_PROGRESS)) {
         /* connection in progress. Wait until connected using select */
 
-        UA_UInt32 timeSinceStart =
-                        (UA_UInt32) ((UA_Double) (UA_DateTime_nowMonotonic() - connStart)
-                                        * UA_DATETIME_MSEC);
+        UA_UInt32 timeSinceStart = (UA_UInt32)
+            ((UA_Double) (UA_DateTime_nowMonotonic() - connStart) / UA_DATETIME_MSEC);
 #ifdef _OS9000
         /* OS-9 can't use select for checking write sockets.
          * Therefore, we need to use connect until success or failed
