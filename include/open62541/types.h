@@ -155,7 +155,7 @@ typedef struct {
 } UA_String;
 
 /* Copies the content on the heap. Returns a null-string when alloc fails */
-UA_String UA_EXPORT UA_String_fromChars(char const src[]) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_String UA_EXPORT UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
 
@@ -167,8 +167,9 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
  * of the char-array. */
 static UA_INLINE UA_String
 UA_STRING(char *chars) {
-    UA_String str; str.length = strlen(chars);
-    str.data = (UA_Byte*)chars; return str;
+    if(!chars)
+        return (UA_String){0, NULL};
+    return (UA_String){strlen(chars), (UA_Byte*)chars};
 }
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
@@ -275,14 +276,15 @@ UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
 static UA_INLINE UA_ByteString
 UA_BYTESTRING(char *chars) {
-    UA_ByteString str; str.length = strlen(chars);
-    str.data = (UA_Byte*)chars; return str;
+    if(!chars)
+        return (UA_ByteString){0, NULL};
+    return (UA_ByteString){strlen(chars), (UA_Byte*)chars};
 }
 
 static UA_INLINE UA_ByteString
 UA_BYTESTRING_ALLOC(const char *chars) {
-    UA_String str = UA_String_fromChars(chars); UA_ByteString bstr;
-    bstr.length = str.length; bstr.data = str.data; return bstr;
+    UA_String str = UA_String_fromChars(chars);
+    return (UA_ByteString){str.length, str.data};
 }
 
 /**

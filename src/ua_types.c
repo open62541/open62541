@@ -97,13 +97,15 @@ UA_UInt32_random(void) {
 /*****************/
 
 UA_String
-UA_String_fromChars(char const src[]) {
+UA_String_fromChars(const char *src) {
+    if(!src)
+        return (UA_String){0, NULL};
     UA_String str;
     str.length = strlen(src);
     if(str.length > 0) {
         str.data = (u8*)UA_malloc(str.length);
         if(!str.data)
-            return UA_STRING_NULL;
+            return (UA_String){0, NULL};
         memcpy(str.data, src, str.length);
     } else {
         str.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
