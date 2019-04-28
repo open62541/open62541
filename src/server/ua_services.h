@@ -82,7 +82,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Returns the Servers known to a Discovery Server. Unlike FindServer,
  * this Service is only implemented by Discovery Servers. It additionally
- * Returns servery which may have been detected trough Multicast */
+ * returns servers which may have been detected trough Multicast. */
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response);
