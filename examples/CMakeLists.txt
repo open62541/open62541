@@ -113,6 +113,8 @@ install(PROGRAMS $<TARGET_FILE:server_ctt>
 
 add_example(client client.c)
 
+add_example(client_connect client_connect.c)
+
 if(UA_ENABLE_HISTORIZING)
     add_example(client_historical client_historical.c)
 endif()
