@@ -98,6 +98,9 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf) {
+	if (!conf)
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     /* Zero out.. All members have a valid initial value */
     UA_ServerConfig_clean(conf);
     memset(conf, 0, sizeof(UA_ServerConfig));
