@@ -5,8 +5,8 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include <ua_types.h>
-#include <ua_types_generated_handling.h>
+#include <open62541/types.h>
+#include <open62541/types_generated_handling.h>
 #include "ua_types_encoding_json.h"
 
 /* Decode a message, then encode, decode, encode.
