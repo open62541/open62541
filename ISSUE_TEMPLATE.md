@@ -22,7 +22,7 @@ Used CMake command line:
 <!-- Include all options here, which you modified or used for your build -->
 
 ```bash
-cmake -DUA_ENABLE_FULL_NS0=<YOUR_OPTION> <ANY_OTHER_OPTIONS> ..
+cmake -DUA_NAMESPACE_ZERO=<YOUR_OPTION> <ANY_OTHER_OPTIONS> ..
 ```
 
 ## Checklist
