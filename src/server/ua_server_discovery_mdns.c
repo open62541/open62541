@@ -507,7 +507,7 @@ mdns_record_received(const struct resource *r, void *data) {
 
 void
 mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *path,
-                const UA_String *capabilites, const size_t *capabilitiesSize,
+                const UA_String *capabilites, const size_t capabilitiesSize,
                 void (*conflict)(char *host, int type, void *arg)) {
     mdns_record_t *r = mdnsd_unique(server->discoveryManager.mdnsDaemon, fullServiceDomain,
                                     QTYPE_TXT, 600, conflict, server);
@@ -538,7 +538,7 @@ mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *pa
 
     /* calculate max string length: */
     size_t capsLen = 0;
-    for(size_t i = 0; i < *capabilitiesSize; i++) {
+    for(size_t i = 0; i < capabilitiesSize; i++) {
         /* add comma or last \0 */
         capsLen += capabilites[i].length + 1;
     }
@@ -549,7 +549,7 @@ mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *pa
         /* todo: malloc may fail: return a statuscode */
         caps = (char*)UA_malloc(sizeof(char) * capsLen);
         size_t idx = 0;
-        for(size_t i = 0; i < *capabilitiesSize; i++) {
+        for(size_t i = 0; i < capabilitiesSize; i++) {
             memcpy(caps + idx, (const char *) capabilites[i].data, capabilites[i].length);
             idx += capabilites[i].length + 1;
             caps[idx - 1] = ',';

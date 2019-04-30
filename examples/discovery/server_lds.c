@@ -25,20 +25,30 @@ int main(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    // NOTE:
-    // A server instance defined as DISCOVERYSERVER will not be shown in UaExpert.
-    // See also:
-	// https://forum.unified-automation.com/topic1987.html
-
+	// This is an LDS server only. Set the application type to DISCOVERYSERVER.
+	// NOTE: This will cause UaExpert to not show this instance in the server list.
+	// See also: https://forum.unified-automation.com/topic1987.html
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
             UA_String_fromChars("urn:open62541.example.local_discovery_server");
+
+    // Enable the mDNS announce and response functionality
+    config->discovery.mdnsEnable = true;
+
     config->discovery.mdns.mdnsServerName = UA_String_fromChars("LDS");
+
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
+    // For a LDS server, you should only indicate the LDS capability.
+    // If this instance is an LDS and at the same time a normal OPC UA server, you also have to indicate
+    // the additional capabilities.
+    // NOTE: UaExpert does not show LDS-only servers in the list.
+    // See also: https://forum.unified-automation.com/topic1987.html
+
+    // E.g. here we only set LDS, and you will not see it in UaExpert
     config->discovery.mdns.serverCapabilitiesSize = 1;
-    UA_String *caps = UA_String_new();
-    *caps = UA_String_fromChars("LDS");
+    UA_String *caps = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    caps[0] = UA_String_fromChars("LDS");
     config->discovery.mdns.serverCapabilities = caps;
 
     /* timeout in seconds when to automatically remove a registered server from

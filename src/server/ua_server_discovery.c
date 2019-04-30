@@ -61,6 +61,7 @@ register_server_with_discovery_server(UA_Server *server,
         request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     request.discoveryConfigurationSize = 1;
     request.discoveryConfiguration = UA_ExtensionObject_new();
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
@@ -68,6 +69,7 @@ register_server_with_discovery_server(UA_Server *server,
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
     request.discoveryConfiguration[0].content.decoded.data = &server->config.discovery.mdns;
+#endif
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;

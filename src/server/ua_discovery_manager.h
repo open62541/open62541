@@ -123,7 +123,7 @@ void mdns_record_received(const struct resource *r, void *data);
 
 void mdns_create_txt(UA_Server *server, const char *fullServiceDomain,
                      const char *path, const UA_String *capabilites,
-                     const size_t *capabilitiesSize,
+                     const size_t capabilitiesSize,
                      void (*conflict)(char *host, int type, void *arg));
 
 void mdns_set_address_record(UA_Server *server,
@@ -156,7 +156,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
                        const UA_String *hostname, UA_UInt16 port,
                        const UA_String *path, const UA_DiscoveryProtocol protocol,
                        UA_Boolean createTxt, const UA_String* capabilites,
-                       size_t *capabilitiesSize);
+                       const size_t capabilitiesSize);
 UA_StatusCode
 UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
                           const UA_String *hostname, UA_UInt16 port,

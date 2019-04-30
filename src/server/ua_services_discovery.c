@@ -92,11 +92,6 @@ setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_
     if(result != UA_STATUSCODE_GOOD)
         return result;
 
-    // UaExpert does not list DiscoveryServer, thus set it to Server
-    // See http://forum.unified-automation.com/topic1987.html
-    if(target->applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-        target->applicationType = UA_APPLICATIONTYPE_SERVER;
-
     /* add the discoveryUrls from the networklayers */
     size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
     UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
@@ -180,8 +175,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
 
     size_t allocSize = foundServersSize;
-    if(foundSelf)
-        allocSize++;
+	if(foundSelf)
+		allocSize++;
 
     /* Nothing to do? */
     if(allocSize == 0)
@@ -198,12 +193,10 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     /* Copy into the response. TODO: Evaluate return codes */
     size_t pos = 0;
     if(foundSelf) {
-        setApplicationDescriptionFromServer(&response->servers[0], server);
-        pos = 1;
+        setApplicationDescriptionFromServer(&response->servers[pos++], server);
     }
     for(size_t i = 0; i < foundServersSize; i++) {
-        setApplicationDescriptionFromRegisteredServer(request, &response->servers[pos], foundServers[i]);
-        pos++;
+        setApplicationDescriptionFromRegisteredServer(request, &response->servers[pos++], foundServers[i]);
     }
 
 #endif
@@ -386,7 +379,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+    if(server->config.discovery.mdnsEnable) {
         for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
             /* create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||

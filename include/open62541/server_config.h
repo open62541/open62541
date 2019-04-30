@@ -71,6 +71,9 @@ typedef struct {
 	 * state of the semaphore file. */
 	UA_UInt32 cleanupTimeout;
 
+	/* Enable mDNS announce and response to queries */
+	bool mdnsEnable;
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 	UA_MdnsDiscoveryConfiguration mdns;
 #endif

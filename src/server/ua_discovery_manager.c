@@ -94,7 +94,7 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
     dm->mdnsDaemon = NULL;
     dm->mdnsSocket = UA_INVALID_SOCKET;
     dm->mdnsMainSrvAdded = false;
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+    if(server->config.discovery.mdnsEnable)
         initMulticastDiscoveryServer(dm, server);
 
     LIST_INIT(&dm->serverOnNetwork);
@@ -125,7 +125,7 @@ UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+    if(server->config.discovery.mdnsEnable)
         destroyMulticastDiscoveryServer(dm);
 
     serverOnNetwork_list_entry *son, *son_tmp;
