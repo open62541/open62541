@@ -137,7 +137,7 @@ option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
-option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of events. (EXPERIMENTAL)" OFF)
+option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_QUERY "Enable query support." OFF)
@@ -349,10 +349,6 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 # Warn if experimental features are enabled
-if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-    MESSAGE(WARNING "UA_ENABLE_SUBSCRIPTIONS_EVENTS is enabled. The feature is under development and marked as EXPERIMENTAL")
-endif()
-
 if(UA_ENABLE_MULTITHREADING)
     MESSAGE(WARNING "UA_ENABLE_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
@@ -801,6 +797,11 @@ else()
 
     if(UA_ENABLE_SUBSCRIPTIONS)
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_subscriptions.txt)
+    endif()
+
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_events.txt)
+        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.EventsMinimal.xml)
     endif()
 
     if(UA_ENABLE_HISTORIZING)
