@@ -119,8 +119,14 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
-    size_t offset = connection->incompleteChunk.length;
-    size_t remaining = connection->config.recvBufferSize - offset;
+#ifdef _WIN32
+    // windows requires int parameter for length
+    int offset = (int)connection->incompleteChunk.length;
+    int remaining = connection->config.recvBufferSize - offset;
+#else
+	size_t offset = connection->incompleteChunk.length;
+	size_t remaining = connection->config.recvBufferSize - offset;
+#endif
 
     /* Get the received packet(s) */
     ssize_t ret = UA_recv(connection->sockfd, (char*)&response->data[offset],
