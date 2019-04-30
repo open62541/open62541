@@ -106,7 +106,7 @@ UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServe
     }
     UA_Array_delete(endpointArray, endpointArraySize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-
+	UA_Client_delete(client);
     return returnEndpoint;
 }
 
@@ -236,16 +236,33 @@ int main(int argc, char **argv) {
     // use port 0 to dynamically assign port
     UA_ServerConfig_setMinimal(config, 0, NULL);
 
-    // To enable mDNS discovery, set application type to discovery server.
-    config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
+	// An LDS server normally has the application type to DISCOVERYSERVER.
+	// Since this instance implements LDS and other OPC UA services, we set the type to SERVER.
+	// NOTE: Using DISCOVERYSERVER will cause UaExpert to not show this instance in the server list.
+	// See also: https://forum.unified-automation.com/topic1987.html
+
+    config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_multicast");
+
+	// Enable the mDNS announce and response functionality
+	config->discovery.mdnsEnable = true;
+
     config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
-    // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
-    //config.serverCapabilitiesSize = 1;
-    //UA_String caps = UA_String_fromChars("LDS");
-    //config.serverCapabilities = &caps;
+
+	// See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
+	// For a LDS server, you should only indicate the LDS capability.
+	// If this instance is an LDS and at the same time a normal OPC UA server, you also have to indicate
+	// the additional capabilities.
+	// NOTE: UaExpert does not show LDS-only servers in the list.
+	// See also: https://forum.unified-automation.com/topic1987.html
+
+	config->discovery.mdns.serverCapabilitiesSize = 2;
+	UA_String *caps = (UA_String *) UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+	caps[0] = UA_String_fromChars("LDS");
+	caps[1] = UA_String_fromChars("NA");
+	config->discovery.mdns.serverCapabilities = caps;
 
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     UA_StatusCode retval = UA_Server_run_startup(server);
@@ -297,6 +314,7 @@ int main(int argc, char **argv) {
     char *endpointUrl = (char*)UA_malloc(endpointRegister->endpointUrl.length + 1);
     memcpy(endpointUrl, endpointRegister->endpointUrl.data, endpointRegister->endpointUrl.length);
     endpointUrl[endpointRegister->endpointUrl.length] = 0;
+    UA_EndpointDescription_delete(endpointRegister);
     retval = UA_Server_addPeriodicServerRegisterCallback(server, clientRegister, endpointUrl,
                                                          10 * 60 * 1000, 500, NULL);
     if(retval != UA_STATUSCODE_GOOD) {

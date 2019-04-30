@@ -53,11 +53,14 @@ static void setup_lds(void) {
     UA_LocalizedText_deleteMembers(&config_lds->applicationDescription.applicationName);
     config_lds->applicationDescription.applicationName
         = UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
+    config_lds->discovery.mdnsEnable = true;
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     config_lds->discovery.mdns.mdnsServerName = UA_String_fromChars("LDS_test");
     config_lds->discovery.mdns.serverCapabilitiesSize = 1;
     UA_String *caps = UA_String_new();
     *caps = UA_String_fromChars("LDS");
     config_lds->discovery.mdns.serverCapabilities = caps;
+#endif
     config_lds->discovery.cleanupTimeout = registerTimeout;
 
     UA_Server_run_startup(server_lds);
@@ -103,7 +106,9 @@ static void setup_register(void) {
     UA_LocalizedText_deleteMembers(&config_register->applicationDescription.applicationName);
     config_register->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     config_register->discovery.mdns.mdnsServerName = UA_String_fromChars("Register_test");
+#endif
 
     UA_Server_run_startup(server_register);
     THREAD_CREATE(server_thread_register, serverloop_register);
@@ -143,6 +148,8 @@ START_TEST(Server_unregister) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
+
 #ifndef WIN32
 #define SEMAPHORE_PATH "/tmp/open62541-unit-test-semaphore"
 #else
@@ -179,6 +186,8 @@ START_TEST(Server_unregister_semaphore) {
     ck_assert_int_eq(remove(SEMAPHORE_PATH), 0);
 }
 END_TEST
+
+#endif /* UA_ENABLE_DISCOVERY_SEMAPHORE */
 
 START_TEST(Server_register_periodic) {
     ck_assert(clientRegisterRepeated == NULL);

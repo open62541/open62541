@@ -436,8 +436,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Start the multicast discovery server */
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.applicationDescription.applicationType ==
-       UA_APPLICATIONTYPE_DISCOVERYSERVER)
+    if(server->config.discovery.mdnsEnable)
         startMulticastDiscoveryServer(server);
 #endif
 
@@ -480,8 +479,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
-    if(server->config.applicationDescription.applicationType ==
-       UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+    if(server->config.discovery.mdnsEnable) {
         // TODO multicastNextRepeat does not consider new input data (requests)
         // on the socket. It will be handled on the next call. if needed, we
         // need to use select with timeout on the multicast socket
@@ -523,8 +521,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Stop multicast discovery */
-    if(server->config.applicationDescription.applicationType ==
-       UA_APPLICATIONTYPE_DISCOVERYSERVER)
+    if(server->config.discovery.mdnsEnable)
         stopMulticastDiscoveryServer(server);
 #endif
 

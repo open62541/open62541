@@ -88,10 +88,17 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
                        (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
         return retval;
     }
-    UA_Discovery_addRecord(server, appName, &hostname, port,
-                           &path, UA_DISCOVERY_TCP, true,
-                           server->config.discovery.mdns.serverCapabilities,
-                           &server->config.discovery.mdns.serverCapabilitiesSize);
+
+    retval = UA_Discovery_addRecord(server, appName, &hostname, port,
+                                    &path, UA_DISCOVERY_TCP, true,
+									server->config.discovery.mdns.serverCapabilities,
+									server->config.discovery.mdns.serverCapabilitiesSize);
+	if(retval != UA_STATUSCODE_GOOD) {
+		UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
+					   "Cannot add mDNS Record: %s",
+					   UA_StatusCode_name(retval));
+		return retval;
+	}
     return UA_STATUSCODE_GOOD;
 }
 
@@ -229,7 +236,7 @@ UA_Server_updateMdnsForDiscoveryUrl(UA_Server *server, const UA_String *serverNa
     UA_StatusCode addRetval =
         UA_Discovery_addRecord(server, serverName, &hostname,
                                port, &path, UA_DISCOVERY_TCP, updateTxt,
-                               capabilities, &capabilitiesSize);
+                               capabilities, capabilitiesSize);
     if(addRetval != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Could not add mDNS record for hostname %.*s.",
@@ -343,12 +350,12 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
                        const UA_String *hostname, UA_UInt16 port,
                        const UA_String *path, const UA_DiscoveryProtocol protocol,
                        UA_Boolean createTxt, const UA_String* capabilites,
-                       size_t *capabilitiesSize) {
+                       const size_t capabilitiesSize) {
     // we assume that the hostname is not an IP address, but a valid domain name
     // It is required by the OPC UA spec (see Part 12, DiscoveryURL to DNS SRV mapping)
     // to always use the hostname instead of the IP address
 
-    if(!capabilitiesSize || (*capabilitiesSize > 0 && !capabilites))
+    if(capabilitiesSize > 0 && !capabilites)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     size_t hostnameLen = hostname->length;
