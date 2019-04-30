@@ -133,10 +133,8 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->applicationDescription.discoveryUrlsSize = 0; */
     /* conf->applicationDescription.discoveryUrls = NULL; */
 
-#ifdef UA_ENABLE_DISCOVERY
-    /* conf->mdnsServerName = UA_STRING_NULL; */
-    /* conf->serverCapabilitiesSize = 0; */
-    /* conf->serverCapabilities = NULL; */
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_MdnsDiscoveryConfiguration_init(&conf->discovery.mdns);
 #endif
 
     /* Custom DataTypes */
@@ -194,7 +192,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->queueSizeLimits = UA_UINT32RANGE(1, 100);
 
 #ifdef UA_ENABLE_DISCOVERY
-    conf->discoveryCleanupTimeout = 60 * 60;
+    conf->discovery.cleanupTimeout = 60 * 60;
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING

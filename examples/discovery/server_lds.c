@@ -24,17 +24,22 @@ int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    
+
+    // NOTE:
+    // A server instance defined as DISCOVERYSERVER will not be shown in UaExpert.
+    // See also:
+	// https://forum.unified-automation.com/topic1987.html
+
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
             UA_String_fromChars("urn:open62541.example.local_discovery_server");
-    config->mdnsServerName = UA_String_fromChars("LDS");
+    config->discovery.mdns.mdnsServerName = UA_String_fromChars("LDS");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
-    config->serverCapabilitiesSize = 1;
+    config->discovery.mdns.serverCapabilitiesSize = 1;
     UA_String *caps = UA_String_new();
     *caps = UA_String_fromChars("LDS");
-    config->serverCapabilities = caps;
+    config->discovery.mdns.serverCapabilities = caps;
 
     /* timeout in seconds when to automatically remove a registered server from
      * the list, if it doesn't re-register within the given time frame. A value

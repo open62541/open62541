@@ -60,6 +60,25 @@ typedef struct {
     UA_Duration max;
 } UA_DurationRange;
 
+#ifdef UA_ENABLE_DISCOVERY
+typedef struct {
+
+	/* Timeout in seconds when to automatically remove a registered server from
+	 * the list, if it doesn't re-register within the given time frame. A value
+	 * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
+	 * bigger than 10 seconds, because cleanup is only triggered approximately
+	 * every 10 seconds. The server will still be removed depending on the
+	 * state of the semaphore file. */
+	UA_UInt32 cleanupTimeout;
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+	UA_MdnsDiscoveryConfiguration mdns;
+#endif
+
+} UA_ServerConfig_Discovery;
+
+#endif
+
 struct UA_ServerConfig {
     UA_UInt16 nThreads; /* only if multithreading is enabled */
     UA_Logger logger;
@@ -72,13 +91,6 @@ struct UA_ServerConfig {
     /* Rule Handling */
     UA_RuleHandling verifyRequestTimestamp; /* Verify that the server sends a
                                              * timestamp in the request header */
-
-    /* MDNS Discovery */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_String mdnsServerName;
-    size_t serverCapabilitiesSize;
-    UA_String *serverCapabilities;
-#endif
 
     /* Custom DataTypes. Attention! Custom datatypes are not cleaned up together
      * with the configuration. So it is possible to allocate them on ROM. */
@@ -173,13 +185,7 @@ struct UA_ServerConfig {
 
     /* Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    /* Timeout in seconds when to automatically remove a registered server from
-     * the list, if it doesn't re-register within the given time frame. A value
-     * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
-     * bigger than 10 seconds, because cleanup is only triggered approximately
-     * every 10 seconds. The server will still be removed depending on the
-     * state of the semaphore file. */
-    UA_UInt32 discoveryCleanupTimeout;
+	UA_ServerConfig_Discovery discovery;
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

@@ -90,13 +90,13 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
     }
     UA_Discovery_addRecord(server, appName, &hostname, port,
                            &path, UA_DISCOVERY_TCP, true,
-                           server->config.serverCapabilities,
-                           &server->config.serverCapabilitiesSize);
+                           server->config.discovery.mdns.serverCapabilities,
+                           &server->config.discovery.mdns.serverCapabilitiesSize);
     return UA_STATUSCODE_GOOD;
 }
 
 void startMulticastDiscoveryServer(UA_Server *server) {
-    UA_String *appName = &server->config.mdnsServerName;
+    UA_String *appName = &server->config.discovery.mdns.mdnsServerName;
     for(size_t i = 0; i < server->config.networkLayersSize; i++)
         addMdnsRecordForNetworkLayer(server, appName, &server->config.networkLayers[i]);
 
@@ -113,7 +113,7 @@ stopMulticastDiscoveryServer(UA_Server *server) {
     char hostname[256];
     if(UA_gethostname(hostname, 255) == 0) {
         UA_String hnString = UA_STRING(hostname);
-        UA_Discovery_removeRecord(server, &server->config.mdnsServerName,
+        UA_Discovery_removeRecord(server, &server->config.discovery.mdns.mdnsServerName,
                                   &hnString, 4840, true);
     } else {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,

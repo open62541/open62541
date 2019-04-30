@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_register");
-    config->mdnsServerName = UA_String_fromChars("Sample Server");
+    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Server");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     //config.serverCapabilitiesSize = 1;
     //UA_String caps = UA_String_fromChars("LDS");

@@ -15,12 +15,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     /* Server Description */
     UA_BuildInfo_deleteMembers(&config->buildInfo);
     UA_ApplicationDescription_deleteMembers(&config->applicationDescription);
-#ifdef UA_ENABLE_DISCOVERY
-    UA_String_deleteMembers(&config->mdnsServerName);
-    UA_Array_delete(config->serverCapabilities, config->serverCapabilitiesSize,
-                    &UA_TYPES[UA_TYPES_STRING]);
-    config->serverCapabilities = NULL;
-    config->serverCapabilitiesSize = 0;
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_MdnsDiscoveryConfiguration_clear(&config->discovery.mdns);
 #endif
 
     /* Custom DataTypes */
