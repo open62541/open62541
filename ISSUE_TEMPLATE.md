@@ -17,9 +17,18 @@ Fill out the sections and checklist below (add text at the end of each line).
 
 ## Background Information / Reproduction Steps
 
-Used CMake command line:
 
-<!-- Include all options here, which you modified or used for your build -->
+
+Used CMake options:
+
+<!-- 
+
+Include all CMake options here, which you modified or used for your build.
+
+If you are using cmake-gui, go to "Tools > Show my Changes" and paste the content of "Command Line Options"
+
+On the command line use `cmake -L` (or `cmake -LA` if you changed advanced variables)
+-->
 
 ```bash
 cmake -DUA_NAMESPACE_ZERO=<YOUR_OPTION> <ANY_OTHER_OPTIONS> ..
