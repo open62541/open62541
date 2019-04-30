@@ -1613,12 +1613,6 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
-  <UAObjectType NodeId="i=2330" BrowseName="HistoryServerCapabilitiesType">
-    <DisplayName>HistoryServerCapabilitiesType</DisplayName>
-    <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
-    </References>
-  </UAObjectType>
   <UADataType NodeId="i=296" BrowseName="Argument">
     <DisplayName>Argument</DisplayName>
     <Description>An argument for a method.</Description>
