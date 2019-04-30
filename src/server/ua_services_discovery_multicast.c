@@ -338,7 +338,7 @@ discovery_createMulticastSocket(void) {
     setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
     setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ittl, sizeof(ittl));
 
-    socket_mdns_set_nonblocking(s);
+    socket_mdns_set_nonblocking((int)s);
     return s;
 }
 
@@ -628,7 +628,7 @@ UA_StatusCode
 iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
                                 UA_Boolean processIn) {
     struct timeval next_sleep = { 0, 0 };
-    unsigned short retval = mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
+    unsigned short retval = mdnsd_step(server->mdnsDaemon, (int)server->mdnsSocket,
                                        processIn, true, &next_sleep);
     if(retval == 1) {
         UA_LOG_SOCKET_ERRNO_WRAP(
