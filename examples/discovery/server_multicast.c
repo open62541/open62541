@@ -27,43 +27,6 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-static UA_StatusCode
-readInteger(UA_Server *server, const UA_NodeId *sessionId,
-            void *sessionContext, const UA_NodeId *nodeId,
-            void *nodeContext, UA_Boolean includeSourceTimeStamp,
-            const UA_NumericRange *range, UA_DataValue *value) {
-    UA_Int32 *myInteger = (UA_Int32*)nodeContext;
-    value->hasValue = true;
-    UA_Variant_setScalarCopy(&value->value, myInteger, &UA_TYPES[UA_TYPES_INT32]);
-
-    // we know the nodeid is a string
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
-                (int)nodeId->identifier.string.length,
-                nodeId->identifier.string.data);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "read value %i", *(UA_UInt32 *)myInteger);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-writeInteger(UA_Server *server, const UA_NodeId *sessionId,
-             void *sessionContext, const UA_NodeId *nodeId,
-             void *nodeContext, const UA_NumericRange *range,
-             const UA_DataValue *value) {
-    UA_Int32 *myInteger = (UA_Int32*)nodeContext;
-    if(value->hasValue && UA_Variant_isScalar(&value->value) &&
-       value->value.type == &UA_TYPES[UA_TYPES_INT32] && value->value.data)
-        *myInteger = *(UA_Int32 *)value->value.data;
-
-    // we know the nodeid is a string
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
-                (int)nodeId->identifier.string.length,
-                nodeId->identifier.string.data);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "written value %i", *(UA_UInt32 *)myInteger);
-    return UA_STATUSCODE_GOOD;
-}
-
 char *discovery_url = NULL;
 
 static void
@@ -278,34 +241,19 @@ int main(int argc, char **argv) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.example.server_multicast");
-    config->mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     //config.serverCapabilitiesSize = 1;
     //UA_String caps = UA_String_fromChars("LDS");
     //config.serverCapabilities = &caps;
 
-    /* add a variable node to the address space */
-    UA_Int32 myInteger = 42;
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_DataSource dateDataSource;
-    dateDataSource.read = readInteger;
-    dateDataSource.write = writeInteger;
-    UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.description = UA_LOCALIZEDTEXT("en-US", "the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
-
-    UA_Server_addDataSourceVariableNode(server, myIntegerNodeId,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
-                                        &myInteger, NULL);
-
-    // callback which is called when a new server is detected through mDNS
-    UA_Server_setServerOnNetworkCallback(server, serverOnNetworkCallback, NULL);
-
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     UA_StatusCode retval = UA_Server_run_startup(server);
+
+	// callback which is called when a new server is detected through mDNS
+	// needs to be set after UA_Server_run_startup or UA_Server_run
+	UA_Server_setServerOnNetworkCallback(server, serverOnNetworkCallback, NULL);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
