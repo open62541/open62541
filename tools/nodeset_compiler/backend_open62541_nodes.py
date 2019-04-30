@@ -21,6 +21,12 @@ from backend_open62541_datatypes import *
 import re
 import logging
 
+import sys
+if sys.version_info[0] >= 3:
+    # strings are already parsed to unicode
+    def unicode(s):
+        return s
+
 logger = logging.getLogger(__name__)
 
 #################
