@@ -374,12 +374,6 @@ class DataTypeNode(Node):
 
         If encodable, the encoding can be retrieved using getEncoding().
     """
-    __isEnum__     = False
-    __xmlDefinition__ = None
-    __baseTypeEncoding__ = []
-    __encodable__ = False
-    __encodingBuilt__ = False
-    __definition__ = []
 
     def __init__(self, xmlelement=None):
         Node.__init__(self)
@@ -387,7 +381,6 @@ class DataTypeNode(Node):
         self.__xmlDefinition__ = None
         self.__baseTypeEncoding__ = []
         self.__encodable__ = None
-        self.__encodingBuilt__ = False
         self.__definition__ = []
         self.__isEnum__     = False
         self.__isOptionSet__ = False
@@ -409,23 +402,25 @@ class DataTypeNode(Node):
         """ Will return True if buildEncoding() was able to determine which builtin
             type corresponds to all fields of this DataType.
 
-            If no encoding has been build yet, this function will call buildEncoding()
-            and return True if it succeeds.
+            If no encoding has been build yet an exception will be thrown.
+            Make sure to call buildEncoding() first.
         """
+        if self.__encodable__ is None:
+            raise Exception("Encoding needs to be built first using buildEncoding()")
         return self.__encodable__
 
     def getEncoding(self):
         """ If the dataType is encodable, getEncoding() returns a nested list
             containing the encoding the structure definition for this type.
 
-            If no encoding has been build yet, this function will call buildEncoding()
-            and return the encoding if buildEncoding() succeeds.
+            If no encoding has been build yet an exception will be thrown.
+            Make sure to call buildEncoding() first.
 
-            If buildEncoding() fails or has failed, an empty list will be returned.
+            If buildEncoding() has failed, an empty list will be returned.
         """
-        if self.__encodable__ == False:
-            if self.__encodingBuilt__ == False:
-                return self.buildEncoding()
+        if self.__encodable__ is None:
+            raise Exception("Encoding needs to be built first using buildEncoding()")
+        if not self.__encodable__:
             return []
         else:
             return self.__baseTypeEncoding__
@@ -471,15 +466,15 @@ class DataTypeNode(Node):
         prefix = " " + "|" * indent + "+"
 
         if force==True:
-            self.__encodingBuilt__ = False
+            self.__encodable__ = None
 
-        if self.__encodingBuilt__ == True:
+        if self.__encodable__ is not None and self.__encodable__:
             if self.isEncodable():
                 logger.debug(prefix + str(self.__baseTypeEncoding__) + " (already analyzed)")
             else:
                 logger.debug( prefix + str(self.__baseTypeEncoding__) + "(already analyzed, not encodable!)")
             return self.__baseTypeEncoding__
-        self.__encodingBuilt__ = True # signify that we have attempted to built this type
+
         self.__encodable__ = True
 
         if indent==0:
@@ -529,6 +524,7 @@ class DataTypeNode(Node):
 
         isEnum = True
         isSubType = True
+        # An option set is at the same time also an enum, at least for the encoding below
         isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i==12755
 
         # We need to store the definition as ordered data, but can't use orderedDict
@@ -543,6 +539,7 @@ class DataTypeNode(Node):
                 fdtype = ""
                 enumVal = ""
                 valueRank = None
+                #symbolicName = None
                 for at,av in x.attributes.items():
                     if at == "DataType":
                         fdtype = str(av)
@@ -551,6 +548,8 @@ class DataTypeNode(Node):
                         isEnum = False
                     elif at == "Name":
                         fname = str(av)
+                    #elif at == "SymbolicName":
+                    #    symbolicName = str(av)
                     elif at == "Value":
                         enumVal = int(av)
                         isSubType = False
@@ -603,7 +602,7 @@ class DataTypeNode(Node):
 
         if isOptionSet == True:
             self.__isOptionSet__ = True
-            subenc = parentType.getEncoding()
+            subenc = parentType.buildEncoding(nodeset=nodeset)
             if not parentType.isEncodable():
                 self.__encodable__ = False
             else:
