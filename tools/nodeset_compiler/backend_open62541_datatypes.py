@@ -45,7 +45,15 @@ def generateXmlElementCode(value, alloc=False):
     return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
 
 def generateByteStringCode(value, valueName, global_var_code, isPointer):
-    asciiarray = list(value)
+    if isinstance(value, str):
+        # PY3 returns a byte array for b64decode, while PY2 returns a string.
+        # Therefore convert it to bytes
+        asciiarray = bytearray()
+        asciiarray.extend(value)
+        asciiarray = list(asciiarray)
+    else:
+        asciiarray = list(value)
+
     asciiarraystr = str(asciiarray).rstrip(']').lstrip('[')
     cleanValueName = re.sub(r"->", "__", re.sub(r"\.", "_", valueName))
     global_var_code.append("static const UA_Byte {cleanValueName}_byteArray[{len}] = {{{data}}};".format(
