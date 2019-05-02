@@ -254,12 +254,14 @@ eventSetup(UA_NodeId *eventNodeId) {
     serverMutexLock();
     UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
     serverMutexUnlock();
+	ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
     // number with no special meaning
     UA_UInt16 eventSeverity = 1000;
     UA_Variant_setScalar(&value, &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
     serverMutexLock();
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
+	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     //add a message to the event
@@ -267,11 +269,13 @@ eventSetup(UA_NodeId *eventNodeId) {
     serverMutexLock();
     bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
     serverMutexUnlock();
+	ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
     UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     serverMutexLock();
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+	retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
+	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     return retval;
@@ -366,7 +370,7 @@ handler_events_propagate(UA_Client *lclient, UA_UInt32 subId, void *subContext,
             foundMessage = UA_TRUE;
         } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
             // either SourceNode or EventType
-            UA_NodeId serverNameSpaceId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES);
+            UA_NodeId serverNameSpaceId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_VENDORSERVERINFO);
             if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &eventType)) {
                 // EventType
                 foundType = UA_TRUE;
@@ -389,7 +393,7 @@ handler_events_propagate(UA_Client *lclient, UA_UInt32 subId, void *subContext,
 
 START_TEST(uppropagation) {
     // trigger first event
-    UA_NodeId eventNodeId;
+    UA_NodeId eventNodeId = UA_NODEID_NULL;
     UA_StatusCode retval = eventSetup(&eventNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -398,7 +402,7 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event on a child of server, using namespaces in this case (no reason in particular)
-    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES), NULL,
+    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_VENDORSERVERINFO), NULL,
                                 UA_TRUE);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
