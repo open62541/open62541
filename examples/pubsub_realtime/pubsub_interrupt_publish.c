@@ -20,7 +20,7 @@
 #define MAX_MEASUREMENTS         10000
 #define MILLI_AS_NANO_SECONDS    (1000 * 1000)
 #define SECONDS_AS_NANO_SECONDS  (1000 * 1000 * 1000)
-#define CLOCKID                  CLOCK_REALTIME
+#define CLOCKID                  CLOCK_MONOTONIC_RAW
 #define SIG                      SIGUSR1
 #define PUB_INTERVAL             0.25 /* Publish interval in milliseconds */
 #define DATA_SET_WRITER_ID       62541
