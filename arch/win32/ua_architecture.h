@@ -104,6 +104,7 @@
 #define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
+#define UA_getsockname getsockname
 #define UA_inet_pton InetPton
 
 #if UA_IPV6

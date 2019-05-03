@@ -170,7 +170,11 @@ void UA_freeaddrinfo(struct addrinfo *res);//equivalent to posix freeaddrinfo im
 #endif
 
 #ifndef UA_gethostname
-int UA_gethostname(char *name, size_t len);//equivalent to posix gethostname implementatio
+int UA_gethostname(char *name, size_t len);//equivalent to posix gethostname implementation
+#endif
+
+#ifndef UA_getsockname
+int UA_getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen);//equivalent to posix getsockname implementation
 #endif
 
 #ifndef UA_initialize_architecture_network

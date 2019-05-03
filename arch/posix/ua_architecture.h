@@ -104,6 +104,7 @@
 #define UA_setsockopt setsockopt
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname
+#define UA_getsockname getsockname
 #define UA_inet_pton inet_pton
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
