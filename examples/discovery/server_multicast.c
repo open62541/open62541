@@ -270,7 +270,8 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 16600, NULL);
+    // use port 0 to dynamically assign port
+    UA_ServerConfig_setMinimal(config, 0, NULL);
 
     // To enable mDNS discovery, set application type to discovery server.
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
