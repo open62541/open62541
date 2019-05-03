@@ -69,6 +69,10 @@ struct UA_ServerConfig {
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
 
+    /* Rule Handling */
+    UA_RuleHandling verifyRequestTimestamp; /* Verify that the server sends a
+                                             * timestamp in the request header */
+
     /* MDNS Discovery */
 #ifdef UA_ENABLE_DISCOVERY
     UA_String mdnsServerName;

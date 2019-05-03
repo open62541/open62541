@@ -562,9 +562,15 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     ((UA_ResponseHeader*)response)->timestamp = UA_DateTime_now();
 
     /* Check timestamp in the request header */
-    if(!(requestHeader->timestamp)) {
-        return sendServiceFault(channel, msg, requestPos, responseType,
-                                requestId, UA_STATUSCODE_BADINVALIDTIMESTAMP);
+    if(requestHeader->timestamp == 0) {
+        if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                                   "The server sends no timestamp in the request header. "
+                                   "See the 'verifyRequestTimestamp' setting.");
+            if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT)
+                return sendServiceFault(channel, msg, requestPos, responseType,
+                                        requestId, UA_STATUSCODE_BADINVALIDTIMESTAMP);
+        }
     }
 
     /* Process normal services before initializing the message context.
