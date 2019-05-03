@@ -446,9 +446,12 @@ UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
 /**
  * Browsing
  * -------- */
+
+/* Browse the references of a particular node. See the definition of
+ * BrowseDescription structure for details. */
 UA_BrowseResult UA_EXPORT
-UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs,
-                 const UA_BrowseDescription *descr);
+UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
+                 const UA_BrowseDescription *bd);
 
 UA_BrowseResult UA_EXPORT
 UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
