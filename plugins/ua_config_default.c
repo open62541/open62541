@@ -251,6 +251,9 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
                                        const UA_ByteString *certificate,
                                        UA_UInt32 sendBufferSize,
                                        UA_UInt32 recvBufferSize) {
+	if (!config)
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     UA_StatusCode retval = setDefaultConfig(config);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
