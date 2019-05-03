@@ -280,7 +280,6 @@ function(ua_generate_nodeset)
     string(REPLACE "-" "_" FILE_SUFFIX ${FILE_SUFFIX})
 
     if ("${UA_GEN_NS_NAME}" STREQUAL "ns0")
-        set(GEN_NS0 "--generate-ns0")
         set(TARGET_SUFFIX "namespace")
         set(FILE_SUFFIX "0_generated")
     endif()

@@ -209,7 +209,7 @@ Take the previous snippet and save it to a file ``myNS.xml``. To compile this no
 
     $ python ./nodeset_compiler.py -h
     usage: nodeset_compiler.py [-h] [-e <existingNodeSetXML>] [-x <nodeSetXML>]
-                               [--generate-ns0] [--internal-headers]
+                               [--internal-headers]
                                [-b <blacklistFile>] [-i <ignoreFile>]
                                [-t <typesArray>]
                                [-v]
@@ -227,9 +227,6 @@ Take the previous snippet and save it to a file ``myNS.xml``. To compile this no
                             on the server.
       -x <nodeSetXML>, --xml <nodeSetXML>
                             NodeSet XML files with nodes that shall be generated.
-      --generate-ns0        Omit some consistency checks for bootstrapping
-                            namespace 0, create references to parents and type
-                            definitions manually
       --internal-headers    Include internal headers instead of amalgamated header
       -b <blacklistFile>, --blacklist <blacklistFile>
                             Loads a list of NodeIDs stored in blacklistFile (one
