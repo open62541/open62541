@@ -563,6 +563,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Check timestamp in the request header */
     if(!(requestHeader->timestamp)) {
+		UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+							   "Client sent a request with a timestamp set to 0. Returning ServiceFault.");
         return sendServiceFault(channel, msg, requestPos, responseType,
                                 requestId, UA_STATUSCODE_BADINVALIDTIMESTAMP);
     }
