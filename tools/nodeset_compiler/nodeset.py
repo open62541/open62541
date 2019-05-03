@@ -316,7 +316,14 @@ class NodeSet(object):
             if ref.referenceType.i == 45:
                 return self.getBaseDataType(self.nodes[ref.target])
         return node
-                
+
+    def getNodeTypeDefinition(self, node):
+        for ref in node.references:
+            # 40 = HasTypeDefinition
+            if ref.referenceType.i == 40:
+                return self.nodes[ref.target]
+        return None
+
     def getDataTypeNode(self, dataType):
         if isinstance(dataType, string_types):
             if not valueIsInternalType(dataType):
@@ -348,3 +355,13 @@ class NodeSet(object):
             for ref in u.references:
                 back = Reference(ref.target, ref.referenceType, ref.source, not ref.isForward)
                 self.nodes[ref.target].references.add(back) # ref set does not make a duplicate entry
+
+    def setNodeParent(self):
+        parentreftypes = getSubTypesOf(self, self.getNodeByBrowseName("HierarchicalReferences"))
+        parentreftypes = list(map(lambda x: x.id, parentreftypes))
+
+        for node in self.nodes.values():
+            parentref = node.getParentReference(parentreftypes)
+            if parentref is not None:
+                node.parent = self.nodes[parentref.target]
+                node.parentReference = self.nodes[parentref.referenceType]

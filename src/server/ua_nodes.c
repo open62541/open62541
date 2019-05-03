@@ -312,16 +312,18 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     node->arrayDimensionsSize = attr->arrayDimensionsSize;
 
     /* Data type and value rank */
-    retval |= UA_NodeId_copy(&attr->dataType, &node->dataType);
+    retval = UA_NodeId_copy(&attr->dataType, &node->dataType);
+	if(retval != UA_STATUSCODE_GOOD)
+		return retval;
     node->valueRank = attr->valueRank;
 
     /* Copy the value */
     node->valueSource = UA_VALUESOURCE_DATA;
     UA_NodeId extensionObject = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
     /* If we have an extension object which is still encoded (e.g. from the
-     * nodeset compiler) we need to decode it and set the decoded value instead
-     * of the encoded object */
-    UA_Boolean valueSet = false;
+     * nodeset compiler) return an error.
+     * This was used in the old version of the nodeset compiler and is not
+     * needed anymore. */
     if(attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
         /* Do nothing since we got an empty array of extension objects */
         if(attr->value.data == UA_EMPTY_ARRAY_SENTINEL)
@@ -329,38 +331,13 @@ copyCommonVariableAttributes(UA_VariableNode *node,
 
         const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
         if(obj && obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
-            /* TODO: Once we generate type description in the nodeset compiler,
-             * UA_findDatatypeByBinary can be made internal to the decoding
-             * layer. */
-            const UA_DataType *type = UA_findDataTypeByBinary(&obj->content.encoded.typeId);
-
-            if(type) {
-                void *dst = UA_Array_new(attr->value.arrayLength, type);
-                if (!dst) {
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                uint8_t *tmpPos = (uint8_t *)dst;
-
-                for(size_t i=0; i<attr->value.arrayLength; i++) {
-                    size_t offset =0;
-                    const UA_ExtensionObject *curr = &((const UA_ExtensionObject *)attr->value.data)[i];
-                    UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, NULL);
-                    if(ret != UA_STATUSCODE_GOOD) {
-                        return ret;
-                    }
-                    tmpPos += type->memSize;
-                }
-
-                UA_Variant_setArray(&node->value.data.value.value, dst, attr->value.arrayLength, type);
-                valueSet = true;
-            }
+        	return UA_STATUSCODE_BADNOTSUPPORTED;
         }
     }
 
-    if(!valueSet)
-        retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
+    retval = UA_Variant_copy(&attr->value, &node->value.data.value.value);
 
-    node->value.data.value.hasValue = true;
+    node->value.data.value.hasValue = node->value.data.value.value.type != NULL;
 
     return retval;
 }
