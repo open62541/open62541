@@ -186,6 +186,8 @@ ns.allocateVariables()
 
 ns.addInverseReferences()
 
+ns.setNodeParent()
+
 logger.info("Generating Code for Backend: {}".format(args.backend))
 
 if args.backend == "open62541":

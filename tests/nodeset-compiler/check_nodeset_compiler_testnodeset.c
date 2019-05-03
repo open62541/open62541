@@ -45,10 +45,7 @@ START_TEST(checkScalarValues) {
     UA_Variant_clear(&out);
     // Point_scalar_noInit
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10005), &out);
-    p = (UA_Point *)out.data;
-    ck_assert(UA_Variant_isScalar(&out));
-    ck_assert(p->x == (UA_Double)0.0);
-    ck_assert(p->y == (UA_Double)0.0);
+    ck_assert(out.data == NULL);
     UA_Variant_clear(&out);
 }
 END_TEST

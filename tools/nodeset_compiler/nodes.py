@@ -78,6 +78,8 @@ class Node(object):
         self.references = set()
         self.hidden = False
         self.modelUri = None
+        self.parent = None
+        self.parentReference = None
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -142,17 +144,15 @@ class Node(object):
                     forward = not "false" in av.lower()
             self.references.add(Reference(source, reftype, target, forward))
 
-    def popParentRef(self, parentreftypes):
+    def getParentReference(self, parentreftypes):
         # HasSubtype has precedence
         for ref in self.references:
             if ref.referenceType == NodeId("ns=0;i=45") and not ref.isForward:
-                self.references.remove(ref)
                 return ref
         for ref in self.references:
             if ref.referenceType in parentreftypes and not ref.isForward:
-                self.references.remove(ref)
                 return ref
-        return Reference(NodeId(), NodeId(), NodeId(), False)
+        return None
 
     def popTypeDef(self):
         for ref in self.references:

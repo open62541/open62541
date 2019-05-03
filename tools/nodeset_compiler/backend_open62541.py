@@ -227,18 +227,14 @@ _UA_END_DECLS
     logger.info("Writing code for nodes and references")
     functionNumber = 0
 
-    parentreftypes = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
-    parentreftypes = list(map(lambda x: x.id, parentreftypes))
-
     printed_ids = set()
     for node in sorted_nodes:
         printed_ids.add(node.id)
 
-        parentref = node.popParentRef(parentreftypes)
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
             code_global = []
-            code = generateNodeCode_begin(node, nodeset, parentref, code_global)
+            code = generateNodeCode_begin(node, nodeset, code_global)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
@@ -257,6 +253,10 @@ _UA_END_DECLS
             if ref.target not in printed_ids:
                 continue
             if node.hidden and nodeset.nodes[ref.target].hidden:
+                continue
+            if node.parent is not None and ref.target == node.parent.id \
+                and ref.referenceType == node.parentReference.id:
+                # Skip parent reference
                 continue
             writec(generateReferenceCode(ref))
 

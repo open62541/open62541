@@ -179,8 +179,13 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    UA_NodeId baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+
     /* Check the datatype against the vt */
-    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false)) {
+    /* If the node does not have any value and the dataType is BaseDataType,
+     * then it's also fine. This is the default for empty nodes. */
+    if(!compatibleDataType(server, &node->dataType, &vt->dataType, false) &&
+       (value.hasValue || !UA_NodeId_equal(&node->dataType, &baseDataType))) {
         UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                               "AddNodes: The value of %.*s is incompatible with "
                               "the datatype of the VariableType",
