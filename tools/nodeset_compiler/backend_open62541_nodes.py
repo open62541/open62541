@@ -411,7 +411,7 @@ def generateSubtypeOfDefinitionCode(node):
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
-def generateNodeCode_begin(node, nodeset, generate_ns0, parentref, code_global):
+def generateNodeCode_begin(node, nodeset, parentref, code_global):
     code = []
     codeCleanup = []
     code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
