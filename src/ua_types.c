@@ -285,27 +285,65 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     return false;
 }
 
-UA_Boolean
-UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-    if(n1 == NULL || n2 == NULL)
-        return false;
-    if(n1->namespaceIndex != n2->namespaceIndex ||
-       n1->identifierType!=n2->identifierType)
-        return false;
+/* Absolute ordering for NodeIds */
+UA_Order
+UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
+    /* Compare namespaceIndex */
+    if(n1->namespaceIndex < n2->namespaceIndex)
+        return UA_ORDER_LESS;
+    if(n1->namespaceIndex > n2->namespaceIndex)
+        return UA_ORDER_MORE;
+
+    /* Compare identifierType */
+    if(n1->identifierType < n2->identifierType)
+        return UA_ORDER_LESS;
+    if(n1->identifierType > n2->identifierType)
+        return UA_ORDER_MORE;
+
+    /* Compare the identifier */
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        return (n1->identifier.numeric == n2->identifier.numeric);
-    case UA_NODEIDTYPE_STRING:
-        return UA_String_equal(&n1->identifier.string,
-                               &n2->identifier.string);
+        if(n1->identifier.numeric < n2->identifier.numeric)
+            return UA_ORDER_LESS;
+        if(n1->identifier.numeric > n2->identifier.numeric)
+            return UA_ORDER_MORE;
+        break;
     case UA_NODEIDTYPE_GUID:
-        return UA_Guid_equal(&n1->identifier.guid,
-                             &n2->identifier.guid);
-    case UA_NODEIDTYPE_BYTESTRING:
-        return UA_ByteString_equal(&n1->identifier.byteString,
-                                   &n2->identifier.byteString);
+        if(n1->identifier.guid.data1 < n2->identifier.guid.data1 ||
+           n1->identifier.guid.data2 < n2->identifier.guid.data2 ||
+           n1->identifier.guid.data3 < n2->identifier.guid.data3 ||
+           strncmp((const char*)n1->identifier.guid.data4,
+                   (const char*)n2->identifier.guid.data4, 8) < 0)
+            return UA_ORDER_LESS;
+        if(n1->identifier.guid.data1 > n2->identifier.guid.data1 ||
+           n1->identifier.guid.data2 > n2->identifier.guid.data2 ||
+           n1->identifier.guid.data3 > n2->identifier.guid.data3 ||
+           strncmp((const char*)n1->identifier.guid.data4,
+                   (const char*)n2->identifier.guid.data4, 8) > 0)
+            return UA_ORDER_MORE;
+        break;
+    case UA_NODEIDTYPE_STRING:
+    case UA_NODEIDTYPE_BYTESTRING: {
+        if(n1->identifier.string.length < n2->identifier.string.length)
+            return UA_ORDER_LESS;
+        if(n1->identifier.string.length > n2->identifier.string.length)
+            return UA_ORDER_MORE;
+        if(n1->identifier.string.length > 0) {
+            int cmp = strncmp((const char*)n1->identifier.string.data,
+                              (const char*)n2->identifier.string.data,
+                              n1->identifier.string.length);
+            if(cmp < 0)
+                return UA_ORDER_LESS;
+            if(cmp > 0)
+                return UA_ORDER_MORE;
+        }
+        break;
     }
-    return false;
+    default:
+        break;
+    }
+
+    return UA_ORDER_EQ;
 }
 
 UA_Boolean
