@@ -43,69 +43,15 @@ static enum ZIP_CMP
 cmpNodeId(const void *a, const void *b) {
     const NodeEntry *aa = (const NodeEntry*)a;
     const NodeEntry *bb = (const NodeEntry*)b;
+
     /* Compare hash */
     if(aa->nodeIdHash < bb->nodeIdHash)
         return ZIP_CMP_LESS;
     if(aa->nodeIdHash > bb->nodeIdHash)
         return ZIP_CMP_MORE;
 
-    if(UA_NodeId_equal(&aa->nodeId, &bb->nodeId))
-        return ZIP_CMP_EQ;
-
-    /* Compare namespaceIndex */
-    if(aa->nodeId.namespaceIndex < bb->nodeId.namespaceIndex)
-        return ZIP_CMP_LESS;
-    if(aa->nodeId.namespaceIndex > bb->nodeId.namespaceIndex)
-        return ZIP_CMP_MORE;
-
-    /* Compare identifierType */
-    if(aa->nodeId.identifierType < bb->nodeId.identifierType)
-        return ZIP_CMP_LESS;
-    if(aa->nodeId.identifierType > bb->nodeId.identifierType)
-        return ZIP_CMP_MORE;
-
-    /* Compare the identifier */
-    switch(aa->nodeId.identifierType) {
-    case UA_NODEIDTYPE_NUMERIC:
-        if(aa->nodeId.identifier.numeric < bb->nodeId.identifier.numeric)
-            return ZIP_CMP_LESS;
-        if(aa->nodeId.identifier.numeric > bb->nodeId.identifier.numeric)
-            return ZIP_CMP_MORE;
-        break;
-    case UA_NODEIDTYPE_GUID:
-        if(aa->nodeId.identifier.guid.data1 < bb->nodeId.identifier.guid.data1 ||
-           aa->nodeId.identifier.guid.data2 < bb->nodeId.identifier.guid.data2 ||
-           aa->nodeId.identifier.guid.data3 < bb->nodeId.identifier.guid.data3 ||
-           strncmp((const char*)aa->nodeId.identifier.guid.data4,
-                   (const char*)bb->nodeId.identifier.guid.data4, 8) < 0)
-            return ZIP_CMP_LESS;
-        if(aa->nodeId.identifier.guid.data1 > bb->nodeId.identifier.guid.data1 ||
-           aa->nodeId.identifier.guid.data2 > bb->nodeId.identifier.guid.data2 ||
-           aa->nodeId.identifier.guid.data3 > bb->nodeId.identifier.guid.data3 ||
-           strncmp((const char*)aa->nodeId.identifier.guid.data4,
-                   (const char*)bb->nodeId.identifier.guid.data4, 8) > 0)
-            return ZIP_CMP_MORE;
-        break;
-    case UA_NODEIDTYPE_STRING:
-    case UA_NODEIDTYPE_BYTESTRING: {
-        if(aa->nodeId.identifier.string.length < bb->nodeId.identifier.string.length)
-            return ZIP_CMP_LESS;
-        if(aa->nodeId.identifier.string.length > bb->nodeId.identifier.string.length)
-            return ZIP_CMP_MORE;
-        int cmp = strncmp((const char*)aa->nodeId.identifier.string.data,
-                          (const char*)bb->nodeId.identifier.string.data,
-                          aa->nodeId.identifier.string.length);
-        if(cmp < 0)
-            return ZIP_CMP_LESS;
-        if(cmp > 0)
-            return ZIP_CMP_MORE;
-        break;
-    }
-    default:
-        break;
-    }
-
-    return ZIP_CMP_EQ;
+    /* Compore nodes in detail */
+    return (enum ZIP_CMP)UA_NodeId_order(&aa->nodeId, &bb->nodeId);
 }
 
 ZIP_HEAD(NodeTree, NodeEntry);
