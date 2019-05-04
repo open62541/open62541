@@ -105,7 +105,8 @@ browseReferences(UA_Server *server, const UA_Node *node,
             maxrefs = UA_INT32_MAX;
         }
     } else {
-        if(server->config.maxReferencesPerNode != 0 && maxrefs > server->config.maxReferencesPerNode) {
+        if(server->config.maxReferencesPerNode != 0 &&
+           maxrefs > server->config.maxReferencesPerNode) {
             maxrefs = server->config.maxReferencesPerNode;
         }
     }
@@ -275,11 +276,21 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         return;
 
     /* Persist the new continuation point */
+
     ContinuationPointEntry *cp2 = NULL;
+    UA_Guid *ident = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(session->availableContinuationPoints <= 0 ||
-       !(cp2 = (ContinuationPointEntry *)UA_malloc(sizeof(ContinuationPointEntry)))) {
+
+    /* Enough space for the continuation point? */
+    if(session->availableContinuationPoints <= 0) {
         retval = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+        goto cleanup;
+    }
+
+    /* Allocate and fill the data structure */
+    cp2 = (ContinuationPointEntry *)UA_malloc(sizeof(ContinuationPointEntry));
+    if(!cp2) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
     memset(cp2, 0, sizeof(ContinuationPointEntry));
@@ -291,7 +302,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
 
     /* Create a random bytestring via a Guid */
-    UA_Guid *ident = UA_Guid_new();
+    ident = UA_Guid_new();
     if(!ident) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
@@ -355,7 +366,8 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
 }
 
 static void
-Operation_BrowseNext(UA_Server *server, UA_Session *session, const UA_Boolean *releaseContinuationPoints,
+Operation_BrowseNext(UA_Server *server, UA_Session *session,
+                     const UA_Boolean *releaseContinuationPoints,
                      const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
     ContinuationPointEntry *cp;
