@@ -396,6 +396,9 @@ UA_Nodestore_new(void **nsCtx) {
 
 void
 UA_Nodestore_delete(void *nsCtx) {
+	if (!nsCtx)
+		return;
+
     NodeMap *ns = (NodeMap*)nsCtx;
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_destroy(&ns->mutex);
