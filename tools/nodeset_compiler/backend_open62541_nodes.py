@@ -107,27 +107,67 @@ def setNodeDatatypeRecursive(node, nodeset):
         setNodeDatatypeRecursive(node.parent, nodeset)
         node.dataType = node.parent.dataType
 
+def setNodeValueRankRecursive(node, nodeset):
+
+    if not isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
+        raise RuntimeError("ValueRank can only be set for VariableNode and VariableTypeNode")
+
+    if node.valueRank is not None:
+        return
+
+    # If BaseVariableType
+    if node.id == NodeId("ns=0;i=62"):
+        if node.valueRank is None:
+            # BaseVariableType always has -2
+            node.valueRank = -2
+        return
+
+    if isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
+        typeDefNode = nodeset.getNodeTypeDefinition(node)
+        if typeDefNode is None:
+            # Use the parent type.
+            raise RuntimeError("Cannot get node for HasTypeDefinition of VariableNode " + node.browseName.name + " " + str(node.id))
+
+        setNodeValueRankRecursive(typeDefNode, nodeset)
+
+        if typeDefNode.valueRank is not None and typeDefNode.valueRank > -1:
+            node.valueRank = typeDefNode.valueRank
+        else:
+            # Default value
+            node.valueRank = -1
+    else:
+        # Check if parent node limits the value rank
+        setNodeValueRankRecursive(node.parent, nodeset)
+
+
+        if node.parent.valueRank is not None and node.parent.valueRank > -1:
+            node.valueRank = node.parent.valueRank
+        else:
+            # Default value
+            node.valueRank = -1
+
 
 def generateCommonVariableCode(node, nodeset):
     code = []
     codeCleanup = []
     codeGlobal = []
 
-    if node.valueRank is not None:
-        code.append("attr.valueRank = %d;" % node.valueRank)
-        if node.valueRank > 0:
-            code.append("attr.arrayDimensionsSize = %d;" % node.valueRank)
-            code.append("UA_UInt32 arrayDimensions[{}];".format(node.valueRank))
-            if len(node.arrayDimensions) == node.valueRank:
-                for idx, v in enumerate(node.arrayDimensions):
-                    code.append("arrayDimensions[{}] = {};".format(idx, int(str(v))))
-            else:
-                for dim in range(0, node.valueRank):
-                    code.append("arrayDimensions[{}] = 0;".format(dim))
-            code.append("attr.arrayDimensions = &arrayDimensions[0];")
-    else:
-        # Default value for the value rank as defined in the NodeSet2 xsd file
-        code.append("attr.valueRank = -1;")
+    if node.valueRank is None:
+        # Set the constrained value rank from the type/parent node
+        setNodeValueRankRecursive(node, nodeset)
+        code.append("/* Value rank inherited */")
+
+    code.append("attr.valueRank = %d;" % node.valueRank)
+    if node.valueRank > 0:
+        code.append("attr.arrayDimensionsSize = %d;" % node.valueRank)
+        code.append("UA_UInt32 arrayDimensions[{}];".format(node.valueRank))
+        if len(node.arrayDimensions) == node.valueRank:
+            for idx, v in enumerate(node.arrayDimensions):
+                code.append("arrayDimensions[{}] = {};".format(idx, int(str(v))))
+        else:
+            for dim in range(0, node.valueRank):
+                code.append("arrayDimensions[{}] = 0;".format(dim))
+        code.append("attr.arrayDimensions = &arrayDimensions[0];")
 
     if node.dataType is None:
         # Inherit the datatype from the HasTypeDefinition reference, as stated in the OPC UA Spec:
@@ -185,20 +225,6 @@ def generateVariableNodeCode(node, nodeset):
     # force valueRank = -1 for scalar VariableNode
     if node.valueRank == -2 and node.value is not None and len(node.value.value) == 1:
         node.valueRank = -1
-
-    if node.valueRank is None:
-        # If the VariableNode does not have any valueRank, use the one from the VariableType
-        # The type may define the valueRank to e.g. 1 which is not the default value for the variable itself.
-        # This is e.g. the case for 'ActiveBackground1' of the Adi.NodeSet2.xml
-        variableTypeNode = nodeset.getNodeTypeDefinition(node)
-
-        if variableTypeNode is None:
-            raise RuntimeError("Cannot get node for HasTypeDefinition of VariableNode " + node.browseName.name + " " + str(node.id))
-
-        if variableTypeNode.valueRank is not None and variableTypeNode.valueRank > -2:
-            code.append("attr.valueRank = %d; /* From VariableType */" % variableTypeNode.valueRank)
-
-
     [code1, codeCleanup1, codeGlobal1] = generateCommonVariableCode(node, nodeset)
     code += code1
     codeCleanup += codeCleanup1
