@@ -1251,7 +1251,8 @@ ENCODE_BINARY(DiagnosticInfo) {
 
     /* Encode the inner diagnostic info */
     if(src->hasInnerDiagnosticInfo)
-        ret = ENCODE_WITHEXCHANGE(&src->innerDiagnosticInfo,
+    	// innerDiagnosticInfo is already a pointer, so don't use the & reference here
+        ret = ENCODE_WITHEXCHANGE(src->innerDiagnosticInfo,
                                   UA_TYPES_DIAGNOSTICINFO);
 
     return ret;
