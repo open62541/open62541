@@ -41,7 +41,7 @@ struct UA_mm_entry *address_map_last = NULL;
 
 void UA_memoryManager_setLimit(unsigned long long newLimit) {
     memoryLimit = newLimit;
-    printf("MemoryManager: Setting memory limit to %lld\n", newLimit);
+    //printf("MemoryManager: Setting memory limit to %lld\n", newLimit);
 }
 
 int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
@@ -63,7 +63,7 @@ int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
 static int addToMap(size_t size, void *addr) {
     struct UA_mm_entry *newEntry = (struct UA_mm_entry*)malloc(sizeof(struct UA_mm_entry));
     if (!newEntry) {
-        printf("MemoryManager: Could not allocate memory");
+        //printf("MemoryManager: Could not allocate memory");
         return 0;
     }
     newEntry->size = size;
