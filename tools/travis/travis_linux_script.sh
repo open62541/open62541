@@ -48,6 +48,11 @@ fi
 
 # Fuzzer build test
 if ! [ -z ${FUZZER+x} ]; then
+    # First check if the build is successful
+    ./tests/fuzz/check_build.sh
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+
+
     # Test the corpus generator and use new corpus for fuzz test
     ./tests/fuzz/generate_corpus.sh
     if [ $? -ne 0 ] ; then exit 1 ; fi
