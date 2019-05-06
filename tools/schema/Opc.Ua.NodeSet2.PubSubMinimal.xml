@@ -1539,7 +1539,7 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=14643</Reference>
     </References>
   </UAMethod>
-  <UAVariableType NodeId="i=16309" BrowseName="SelectionListType" DataType="i=862" ValueRank="-2">
+  <UAVariableType NodeId="i=16309" BrowseName="SelectionListType" ValueRank="-2">
     <DisplayName>SelectionListType</DisplayName>
     <References>
       <Reference ReferenceType="HasProperty">i=17632</Reference>
