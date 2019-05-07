@@ -127,6 +127,13 @@ static void teardown_register(void) {
     UA_Server_delete(server_register);
 }
 
+START_TEST(Server_new_delete) {
+    UA_Server *pServer = UA_Server_new();
+    configure_lds_server(pServer);
+    UA_Server_delete(pServer);
+}
+END_TEST
+
 START_TEST(Server_register) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
@@ -554,6 +561,11 @@ END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Register Server and Client");
+
+    TCase *tc_new_del = tcase_create("New Delete");
+    tcase_add_test(tc_new_del, Server_new_delete);
+    suite_add_tcase(s,tc_new_del);
+
     TCase *tc_register = tcase_create("RegisterServer");
     tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);
