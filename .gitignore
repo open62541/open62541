@@ -83,3 +83,4 @@ Makefile
 /tools/certs/certs/*
 Pipfile
 Pipfile.lock
+.vscode
