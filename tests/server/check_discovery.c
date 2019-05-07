@@ -37,13 +37,9 @@ THREAD_CALLBACK(serverloop_lds) {
     return 0;
 }
 
-static void setup_lds(void) {
-    // start LDS server
-    running_lds = UA_Boolean_new();
-    *running_lds = true;
-
-    server_lds = UA_Server_new();
-    UA_ServerConfig *config_lds = UA_Server_getConfig(server_lds);
+static void configure_lds_server(UA_Server *pServer)
+{
+    UA_ServerConfig *config_lds = UA_Server_getConfig(pServer);
     UA_ServerConfig_setDefault(config_lds);
 
     config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
@@ -62,6 +58,15 @@ static void setup_lds(void) {
     config_lds->discovery.mdns.serverCapabilities = caps;
 #endif
     config_lds->discovery.cleanupTimeout = registerTimeout;
+}
+
+static void setup_lds(void) {
+    // start LDS server
+    running_lds = UA_Boolean_new();
+    *running_lds = true;
+
+    server_lds = UA_Server_new();
+    configure_lds_server(server_lds);
 
     UA_Server_run_startup(server_lds);
     THREAD_CREATE(server_thread_lds, serverloop_lds);
