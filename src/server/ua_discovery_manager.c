@@ -72,8 +72,11 @@ initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server) {
 
 static void
 destroyMulticastDiscoveryServer(UA_DiscoveryManager *dm) {
-    mdnsd_shutdown(dm->mdnsDaemon);
-    mdnsd_free(dm->mdnsDaemon);
+    if(dm->mdnsDaemon)
+    {
+        mdnsd_shutdown(dm->mdnsDaemon);
+        mdnsd_free(dm->mdnsDaemon);
+    }
     if(dm->mdnsSocket != UA_INVALID_SOCKET) {
         UA_close(dm->mdnsSocket);
         dm->mdnsSocket = UA_INVALID_SOCKET;
