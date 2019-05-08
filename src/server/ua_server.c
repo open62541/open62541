@@ -34,7 +34,16 @@
 /* Namespace Handling */
 /**********************/
 
+void setupNs1Uri(UA_Server *server) {
+    if (!server->namespaces[1].data) {
+        UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+    }
+}
+
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+
     /* Check if the namespace already exists in the server's namespace array */
     for(UA_UInt16 i = 0; i < server->namespacesSize; ++i) {
         if(UA_String_equal(&name, &server->namespaces[i]))
@@ -78,6 +87,9 @@ UA_Server_getConfig(UA_Server *server)
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+
     for(size_t idx = 0; idx < server->namespacesSize; idx++) {
         if(!UA_String_equal(&server->namespaces[idx], &namespaceUri))
             continue;
@@ -214,14 +226,15 @@ UA_Server_new() {
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
 
-    /* Create Namespaces 0 and 1 */
+    /* Create Namespaces 0 and 1
+     * Ns1 will be filled later with the uri from the app description */
     server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     if(!server->namespaces) {
         UA_Server_delete(server);
         return NULL;
     }
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+    server->namespaces[1] = UA_STRING_NULL;
     server->namespacesSize = 2;
 
     /* Initialized SecureChannel and Session managers */
