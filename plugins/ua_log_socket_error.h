@@ -19,7 +19,7 @@ extern "C" {
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
     NULL, WSAGetLastError(), \
     MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), \
-    (LPSTR)&errno_str, 0, NULL); \
+    (LPTSTR)&errno_str, 0, NULL); \
     LOG; \
     LocalFree(errno_str); \
 }
