@@ -135,6 +135,7 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 extern const UA_NodeId subtypeId;
 extern const UA_NodeId hierarchicalReferences;
 
+void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
 UA_Boolean
