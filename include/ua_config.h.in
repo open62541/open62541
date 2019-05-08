@@ -54,7 +54,9 @@ extern "C" {
 /* Include stdint.h and stdbool.h or workaround for older Visual Studios */
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
-# include <stdbool.h> /* C99 Boolean */
+# if !defined(__cplusplus) && (!defined(_MSC_VER) || _MSC_VER > 1700)
+#  include <stdbool.h> /* C99 Boolean */
+# endif
 # if defined(_WRS_KERNEL)
 # define UINT32_C(x) ((x) + (UINT32_MAX - UINT32_MAX)) 
 # endif
