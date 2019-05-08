@@ -405,6 +405,9 @@ verifyServerApplicationURI(const UA_Server *server) {
 
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+    
     if(server->state > UA_SERVERLIFECYCLE_FRESH)
         return UA_STATUSCODE_GOOD;
     
