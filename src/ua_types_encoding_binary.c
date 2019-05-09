@@ -636,8 +636,8 @@ DECODE_BINARY(NodeId) {
         return ret;
 
     /* Filter out the bits used only for ExpandedNodeIds */
-    encodingByte &= (u8)~(UA_EXPANDEDNODEID_SERVERINDEX_FLAG |
-                          UA_EXPANDEDNODEID_NAMESPACEURI_FLAG);
+    encodingByte &= (u8)~(u8)(UA_EXPANDEDNODEID_SERVERINDEX_FLAG |
+                              UA_EXPANDEDNODEID_NAMESPACEURI_FLAG);
 
     /* Decode the namespace and identifier */
     switch(encodingByte) {
