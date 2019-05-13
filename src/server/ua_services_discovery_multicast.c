@@ -117,6 +117,9 @@ void startMulticastDiscoveryServer(UA_Server *server) {
 
 void
 stopMulticastDiscoveryServer(UA_Server *server) {
+	if (!server->discoveryManager.mdnsDaemon)
+		return;
+
     char hostname[256];
     if(UA_gethostname(hostname, 255) == 0) {
         UA_String hnString = UA_STRING(hostname);
