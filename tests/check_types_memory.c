@@ -165,6 +165,12 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 #endif
         _i == UA_TYPES_FILTEROPERAND ||
         _i == UA_TYPES_UNION ||
+#ifdef UA_TYPES_FRAME
+        _i == UA_TYPES_FRAME ||
+        _i == UA_TYPES_ORIENTATION ||
+        _i == UA_TYPES_VECTOR ||
+        _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
         _i == UA_TYPES_HISTORYREADDETAILS ||
         _i == UA_TYPES_NOTIFICATIONDATA ||
         _i == UA_TYPES_MONITORINGFILTER ||
@@ -289,6 +295,12 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
 #endif
        _i == UA_TYPES_UNION ||
+#ifdef UA_TYPES_FRAME
+       _i == UA_TYPES_FRAME ||
+       _i == UA_TYPES_ORIENTATION ||
+       _i == UA_TYPES_VECTOR ||
+       _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
        _i == UA_TYPES_HISTORYREADDETAILS ||
        _i == UA_TYPES_NOTIFICATIONDATA ||
        _i == UA_TYPES_MONITORINGFILTER ||
