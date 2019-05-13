@@ -134,6 +134,15 @@ START_TEST(Server_new_delete) {
 }
 END_TEST
 
+START_TEST(Server_new_shutdown_delete) {
+		UA_Server *pServer = UA_Server_new();
+		configure_lds_server(pServer);
+		UA_StatusCode retval = UA_Server_run_shutdown(pServer);
+		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+		UA_Server_delete(pServer);
+}
+END_TEST
+
 START_TEST(Server_register) {
     UA_Client *clientRegister = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
@@ -564,6 +573,7 @@ static Suite* testSuite_Client(void) {
 
     TCase *tc_new_del = tcase_create("New Delete");
     tcase_add_test(tc_new_del, Server_new_delete);
+	tcase_add_test(tc_new_del, Server_new_shutdown_delete);
     suite_add_tcase(s,tc_new_del);
 
     TCase *tc_register = tcase_create("RegisterServer");
