@@ -66,7 +66,7 @@ def generateByteStringCode(value, valueName, global_var_code, isPointer):
 
 def generateLocalizedTextCode(value, alloc=False):
     vt = makeCLiteral(value.text)
-    return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", value.locale,
+    return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale,
                                                    splitStringLiterals(vt))
 
 def generateQualifiedNameCode(value, alloc=False,):
