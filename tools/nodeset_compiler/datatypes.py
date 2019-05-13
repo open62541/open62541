@@ -189,7 +189,7 @@ class Value(object):
             if isinstance(enc[0], string_types):
                 # 0: 'BuiltinType'
                 if alias is not None:
-                    if not xmlvalue.localName == alias and not xmlvalue.localName == enc[0]:
+                    if xmlvalue is not None and not xmlvalue.localName == alias and not xmlvalue.localName == enc[0]:
                         logger.error(str(parent.id) + ": Expected XML element with tag " + alias + " but found " + xmlvalue.localName + " instead")
                         return None
                     else:
@@ -207,7 +207,8 @@ class Value(object):
                                 values.append(val)
                             return values
                         else:
-                            t.parseXML(xmlvalue, namespaceMapping=namespaceMapping)
+                            if xmlvalue is not None:
+                                t.parseXML(xmlvalue, namespaceMapping=namespaceMapping)
                             return t
                 else:
                     if not valueIsInternalType(xmlvalue.localName):
@@ -290,15 +291,15 @@ class Value(object):
 
             extobj.value = []
             for e in enc:
-                if not ebodypart is None:
-                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, namespaceMapping=namespaceMapping, alias=None, encodingPart=e))
-                else:
-                    logger.error(str(parent.id) + ": Expected encoding " + str(e) + " but found none in body.")
+                extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, namespaceMapping=namespaceMapping, alias=None, encodingPart=e))
                 ebodypart = getNextElementNode(ebodypart)
             return extobj
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.value) + ")"
+
+    def isNone(self):
+        return self.value is None
 
     def __repr__(self):
         return self.__str__()
@@ -478,8 +479,8 @@ class ExtensionObject(Value):
 class LocalizedText(Value):
     def __init__(self, xmlvalue=None):
         Value.__init__(self)
-        self.locale = ''
-        self.text = ''
+        self.locale = None
+        self.text = None
         if xmlvalue:
             self.parseXML(xmlvalue)
 
@@ -500,10 +501,15 @@ class LocalizedText(Value):
             self.text = tmp[0].firstChild.data.strip(' \t\n\r')
 
     def __str__(self):
+        if self.locale is None and self.text is None:
+            return "None"
         if self.locale is not None and len(self.locale) > 0:
             return "(" + self.locale + ":" + self.text + ")"
         else:
             return self.text
+
+    def isNone(self):
+        return self.text is None
 
 class NodeId(Value):
     def __init__(self, idstring=None):
@@ -586,6 +592,9 @@ class NodeId(Value):
         elif self.s != None:
             return s + "s=" + str(self.s)
 
+    def isNone(self):
+        return self.i is None and self.b is None and self.s is None and self.g is None
+
     def __eq__(self, nodeId2):
         return (str(self) == str(nodeId2))
 
@@ -645,7 +654,7 @@ class QualifiedName(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.ns = 0
-        self.name = ''
+        self.name = None
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -677,6 +686,9 @@ class QualifiedName(Value):
 
     def __str__(self):
         return "ns=" + str(self.ns) + ";" + str(self.name)
+
+    def isNone(self):
+        return self.name is None
 
 class StatusCode(UInt32):
     def __init__(self, xmlelement=None):
