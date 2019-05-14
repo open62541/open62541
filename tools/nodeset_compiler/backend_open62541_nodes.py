@@ -294,7 +294,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceNameSafe + "_" + memberName+", {0});".format(len(subv)))
             encTypeArr = nodeset.getDataTypeNode(subv[0].__class__.__name__).typesArray
             encTypeArrayString = encTypeArr + "[" + encTypeArr + "_" + subv[0].__class__.__name__.upper() + "]"
-            code.append("UA_init({ref}{instanceName}, &{typeArrayString});".format(ref="&" if isArrayElement else "",
+            code.append("UA_init({instanceName}, &{typeArrayString});".format(
                                                                                 instanceName=instanceNameSafe + "_" + memberName,
                                                                                 typeArrayString=encTypeArrayString))
 
