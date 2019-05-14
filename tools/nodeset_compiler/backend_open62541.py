@@ -295,11 +295,22 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         nsid = nsid.replace("\"", "\\\"")
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
 
-    for i in range(0, functionNumber):
-        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_begin(server, ns);")
+    if functionNumber > 0:
 
-    for i in reversed(range(0, functionNumber)):
-        writec("retVal |= function_" + outfilebase + "_" + str(i) + "_finish(server, ns);")
+        # concatenate method calls with "&&" operator.
+        # The first method which does not return UA_STATUSCODE_GOOD (=0) will cause aborting
+        # the remaining calls and retVal will be set to that error code.
+        writec("bool dummy = (")
+        for i in range(0, functionNumber):
+            writec("!(retVal = function_{outfilebase}_{idx}_begin(server, ns)) &&".format(
+                outfilebase=outfilebase, idx=str(i)))
+
+        for i in reversed(range(0, functionNumber)):
+            writec("!(retVal = function_{outfilebase}_{idx}_finish(server, ns)) {concat}".format(
+                outfilebase=outfilebase, idx=str(i), concat= "&&" if i>0 else ""))
+
+        # use (void)(dummy) to avoid unused variable error.
+        writec("); (void)(dummy);")
 
     writec("return retVal;\n}")
     outfileh.flush()
