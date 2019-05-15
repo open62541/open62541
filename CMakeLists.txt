@@ -242,9 +242,22 @@ endif()
 option(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
        "Use a custom implementation for the publish callback handling" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
-if(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_INTERRUPT)
+option(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING_TSN
+       "Use a custom implementation for the publish/subscribe with TSN (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING_TSN)
+
+if(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "Custom publish callback handling cannot be used with PubSub function disabled")
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING_TSN)
+    if(NOT UA_ENABLE_PUBSUB)
+        message(FATAL_ERROR "Custom publish callback handling TSN cannot be used with PubSub function disabled")
+    endif()
+    if(NOT UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING)
+        message(FATAL_ERROR "Custom publish callback handling TSN cannot be used with custom publish callback handling PubSub function disabled")
     endif()
 endif()
 
@@ -636,6 +649,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_custom_manager.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
