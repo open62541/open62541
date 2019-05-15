@@ -311,7 +311,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 
 #ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 
-/* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_INTERRUPT is enabled, a custom callback
+/* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled, a custom callback
  * management must be linked to the application */
 
 UA_StatusCode
