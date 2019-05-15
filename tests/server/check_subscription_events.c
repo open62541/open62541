@@ -282,7 +282,7 @@ eventSetup(UA_NodeId *eventNodeId) {
 }
 
 static UA_MonitoredItemCreateResult
-addMonitoredItem(UA_Client_EventNotificationCallback handler) {
+addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter) {
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
     item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
@@ -294,9 +294,12 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler) {
     filter.selectClauses = selectClauses;
     filter.selectClausesSize = nSelectClauses;
 
-    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-    item.requestedParameters.filter.content.decoded.data = &filter;
-    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    if (setFilter) {
+		item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+		item.requestedParameters.filter.content.decoded.data = &filter;
+		item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    }
+
     item.requestedParameters.queueSize = 1;
     item.requestedParameters.discardOldest = true;
 
@@ -305,6 +308,20 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler) {
                                                 &monitoredItemId, handler, NULL);
 }
 
+
+/* Create event with empty filter */
+
+START_TEST(generateEventEmptyFilter) {
+		UA_NodeId eventNodeId;
+		UA_StatusCode retval = eventSetup(&eventNodeId);
+		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+		// add a monitored item
+		UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false);
+		ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+} END_TEST
+
+
 /* Ensure events are received with proper values */
 START_TEST(generateEvents) {
     UA_NodeId eventNodeId;
@@ -312,7 +329,7 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event
@@ -398,7 +415,7 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     //add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event on a child of server, using namespaces in this case (no reason in particular)
@@ -452,7 +469,7 @@ handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
 /* Ensures an eventQueueOverflowEvent is published when appropriate */
 START_TEST(eventOverflow) {
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
@@ -541,7 +558,7 @@ START_TEST(multipleMonitoredItemsOneNode) {
 
 START_TEST(eventStressing) {
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
@@ -584,6 +601,7 @@ static Suite *testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server Subscription Events");
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
+    tcase_add_test(tc_server, generateEventEmptyFilter);
     tcase_add_test(tc_server, generateEvents);
     tcase_add_test(tc_server, uppropagation);
     tcase_add_test(tc_server, eventOverflow);
