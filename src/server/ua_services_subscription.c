@@ -172,6 +172,12 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          const UA_MonitoringParameters *params,
                          const UA_DataType* dataType) {
     /* Filter */
+    if (mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
+			params->filter.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
+    	return UA_STATUSCODE_BADEVENTFILTERINVALID;
+    }
+
+
     if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED) {
         UA_DataChangeFilter_init(&(mon->filter.dataChangeFilter));
         mon->filter.dataChangeFilter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
