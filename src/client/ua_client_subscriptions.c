@@ -524,7 +524,7 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         /* Find the MonitoredItem */
         UA_Client_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-            if(mon->monitoredItemId == eventFieldList->clientHandle)
+            if(mon->clientHandle == eventFieldList->clientHandle)
                 break;
         }
 
