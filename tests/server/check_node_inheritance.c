@@ -25,7 +25,7 @@ static void teardown(void) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 /* finds the NodeId of a StateNumber child of a given node id */
 static void
-findChildId(UA_NodeId stateId, UA_NodeId referenceType,
+findChildId(UA_NodeId parentNode, UA_NodeId referenceType,
             const UA_QualifiedName targetName, UA_NodeId *result) {
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
@@ -36,7 +36,7 @@ findChildId(UA_NodeId stateId, UA_NodeId referenceType,
 
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
-    bp.startingNode = stateId;
+    bp.startingNode = parentNode;
     bp.relativePath.elementsSize = 1;
     bp.relativePath.elements = &rpe;    //clion complains but is ok
 
@@ -200,6 +200,86 @@ START_TEST(Nodes_checkInheritedValue) {
 END_TEST
 
 
+
+START_TEST(Nodes_createCustomInterfaceType) {
+/* Minimal nodeset does not have the Interface definitions */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* Create a custom interface type */
+
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "ILocationType");
+    otAttr.description = UA_LOCALIZEDTEXT("", "");
+    UA_StatusCode retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 8000),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEINTERFACETYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "ILocationType"),
+                                         otAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("", "InterfaceChild");
+    oAttr.description = UA_LOCALIZEDTEXT("", "");
+    retval = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 8001), UA_NODEID_NUMERIC(1, 8000),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_QUALIFIEDNAME(1, "InterfaceChild"),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                     oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 8001),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
+                                    true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    /* create an object type which has the interface */
+    otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "ObjectWithLocation");
+    otAttr.description = UA_LOCALIZEDTEXT("", "");
+    retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 8002),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "ObjectWithLocation"),
+                                         otAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 8002), UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE), UA_EXPANDEDNODEID_NUMERIC(1, 8000), true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+#endif
+}
+END_TEST
+
+
+
+START_TEST(Nodes_createObjectWithInterface) {
+
+/* Minimal nodeset does not have the Interface definitions */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* create an object/instance of the demo type */
+    UA_ObjectAttributes oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "ObjectInstanceOfInterface");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_StatusCode retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 8020),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "ObjectInstanceOfInterface"), UA_NODEID_NUMERIC(1, 8002),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    /* Check that object has inherited the interface children */
+
+    UA_NodeId childId;
+    findChildId(UA_NODEID_NUMERIC(1, 8020),
+                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                UA_QUALIFIEDNAME(1, "InterfaceChild"), &childId);
+    ck_assert(!UA_NodeId_isNull(&childId));
+#endif
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Node inheritance");
     TCase *tc_inherit_subtype = tcase_create("Inherit subtype value");
@@ -209,6 +289,11 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_inherit_subtype, Nodes_createInheritedObject);
     tcase_add_test(tc_inherit_subtype, Nodes_checkInheritedValue);
     suite_add_tcase(s, tc_inherit_subtype);
+    TCase *tc_interface_addin = tcase_create("Interfaces and Addins");
+    tcase_add_unchecked_fixture(tc_interface_addin, setup, teardown);
+    tcase_add_test(tc_interface_addin, Nodes_createCustomInterfaceType);
+    tcase_add_test(tc_interface_addin, Nodes_createObjectWithInterface);
+    suite_add_tcase(s, tc_interface_addin);
     return s;
 }
 

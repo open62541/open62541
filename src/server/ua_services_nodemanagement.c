@@ -544,8 +544,8 @@ addTypeChildren(UA_Server *server, UA_Session *session,
     /* Get the hierarchy of the type and all its supertypes */
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
-    UA_StatusCode retval = getTypeHierarchy(server->nsCtx, &type->nodeId,
-                                            &hierarchy, &hierarchySize, false);
+    UA_StatusCode retval = getParentTypeAndInterfaceHierarchy(server->nsCtx, &type->nodeId,
+                                            &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
