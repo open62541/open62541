@@ -87,7 +87,8 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *o
 
     /* Create an ObjectNode which represents the event */
     UA_QualifiedName name;
-    UA_QualifiedName_init(&name);
+    // set a dummy name. This is not used.
+    name = UA_QUALIFIEDNAME(0,"E");
     UA_NodeId newNodeId = UA_NODEID_NULL;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     UA_StatusCode retval =
