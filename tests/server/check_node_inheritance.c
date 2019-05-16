@@ -50,6 +50,114 @@ findChildId(UA_NodeId stateId, UA_NodeId referenceType,
 }
 #endif
 
+
+
+START_TEST(Nodes_createCustomBrowseNameObjectType)
+{
+    /* Create a custom object type "CustomBrowseNameType" which has a
+     * "DefaultInstanceBrowseName" property. */
+
+    /* create new object type node which has a subcomponent of the type StateType */
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "CustomBrowseNameType");
+    otAttr.description = UA_LOCALIZEDTEXT("", "");
+    UA_StatusCode retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 7010),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "CustomBrowseNameType"),
+                                         otAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Now add a property "DefaultInstanceBrowseName"
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.minimumSamplingInterval = 0.000000;
+    attr.userAccessLevel = 1;
+    attr.accessLevel = 1;
+    attr.valueRank = UA_VALUERANK_ANY;
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_QUALIFIEDNAME);
+    UA_QualifiedName defaultInstanceBrowseName = UA_QUALIFIEDNAME(1, "MyCustomBrowseName");
+    UA_Variant_setScalar(&attr.value, &defaultInstanceBrowseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    attr.displayName = UA_LOCALIZEDTEXT("", "DefaultInstanceBrowseName");
+    attr.description = UA_LOCALIZEDTEXT("", "");
+    attr.writeMask = 0;
+    attr.userWriteMask = 0;
+    retval = UA_Server_addVariableNode(server,
+                                       UA_NODEID_NUMERIC(1, 7011),
+                                       UA_NODEID_NUMERIC(1, 7010),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                       UA_QUALIFIEDNAME(0, "DefaultInstanceBrowseName"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                       attr,
+                                       NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+} END_TEST
+
+
+
+START_TEST(Nodes_checkDefaultInstanceBrowseName) {
+    /* create an object/instance of the CustomDemoType.
+     * This should fail if we do not specifiy a browse name.
+     * CustomDemoType does not have a DefaultInstanceBrowseName
+     * */
+    UA_ObjectAttributes oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "DemoCustomBrowseNameFail");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_QualifiedName nullName;
+    UA_QualifiedName_init(&nullName);
+    UA_StatusCode retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 7020),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    nullName, UA_NODEID_NUMERIC(1, 6010),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADBROWSENAMEINVALID);
+
+    /* create an object/instance of the CustomBrowseNameType and set the default browse name */
+    oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "DemoCustomBrowseName");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_QualifiedName_init(&nullName);
+    retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 7021),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    nullName, UA_NODEID_NUMERIC(1, 7010),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName receivedBrowseName;
+    UA_QualifiedName_init(&receivedBrowseName);
+
+    UA_QualifiedName defaultInstanceBrowseName = UA_QUALIFIEDNAME(1, "MyCustomBrowseName");
+
+    retval = UA_Server_readBrowseName(server, UA_NODEID_NUMERIC(1, 7021), &receivedBrowseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_QualifiedName_equal(&receivedBrowseName, &defaultInstanceBrowseName) == true);
+    UA_QualifiedName_clear(&receivedBrowseName);
+
+    /* create an object/instance of the CustomBrowseNameType and set a custom browse name */
+    oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "DemoCustomBrowseName");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_QualifiedName overriddenBrowseName = UA_QUALIFIEDNAME(1, "MyOverriddenBrowseName");
+    retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 7022),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    overriddenBrowseName, UA_NODEID_NUMERIC(1, 7010),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName_init(&receivedBrowseName);
+
+    retval = UA_Server_readBrowseName(server, UA_NODEID_NUMERIC(1, 7022), &receivedBrowseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_QualifiedName_equal(&receivedBrowseName, &overriddenBrowseName) == true);
+    UA_QualifiedName_clear(&receivedBrowseName);
+}
+END_TEST
+
 START_TEST(Nodes_createCustomStateType) {
     // Create a type "CustomStateType" with a variable "CustomStateNumber" as property
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -208,6 +316,8 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_inherit_subtype, Nodes_createCustomObjectType);
     tcase_add_test(tc_inherit_subtype, Nodes_createInheritedObject);
     tcase_add_test(tc_inherit_subtype, Nodes_checkInheritedValue);
+    tcase_add_test(tc_inherit_subtype, Nodes_createCustomBrowseNameObjectType);
+    tcase_add_test(tc_inherit_subtype, Nodes_checkDefaultInstanceBrowseName);
     suite_add_tcase(s, tc_inherit_subtype);
     return s;
 }
