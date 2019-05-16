@@ -166,19 +166,29 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
 
 static const UA_NodeId hasSubtypeNodeId =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
+static const UA_NodeId hasInterfaceNodeId =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASINTERFACE}};
 
+/**
+ * Gets a list of nodeIds which are referenced by this node.
+ * Hereby the list will be filtered to only include references
+ * which are of the given `references` types.
+ */
 static UA_StatusCode
-getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
+getReferencedNodesWithReferenceType(UA_NodeId **results_ptr, size_t *results_count,
                          size_t *results_size, const UA_Node *node,
-                         UA_Boolean walkDownwards) {
+                         const UA_NodeReferenceKind *references, size_t referencesSize) {
     UA_NodeId *results = *results_ptr;
     for(size_t i = 0; i < node->referencesSize; ++i) {
         /* Is the reference kind relevant? */
         UA_NodeReferenceKind *refs = &node->references[i];
-        // if downwards, we do not want inverse, if upwards we want inverse
-        if (walkDownwards == refs->isInverse)
-            continue;
-        if(!UA_NodeId_equal(&hasSubtypeNodeId, &refs->referenceTypeId))
+
+        bool referenceInList = false;
+        for (size_t j=0; j<referencesSize && !referenceInList; j++) {
+            referenceInList = refs->isInverse == references[j].isInverse &&
+                    UA_NodeId_equal(&references[j].referenceTypeId, &refs->referenceTypeId);
+        }
+        if (!referenceInList)
             continue;
 
         /* Append all targets of the reference kind .. if not a duplicate */
@@ -220,10 +230,11 @@ getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-getTypeHierarchy(void *nsCtx, const UA_NodeId *leafType,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                 UA_Boolean walkDownwards) {
+
+static UA_StatusCode
+getHierarchyForReferenceTypes(void *nsCtx, const UA_NodeId *leafType,
+                              const UA_NodeReferenceKind *references, size_t referencesSize,
+                              UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
     /* Allocate the results array. Probably too big, but saves mallocs. */
     size_t results_size = 20;
     UA_NodeId *results = (UA_NodeId*)UA_malloc(sizeof(UA_NodeId) * results_size);
@@ -252,8 +263,8 @@ getTypeHierarchy(void *nsCtx, const UA_NodeId *leafType,
         }
 
         /* Add references from the current node to the end of the array */
-        retval = getTypeHierarchyFromNode(&results, &results_count,
-                                          &results_size, node, walkDownwards);
+        retval = getReferencedNodesWithReferenceType(&results, &results_count,
+                                          &results_size, node, references, referencesSize);
 
         /* Release the node */
         UA_Nodestore_releaseNode(nsCtx, node);
@@ -275,6 +286,34 @@ getTypeHierarchy(void *nsCtx, const UA_NodeId *leafType,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+getTypeHierarchy(void *nsCtx, const UA_NodeId *leafType,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
+                 UA_Boolean walkDownwards) {
+    UA_NodeReferenceKind subtypeRef;
+    // if downwards, we do not want inverse, if upwards we want inverse
+    subtypeRef.isInverse = !walkDownwards;
+    subtypeRef.referenceTypeId = hasSubtypeNodeId;
+
+
+    return getHierarchyForReferenceTypes(nsCtx, leafType,
+            &subtypeRef, 1, typeHierarchy, typeHierarchySize);
+}
+
+UA_StatusCode
+getParentTypeAndInterfaceHierarchy(void *nsCtx, const UA_NodeId *leafType,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+
+    UA_NodeReferenceKind subtypeRef[2];
+    subtypeRef[0].isInverse = true;
+    subtypeRef[0].referenceTypeId = hasSubtypeNodeId;
+
+    subtypeRef[1].isInverse = false;
+    subtypeRef[1].referenceTypeId = hasInterfaceNodeId;
+
+    return getHierarchyForReferenceTypes(nsCtx, leafType,
+                                         subtypeRef, 2, typeHierarchy, typeHierarchySize);
+}
 
 UA_StatusCode
 getTypesHierarchy(void *nsCtx, const UA_NodeId *leafType, size_t leafTypeSize,
