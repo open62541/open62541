@@ -432,6 +432,44 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionI
     return retval;
 }
 
+UA_ModifyMonitoredItemsResponse UA_EXPORT
+UA_Client_MonitoredItems_modify(UA_Client *client,
+                                const UA_ModifyMonitoredItemsRequest request) {
+    UA_ModifyMonitoredItemsResponse response;
+
+    UA_Client_Subscription *sub = 0;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
+        if (sub->subscriptionId == request.subscriptionId)
+            break;
+    }
+
+    if (!sub) {
+        UA_ModifyMonitoredItemsResponse_init(&response);
+        response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return response;
+    }
+
+    UA_ModifyMonitoredItemsRequest modifiedRequest;
+    UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
+
+    for (size_t i = 0; i < modifiedRequest.itemsToModifySize; ++i) {
+        UA_Client_MonitoredItem *mon = 0;
+        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+            if(mon->monitoredItemId == modifiedRequest.itemsToModify[i].monitoredItemId) {
+                modifiedRequest.itemsToModify[i].requestedParameters.clientHandle = mon->clientHandle;
+                break;
+            }
+        }
+    }
+
+    __UA_Client_Service(client,
+                        &modifiedRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
+
+    UA_ModifyMonitoredItemsRequest_deleteMembers(&modifiedRequest);
+    return response;
+}
+
 /*************************************/
 /* Async Processing of Notifications */
 /*************************************/
