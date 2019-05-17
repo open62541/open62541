@@ -45,7 +45,13 @@ static void * serverloop(void *_) {
 static void start_server(void) {
     running = true;
     server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
+	config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
+	config->discovery.mdnsEnable = true;
+	config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
 }
