@@ -334,7 +334,7 @@ mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
     add_definitions(-DUA_DEBUG_DUMP_PKGS_FILE)
     set(UA_ENABLE_TYPENAMES ON CACHE STRING "" FORCE)
-    set(UA_DEBUG_DUMP_PKGS ON CACHE STRING "" FORCE)
+    #set(UA_DEBUG_DUMP_PKGS ON CACHE STRING "" FORCE)
 endif()
 
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
