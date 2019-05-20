@@ -1114,11 +1114,6 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
              CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ActiveState failed", UA_NodeId_deleteMembers(&conditionNode);
                                           UA_NodeId_deleteMembers(&conditionSource););
 
-             /* check if Exclusive LimitAlarm*/
-             UA_QualifiedName fieldEffectiveDisplayName = UA_QUALIFIEDNAME(0,CONDITION_FIELD_PROPERTY_EFFECTIVEDISPLAYNAME);
-             retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode, &text, UA_TYPES_LOCALIZEDTEXT,
-                                                                  fieldActiveState, fieldEffectiveDisplayName);//ignore return
-
              /* Set deactivating time */
              retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME),
                                                   &data->sourceTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -1729,8 +1724,7 @@ static UA_StatusCode
 setConditionInConditionList(UA_Server *server,
                             const UA_NodeId *conditionNodeId,
                             UA_ConditionSource_nodeListElement *conditionSourceEntry) {
-    UA_Condition_nodeListElement *conditionListEntry = NULL;
-    conditionListEntry = (UA_Condition_nodeListElement*) UA_malloc(sizeof(UA_Condition_nodeListElement));
+    UA_Condition_nodeListElement *conditionListEntry = (UA_Condition_nodeListElement*) UA_malloc(sizeof(UA_Condition_nodeListElement));
     if(!conditionListEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -2084,7 +2078,7 @@ setConditionVariableCallbacks(UA_Server *server,
                               const UA_NodeId* condition,
                               const UA_NodeId* conditionType) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_QualifiedName conditionVariableName[] = {
+    UA_QualifiedName conditionVariableName[2] = {
         UA_QUALIFIEDNAME(0, CONDITION_FIELD_QUALITY),
         UA_QUALIFIEDNAME(0, CONDITION_FIELD_SEVERITY)
     };// extend array with other fields when needed
@@ -2129,7 +2123,7 @@ setConditionMethodCallbacks(UA_Server *server,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* add callbacks to methods of the Conditiontype */
-    UA_NodeId methodId[] = {
+    UA_NodeId methodId[7] = {
         {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_CONDITIONTYPE_DISABLE}},
         {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_CONDITIONTYPE_ENABLE}},
         {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_CONDITIONTYPE_ADDCOMMENT}},
