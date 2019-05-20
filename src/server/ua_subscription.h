@@ -63,6 +63,15 @@ typedef struct UA_EventNotification {
 } UA_EventNotification;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+typedef enum {
+  UA_INACTIVE,
+  UA_ACTIVE,
+  UA_ACTIVE_HIGHHIGH,
+  UA_ACTIVE_HIGH,
+  UA_ACTIVE_LOW,
+  UA_ACTIVE_LOWLOW
+} UA_ActiveState;
+
 typedef struct UA_SpecificCallbacks_Data {
     UA_TwoStateVariableChangeCallback enteringEnabledStateCallback;
     UA_TwoStateVariableChangeCallback enteringAckedStateCallback;
@@ -81,6 +90,7 @@ typedef struct UA_ConditionBranch_nodeListElement {
     LIST_ENTRY(UA_ConditionBranch_nodeListElement) listEntry;
     UA_NodeId* conditionBranchId;
     UA_ByteString lastEventId;
+    UA_Boolean isCallerAC;
 } UA_ConditionBranch_nodeListElement;
 
 typedef struct UA_Condition_nodeListElement {
@@ -89,6 +99,9 @@ typedef struct UA_Condition_nodeListElement {
     UA_NodeId conditionId;
     UA_LastSverity_Data lastSevertyData;
     UA_SpecificCallbacks_Data specificCallbacksData;
+    UA_ActiveState lastActiveState;
+    UA_ActiveState currentActiveState;
+    UA_Boolean isLimitAlarm;
 } UA_Condition_nodeListElement;
 
 typedef struct UA_ConditionSource_nodeListElement {
@@ -194,6 +207,9 @@ void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem)
 void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+
+UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon);
+UA_StatusCode UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */

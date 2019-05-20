@@ -1,11 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_server.h>
-#include <ua_config_default.h>
-#include <ua_log_stdout.h>
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 /**
  * Using Alarms and Conditions Server
@@ -497,15 +498,16 @@ int main (void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode retval = setUpEnvironment(server);
 
-    /* return value */
-    retval |= UA_Server_run(server, &running);
-    UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
+    if(retval == UA_STATUSCODE_GOOD)
+    {
+        retval = UA_Server_run(server, &running);
+    }
 
-    return (int) retval;
+    UA_Server_delete(server);
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
