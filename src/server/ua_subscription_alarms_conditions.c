@@ -275,7 +275,7 @@ getConditionFieldNodeId(UA_Server *server,
                         const UA_QualifiedName* fieldName,
                         UA_NodeId *outFieldNodeId) {
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *conditionNodeId, 1, fieldName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+    if(bpr.statusCode != UA_STATUSCODE_GOOD) {
         return bpr.statusCode;
     }
 
@@ -2085,7 +2085,7 @@ setConditionVariableCallbacks(UA_Server *server,
 
     for(size_t i=0; (i<sizeof(conditionVariableName)/sizeof(conditionVariableName[0])) && (retval == UA_STATUSCODE_GOOD); i++) {
         UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, *condition, 1, &conditionVariableName[i]);
-        if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
+        if(bpr.statusCode != UA_STATUSCODE_GOOD) {
             return bpr.statusCode;
         }
         UA_ValueCallback callback ;
@@ -2390,7 +2390,7 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
     /* Get optional Field NodId from ConditionType -> user should give the correct ConditionType or Subtype!!!! */
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, conditionType, 1, &fieldName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1)
+    if(bpr.statusCode != UA_STATUSCODE_GOOD)
         return bpr.statusCode;
 
     /* Get Node */
@@ -2453,7 +2453,7 @@ UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
                             const UA_QualifiedName fieldName) {
     //TODO implement logic for array dataTypes!
     UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, condition, 1, &fieldName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1)
+    if(bpr.statusCode != UA_STATUSCODE_GOOD)
         return bpr.statusCode;
 
     UA_Variant value;
