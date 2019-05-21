@@ -1,5 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ * Copyright 2019 (c) Kalycito Infotech Private Limited
+ *
+ */
 
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS /* disable fopen deprication warning in msvs */
@@ -13,6 +17,11 @@
 #include <stdlib.h>
 
 #include "common.h"
+
+#define TRUSTLISTCOUNT       3
+#define REVOCATIONLISTCOUNT  4
+#define STARTOFLIST          5
+#define BASEVALUE            10
 
 /* This server is configured to the Compliance Testing Tools (CTT) against. The
  * corresponding CTT configuration is available at
@@ -470,25 +479,30 @@ int main(int argc, char **argv) {
         }
 
         /* Load the trustlist */
-        size_t trustListSize = 0;
-        if(argc > 3)
-            trustListSize = (size_t)argc-3;
+        char* pBuffer;
+        size_t trustListSize = (size_t)strtol(argv[TRUSTLISTCOUNT], &pBuffer, BASEVALUE);
         UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
-        for(size_t i = 0; i < trustListSize; i++)
-            trustList[i] = loadFile(argv[i+3]);
+        for(size_t iteratorValue = 0; iteratorValue <= trustListSize; iteratorValue++) {
+            trustList[iteratorValue] = loadFile(argv[iteratorValue + STARTOFLIST]);
+        }
 
         /* Loading of a revocation list currently unsupported */
-        UA_ByteString *revocationList = NULL;
-        size_t revocationListSize = 0;
+        size_t revocationListSize = (size_t)strtol(argv[REVOCATIONLISTCOUNT], &pBuffer, BASEVALUE);
+        UA_STACKARRAY(UA_ByteString, revocationList, revocationListSize);
+        for(size_t iteratorValue = 0; iteratorValue < revocationListSize; iteratorValue++) {
+            revocationList[iteratorValue] = loadFile(argv[trustListSize + STARTOFLIST]);
+        }
 
         UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
                                                        &certificate, &privateKey,
                                                        trustList, trustListSize,
                                                        revocationList, revocationListSize);
+
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);
-        for(size_t i = 0; i < trustListSize; i++)
-            UA_ByteString_clear(&trustList[i]);
+        for(size_t iteratorValue = 0; iteratorValue < trustListSize; iteratorValue++) {
+            UA_ByteString_clear(&trustList[iteratorValue]);
+        }
     }
 #else
     UA_ByteString certificate = UA_BYTESTRING_NULL;
