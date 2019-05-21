@@ -991,7 +991,7 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  * true, the member datatype is looked up in the array of builtin datatypes
  * instead. */
 typedef struct UA_DataTypeArray {
-    const struct UA_DataTypeArray *next;
+    struct UA_DataTypeArray *next;
     const size_t typesSize;
     const UA_DataType *types;
 } UA_DataTypeArray;

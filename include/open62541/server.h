@@ -49,6 +49,11 @@ void UA_EXPORT UA_Server_delete(UA_Server *server);
 UA_ServerConfig UA_EXPORT *
 UA_Server_getConfig(UA_Server *server);
 
+#ifdef UA_ENABLE_CUSTOM_NODESTORE
+void UA_EXPORT *
+UA_Server_getNodestore(UA_Server *server);
+#endif
+
 /* Runs the main loop of the server. In each iteration, this calls into the
  * networklayers to see if messages have arrived.
  *

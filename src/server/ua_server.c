@@ -75,6 +75,17 @@ UA_Server_getConfig(UA_Server *server)
   return &server->config;
 }
 
+#ifdef UA_ENABLE_CUSTOM_NODESTORE
+void*
+UA_Server_getNodestore(UA_Server *server)
+{
+  if(!server)
+    return NULL;
+
+  return server->nsCtx;
+}
+#endif
+
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
