@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
@@ -8,6 +8,7 @@
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #include <open62541/transport_generated_encoding_binary.h>
@@ -54,12 +55,13 @@ UA_Connection_processHELACK(UA_Connection *connection,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Hides somme errors before sending them to a client according to the
+/* Hides some errors before sending them to a client according to the
  * standard. */
 static void
 hideErrors(UA_TcpErrorMessage *const error) {
     switch(error->error) {
     case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
+    case UA_STATUSCODE_BADCERTIFICATEREVOKED:
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;
