@@ -16,7 +16,7 @@
 
 _UA_BEGIN_DECLS
 
-extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
+extern UA_EXPORT const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
 
 struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
