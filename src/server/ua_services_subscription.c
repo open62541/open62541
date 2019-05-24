@@ -173,8 +173,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          const UA_DataType* dataType) {
     /* Filter */
     if (mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
-			params->filter.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-    	return UA_STATUSCODE_BADEVENTFILTERINVALID;
+            params->filter.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
     }
 
 

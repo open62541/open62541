@@ -25,9 +25,9 @@ int main(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-	// This is an LDS server only. Set the application type to DISCOVERYSERVER.
-	// NOTE: This will cause UaExpert to not show this instance in the server list.
-	// See also: https://forum.unified-automation.com/topic1987.html
+    // This is an LDS server only. Set the application type to DISCOVERYSERVER.
+    // NOTE: This will cause UaExpert to not show this instance in the server list.
+    // See also: https://forum.unified-automation.com/topic1987.html
     config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =

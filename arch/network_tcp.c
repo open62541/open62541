@@ -124,8 +124,8 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     int offset = (int)connection->incompleteChunk.length;
     int remaining = connection->config.recvBufferSize - offset;
 #else
-	size_t offset = connection->incompleteChunk.length;
-	size_t remaining = connection->config.recvBufferSize - offset;
+    size_t offset = connection->incompleteChunk.length;
+    size_t remaining = connection->config.recvBufferSize - offset;
 #endif
 
     /* Get the received packet(s) */
@@ -324,16 +324,16 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
         return;
     }
 
-	if (layer->port == 0) {
-		/* Port was automatically chosen. Read it from the OS */
-		struct sockaddr_in returned_addr;
-		memset(&returned_addr, 0, sizeof(returned_addr));
-		socklen_t len = sizeof(returned_addr);
-		UA_getsockname(newsock, (struct sockaddr *)&returned_addr, &len);
-		layer->port = ntohs(returned_addr.sin_port);
-	}
+    if (layer->port == 0) {
+        /* Port was automatically chosen. Read it from the OS */
+        struct sockaddr_in returned_addr;
+        memset(&returned_addr, 0, sizeof(returned_addr));
+        socklen_t len = sizeof(returned_addr);
+        UA_getsockname(newsock, (struct sockaddr *)&returned_addr, &len);
+        layer->port = ntohs(returned_addr.sin_port);
+    }
 
-	layer->serverSockets[layer->serverSocketsSize] = newsock;
+    layer->serverSockets[layer->serverSocketsSize] = newsock;
     layer->serverSocketsSize++;
 }
 
@@ -364,26 +364,26 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
         addServerSocket(layer, ai);
     UA_freeaddrinfo(res);
 
-	/* Get the discovery url from the hostname */
-	UA_String du = UA_STRING_NULL;
-	char discoveryUrlBuffer[256];
-	char hostnameBuffer[256];
-	if (customHostname->length) {
-		du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
-										(int)customHostname->length,
-										customHostname->data,
-										layer->port);
-		du.data = (UA_Byte*)discoveryUrlBuffer;
-	}else{
-		if(UA_gethostname(hostnameBuffer, 255) == 0) {
-			du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
-											hostnameBuffer, layer->port);
-			du.data = (UA_Byte*)discoveryUrlBuffer;
-		} else {
-			UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
-		}
-	}
-	UA_String_copy(&du, &nl->discoveryUrl);
+    /* Get the discovery url from the hostname */
+    UA_String du = UA_STRING_NULL;
+    char discoveryUrlBuffer[256];
+    char hostnameBuffer[256];
+    if (customHostname->length) {
+        du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
+                                        (int)customHostname->length,
+                                        customHostname->data,
+                                        layer->port);
+        du.data = (UA_Byte*)discoveryUrlBuffer;
+    }else{
+        if(UA_gethostname(hostnameBuffer, 255) == 0) {
+            du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
+                                            hostnameBuffer, layer->port);
+            du.data = (UA_Byte*)discoveryUrlBuffer;
+        } else {
+            UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+        }
+    }
+    UA_String_copy(&du, &nl->discoveryUrl);
 
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP network layer listening on %.*s",

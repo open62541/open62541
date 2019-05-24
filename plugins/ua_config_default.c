@@ -98,8 +98,8 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf) {
-	if (!conf)
-		return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if (!conf)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Zero out.. All members have a valid initial value */
     UA_ServerConfig_clean(conf);
@@ -361,8 +361,8 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
                                        const UA_ByteString *certificate,
                                        UA_UInt32 sendBufferSize,
                                        UA_UInt32 recvBufferSize) {
-	if (!config)
-		return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if (!config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = setDefaultConfig(config);
     if(retval != UA_STATUSCODE_GOOD) {

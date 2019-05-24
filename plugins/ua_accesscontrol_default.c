@@ -196,8 +196,8 @@ static void deleteMembers_default(UA_AccessControl *ac) {
     UA_Array_delete((void*)(uintptr_t)ac->userTokenPolicies,
                     ac->userTokenPoliciesSize,
                     &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-	ac->userTokenPolicies = NULL;
-	ac->userTokenPoliciesSize = 0;
+    ac->userTokenPolicies = NULL;
+    ac->userTokenPoliciesSize = 0;
 
     AccessControlContext *context = (AccessControlContext*)ac->context;
 

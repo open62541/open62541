@@ -175,8 +175,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
 
     size_t allocSize = foundServersSize;
-	if(foundSelf)
-		allocSize++;
+    if(foundSelf)
+        allocSize++;
 
     /* Nothing to do? */
     if(allocSize == 0)

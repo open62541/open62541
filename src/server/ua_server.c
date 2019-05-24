@@ -216,10 +216,10 @@ UA_Server_new() {
 
     /* Create Namespaces 0 and 1 */
     server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-	if(!server->namespaces) {
-		UA_Server_delete(server);
-		return NULL;
-	}
+    if(!server->namespaces) {
+        UA_Server_delete(server);
+        return NULL;
+    }
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;

@@ -283,17 +283,17 @@ copyStandardAttributes(UA_Node *node, const UA_NodeAttributes *attr) {
     /* retval  = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId); */
     /* retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName); */
 
-	UA_StatusCode retval;
+    UA_StatusCode retval;
     /* The new nodeset format has optional display name.
      * See https://github.com/open62541/open62541/issues/2627
      * If display name is NULL, then we take the name part of the browse name */
     if (attr->displayName.text.length == 0) {
-		retval = UA_String_copy(&node->browseName.name,
-									   &node->displayName.text);
+        retval = UA_String_copy(&node->browseName.name,
+                                       &node->displayName.text);
     } else {
-		retval = UA_LocalizedText_copy(&attr->displayName,
-													 &node->displayName);
-		retval |= UA_LocalizedText_copy(&attr->description, &node->description);
+        retval = UA_LocalizedText_copy(&attr->displayName,
+                                                     &node->displayName);
+        retval |= UA_LocalizedText_copy(&attr->description, &node->description);
     }
 
     node->writeMask = attr->writeMask;
@@ -313,8 +313,8 @@ copyCommonVariableAttributes(UA_VariableNode *node,
 
     /* Data type and value rank */
     retval = UA_NodeId_copy(&attr->dataType, &node->dataType);
-	if(retval != UA_STATUSCODE_GOOD)
-		return retval;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     node->valueRank = attr->valueRank;
 
     /* Copy the value */
@@ -331,7 +331,7 @@ copyCommonVariableAttributes(UA_VariableNode *node,
 
         const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
         if(obj && obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
-        	return UA_STATUSCODE_BADNOTSUPPORTED;
+            return UA_STATUSCODE_BADNOTSUPPORTED;
         }
     }
 

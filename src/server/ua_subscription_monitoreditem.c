@@ -186,11 +186,11 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         /* Remove the monitored item from the node queue */
         UA_Server_editNode(server, NULL, &monitoredItem->monitoredNodeId,
                            UA_MonitoredItem_removeNodeEventCallback, monitoredItem);
-		UA_EventFilter_clear(&monitoredItem->filter.eventFilter);
+        UA_EventFilter_clear(&monitoredItem->filter.eventFilter);
     } else
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
-	{
-		UA_DataChangeFilter_clear(&monitoredItem->filter.dataChangeFilter);
+    {
+        UA_DataChangeFilter_clear(&monitoredItem->filter.dataChangeFilter);
     }
 
     /* Deregister MonitoredItem in userland */
