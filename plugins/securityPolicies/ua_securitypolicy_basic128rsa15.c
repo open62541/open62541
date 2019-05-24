@@ -3,6 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
@@ -35,7 +37,7 @@
 #define UA_SECURITYPOLICY_BASIC128RSA15_SYM_ENCRYPTION_BLOCK_SIZE 16
 #define UA_SECURITYPOLICY_BASIC128RSA15_SYM_PLAIN_TEXT_BLOCK_SIZE 16
 #define UA_SECURITYPOLICY_BASIC128RSA15_MINASYMKEYLENGTH 128
-#define UA_SECURITYPOLICY_BASIC128RSA15_MAXASYMKEYLENGTH 256
+#define UA_SECURITYPOLICY_BASIC128RSA15_MAXASYMKEYLENGTH 512
 
 typedef struct {
     const UA_SecurityPolicy *securityPolicy;
