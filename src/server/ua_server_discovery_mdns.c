@@ -157,26 +157,26 @@ mdns_is_self_announce(const UA_Server *server, const struct serverOnNetwork_list
         if(UA_String_equal(&entry->serverOnNetwork.discoveryUrl,
                            &nl->discoveryUrl))
             return true;
-		// check discoveryUrl ignoring tailing slash
+        // check discoveryUrl ignoring tailing slash
         if (((
-        		nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
-        		nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/'
-			  ) || (
-				entry->serverOnNetwork.discoveryUrl.length == nl->discoveryUrl.length +1 &&
-				entry->serverOnNetwork.discoveryUrl.data[entry->serverOnNetwork.discoveryUrl.length-1] == '/'
-			  )
-			) &&
-        	memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data,
-        			UA_MIN(nl->discoveryUrl.length, entry->serverOnNetwork.discoveryUrl.length)) == 0
+                nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
+                nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/'
+              ) || (
+                entry->serverOnNetwork.discoveryUrl.length == nl->discoveryUrl.length +1 &&
+                entry->serverOnNetwork.discoveryUrl.data[entry->serverOnNetwork.discoveryUrl.length-1] == '/'
+              )
+            ) &&
+            memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data,
+                    UA_MIN(nl->discoveryUrl.length, entry->serverOnNetwork.discoveryUrl.length)) == 0
         ) {
-        	return true;
+            return true;
         }
-		if (nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
-			nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/' &&
-			memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data, nl->discoveryUrl.length-1) == 0
-				) {
-			return true;
-		}
+        if (nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
+            nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/' &&
+            memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data, nl->discoveryUrl.length-1) == 0
+                ) {
+            return true;
+        }
     }
 
     /* The discovery URL may also just contain the IP address, but in our

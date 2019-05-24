@@ -66,7 +66,7 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-	// use port 0 to dynamically assign port
+    // use port 0 to dynamically assign port
     UA_ServerConfig_setMinimal(config, 0, NULL);
 
     UA_String_clear(&config->applicationDescription.applicationUri);

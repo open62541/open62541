@@ -254,14 +254,14 @@ eventSetup(UA_NodeId *eventNodeId) {
     serverMutexLock();
     UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
     serverMutexUnlock();
-	ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
     // number with no special meaning
     UA_UInt16 eventSeverity = 1000;
     UA_Variant_setScalar(&value, &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
     serverMutexLock();
     retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
-	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     //add a message to the event
@@ -269,13 +269,13 @@ eventSetup(UA_NodeId *eventNodeId) {
     serverMutexLock();
     bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
     serverMutexUnlock();
-	ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
     UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     serverMutexLock();
-	retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     serverMutexUnlock();
-	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
     return retval;
@@ -295,9 +295,9 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter) {
     filter.selectClausesSize = nSelectClauses;
 
     if (setFilter) {
-		item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-		item.requestedParameters.filter.content.decoded.data = &filter;
-		item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+        item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+        item.requestedParameters.filter.content.decoded.data = &filter;
+        item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
     }
 
     item.requestedParameters.queueSize = 1;
@@ -312,13 +312,13 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter) {
 /* Create event with empty filter */
 
 START_TEST(generateEventEmptyFilter) {
-		UA_NodeId eventNodeId;
-		UA_StatusCode retval = eventSetup(&eventNodeId);
-		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_NodeId eventNodeId;
+        UA_StatusCode retval = eventSetup(&eventNodeId);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-		// add a monitored item
-		UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false);
-		ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+        // add a monitored item
+        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false);
+        ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
 } END_TEST
 
 

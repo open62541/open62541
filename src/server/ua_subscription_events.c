@@ -432,14 +432,14 @@ static const UA_NodeId parentReferences_events[2] =
 UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
-	/* Check that the origin node exists */
-	const UA_Node *originNode = UA_Nodestore_getNode(server->nsCtx, &origin);
-	if(!originNode) {
-		UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
-					 "Origin node for event does not exist.");
-		return UA_STATUSCODE_BADNOTFOUND;
-	}
-	UA_Nodestore_releaseNode(server->nsCtx, originNode);
+    /* Check that the origin node exists */
+    const UA_Node *originNode = UA_Nodestore_getNode(server->nsCtx, &origin);
+    if(!originNode) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                     "Origin node for event does not exist.");
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_Nodestore_releaseNode(server->nsCtx, originNode);
 
 
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
