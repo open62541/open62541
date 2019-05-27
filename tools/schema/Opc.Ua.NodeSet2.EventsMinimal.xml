@@ -129,6 +129,12 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=2041</Reference>
     </References>
   </UAVariable>
+  <UAObjectType NodeId="i=3035" BrowseName="EventQueueOverflowEventType" IsAbstract="true">
+    <DisplayName>EventQueueOverflowEventType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=2041</Reference>
+    </References>
+  </UAObjectType>
   <UADataType NodeId="i=8912" BrowseName="TimeZoneDataType">
     <DisplayName>TimeZoneDataType</DisplayName>
     <References>
