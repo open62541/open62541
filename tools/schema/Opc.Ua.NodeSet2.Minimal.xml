@@ -704,6 +704,13 @@
       <Reference ReferenceType="HasTypeDefinition">i=61</Reference>
     </References>
   </UAObject>
+  <UAObject NodeId="i=92" BrowseName="XML Schema" SymbolicName="XmlSchema_TypeSystem">
+    <DisplayName>XML Schema</DisplayName>
+    <References>
+      <Reference ReferenceType="Organizes" IsForward="false">i=90</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=75</Reference>
+    </References>
+  </UAObject>
   <UAObject NodeId="i=93" BrowseName="OPC Binary" SymbolicName="OPCBinarySchema_TypeSystem">
     <DisplayName>OPC Binary</DisplayName>
     <References>
