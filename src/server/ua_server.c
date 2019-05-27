@@ -34,6 +34,15 @@
 /* Namespace Handling */
 /**********************/
 
+/*
+ * The NS1 Uri can be changed by the user to some custom string.
+ * This method is called to initialize the NS1 Uri if it is not set before to the default Application URI.
+ *
+ * This is done as soon as the Namespace Array is read or written via node value read / write services,
+ * or UA_Server_addNamespace, UA_Server_getNamespaceByName or UA_Server_run_startup is called.
+ *
+ * Therefore one has to set the custom NS1 URI before one of the previously mentioned steps.
+ */
 void setupNs1Uri(UA_Server *server) {
     if (!server->namespaces[1].data) {
         UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
