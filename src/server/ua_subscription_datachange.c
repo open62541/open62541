@@ -296,7 +296,7 @@ static UA_StatusCode
 sampleCallbackWithValue(UA_Server *server, UA_Session *session,
                         UA_Subscription *sub, UA_MonitoredItem *mon,
                         UA_DataValue *value, UA_Boolean *movedValue) {
-    UA_assert(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY);
+    UA_assert(mon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Contains heap-allocated binary encoding of the value if a change was detected */
     UA_ByteString binValueEncoding = UA_BYTESTRING_NULL;
@@ -401,12 +401,7 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
                          "MonitoredItem %i | Sample callback called",
                          sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId);
 
-    if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Subscription %u | "
-                             "MonitoredItem %i | Not a data change notification",
-                             sub ? sub->subscriptionId : 0, monitoredItem->monitoredItemId);
-        return;
-    }
+    UA_assert(monitoredItem->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Get the node */
     const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &monitoredItem->monitoredNodeId);

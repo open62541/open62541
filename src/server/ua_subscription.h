@@ -42,12 +42,6 @@ _UA_BEGIN_DECLS
 /* MonitoredItem */
 /*****************/
 
-typedef enum {
-    UA_MONITOREDITEMTYPE_CHANGENOTIFY = 1,
-    UA_MONITOREDITEMTYPE_STATUSNOTIFY = 2,
-    UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
-} UA_MonitoredItemType;
-
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
 
@@ -91,31 +85,28 @@ typedef TAILQ_HEAD(NotificationQueue, UA_Notification) NotificationQueue;
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry;
-    UA_Subscription *subscription;
+    UA_Subscription *subscription; /* Local MonitoredItem if the subscription is NULL */
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
     UA_Boolean registered; /* Was the MonitoredItem registered in Userland with
                               the callback? */
 
     /* Settings */
-    UA_MonitoredItemType monitoredItemType;
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
     UA_NodeId monitoredNodeId;
     UA_UInt32 attributeId;
     UA_String indexRange;
     UA_Double samplingInterval; // [ms]
-    UA_UInt32 maxQueueSize; /* The max number of enqueued notifications (not
-                               counting overflow events) */
     UA_Boolean discardOldest;
-    // TODO: dataEncoding is hardcoded to UA binary
     union {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        UA_EventFilter eventFilter;
+        UA_EventFilter eventFilter; /* If attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER */
 #endif
         UA_DataChangeFilter dataChangeFilter;
     } filter;
     UA_Variant lastValue;
+    // TODO: dataEncoding is hardcoded to UA binary
 
     /* Sample Callback */
     UA_UInt64 sampleCallbackId;
@@ -124,9 +115,12 @@ struct UA_MonitoredItem {
 
     /* Notification Queue */
     NotificationQueue queue;
+    UA_UInt32 maxQueueSize; /* The max number of enqueued notifications (not
+                             * counting overflow events) */
     UA_UInt32 queueSize;
-     /* Save the amount of OverflowEvents in a separate counter */
-     UA_UInt32 eventOverflows;
+    UA_UInt32 eventOverflows; /* Separate counter for the queue. Can at most
+                               * double the queue size */
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *next;
 #endif
@@ -195,7 +189,7 @@ struct UA_Subscription {
 
     /* MonitoredItems */
     UA_UInt32 lastMonitoredItemId; /* increase the identifiers */
-    LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
+    LIST_HEAD(, UA_MonitoredItem) monitoredItems;
     UA_UInt32 monitoredItemsSize;
 
     /* Global list of notifications from the MonitoredItems */

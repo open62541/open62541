@@ -37,7 +37,6 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     Subscription_unregisterPublishCallback(server, subscription);
 
     /* re-parameterize the subscription */
-    subscription->publishingInterval = requestedPublishingInterval;
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
                                requestedPublishingInterval, subscription->publishingInterval);
     /* check for nan*/
@@ -171,40 +170,52 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,
                          const UA_MonitoringParameters *params,
                          const UA_DataType* dataType) {
-    /* Filter */
-    if (mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER &&
-            params->filter.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-    }
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-
-    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED) {
-        UA_DataChangeFilter_init(&(mon->filter.dataChangeFilter));
-        mon->filter.dataChangeFilter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
-    } else if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
-        UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
-        // TODO implement EURange to support UA_DEADBANDTYPE_PERCENT
-        switch(filter->deadbandType) {
-        case UA_DEADBANDTYPE_NONE:
-            break;
-        case UA_DEADBANDTYPE_ABSOLUTE:
-            if(!dataType || !UA_DataType_isNumeric(dataType))
-                return UA_STATUSCODE_BADFILTERNOTALLOWED;
-            break;
-        case UA_DEADBANDTYPE_PERCENT:
-            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
-        default:
-            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
-        }
-        UA_DataChangeFilter_copy(filter, &mon->filter.dataChangeFilter);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    } else if (params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTER]) {
-        UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data,
-                            &mon->filter.eventFilter);
+    if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        /* Event MonitoredItem */
+#ifndef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+#else
+        if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
+           params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+            return UA_STATUSCODE_BADEVENTFILTERINVALID;
+        if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+            return UA_STATUSCODE_BADEVENTFILTERINVALID;
+        UA_EventFilter_clear(&mon->filter.eventFilter);
+        retval = UA_EventFilter_copy((UA_EventFilter *)params->filter.content.decoded.data,
+                                     &mon->filter.eventFilter);
 #endif
     } else {
-        return UA_STATUSCODE_BADMONITOREDITEMFILTERINVALID;
+        /* DataChange MonitoredItem */
+        if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
+           params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) {
+            /* Default: Look for status and value */
+            UA_DataChangeFilter_clear(&mon->filter.dataChangeFilter);
+            mon->filter.dataChangeFilter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+        } else if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
+            UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
+            // TODO implement EURange to support UA_DEADBANDTYPE_PERCENT
+            switch(filter->deadbandType) {
+            case UA_DEADBANDTYPE_NONE:
+                break;
+            case UA_DEADBANDTYPE_ABSOLUTE:
+                if(!dataType || !UA_DataType_isNumeric(dataType))
+                    return UA_STATUSCODE_BADFILTERNOTALLOWED;
+                break;
+            case UA_DEADBANDTYPE_PERCENT:
+                return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+            default:
+                return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+            }
+            retval = UA_DataChangeFilter_copy(filter, &mon->filter.dataChangeFilter);
+        } else {
+            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+        }
     }
+
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* <-- The point of no return --> */
 
@@ -220,8 +231,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 
     /* SamplingInterval */
     UA_Double samplingInterval = params->samplingInterval;
+
     if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
-        mon->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY;
         const UA_VariableNode *vn = (const UA_VariableNode *)
             UA_Nodestore_getNode(server->nsCtx, &mon->monitoredNodeId);
         if(vn) {
@@ -230,20 +241,12 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                 samplingInterval = vn->minimumSamplingInterval;
             UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node *)vn);
         }
-    } else if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        /* TODO: events should not need a samplinginterval */
-        samplingInterval = 10000.0f; // 10 seconds to reduce the load
-        mon->monitoredItemType = UA_MONITOREDITEMTYPE_EVENTNOTIFY;
-    } else {
-        mon->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY;
     }
-    mon->samplingInterval = samplingInterval;
+
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                samplingInterval, mon->samplingInterval);
     if(samplingInterval != samplingInterval) /* Check for nan */
         mon->samplingInterval = server->config.samplingIntervalLimits.min;
-
-    UA_assert(mon->monitoredItemType != 0);
 
     /* QueueSize */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
@@ -263,8 +266,9 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 static const UA_String binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-static UA_StatusCode UA_Server_addMonitoredItemToNodeEditNodeCallback(UA_Server *server, UA_Session *session,
-                                                                      UA_Node *node, void *data) {
+static UA_StatusCode
+UA_Server_addMonitoredItemToNodeEditNodeCallback(UA_Server *server, UA_Session *session,
+                                                 UA_Node *node, void *data) {
     /* data is the MonitoredItem */
     /* SLIST_INSERT_HEAD */
     ((UA_MonitoredItem *)data)->next = ((UA_ObjectNode *)node)->monitoredItemQueue;
@@ -367,7 +371,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
         newMon->monitoredItemId = ++cmc->sub->lastMonitoredItemId;
         UA_Subscription_addMonitoredItem(server, cmc->sub, newMon);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        if(newMon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
+        if(newMon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
             /* Insert the monitored item into the node's queue */
             UA_Server_editNode(server, NULL, &newMon->monitoredNodeId,
                                UA_Server_addMonitoredItemToNodeEditNodeCallback, newMon);
@@ -400,7 +404,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
                         newMon->monitoredItemId);
 
     /* Create the first sample */
-    if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
+    if(request->monitoringMode == UA_MONITORINGMODE_REPORTING &&
+       newMon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         UA_MonitoredItem_sampleCallback(server, newMon);
 
     /* Prepare the response */
@@ -547,29 +552,25 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    if(mon->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY
-           && mon->monitoredItemType != UA_MONITOREDITEMTYPE_EVENTNOTIFY) {
-        *result = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        return;
-    }
-
     /* Check if the MonitoringMode is valid or not */
     if(smc->monitoringMode > UA_MONITORINGMODE_REPORTING) {
         *result = UA_STATUSCODE_BADMONITORINGMODEINVALID;
         return;
     }
 
+    /* Nothing has changed */
     if(mon->monitoringMode == smc->monitoringMode)
         return;
 
     mon->monitoringMode = smc->monitoringMode;
+
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
         *result = UA_MonitoredItem_registerSampleCallback(server, mon);
     } else {
         UA_MonitoredItem_unregisterSampleCallback(server, mon);
 
         // TODO correctly implement SAMPLING
-        /*  Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
+        /* Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
             UA_Notification_dequeue(server, notification);
