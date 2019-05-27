@@ -913,11 +913,11 @@ UA_Server_initNS0(UA_Server *server) {
     UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
     overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
     overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
-                                overflowAttr, NULL, NULL);
+    retVal |= UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                          UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
+                                          overflowAttr, NULL, NULL);
 #endif
 
     if(retVal != UA_STATUSCODE_GOOD) {
