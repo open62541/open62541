@@ -78,7 +78,7 @@ def generateObjectNodeCode(node):
 def setNodeDatatypeRecursive(node, nodeset):
 
     if not isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        raise RuntimeError("DataType can only be set for VariableNode and VariableTypeNode")
+        raise RuntimeError("Node {}: DataType can only be set for VariableNode and VariableTypeNode".format(str(node.id)))
 
     if node.dataType is not None:
         return
@@ -110,7 +110,7 @@ def setNodeDatatypeRecursive(node, nodeset):
 def setNodeValueRankRecursive(node, nodeset):
 
     if not isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        raise RuntimeError("ValueRank can only be set for VariableNode and VariableTypeNode")
+        raise RuntimeError("Node {}: ValueRank can only be set for VariableNode and VariableTypeNode".format(str(node.id)))
 
     if node.valueRank is not None:
         return
