@@ -320,7 +320,7 @@ class NodeSet(object):
     def getNodeTypeDefinition(self, node):
         for ref in node.references:
             # 40 = HasTypeDefinition
-            if ref.referenceType.i == 40:
+            if ref.referenceType.i == 40 and ref.isForward:
                 return self.nodes[ref.target]
         return None
 
