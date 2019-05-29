@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #include <open62541/plugin/pki_default.h>
@@ -79,6 +80,18 @@ certificateVerification_verify(void *verificationContext,
                                                    &crtProfile, NULL, &flags, NULL, NULL);
 
     // TODO: Extend verification
+
+    /* This condition will check whether the certificate is a User certificate
+     * or a CA certificate. If the MBEDTLS_X509_KU_KEY_CERT_SIGN and
+     * MBEDTLS_X509_KU_CRL_SIGN of key_usage are set, then the certificate
+     * shall be condidered as CA Certificate and cannot be used to establish a
+     * connection. Refer the test case CTT/Security/Security Certificate Validation/029.js
+     * for more details */
+    if((remoteCertificate.key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) &&
+       (remoteCertificate.key_usage & MBEDTLS_X509_KU_CRL_SIGN)) {
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    }
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(mbedErr) {
         /* char buff[100]; */

@@ -400,6 +400,9 @@ readNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionConte
                const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
                const UA_NumericRange *range,
                UA_DataValue *value) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -442,6 +445,9 @@ writeNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     if(newNamespacesSize <= server->namespacesSize)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+    
     /* Test if the existing namespaces are unchanged */
     for(size_t i = 0; i < server->namespacesSize; ++i) {
         if(!UA_String_equal(&server->namespaces[i], &newNamespaces[i]))
@@ -913,11 +919,11 @@ UA_Server_initNS0(UA_Server *server) {
     UA_ObjectTypeAttributes overflowAttr = UA_ObjectTypeAttributes_default;
     overflowAttr.description = UA_LOCALIZEDTEXT("en-US", "A simple event for indicating a queue overflow.");
     overflowAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleOverflowEventType");
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
-                                overflowAttr, NULL, NULL);
+    retVal |= UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SIMPLEOVERFLOWEVENTTYPE),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE),
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                          UA_QUALIFIEDNAME(0, "SimpleOverflowEventType"),
+                                          overflowAttr, NULL, NULL);
 #endif
 
     if(retVal != UA_STATUSCODE_GOOD) {

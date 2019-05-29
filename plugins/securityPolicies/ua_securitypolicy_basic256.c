@@ -4,6 +4,8 @@
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Daniel Feist, Precitec GmbH & Co. KG
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *
  */
 
 #include <open62541/plugin/securitypolicy.h>
@@ -37,7 +39,7 @@
 #define UA_SECURITYPOLICY_BASIC256_SYM_ENCRYPTION_BLOCK_SIZE 16
 #define UA_SECURITYPOLICY_BASIC256_SYM_PLAIN_TEXT_BLOCK_SIZE 16
 #define UA_SECURITYPOLICY_BASIC256_MINASYMKEYLENGTH 128
-#define UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH 256
+#define UA_SECURITYPOLICY_BASIC256_MAXASYMKEYLENGTH 512
 
 typedef struct {
     const UA_SecurityPolicy *securityPolicy;

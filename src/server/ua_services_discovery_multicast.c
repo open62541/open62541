@@ -91,14 +91,14 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
 
     retval = UA_Discovery_addRecord(server, appName, &hostname, port,
                                     &path, UA_DISCOVERY_TCP, true,
-									server->config.discovery.mdns.serverCapabilities,
-									server->config.discovery.mdns.serverCapabilitiesSize);
-	if(retval != UA_STATUSCODE_GOOD) {
-		UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
-					   "Cannot add mDNS Record: %s",
-					   UA_StatusCode_name(retval));
-		return retval;
-	}
+                                    server->config.discovery.mdns.serverCapabilities,
+                                    server->config.discovery.mdns.serverCapabilitiesSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
+                       "Cannot add mDNS Record: %s",
+                       UA_StatusCode_name(retval));
+        return retval;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -117,8 +117,8 @@ void startMulticastDiscoveryServer(UA_Server *server) {
 
 void
 stopMulticastDiscoveryServer(UA_Server *server) {
-	if (!server->discoveryManager.mdnsDaemon)
-		return;
+    if (!server->discoveryManager.mdnsDaemon)
+        return;
 
     char hostname[256];
     if(UA_gethostname(hostname, 255) == 0) {
@@ -154,10 +154,10 @@ filterServerRecord(size_t serverCapabilityFilterSize, UA_String *serverCapabilit
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response) {
-	if (!server->config.discovery.mdnsEnable) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
-		return;
-	}
+    if (!server->config.discovery.mdnsEnable) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
+        return;
+    }
 
     /* Set LastCounterResetTime */
     UA_DateTime_copy(&server->discoveryManager.serverOnNetworkRecordIdLastReset,

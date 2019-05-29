@@ -48,9 +48,9 @@ static void start_server(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-	config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
-	config->discovery.mdnsEnable = true;
-	config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+    config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
+    config->discovery.mdnsEnable = true;
+    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
 
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
@@ -196,10 +196,10 @@ registerServer2Request(UA_Client *client) {
     request.discoveryConfigurationSize = 1;
     request.discoveryConfiguration = UA_ExtensionObject_new();
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
-	// Set to NODELETE so that we can just use a pointer to the mdns config
+    // Set to NODELETE so that we can just use a pointer to the mdns config
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
-	request.discoveryConfiguration[0].content.decoded.data = &server->config.discovery.mdns;
+    request.discoveryConfiguration[0].content.decoded.data = &server->config.discovery.mdns;
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;

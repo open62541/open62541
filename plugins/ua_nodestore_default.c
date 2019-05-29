@@ -394,8 +394,8 @@ UA_Nodestore_Default_new(void **nsCtx) {
 
 void
 UA_Nodestore_Default_delete(void *nsCtx) {
-	if (!nsCtx)
-		return;
+    if (!nsCtx)
+        return;
 
     NodeMap *ns = (NodeMap*)nsCtx;
 #ifdef UA_ENABLE_MULTITHREADING

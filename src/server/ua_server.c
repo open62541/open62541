@@ -34,7 +34,25 @@
 /* Namespace Handling */
 /**********************/
 
+/*
+ * The NS1 Uri can be changed by the user to some custom string.
+ * This method is called to initialize the NS1 Uri if it is not set before to the default Application URI.
+ *
+ * This is done as soon as the Namespace Array is read or written via node value read / write services,
+ * or UA_Server_addNamespace, UA_Server_getNamespaceByName or UA_Server_run_startup is called.
+ *
+ * Therefore one has to set the custom NS1 URI before one of the previously mentioned steps.
+ */
+void setupNs1Uri(UA_Server *server) {
+    if (!server->namespaces[1].data) {
+        UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+    }
+}
+
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+
     /* Check if the namespace already exists in the server's namespace array */
     for(UA_UInt16 i = 0; i < server->namespacesSize; ++i) {
         if(UA_String_equal(&name, &server->namespaces[i]))
@@ -89,6 +107,9 @@ UA_Server_getNodestore(UA_Server *server)
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+
     for(size_t idx = 0; idx < server->namespacesSize; idx++) {
         if(!UA_String_equal(&server->namespaces[idx], &namespaceUri))
             continue;
@@ -225,14 +246,15 @@ UA_Server_new() {
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
 
-    /* Create Namespaces 0 and 1 */
+    /* Create Namespaces 0 and 1
+     * Ns1 will be filled later with the uri from the app description */
     server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-	if(!server->namespaces) {
-		UA_Server_delete(server);
-		return NULL;
-	}
+    if(!server->namespaces) {
+        UA_Server_delete(server);
+        return NULL;
+    }
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+    server->namespaces[1] = UA_STRING_NULL;
     server->namespacesSize = 2;
 
     /* Initialized SecureChannel and Session managers */
@@ -407,6 +429,9 @@ verifyServerApplicationURI(const UA_Server *server) {
 
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
+    /* ensure that the uri for ns1 is set up from the app description */
+    setupNs1Uri(server);
+    
     if(server->state > UA_SERVERLIFECYCLE_FRESH)
         return UA_STATUSCODE_GOOD;
     

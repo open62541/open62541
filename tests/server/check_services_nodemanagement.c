@@ -246,7 +246,7 @@ START_TEST(AddObjectWithConstructor) {
     res = UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  UA_QUALIFIEDNAME(0, ""), objecttypeid,
+                                  UA_QUALIFIEDNAME(0, "MyObjectNode"), objecttypeid,
                                   attr2, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
@@ -290,7 +290,7 @@ START_TEST(DeleteObjectWithDestructor) {
     res = UA_Server_addObjectNode(server, objectid,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  UA_QUALIFIEDNAME(0, ""), objecttypeid,
+                                  UA_QUALIFIEDNAME(0, "MyObject"), objecttypeid,
                                   attr2, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
@@ -310,7 +310,7 @@ START_TEST(DeleteObjectAndReferences) {
     res = UA_Server_addObjectNode(server, objectid,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  UA_QUALIFIEDNAME(0, ""),
+                                  UA_QUALIFIEDNAME(0, "MyObject"),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                   attr, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
@@ -353,7 +353,7 @@ START_TEST(DeleteObjectAndReferences) {
     res = UA_Server_addObjectNode(server, objectid,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  UA_QUALIFIEDNAME(0, ""),
+                                  UA_QUALIFIEDNAME(0, "MyObject"),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                   attr, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);

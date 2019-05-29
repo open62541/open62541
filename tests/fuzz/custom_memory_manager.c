@@ -69,7 +69,7 @@ static int addToMap(size_t size, void *addr) {
     newEntry->size = size;
     newEntry->address = addr;
     newEntry->next = NULL;
-	pthread_mutex_lock(&mutex);
+    pthread_mutex_lock(&mutex);
     newEntry->prev = address_map_last;
     if (address_map_last)
         address_map_last->next = newEntry;

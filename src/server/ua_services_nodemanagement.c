@@ -544,8 +544,8 @@ addTypeChildren(UA_Server *server, UA_Session *session,
     /* Get the hierarchy of the type and all its supertypes */
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
-    UA_StatusCode retval = getTypeHierarchy(server->nsCtx, &type->nodeId,
-                                            &hierarchy, &hierarchySize, false);
+    UA_StatusCode retval = getParentTypeAndInterfaceHierarchy(server->nsCtx, &type->nodeId,
+                                            &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -924,6 +924,80 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+findDefaultInstanceBrowseNameNode(UA_Server *server,
+                    UA_NodeId startingNode, UA_NodeId *foundId){
+
+    UA_NodeId_init(foundId);
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.isInverse = false;
+    rpe.includeSubtypes = false;
+    rpe.targetName = UA_QUALIFIEDNAME(0, "DefaultInstanceBrowseName");
+    UA_BrowsePath bp;
+    UA_BrowsePath_init(&bp);
+    bp.startingNode = startingNode;
+    bp.relativePath.elementsSize = 1;
+    bp.relativePath.elements = &rpe;
+    UA_BrowsePathResult bpr =
+            UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    UA_StatusCode retval = bpr.statusCode;
+    if (retval == UA_STATUSCODE_GOOD &&
+        bpr.targetsSize > 0) {
+        retval = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, foundId);
+    }
+    UA_BrowsePathResult_deleteMembers(&bpr);
+    return retval;
+}
+
+/* Check if we got a valid browse name for the new node.
+ * For object nodes the BrowseName may only be null if the parent type has a
+ * 'DefaultInstanceBrowseName' property.
+ * */
+static UA_StatusCode
+checkValidBrowseName(UA_Server *server, UA_Session *session,
+                     const UA_Node *node, const UA_Node *type) {
+
+    UA_assert(type != NULL);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    if(node->nodeClass != UA_NODECLASS_OBJECT) {
+        /* nodes other than Objects must have a browseName */
+        if (UA_QualifiedName_isNull(&node->browseName))
+            return UA_STATUSCODE_BADBROWSENAMEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* If the object node already has a browse name we are done here. */
+    if(!UA_QualifiedName_isNull(&node->browseName))
+        return UA_STATUSCODE_GOOD;
+
+    /* at this point we have an object with an empty browse name.
+     * Check the type node if it has a DefaultInstanceBrowseName property
+     */
+
+    UA_NodeId defaultBrowseNameNode;
+    retval = findDefaultInstanceBrowseNameNode(server, type->nodeId, &defaultBrowseNameNode);
+    if (retval != UA_STATUSCODE_GOOD) {
+        if (retval == UA_STATUSCODE_BADNOMATCH)
+            /* the DefaultBrowseName property is not found, return the corresponding status code */
+            return UA_STATUSCODE_BADBROWSENAMEINVALID;
+        return retval;
+    }
+
+    UA_Variant defaultBrowseName;
+    retval = UA_Server_readValue(server, defaultBrowseNameNode, &defaultBrowseName);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_QualifiedName *defaultValue = (UA_QualifiedName *) defaultBrowseName.data;
+    retval = UA_Server_writeBrowseName(server, node->nodeId, *defaultValue);
+    UA_Variant_clear(&defaultBrowseName);
+
+    return retval;
+}
+
 /* Construct children first */
 static UA_StatusCode
 recursiveCallConstructors(UA_Server *server, UA_Session *session,
@@ -1070,6 +1144,10 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             goto cleanup;
         }
+
+        retval = checkValidBrowseName(server, session, node, type);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
 
         retval = recursiveTypeCheckAddChildren(server, session, &node, type);
         if(retval != UA_STATUSCODE_GOOD)

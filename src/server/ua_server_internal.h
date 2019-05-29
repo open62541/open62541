@@ -135,6 +135,7 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 extern const UA_NodeId subtypeId;
 extern const UA_NodeId hierarchicalReferences;
 
+void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
 UA_Boolean
@@ -166,6 +167,12 @@ UA_StatusCode
 getTypesHierarchy(void *nsCtx, const UA_NodeId *leafType, size_t leafTypeSize,
                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
                   UA_Boolean walkDownwards);
+
+/* Same as getTypeHierarchy aside of the ``hasSubType`` reference, this also includes
+ * the ``hasInterface`` reference */
+UA_StatusCode
+getParentTypeAndInterfaceHierarchy(void *nsCtx, const UA_NodeId *leafType,
+                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
 /* Returns the type node from the node on the stack top. The type node is pushed
  * on the stack and returned. */

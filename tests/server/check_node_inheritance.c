@@ -25,7 +25,7 @@ static void teardown(void) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 /* finds the NodeId of a StateNumber child of a given node id */
 static void
-findChildId(UA_NodeId stateId, UA_NodeId referenceType,
+findChildId(UA_NodeId parentNode, UA_NodeId referenceType,
             const UA_QualifiedName targetName, UA_NodeId *result) {
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
@@ -36,7 +36,7 @@ findChildId(UA_NodeId stateId, UA_NodeId referenceType,
 
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
-    bp.startingNode = stateId;
+    bp.startingNode = parentNode;
     bp.relativePath.elementsSize = 1;
     bp.relativePath.elements = &rpe;    //clion complains but is ok
 
@@ -49,6 +49,114 @@ findChildId(UA_NodeId stateId, UA_NodeId referenceType,
     UA_BrowsePathResult_deleteMembers(&bpr);
 }
 #endif
+
+
+
+START_TEST(Nodes_createCustomBrowseNameObjectType)
+{
+    /* Create a custom object type "CustomBrowseNameType" which has a
+     * "DefaultInstanceBrowseName" property. */
+
+    /* create new object type node which has a subcomponent of the type StateType */
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "CustomBrowseNameType");
+    otAttr.description = UA_LOCALIZEDTEXT("", "");
+    UA_StatusCode retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 7010),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "CustomBrowseNameType"),
+                                         otAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Now add a property "DefaultInstanceBrowseName"
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.minimumSamplingInterval = 0.000000;
+    attr.userAccessLevel = 1;
+    attr.accessLevel = 1;
+    attr.valueRank = UA_VALUERANK_ANY;
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_QUALIFIEDNAME);
+    UA_QualifiedName defaultInstanceBrowseName = UA_QUALIFIEDNAME(1, "MyCustomBrowseName");
+    UA_Variant_setScalar(&attr.value, &defaultInstanceBrowseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    attr.displayName = UA_LOCALIZEDTEXT("", "DefaultInstanceBrowseName");
+    attr.description = UA_LOCALIZEDTEXT("", "");
+    attr.writeMask = 0;
+    attr.userWriteMask = 0;
+    retval = UA_Server_addVariableNode(server,
+                                       UA_NODEID_NUMERIC(1, 7011),
+                                       UA_NODEID_NUMERIC(1, 7010),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                       UA_QUALIFIEDNAME(0, "DefaultInstanceBrowseName"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                       attr,
+                                       NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+} END_TEST
+
+
+
+START_TEST(Nodes_checkDefaultInstanceBrowseName) {
+    /* create an object/instance of the CustomDemoType.
+     * This should fail if we do not specifiy a browse name.
+     * CustomDemoType does not have a DefaultInstanceBrowseName
+     * */
+    UA_ObjectAttributes oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "DemoCustomBrowseNameFail");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_QualifiedName nullName;
+    UA_QualifiedName_init(&nullName);
+    UA_StatusCode retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 7020),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    nullName, UA_NODEID_NUMERIC(1, 6010),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADBROWSENAMEINVALID);
+
+    /* create an object/instance of the CustomBrowseNameType and set the default browse name */
+    oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "DemoCustomBrowseName");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_QualifiedName_init(&nullName);
+    retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 7021),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    nullName, UA_NODEID_NUMERIC(1, 7010),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName receivedBrowseName;
+    UA_QualifiedName_init(&receivedBrowseName);
+
+    UA_QualifiedName defaultInstanceBrowseName = UA_QUALIFIEDNAME(1, "MyCustomBrowseName");
+
+    retval = UA_Server_readBrowseName(server, UA_NODEID_NUMERIC(1, 7021), &receivedBrowseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_QualifiedName_equal(&receivedBrowseName, &defaultInstanceBrowseName) == true);
+    UA_QualifiedName_clear(&receivedBrowseName);
+
+    /* create an object/instance of the CustomBrowseNameType and set a custom browse name */
+    oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "DemoCustomBrowseName");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_QualifiedName overriddenBrowseName = UA_QUALIFIEDNAME(1, "MyOverriddenBrowseName");
+    retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 7022),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    overriddenBrowseName, UA_NODEID_NUMERIC(1, 7010),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName_init(&receivedBrowseName);
+
+    retval = UA_Server_readBrowseName(server, UA_NODEID_NUMERIC(1, 7022), &receivedBrowseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_QualifiedName_equal(&receivedBrowseName, &overriddenBrowseName) == true);
+    UA_QualifiedName_clear(&receivedBrowseName);
+}
+END_TEST
 
 START_TEST(Nodes_createCustomStateType) {
     // Create a type "CustomStateType" with a variable "CustomStateNumber" as property
@@ -200,6 +308,86 @@ START_TEST(Nodes_checkInheritedValue) {
 END_TEST
 
 
+
+START_TEST(Nodes_createCustomInterfaceType) {
+/* Minimal nodeset does not have the Interface definitions */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* Create a custom interface type */
+
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "ILocationType");
+    otAttr.description = UA_LOCALIZEDTEXT("", "");
+    UA_StatusCode retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 8000),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEINTERFACETYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "ILocationType"),
+                                         otAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("", "InterfaceChild");
+    oAttr.description = UA_LOCALIZEDTEXT("", "");
+    retval = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 8001), UA_NODEID_NUMERIC(1, 8000),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_QUALIFIEDNAME(1, "InterfaceChild"),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                     oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 8001),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
+                                    true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    /* create an object type which has the interface */
+    otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("", "ObjectWithLocation");
+    otAttr.description = UA_LOCALIZEDTEXT("", "");
+    retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 8002),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "ObjectWithLocation"),
+                                         otAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 8002), UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE), UA_EXPANDEDNODEID_NUMERIC(1, 8000), true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+#endif
+}
+END_TEST
+
+
+
+START_TEST(Nodes_createObjectWithInterface) {
+
+/* Minimal nodeset does not have the Interface definitions */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* create an object/instance of the demo type */
+    UA_ObjectAttributes oAttr2 = UA_ObjectAttributes_default;
+    oAttr2.displayName = UA_LOCALIZEDTEXT("", "ObjectInstanceOfInterface");
+    oAttr2.description = UA_LOCALIZEDTEXT("", "");
+    UA_StatusCode retval =
+            UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 8020),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "ObjectInstanceOfInterface"), UA_NODEID_NUMERIC(1, 8002),
+                                    oAttr2, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    /* Check that object has inherited the interface children */
+
+    UA_NodeId childId;
+    findChildId(UA_NODEID_NUMERIC(1, 8020),
+                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                UA_QUALIFIEDNAME(1, "InterfaceChild"), &childId);
+    ck_assert(!UA_NodeId_isNull(&childId));
+#endif
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Node inheritance");
     TCase *tc_inherit_subtype = tcase_create("Inherit subtype value");
@@ -208,7 +396,14 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_inherit_subtype, Nodes_createCustomObjectType);
     tcase_add_test(tc_inherit_subtype, Nodes_createInheritedObject);
     tcase_add_test(tc_inherit_subtype, Nodes_checkInheritedValue);
+    tcase_add_test(tc_inherit_subtype, Nodes_createCustomBrowseNameObjectType);
+    tcase_add_test(tc_inherit_subtype, Nodes_checkDefaultInstanceBrowseName);
     suite_add_tcase(s, tc_inherit_subtype);
+    TCase *tc_interface_addin = tcase_create("Interfaces and Addins");
+    tcase_add_unchecked_fixture(tc_interface_addin, setup, teardown);
+    tcase_add_test(tc_interface_addin, Nodes_createCustomInterfaceType);
+    tcase_add_test(tc_interface_addin, Nodes_createObjectWithInterface);
+    suite_add_tcase(s, tc_interface_addin);
     return s;
 }
 

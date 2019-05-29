@@ -78,7 +78,11 @@ register_server_with_discovery_server(UA_Server *server,
 
     UA_StatusCode serviceResult = response.responseHeader.serviceResult;
     UA_RegisterServer2Response_deleteMembers(&response);
-    UA_ExtensionObject_delete(request.discoveryConfiguration);
+    UA_Array_delete(request.discoveryConfiguration,
+                    request.discoveryConfigurationSize,
+                    &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    request.discoveryConfiguration = NULL;
+    request.discoveryConfigurationSize = 0;
 
     if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
        serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {

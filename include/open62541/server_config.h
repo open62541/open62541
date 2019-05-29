@@ -63,19 +63,19 @@ typedef struct {
 #ifdef UA_ENABLE_DISCOVERY
 typedef struct {
 
-	/* Timeout in seconds when to automatically remove a registered server from
-	 * the list, if it doesn't re-register within the given time frame. A value
-	 * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
-	 * bigger than 10 seconds, because cleanup is only triggered approximately
-	 * every 10 seconds. The server will still be removed depending on the
-	 * state of the semaphore file. */
-	UA_UInt32 cleanupTimeout;
+    /* Timeout in seconds when to automatically remove a registered server from
+     * the list, if it doesn't re-register within the given time frame. A value
+     * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
+     * bigger than 10 seconds, because cleanup is only triggered approximately
+     * every 10 seconds. The server will still be removed depending on the
+     * state of the semaphore file. */
+    UA_UInt32 cleanupTimeout;
 
-	/* Enable mDNS announce and response to queries */
-	bool mdnsEnable;
+    /* Enable mDNS announce and response to queries */
+    bool mdnsEnable;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-	UA_MdnsDiscoveryConfiguration mdns;
+    UA_MdnsDiscoveryConfiguration mdns;
 #endif
 
 } UA_ServerConfig_Discovery;
@@ -188,7 +188,7 @@ struct UA_ServerConfig {
 
     /* Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-	UA_ServerConfig_Discovery discovery;
+    UA_ServerConfig_Discovery discovery;
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

@@ -282,20 +282,9 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         UA_Notification_dequeue(server, notification);
 
         /* Move the content to the response */
-        if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-            UA_assert(dcn != NULL); /* Have at least one change notification */
-            /* Move the content to the response */
-            UA_MonitoredItemNotification *min = &dcn->monitoredItems[dcnPos];
-            min->clientHandle = mon->clientHandle;
-            min->value = notification->data.value;
-            UA_DataValue_init(&notification->data.value); /* Reset after the value has been moved */
-            dcnPos++;
-        }
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_STATUSNOTIFY && scn) {
-            // TODO: Handling of StatusChangeNotifications
-            scn = NULL; /* At most one per PublishReponse */
-        } else if(mon->monitoredItemType == UA_MONITOREDITEMTYPE_EVENTNOTIFY && enl) {
+        if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+
             UA_assert(enl != NULL); /* Have at least one event notification */
 
             /* Move the content to the response */
@@ -305,11 +294,16 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
             efl->clientHandle = mon->clientHandle;
 
             enlPos++;
-        }
+        } else
 #endif
-        else {
-            UA_Notification_delete(notification);
-            continue; /* Unknown type. Nothing to do */
+        {
+            UA_assert(dcn != NULL); /* Have at least one change notification */
+            /* Move the content to the response */
+            UA_MonitoredItemNotification *min = &dcn->monitoredItems[dcnPos];
+            min->clientHandle = mon->clientHandle;
+            min->value = notification->data.value;
+            UA_DataValue_init(&notification->data.value); /* Reset after the value has been moved */
+            dcnPos++;
         }
 
         UA_Notification_delete(notification);
