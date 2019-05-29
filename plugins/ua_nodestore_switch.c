@@ -6,343 +6,306 @@
 
 #include <open62541/plugin/nodestore_switch.h>
 
-const UA_Boolean inPlaceEditAllowed = false;
-//TODO checks for defaultNS != NULL --> Allow defaultNS to be NULL and return error (or NULL)
+const UA_Boolean inPlaceEditAllowed = UA_FALSE;
 
-void UA_Nodestore_copy(const UA_NodestoreInterface* src, UA_NodestoreInterface* dst){
-	dst->context = src->context;
-	dst->deleteNode = src->deleteNode;
-	dst->deleteNodestore = src->deleteNodestore;
-	dst->getNode = src->getNode;
-	dst->getNodeCopy = src->getNodeCopy;
-	dst->insertNode = src->insertNode;
-	dst->iterate = src->iterate;
-	dst->newNode = src->newNode;
-	dst->releaseNode = src->releaseNode;
-	dst->removeNode = src->removeNode;
-    dst->replaceNode = src->replaceNode;
+//TODO make multithreading save --> Lock/Unlock or CRTISECTION
+
+/*
+ * Switch API: linking and unlinking of namespace index to store
+ */
+UA_NodestoreInterface* UA_Nodestore_Switch_getNodestore(
+		UA_Nodestore_Switch* storeSwitch, UA_UInt16 index,
+		UA_Boolean useDefault) {
+	if (index < storeSwitch->size) {
+		return storeSwitch->stores[index];
+	}
+	if (useDefault && storeSwitch->defaultStore != NULL)
+		return storeSwitch->defaultStore;
+	return NULL;
 }
 
-static size_t findNSHandle(UA_Nodestore_Switch *storeSwitch, void *nsHandle)
-{
-	size_t i;
-	for(i=0; i<storeSwitch->size; i++)
-	{
-		if(storeSwitch->nodestoreArray[i]->context == nsHandle)
-		{
-			return i;
+UA_StatusCode UA_Nodestore_Switch_setNodestore(UA_Nodestore_Switch* storeSwitch,
+		UA_UInt16 index, UA_NodestoreInterface* store) {
+	UA_UInt16 newSize = (UA_UInt16) (index + 1);
+	// calculate new size if last nodestore is unlinked
+	if (store == NULL && index == (storeSwitch->size - 1)) {
+		// check all interface links before last nodestore
+		for (newSize = (UA_UInt16) (storeSwitch->size - 1); newSize > 0;
+				--newSize) {
+			if (storeSwitch->stores[newSize - 1] != NULL)
+				break;
 		}
 	}
-	return i;
-}
 
-UA_StatusCode UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** nsInterface){
-	UA_NodestoreInterface* uaDefaultStore = (UA_NodestoreInterface*)UA_malloc(sizeof(UA_NodestoreInterface));
-	if(uaDefaultStore == NULL){
-		return UA_STATUSCODE_BADOUTOFMEMORY;
-	}
-
-	UA_StatusCode result = UA_Nodestore_Default_new((void**)&uaDefaultStore->context);
-	if(result != UA_STATUSCODE_GOOD){
-		UA_free(uaDefaultStore);
-		return result;
-	}
-	uaDefaultStore->deleteNodestore = UA_Nodestore_Default_delete;
-	uaDefaultStore->newNode = UA_Nodestore_Default_newNode;
-	uaDefaultStore->deleteNode = UA_Nodestore_Default_deleteNode;
-	uaDefaultStore->getNode = UA_Nodestore_Default_getNode;
-	uaDefaultStore->releaseNode = UA_Nodestore_Default_releaseNode;
-	uaDefaultStore->getNodeCopy = UA_Nodestore_Default_getNodeCopy;
-	uaDefaultStore->insertNode = UA_Nodestore_Default_insertNode;
-	uaDefaultStore->replaceNode = UA_Nodestore_Default_replaceNode;
-	uaDefaultStore->iterate = UA_Nodestore_Default_iterate;
-	uaDefaultStore->removeNode = UA_Nodestore_Default_removeNode;
-	*nsInterface = uaDefaultStore;
-	return UA_STATUSCODE_GOOD;
-}
-
-
-UA_StatusCode UA_Nodestore_Switch_new(void **nsCtx)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)UA_malloc(sizeof(UA_Nodestore_Switch));
-	if(!storeSwitch)
-		return UA_STATUSCODE_BADOUTOFMEMORY;
-
-	UA_StatusCode result = UA_Nodestore_Default_Interface_new(&storeSwitch->defaultNodestore);
-	if(result != UA_STATUSCODE_GOOD){
-		UA_free(storeSwitch);
-		return result;
-	}
-
-	storeSwitch->nodestoreArray = NULL;
-	storeSwitch->size = 0;
-	*nsCtx = (void*)storeSwitch;
-	return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_Nodestore_Switch_newEmpty(void **nsCtx)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)UA_malloc(sizeof(UA_Nodestore_Switch));
-	if(!storeSwitch)
-		return UA_STATUSCODE_BADOUTOFMEMORY;
-	storeSwitch->defaultNodestore = NULL;
-	storeSwitch->nodestoreArray = NULL;
-	storeSwitch->size = 0;
-	*nsCtx = (void*)storeSwitch;
-	return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_Nodestore_Switch_linkDefaultNodestore(UA_Nodestore_Switch *storeSwitch, UA_NodestoreInterface *store)
-{
-	if(store == NULL)
-		return UA_STATUSCODE_BADNOTFOUND;
-	storeSwitch->defaultNodestore = store;
-	return UA_STATUSCODE_GOOD;
-}
-
-void UA_Nodestore_Switch_linkSwitchToStore(UA_Nodestore_Switch *storeSwitch ,UA_NodestoreInterface *store)
-{
-	store->context = storeSwitch;
-	store->deleteNodestore = UA_Nodestore_Switch_deleteNodestores;
-	store->newNode = UA_Nodestore_Switch_newNode;
-	store->deleteNode = UA_Nodestore_Switch_deleteNode;
-	store->getNode = UA_Nodestore_Switch_getNode;
-	store->releaseNode = UA_Nodestore_Switch_releaseNode;
-	store->getNodeCopy = UA_Nodestore_Switch_getNodeCopy;
-	store->insertNode = UA_Nodestore_Switch_insertNode;
-	store->replaceNode = UA_Nodestore_Switch_replaceNode;
-	store->iterate = UA_Nodestore_Switch_iterate;
-	store->removeNode = UA_Nodestore_Switch_removeNode;
-}
-
-
-UA_StatusCode UA_Nodestore_Switch_linkNodestoreToNamespace(UA_Nodestore_Switch *storeSwitch,
-		UA_NodestoreInterface *ns, UA_UInt16 namespaceindex)
-{
-	//TODO make multithreading save --> Lock/Unlock or CRTISECTION
-	if(storeSwitch->size <= namespaceindex)
-	{
-		UA_NodestoreInterface **tmpPointer = (UA_NodestoreInterface **) UA_realloc(
-				storeSwitch->nodestoreArray , (size_t)(namespaceindex + 1) * sizeof (UA_NodestoreInterface*));
-		if(!tmpPointer)
+	// resize array if neccessary
+	if (newSize != storeSwitch->size) {
+		UA_NodestoreInterface **newNsArray =
+				(UA_NodestoreInterface **) UA_realloc(storeSwitch->stores,
+						newSize * sizeof(UA_NodestoreInterface*));
+		if (!newNsArray)
 			return UA_STATUSCODE_BADOUTOFMEMORY;
-		storeSwitch->nodestoreArray = tmpPointer;
-		for (UA_UInt16 i = storeSwitch->size; i < namespaceindex + 1; i++){
-			storeSwitch->nodestoreArray[i] = NULL;
+		storeSwitch->stores = newNsArray;
+		// fill new array entries with NULL to use the default nodestore
+		for (UA_UInt16 i = storeSwitch->size; i < index + 1; i++) {
+			storeSwitch->stores[i] = NULL;
 		}
-		storeSwitch->size = (UA_UInt16) (namespaceindex + 1);
+		storeSwitch->size = newSize;
 	}
 
-	storeSwitch->nodestoreArray[namespaceindex] = ns;
+	// set nodestore
+	if (index < storeSwitch->size)
+		storeSwitch->stores[index] = store;
 	return UA_STATUSCODE_GOOD;
-
 }
 
-
-UA_StatusCode UA_Nodestore_Switch_unlinkNodestoreFromNamespace(UA_Nodestore_Switch *storeSwitch, UA_NodestoreInterface *ns)
-{
-	//TODO make multithreading save --> Lock/Unlock or CRTISECTION
-	size_t flag = 0;
-	if(ns == NULL)
-		return UA_STATUSCODE_BADNOTFOUND;
-	for(size_t i=0; i< storeSwitch->size; i++)
-	{
-		if(storeSwitch->nodestoreArray[i] == ns)
-		{
-			if(flag == 0)
-			{
-				storeSwitch->nodestoreArray[i]->deleteNodestore(storeSwitch->nodestoreArray[i]->context);
-				flag = 1;
+UA_StatusCode UA_Nodestore_Switch_getIndices(UA_Nodestore_Switch* storeSwitch,
+		UA_NodestoreInterface* store, UA_UInt16* count, UA_UInt16** indices) {
+	// Count occurances
+	UA_UInt16 found = 0;
+	for (UA_UInt16 i = 0; i < storeSwitch->size; i++) {
+		if (storeSwitch->stores[i] == store)
+			++found;
+	}
+	// Create an array of for indices
+	if (indices != NULL) {
+		*indices = (UA_UInt16*) UA_malloc(sizeof(UA_Int16) * found);
+		if (*indices != NULL) {
+			found = 0;
+			for (UA_UInt16 i = 0; i < storeSwitch->size; i++) {
+				if (storeSwitch->stores[i] == store)
+					*indices[found++] = i;
 			}
-			storeSwitch->nodestoreArray[i] = NULL;//UA_free(&storeSwitch->nodestoreArray[i]);
-			//TODO resize ns array if ns is last in array?
-		}
-
+		} else
+			return UA_STATUSCODE_BADOUTOFMEMORY;
 	}
-	return (flag == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
-}
-
-//TODO check and change to replace all ns --> comfortfunction --> change to getNodestore(nsIndex)
-//TODO  add getNSIndexes(nsHandle) --> change findNSHandle for all matches
-UA_StatusCode UA_Nodestore_Switch_changeNodestore(UA_Nodestore_Switch *storeSwitch, void *nsHandleOut, UA_NodestoreInterface *nsIn) {
-	size_t i= findNSHandle(storeSwitch, nsHandleOut);
-	if(i == storeSwitch->size)
-		return UA_STATUSCODE_BADNOTFOUND;
-	if(nsIn == NULL)
-		return UA_STATUSCODE_BADINTERNALERROR;
-	storeSwitch->nodestoreArray[i] = nsIn;
+	if (count)
+		*count = found;
 	return UA_STATUSCODE_GOOD;
 }
 
-void UA_Nodestore_Switch_delete(void *storeSwitch)
-{
-	UA_Nodestore_Switch_deleteNodestores(storeSwitch);
+UA_StatusCode UA_Nodestore_Switch_unlinkNodestore(
+		UA_Nodestore_Switch* storeSwitch, UA_NodestoreInterface *store) {
+	if (store == NULL)
+		return UA_STATUSCODE_GOOD;
+	for (UA_UInt16 i = 0; i < storeSwitch->size - 1; i++) {
+		if (storeSwitch->stores[i] == store)
+			storeSwitch->stores[i] = NULL;
+	}
+	// resize stores array if last store will be unlinked
+	if (storeSwitch->stores[storeSwitch->size - 1] == store) {
+		UA_Nodestore_Switch_setNodestore(storeSwitch,
+				(UA_UInt16) (storeSwitch->size - 1), NULL);
+	}
+	return UA_STATUSCODE_GOOD;
+}
+
+/*
+ * Switch API: Get an interface of the default nodestore or a switch
+ */
+
+UA_StatusCode UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** store) {
+	UA_NodestoreInterface* defaultStore = (UA_NodestoreInterface*) UA_malloc(
+			sizeof(UA_NodestoreInterface));
+	if (defaultStore == NULL) {
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
+
+	UA_StatusCode result = UA_Nodestore_Default_new(
+			(void**) &defaultStore->context);
+	if (result != UA_STATUSCODE_GOOD) {
+		UA_free(defaultStore);
+		return result;
+	}
+	defaultStore->deleteNodestore = UA_Nodestore_Default_delete;
+	defaultStore->newNode = UA_Nodestore_Default_newNode;
+	defaultStore->deleteNode = UA_Nodestore_Default_deleteNode;
+	defaultStore->getNode = UA_Nodestore_Default_getNode;
+	defaultStore->releaseNode = UA_Nodestore_Default_releaseNode;
+	defaultStore->getNodeCopy = UA_Nodestore_Default_getNodeCopy;
+	defaultStore->insertNode = UA_Nodestore_Default_insertNode;
+	defaultStore->replaceNode = UA_Nodestore_Default_replaceNode;
+	defaultStore->iterate = UA_Nodestore_Default_iterate;
+	defaultStore->removeNode = UA_Nodestore_Default_removeNode;
+	*store = defaultStore;
+	return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Nodestore_Switch_Interface_new(
+		UA_Nodestore_Switch *storeSwitch, UA_NodestoreInterface** store) {
+	UA_NodestoreInterface* ns = (UA_NodestoreInterface*) UA_malloc(
+			sizeof(UA_NodestoreInterface));
+	if (ns == NULL) {
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
+	ns->context = storeSwitch;
+	ns->deleteNodestore = UA_Nodestore_Switch_delete;
+	ns->newNode = UA_Nodestore_Switch_newNode;
+	ns->deleteNode = UA_Nodestore_Switch_deleteNode;
+	ns->getNode = UA_Nodestore_Switch_getNode;
+	ns->releaseNode = UA_Nodestore_Switch_releaseNode;
+	ns->getNodeCopy = UA_Nodestore_Switch_getNodeCopy;
+	ns->insertNode = UA_Nodestore_Switch_insertNode;
+	ns->replaceNode = UA_Nodestore_Switch_replaceNode;
+	ns->iterate = UA_Nodestore_Switch_iterate;
+	ns->removeNode = UA_Nodestore_Switch_removeNode;
+	*store = ns;
+	return UA_STATUSCODE_GOOD;
+}
+
+/*
+ * Nodestore switch life cycle
+ */
+
+UA_StatusCode UA_Nodestore_Switch_newEmpty(void **nsCtx) {
+	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *) UA_malloc(
+			sizeof(UA_Nodestore_Switch));
+	if (!storeSwitch)
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	storeSwitch->defaultStore = NULL;
+	storeSwitch->stores = NULL;
+	storeSwitch->size = 0;
+	*nsCtx = (void*) storeSwitch;
+	return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Nodestore_Switch_new(void **nsCtx) {
+	UA_StatusCode result = UA_Nodestore_Switch_newEmpty(nsCtx);
+	if (result != UA_STATUSCODE_GOOD)
+		return result;
+	result = UA_Nodestore_Default_Interface_new(
+			&((UA_Nodestore_Switch*)nsCtx)->defaultStore);
+	if (result != UA_STATUSCODE_GOOD) {
+		UA_free(*nsCtx);
+	}
+	return result;
+}
+
+void UA_Nodestore_Switch_delete(void *nsCtx) {
+	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *) nsCtx;
+	// delete custom nodestores
+	for (size_t i = 0; i < storeSwitch->size; i++) {
+		// if namespace i has custom nodestore
+		if (storeSwitch->stores[i]) {
+			//check that custom nodestore is not equal to default nodestore
+			if (storeSwitch->stores[i] == storeSwitch->defaultStore) {
+				storeSwitch->stores[i] = NULL;
+				continue;
+			}
+			// search forward for other occurances of nodestore and set to null
+			for (size_t j = i + 1; j < storeSwitch->size; j++) {
+				// check that nodestore is equal by comparision of interfaces
+				if (storeSwitch->stores[j] == storeSwitch->stores[i])
+					storeSwitch->stores[j] = NULL;
+			}
+			// delete the nodestore
+			storeSwitch->stores[i]->deleteNodestore(
+					storeSwitch->stores[i]->context);
+			UA_free(storeSwitch->stores[i]);
+			storeSwitch->stores[i] = NULL;
+		}
+	}
+	// delete default nodestore
+	if (storeSwitch->defaultStore) {
+		storeSwitch->defaultStore->deleteNodestore(
+				storeSwitch->defaultStore->context);
+		UA_free(storeSwitch->defaultStore);
+		storeSwitch->defaultStore = NULL;
+	}
+
+	// delete nodestore switch itself
+	UA_free(storeSwitch->stores);
+	storeSwitch->stores = NULL;
 	UA_free(storeSwitch);
 }
 
+/*
+ * Functions of nodestore interface that are plugged into the server and do the actual switch
+ */
 
- /* Functions of nodestore interface to plug in to server */
-void UA_Nodestore_Switch_deleteNode(void *storeSwitchHandle, UA_Node *node)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
-	if (node->nodeId.namespaceIndex < storeSwitch->size){
-		if (storeSwitch->nodestoreArray[node->nodeId.namespaceIndex] != NULL){
-			storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->deleteNode(storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->context, node);
-			return;
-		}
-	}
-	if(storeSwitch->defaultNodestore != NULL){
-		storeSwitch->defaultNodestore->deleteNode(storeSwitch->defaultNodestore->context, node);
+UA_Node *UA_Nodestore_Switch_newNode(void *nsCtx, UA_NodeClass nodeClass) {
+	//TODO: Not clear in which nodestore the memory has to be allocated. (storeSwitch or defaultNodestore)
+	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *) nsCtx;
+	return storeSwitch->defaultStore->newNode(
+			storeSwitch->defaultStore->context, nodeClass);
+}
+
+void UA_Nodestore_Switch_deleteNode(void *nsCtx, UA_Node *node) {
+	UA_NodestoreInterface * nsi = UA_Nodestore_Switch_getNodestore((UA_Nodestore_Switch *) nsCtx,
+			node->nodeId.namespaceIndex, UA_TRUE);
+	if (nsi != NULL) {
+		nsi->deleteNode(nsi->context, node);
 		return;
 	}
 }
 
-UA_StatusCode UA_Nodestore_Switch_insertNode(void *storeSwitchHandle, UA_Node *node, UA_NodeId *addedNodeId)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
-	if (node->nodeId.namespaceIndex < storeSwitch->size){
-		if (storeSwitch->nodestoreArray[node->nodeId.namespaceIndex] != NULL){
-			return (storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->insertNode(storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->context, node, addedNodeId));
-		}
-	}
-	if(storeSwitch->defaultNodestore != NULL){
-		return storeSwitch->defaultNodestore->insertNode(storeSwitch->defaultNodestore->context, node, addedNodeId);
-	}
-	return UA_STATUSCODE_BADNODEIDINVALID;
-}
-
-const UA_Node *UA_Nodestore_Switch_getNode(void *storeSwitchHandle, const UA_NodeId *nodeId)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
-	if (nodeId->namespaceIndex < storeSwitch->size){
-		if (storeSwitch->nodestoreArray[nodeId->namespaceIndex] != NULL){
-			return (storeSwitch->nodestoreArray[nodeId->namespaceIndex]->getNode(storeSwitch->nodestoreArray[nodeId->namespaceIndex]->context,nodeId));
-		}
-	}
-
-	if(storeSwitch->defaultNodestore != NULL){
-		return (const UA_Node*) storeSwitch->defaultNodestore->getNode(storeSwitch->defaultNodestore->context, nodeId);
+const UA_Node *UA_Nodestore_Switch_getNode(void *nsCtx, const UA_NodeId *nodeId) {
+	UA_NodestoreInterface * nsi = UA_Nodestore_Switch_getNodestore((UA_Nodestore_Switch *) nsCtx,
+			nodeId->namespaceIndex, UA_TRUE);
+	if (nsi != NULL) {
+		return (nsi->getNode(nsi->context, nodeId));
 	}
 	return NULL;
 }
 
-UA_StatusCode UA_Nodestore_Switch_getNodeCopy(void *storeSwitchHandle, const UA_NodeId *nodeId, UA_Node **outNode)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
-	if (nodeId->namespaceIndex < storeSwitch->size){
-		if (storeSwitch->nodestoreArray[nodeId->namespaceIndex] != NULL){
-			return storeSwitch->nodestoreArray[nodeId->namespaceIndex]->getNodeCopy(storeSwitch->nodestoreArray[nodeId->namespaceIndex]->context, nodeId, outNode);
-		}
-	}
-	if(storeSwitch->defaultNodestore != NULL){
-		return storeSwitch->defaultNodestore->getNodeCopy(storeSwitch->defaultNodestore->context, nodeId, outNode);
-	}
-	return UA_STATUSCODE_BADNODEIDINVALID;
-}
-
-UA_StatusCode UA_Nodestore_Switch_replaceNode(void *storeSwitchHandle, UA_Node *node)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
-	if (node->nodeId.namespaceIndex < storeSwitch->size){
-		if (storeSwitch->nodestoreArray[node->nodeId.namespaceIndex] != NULL){
-			return storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->replaceNode(storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->context, node);
-		}
-	}
-	if(storeSwitch->defaultNodestore != NULL){
-		return storeSwitch->defaultNodestore->replaceNode(storeSwitch->defaultNodestore->context, node);
-	}
-	return UA_STATUSCODE_BADNODEIDINVALID;
-}
-
-UA_StatusCode UA_Nodestore_Switch_removeNode(void *storeSwitchHandle, const UA_NodeId *nodeId)
-{
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
-	if (nodeId->namespaceIndex < storeSwitch->size){
-		if (storeSwitch->nodestoreArray[nodeId->namespaceIndex] != NULL){
-			return storeSwitch->nodestoreArray[nodeId->namespaceIndex]->removeNode(storeSwitch->nodestoreArray[nodeId->namespaceIndex]->context, nodeId);
-		}
-	}
-	if(storeSwitch->defaultNodestore != NULL){
-		return storeSwitch->defaultNodestore->removeNode(storeSwitch->defaultNodestore->context, nodeId);
-	}
-	return UA_STATUSCODE_BADNODEIDINVALID;
-}
-
-void UA_Nodestore_Switch_releaseNode(void *storeSwitchHandle, const UA_Node *node)
-{
-	if(node == NULL) return;
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
-	if (node->nodeId.namespaceIndex < storeSwitch->size){
-		if (storeSwitch->nodestoreArray[node->nodeId.namespaceIndex] != NULL){
-			storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->releaseNode(storeSwitch->nodestoreArray[node->nodeId.namespaceIndex]->context, node);
-			return;
-		}
-	}
-	if(storeSwitch->defaultNodestore != NULL){
-		storeSwitch->defaultNodestore->releaseNode(storeSwitch->defaultNodestore->context, node);
+void UA_Nodestore_Switch_releaseNode(void *nsCtx, const UA_Node *node) {
+	if (node == NULL) //TODO check wether this should lead to an error?
+		return;
+	UA_NodestoreInterface * nsi = UA_Nodestore_Switch_getNodestore((UA_Nodestore_Switch *) nsCtx,
+			node->nodeId.namespaceIndex, UA_TRUE);
+	if (nsi != NULL) {
+		nsi->releaseNode(nsi->context, node);
 		return;
 	}
 }
 
-void UA_Nodestore_Switch_deleteNodestores(void *storeSwitchHandle)
- {
-	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
+UA_StatusCode UA_Nodestore_Switch_getNodeCopy(void *nsCtx,
+		const UA_NodeId *nodeId, UA_Node **outNode) {
+	UA_NodestoreInterface * nsi = UA_Nodestore_Switch_getNodestore((UA_Nodestore_Switch *) nsCtx,
+			nodeId->namespaceIndex, UA_TRUE);
+	if (nsi != NULL)
+		return nsi->getNodeCopy(nsi->context, nodeId, outNode);
+	return UA_STATUSCODE_BADNODEIDUNKNOWN;
+}
 
-	//Delete default nodestore
-	if(storeSwitch->defaultNodestore){
-		//Check for explicit link to default nodestore and set to NULL
-		for(size_t i=0 ; i < storeSwitch->size ; i++){
-			//check that nodestore is equal by comparision of interfaces
-			if(storeSwitch->nodestoreArray[i] == storeSwitch->defaultNodestore)
-				storeSwitch->nodestoreArray[i]= NULL;
+UA_StatusCode UA_Nodestore_Switch_insertNode(void *nsCtx, UA_Node *node,
+		UA_NodeId *addedNodeId) {
+	UA_NodestoreInterface * nsi = UA_Nodestore_Switch_getNodestore((UA_Nodestore_Switch *) nsCtx,
+			node->nodeId.namespaceIndex, UA_TRUE);
+	if (nsi != NULL)
+		return (nsi->insertNode(nsi->context, node, addedNodeId));
+	return UA_STATUSCODE_BADNODEIDUNKNOWN;
+}
+
+UA_StatusCode UA_Nodestore_Switch_replaceNode(void *nsCtx, UA_Node *node) {
+	UA_NodestoreInterface * nsi = UA_Nodestore_Switch_getNodestore((UA_Nodestore_Switch *) nsCtx,
+			node->nodeId.namespaceIndex, UA_TRUE);
+	if (nsi != NULL)
+		return nsi->replaceNode(nsi->context, node);
+	return UA_STATUSCODE_BADNODEIDUNKNOWN; //TODO check if BADNODEIDUNKNOWN
+}
+
+UA_StatusCode UA_Nodestore_Switch_removeNode(void *nsCtx,
+		const UA_NodeId *nodeId) {
+	UA_NodestoreInterface * nsi = UA_Nodestore_Switch_getNodestore((UA_Nodestore_Switch *) nsCtx,
+			nodeId->namespaceIndex, UA_TRUE);
+	if (nsi != NULL)
+		return nsi->removeNode(nsi->context, nodeId);
+	return UA_STATUSCODE_BADNODEIDUNKNOWN;
+}
+
+void UA_Nodestore_Switch_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
+		void *visitorCtx) {
+	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *) nsCtx;
+	UA_NodestoreInterface *tempArray[storeSwitch->size];
+	for (size_t i = 0; i < storeSwitch->size; i++) {
+		for (size_t j = 0; j <= i; j++) {
+			if (tempArray[j] == storeSwitch->stores[i])
+				break;
+			else if (j == i) {
+				tempArray[i] = storeSwitch->stores[i];
+				storeSwitch->stores[i]->iterate(storeSwitch, visitor,
+						visitorCtx);
+			}
 		}
-		storeSwitch->defaultNodestore->deleteNodestore(storeSwitch->defaultNodestore->context);
-		storeSwitch->defaultNodestore = NULL;
 	}
-
- 	for(size_t i=0; i< storeSwitch->size; i++)
- 	{
- 		//if namespace i has custom nodestore
- 		if(storeSwitch->nodestoreArray[i]){
- 			// search forward for other occurances of nodestore and set to null
- 			for(size_t j=i+1 ; j < storeSwitch->size ; j++){
- 				//check that nodestore is equal by comparision of interfaces
- 				if(storeSwitch->nodestoreArray[j] == storeSwitch->nodestoreArray[i])
- 					storeSwitch->nodestoreArray[j]= NULL;
- 			}
- 			//delete the nodestore
- 			storeSwitch->nodestoreArray[i]->deleteNodestore(storeSwitch->nodestoreArray[i]->context);
- 			storeSwitch->nodestoreArray[i] = NULL;
- 		}
- 	}
- }
-
-
-  UA_Node *UA_Nodestore_Switch_newNode(void *storeSwitchHandle, UA_NodeClass nodeClass)
-  {
-	//todo: NOT IMPLEMENTED Cause of, not clear in which nodestore the memory has to be allocated. (storeSwitch or defaultNodestore)
- 	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)storeSwitchHandle;
- 	return storeSwitch->defaultNodestore->newNode(storeSwitch->defaultNodestore->context, nodeClass);
-	//  return NULL;
-  }
-
-  void UA_Nodestore_Switch_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
-          void *visitorCtx)
-  {
-  	UA_Nodestore_Switch *storeSwitch = (UA_Nodestore_Switch *)nsCtx;
-  	UA_NodestoreInterface *tempArray[storeSwitch->size];
-  	for(size_t i=0; i<storeSwitch->size; i++)
-  	{
-  		for(size_t j=0; j<=i; j++)
-  		{
-  			if(tempArray[j] == storeSwitch->nodestoreArray[i])
-  				break;
-  			else if(j==i)
-  			{
-  				tempArray[i] = storeSwitch->nodestoreArray[i];
-  				storeSwitch->nodestoreArray[i]->iterate(storeSwitch, visitor, visitorCtx);
-  			}
-  		}
-  	}
-
-  }
+}
