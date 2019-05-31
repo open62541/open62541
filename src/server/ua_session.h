@@ -16,16 +16,12 @@ _UA_BEGIN_DECLS
 
 #define UA_MAXCONTINUATIONPOINTS 5
 
-typedef struct ContinuationPointEntry {
-    LIST_ENTRY(ContinuationPointEntry) pointers;
-    UA_ByteString        identifier;
-    UA_BrowseDescription browseDescription;
-    UA_UInt32            maxReferences;
+struct ContinuationPointEntry;
+typedef struct ContinuationPointEntry ContinuationPointEntry;
 
-    /* The last point in the node references? */
-    size_t referenceKindIndex;
-    size_t targetIndex;
-} ContinuationPointEntry;
+/* Returns the next entry in the linked list */
+ContinuationPointEntry *
+ContinuationPointEntry_clear(ContinuationPointEntry *cp);
 
 struct UA_Subscription;
 typedef struct UA_Subscription UA_Subscription;
@@ -51,7 +47,7 @@ typedef struct {
     UA_DateTime       validTill;
     UA_ByteString     serverNonce;
     UA_UInt16 availableContinuationPoints;
-    LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
+    ContinuationPointEntry *continuationPoints;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 lastSubscriptionId;
     UA_UInt32 lastSeenSubscriptionId;

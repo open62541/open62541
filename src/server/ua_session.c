@@ -29,13 +29,13 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
     UA_ByteString_deleteMembers(&session->serverNonce);
-    struct ContinuationPointEntry *cp, *temp;
-    LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
-        LIST_REMOVE(cp, pointers);
-        UA_ByteString_deleteMembers(&cp->identifier);
-        UA_BrowseDescription_deleteMembers(&cp->browseDescription);
+    struct ContinuationPointEntry *cp, *next = session->continuationPoints;
+    while((cp = next)) {
+        next = ContinuationPointEntry_clear(cp);
         UA_free(cp);
     }
+    session->continuationPoints = NULL;
+    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
 }
 
 void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
