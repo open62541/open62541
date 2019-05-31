@@ -9,7 +9,11 @@
 
 #include <open62541/server_config_default.h>
 #include "server/ua_server_internal.h"
-
+#ifdef UA_ENABLE_PUBSUB_MQTT
+#include "../plugins/ua_network_pubsub_mqtt.h"
+#endif
+#include "open62541/plugin/log_stdout.h"
+#include "open62541/types_generated.h"
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #include "ua_pubsub.h"
@@ -25,6 +29,10 @@
 #define UA_MAX_STACKBUF 512 /* Max size of network messages on the stack */
 #define UA_MAX_SIZENAME 64  /* Max size of Qualified Name of Subscribed Variable */
 
+#ifdef UA_ENABLE_PUBSUB_MQTT
+#define NULL_BYTESTRING_BUFFER {0, NULL}
+static UA_ByteString tempBuffer = NULL_BYTESTRING_BUFFER; /* temporary buffer for MQTT callback */
+#endif
 /* Forward declaration */
 static size_t
 iterateVariableAttrDimension(UA_VariableAttributes varAttr);
@@ -2373,13 +2381,15 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
  * contained DataSetMessages. */
 void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+#ifndef UA_ENABLE_PUBSUB_MQTT
     UA_ByteString buffer;
+
     if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Message buffer alloc failed!");
         return;
     }
+   connection->channel->receive(connection->channel, &buffer, NULL, 300000);
 
-    connection->channel->receive(connection->channel, &buffer, NULL, 300000);
     if(buffer.length > 0) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
         UA_NetworkMessage currentNetworkMessage;
@@ -2391,7 +2401,57 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     }
 
     UA_ByteString_deleteMembers(&buffer);
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_MQTT
+
+    if(tempBuffer.length > 0) {
+        UA_NetworkMessage currentNetworkMessage;
+        size_t currentPosition = 0;
+        UA_StatusCode retval = UA_NetworkMessage_decodeBinary(&tempBuffer, &currentPosition, &currentNetworkMessage);
+        /* ToDo: Implement Json decoding */
+#ifdef UA_ENABLE_JSON_ENCODING
+        /* Json implementation */
+        /* UA_StatusCode retval = UA_NetworkMessage_decodeJson(&currentNetworkMessage, &tempBuffer); */
+#endif
+        if( retval == UA_STATUSCODE_GOOD)
+        {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "MQTT Message received:");
+            UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
+            UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+            UA_ByteString_deleteMembers(&tempBuffer);
+        }
+        else
+        {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "MQTT Message not received:");
+            return;
+        }
+    }
+    else {
+          return;
+    }
+#endif
 }
+
+/* This mqtt callback function receives NetworkMessages from the subscribed topic */
+#ifdef UA_ENABLE_PUBSUB_MQTT
+static void mqttSubscribeCallback(UA_ByteString *encodedBuffer, UA_ByteString *topic) {
+     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub MQTT: Message Received");
+
+     if(encodedBuffer->length > 0)
+     {
+         tempBuffer.data = (UA_Byte*)UA_malloc(encodedBuffer->length);
+         tempBuffer.length = encodedBuffer->length;
+         memcpy(tempBuffer.data, encodedBuffer->data, encodedBuffer->length);
+         UA_ByteString_delete(encodedBuffer);
+         UA_ByteString_delete(topic);
+     }
+     else {
+         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub MQTT: Buffer is empty");
+         return;
+     }
+}
+#endif
 
 /* Add new subscribeCallback. The first execution is triggered directly after
  * creation. */
@@ -2399,8 +2459,29 @@ UA_StatusCode
 UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+
     if(connection != NULL) {
+#ifndef UA_ENABLE_PUBSUB_MQTT
         retval = connection->channel->regist(connection->channel, NULL, NULL);
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_MQTT
+        UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
+        memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+        brokerTransportSettings.queueName = UA_STRING(mqttTopic);
+        brokerTransportSettings.resourceUri = UA_STRING_NULL;
+        brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
+
+        /* QOS */
+        brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+        UA_ExtensionObject transportSettings;
+        memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+        transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+        transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+        transportSettings.content.decoded.data = &brokerTransportSettings;
+        retval = connection->channel->regist(connection->channel, &transportSettings, &mqttSubscribeCallback);
+#endif
+
         if(retval == UA_STATUSCODE_GOOD) {
             retval = UA_PubSubManager_addRepeatedCallback(server,
                     (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
