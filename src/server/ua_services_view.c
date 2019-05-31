@@ -19,6 +19,24 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+struct ContinuationPointEntry {
+    ContinuationPointEntry *next;
+    UA_ByteString identifier;
+    UA_BrowseDescription browseDescription;
+    UA_UInt32 maxReferences;
+
+    /* The last point in the node references? */
+    size_t referenceKindIndex;
+    size_t targetIndex;
+};
+
+ContinuationPointEntry *
+ContinuationPointEntry_clear(ContinuationPointEntry *cp) {
+    UA_ByteString_deleteMembers(&cp->identifier);
+    UA_BrowseDescription_deleteMembers(&cp->browseDescription);
+    return cp->next;
+}
+
 /**********/
 /* Browse */
 /**********/
@@ -51,15 +69,6 @@ fillReferenceDescription(UA_Server *server, const UA_Node *curr,
         }
     }
     return retval;
-}
-
-static void
-removeCp(ContinuationPointEntry *cp, UA_Session* session) {
-    LIST_REMOVE(cp, pointers);
-    UA_ByteString_deleteMembers(&cp->identifier);
-    UA_BrowseDescription_deleteMembers(&cp->browseDescription);
-    UA_free(cp);
-    ++session->availableContinuationPoints;
 }
 
 static UA_Boolean
@@ -317,7 +326,8 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
 
     /* Attach the cp to the session */
-    LIST_INSERT_HEAD(&session->continuationPoints, cp2, pointers);
+    cp2->next = session->continuationPoints;
+    session->continuationPoints = cp2;
     --session->availableContinuationPoints;
     return;
 
@@ -370,10 +380,11 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
                      const UA_Boolean *releaseContinuationPoints,
                      const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
-    ContinuationPointEntry *cp;
-    LIST_FOREACH(cp, &session->continuationPoints, pointers) {
+    ContinuationPointEntry **prev = &session->continuationPoints, *cp;
+    while((cp = *prev)) {
         if(UA_ByteString_equal(&cp->identifier, continuationPoint))
             break;
+        prev = &cp->next;
     }
     if(!cp) {
         result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
@@ -382,7 +393,9 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
     /* Remove the cp */
     if(*releaseContinuationPoints) {
-        removeCp(cp, session);
+        *prev = ContinuationPointEntry_clear(cp);
+        UA_free(cp);
+        ++session->availableContinuationPoints;
         return;
     }
 
@@ -391,7 +404,9 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
     if(done) {
         /* Remove the cp if there are no references left */
-        removeCp(cp, session);
+        *prev = ContinuationPointEntry_clear(cp);
+        UA_free(cp);
+        ++session->availableContinuationPoints;
     } else {
         /* Return the cp identifier */
         UA_StatusCode retval = UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
