@@ -19,8 +19,8 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-struct ContinuationPointEntry {
-    ContinuationPointEntry *next;
+struct ContinuationPoint {
+    ContinuationPoint *next;
     UA_ByteString identifier;
     UA_BrowseDescription browseDescription;
     UA_UInt32 maxReferences;
@@ -30,8 +30,8 @@ struct ContinuationPointEntry {
     size_t targetIndex;
 };
 
-ContinuationPointEntry *
-ContinuationPointEntry_clear(ContinuationPointEntry *cp) {
+ContinuationPoint *
+ContinuationPoint_clear(ContinuationPoint *cp) {
     UA_ByteString_deleteMembers(&cp->identifier);
     UA_BrowseDescription_deleteMembers(&cp->browseDescription);
     return cp->next;
@@ -92,7 +92,7 @@ matchClassMask(const UA_Node *node, UA_UInt32 nodeClassMask) {
 /* Returns whether the node / continuationpoint is done */
 static UA_Boolean
 browseReferences(UA_Server *server, const UA_Node *node,
-                 ContinuationPointEntry *cp, UA_BrowseResult *result) {
+                 ContinuationPoint *cp, UA_BrowseResult *result) {
     UA_assert(cp != NULL);
     const UA_BrowseDescription *descr = &cp->browseDescription;
 
@@ -228,7 +228,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
  * references. */
 static UA_Boolean
 browseWithContinuation(UA_Server *server, UA_Session *session,
-                       ContinuationPointEntry *cp, UA_BrowseResult *result) {
+                       ContinuationPoint *cp, UA_BrowseResult *result) {
     const UA_BrowseDescription *descr = &cp->browseDescription;
 
     /* Is the browsedirection valid? */
@@ -273,8 +273,8 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result) {
     /* Stack-allocate a temporary cp */
-    UA_STACKARRAY(ContinuationPointEntry, cp, 1);
-    memset(cp, 0, sizeof(ContinuationPointEntry));
+    UA_STACKARRAY(ContinuationPoint, cp, 1);
+    memset(cp, 0, sizeof(ContinuationPoint));
     cp->maxReferences = *maxrefs;
     cp->browseDescription = *descr; /* Shallow copy. Deep-copy later if we persist the cp. */
 
@@ -286,7 +286,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
 
     /* Persist the new continuation point */
 
-    ContinuationPointEntry *cp2 = NULL;
+    ContinuationPoint *cp2 = NULL;
     UA_Guid *ident = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
@@ -297,12 +297,12 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     }
 
     /* Allocate and fill the data structure */
-    cp2 = (ContinuationPointEntry *)UA_malloc(sizeof(ContinuationPointEntry));
+    cp2 = (ContinuationPoint*)UA_malloc(sizeof(ContinuationPoint));
     if(!cp2) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
-    memset(cp2, 0, sizeof(ContinuationPointEntry));
+    memset(cp2, 0, sizeof(ContinuationPoint));
     cp2->referenceKindIndex = cp->referenceKindIndex;
     cp2->targetIndex = cp->targetIndex;
     cp2->maxReferences = cp->maxReferences;
@@ -380,7 +380,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
                      const UA_Boolean *releaseContinuationPoints,
                      const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
-    ContinuationPointEntry **prev = &session->continuationPoints, *cp;
+    ContinuationPoint **prev = &session->continuationPoints, *cp;
     while((cp = *prev)) {
         if(UA_ByteString_equal(&cp->identifier, continuationPoint))
             break;
@@ -393,7 +393,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
     /* Remove the cp */
     if(*releaseContinuationPoints) {
-        *prev = ContinuationPointEntry_clear(cp);
+        *prev = ContinuationPoint_clear(cp);
         UA_free(cp);
         ++session->availableContinuationPoints;
         return;
@@ -404,7 +404,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
     if(done) {
         /* Remove the cp if there are no references left */
-        *prev = ContinuationPointEntry_clear(cp);
+        *prev = ContinuationPoint_clear(cp);
         UA_free(cp);
         ++session->availableContinuationPoints;
     } else {

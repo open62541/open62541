@@ -29,9 +29,9 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
     UA_ByteString_deleteMembers(&session->serverNonce);
-    struct ContinuationPointEntry *cp, *next = session->continuationPoints;
+    struct ContinuationPoint *cp, *next = session->continuationPoints;
     while((cp = next)) {
-        next = ContinuationPointEntry_clear(cp);
+        next = ContinuationPoint_clear(cp);
         UA_free(cp);
     }
     session->continuationPoints = NULL;
