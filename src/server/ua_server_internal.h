@@ -251,8 +251,13 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
 UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
+struct BrowseOpts {
+    UA_UInt32 maxReferences;
+    UA_Boolean recursive;
+};
+
 void
-Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
+Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue
