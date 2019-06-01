@@ -414,8 +414,8 @@ browseWithCp(UA_Server *server, UA_Session *session, ContinuationPoint *cp,
 
         if(!UA_NodeId_isNull(&cp->bd.referenceTypeId)) {
             if(cp->bd.includeSubtypes) {
-                retval = getTypesHierarchy(server->nsCtx, &cp->bd.referenceTypeId, 1,
-                                           &referenceTypes, &referenceTypesSize, true);
+                retval = getLocalRecursiveHierarchy(server, &cp->bd.referenceTypeId, 1, &subtypeId, 1,
+                                                    true, &referenceTypes, &referenceTypesSize);
                 if(retval != UA_STATUSCODE_GOOD)
                     return retval;
                 UA_assert(referenceTypesSize > 0); /* The original referenceTypeId has been mirrored back */
@@ -706,6 +706,50 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
     Operation_BrowseNext(server, &server->adminSession, &releaseContinuationPoint,
                          continuationPoint, &result);
     return result;
+}
+
+UA_StatusCode
+getLocalRecursiveHierarchy(UA_Server *server, const UA_NodeId *startNodes, size_t startNodesSize,
+                           const UA_NodeId *refTypes, size_t refTypesSize, UA_Boolean walkDownwards,
+                           UA_NodeId **results, size_t *resultsSize) {
+    ContinuationPoint cp;
+    UA_StatusCode retval = ContinuationPoint_init(&cp, 0, true);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    for(size_t i = 0; i < startNodesSize; i++)
+        retval |= RefTree_add(&cp.rt, &startNodes[i]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        ContinuationPoint_clear(&cp);
+        return retval;
+    }
+
+    if(!walkDownwards)
+        cp.bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+
+    UA_Boolean maxed = false;
+    for(; cp.n < cp.rt.size; cp.n++, cp.nk = 0, cp.nki = 0) {
+        /* Get the node */
+        const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &cp.rt.targets[cp.n]);
+        if(!node)
+            continue;
+
+        /* Browse the references in the current node */
+        retval = browseNode(server, &server->adminSession, &cp, NULL,
+                            &maxed, refTypesSize, refTypes, node);
+        UA_Nodestore_releaseNode(server->nsCtx, node);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+    }
+    
+    if(retval == UA_STATUSCODE_GOOD) {
+        *results = cp.rt.targets;
+        *resultsSize = cp.rt.size;
+        cp.rt.targets = NULL;
+        cp.rt.size = 0;
+    }
+    ContinuationPoint_clear(&cp);
+    return retval;
 }
 
 /***********************/

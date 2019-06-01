@@ -38,16 +38,6 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
-typedef struct Events_nodeListElement {
-    LIST_ENTRY(Events_nodeListElement) listEntry;
-    UA_NodeId nodeId;
-} Events_nodeListElement;
-
-struct getNodesHandle {
-    UA_Server *server;
-    LIST_HEAD(Events_nodeList, Events_nodeListElement) nodes;
-};
-
 /* We use a 16-Byte ByteString as an identifier */
 static UA_StatusCode
 generateEventId(UA_ByteString *generatedId) {
@@ -245,8 +235,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
     UA_EventFilterResult_init(&notification->result); */
 
     notification->fields.eventFields = (UA_Variant *)
-        UA_Array_new(notification->fields.eventFieldsSize,
-                     &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!notification->fields.eventFields) {
         /* EventFilterResult currently isn't being used
         UA_EventFiterResult_deleteMembers(&notification->result); */
@@ -355,38 +344,6 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Insert each node into the list (passed as handle) */
-static UA_StatusCode
-getParentsNodeIteratorCallback(UA_NodeId parentId, UA_Boolean isInverse,
-                               UA_NodeId referenceTypeId, struct getNodesHandle *handle) {
-    /* Parents have an inverse reference */
-    if(!isInverse)
-        return UA_STATUSCODE_GOOD;
-
-    /* Is this a hierarchical reference? */
-    if(!isNodeInTree(handle->server->nsCtx, &referenceTypeId,
-                     &hierarchicalReferences, &subtypeId, 1))
-        return UA_STATUSCODE_GOOD;
-
-    Events_nodeListElement *entry = (Events_nodeListElement *)
-        UA_malloc(sizeof(Events_nodeListElement));
-    if(!entry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode retval = UA_NodeId_copy(&parentId, &entry->nodeId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(entry);
-        return retval;
-    }
-
-    LIST_INSERT_HEAD(&handle->nodes, entry, listEntry);
-
-    /* Recursion */
-    UA_Server_forEachChildNodeCall(handle->server, parentId,
-                                   (UA_NodeIteratorCallback)getParentsNodeIteratorCallback, handle);
-    return UA_STATUSCODE_GOOD;
-}
-
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 static UA_StatusCode
@@ -432,18 +389,17 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     }
     UA_Nodestore_releaseNode(server->nsCtx, originNode);
 
-
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
     UA_NodeId *parentTypeHierachy = NULL;
     size_t parentTypeHierachySize = 0;
-    getTypesHierarchy(server->nsCtx, parentReferences_events, 2,
-                      &parentTypeHierachy, &parentTypeHierachySize, true);
+    getLocalRecursiveHierarchy(server, parentReferences_events, 2, &subtypeId, 1,
+                               true, &parentTypeHierachy, &parentTypeHierachySize);
     UA_Boolean isInObjectsFolder = isNodeInTree(server->nsCtx, &origin, &objectsFolderId,
                                                 parentTypeHierachy, parentTypeHierachySize);
-    UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
     if(!isInObjectsFolder) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
+        UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -452,16 +408,17 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not set the standard event fields with StatusCode %s",
                        UA_StatusCode_name(retval));
+        UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
     }
 
-    /* Get an array with all parents. The first call to
-     * getParentsNodeIteratorCallback adds the emitting node itself. */
-    struct getNodesHandle parentHandle;
-    parentHandle.server = server;
-    LIST_INIT(&parentHandle.nodes);
-    retval = getParentsNodeIteratorCallback(origin, true, parentReferences_events[1],
-                                            &parentHandle);
+    /* Get the parents */
+    UA_NodeId *parents = NULL;
+    size_t parentsSize = 0;
+    retval = getLocalRecursiveHierarchy(server, &origin, 1,
+                                        parentTypeHierachy, parentTypeHierachySize,
+                                        false, &parents, &parentsSize);
+    UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of nodes listening on the "
@@ -470,26 +427,26 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     }
 
     /* Add the event to each node's monitored items */
-    Events_nodeListElement *parentIter, *tmp_parentIter;
-    LIST_FOREACH_SAFE(parentIter, &parentHandle.nodes, listEntry, tmp_parentIter) {
+    for(size_t i = 0; i < parentsSize; i++) {
         const UA_ObjectNode *node = (const UA_ObjectNode*)
-            UA_Nodestore_getNode(server->nsCtx, &parentIter->nodeId);
-        if(node->nodeClass == UA_NODECLASS_OBJECT) {
-            for(UA_MonitoredItem *monIter = node->monitoredItemQueue;
-                monIter != NULL; monIter = monIter->next) {
-                retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
-                if(retval != UA_STATUSCODE_GOOD)
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Events: Could not add the event to a listening node with StatusCode %s",
-                                   UA_StatusCode_name(retval));
-            }
+            UA_Nodestore_getNode(server->nsCtx, &parents[i]);
+        if(!node)
+            continue;
+        if(node->nodeClass != UA_NODECLASS_OBJECT) {
+            UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)node);
+            continue;
+        }
+        UA_MonitoredItem *monIter = node->monitoredItemQueue;
+        for(; monIter != NULL; monIter = monIter->next) {
+            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
+            if(retval != UA_STATUSCODE_GOOD)
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Events: Could not add the event to a listening node with StatusCode %s",
+                               UA_StatusCode_name(retval));
         }
         UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)node);
-
-        LIST_REMOVE(parentIter, listEntry);
-        UA_NodeId_deleteMembers(&parentIter->nodeId);
-        UA_free(parentIter);
     }
+    UA_Array_delete(parents, parentsSize, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* Delete the node representation of the event */
     if(deleteEventNode) {
