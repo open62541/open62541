@@ -357,8 +357,10 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -521,8 +523,10 @@ copyAllChildren(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1015,8 +1019,10 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1384,8 +1390,10 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -1420,8 +1428,10 @@ recursiveDeleteNode(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -1856,8 +1866,10 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId, UA_M
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, &server->adminSession, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, &server->adminSession, &bo, &bd, &br);
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
