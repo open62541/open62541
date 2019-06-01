@@ -147,31 +147,18 @@ isNodeInTree(void *nsCtx, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-/* Returns an array with the hierarchy of type nodes. The returned array starts
- * at the leaf and continues "upwards" or "downwards" in the hierarchy based on the
- * ``hasSubType`` references. Since multiple-inheritance is possible in general,
- * duplicate entries are removed.
- * The parameter `walkDownwards` indicates the direction of search.
- * If set to TRUE it will get all the subtypes of the given
- * leafType (including leafType).
- * If set to FALSE it will get all the parent types of the given
- * leafType (including leafType)*/
+/* Returns an array with the hierarchy of nodes. The start nodes are returned as
+ * well. The returned array starts at the leaf and continues "upwards" or
+ * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
+ * indicates the direction of search. */
 UA_StatusCode
-getTypeHierarchy(void *nsCtx, const UA_NodeId *leafType,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                 UA_Boolean walkDownwards);
+getLocalRecursiveHierarchy(UA_Server *server, const UA_NodeId *startNodes, size_t startNodesSize,
+                           const UA_NodeId *refTypes, size_t refTypesSize, UA_Boolean walkDownwards,
+                           UA_NodeId **results, size_t *resultsSize);
 
-/* Same as getTypeHierarchy but takes multiple leafTypes as parameter and returns
- * an combined list of all the found types for all the leaf types */
+/* Returns the recursive type and interface hierarchy of the node */ 
 UA_StatusCode
-getTypesHierarchy(void *nsCtx, const UA_NodeId *leafType, size_t leafTypeSize,
-                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                  UA_Boolean walkDownwards);
-
-/* Same as getTypeHierarchy aside of the ``hasSubType`` reference, this also includes
- * the ``hasInterface`` reference */
-UA_StatusCode
-getParentTypeAndInterfaceHierarchy(void *nsCtx, const UA_NodeId *leafType,
+getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
 /* Returns the type node from the node on the stack top. The type node is pushed
