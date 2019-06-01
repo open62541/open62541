@@ -602,6 +602,18 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
     return result;
 }
 
+UA_BrowseResult
+UA_Server_browseRecursive(UA_Server *server, UA_UInt32 maxReferences,
+                          const UA_BrowseDescription *bd) {
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    struct BrowseOpts bo;
+    bo.maxReferences = maxReferences;
+    bo.recursive = true;
+    Operation_Browse(server, &server->adminSession, &bo, bd, &result);
+    return result;
+}
+
 static void
 Operation_BrowseNext(UA_Server *server, UA_Session *session,
                      const UA_Boolean *releaseContinuationPoints,
