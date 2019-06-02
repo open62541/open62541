@@ -72,13 +72,10 @@ typedef struct {
 } UA_NodestoreInterface;
 
 /*
- * Definition of a switch based on the namespace id
+ * Forward declaration of nodestore switch
  */
-typedef struct UA_Nodestore_Switch {
-	UA_UInt16 size;
-	UA_NodestoreInterface *defaultStore;
-	UA_NodestoreInterface **stores;
-} UA_Nodestore_Switch;
+struct UA_Nodestore_Switch;
+typedef struct UA_Nodestore_Switch UA_Nodestore_Switch;
 
 /*
  * Creates a Nodestore_Switch (like UA_Nodestore_new) but without a default nodestore inside
@@ -89,17 +86,15 @@ UA_Nodestore_Switch_newEmpty(void **nsCtx);
 /*
  * Creates a new default nodestore and an interface to it
  * Allocates memory for nodestore and the interface
- * The handle to the default nodestore is placed inside the interface context
+ * The handle to the default nodestore is placed inside the interface context (nsCtx)
  */
 UA_StatusCode UA_EXPORT
 UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** store);
 /*
- * Creates a new interface to an existing switch, which can be created via UA_Nodestore_new or UA_Nodestore_newEmpty
- * Allocates memory for the interface (not for the switch)
+ * Gets the nodestore interface to an existing switch, which can be created via UA_Nodestore_new or UA_Nodestore_newEmpty
  */
-UA_StatusCode UA_EXPORT
-UA_Nodestore_Switch_Interface_new(UA_Nodestore_Switch *storeSwitch,
-		UA_NodestoreInterface** store);
+UA_EXPORT UA_NodestoreInterface*
+UA_Nodestore_Switch_Interface_get(UA_Nodestore_Switch *storeSwitch);
 
 /*
  * Returns the nodestore interface that is linked to the specified index
@@ -110,12 +105,28 @@ UA_Nodestore_Switch_getNodestore(UA_Nodestore_Switch* storeSwitch,
 		UA_UInt16 index, UA_Boolean useDefault);
 /*
  * Links a nodestore via its nodestore interface to the nodestore switch at the specified namespace index
- * Set with newstore=NULL is equal to an unlink of the nodestore at the specified index
- * The old (unlinked) store is overwritten and not deleted
+ * Set with store=NULL is equal to an unlink of the nodestore at the specified index
+ * The old store is only unlinked and not deleted
  */
 UA_StatusCode UA_EXPORT
 UA_Nodestore_Switch_setNodestore(UA_Nodestore_Switch* storeSwitch,
 		UA_UInt16 index, UA_NodestoreInterface* store);
+/*
+ * Links the default nodestore via its nodestore interface to the nodestore switch
+ * Set with store=NULL is equal to an unlink of the default nodestore
+ * The old store is only unlinked and not deleted
+ * The default nodestore is used for every namespace, that has no custom nodestore set
+ */
+UA_StatusCode UA_EXPORT
+UA_Nodestore_Switch_setNodestoreDefault(UA_Nodestore_Switch* storeSwitch,
+		UA_NodestoreInterface* store);
+/*
+ * Replaces a nodestore in all occurances based on the same interface
+ * StoreNew=NULL is equal to a complete unlink of the oldNodestore
+ */
+UA_StatusCode UA_EXPORT
+UA_Nodestore_Switch_changeNodestore(UA_Nodestore_Switch* storeSwitch,
+		UA_NodestoreInterface *storeOld, UA_NodestoreInterface *storeNew);
 /*
  * Gets all namespace indices linked to a nodestore interface in the switch
  * Comparision of nodestores is based on the nodestore interface
@@ -125,11 +136,5 @@ UA_Nodestore_Switch_setNodestore(UA_Nodestore_Switch* storeSwitch,
 UA_StatusCode UA_EXPORT
 UA_Nodestore_Switch_getIndices(UA_Nodestore_Switch* storeSwitch,
 		UA_NodestoreInterface* store, UA_UInt16* count, UA_UInt16** indices);
-/*
- * Unlinks a nodestore from all namespace indices in the nodestore switch
- */
-UA_StatusCode UA_EXPORT
-UA_Nodestore_Switch_unlinkNodestore(UA_Nodestore_Switch* storeSwitch,
-		UA_NodestoreInterface *store);
 
 #endif /* UA_NODESTORE_SWITCH_H_ */

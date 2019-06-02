@@ -11,12 +11,22 @@ const UA_Boolean inPlaceEditAllowed = UA_FALSE;
 //TODO make multithreading save --> Lock/Unlock or CRTISECTION
 
 /*
+ * Definition of a switch based on the namespace id
+ */
+struct UA_Nodestore_Switch {
+	UA_UInt16 size;
+	UA_NodestoreInterface *defaultStore; // Nodestore for all namespaces, that have a NULL nodestore interface (and for i>=size)
+	UA_NodestoreInterface **stores; 		// Array of all nodestore interfaces
+	UA_NodestoreInterface *nsi; // Interface to nodestore switch itself //TODO make const?
+};
+
+/*
  * Switch API: linking and unlinking of namespace index to store
  */
 UA_NodestoreInterface* UA_Nodestore_Switch_getNodestore(
 		UA_Nodestore_Switch* storeSwitch, UA_UInt16 index,
 		UA_Boolean useDefault) {
-	if (index < storeSwitch->size) {
+	if (index < storeSwitch->size && storeSwitch->stores[index] != NULL) {
 		return storeSwitch->stores[index];
 	}
 	if (useDefault && storeSwitch->defaultStore != NULL)
@@ -42,11 +52,11 @@ UA_StatusCode UA_Nodestore_Switch_setNodestore(UA_Nodestore_Switch* storeSwitch,
 		UA_NodestoreInterface **newNsArray =
 				(UA_NodestoreInterface **) UA_realloc(storeSwitch->stores,
 						newSize * sizeof(UA_NodestoreInterface*));
-		if (!newNsArray)
+		if (!newNsArray && newSize != 0)
 			return UA_STATUSCODE_BADOUTOFMEMORY;
 		storeSwitch->stores = newNsArray;
 		// fill new array entries with NULL to use the default nodestore
-		for (UA_UInt16 i = storeSwitch->size; i < index + 1; i++) {
+		for (UA_UInt16 i = storeSwitch->size; i < newSize ; ++i) {
 			storeSwitch->stores[i] = NULL;
 		}
 		storeSwitch->size = newSize;
@@ -55,6 +65,12 @@ UA_StatusCode UA_Nodestore_Switch_setNodestore(UA_Nodestore_Switch* storeSwitch,
 	// set nodestore
 	if (index < storeSwitch->size)
 		storeSwitch->stores[index] = store;
+	return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Nodestore_Switch_setNodestoreDefault(
+		UA_Nodestore_Switch* storeSwitch, UA_NodestoreInterface* store) {
+	storeSwitch->defaultStore = store;
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -83,18 +99,19 @@ UA_StatusCode UA_Nodestore_Switch_getIndices(UA_Nodestore_Switch* storeSwitch,
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Nodestore_Switch_unlinkNodestore(
-		UA_Nodestore_Switch* storeSwitch, UA_NodestoreInterface *store) {
-	if (store == NULL)
+UA_StatusCode UA_Nodestore_Switch_changeNodestore(
+		UA_Nodestore_Switch* storeSwitch, UA_NodestoreInterface *storeOld,
+		UA_NodestoreInterface *storeNew) {
+	if (storeOld == NULL)
 		return UA_STATUSCODE_GOOD;
 	for (UA_UInt16 i = 0; i < storeSwitch->size - 1; i++) {
-		if (storeSwitch->stores[i] == store)
-			storeSwitch->stores[i] = NULL;
+		if (storeSwitch->stores[i] == storeOld)
+			storeSwitch->stores[i] = storeNew;
 	}
 	// resize stores array if last store will be unlinked
-	if (storeSwitch->stores[storeSwitch->size - 1] == store) {
+	if (storeSwitch->stores[storeSwitch->size - 1] == storeOld) {
 		UA_Nodestore_Switch_setNodestore(storeSwitch,
-				(UA_UInt16) (storeSwitch->size - 1), NULL);
+				(UA_UInt16) (storeSwitch->size - 1), storeNew);
 	}
 	return UA_STATUSCODE_GOOD;
 }
@@ -130,12 +147,12 @@ UA_StatusCode UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** store) 
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Nodestore_Switch_Interface_new(
-		UA_Nodestore_Switch *storeSwitch, UA_NodestoreInterface** store) {
+static UA_NodestoreInterface* UA_Nodestore_Switch_Interface_new(
+		UA_Nodestore_Switch *storeSwitch) {
 	UA_NodestoreInterface* ns = (UA_NodestoreInterface*) UA_malloc(
 			sizeof(UA_NodestoreInterface));
 	if (ns == NULL) {
-		return UA_STATUSCODE_BADOUTOFMEMORY;
+		return NULL;
 	}
 	ns->context = storeSwitch;
 	ns->deleteNodestore = UA_Nodestore_Switch_delete;
@@ -148,8 +165,12 @@ UA_StatusCode UA_Nodestore_Switch_Interface_new(
 	ns->replaceNode = UA_Nodestore_Switch_replaceNode;
 	ns->iterate = UA_Nodestore_Switch_iterate;
 	ns->removeNode = UA_Nodestore_Switch_removeNode;
-	*store = ns;
-	return UA_STATUSCODE_GOOD;
+	return ns;
+}
+
+UA_NodestoreInterface*
+UA_Nodestore_Switch_Interface_get(UA_Nodestore_Switch *storeSwitch) {
+	return storeSwitch->nsi;
 }
 
 /*
@@ -161,6 +182,11 @@ UA_StatusCode UA_Nodestore_Switch_newEmpty(void **nsCtx) {
 			sizeof(UA_Nodestore_Switch));
 	if (!storeSwitch)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
+	storeSwitch->nsi = UA_Nodestore_Switch_Interface_new(storeSwitch);
+	if (!storeSwitch->nsi) {
+		UA_free(storeSwitch);
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
 	storeSwitch->defaultStore = NULL;
 	storeSwitch->stores = NULL;
 	storeSwitch->size = 0;
@@ -173,7 +199,7 @@ UA_StatusCode UA_Nodestore_Switch_new(void **nsCtx) {
 	if (result != UA_STATUSCODE_GOOD)
 		return result;
 	result = UA_Nodestore_Default_Interface_new(
-			&((UA_Nodestore_Switch*)nsCtx)->defaultStore);
+			&((UA_Nodestore_Switch*)*nsCtx)->defaultStore);
 	if (result != UA_STATUSCODE_GOOD) {
 		UA_free(*nsCtx);
 	}
@@ -215,6 +241,7 @@ void UA_Nodestore_Switch_delete(void *nsCtx) {
 	// delete nodestore switch itself
 	UA_free(storeSwitch->stores);
 	storeSwitch->stores = NULL;
+	UA_free(storeSwitch->nsi);
 	UA_free(storeSwitch);
 }
 
