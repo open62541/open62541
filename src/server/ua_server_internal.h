@@ -9,6 +9,7 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #ifndef UA_SERVER_INTERNAL_H_
@@ -276,6 +277,9 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /**********************/
 
 UA_StatusCode UA_Server_initNS0(UA_Server *server);
+
+UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
+                      size_t length, const UA_DataType *type);
 
 _UA_END_DECLS
 

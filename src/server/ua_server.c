@@ -14,6 +14,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -420,10 +421,17 @@ UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
-    
+
+    /* write ServerArray with same ApplicationURI value as NamespaceArray */
+    UA_StatusCode retVal = writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
+                                    &server->config.applicationDescription.applicationUri,
+                                    1, &UA_TYPES[UA_TYPES_STRING]);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
     if(server->state > UA_SERVERLIFECYCLE_FRESH)
         return UA_STATUSCODE_GOOD;
-    
+
     /* At least one endpoint has to be configured */
     if(server->config.endpointsSize == 0) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
