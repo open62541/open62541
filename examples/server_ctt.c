@@ -490,7 +490,7 @@ int main(int argc, char **argv) {
         size_t revocationListSize = (size_t)strtol(argv[REVOCATIONLISTCOUNT], &pBuffer, BASEVALUE);
         UA_STACKARRAY(UA_ByteString, revocationList, revocationListSize);
         for(size_t iteratorValue = 0; iteratorValue < revocationListSize; iteratorValue++) {
-            revocationList[iteratorValue] = loadFile(argv[trustListSize + STARTOFLIST]);
+            revocationList[iteratorValue] = loadFile(argv[iteratorValue + trustListSize + STARTOFLIST]);
         }
 
         UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
