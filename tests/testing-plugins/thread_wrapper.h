@@ -21,7 +21,7 @@
 #define THREAD_JOIN(handle) WaitForSingleObject(handle, INFINITE)
 
 
-#define THREAD_CALLBACK(name) DWORD WINAPI name( LPVOID lpParam )
+#define THREAD_CALLBACK(name) static DWORD WINAPI name( LPVOID lpParam )
 
 #endif
 
