@@ -98,10 +98,7 @@ START_TEST(Client_highlevel_async_readValue) {
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-    }
-}
-
-
+} END_TEST
 
 START_TEST(Client_read_async) {
         UA_Client *client = UA_Client_new();
