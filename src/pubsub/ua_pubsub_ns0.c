@@ -12,7 +12,7 @@
 
 typedef struct{
     UA_NodeId parentNodeId;
-    UA_UInt32 parentCalssifier;
+    UA_UInt32 parentClassifier;
     UA_UInt32 elementClassiefier;
 } UA_NodePropertyContext;
 
@@ -102,7 +102,7 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_PublishedVariableDataType *pvd = NULL;
     size_t counter = 0;
 
-    switch(((UA_NodePropertyContext *) nodeContext)->parentCalssifier){
+    switch(((UA_NodePropertyContext *) nodeContext)->parentClassifier){
         case UA_NS0ID_PUBSUBCONNECTIONTYPE:
             myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
             pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, myNodeId);
@@ -171,7 +171,7 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_Variant value;
     UA_NodeId myNodeId;
     UA_WriterGroup *writerGroup = NULL;
-    switch(((UA_NodePropertyContext *) nodeContext)->parentCalssifier){
+    switch(((UA_NodePropertyContext *) nodeContext)->parentClassifier){
         case UA_NS0ID_PUBSUBCONNECTIONTYPE:
             //no runtime writable attributes
             break;
@@ -282,7 +282,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
 
     UA_NodePropertyContext *connectionPublisherIdContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     connectionPublisherIdContext->parentNodeId = connection->identifier;
-    connectionPublisherIdContext->parentCalssifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
+    connectionPublisherIdContext->parentClassifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
     connectionPublisherIdContext->elementClassiefier = UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID;
     UA_ValueCallback valueCallback;
     valueCallback.onRead = onRead;
@@ -548,7 +548,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
 
     UA_NodePropertyContext * publishingIntervalContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     publishingIntervalContext->parentNodeId = publishedDataSet->identifier;
-    publishingIntervalContext->parentCalssifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
+    publishingIntervalContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA;
     UA_ValueCallback valueCallback;
     valueCallback.onRead = onRead;
@@ -734,7 +734,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup){
     }
     UA_NodePropertyContext * publishingIntervalContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     publishingIntervalContext->parentNodeId = writerGroup->identifier;
-    publishingIntervalContext->parentCalssifier = UA_NS0ID_WRITERGROUPTYPE;
+    publishingIntervalContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL;
     UA_ValueCallback valueCallback;
     valueCallback.onRead = onRead;
