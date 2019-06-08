@@ -68,17 +68,10 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
     return retval;
 }
 
-typedef enum {
-    UA_SERVICETYPE_NORMAL,
-    UA_SERVICETYPE_INSITU,
-    UA_SERVICETYPE_CUSTOM
-} UA_ServiceType;
-
 static void
 getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
                    const UA_DataType **responseType, UA_Service *service,
-                   UA_InSituService *serviceInsitu,
-                   UA_Boolean *requiresSession, UA_ServiceType *serviceType) {
+                   UA_Boolean *requiresSession) {
     switch(requestTypeId) {
     case UA_NS0ID_GETENDPOINTSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_GetEndpoints;
@@ -119,13 +112,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
         *requiresSession = false;
-        *serviceType = UA_SERVICETYPE_CUSTOM;
         break;
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = NULL; //(UA_Service)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
-        *serviceType = UA_SERVICETYPE_CUSTOM;
         break;
     case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_CloseSession;
@@ -134,10 +125,9 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
     case UA_NS0ID_READREQUEST_ENCODING_DEFAULTBINARY:
         *service = NULL;
-        *serviceInsitu = (UA_InSituService)Service_Read;
+        *service = (UA_Service)Service_Read;
         *requestType = &UA_TYPES[UA_TYPES_READREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_READRESPONSE];
-        *serviceType = UA_SERVICETYPE_INSITU;
         break;
     case UA_NS0ID_WRITEREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_Write;
@@ -421,13 +411,11 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Get the service pointers */
     UA_Service service = NULL;
-    UA_InSituService serviceInsitu = NULL;
     const UA_DataType *requestType = NULL;
     const UA_DataType *responseType = NULL;
     UA_Boolean sessionRequired = true;
-    UA_ServiceType serviceType = UA_SERVICETYPE_NORMAL;
     getServicePointers(requestTypeId.identifier.numeric, &requestType,
-                       &responseType, &service, &serviceInsitu, &sessionRequired, &serviceType);
+                       &responseType, &service, &sessionRequired);
     if(!requestType) {
         if(requestTypeId.identifier.numeric == 787) {
             UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
@@ -496,7 +484,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         }
         Service_ActivateSession(server, channel, session,
-            (const UA_ActivateSessionRequest*)request,
+                                (const UA_ActivateSessionRequest*)request,
                                 (UA_ActivateSessionResponse*)response);
         goto send_response;
     }
@@ -563,7 +551,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    send_response:
+    /* Dispatch the synchronous service call */
+    service(server, session, request, response);
+
+ send_response:
 
     /* Prepare the ResponseHeader */
     ((UA_ResponseHeader*)response)->requestHandle = requestHeader->requestHandle;
@@ -581,13 +572,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         }
     }
 
-    /* Process normal services before initializing the message context.
-     * Some services may initialize new message contexts and to support network
-     * layers only providing one send buffer, only one message context can be
-     * initialized concurrently. */
-    if(serviceType == UA_SERVICETYPE_NORMAL)
-        service(server, session, request, response);
-
     /* Start the message */
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, responseType->binaryEncodingId);
     UA_MessageContext mc;
@@ -602,28 +586,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     retval = UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-
-    switch(serviceType) {
-    case UA_SERVICETYPE_CUSTOM:
-        /* Was processed before...*/
-        retval = UA_MessageContext_encode(&mc, response, responseType);
-        break;
-    case UA_SERVICETYPE_INSITU:
-        retval = serviceInsitu
-            (server, session, &mc, request, (UA_ResponseHeader*)response);
-        break;
-    case UA_SERVICETYPE_NORMAL:
-    default:
-        retval = UA_MessageContext_encode(&mc, response, responseType);
-        break;
-    }
-
-    /* Finish sending the message */
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_MessageContext_abort(&mc);
+    retval = UA_MessageContext_encode(&mc, response, responseType);
+    if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    }
-
     retval = UA_MessageContext_finish(&mc);
 
  cleanup:
@@ -631,6 +596,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not send the message over the SecureChannel "
                             "with StatusCode %s", UA_StatusCode_name(retval));
+
     /* Clean up */
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);

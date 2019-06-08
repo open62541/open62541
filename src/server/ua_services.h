@@ -47,9 +47,6 @@ _UA_BEGIN_DECLS
 typedef void (*UA_Service)(UA_Server*, UA_Session*,
                            const void *request, void *response);
 
-typedef UA_StatusCode (*UA_InSituService)(UA_Server*, UA_Session*, UA_MessageContext *mc,
-                                          const void *request, UA_ResponseHeader *rh);
-
 /**
  * Discovery Service Set
  * ---------------------
@@ -305,8 +302,8 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * elements are indexed, such as an array, this Service allows Clients to read
  * the entire set of indexed values as a composite, to read individual elements
  * or to read ranges of elements of the composite. */
-UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
-                           const UA_ReadRequest *request, UA_ResponseHeader *responseHeader);
+void Service_Read(UA_Server *server, UA_Session *session,
+                  const UA_ReadRequest *request, UA_ReadResponse *response);
 
 /**
  * Write Service
@@ -316,8 +313,7 @@ UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageCon
  * the entire set of indexed values as a composite, to write individual elements
  * or to write ranges of elements of the composite. */
 void Service_Write(UA_Server *server, UA_Session *session,
-                   const UA_WriteRequest *request,
-                   UA_WriteResponse *response);
+                   const UA_WriteRequest *request, UA_WriteResponse *response);
 
 /**
  * HistoryRead Service

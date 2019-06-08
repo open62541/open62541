@@ -175,14 +175,14 @@ UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
-                                    void *context,
+                                    const void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   void *context,
+                                   const void *context,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,

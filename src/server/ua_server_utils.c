@@ -243,7 +243,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   void *context, const size_t *requestOperations,
+                                   const void *context, const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType) {

@@ -380,79 +380,52 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     }
 }
 
-static UA_StatusCode
-Operation_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
-               UA_TimestampsToReturn timestampsToReturn, const UA_ReadValueId *id) {
-    UA_DataValue dv;
-    UA_DataValue_init(&dv);
-
+static void
+Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
+               UA_ReadValueId *rvi, UA_DataValue *result) {
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &id->nodeId);
+    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &rvi->nodeId);
 
     /* Perform the read operation */
     if(node) {
-        ReadWithNode(node, server, session, timestampsToReturn, id, &dv);
+        ReadWithNode(node, server, session, request->timestampsToReturn, rvi, result);
+        UA_Nodestore_releaseNode(server->nsCtx, node);
     } else {
-        dv.hasStatus = true;
-        dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        result->hasStatus = true;
+        result->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-
-    /* Encode (and send) the results */
-    UA_StatusCode retval = UA_MessageContext_encode(mc, &dv, &UA_TYPES[UA_TYPES_DATAVALUE]);
-
-    /* Free copied data and release the node */
-    UA_Variant_deleteMembers(&dv.value);
-    UA_Nodestore_releaseNode(server->nsCtx, node);
-    return retval;
 }
 
-UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
-                           const UA_ReadRequest *request, UA_ResponseHeader *responseHeader) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                         "Processing ReadRequest");
+void
+Service_Read(UA_Server *server, UA_Session *session,
+             const UA_ReadRequest *request, UA_ReadResponse *response) {
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ReadRequest");
 
     /* Check if the timestampstoreturn is valid */
-    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER)
-        responseHeader->serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-
-    if(request->nodesToReadSize == 0)
-        responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+    if(request->timestampsToReturn < 0 ||
+       request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
+    }
 
     /* Check if maxAge is valid */
-    if(request->maxAge < 0)
-        responseHeader->serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
+    if(request->maxAge < 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
+        return;
+    }
 
     /* Check if there are too many operations */
     if(server->config.maxNodesPerRead != 0 &&
-       request->nodesToReadSize > server->config.maxNodesPerRead)
-        responseHeader->serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-
-    /* Encode the response header */
-    UA_StatusCode retval =
-        UA_MessageContext_encode(mc, responseHeader, &UA_TYPES[UA_TYPES_RESPONSEHEADER]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Process nothing if we return an error code for the entire service */
-    UA_Int32 arraySize = (UA_Int32)request->nodesToReadSize;
-    if(responseHeader->serviceResult != UA_STATUSCODE_GOOD)
-        arraySize = 0;
-
-    /* Process all ReadValueIds */
-    retval = UA_MessageContext_encode(mc, &arraySize, &UA_TYPES[UA_TYPES_INT32]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    for(UA_Int32 i = 0; i < arraySize; i++) {
-        retval = Operation_Read(server, session, mc, request->timestampsToReturn,
-                                &request->nodesToRead[i]);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+       request->nodesToReadSize > server->config.maxNodesPerRead) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
     }
 
-    /* Don't return any DiagnosticInfo */
-    arraySize = -1;
-    return UA_MessageContext_encode(mc, &arraySize, &UA_TYPES[UA_TYPES_INT32]);
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Read,
+                                           request,
+                                           &request->nodesToReadSize, &UA_TYPES[UA_TYPES_READVALUEID],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 
 UA_DataValue

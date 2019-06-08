@@ -81,31 +81,33 @@ START_TEST(readSpeed) {
     UA_Byte *pos = request_msg.data;
     const UA_Byte *end = &request_msg.data[request_msg.length];
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
-    UA_assert(retval == UA_STATUSCODE_GOOD);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
 
-    UA_ReadRequest rq;
-    UA_MessageContext mc;
-
-    UA_ResponseHeader rh;
-    UA_ResponseHeader_init(&rh);
+    UA_ReadRequest req;
+    UA_ReadResponse res;
+    UA_ReadResponse_init(&res);
 
     clock_t begin, finish;
     begin = clock();
 
     for(size_t i = 0; i < 1000000; i++) {
         size_t offset = 0;
-        retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
+        retval |= UA_decodeBinary(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
 
-        UA_MessageContext_begin(&mc, &testChannel, 0, UA_MESSAGETYPE_MSG);
-        retval |= Service_Read(server, &server->adminSession, &mc, &rq, &rh);
-        UA_MessageContext_finish(&mc);
+        Service_Read(server, &server->adminSession, &req, &res);
 
-        UA_ReadRequest_deleteMembers(&rq);
+        UA_Byte *rpos = response_msg.data;
+        const UA_Byte *rend = &response_msg.data[response_msg.length];
+        retval |= UA_encodeBinary(&res, &UA_TYPES[UA_TYPES_READRESPONSE],
+                                  &rpos, &rend, NULL, NULL);
+
+        UA_ReadRequest_deleteMembers(&req);
+        UA_ReadResponse_deleteMembers(&res);
     }
 
     finish = clock();
+    ck_assert(retval == UA_STATUSCODE_GOOD);
 
-    UA_assert(retval == UA_STATUSCODE_GOOD);
     double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
     printf("duration was %f s\n", time_spent);
     printf("retval is %s\n", UA_StatusCode_name(retval));
