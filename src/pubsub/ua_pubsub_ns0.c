@@ -153,6 +153,15 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                                 &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
             break;
         }
+        case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA: {
+            UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+            break;
+        }
+        case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_CONFIGURATIONVERSION: {
+            UA_Variant_setScalarCopy(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
+                                     &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
+            break;
+        }
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
@@ -527,6 +536,11 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
                                   UA_NS0ID_PUBLISHSUBSCRIBE_PUBLISHEDDATASETS,
                                   UA_NS0ID_HASPROPERTY, UA_NS0ID_PUBLISHEDDATAITEMSTYPE);
     //End lock zone
+
+    UA_ValueCallback valueCallback;
+    valueCallback.onRead = onRead;
+    valueCallback.onWrite = NULL;
+
     UA_NodeId configurationVersionNode, publishedDataNode;
     configurationVersionNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
@@ -535,11 +549,11 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    UA_Variant value;
-    UA_Variant_init(&value);
-    UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
-                         &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
-    retVal |= UA_Server_writeValue(server, configurationVersionNode, value);
+    UA_NodePropertyContext * configurationVersionContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    configurationVersionContext->parentNodeId = publishedDataSet->identifier;
+    configurationVersionContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
+    configurationVersionContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_CONFIGURATIONVERSION;
+    retVal |= addVariableValueSource(server, valueCallback, configurationVersionNode, configurationVersionContext);
 
     publishedDataNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
@@ -552,10 +566,21 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     publishingIntervalContext->parentNodeId = publishedDataSet->identifier;
     publishingIntervalContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
     retVal |= addVariableValueSource(server, valueCallback, publishedDataNode, publishingIntervalContext);
+
+    UA_NodeId dataSetMetaDataNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
+    if (UA_NodeId_equal(&dataSetMetaDataNode, &UA_NODEID_NULL)) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_NodePropertyContext *metaDataContext = (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
+    metaDataContext->parentNodeId = publishedDataSet->identifier;
+    metaDataContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
+    metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA;
+    retVal |= addVariableValueSource(server, valueCallback, dataSetMetaDataNode, metaDataContext);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     retVal |= UA_Server_addReference(server, publishedDataSet->identifier,
@@ -1020,14 +1045,25 @@ publishedDataItemsTypeDestructor(UA_Server *server,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "PublishedDataItems destructor called!");
-    UA_NodeId intervalNode;
-    UA_NodePropertyContext *internalConnectionContext;
-    intervalNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
-    UA_Server_getNodeContext(server, intervalNode, (void **) &internalConnectionContext);
-    if(!UA_NodeId_equal(&UA_NODEID_NULL , &intervalNode)){
-        UA_free(internalConnectionContext);
-    }
+    void *childContext;
+    UA_NodeId node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+        UA_free(childContext);
+
+    node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                               *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+        UA_free(childContext);
+
+    node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
+    UA_Server_getNodeContext(server, node, (void**)&childContext);
+    if(!UA_NodeId_equal(&node, &UA_NODEID_NULL))
+        UA_free(childContext);
 }
 
 UA_StatusCode
