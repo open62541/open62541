@@ -105,7 +105,7 @@ START_TEST(encryption_connect) {
      * and certificate */
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    ck_assert_msg(client != NULL);
+    ck_assert(client != NULL);
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -139,7 +139,7 @@ START_TEST(encryption_connect) {
                                          revocationList, revocationListSize);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
-    ck_assert_msg(client != NULL);
+    ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
         UA_ByteString_deleteMembers(&trustList[deleteCount]);
