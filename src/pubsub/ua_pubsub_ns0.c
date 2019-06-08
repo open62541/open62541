@@ -529,7 +529,7 @@ addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publ
     //End lock zone
     UA_NodeId configurationVersionNode, publishedDataNode;
     configurationVersionNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
-                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                                    UA_NODEID_NUMERIC(0, publishedDataSet->identifier.identifier.numeric));
     if (UA_NodeId_equal(&configurationVersionNode, &UA_NODEID_NULL)) {
         return UA_STATUSCODE_BADNOTFOUND;
