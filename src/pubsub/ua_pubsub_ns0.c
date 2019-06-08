@@ -91,75 +91,77 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
 
 static void
 onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-       const UA_NodeId *nodeid, void *nodeContext,
+       const UA_NodeId *nodeid, void *context,
        const UA_NumericRange *range, const UA_DataValue *data) {
     UA_Variant value;
     UA_Variant_init(&value);
-    UA_NodeId myNodeId;
-    UA_WriterGroup *writerGroup = NULL;
-    UA_PubSubConnection *pubSubConnection = NULL;
-    UA_PublishedDataSet *publishedDataSet = NULL;
-    UA_PublishedVariableDataType *pvd = NULL;
-    size_t counter = 0;
+    const UA_NodePropertyContext *nodeContext = (const UA_NodePropertyContext*)context;
+    const UA_NodeId *myNodeId = &nodeContext->parentNodeId;
 
-    switch(((UA_NodePropertyContext *) nodeContext)->parentClassifier){
-        case UA_NS0ID_PUBSUBCONNECTIONTYPE:
-            myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
-            pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, myNodeId);
-            switch(((UA_NodePropertyContext *) nodeContext)->elementClassiefier) {
-                case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
-                    if(pubSubConnection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-                        UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
-                                             &UA_TYPES[UA_TYPES_STRING]);
-                    }else
-                        UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric, &UA_TYPES[UA_TYPES_UINT32]);
-                    break;
-                default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Read error! Unknown property.");
-            }
-            break;
-        case UA_NS0ID_WRITERGROUPTYPE:
-            myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
-            writerGroup = UA_WriterGroup_findWGbyId(server, myNodeId);
-            if(!writerGroup)
-                return;
-            switch(((UA_NodePropertyContext *) nodeContext)->elementClassiefier){
-                case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
-                    UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval, &UA_TYPES[UA_TYPES_DURATION]);
-                    break;
-                default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Read error! Unknown property.");
-            }
-            break;
-        case UA_NS0ID_PUBLISHEDDATAITEMSTYPE:
-            myNodeId = ((UA_NodePropertyContext *) nodeContext)->parentNodeId;
-            publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, myNodeId);
-            if(!publishedDataSet)
-                return;
-            switch(((UA_NodePropertyContext *) nodeContext)->elementClassiefier) {
-                case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA:
-                    pvd = (UA_PublishedVariableDataType *)
-                            UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
-                    UA_DataSetField *field;
-                    LIST_FOREACH(field, &publishedDataSet->fields, listEntry) {
-                        pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
-                        pvd[counter].publishedVariable = field->config.field.variable.publishParameters.publishedVariable;
-                        //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable, &pvd[counter].publishedVariable);
-                        counter++;
-                    }
-                    UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
-                                        &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
-                    break;
-                default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Read error! Unknown property.");
+    switch(nodeContext->parentClassifier){
+    case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
+        UA_PubSubConnection *pubSubConnection =
+            UA_PubSubConnection_findConnectionbyId(server, *myNodeId);
+        switch(nodeContext->elementClassiefier) {
+        case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
+            if(pubSubConnection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
+                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
+                                     &UA_TYPES[UA_TYPES_STRING]);
+            } else {
+                UA_Variant_setScalar(&value, &pubSubConnection->config->publisherId.numeric,
+                                     &UA_TYPES[UA_TYPES_UINT32]);
             }
             break;
         default:
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown parent element.");
+                           "Read error! Unknown property.");
+        }
+        break;
+    }
+    case UA_NS0ID_WRITERGROUPTYPE: {
+        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, *myNodeId);
+        if(!writerGroup)
+            return;
+        switch(nodeContext->elementClassiefier){
+        case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
+            UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval,
+                                 &UA_TYPES[UA_TYPES_DURATION]);
+            break;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown property.");
+        }
+        break;
+    }
+    case UA_NS0ID_PUBLISHEDDATAITEMSTYPE: {
+        UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, *myNodeId);
+        if(!publishedDataSet)
+            return;
+        switch(nodeContext->elementClassiefier) {
+        case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA: {
+            UA_PublishedVariableDataType *pvd = (UA_PublishedVariableDataType *)
+                UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
+            size_t counter = 0;
+            UA_DataSetField *field;
+            LIST_FOREACH(field, &publishedDataSet->fields, listEntry) {
+                pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
+                pvd[counter].publishedVariable = field->config.field.variable.publishParameters.publishedVariable;
+                //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable, &pvd[counter].publishedVariable);
+                counter++;
+            }
+            UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
+                                &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
+            break;
+        }
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Read error! Unknown property.");
+        }
+        break;
+    }
+    default:
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Read error! Unknown parent element.");
     }
     UA_Server_writeValue(server, *nodeid, value);
 }
