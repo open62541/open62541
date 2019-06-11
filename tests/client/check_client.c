@@ -101,7 +101,7 @@ START_TEST(Client_endpoints) {
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_msg(endpointArraySize > 0);
+    ck_assert(endpointArraySize > 0);
 
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
@@ -134,7 +134,7 @@ START_TEST(Client_endpoints_empty) {
 
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
-    ck_assert_msg(response.endpointsSize > 0);
+    ck_assert(response.endpointsSize > 0);
 
     UA_GetEndpointsResponse_deleteMembers(&response);
     UA_GetEndpointsRequest_deleteMembers(&request);
@@ -243,7 +243,7 @@ END_TEST
 START_TEST(Client_delete_without_connect) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    ck_assert_msg(client != NULL);
+    ck_assert(client != NULL);
     UA_Client_delete(client);
 }
 END_TEST

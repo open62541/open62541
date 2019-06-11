@@ -18,6 +18,7 @@
 
 import sys
 import logging
+import re
 from datetime import datetime
 import xml.dom.minidom as dom
 from base64 import *
@@ -308,6 +309,17 @@ class Value(object):
 # Builtin Types #
 #################
 
+
+def getXmlTextTrimmed(xmlNode):
+    if xmlNode is None or xmlNode.data is None:
+        return None
+    content = xmlNode.data
+    # Check for empty string (including newlines)
+    if not re.sub(r"[\s\n\r]", "", content).strip():
+        return None
+    return unicode(content.strip())
+
+
 class Boolean(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
@@ -318,7 +330,8 @@ class Boolean(Value):
         # Expect <Boolean>value</Boolean> or
         #        <Aliasname>value</Aliasname>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        if val is None:
             self.value = "false"  # Catch XML <Boolean /> by setting the value to a default
         else:
             if "false" in unicode(xmlvalue.firstChild.data).lower():
@@ -336,10 +349,8 @@ class Number(Value):
         # Expect <Int16>value</Int16> or any other valid number type, or
         #        <Aliasname>value</Aliasname>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
-            self.value = 0  # Catch XML <Int16 /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        self.value = val if val is not None else 0
 
 class Integer(Number):
     def __init__(self, xmlelement=None):
@@ -411,10 +422,8 @@ class Float(Number):
         # Expect <Float>value</Float> or
         #        <Aliasname>value</Aliasname>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
-            self.value = 0.0  # Catch XML <Float /> by setting the value to a default
-        else:
-            self.value = float(unicode(xmlvalue.firstChild.data))
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        self.value = val if val is not None else 0.0
 
 class Double(Float):
     def __init__(self, xmlelement=None):
@@ -440,10 +449,9 @@ class String(Value):
             self.value = xmlvalue
             return
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
-            self.value = ""  # Catch XML <String /> by setting the value to a default
-        else:
-            self.value = unicode(xmlvalue.firstChild.data)
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+        self.value = val if val is not None else ""
+
 
 class XmlElement(String):
     def __init__(self, xmlelement=None):
@@ -628,11 +636,12 @@ class DateTime(Value):
         #        2013-08-13T21:00:05.0000L
         #        </DateTime> or </AliasName>
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
+        timestr = getXmlTextTrimmed(xmlvalue.firstChild)
+
+        if timestr is None:
             # Catch XML <DateTime /> by setting the value to a default
             self.value = datetime(2001, 1, 1)
         else:
-            timestr = unicode(xmlvalue.firstChild.data)
             # .NET tends to create this garbage %Y-%m-%dT%H:%M:%S.0000z
             # strip everything after the "." away for a posix time_struct
             if "." in timestr:
@@ -712,10 +721,13 @@ class Guid(Value):
 
     def parseXML(self, xmlvalue, namespaceMapping=None):
         self.checkXML(xmlvalue)
-        if xmlvalue.firstChild is None:
+
+        val = getXmlTextTrimmed(xmlvalue.firstChild)
+
+        if val is None:
             self.value = [0, 0, 0, 0]  # Catch XML <Guid /> by setting the value to a default
         else:
-            self.value = unicode(xmlvalue.firstChild.data)
+            self.value = val
             self.value = self.value.replace("{", "")
             self.value = self.value.replace("}", "")
             self.value = self.value.split("-")

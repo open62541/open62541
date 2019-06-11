@@ -4,8 +4,10 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
+ * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
+#include <open62541/server_config_default.h>
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -21,8 +23,11 @@
 #endif
 
 #define UA_MAX_STACKBUF 512 /* Max size of network messages on the stack */
+#define UA_MAX_SIZENAME 64  /* Max size of Qualified Name of Subscribed Variable */
 
 /* Forward declaration */
+static size_t
+iterateVariableAttrDimension(UA_VariableAttributes varAttr);
 static void
 UA_WriterGroup_deleteMembers(UA_Server *server, UA_WriterGroup *writerGroup);
 static void
@@ -107,6 +112,12 @@ UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connec
     LIST_FOREACH_SAFE(writerGroup, &connection->writerGroups, listEntry, tmpWriterGroup){
         UA_Server_removeWriterGroup(server, writerGroup->identifier);
     }
+    /* remove contained ReaderGroups */
+    UA_ReaderGroup *readerGroups, *tmpReaderGroup;
+    LIST_FOREACH_SAFE(readerGroups, &connection->readerGroups, listEntry, tmpReaderGroup){
+      UA_Server_removeReaderGroup(server, readerGroups->identifier);
+    }
+
     UA_NodeId_deleteMembers(&connection->identifier);
     if(connection->channel){
         connection->channel->close(connection->channel);
@@ -129,7 +140,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 
     //allocate memory for new WriterGroup
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
-    if (!newWriterGroup)
+    if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newWriterGroup->linkedConnection = currentConnectionContext->identifier;
@@ -183,9 +194,1009 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
 }
 
 /**********************************************/
-/*               PublishedDataSet             */
+/*               ReaderGroup                  */
 /**********************************************/
 
+/**
+ * Add ReaderGroup to connection.
+ *
+ * @param server
+ * @param connectionIdentifier
+ * @param readerGroupConfiguration
+ * @param readerGroupIdentifier
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
+                                   const UA_ReaderGroupConfig *readerGroupConfig,
+                                   UA_NodeId *readerGroupIdentifier) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_ReaderGroupConfig tmpReaderGroupConfig;
+
+    /* Search the connection by the given connectionIdentifier */
+    if(!readerGroupConfig) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Search the connection by the given connectionIdentifier */
+    UA_PubSubConnection *currentConnectionContext = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
+    if(!currentConnectionContext) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Allocate memory for new reader group */
+    UA_ReaderGroup *newGroup = (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
+    if(!newGroup) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Generate nodeid for the readergroup identifier */
+    newGroup->linkedConnection = currentConnectionContext->identifier;
+    UA_PubSubManager_generateUniqueNodeId(server, &newGroup->identifier);
+    if(readerGroupIdentifier) {
+        UA_NodeId_copy(&newGroup->identifier, readerGroupIdentifier);
+    }
+
+    /* Deep copy of the config */
+    retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &tmpReaderGroupConfig);
+    newGroup->config = tmpReaderGroupConfig;
+    retval |= UA_ReaderGroup_addSubscribeCallback(server, newGroup);
+    LIST_INSERT_HEAD(&currentConnectionContext->readerGroups, newGroup, listEntry);
+    currentConnectionContext->readerGroupsSize++;
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addReaderGroupRepresentation(server, newGroup);
+#endif
+
+    return retval;
+}
+
+/**
+ * Remove ReaderGroup from connection and delete contained readers.
+ *
+ * @param server
+ * @param groupIdentifier
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
+    UA_ReaderGroup* readerGroup = UA_ReaderGroup_findRGbyId(server, groupIdentifier);
+    if(readerGroup == NULL) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Search the connection to which the given readergroup is connected to */
+    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    if(connection == NULL) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    /* To Do:RemoveGroupRepresentation(server, &readerGroup->identifier) */
+#endif
+
+    /* UA_Server_ReaderGroup_delete also removes itself from the list */
+    UA_Server_ReaderGroup_delete(server, readerGroup);
+    /* Remove readerGroup from Connection */
+    LIST_REMOVE(readerGroup, listEntry);
+    UA_free(readerGroup);
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
+ * To Do:
+ * Update ReaderGroup configuration.
+ *
+ * @param server
+ * @param readerGroupIdentifier
+ * @param readerGroupConfiguration
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                                  const UA_ReaderGroupConfig *config) {
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+}
+
+/**
+ * Get ReaderGroup configuration.
+ *
+ * @param server
+ * @param groupIdentifier
+ * @param readerGroupConfiguration
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                               UA_ReaderGroupConfig *config) {
+    if(!config) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Identify the readergroup through the readerGroupIdentifier */
+    UA_ReaderGroup *currentReaderGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    if(!currentReaderGroup) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_ReaderGroupConfig tmpReaderGroupConfig;
+    /* deep copy of the actual config */
+    UA_ReaderGroupConfig_copy(&currentReaderGroup->config, &tmpReaderGroupConfig);
+    *config = tmpReaderGroupConfig;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* To Do UA_ReaderGroupConfig delete */
+
+/**
+ * Delete ReaderGroup.
+ *
+ * @param server
+ * @param groupIdentifier
+ */
+void UA_Server_ReaderGroup_delete(UA_Server* server, UA_ReaderGroup *readerGroup) {
+    /* To Do Call UA_ReaderGroupConfig_delete */
+    UA_DataSetReader *dataSetReader, *tmpDataSetReader;
+    LIST_FOREACH_SAFE(dataSetReader, &readerGroup->readers, listEntry, tmpDataSetReader) {
+        UA_DataSetReader_delete(server, dataSetReader);
+    }
+    UA_PubSubConnection* pConn = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    if(pConn != NULL) {
+        pConn->readerGroupsSize--;
+    }
+
+    /* Delete ReaderGroup and its members */
+    UA_String_deleteMembers(&readerGroup->config.name);
+    UA_NodeId_deleteMembers(&readerGroup->linkedConnection);
+    UA_NodeId_deleteMembers(&readerGroup->identifier);
+}
+
+/**
+ * Copy ReaderGroup configuration.
+ *
+ * @param source
+ * @param destination
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
+                                UA_ReaderGroupConfig *dst) {
+    UA_String_copy(&src->name, &dst->name);
+    /* Currently simple memcpy only */
+    memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
+ * Process NetworkMessage.
+ *
+ * @param server
+ * @param networkmessage
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
+                                          UA_PubSubConnection *pConnection) {
+    UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
+    if((pMsg == NULL) || (pConnection == NULL)) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_Boolean publisherIdAvailable = false;
+    if(pMsg->publisherIdEnabled) {
+        publisherIdAvailable = true;
+    }
+
+    /* To Do The condition with dataSetWriterIdAvailable and WriterGroupIdAvailable to be handled
+     * when pMsg->groupHeaderEnabled, pMsg->dataSetClassIdEnabled, pMsg->payloadHeaderEnabled
+     * Here some filtering is possible */
+
+    UA_Byte anzDataSets = 1;
+    if(pMsg->payloadHeaderEnabled) {
+        anzDataSets = pMsg->payloadHeader.dataSetPayloadHeader.count;
+    }
+
+    UA_DataSetReader* dataSetReaderErg = NULL;
+        if(pConnection->readerGroupsSize == 1) {
+            if(LIST_FIRST(&pConnection->readerGroups)->readersCount == 1) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "only 1 DataSetReader available. This one will be used.");
+            dataSetReaderErg = LIST_FIRST(&LIST_FIRST(&pConnection->readerGroups)->readers);
+            }
+
+        }
+        else {
+            UA_DataSetReader *tmpReader;
+            if(publisherIdAvailable) {
+                UA_ReaderGroup* readerGroup = NULL;
+                LIST_FOREACH(readerGroup, &pConnection->readerGroups, listEntry) {
+                    LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
+                        if(publisherIdAvailable && (tmpReader->config.publisherId.type != NULL)) {
+                            switch (pMsg->publisherIdType) {
+                                case UA_PUBLISHERDATATYPE_BYTE:
+                                    if((tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE]) &&
+                                       (pMsg->publisherId.publisherIdByte == (*(UA_Byte*)tmpReader->config.publisherId.data))) {
+                                        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
+                                        dataSetReaderErg = tmpReader;
+                                    }
+                                    break;
+
+                                case UA_PUBLISHERDATATYPE_UINT16:
+                                    if((tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16]) &&
+                                        (pMsg->publisherId.publisherIdByte == (*(UA_UInt16*)tmpReader->config.publisherId.data))) {
+                                         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
+                                         dataSetReaderErg = tmpReader;
+                                    }
+                                    break;
+
+                                case UA_PUBLISHERDATATYPE_UINT32:
+                                    if((tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32])&&
+                                        (pMsg->publisherId.publisherIdUInt32 == (*(UA_UInt32*)tmpReader->config.publisherId.data))) {
+                                        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
+                                        dataSetReaderErg = tmpReader;
+                                    }
+                                    break;
+
+                                case UA_PUBLISHERDATATYPE_UINT64:
+                                    if((tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64]) &&
+                                        (pMsg->publisherId.publisherIdUInt64 == (*(UA_UInt64*)tmpReader->config.publisherId.data))) {
+                                        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
+                                        dataSetReaderErg = tmpReader;
+                                    }
+                                    break;
+
+                                case UA_PUBLISHERDATATYPE_STRING:
+                                     if((tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING]) &&
+                                         (UA_String_equal(&pMsg->publisherId.publisherIdString, (UA_String*)tmpReader->config.publisherId.data))) {
+                                         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
+                                         dataSetReaderErg = tmpReader;
+                                     }
+                                     break;
+
+                            }
+                         }
+                         /* to break out of LIST_FOREACH loop */
+                         if(dataSetReaderErg!= NULL) {
+                             break;
+                         }
+
+                     }
+                 }
+             }
+         }
+
+        UA_Boolean processMsg = true;
+        if(processMsg) {
+           for(UA_Byte iterator = 0; iterator < anzDataSets; iterator++) {
+               UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Process Msg with DataSetReader!");
+               UA_Server_DataSetReader_process(server, dataSetReaderErg, &pMsg->payload.dataSetPayload.dataSetMessages[iterator]);
+           }
+        }
+
+        /* To Do the condition with dataSetWriterId and WriterGroupId
+         * else condition for dataSetWriterIdAvailable and writerGroupIdAvailable) */
+
+    return retval;
+}
+
+/**
+ * Find size iterator - array dimension for VariableAttributes
+ *
+ * @param VariableAttributes
+ * @return global variable size iterator
+ */
+static size_t
+iterateVariableAttrDimension (UA_VariableAttributes varAttr) {
+    size_t sizeIterator = 0;
+    for(size_t indexIterator = 0; indexIterator < varAttr.arrayDimensionsSize; indexIterator++) {
+        sizeIterator += varAttr.arrayDimensions[indexIterator];
+    }
+    return sizeIterator;
+}
+
+/**
+ * Find ReaderGroup with its identifier.
+ *
+ * @param server
+ * @param groupIdentifier
+ * @return the ReaderGroup or NULL if not found
+ */
+UA_ReaderGroup * UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
+    for (size_t iteratorConn = 0; iteratorConn < server->pubSubManager.connectionsSize; iteratorConn++) {
+        UA_ReaderGroup* readerGroup = NULL;
+        LIST_FOREACH(readerGroup, &server->pubSubManager.connections[iteratorConn].readerGroups, listEntry) {
+            if(UA_NodeId_equal(&identifier, &readerGroup->identifier)) {
+                return readerGroup;
+            }
+
+        }
+    }
+    return NULL;
+}
+
+/**
+ * Find a DataSetReader with its identifier
+ *
+ * @param server
+ * @param identifier
+ * @return the DataSetReader or NULL if not found
+ */
+UA_DataSetReader *UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
+    for (size_t iteratorConn = 0; iteratorConn < server->pubSubManager.connectionsSize; iteratorConn++) {
+        UA_ReaderGroup* readerGroup = NULL;
+        LIST_FOREACH(readerGroup, &server->pubSubManager.connections[iteratorConn].readerGroups, listEntry) {
+            UA_DataSetReader *tmpReader;
+            LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
+                if(UA_NodeId_equal(&tmpReader->identifier, &identifier)) {
+                    return tmpReader;
+                }
+
+            }
+        }
+    }
+    return NULL;
+}
+
+/**********************************************/
+/*               DataSetReader                */
+/**********************************************/
+
+/**
+ * Add a DataSetReader to ReaderGroup
+ *
+ * @param server
+ * @param readerGroupIdentifier
+ * @param dataSetReaderConfig
+ * @param readerIdentifier
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                                      const UA_DataSetReaderConfig *dataSetReaderConfig,
+                                      UA_NodeId *readerIdentifier) {
+    /* Search the reader group by the given readerGroupIdentifier */
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+
+    if(!dataSetReaderConfig) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(readerGroup == NULL) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Allocate memory for new DataSetReader */
+    UA_DataSetReader *newDataSetReader = (UA_DataSetReader *)UA_calloc(1, sizeof(UA_DataSetReader));
+    /* Copy the config into the new dataSetReader */
+    UA_DataSetReaderConfig_copy(dataSetReaderConfig, &newDataSetReader->config);
+    newDataSetReader->linkedReaderGroup = readerGroup->identifier;
+    UA_PubSubManager_generateUniqueNodeId(server, &newDataSetReader->identifier);
+    if(readerIdentifier != NULL) {
+        UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
+    }
+
+    /* Add the new reader to the group */
+    LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
+    readerGroup->readersCount++;
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addDataSetReaderRepresentation(server, newDataSetReader);
+#endif
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
+ * Remove a DataSetReader from ReaderGroup
+ *
+ * @param server
+ * @param readerGroupIdentifier
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
+    /* Remove datasetreader given by the identifier */
+    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
+    if(!dataSetReader) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    removeDataSetReaderRepresentation(server, dataSetReader);
+#endif
+
+    UA_DataSetReader_delete(server, dataSetReader);
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
+ * Update the config of the DataSetReader.
+ *
+ * @param server
+ * @param dataSetReaderIdentifier
+ * @param readerGroupIdentifier
+ * @param config
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier, UA_NodeId readerGroupIdentifier,
+                                    const UA_DataSetReaderConfig *config) {
+    if(config == NULL) {
+       return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_DataSetReader *currentDataSetReader =  UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    UA_ReaderGroup   *currentReaderGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    if(!currentDataSetReader) {
+       return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* The update functionality will be extended during the next PubSub batches.
+     * Currently is only a change of the publishing interval possible. */
+    if(currentDataSetReader->config.writerGroupId != config->writerGroupId) {
+       UA_PubSubManager_removeRepeatedPubSubCallback(server, currentReaderGroup->subscribeCallbackId);
+       currentDataSetReader->config.writerGroupId = config->writerGroupId;
+       UA_ReaderGroup_subscribeCallback(server, currentReaderGroup);
+    }
+    else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "No or unsupported ReaderGroup update.");
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
+ * Get the current config of the UA_DataSetReader.
+ *
+ * @param server
+ * @param dataSetReaderIdentifier
+ * @param config
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+                                 UA_DataSetReaderConfig *config) {
+    if(!config) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_DataSetReader *currentDataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    if(!currentDataSetReader) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_DataSetReaderConfig tmpReaderConfig;
+    /* Deep copy of the actual config */
+    UA_DataSetReaderConfig_copy(&currentDataSetReader->config, &tmpReaderConfig);
+    *config = tmpReaderConfig;
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
+ * This Method is used to initially set the SubscribedDataSet to TargetVariablesType and to create the list of target Variables of a SubscribedDataSetType.
+ *
+ * @param server
+ * @param dataSetReaderIdentifier
+ * @param targetVariables
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier, UA_TargetVariablesDataType *targetVariables) {
+    UA_StatusCode retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    UA_DataSetReader* pDS = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    if(pDS == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    if(pDS->subscribedDataSetTarget.targetVariablesSize > 0) {
+        UA_TargetVariablesDataType_deleteMembers(&pDS->subscribedDataSetTarget);
+        pDS->subscribedDataSetTarget.targetVariablesSize = 0;
+        pDS->subscribedDataSetTarget.targetVariables = NULL;
+    }
+
+    /* Set subscribed dataset to TargetVariableType */
+    pDS->subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
+    retval = UA_TargetVariablesDataType_copy(targetVariables, &pDS->subscribedDataSetTarget);
+    return retval;
+}
+
+/**
+ * Adds Subscribed Variables from the DataSetMetaData for the given DataSet into the given parent node
+ * and creates the corresponding data in the targetVariables of the DataSetReader
+ *
+ * @param server
+ * @param parentNode
+ * @param dataSetReaderIdentifier
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentNode, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetEnumType sdsType) {
+    if((server == NULL) || (parentNode == NULL)) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_DataSetReader* pDataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    if(pDataSetReader == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* To Do Declare for all other type */
+    UA_DateTime dateTimeTypeVal = 0;
+    UA_TargetVariablesDataType targetVars;
+    targetVars.targetVariablesSize = pDataSetReader->config.dataSetMetaData.fieldsSize;
+    targetVars.targetVariables = (UA_FieldTargetDataType *)UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetDataType));
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    for (size_t iteratorField = 0; iteratorField < pDataSetReader->config.dataSetMetaData.fieldsSize; iteratorField++) {
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.valueRank = pDataSetReader->config.dataSetMetaData.fields[iteratorField].valueRank;
+        if(pDataSetReader->config.dataSetMetaData.fields[iteratorField].arrayDimensionsSize > 0) {
+            retVal = UA_Array_copy(pDataSetReader->config.dataSetMetaData.fields[iteratorField].arrayDimensions, pDataSetReader->config.dataSetMetaData.fields[iteratorField].arrayDimensionsSize, (void**)&vAttr.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+            if(retVal == UA_STATUSCODE_GOOD) {
+                vAttr.arrayDimensionsSize = pDataSetReader->config.dataSetMetaData.fields[iteratorField].arrayDimensionsSize;
+            }
+
+        }
+
+        switch (pDataSetReader->config.dataSetMetaData.fields[iteratorField].builtInType) {
+            case UA_NS0ID_BOOLEAN:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Boolean *boolArray = (UA_Boolean*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                    UA_Variant_setArrayCopy(&vAttr.value, boolArray, sizeIterator, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                    UA_Array_delete(boolArray, sizeIterator, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                }
+                else {
+                    UA_Boolean boolTypeVal = false;
+                    UA_Variant_setScalar(&vAttr.value, &boolTypeVal, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+            break;
+
+            case UA_NS0ID_SBYTE:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+
+                    UA_SByte *sbyteArray = (UA_SByte*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_SBYTE]);
+                    UA_Variant_setArrayCopy(&vAttr.value, sbyteArray, sizeIterator, &UA_TYPES[UA_TYPES_SBYTE]);
+                    UA_Array_delete(sbyteArray, sizeIterator, &UA_TYPES[UA_TYPES_SBYTE]);
+                }
+                else {
+                    UA_SByte sbyteTypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &sbyteTypeVal, &UA_TYPES[UA_TYPES_SBYTE]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_BYTE:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Byte *byteArray = (UA_Byte*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_BYTE]);
+                    UA_Variant_setArrayCopy(&vAttr.value, byteArray, sizeIterator, &UA_TYPES[UA_TYPES_BYTE]);
+                    UA_Array_delete(byteArray, sizeIterator, &UA_TYPES[UA_TYPES_BYTE]);
+                }
+                else {
+                    UA_Byte byteTypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &byteTypeVal, &UA_TYPES[UA_TYPES_BYTE]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_INT16:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Int16 *int16Array = (UA_Int16*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_INT16]);
+                    UA_Variant_setArrayCopy(&vAttr.value, int16Array, sizeIterator, &UA_TYPES[UA_TYPES_INT16]);
+                    UA_Array_delete(int16Array, sizeIterator, &UA_TYPES[UA_TYPES_INT16]);
+                }
+                else {
+                    UA_Int16 int16TypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &int16TypeVal, &UA_TYPES[UA_TYPES_INT16]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_UINT16:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_UInt16 *uint16Array = (UA_UInt16*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_UINT16]);
+                    UA_Variant_setArrayCopy(&vAttr.value, uint16Array, sizeIterator, &UA_TYPES[UA_TYPES_UINT16]);
+                    UA_Array_delete(uint16Array, sizeIterator, &UA_TYPES[UA_TYPES_UINT16]);
+                }
+                else {
+                    UA_UInt16 uint16TypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &uint16TypeVal, &UA_TYPES[UA_TYPES_UINT16]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_INT32:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Int32 *int32Array = (UA_Int32*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_INT32]);
+                    UA_Variant_setArrayCopy(&vAttr.value, int32Array, sizeIterator, &UA_TYPES[UA_TYPES_INT32]);
+                    UA_Array_delete(int32Array, sizeIterator, &UA_TYPES[UA_TYPES_INT32]);
+                }
+                else {
+                    UA_Int32 int32TypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &int32TypeVal, &UA_TYPES[UA_TYPES_INT32]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_UINT32:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_UInt32 *uint32Array = (UA_UInt32*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_UINT32]);
+                    UA_Variant_setArrayCopy(&vAttr.value, uint32Array, sizeIterator, &UA_TYPES[UA_TYPES_UINT32]);
+                    UA_Array_delete(uint32Array, sizeIterator, &UA_TYPES[UA_TYPES_UINT32]);
+                }
+                else {
+                    UA_UInt32 uint32TypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &uint32TypeVal, &UA_TYPES[UA_TYPES_UINT32]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_INT64:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Int64 *int64Array = (UA_Int64*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_INT64]);
+                    UA_Variant_setArrayCopy(&vAttr.value, int64Array, sizeIterator, &UA_TYPES[UA_TYPES_INT64]);
+                    UA_Array_delete(int64Array, sizeIterator, &UA_TYPES[UA_TYPES_INT64]);
+                }
+                else {
+                    UA_Int64 int64TypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &int64TypeVal, &UA_TYPES[UA_TYPES_INT64]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_UINT64:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_UInt64 *uint64Array = (UA_UInt64*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_UINT64]);
+                    UA_Variant_setArrayCopy(&vAttr.value, uint64Array, sizeIterator, &UA_TYPES[UA_TYPES_UINT64]);
+                    UA_Array_delete(uint64Array, sizeIterator, &UA_TYPES[UA_TYPES_UINT64]);
+                }
+                else {
+                    UA_UInt64 uint64TypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &uint64TypeVal, &UA_TYPES[UA_TYPES_UINT64]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_FLOAT:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Float *floatArray = (UA_Float*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_FLOAT]);
+                    UA_Variant_setArrayCopy(&vAttr.value, floatArray, sizeIterator, &UA_TYPES[UA_TYPES_FLOAT]);
+                    UA_Array_delete(floatArray, sizeIterator, &UA_TYPES[UA_TYPES_FLOAT]);
+                }
+                else {
+                    UA_Float floatTypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &floatTypeVal, &UA_TYPES[UA_TYPES_FLOAT]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_DOUBLE:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Double *doubleArray = (UA_Double*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_DOUBLE]);
+                    UA_Variant_setArrayCopy(&vAttr.value, doubleArray, sizeIterator, &UA_TYPES[UA_TYPES_DOUBLE]);
+                    UA_Array_delete(doubleArray, sizeIterator, &UA_TYPES[UA_TYPES_DOUBLE]);
+                }
+                else {
+                    UA_Double doubleTypeVal = 0.0;
+                    UA_Variant_setScalar(&vAttr.value, &doubleTypeVal, &UA_TYPES[UA_TYPES_DOUBLE]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_STRING:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_String *stringArray = (UA_String*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_STRING]);
+                    UA_Variant_setArrayCopy(&vAttr.value, stringArray, sizeIterator, &UA_TYPES[UA_TYPES_STRING]);
+                    UA_Array_delete(stringArray, sizeIterator, &UA_TYPES[UA_TYPES_STRING]);
+                }
+                else {
+                    UA_String stringTypeVal = UA_STRING_NULL;
+                    UA_Variant_setScalar(&vAttr.value, &stringTypeVal, &UA_TYPES[UA_TYPES_STRING]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_DATETIME:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_DateTime *dateTimeArray = (UA_DateTime*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_DATETIME]);
+                    UA_Variant_setArrayCopy(&vAttr.value, dateTimeArray, sizeIterator, &UA_TYPES[UA_TYPES_DATETIME]);
+                    UA_Array_delete(dateTimeArray, sizeIterator, &UA_TYPES[UA_TYPES_DATETIME]);
+                }
+                else {
+                    dateTimeTypeVal = 0;
+                    UA_Variant_setScalar(&vAttr.value, &dateTimeTypeVal, &UA_TYPES[UA_TYPES_DATETIME]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_GUID:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_Guid *guidArray = (UA_Guid*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_GUID]);
+                    UA_Variant_setArrayCopy(&vAttr.value, guidArray, sizeIterator, &UA_TYPES[UA_TYPES_GUID]);
+                    UA_Array_delete(guidArray, sizeIterator, &UA_TYPES[UA_TYPES_GUID]);
+                }
+                else {
+                    UA_Guid guidTypeVal = UA_GUID_NULL;
+                    UA_Variant_setScalar(&vAttr.value, &guidTypeVal, &UA_TYPES[UA_TYPES_GUID]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_NODEID:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_NodeId *nodeidArray = (UA_NodeId*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_NODEID]);
+                    UA_Variant_setArrayCopy(&vAttr.value, nodeidArray, sizeIterator, &UA_TYPES[UA_TYPES_NODEID]);
+                    UA_Array_delete(nodeidArray, sizeIterator, &UA_TYPES[UA_TYPES_NODEID]);
+                }
+                else {
+                    UA_NodeId nodeidTypeVal = UA_NODEID_NULL;
+                    UA_Variant_setScalar(&vAttr.value, &nodeidTypeVal, &UA_TYPES[UA_TYPES_NODEID]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            case UA_NS0ID_BYTESTRING:
+                if(vAttr.arrayDimensionsSize > 0) {
+                    size_t sizeIterator = iterateVariableAttrDimension(vAttr);
+                    UA_ByteString *byteStringArray = (UA_ByteString*)UA_Array_new(sizeIterator, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                    UA_Variant_setArrayCopy(&vAttr.value, byteStringArray, sizeIterator, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                    UA_Array_delete(byteStringArray, sizeIterator, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                }
+                else {
+                    UA_ByteString byteStringTypeVal = UA_BYTESTRING_NULL;
+                    UA_Variant_setScalar(&vAttr.value, &byteStringTypeVal, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                }
+
+                UA_NodeId_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].dataType, &vAttr.dataType);
+
+            break;
+
+            default:
+                /* Type not supported */
+                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Type %u not supported, create empty variable.", pDataSetReader->config.dataSetMetaData.fields[iteratorField].builtInType);
+            break;
+        }
+
+        vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+        UA_LocalizedText_copy(&pDataSetReader->config.dataSetMetaData.fields[iteratorField].description, &vAttr.description);
+        UA_QualifiedName qn;
+        UA_QualifiedName_init(&qn);
+        char szTmpName[UA_MAX_SIZENAME];
+        if(pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.length > 0) {
+            UA_UInt16 slen = UA_MAX_SIZENAME -1;
+            vAttr.displayName.locale = UA_STRING("en-US");
+            vAttr.displayName.text = pDataSetReader->config.dataSetMetaData.fields[iteratorField].name;
+            if(pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.length < slen) {
+                slen = (UA_UInt16)pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.length;
+                UA_snprintf(szTmpName, sizeof(szTmpName), "%s", (const char*)pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.data);
+            }
+
+            szTmpName[slen] = '\0';
+            qn = UA_QUALIFIEDNAME(1, szTmpName);
+        }
+        else {
+            strcpy(szTmpName, "SubscribedVariable");
+            vAttr.displayName = UA_LOCALIZEDTEXT("en-US", szTmpName);
+            qn = UA_QUALIFIEDNAME(1, "SubscribedVariable");
+        }
+
+        /* Add variable to the given parent node */
+        UA_NodeId newNode;
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NULL, *parentNode,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), qn,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newNode);
+        if(retVal == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "addVariableNode %s succeeded", szTmpName);
+        }
+        else {
+            retval = retVal;
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND, "addVariableNode: error 0x%x", retVal);
+        }
+
+        UA_FieldTargetDataType_init(&targetVars.targetVariables[iteratorField]);
+        targetVars.targetVariables[iteratorField].attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_NodeId_copy(&newNode, &targetVars.targetVariables[iteratorField].targetNodeId);
+        UA_NodeId_deleteMembers(&newNode);
+        if(vAttr.arrayDimensionsSize > 0) {
+            UA_Variant_deleteMembers(&vAttr.value);
+            UA_Array_delete(vAttr.arrayDimensions, vAttr.arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+        }
+    }
+
+    if(sdsType == UA_PUBSUB_SDS_TARGET) {
+        retval = UA_Server_DataSetReader_createTargetVariables(server, pDataSetReader->identifier, &targetVars);
+    }
+
+    UA_TargetVariablesDataType_deleteMembers(&targetVars);
+    return retval;
+}
+
+/**
+ * Process a NetworkMessage with a DataSetReader.
+ *
+ * @param server
+ * @param dataSetReader
+ * @param dataSetMsg
+ */
+void UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader, UA_DataSetMessage* dataSetMsg) {
+    if((dataSetReader == NULL) || (dataSetMsg == NULL) || (server == NULL)) {
+        return;
+    }
+
+    if(!dataSetMsg->header.dataSetMessageValid) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetMessage is discarded: message is not valid");
+         /* To Do check ConfigurationVersion*/
+         /*if(dataSetMsg->header.configVersionMajorVersionEnabled)
+         * {
+         * if(dataSetMsg->header.configVersionMajorVersion != dataSetReader->config.dataSetMetaData.configurationVersion.majorVersion)
+         * {
+         * UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetMessage is discarded: ConfigurationVersion MajorVersion does not match");
+         * return;
+         * }
+         } */
+    }
+    else {
+        if(dataSetMsg->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
+            if(dataSetMsg->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
+                size_t anzFields = dataSetMsg->data.keyFrameData.fieldCount;
+                    if(dataSetReader->config.dataSetMetaData.fieldsSize < anzFields) {
+                    anzFields = dataSetReader->config.dataSetMetaData.fieldsSize;
+                }
+
+                if(dataSetReader->subscribedDataSetTarget.targetVariablesSize < anzFields) {
+                    anzFields = dataSetReader->subscribedDataSetTarget.targetVariablesSize;
+                }
+
+                UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+                for (UA_UInt16 iteratorField = 0; iteratorField < anzFields; iteratorField++) {
+                    if(dataSetMsg->data.keyFrameData.dataSetFields[iteratorField].hasValue) {
+                        if(dataSetReader->subscribedDataSetTarget.targetVariables[iteratorField].attributeId == UA_ATTRIBUTEID_VALUE) {
+                            retVal = UA_Server_writeValue(server, dataSetReader->subscribedDataSetTarget.targetVariables[iteratorField].targetNodeId, dataSetMsg->data.keyFrameData.dataSetFields[iteratorField].value);
+                            if(retVal != UA_STATUSCODE_GOOD) {
+                                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write Value KF %u: 0x%x", iteratorField, retVal);
+                            }
+
+                        }
+                        else {
+                            UA_WriteValue writeVal;
+                            UA_WriteValue_init(&writeVal);
+                            writeVal.attributeId = dataSetReader->subscribedDataSetTarget.targetVariables[iteratorField].attributeId;
+                            writeVal.indexRange = dataSetReader->subscribedDataSetTarget.targetVariables[iteratorField].receiverIndexRange;
+                            writeVal.nodeId = dataSetReader->subscribedDataSetTarget.targetVariables[iteratorField].targetNodeId;
+                            UA_DataValue_copy(&dataSetMsg->data.keyFrameData.dataSetFields[iteratorField], &writeVal.value);
+                            retVal = UA_Server_write(server, &writeVal);
+                            if(retVal != UA_STATUSCODE_GOOD) {
+                                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error Write KF %u: 0x%x", iteratorField, retVal);
+                            }
+
+                        }
+
+                    }
+
+               }
+
+           }
+
+        }
+
+    }
+}
+
+/**
+ * Copy the config of the DataSetReader.
+ *
+ * @param src
+ * @param dst
+ * @return UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode
+UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
+                                  UA_DataSetReaderConfig *dst) {
+    memset(dst, 0, sizeof(UA_DataSetReaderConfig));
+    UA_StatusCode retVal = UA_String_copy(&src->name, &dst->name);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        return retVal;
+    }
+
+    retVal = UA_Variant_copy(&src->publisherId, &dst->publisherId);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        return retVal;
+    }
+
+    dst->writerGroupId = src->writerGroupId;
+    dst->dataSetWriterId = src->dataSetWriterId;
+    retVal = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        return retVal;
+    }
+
+    dst->dataSetFieldContentMask = src->dataSetFieldContentMask;
+    dst->messageReceiveTimeout = src->messageReceiveTimeout;
+
+    /* Currently memcpy is used to copy the securityParameters */
+    memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
+    retVal = UA_UadpDataSetReaderMessageDataType_copy(&src->messageSettings, &dst->messageSettings);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        return retVal;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
+ * Delete the DataSetReader.
+ *
+ * @param server
+ * @param dataSetReader
+ */
+void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader) {
+    /* Delete DataSetReader config */
+    UA_String_deleteMembers(&dataSetReader->config.name);
+    UA_Variant_deleteMembers(&dataSetReader->config.publisherId);
+    UA_DataSetMetaDataType_deleteMembers(&dataSetReader->config.dataSetMetaData);
+    UA_UadpDataSetReaderMessageDataType_deleteMembers(&dataSetReader->config.messageSettings);
+    UA_TargetVariablesDataType_deleteMembers(&dataSetReader->subscribedDataSetTarget);
+
+    /* Delete DataSetReader */
+    UA_ReaderGroup* pGroup = UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
+    if(pGroup != NULL) {
+        pGroup->readersCount--;
+    }
+
+    UA_NodeId_deleteMembers(&dataSetReader->identifier);
+    UA_NodeId_deleteMembers(&dataSetReader->linkedReaderGroup);
+    /* Remove DataSetReader from group */
+    LIST_REMOVE(dataSetReader, listEntry);
+    /* Free memory allocated for DataSetReader */
+    UA_free(dataSetReader);
+}
+
+/**********************************************/
+/*               PublishedDataSet             */
+/**********************************************/
 UA_StatusCode
 UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                UA_PublishedDataSetConfig *dst) {
@@ -197,10 +1208,11 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
             //no additional items
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
-            if (src->config.itemsTemplate.variablesToAddSize > 0){
+            if(src->config.itemsTemplate.variablesToAddSize > 0){
                 dst->config.itemsTemplate.variablesToAdd = (UA_PublishedVariableDataType *) UA_calloc(
                         src->config.itemsTemplate.variablesToAddSize, sizeof(UA_PublishedVariableDataType));
             }
+
             for(size_t i = 0; i < src->config.itemsTemplate.variablesToAddSize; i++){
                 retVal |= UA_PublishedVariableDataType_copy(&src->config.itemsTemplate.variablesToAdd[i],
                                                             &dst->config.itemsTemplate.variablesToAdd[i]);
@@ -208,6 +1220,7 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
             retVal |= UA_DataSetMetaDataType_copy(&src->config.itemsTemplate.metaData,
                                                   &dst->config.itemsTemplate.metaData);
             break;
+
         default:
             return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -250,7 +1263,7 @@ UA_PublishedDataSetConfig_deleteMembers(UA_PublishedDataSetConfig *pdsConfig){
             //no additional items
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
-            if (pdsConfig->config.itemsTemplate.variablesToAddSize > 0){
+            if(pdsConfig->config.itemsTemplate.variablesToAddSize > 0){
                 for(size_t i = 0; i < pdsConfig->config.itemsTemplate.variablesToAddSize; i++){
                     UA_PublishedVariableDataType_deleteMembers(&pdsConfig->config.itemsTemplate.variablesToAdd[i]);
                 }
@@ -336,7 +1349,6 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     parentPublishedDataSet->fieldSize--;
     if(currentField->config.field.variable.promotedField)
         parentPublishedDataSet->promotedFieldsCount--;
-    
     /* update major version of PublishedDataSet */
     parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference();
@@ -866,7 +1878,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
             continue;
 
         UA_DataSetMessage_DeltaFrameField *dff = &deltaFields[currentDeltaField];
-        
+
         dff->fieldIndex = (UA_UInt16) i;
         UA_DataValue_copy(&dataSetWriter->lastSamples[i].value, &dff->fieldValue);
         dataSetWriter->lastSamples[i].valueChanged = false;
@@ -878,13 +1890,11 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         /* Deactivate timestamps? */
         if(((u64)dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
             dff->fieldValue.hasSourceTimestamp = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) ==
-           0)
+        if(((u64)dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
             dff->fieldValue.hasServerPicoseconds = false;
         if(((u64)dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
             dff->fieldValue.hasServerTimestamp = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) ==
-           0)
+        if(((u64)dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
             dff->fieldValue.hasServerPicoseconds = false;
 
         currentDeltaField++;
@@ -960,7 +1970,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *da
 
     /* The field encoding depends on the flags inside the writer config.
      * TODO: This can be moved to the encoding layer. */
-    if(dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
+    if(dataSetWriter->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA
+) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
     } else if((u64)dataSetWriter->config.dataSetFieldContentMask &
               ((u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP | (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS |
@@ -1180,7 +2191,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
         nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
         nm.publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
-    } else if (connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
+    } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
         nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;
         nm.publisherId.publisherIdString = connection->config->publisherId.string;
     }
@@ -1212,7 +2223,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
-        
+
     /* Encode the message */
     UA_Byte *bufPos = buf.data;
     memset(bufPos, 0, msgSize);
@@ -1311,8 +2322,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                 res = sendNetworkMessageJson(connection, &dsmStore[dsmCount],
                         &dsw->config.dataSetWriterId, 1, &writerGroup->config.transportSettings);
             }
-
-            if(res != UA_STATUSCODE_GOOD)
+           if(res != UA_STATUSCODE_GOOD)
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub Publish: Could not send a NetworkMessage");
             UA_DataSetMessage_free(&dsmStore[dsmCount]);
@@ -1340,7 +2350,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
             res3 = sendNetworkMessageJson(connection, &dsmStore[i * maxDSM],
                     &dsWriterIds[i * maxDSM], nmDsmCount, &writerGroup->config.transportSettings);
         }
-
         if(res3 != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub Publish: Sending a NetworkMessage failed");
@@ -1365,6 +2374,59 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
 
     /* Run once after creation */
     UA_WriterGroup_publishCallback(server, writerGroup);
+    return retval;
+}
+
+/* This callback triggers the collection and reception of NetworkMessages and the
+ * contained DataSetMessages. */
+void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
+    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    UA_ByteString buffer;
+    if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Message buffer alloc failed!");
+        return;
+    }
+
+    connection->channel->receive(connection->channel, &buffer, NULL, 300000);
+    if(buffer.length > 0) {
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
+        UA_NetworkMessage currentNetworkMessage;
+        memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
+        size_t currentPosition = 0;
+        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
+        UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
+        UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+    }
+
+    UA_ByteString_deleteMembers(&buffer);
+}
+
+/* Add new subscribeCallback. The first execution is triggered directly after
+ * creation. */
+UA_StatusCode
+UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
+    if(connection != NULL) {
+        retval = connection->channel->regist(connection->channel, NULL, NULL);
+        if(retval == UA_STATUSCODE_GOOD) {
+            retval = UA_PubSubManager_addRepeatedCallback(server,
+                    (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
+                    readerGroup, 5,
+                    &readerGroup->subscribeCallbackId);
+        }
+        else {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "register channel failed: 0x%x!", retval);
+        }
+
+    }
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        readerGroup->subscribeCallbackIsRegistered = true;
+    }
+
+    /* Run once after creation */
+    UA_ReaderGroup_subscribeCallback(server, readerGroup);
     return retval;
 }
 

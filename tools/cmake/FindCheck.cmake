@@ -16,7 +16,7 @@ endif()
 find_path(CHECK_INCLUDE_DIRS check.h "${CHECK_PREFIX_INC}")
 find_library(CHECK_LIBRARY check HINTS "${CHECK_PREFIX_LIB}")
 
-if(MSVC)
+if(WIN32)
 
     find_library(COMPAT_LIBRARY compat HINTS "${CHECK_PREFIX_LIB}")
     set(CHECK_LIBRARIES "${CHECK_LIBRARY}" "${COMPAT_LIBRARY}")
@@ -65,7 +65,7 @@ else()
                     MESSAGE( STATUS "Could NOT find CHECK" )
                 ENDIF ( NOT Check_FIND_QUIETLY )
             ENDIF ( Check_FIND_REQUIRED )
-        ENDIF ( CHECK_INCLUDE_DIRS AND CHECK_LIBRARIES )
+        ENDIF ( CHECK_INCLUDE_DIRS AND CHECK_LIBRARY )
     ENDIF( NOT CHECK_FOUND AND NOT PKG_CONFIG_FOUND )
 
     # Hide advanced variables from CMake GUIs

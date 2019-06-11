@@ -357,8 +357,10 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -521,8 +523,10 @@ copyAllChildren(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -544,8 +548,8 @@ addTypeChildren(UA_Server *server, UA_Session *session,
     /* Get the hierarchy of the type and all its supertypes */
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
-    UA_StatusCode retval = getParentTypeAndInterfaceHierarchy(server->nsCtx, &type->nodeId,
-                                            &hierarchy, &hierarchySize);
+    UA_StatusCode retval = getParentTypeAndInterfaceHierarchy(server, &type->nodeId,
+                                                              &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -691,8 +695,10 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 /* Get subtypes of the parent reference types */
                 UA_NodeId *parentTypeHierachy = NULL;
                 size_t parentTypeHierachySize = 0;
-                getTypesHierarchy(server->nsCtx, parentReferences,UA_PARENT_REFERENCES_COUNT,
-                                  &parentTypeHierachy, &parentTypeHierachySize, true);
+                retval = getLocalRecursiveHierarchy(server, parentReferences, UA_PARENT_REFERENCES_COUNT,
+                                                    &subtypeId, 1, true, &parentTypeHierachy, &parentTypeHierachySize);
+                if(retval != UA_STATUSCODE_GOOD)
+                    goto cleanup;
                 /* Abstract variable is allowed if parent is a children of a base data variable */
                 const UA_NodeId variableTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
                 /* A variable may be of an object type which again is below BaseObjectType */
@@ -718,8 +724,10 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 /* Get subtypes of the parent reference types */
                 UA_NodeId *parentTypeHierachy = NULL;
                 size_t parentTypeHierachySize = 0;
-                getTypesHierarchy(server->nsCtx, parentReferences,UA_PARENT_REFERENCES_COUNT,
-                                  &parentTypeHierachy, &parentTypeHierachySize, true);
+                retval = getLocalRecursiveHierarchy(server, parentReferences, UA_PARENT_REFERENCES_COUNT,
+                                                    &subtypeId, 1, true, &parentTypeHierachy, &parentTypeHierachySize);
+                if(retval != UA_STATUSCODE_GOOD)
+                    goto cleanup;
                 /* Object node created of an abstract ObjectType. Only allowed
                  * if within BaseObjectType folder */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
@@ -1015,8 +1023,10 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1384,8 +1394,10 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -1420,8 +1432,10 @@ recursiveDeleteNode(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, session, &bo, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -1487,7 +1501,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     UA_NodeId *hierarchicalRefs = NULL;
     size_t hierarchicalRefsSize = 0;
     UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
-    getTypeHierarchy(server->nsCtx, &hr, &hierarchicalRefs, &hierarchicalRefsSize, true);
+    getLocalRecursiveHierarchy(server, &hr, 1, &subtypeId, 1, true, &hierarchicalRefs, &hierarchicalRefsSize);
     if(!hierarchicalRefs) {
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "Delete Nodes: Cannot test for hierarchical "
@@ -1856,8 +1870,10 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId, UA_M
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, &server->adminSession, &maxrefs, &bd, &br);
+    struct BrowseOpts bo;
+    bo.maxReferences = 0;
+    bo.recursive = false;
+    Operation_Browse(server, &server->adminSession, &bo, &bd, &br);
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {

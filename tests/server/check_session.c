@@ -6,10 +6,7 @@
 
 #include "server/ua_services.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "check.h"
+#include <check.h>
 
 START_TEST(Session_init_ShallWork) {
     UA_Session session;
@@ -25,7 +22,7 @@ START_TEST(Session_init_ShallWork) {
     ck_assert_int_eq(session.availableContinuationPoints, UA_MAXCONTINUATIONPOINTS);
     ck_assert_ptr_eq(session.header.channel, NULL);
     ck_assert_ptr_eq(session.clientDescription.applicationName.locale.data, NULL);
-    ck_assert_ptr_eq(session.continuationPoints.lh_first, NULL);
+    ck_assert_ptr_eq(session.continuationPoints, NULL);
     ck_assert_int_eq(session.maxRequestMessageSize, 0);
     ck_assert_int_eq(session.maxResponseMessageSize, 0);
     ck_assert_int_eq(session.sessionId.identifier.numeric, tmpNodeId.identifier.numeric);

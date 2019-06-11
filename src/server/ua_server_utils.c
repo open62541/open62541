@@ -164,187 +164,42 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
     return false;
 }
 
-static const UA_NodeId hasSubtypeNodeId =
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
 static const UA_NodeId hasInterfaceNodeId =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASINTERFACE}};
 
-/**
- * Gets a list of nodeIds which are referenced by this node.
- * Hereby the list will be filtered to only include references
- * which are of the given `references` types.
- */
-static UA_StatusCode
-getReferencedNodesWithReferenceType(UA_NodeId **results_ptr, size_t *results_count,
-                         size_t *results_size, const UA_Node *node,
-                         const UA_NodeReferenceKind *references, size_t referencesSize) {
-    UA_NodeId *results = *results_ptr;
-    for(size_t i = 0; i < node->referencesSize; ++i) {
-        /* Is the reference kind relevant? */
-        UA_NodeReferenceKind *refs = &node->references[i];
+UA_StatusCode
+getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
+                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+    UA_NodeId *subTypes = NULL;
+    size_t subTypesSize = 0;
+    UA_StatusCode retval =
+        getLocalRecursiveHierarchy(server, typeNode, 1, &subtypeId, 1,
+                                   false, &subTypes, &subTypesSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
-        bool referenceInList = false;
-        for (size_t j=0; j<referencesSize && !referenceInList; j++) {
-            referenceInList = refs->isInverse == references[j].isInverse &&
-                    UA_NodeId_equal(&references[j].referenceTypeId, &refs->referenceTypeId);
-        }
-        if (!referenceInList)
-            continue;
-
-        /* Append all targets of the reference kind .. if not a duplicate */
-        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-            /* Is the target a duplicate? (multi-inheritance) */
-            UA_NodeId *targetId = &refs->targetIds[j].nodeId;
-            UA_Boolean duplicate = false;
-            for(size_t k = 0; k < *results_count; ++k) {
-                if(UA_NodeId_equal(targetId, &results[k])) {
-                    duplicate = true;
-                    break;
-                }
-            }
-            if(duplicate)
-                continue;
-
-            /* Increase array length if necessary */
-            if(*results_count >= *results_size) {
-                size_t new_size = sizeof(UA_NodeId) * (*results_size) * 2;
-                UA_NodeId *new_results = (UA_NodeId*)UA_realloc(results, new_size);
-                if(!new_results) {
-                    UA_Array_delete(results, *results_count, &UA_TYPES[UA_TYPES_NODEID]);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                results = new_results;
-                *results_ptr = results;
-                *results_size *= 2;
-            }
-
-            /* Copy new nodeid to the end of the list */
-            UA_StatusCode retval = UA_NodeId_copy(targetId, &results[*results_count]);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_Array_delete(results, *results_count, &UA_TYPES[UA_TYPES_NODEID]);
-                return retval;
-            }
-            *results_count += 1;
-        }
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-
-static UA_StatusCode
-getHierarchyForReferenceTypes(void *nsCtx, const UA_NodeId *leafType,
-                              const UA_NodeReferenceKind *references, size_t referencesSize,
-                              UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-    /* Allocate the results array. Probably too big, but saves mallocs. */
-    size_t results_size = 20;
-    UA_NodeId *results = (UA_NodeId*)UA_malloc(sizeof(UA_NodeId) * results_size);
-    if(!results)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* The leaf is the first element */
-    size_t results_count = 1;
-    UA_StatusCode retval = UA_NodeId_copy(leafType, &results[0]);
+    UA_NodeId *interfaces = NULL;
+    size_t interfacesSize = 0;
+    retval = getLocalRecursiveHierarchy(server, typeNode, 1, &hasInterfaceNodeId, 1,
+                                        true, &interfaces, &interfacesSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(results);
+        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
     }
 
-    /* Loop over the array members .. and add new elements to the end */
-    for(size_t idx = 0; idx < results_count; ++idx) {
-        /* Get the node */
-        const UA_Node *node = UA_Nodestore_getNode(nsCtx, &results[idx]);
-
-        /* Invalid node, remove from the array */
-        if(!node) {
-            for(size_t i = idx; i < results_count-1; ++i)
-                results[i] = results[i+1];
-            results_count--;
-            continue;
-        }
-
-        /* Add references from the current node to the end of the array */
-        retval = getReferencedNodesWithReferenceType(&results, &results_count,
-                                          &results_size, node, references, referencesSize);
-
-        /* Release the node */
-        UA_Nodestore_releaseNode(nsCtx, node);
-
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
-            return retval;
-        }
+    UA_NodeId *total = (UA_NodeId*)
+        UA_realloc(subTypes, sizeof(UA_NodeId)*(subTypesSize + interfacesSize - 1));
+    if(!total) {
+        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    /* Zero results. The leaf node was not found */
-    if(results_count == 0) {
-        UA_free(results);
-        results = NULL;
-    }
-
-    *typeHierarchy = results;
-    *typeHierarchySize = results_count;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-getTypeHierarchy(void *nsCtx, const UA_NodeId *leafType,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                 UA_Boolean walkDownwards) {
-    UA_NodeReferenceKind subtypeRef;
-    // if downwards, we do not want inverse, if upwards we want inverse
-    subtypeRef.isInverse = !walkDownwards;
-    subtypeRef.referenceTypeId = hasSubtypeNodeId;
-
-
-    return getHierarchyForReferenceTypes(nsCtx, leafType,
-            &subtypeRef, 1, typeHierarchy, typeHierarchySize);
-}
-
-UA_StatusCode
-getParentTypeAndInterfaceHierarchy(void *nsCtx, const UA_NodeId *leafType,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-
-    UA_NodeReferenceKind subtypeRef[2];
-    subtypeRef[0].isInverse = true;
-    subtypeRef[0].referenceTypeId = hasSubtypeNodeId;
-
-    subtypeRef[1].isInverse = false;
-    subtypeRef[1].referenceTypeId = hasInterfaceNodeId;
-
-    return getHierarchyForReferenceTypes(nsCtx, leafType,
-                                         subtypeRef, 2, typeHierarchy, typeHierarchySize);
-}
-
-UA_StatusCode
-getTypesHierarchy(void *nsCtx, const UA_NodeId *leafType, size_t leafTypeSize,
-                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize,
-                  UA_Boolean walkDownwards) {
-    UA_NodeId *results = NULL;
-    size_t results_count = 0;
-    for (size_t i = 0; i < leafTypeSize; i++) {
-        UA_NodeId *tmpResults = NULL;
-        size_t tmpResults_size = 0;
-        UA_StatusCode retval = getTypeHierarchy(nsCtx, &leafType[i], &tmpResults, &tmpResults_size, walkDownwards);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
-            return retval;
-        }
-        if (tmpResults_size == 0 || tmpResults == NULL )
-            continue;
-        size_t new_size = sizeof(UA_NodeId) * (results_count + tmpResults_size);
-        UA_NodeId *new_results = (UA_NodeId*)UA_realloc(results, new_size);
-        if(!new_results) {
-            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        results = new_results;
-        memcpy(&results[results_count],tmpResults, sizeof(UA_NodeId)*tmpResults_size);
-        /* do not use UA_Array_delete since we still need the content of the nodes */
-        UA_free(tmpResults);
-        results_count = results_count + tmpResults_size;
-    }
-    *typeHierarchy = results;
-    *typeHierarchySize = results_count;
+    memcpy(&total[subTypesSize], &interfaces[1], sizeof(UA_NodeId)*(interfacesSize-1));
+    UA_free(interfaces);
+    
+    *typeHierarchy = total;
+    *typeHierarchySize = subTypesSize + interfacesSize - 1;
     return UA_STATUSCODE_GOOD;
 }
 

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -8,6 +8,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #include "open62541/namespace0_generated.h"
@@ -541,7 +542,7 @@ writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *ty
     return UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, id), var);
 }
 
-static UA_StatusCode
+UA_StatusCode
 writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type) {
     UA_Variant var;

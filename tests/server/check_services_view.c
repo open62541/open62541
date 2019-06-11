@@ -59,6 +59,7 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
     UA_BrowseResult br = UA_Server_browse(server, maxResults, &bd);
     ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
     ck_assert(br.referencesSize > 0);
+    ck_assert(br.referencesSize <= maxResults);
 
     size_t total = br.referencesSize;
     UA_ByteString cp = br.continuationPoint;
@@ -68,6 +69,7 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
     while(cp.length > 0) {
         br = UA_Server_browseNext(server, false, &cp);
         ck_assert(br.referencesSize > 0);
+        ck_assert(br.referencesSize <= maxResults);
         UA_ByteString_deleteMembers(&cp);
         cp = br.continuationPoint;
         br.continuationPoint = UA_BYTESTRING_NULL;
