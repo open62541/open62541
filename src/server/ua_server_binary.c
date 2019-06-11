@@ -505,9 +505,13 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_Session anonymousSession;
     if(!session) {
         if(sessionRequired) {
+#ifdef UA_ENABLE_TYPENAMES
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                                   "Service request %i without a valid session",
-                                   requestType->binaryEncodingId);
+                                   "%s refused without a valid session", requestType->typeName);
+#else
+            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                                   "Service %i refused without a valid session", requestType->binaryEncodingId);
+#endif
             UA_deleteMembers(request, requestType);
             return sendServiceFault(channel, msg, requestPos, responseType,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
@@ -522,9 +526,13 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Trying to use a non-activated session?
      * Do not allow if request is of type CloseSessionRequest */
     if(sessionRequired && !session->activated && requestType != &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
+#ifdef UA_ENABLE_TYPENAMES
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
-                               "Calling service %i on a non-activated session",
-                               requestType->binaryEncodingId);
+                               "%s refused on a non-activated session", requestType->typeName);
+#else
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "Service %i refused on a non-activated session", requestType->binaryEncodingId);
+#endif
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken);
         UA_deleteMembers(request, requestType);
