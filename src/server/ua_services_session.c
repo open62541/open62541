@@ -295,15 +295,17 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             continue;
 
         /* Match the SecurityPolicy */
-        if(!UA_String_equal(&e->securityPolicyUri,
-                            &channel->securityPolicy->policyUri))
+        if(!UA_String_equal(&e->securityPolicyUri, &channel->securityPolicy->policyUri))
             continue;
 
         /* Match the UserTokenType */
         for(size_t j = 0; j < e->userIdentityTokensSize; j++) {
             const UA_UserTokenPolicy *u = &e->userIdentityTokens[j];
             if(u->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
-                if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
+                /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
+                 * UserIdentityToken should be treated as Anonymous */
+                if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
+                   request->userIdentityToken.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY)
                     continue;
             } else if(u->tokenType == UA_USERTOKENTYPE_USERNAME) {
                 if(request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
