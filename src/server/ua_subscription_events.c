@@ -357,7 +357,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 
     /* Set the EventId */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
-    retval = generateEventId(&eventId);
+    retval = UA_Event_generateEventId(&eventId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     name = UA_QUALIFIEDNAME(0, "EventId");

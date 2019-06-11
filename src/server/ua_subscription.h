@@ -209,7 +209,7 @@ UA_StatusCode UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_Moni
 void UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 UA_StatusCode UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event, UA_MonitoredItem *mon);
-UA_StatusCode UA_Event_generateEventId(UA_Server *server, UA_ByteString *generatedId);
+UA_StatusCode UA_Event_generateEventId(UA_ByteString *generatedId);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */

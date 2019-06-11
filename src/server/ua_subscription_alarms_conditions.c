@@ -1510,7 +1510,7 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent ReceiveTime failed",);
 
     /* Set EventId */
-    retval = UA_Event_generateEventId(server, &eventId);
+    retval = UA_Event_generateEventId(&eventId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Generating EventId failed",);
 
     retval = UA_Server_setConditionField(server, *refreshEventNodId, &eventId, UA_TYPES_BYTESTRING, fieldEventId);
@@ -1557,16 +1557,16 @@ isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *moni
 
     UA_NodeId *parentTypeHierachy = NULL;
     size_t parentTypeHierachySize = 0;
-    UA_StatusCode retval = getTypesHierarchy(server->nsCtx, parentReferences_events,
-                                             (sizeof(parentReferences_events)/sizeof(parentReferences_events[0])),
-                                             &parentTypeHierachy, &parentTypeHierachySize, true);
+	
+    UA_StatusCode retval = getLocalRecursiveHierarchy(server, parentReferences_events, (sizeof(parentReferences_events)/sizeof(parentReferences_events[0])), &subtypeId, 1,
+																						true, &parentTypeHierachy, &parentTypeHierachySize);
     if(retval == UA_STATUSCODE_GOOD) {
 
-        UA_Boolean isConditionSourceInMonitoredItem = isNodeInTree(server->nsCtx, conditionSource,
+        UA_Boolean isConditionSourceInMonItem = isNodeInTree(server->nsCtx, conditionSource,
                                                                    &monitoredItem->monitoredNodeId,
                                                                    parentTypeHierachy, parentTypeHierachySize);
         UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
-        return isConditionSourceInMonitoredItem;
+        return isConditionSourceInMonItem;
     }
 
     UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
