@@ -367,12 +367,10 @@ UA_Server_updateCertificate(UA_Server *server,
 
 UA_SecurityPolicy *
 UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
-                                         UA_ByteString *securityPolicyUri)
-{
+                                         const UA_ByteString *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
-        if(UA_ByteString_equal(securityPolicyUri,
-                               &securityPolicyCandidate->policyUri))
+        if(UA_ByteString_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
             return securityPolicyCandidate;
     }
     return NULL;

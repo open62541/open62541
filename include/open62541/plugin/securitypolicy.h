@@ -383,7 +383,7 @@ UA_SecurityPolicy_getRemoteAsymEncryptionBufferLengthOverhead(const UA_SecurityP
  * @param securityPolicyUri the security policy to get the context of. */
 UA_SecurityPolicy *
 UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
-                                         UA_ByteString *securityPolicyUri);
+                                         const UA_ByteString *securityPolicyUri);
 
 _UA_END_DECLS
 
