@@ -75,9 +75,9 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         if(!UA_String_equal(&userToken->policyId, &username_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        /* TODO: Support encrypted username/password over unencrypted SecureChannels */
-        if(userToken->encryptionAlgorithm.length > 0)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        /* The userToken has been decrypted by the server before forwarding
+         * it to the plugin. This information can be used here. */
+        /* if(userToken->encryptionAlgorithm.length > 0) {} */
 
         /* Empty username and password */
         if(userToken->userName.length == 0 && userToken->password.length == 0)
