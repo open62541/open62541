@@ -2,9 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "custom_memory_manager.h"
-
 #include <open62541/util.h>
+#include "custom_memory_manager.h"
 
 
 static int tortureParseEndpointUrl(const uint8_t *data, size_t size) {
@@ -37,12 +36,18 @@ static int tortureParseEndpointUrlEthernet(const uint8_t *data, size_t size) {
 */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
-    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+    UA_memoryManager_activate();
+
+    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size)) {
+        UA_memoryManager_deactivate();
         return 0;
+    }
     size -= 4;
 
-    if (size == 0)
+    if (size == 0) {
+        UA_memoryManager_deactivate();
         return 0;
+    }
 
     // use first byte to decide which function should be fuzzed
 
@@ -51,13 +56,16 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     const uint8_t *newData = &data[1];
     size_t  newSize = size-1;
 
+    int retval = 0;
     switch(select) {
         case 0:
-            return tortureParseEndpointUrl(newData, newSize);
+            retval = tortureParseEndpointUrl(newData, newSize);
         case 1:
-            return tortureParseEndpointUrlEthernet(newData, newSize);
+            retval = tortureParseEndpointUrlEthernet(newData, newSize);
         default:
-            return 0;
+            break;
     }
 
+    UA_memoryManager_deactivate();
+    return retval;
 }

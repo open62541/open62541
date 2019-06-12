@@ -58,6 +58,7 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+    ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c
     )
 
 if(UA_ENABLE_HISTORIZING)
@@ -331,4 +332,12 @@ if(UA_ENABLE_ENCRYPTION)
 endif()
 
 # Tests for Nodeset Compiler
+
 add_subdirectory(nodeset-compiler)
+
+# Reproduce fuzzing test cases without the fuzzing infrastructure
+
+add_executable(fuzz_reproduce_binary_message fuzz_reproduce_binary_message.c
+  #                                           fuzz/custom_memory_manager.c
+                                             $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(fuzz_reproduce_binary_message ${LIBS})

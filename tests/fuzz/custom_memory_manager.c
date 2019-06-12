@@ -14,6 +14,9 @@
  */
 
 #include "custom_memory_manager.h"
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -95,7 +98,6 @@ static int removeFromMap(void *addr) {
     if (addr == NULL)
         return 1;
 
-
     pthread_mutex_lock(&mutex);
 
     struct UA_mm_entry *e = address_map_last;
@@ -155,7 +157,6 @@ void* UA_memoryManager_realloc(void *ptr, size_t new_size) {
         return NULL;
     addToMap(new_size, addr);
     return addr;
-
 }
 
 void UA_memoryManager_free(void* ptr) {
@@ -163,3 +164,28 @@ void UA_memoryManager_free(void* ptr) {
     free(ptr);
 }
 
+void UA_memoryManager_activate() {
+    UA_mallocSingleton = UA_memoryManager_malloc;
+    UA_freeSingleton = UA_memoryManager_free;
+    UA_callocSingleton = UA_memoryManager_calloc;
+    UA_reallocSingleton = UA_memoryManager_realloc;
+}
+
+void UA_memoryManager_deactivate() {
+    UA_memoryManager_clear();
+    UA_mallocSingleton = malloc;
+    UA_freeSingleton = free;
+    UA_callocSingleton = calloc;
+    UA_reallocSingleton = realloc;
+}
+
+#else /* UA_ENABLE_MALLOC_SINGLETON */
+
+void UA_memoryManager_activate(void) {}
+void UA_memoryManager_deactivate(void) {}
+void UA_memoryManager_setLimit(unsigned long long maxMemory) {}
+int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
+    return 1;
+}
+
+#endif

@@ -12,6 +12,9 @@
 
 _UA_BEGIN_DECLS
 
+void UA_EXPORT UA_memoryManager_activate(void);
+void UA_EXPORT UA_memoryManager_deactivate(void);
+
 /**
  * Set memory limit for memory manager.
  * This allows to reduce the available memory (RAM) for fuzzing tests.

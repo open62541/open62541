@@ -8,11 +8,14 @@
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
 #include "ua_types_encoding_json.h"
+#include "custom_memory_manager.h"
 
 /* Decode a message, then encode, decode, encode.
  * The two encodings must be bit-equal. */
 extern "C" int
 LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
+    UA_memoryManager_activate();
+
     UA_ByteString buf;
     buf.data = (UA_Byte*)data;
     buf.length = size;
@@ -21,8 +24,10 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     UA_Variant_init(&value);
 
     UA_StatusCode retval = UA_decodeJson(&buf, &value, &UA_TYPES[UA_TYPES_VARIANT]);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_memoryManager_deactivate();
         return 0;
+    }
 
     size_t jsonSize = UA_calcSizeJson(&value, &UA_TYPES[UA_TYPES_VARIANT],
                                       NULL, 0, NULL, 0, true);
@@ -31,6 +36,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     retval = UA_ByteString_allocBuffer(&buf2, jsonSize);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Variant_deleteMembers(&value);
+        UA_memoryManager_deactivate();
         return 0;
     }
 
@@ -40,6 +46,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
                            &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
 	UA_Variant_deleteMembers(&value);
 	if(retval != UA_STATUSCODE_GOOD || bufPos != bufEnd) {
+        UA_memoryManager_deactivate();
 		return 0;
 	}
 
@@ -48,6 +55,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
 
     retval = UA_decodeJson(&buf2, &value2, &UA_TYPES[UA_TYPES_VARIANT]);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_memoryManager_deactivate();
 		return 0;
 	}
 
@@ -56,7 +64,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Variant_deleteMembers(&value2);
         UA_ByteString_deleteMembers(&buf2);
-        return 0;
+        goto cleanup;
     }
 
     bufPos = buf3.data;
@@ -67,7 +75,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
 	if(retval != UA_STATUSCODE_GOOD) {
 		UA_ByteString_deleteMembers(&buf2);
 		UA_ByteString_deleteMembers(&buf3);
-		return 0;
+        goto cleanup;
 	}
     if (memcmp(buf2.data, buf3.data, buf.length) != 0) {
     	// ignore
@@ -76,5 +84,7 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     UA_ByteString_deleteMembers(&buf2);
     UA_ByteString_deleteMembers(&buf3);
 
+ cleanup:
+    UA_memoryManager_deactivate();
     return 0;
 }
