@@ -296,13 +296,13 @@ getConditionFieldPropertyNodeId(UA_Server *server,
                                 UA_NodeId *outFieldPropertyNodeId) {
     /* 1) Find Variable Field of the Condition */
     UA_BrowsePathResult bprConditionVariableField = UA_Server_browseSimplifiedBrowsePath(server, *originCondition, 1, variableFieldName);
-    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditionVariableField.targetsSize < 1) {
+    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD) {
         return bprConditionVariableField.statusCode;
     }
     /* 2) Find Property of the Variable Field of the Condition */
     UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditionVariableField.targets->targetId.nodeId,
                                                                                         1, variablePropertyName);
-    if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD || bprVariableFieldProperty.targetsSize < 1) {
+    if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD) {
         UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
         return bprVariableFieldProperty.statusCode;
     }
@@ -510,14 +510,9 @@ updateConditionLastEventId(UA_Server *server,
                     }
                 }
             }
-            else { // update branch
-                UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
-                LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
-                    if(UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, triggeredEvent)) {
-                        UA_ByteString_deleteMembers(&conditionBranchEntryTmp->lastEventId);
-                        return UA_ByteString_copy(lastEventId, &conditionBranchEntryTmp->lastEventId);
-                    }
-                }
+            else { // TODO update condition branch
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,"Condition Branch not implemented");
+                return UA_STATUSCODE_BADNOTFOUND;
             }
         }
     }
@@ -548,14 +543,9 @@ setIsCallerAC(UA_Server *server,
                     }
                 }
             }
-            else {
-                UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
-                LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
-                    if(UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, condition)) {
-                        conditionBranchEntryTmp->isCallerAC = isCallerAC;
-                        return;
-                    }
-                }
+            else {// TODO condition branch
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Condition Branch not implemented");
+                return;
             }
         }
     }
@@ -586,13 +576,8 @@ isConditionOrBranch(UA_Server *server,
                     }
             }
             else {
-                UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
-                LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
-                    if(UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, condition)) {
-                        *isCallerAC = conditionBranchEntryTmp->isCallerAC;
-                        return true;
-                    }
-                }
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Condition Branch not implemented");
+                return false;
             }
         }
     }
@@ -2474,12 +2459,12 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId c
                                             const UA_QualifiedName variablePropertyName) {
     /*1) find Variable Field of the Condition*/
     UA_BrowsePathResult bprConditionVariableField = UA_Server_browseSimplifiedBrowsePath(server, condition, 1, &variableFieldName);
-    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD || bprConditionVariableField.targetsSize < 1)
+    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD)
         return bprConditionVariableField.statusCode;
 
     /*2) find Property of the Variable Field of the Condition*/
     UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditionVariableField.targets->targetId.nodeId, 1, &variablePropertyName);
-    if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD || bprVariableFieldProperty.targetsSize < 1) {
+    if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD) {
         UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
         return bprVariableFieldProperty.statusCode;
     }
