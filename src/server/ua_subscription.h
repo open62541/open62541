@@ -26,6 +26,12 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
+#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
+        if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
+        else if(SRC < BOUNDS.min) DST = BOUNDS.min;    \
+        else DST = SRC;                                \
+    }
+
 /**
  * MonitoredItems create Notifications. Subscriptions collect Notifications from
  * (several) MonitoredItems and publish them to the client.
