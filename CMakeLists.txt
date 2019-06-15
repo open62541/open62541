@@ -627,7 +627,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
