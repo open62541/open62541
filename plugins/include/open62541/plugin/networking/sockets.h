@@ -10,20 +10,29 @@
 #include "open62541/plugin/socket.h"
 
 _UA_BEGIN_DECLS
-
+/**
+ * This function creates a single listener socket using the socketConfig
+ * and the supplied addrinfo. In contrast to the other creation functions
+ * this function allows more control over the socket creation, because
+ * the addrinfo can be specified.
+ *
+ * \param addrinfo
+ * \param socketConfig
+ * \param onAccept
+ * \param p_socket a pointer to a socket pointer, where the pointer to
+ *                 the newly allocated socket will be written.
+ * \return
+ */
 UA_StatusCode
 UA_TCP_ListenerSocketFromAddrinfo(struct addrinfo *addrinfo, const UA_SocketConfig *socketConfig,
                                   UA_SocketCallbackFunction const onAccept,
                                   UA_Socket **p_socket);
 
-typedef struct {
-    UA_SocketCallbackFunction onAccept;
-} UA_TCP_ListenerSockets_AdditionalParameters;
-
 /**
  * Creates all listener sockets that can be created for the specified port.
  * For example if the underlying network architecture has a IPv4/IPv6 dual
  * stack, a socket will be created for each IP version.
+ *
  * \param socketConfig The configuration data for the socket.
  * \param creationCallback Because multiple sockets may be created by this function,
  *                     instead of creating an array, we call a callback function for
@@ -39,19 +48,11 @@ typedef struct {
 /**
  * Creates a data socket by accepting an incoming connection from the listenerSocket.
  *
- * \param listenerSocket
- * \param networkManager
- * \param sendBufferSize
- * \param recvBufferSize
- * \param creationCallback
+ * \param parameters the SocketConfig that contains the configuration for the new socket.
+ * \param the creation callback that is called after the socket has been created. It is passed the newly created socket.
  */
 UA_StatusCode
 UA_TCP_DataSocket_AcceptFrom(const UA_SocketConfig *parameters, UA_SocketCallbackFunction const creationCallback);
-
-typedef struct {
-    UA_String targetEndpointUrl;
-    UA_UInt32 timeout;
-} UA_TCP_ClientDataSocket_AdditionalParameters;
 
 /**
  * Creates a new client socket according to the socket config
