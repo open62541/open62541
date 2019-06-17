@@ -26,6 +26,14 @@
 #include <open62541/plugin/historydatabase.h>
 #endif
 
+#ifdef UA_ENABLE_DA
+#include <stdio.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#define snprintf _snprintf
+#endif
+#define SEMANTICS_CHANGED 0x4000
+#endif
 /******************/
 /* Access Control */
 /******************/
@@ -1020,6 +1028,289 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     node->value.data.value.sourcePicoseconds = value->sourcePicoseconds;
     return UA_STATUSCODE_GOOD;
 }
+/* checks the range of the analog item property passed */
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_DA_ANALOGITEMS)
+static UA_StatusCode UA_Variant_checkRange(const UA_Variant* ptVar, UA_Range* ptRange)
+{
+  if(ptVar->type == &UA_TYPES[UA_TYPES_SBYTE]) {
+      UA_SByte* val = (UA_SByte*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_BYTE]) {
+      UA_Byte* val = (UA_Byte*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_INT16]) {
+      UA_Int16* val = (UA_Int16*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_UINT16]) {
+      UA_UInt16* val = (UA_UInt16*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_INT32]) {
+      UA_Int32* val = (UA_Int32*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_UINT32]) {
+      UA_UInt32* val = (UA_UInt32*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_INT64]) {
+      UA_Int64* val = (UA_Int64*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_UINT64]) {
+      UA_UInt64* val = (UA_UInt64*) (ptVar->data);
+      if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_FLOAT]) {
+      UA_Float* val = (UA_Float*) (ptVar->data);
+      if(ptRange->low == 0.0 && ptRange->high == 0.0){
+          return UA_STATUSCODE_GOOD; //because of CTT
+      }
+      else if(ptRange->low > (UA_Double)*val || (UA_Double)*val > ptRange->high){
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  } else if(ptVar->type == &UA_TYPES[UA_TYPES_DOUBLE]) {
+      UA_Double* val = (UA_Double*) (ptVar->data);
+      if(ptRange->low == 0.0 || ptRange->high == 0.0){
+          return UA_STATUSCODE_GOOD;
+      }
+      else if(ptRange->low > *val || *val > ptRange->high) {
+          return UA_STATUSCODE_BADOUTOFRANGE;
+      }
+  }
+  return UA_STATUSCODE_GOOD;
+}
+
+
+static UA_NodeId
+UA_Subscription_getParentNodeOfProperty(UA_VariableNode* childNode){
+    UA_NodeId compNode = UA_NODEID_NULL;
+    UA_NodeId parNode = UA_NODEID_NULL;
+    for(unsigned int i=0; i < childNode->referencesSize; i++){
+        if(childNode->references[i].isInverse){
+            compNode = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+            if(UA_NodeId_equal(&compNode, &(childNode->references[i].referenceTypeId))){
+                parNode = childNode->references[i].targetIds->nodeId;
+                break;
+            }
+        }
+    }
+    return parNode;
+}
+#endif
+
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_DA_SEMANTICCHANGED)
+static UA_StatusCode
+enqueueSemanticChangedNotification(UA_Server *server, UA_VariableNode *node, UA_Session *session, UA_StatusCode statusCode)
+{
+    UA_NodeId nodeId = UA_Subscription_getParentNodeOfProperty(node);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Subscription *sub;
+    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+        if(sub != NULL) {
+            UA_MonitoredItem *mon;
+            LIST_FOREACH(mon, &sub->monitoredItems, listEntry)
+            {
+                if(!UA_NodeId_equal(&mon->monitoredNodeId, &nodeId))
+                    continue;
+
+                UA_Notification *newNotification = (UA_Notification *)UA_malloc(sizeof(UA_Notification));
+                if(!newNotification)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+
+                const UA_VariableNode* parentNode = (const UA_VariableNode*) UA_Nodestore_getNode(server->nsCtx, &nodeId);
+                newNotification->data.value.hasValue = true;
+                newNotification->mon = mon;
+                retval = UA_DataValue_copy(&parentNode->value.data.value, &newNotification->data.value);
+                newNotification->data.value.hasStatus = true;
+                newNotification->data.value.status = statusCode; //Semantic Changed set
+                UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)parentNode);
+                /* Enqueue the new notification */
+                UA_Notification_enqueue(server, sub, mon, newNotification);
+
+                return retval;
+            }
+        }
+    }
+    return retval;
+}
+
+static UA_StatusCode
+enqueueDataChangedNotification(UA_Server *server, UA_VariableNode *node, UA_Session *session)
+{
+    UA_Subscription *sub;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+        if(sub != NULL) {
+            UA_MonitoredItem *mon;
+            LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+                if(mon->monitoredNodeId.identifier.numeric != node->nodeId.identifier.numeric)
+                    continue;
+
+                UA_Notification *newNotification = (UA_Notification *)UA_malloc(sizeof(UA_Notification));
+                if(!newNotification)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+
+                const UA_VariableNode* fNode = (const UA_VariableNode*) UA_Nodestore_getNode(server->nsCtx, &node->nodeId);
+                newNotification->data.value.hasValue = true;
+                newNotification->mon = mon;
+                UA_DataValue_copy(&(fNode->value.data.value), &newNotification->data.value);
+                newNotification->data.value.hasStatus = true;
+                newNotification->data.value.status = UA_STATUSCODE_GOOD;
+                UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)fNode);
+                /* Enqueue the new notification */
+                UA_Notification_enqueue(server, sub, mon, newNotification);
+                return UA_STATUSCODE_GOOD;
+            }
+        }
+    }
+    return retval;
+}
+#endif
+
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_DA_ANALOGITEMS)
+static UA_StatusCode
+writeValueDataAccess(UA_Server *server, UA_Session *session,
+                    UA_VariableNode *node, const UA_DataValue *value,
+                    const UA_String *indexRange){
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+	UA_BrowsePathResult bpr;
+    UA_DataValue adjustedValue = *value; //temporary copy of value so that the original remains untouched
+
+    if(node->value.data.value.value.type == &UA_TYPES[UA_TYPES_FLOAT]) {
+        UA_Float* d = (UA_Float*)node->value.data.value.value.data;
+        if(*d != *((UA_Float*)node->value.data.value.value.data)){
+            retval = enqueueDataChangedNotification(server, node, session);
+        }
+    }
+    else if(node->value.data.value.value.type == &UA_TYPES[UA_TYPES_DOUBLE]) {
+        UA_Double* d = (UA_Double*)node->value.data.value.value.data;
+        if(*d != *((UA_Double*)node->value.data.value.value.data)){
+            retval = enqueueDataChangedNotification(server, node, session);
+        }
+    }
+
+	UA_QualifiedName qnIn = UA_QUALIFIEDNAME(0, "EURange");
+	if(UA_STATUSCODE_GOOD == retval)
+	{
+	
+
+
+	    bpr = UA_Server_browseSimplifiedBrowsePath(server, node->nodeId, 1, &qnIn);
+	    if(UA_STATUSCODE_GOOD == bpr.statusCode || bpr.targetsSize >= 1) {
+	        UA_Variant tVar;
+	        UA_Variant_init(&tVar);
+	        retval = UA_Server_readValue(server, bpr.targets->targetId.nodeId, &tVar);
+	        if(retval == UA_STATUSCODE_GOOD) {
+	            UA_Range* euRange = (UA_Range*) tVar.data;
+	            retval = UA_Variant_checkRange(&(value->value), euRange);
+	            if(retval == UA_STATUSCODE_GOOD) {
+	                retval = writeValueAttributeWithoutRange(node, &adjustedValue);
+#ifdef UA_ENABLE_SEMANTICCHANGED
+                if(UA_STATUSCODE_GOOD == retval)
+                    retval = enqueueSemanticChangedNotification(server, node, session, UA_STATUSCODE_GOOD| SEMANTICS_CHANGED);
+#endif
+	            }
+	        }
+	    UA_BrowsePathResult_deleteMembers(&bpr);
+	    return retval;
+	    }
+	}
+    UA_QualifiedName qnEu = UA_QUALIFIEDNAME(0, "InstrumentRange");
+    bpr = UA_Server_browseSimplifiedBrowsePath(server, node->nodeId, 1, &qnEu);
+    if(UA_STATUSCODE_GOOD == bpr.statusCode || bpr.targetsSize >= 1) {
+        UA_Variant tVar;
+        UA_Variant_init(&tVar);
+        retval = UA_Server_readValue(server, bpr.targets->targetId.nodeId, &tVar);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_Range* instrumentRange = (UA_Range*) tVar.data;
+            retval = UA_Variant_checkRange(&(value->value), instrumentRange);
+            if(retval == UA_STATUSCODE_GOOD) {
+                retval = writeValueAttributeWithoutRange(node, &adjustedValue);
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_SEMANTICCHANGED)
+                if(UA_STATUSCODE_GOOD == retval)
+                    retval = enqueueSemanticChangedNotification(server, node, session, UA_STATUSCODE_GOOD | SEMANTICS_CHANGED);
+#endif
+            }
+        }
+        UA_BrowsePathResult_deleteMembers(&bpr);
+        return retval;
+    }
+    UA_QualifiedName qnVp = UA_QUALIFIEDNAME(0, "ValuePrecision");
+    bpr = UA_Server_browseSimplifiedBrowsePath(server, node->nodeId, 1, &qnVp);
+    if(bpr.statusCode == UA_STATUSCODE_GOOD || bpr.targetsSize >= 1) {
+        UA_Variant tVar;
+        UA_Variant_init(&tVar);
+        retval = UA_Server_readValue(server, bpr.targets->targetId.nodeId, &tVar);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_Double* valuePrec = (UA_Double*) tVar.data;
+            if(value->value.type == &UA_TYPES[UA_TYPES_FLOAT]) {
+                UA_Float* val = (UA_Float*)(value->value.data);
+                char result[40] = ""; //largest exponent +2
+                snprintf(result, 40, "%.*f", (UA_Int32)(*valuePrec), *val);
+                //char *end;
+                //*val = strtof(result, &end);
+                *val = (UA_Float)atof(result);
+            }
+            else if(value->value.type == &UA_TYPES[UA_TYPES_DOUBLE]) {
+                UA_Double* val = (UA_Double*)(value->value.data);
+                char result[310] = ""; //largest exponent +2
+                snprintf(result, 310, "%.*lf", (UA_Int32)(*valuePrec), *val);
+                //char *end = "";
+                //*val = strtof(result, &end);
+                *val = atof(result);
+            }
+            else if(value->value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
+                /* The behaviour differs based on the data type and thus the interpretation of the ValuePrecision.
+                   For Type: DateTime it indicates the minimum time difference in nanoseconds. For more consult the spec.
+                */
+                /* TBD */
+//                UA_Subscription* sub;
+//                LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+//                    if(sub != NULL) {
+//                        UA_MonitoredItem *mon;
+//                        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+//                          UA_DateTime* date = (UA_DateTime*)value->value.data;
+//                          if(*date - *(UA_DateTime*)mon->lastValue.data < *(UA_DateTime*)valuePrec)
+//                              *date = *(UA_DateTime*)mon->lastValue.data + *(UA_DateTime*)valuePrec;
+//                        }
+//                    }
+//                }
+            }
+        }
+      UA_BrowsePathResult_deleteMembers(&bpr);
+    }
+    retval = writeValueAttributeWithoutRange(node, &adjustedValue);
+
+    UA_QualifiedName qnArray[12] = {UA_QUALIFIEDNAME(0, "EngineeringUnits"), UA_QUALIFIEDNAME(0, "TrueState"), UA_QUALIFIEDNAME(0, "FalseState"),
+                                  UA_QUALIFIEDNAME(0, "EnumStrings"), UA_QUALIFIEDNAME(0, "AxisDefinition"), UA_QUALIFIEDNAME(0, "XAxisDefinition"),
+                                  UA_QUALIFIEDNAME(0, "YAxisDefinition"), UA_QUALIFIEDNAME(0, "ZAxisDefinition"), UA_QUALIFIEDNAME(0, "Title"),
+                                  UA_QUALIFIEDNAME(0, "AxisScaleType"),
+                                  /* check here again, since at the beginning only the properties parent node is evaluated. */
+                                  UA_QUALIFIEDNAME(0, "EURange"), UA_QUALIFIEDNAME(0, "InstrumentRange")};
+    for(UA_UInt32 i = 0; i < sizeof(qnArray)/sizeof(qnArray[0]); i++) {
+        if(true == UA_QualifiedName_equal(&node->browseName, &qnArray[i])) {
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_SEMANTICCHANGED)
+            retval = enqueueSemanticChangedNotification(server, node, session, (UA_STATUSCODE_GOOD | SEMANTICS_CHANGED));
+#endif
+            return retval;
+        }
+    }
+    UA_BrowsePathResult_deleteMembers(&bpr);
+    return retval;
+}
+#endif
 
 /* Stack layout: ... | node */
 static UA_StatusCode
@@ -1081,7 +1372,11 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     /* Ok, do it */
     if(node->valueSource == UA_VALUESOURCE_DATA) {
         if(!rangeptr)
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_DA_ANALOGITEMS)
+            retval = writeValueDataAccess(server, session, node, value, indexRange);
+#else
             retval = writeValueAttributeWithoutRange(node, &adjustedValue);
+#endif
         else
             retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
 

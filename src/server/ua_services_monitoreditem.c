@@ -59,8 +59,13 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                 if(!dataType || !UA_DataType_isNumeric(dataType))
                     return UA_STATUSCODE_BADFILTERNOTALLOWED;
                 break;
+#if defined(UA_ENABLE_DA) || (defined(UA_ENABLE_DA_ANALOGITEMS) && defined(UA_ENABLE_SUBSCRIPTIONS_DEADBAND))
             case UA_DEADBANDTYPE_PERCENT:
-                return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+          	if(filter->deadbandValue < 0.0 || filter->deadbandValue > 100.0)
+            	return UA_STATUSCODE_BADDEADBANDFILTERINVALID;
+          	if(!dataType || !UA_DataType_isNumeric(dataType))
+            	return UA_STATUSCODE_BADFILTERNOTALLOWED;
+          	break;
             default:
                 return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
             }
@@ -81,6 +86,10 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     /* Remove the old samples */
     UA_ByteString_deleteMembers(&mon->lastSampledValue);
     UA_Variant_deleteMembers(&mon->lastValue);
+#ifdef UA_ENABLE_DA
+    UA_StatusCode_deleteMembers(&mon->lastStatus);
+    UA_DateTime_deleteMembers(&mon->lastSourceTimestamp);
+#endif
 
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;

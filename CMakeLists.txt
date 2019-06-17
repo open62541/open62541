@@ -143,6 +143,8 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_QUERY "Enable query support." OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
+option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF) 
+option(UA_ENABLE_DA_SEMANTICCHANGED "Enable the support of the semantic changed status bit" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
 # Namespace Zero
@@ -207,6 +209,8 @@ mark_as_advanced(UA_ENABLE_PUBSUB)
 
 option(UA_ENABLE_DA "Enable data access" ON)
 mark_as_advanced(UA_ENABLE_DA)
+option(UA_ENABLE_DA_INFORMATIONMODEL "Enable data access informationmodel" ON)
+mark_as_advanced(UA_ENABLE_DA_INFORMATIONMODEL)
 
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -829,8 +833,17 @@ else()
             list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
         endif()
     endif()
+	if(UA_ENABLE_DA_ANALOGITEMS)
+		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_da_analog.txt)
+		if(UA_ENABLE_DA_INFORMATIONMODEL)
+			set(UA_FILE_NSDA ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Part8_Subset.xml)
+		endif()
+	endif()
 	if(UA_ENABLE_DA)
-		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_dataaccess.txt)
+		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_da.txt)
+		if(UA_ENABLE_DA_INFORMATIONMODEL)
+			set(UA_FILE_NSDA ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Part8_Subset.xml)
+		endif()
     endif()
 endif()
 
@@ -908,7 +921,7 @@ endif()
 
 ua_generate_nodeset(
     NAME "ns0"
-    FILE ${UA_FILE_NODESETS}
+    FILE ${UA_FILE_NODESETS} ${UA_FILE_NSDA}
     INTERNAL
     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
     DEPENDS_TARGET "open62541-generator-types"

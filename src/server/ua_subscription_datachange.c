@@ -74,7 +74,7 @@ outOfDeadBand(const void *data1, const void *data2, const size_t arrayPos,
     return true;
 }
 
-#ifdef UA_ENABLE_DA
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_SUBSCRIPTIONS_DEADBAND)
 static UA_INLINE UA_Boolean
 outOfPercentDeadBand(const void *data1, const void *data2, const size_t index,
                      const UA_DataType *type, const UA_Double deadbandValue, UA_Range* range) {
@@ -152,7 +152,7 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
     return false;
 }
 
-#ifdef UA_ENABLE_DA
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_SUBSCRIPTIONS_DEADBAND)
 static UA_INLINE UA_Boolean
 updateNeededForFilteredPercentValue(const UA_Variant *value, const UA_Variant *oldValue,
                                     const UA_Double deadbandValue, UA_Range* euRange) {
@@ -188,6 +188,12 @@ updateNeededForStatusCode(const UA_DataValue *value, const UA_MonitoredItem *mon
 static UA_StatusCode
 detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataValue *value,
                             UA_ByteString *encoding, UA_Boolean *changed) {
+#ifdef UA_ENABLE_DA
+  if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS) {
+      if(!updateNeededForStatusCode(value, mon))
+          return false;
+  }
+#endif
     if(UA_DataType_isNumeric(value->value.type) &&
        (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
         mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
@@ -196,7 +202,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_MonitoredItem *mon, UA_DataVal
                                              mon->filter.dataChangeFilter.deadbandValue))
                 return UA_STATUSCODE_GOOD;
         }
-#ifdef UA_ENABLE_DA
+#if defined(UA_ENABLE_DA) || defined(UA_ENABLE_SUBSCRIPTIONS_DEADBAND)
         else if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
             UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
             UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
@@ -328,7 +334,38 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
             UA_ByteString_deleteMembers(&binValueEncoding);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-
+#ifndef UA_ENABLE_DA
+        if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS){
+          if(value->value.storageType == UA_VARIANT_DATA) {
+              newNotification->data.value.hasStatus = true;
+              UA_StatusCode_copy(&value->status, &newNotification->data.value.status);
+              *movedValue = true;
+          }
+          else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
+              UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
+              if(retval != UA_STATUSCODE_GOOD) {
+                  UA_ByteString_deleteMembers(&binValueEncoding);
+                  UA_free(newNotification);
+                  return false;
+              }
+          }
+        }
+        else if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
+           mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+            if(value->value.storageType == UA_VARIANT_DATA) {
+                newNotification->data.value = *value; /* Move the value to the notification */
+                *movedValue = true;
+            }
+            else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
+                UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.value);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_ByteString_deleteMembers(&binValueEncoding);
+                    UA_free(newNotification);
+                    return false;
+                }
+            }
+        }
+#else
         if(value->value.storageType == UA_VARIANT_DATA) {
             newNotification->data.value = *value; /* Move the value to the notification */
             *movedValue = true;
@@ -340,6 +377,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
                 return retval;
             }
         }
+#endif
 
         /* <-- Point of no return --> */
 
