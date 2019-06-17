@@ -229,6 +229,10 @@ select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
             return retval;
         }
     }
+    if(resultsize == 0) {
+        UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK, "Socket select timed out");
+        return UA_STATUSCODE_BADTIMEOUT;
+    }
     if(resultsize == -1) {
         UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_ERROR(networkManager->logger, UA_LOGCATEGORY_NETWORK,
                                               "Socket select failed with %s", errno_str));
