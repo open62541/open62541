@@ -100,6 +100,28 @@ START_TEST(Client_connect_async){
 }
 END_TEST
 
+/* https://github.com/open62541/open62541/issues/2394 */
+START_TEST(Client_connect_async_memleak)
+    {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        const char* uri = "opc.tcp://localhost:4840";
+        const int iterations = 20;
+
+        UA_Boolean connected = false;
+        for (int i = 0; i < iterations; i++) {
+            UA_StatusCode retval = UA_Client_connect_async(client, uri, onConnect, &connected);
+            if(retval != UA_STATUSCODE_GOOD)
+                ck_assert_uint_eq(retval, UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+            UA_Client_run_iterate(client, 0);
+            UA_comboSleep(25);
+        }
+        ck_assert(connected);
+
+        UA_Client_delete(client);
+    }
+END_TEST
+
 START_TEST(Client_no_connection) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
