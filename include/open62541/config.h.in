@@ -54,7 +54,6 @@
 #cmakedefine UA_ENABLE_DISCOVERY
 #cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
 #cmakedefine UA_ENABLE_QUERY
-#cmakedefine UA_ENABLE_MALLOC_SINGLETON
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 #cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 #cmakedefine UA_ENABLE_VALGRIND_INTERACTIVE
@@ -99,6 +98,31 @@
 # else
 #  define UA_ARCHITECTURE_POSIX
 # endif
+#endif
+
+/**
+ * Custom Memory Management
+ * ------------------------
+ * The flag ``UA_ENABLE_MALLOC_SINGLETON`` enables a singleton (global) method
+ * pointer for the memory management functions (malloc et al.). The method
+ * pointer can be switched out at runtime. Use-cases for this are testing of
+ * constrained memory conditions and arena-based custom memory management.
+ *
+ * If the flag is undefined, then ``UA_malloc`` etc. are set to the default
+ * malloc, as defined in ``/arch/<architecture>/ua_architecture.h``.
+ */
+
+#cmakedefine UA_ENABLE_MALLOC_SINGLETON
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+extern void * (*UA_mallocSingleton)(size_t size);
+extern void (*UA_freeSingleton)(void *ptr);
+extern void * (*UA_callocSingleton)(size_t nelem, size_t elsize);
+extern void * (*UA_reallocSingleton)(void *ptr, size_t size);
+# define UA_free(ptr) UA_freeSingleton(ptr)
+# define UA_malloc(size) UA_mallocSingleton(size)
+# define UA_calloc(num, size) UA_callocSingleton(num, size)
+# define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
 #endif
 
 #include "${UA_ARCHITECTURE}/ua_architecture.h"

@@ -265,8 +265,8 @@ option(UA_ENABLE_MALLOC_SINGLETON
        "Use a global variable pointer for malloc (and free, ...) that can be switched at runtime" OFF)
 mark_as_advanced(UA_ENABLE_MALLOC_SINGLETON)
 if(UA_ENABLE_MALLOC_SINGLETON)
-    if(NOT "${UA_ARCHITECTURE}" MATCHES "posix")
-        message(FATAL_ERROR "The singleton malloc is available only for the posix architecture")
+    if(NOT "${UA_ARCHITECTURE}" MATCHES "posix" AND NOT "${UA_ARCHITECTURE}" MATCHES "win32")
+        message(FATAL_ERROR "The singleton malloc is available only for the posix and win32 architectures")
     endif()
 endif()
 
