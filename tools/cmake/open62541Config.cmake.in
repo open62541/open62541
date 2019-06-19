@@ -8,8 +8,6 @@ set (open62541_NODESET_DIR @PACKAGE_open62541_install_nodeset_dir@ CACHE PATH "P
 include(CMakeFindDependencyMacro)
 find_dependency(PythonInterp REQUIRED)
 
-include("@PACKAGE_macros_install_dest_name@")
-
 set(open62541_COMPONENTS_ALL @open62541_enabled_components@)
 
 foreach(_comp ${open62541_FIND_COMPONENTS})
