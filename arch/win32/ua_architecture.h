@@ -116,17 +116,12 @@
 # undef maxStringLength
 #endif
 
-#ifndef UA_free
-#define UA_free free
-#endif
+/* Memory management */
 #ifndef UA_malloc
-#define UA_malloc malloc
-#endif
-#ifndef UA_calloc
-#define UA_calloc calloc
-#endif
-#ifndef UA_realloc
-#define UA_realloc realloc
+# define UA_malloc malloc
+# define UA_free free
+# define UA_calloc calloc
+# define UA_realloc realloc
 #endif
 
 /* 3rd Argument is the string */
