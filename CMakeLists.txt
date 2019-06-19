@@ -763,7 +763,7 @@ add_custom_target(cpplint cpplint
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake)
+set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
 set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
 set(open62541_install_tools_dir share/open62541/tools)
 set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
