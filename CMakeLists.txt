@@ -11,6 +11,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
+include(GNUInstallDirs)
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -35,9 +36,6 @@ set(OPEN62541_VER_MAJOR 0)
 set(OPEN62541_VER_MINOR 4)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "-dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
-
-#  If a relative path is specified, it is treated as relative to the $<INSTALL_PREFIX>
-set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
@@ -1105,7 +1103,7 @@ include(linting_target)
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake/open62541)
+set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
 set(open62541_install_tools_dir share/open62541/tools)
 set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
 
@@ -1153,8 +1151,8 @@ endif()
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
         EXPORT open62541Targets
-        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
         INCLUDES DESTINATION include)
 
@@ -1200,7 +1198,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
-            DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
 
 set(UA_install_tools_dirs "tools/certs"
@@ -1212,8 +1210,8 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
     "tools/generate_nodeid_header.py"
     "tools/generate_statuscode_descriptions.py")
 
-install(DIRECTORY ${UA_install_tools_dirs} 
-    DESTINATION ${open62541_install_tools_dir} 
+install(DIRECTORY ${UA_install_tools_dirs}
+    DESTINATION ${open62541_install_tools_dir}
     USE_SOURCE_PERMISSIONS
     FILES_MATCHING
     PATTERN "*"
