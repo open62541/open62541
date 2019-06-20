@@ -10,8 +10,6 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-#include <open62541/architecture_base.h>
-
 /* Enable POSIX features */
 #if !defined(_XOPEN_SOURCE)
 # define _XOPEN_SOURCE 600
@@ -25,6 +23,8 @@
 # define _BSD_SOURCE
 #endif
 
+#include <open62541/config.h>
+
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -33,10 +33,6 @@
 #include <sys/select.h>
 #include <sys/types.h>
 #include <net/if.h>
-#ifndef UA_sleep_ms
-# include <unistd.h>
-# define UA_sleep_ms(X) usleep(X * 1000)
-#endif
 
 #define OPTVAL_TYPE int
 
@@ -131,7 +127,7 @@
     LOG; \
 }
 
-#include <open62541/architecture_functions.h>
+#include <open62541/arch_common.h>
 
 #if defined(__APPLE__)  && defined(_SYS_QUEUE_H_)
 //  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't have all functions
@@ -240,7 +236,6 @@
 #undef _SYS_QUEUE_H_
 
 #endif /* defined(__APPLE__)  && defined(_SYS_QUEUE_H_) */
-
 
 #endif /* PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_ */
 

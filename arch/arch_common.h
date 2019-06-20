@@ -16,56 +16,24 @@
 
 _UA_BEGIN_DECLS
 
-/*
- * Allocation functions
- */
-
-#ifndef UA_malloc
-void* UA_malloc(size_t size); //allocate memory in the heap with size bytes
-#endif
-
-#ifndef UA_calloc
-void* UA_calloc(size_t num, size_t size); //allocate memory in the heap with size*num bytes and set the memory to zero
-#endif
-
-#ifndef UA_realloc
-void* UA_realloc(void *ptr, size_t new_size);//re-allocate memory in the heap with new_size bytes from previously allocated memory ptr
-#endif
-
-#ifndef UA_free
-void UA_free(void* ptr); //de-allocate memory previously allocated with UA_malloc, UA_calloc or UA_realloc
-#endif
-
-#ifndef UA_alloca
-# if defined(__GNUC__) || defined(__clang__)
-#  define UA_alloca(size) __builtin_alloca (size)
-# elif defined(_WIN32)
+/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
+ * Otherwise revert to alloca. Note that alloca is not supported on some
+ * plattforms. */
+#if defined(__GNUC__) || defined(__clang__)
+# define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
+#else
+# if defined(_WIN32)
 #  define UA_alloca(SIZE) _alloca(SIZE)
 # else
 #  include <alloca.h>
 #  define UA_alloca(SIZE) alloca(SIZE)
 # endif
-#endif
-
-#ifndef UA_STACKARRAY
-/* Stack-allocation of memory. Use C99 variable-length arrays if possible.
- * Otherwise revert to alloca. Note that alloca is not supported on some
- * plattforms. */
-# if defined(__GNUC__) || defined(__clang__)
-#  define UA_STACKARRAY(TYPE, NAME, SIZE) TYPE NAME[SIZE]
-# else
-#  define UA_STACKARRAY(TYPE, NAME, SIZE) \
+# define UA_STACKARRAY(TYPE, NAME, SIZE) \
     TYPE *NAME = (TYPE*)UA_alloca(sizeof(TYPE) * SIZE)
-# endif
 #endif
 
-/*
- * Sleep function
- */
-
-#ifndef UA_sleep_ms
-int UA_sleep_ms(unsigned int miliSeconds); //suspend the thread for a certain amount of mili seconds
-#endif
+/* Sleep function */
+extern void UA_EXPORT UA_sleep_ms(unsigned int miliSeconds);
 
 /*
  * Socket functions
@@ -203,8 +171,6 @@ int UA_access(const char *pathname, int mode); //equivalent implementation of ht
 #ifndef UA_fileExists
 #define UA_fileExists(X) ( UA_access(X, 0) == 0)
 #endif
-
-#include <open62541/architecture_definitions.h>
 
 _UA_END_DECLS
 

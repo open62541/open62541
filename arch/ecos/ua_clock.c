@@ -36,4 +36,14 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
   return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 }
 
+#define MS_PER_TICK \
+    ((u32_t) (CYGNUM_HAL_RTC_NUMERATOR / (CYGNUM_HAL_RTC_DENOMINATOR * 1000000LL)))
+#define MS_TO_TICKS(ms) \
+    ((cyg_tick_count_t) (((ms) + (MS_PER_TICK - 1)) / MS_PER_TICK))
+
+void UA_sleep_ms(unsigned int miliSeconds) {
+    cyg_tick_count_t delay = MS_TO_TICKS(miliSeconds);
+    cyg_thread_delay(delay);
+}
+
 #endif /* UA_ARCHITECTURE_ECOS */

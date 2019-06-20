@@ -50,4 +50,8 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
 }
 
+void UA_sleep_ms(unsigned int miliSeconds) {
+    Sleep(miliSeconds);
+}
+
 #endif /* UA_ARCHITECTURE_WEC7 */

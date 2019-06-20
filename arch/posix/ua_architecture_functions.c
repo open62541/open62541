@@ -7,6 +7,7 @@
 #ifdef UA_ARCHITECTURE_POSIX
 
 #include <open62541/types.h>
+#include <open62541/arch_posix.h>
 
 /* Global malloc singletons */
 #ifdef UA_ENABLE_MALLOC_SINGLETON

@@ -16,18 +16,18 @@
 
 #include <time.h>
 /* Backup definition of SLIST_ENTRY on mingw winnt.h */
-# ifdef SLIST_ENTRY
-#  pragma push_macro("SLIST_ENTRY")
-#  undef SLIST_ENTRY
-#  define POP_SLIST_ENTRY
-# endif
-# include <windows.h>
+#ifdef SLIST_ENTRY
+# pragma push_macro("SLIST_ENTRY")
+# undef SLIST_ENTRY
+# define POP_SLIST_ENTRY
+#endif
+#include <windows.h>
 /* restore definition */
-# ifdef POP_SLIST_ENTRY
-#  undef SLIST_ENTRY
-#  undef POP_SLIST_ENTRY
-#  pragma pop_macro("SLIST_ENTRY")
-# endif
+#ifdef POP_SLIST_ENTRY
+# undef SLIST_ENTRY
+# undef POP_SLIST_ENTRY
+# pragma pop_macro("SLIST_ENTRY")
+#endif
 
 UA_DateTime UA_DateTime_now(void) {
     /* Windows filetime has the same definition as UA_DateTime */
@@ -60,6 +60,10 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     QueryPerformanceCounter(&ticks);
     UA_Double ticks2dt = UA_DATETIME_SEC / (UA_Double)freq.QuadPart;
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
+}
+
+void UA_sleep_ms(unsigned int miliSeconds) {
+    Sleep(miliSeconds);
 }
 
 #endif /* UA_ARCHITECTURE_WIN32 */
