@@ -313,6 +313,8 @@ option(UA_BUILD_FUZZING_CORPUS "Build the fuzzing corpus" OFF)
 mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
     add_definitions(-DUA_DEBUG_DUMP_PKGS_FILE)
+    add_definitions(-DUA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus")
+    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus)
     set(UA_ENABLE_TYPENAMES ON CACHE STRING "" FORCE)
     #set(UA_DEBUG_DUMP_PKGS ON CACHE STRING "" FORCE)
 endif()
@@ -646,6 +648,10 @@ if(UA_ENABLE_HISTORIZING)
          ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_gathering_default.c
          ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_database_default.c
          )
+endif()
+
+if(UA_BUILD_FUZZING_CORPUS)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/fuzz/ua_debug_dump_pkgs_file.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY)

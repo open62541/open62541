@@ -12,11 +12,11 @@
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
 
-#include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/types.h>
-#include <open62541/types_generated_encoding_binary.h>
-
+#include <open62541/server.h>
 #include "server/ua_server_internal.h"
+#include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/types_generated_encoding_binary.h>
 
 #include <stdio.h>
 #include <stdlib.h>

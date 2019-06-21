@@ -12,11 +12,7 @@ endif()
 
 if (UA_BUILD_FUZZING_CORPUS)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-    add_definitions(-DUA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/custom")
-    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/custom)
-
-    add_executable(corpus_generator ua_debug_dump_pkgs_file.c corpus_generator.c)
+    add_executable(corpus_generator corpus_generator.c)
     target_link_libraries(corpus_generator open62541 ${open62541_LIBRARIES})
     assign_source_group(corpus_generator)
     set_target_properties(corpus_generator PROPERTIES FOLDER "open62541/corpus_generator")
