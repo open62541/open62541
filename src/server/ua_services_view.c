@@ -93,8 +93,9 @@ void RefTree_clear(RefTree *rt) {
 static UA_StatusCode
 RefTree_double(RefTree *rt) {
     size_t capacity = rt->capacity * 2;
+    UA_assert(capacity > 0);
     size_t space = (sizeof(UA_NodeId) + sizeof(RefEntry)) * capacity;
-    UA_NodeId *newTargets = (UA_NodeId*)realloc(rt->targets, space);
+    UA_NodeId *newTargets = (UA_NodeId*)UA_realloc(rt->targets, space);
     if(!newTargets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -473,7 +474,11 @@ Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts
         return;
 
     ContinuationPoint cp;
-    ContinuationPoint_init(&cp, maxRefs, bo->recursive);
+    result->statusCode = ContinuationPoint_init(&cp, maxRefs, bo->recursive);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        RefResult_clear(&rr);
+        return;
+    }
     cp.bd = *descr; /* Deep-copy only when the cp is persisted in the session */
 
     /* Add the initial node to the RefTree */
