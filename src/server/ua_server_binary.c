@@ -454,6 +454,14 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                             responseHeader, responseType);
     }
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    /* Set the authenticationToken from the create session request to help
+     * fuzzing cover more lines */
+    UA_NodeId_deleteMembers(&requestHeader->authenticationToken);
+    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
+        UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
+#endif
+
     /* Find the matching session */
     UA_Session *session = (UA_Session*)
         UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
@@ -591,7 +599,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Check timestamp in the request header */
-    UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
+    const UA_RequestHeader *requestHeader = (const UA_RequestHeader*)request;
     if(requestHeader->timestamp == 0) {
         if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
@@ -605,14 +613,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             }
         }
     }
-
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    /* Set the authenticationToken from the create session request to help
-     * fuzzing cover more lines */
-    UA_NodeId_deleteMembers(&requestHeader->authenticationToken);
-    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
-        UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
-#endif
 
     /* Prepare the respone */
     UA_STACKARRAY(UA_Byte, response, responseType->memSize);
