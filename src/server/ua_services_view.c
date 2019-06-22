@@ -524,6 +524,13 @@ Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts
         return;
     }
 
+    /* Is there a ContinuationPoint available? */
+    if(session->availableContinuationPoints == 0) {
+        RefTree_clear(&cp.rt);
+        result->statusCode = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+        return;
+    }
+
     /* Create a new continuation point. */
     ContinuationPoint *newCp = (ContinuationPoint*)UA_malloc(sizeof(ContinuationPoint));
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -545,22 +552,6 @@ Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts
     retval = UA_ByteString_copy(&tmp, &result->continuationPoint);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-
-    /* Remove the oldest continuation point if required */
-    if(session->availableContinuationPoints <= 0) {
-        struct ContinuationPoint **prev = &session->continuationPoints;
-        struct ContinuationPoint *cp2 = session->continuationPoints;
-        while(cp2 && cp2->next) {
-            prev = &cp2->next;
-            cp2 = cp2->next;
-        }
-        if(cp2) {
-            *prev = NULL;
-            ContinuationPoint_clear(cp2);
-            UA_free(cp2);
-            ++session->availableContinuationPoints;
-        }
-    }
 
     /* Attach the cp to the session */
     newCp->next = session->continuationPoints;
