@@ -70,7 +70,7 @@ typedef struct {
     size_t size;     /* used space */
 } RefTree;
 
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt) {
     size_t space = (sizeof(UA_NodeId) + sizeof(RefEntry)) * UA_BROWSE_INITIAL_SIZE;
     rt->targets = (UA_NodeId*)UA_malloc(space);
@@ -90,7 +90,7 @@ void RefTree_clear(RefTree *rt) {
 }
 
 /* Double the capacity of the reftree */
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_double(RefTree *rt) {
     size_t capacity = rt->capacity * 2;
     UA_assert(capacity > 0);
@@ -122,7 +122,7 @@ RefTree_double(RefTree *rt) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_add(RefTree *rt, const UA_NodeId *target) {
     UA_StatusCode s = UA_STATUSCODE_GOOD;
     if(rt->capacity <= rt->size) {
@@ -160,7 +160,7 @@ struct ContinuationPoint {
     size_t nki;  /* Index of the reference in the ReferenceKind that is visited */
 };
 
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 ContinuationPoint_init(ContinuationPoint *cp, UA_UInt32 maxRefs,
                        UA_Boolean recursive) {
     memset(cp, 0, sizeof(ContinuationPoint));
@@ -192,7 +192,7 @@ typedef struct {
     UA_ReferenceDescription *descr;
 } RefResult;
 
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_init(RefResult *rr, UA_UInt32 maxRefs) {
     UA_UInt32 initialRes = UA_BROWSE_INITIAL_SIZE;
     if(initialRes > maxRefs)
@@ -207,7 +207,7 @@ RefResult_init(RefResult *rr, UA_UInt32 maxRefs) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_double(RefResult *rr, UA_UInt32 maxSize) {
     size_t newSize = rr->capacity * 2;
     if(newSize > maxSize)
@@ -231,7 +231,7 @@ RefResult_clear(RefResult *rr) {
 }
 
 /* Target node on top of the stack */
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 fillReferenceDescription(UA_Server *server, const UA_NodeReferenceKind *ref, UA_UInt32 mask,
                          const UA_ExpandedNodeId *nodeId, const UA_Node *curr,
                          UA_ReferenceDescription *descr) {
@@ -284,7 +284,7 @@ matchClassMask(const UA_Node *node, UA_UInt32 nodeClassMask) {
     return true;
 }
 
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 browseNodeRefKind(UA_Server *server, UA_Session *session, ContinuationPoint *cp,
                   RefResult *rr, UA_Boolean *maxed, const UA_NodeReferenceKind *rk,
                   const UA_ExpandedNodeId *target) {
@@ -350,7 +350,7 @@ browseNodeRefKind(UA_Server *server, UA_Session *session, ContinuationPoint *cp,
     return retval;
 }
 
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 browseNode(UA_Server *server, UA_Session *session,
            ContinuationPoint *cp, RefResult *rr, UA_Boolean *maxed,
            size_t referenceTypesSize, const UA_NodeId *referenceTypes,
@@ -388,7 +388,7 @@ browseNode(UA_Server *server, UA_Session *session,
  * Including the BrowseDescription. Returns whether there are remaining
  * references. */
 /* Results for a single browsedescription. Sets all NodeIds for the RefTree. */
-static UA_StatusCode
+static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 browseWithCp(UA_Server *server, UA_Session *session, ContinuationPoint *cp,
              RefResult *rr, UA_Boolean *maxed) {
     /* Is the browsedirection valid? */
