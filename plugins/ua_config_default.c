@@ -81,12 +81,10 @@ createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
                                          &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    endpoint->userIdentityTokensSize =
-        conf->accessControl.userTokenPoliciesSize;
+    endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&securityPolicy->localCertificate, &endpoint->serverCertificate);
-    UA_ApplicationDescription_copy(&conf->applicationDescription,
-                                   &endpoint->server);
+    UA_ApplicationDescription_copy(&conf->applicationDescription, &endpoint->server);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -156,14 +154,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* Global Node Lifecycle */
     conf->nodeLifecycle.constructor = NULL;
     conf->nodeLifecycle.destructor = NULL;
-
-    UA_StatusCode retval = UA_AccessControl_default(&conf->accessControl, true,
-                                                    usernamePasswordsSize,
-                                                    usernamePasswords);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
-        return retval;
-    }
 
     /* Relax constraints for the InformationModel */
     conf->relaxEmptyValueConstraint = true; /* Allow empty values */
@@ -383,6 +373,15 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
+    /* Initialize the Access Control plugin */
+    retval = UA_AccessControl_default(config, true,
+                &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                usernamePasswordsSize, usernamePasswords);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(config);
+        return retval;
+    }
+
     /* Allocate the endpoint */
     retval = UA_ServerConfig_addEndpoint(config, UA_SECURITY_POLICY_NONE_URI, UA_MESSAGESECURITYMODE_NONE);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -569,6 +568,14 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     }
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(conf);
+        return retval;
+    }
+
+    retval = UA_AccessControl_default(conf, true,
+                &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
+                usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
