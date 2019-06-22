@@ -467,6 +467,14 @@ Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts
         }
     }
 
+    /* Does the original node exist? */
+    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &descr->nodeId);
+    if(!node) {
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
+    UA_Nodestore_releaseNode(server->nsCtx, node);
+
     /* Create the results array */
     RefResult rr;
     result->statusCode = RefResult_init(&rr, maxRefs);
