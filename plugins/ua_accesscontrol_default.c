@@ -6,6 +6,7 @@
  */
 
 #include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/server_config.h>
 
 /* Example access control management. Anonymous and username / password login.
  * The access rights are maximally permissive. */
@@ -213,9 +214,11 @@ static void deleteMembers_default(UA_AccessControl *ac) {
 }
 
 UA_StatusCode
-UA_AccessControl_default(UA_AccessControl *ac,
-                         UA_Boolean allowAnonymous, size_t usernamePasswordLoginSize,
+UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
+                         const UA_ByteString *userTokenPolicyUri,
+                         size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+    UA_AccessControl *ac = &config->accessControl;
     ac->deleteMembers = deleteMembers_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;
@@ -282,13 +285,19 @@ UA_AccessControl_default(UA_AccessControl *ac,
     if(usernamePasswordLoginSize > 0) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
-        if (!ac->userTokenPolicies[policies].policyId.data)
+        if(!ac->userTokenPolicies[policies].policyId.data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        /* No encryption of username/password supported at the moment */
-        ac->userTokenPolicies[policies].securityPolicyUri =
-            UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
-        if (!ac->userTokenPolicies[policies].securityPolicyUri.data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+#if UA_LOGLEVEL <= 400
+        const UA_String noneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+        if(UA_ByteString_equal(userTokenPolicyUri, &noneUri)) {
+            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                           "Username/Password configured, but no encrypting SecurityPolicy. "
+                           "This can leak credentials on the network.");
+        }
+#endif
+        return UA_ByteString_copy(userTokenPolicyUri,
+                                  &ac->userTokenPolicies[policies].securityPolicyUri);
     }
     return UA_STATUSCODE_GOOD;
 }
