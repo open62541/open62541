@@ -478,19 +478,33 @@ int main(int argc, char **argv) {
             return EXIT_FAILURE;
         }
 
+        UA_ByteString* trustList = NULL;
+        size_t trustListSize = 0;
+        UA_ByteString* revocationList = NULL;
+        size_t revocationListSize = 0;
+
         /* Load the trustlist */
-        char* pBuffer;
-        size_t trustListSize = (size_t)strtol(argv[TRUSTLISTCOUNT], &pBuffer, BASEVALUE);
-        UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
-        for(size_t iteratorValue = 0; iteratorValue <= trustListSize; iteratorValue++) {
-            trustList[iteratorValue] = loadFile(argv[iteratorValue + STARTOFLIST]);
+        if(argc >= 4) {
+            trustListSize = (size_t)strtol(argv[TRUSTLISTCOUNT], NULL, BASEVALUE);
+            if(trustListSize > (size_t)argc - 4)
+                trustListSize = (size_t)argc - 4;
+            UA_STACKARRAY(UA_ByteString, trustListArray, trustListSize);
+            trustList = trustListArray;
+            for(size_t i = 0; i <= trustListSize; i++) {
+                trustList[i] = loadFile(argv[i + STARTOFLIST]);
+            }
         }
 
-        /* Loading of a revocation list currently unsupported */
-        size_t revocationListSize = (size_t)strtol(argv[REVOCATIONLISTCOUNT], &pBuffer, BASEVALUE);
-        UA_STACKARRAY(UA_ByteString, revocationList, revocationListSize);
-        for(size_t iteratorValue = 0; iteratorValue < revocationListSize; iteratorValue++) {
-            revocationList[iteratorValue] = loadFile(argv[iteratorValue + trustListSize + STARTOFLIST]);
+        /* Load the revocation list */
+        if(argc >= 5 + (int)trustListSize) {
+            revocationListSize = (size_t)strtol(argv[4 + trustListSize], NULL, BASEVALUE);
+            if(trustListSize > (size_t)argc - 5 - trustListSize)
+                trustListSize = (size_t)argc - 5 - trustListSize;
+            UA_STACKARRAY(UA_ByteString, revocationListArray, revocationListSize);
+            revocationList = revocationListArray;
+            for(size_t i = 0; i < revocationListSize; i++) {
+                revocationList[i] = loadFile(argv[i + trustListSize + STARTOFLIST]);
+            }
         }
 
         UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
