@@ -532,16 +532,16 @@ Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts
     }
 
     /* Create a new continuation point. */
-    ContinuationPoint *newCp = (ContinuationPoint*)UA_malloc(sizeof(ContinuationPoint));
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ByteString tmp;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    ContinuationPoint *newCp = (ContinuationPoint*)UA_malloc(sizeof(ContinuationPoint));
     if(!newCp) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
-    *newCp = cp;
 
-    /* Make a deep copy of the BrowseDescription */
+    /* Copy, make a deep copy of the BrowseDescription */
+    *newCp = cp;
     retval = UA_BrowseDescription_copy(descr, &newCp->bd);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -589,9 +589,12 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     bo.maxReferences = request->requestedMaxReferencesPerNode;
     bo.recursive = false;
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Browse, &bo,
-                                           &request->nodesToBrowseSize, &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+        UA_Server_processServiceOperations(server, session,
+                                           (UA_ServiceOperation)Operation_Browse, &bo,
+                                           &request->nodesToBrowseSize,
+                                           &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
+                                           &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
@@ -690,16 +693,14 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
 
 void
 Service_BrowseNext(UA_Server *server, UA_Session *session,
-                   const UA_BrowseNextRequest *request,
-                   UA_BrowseNextResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                         "Processing BrowseNextRequest");
-    UA_Boolean releaseContinuationPoints = request->releaseContinuationPoints; /* request is const */
+                   const UA_BrowseNextRequest *request, UA_BrowseNextResponse *response) {
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing BrowseNextRequest");
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_BrowseNext,
-                                           &releaseContinuationPoints,
-                                           &request->continuationPointsSize, &UA_TYPES[UA_TYPES_BYTESTRING],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+                                           &request->releaseContinuationPoints,
+                                           &request->continuationPointsSize,
+                                           &UA_TYPES[UA_TYPES_BYTESTRING], &response->resultsSize,
+                                           &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
