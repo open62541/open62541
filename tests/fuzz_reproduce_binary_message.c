@@ -6,9 +6,9 @@
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
-#include "custom_memory_manager.h"
 #include "ua_server_internal.h"
 #include "testing_networklayers.h"
+#include "fuzz/custom_memory_manager.h"
 
 #define RECEIVE_BUFFER_SIZE 65535
 
@@ -61,14 +61,50 @@ processOneInput(const uint8_t *data, size_t size) {
     return 0;
 }
 
-/*
-** Main entry point.  The fuzzer invokes this function with each
-** fuzzed input.
-*/
-extern "C" int
-LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+/* Executable to debug the testcases produced by
+ * /tests/fuzz/fuzz_binary_message.cc without requiring the full fuzzing
+ * infrastructure. Simply takes the name of the testcase file as the
+ * argument. */
+
+static UA_ByteString
+loadFile(const char *const path) {
+    UA_ByteString fileContents = UA_STRING_NULL;
+
+    /* Open the file */
+    FILE *fp = fopen(path, "rb");
+    if(!fp) {
+        errno = 0; /* We read errno also from the tcp layer... */
+        return fileContents;
+    }
+
+    /* Get the file length, allocate the data and read */
+    fseek(fp, 0, SEEK_END);
+    fileContents.length = (size_t)ftell(fp);
+    fileContents.data = (UA_Byte *)UA_malloc(fileContents.length * sizeof(UA_Byte));
+    if(fileContents.data) {
+        fseek(fp, 0, SEEK_SET);
+        size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
+        if(read != fileContents.length)
+            UA_ByteString_clear(&fileContents);
+    } else {
+        fileContents.length = 0;
+    }
+    fclose(fp);
+
+    return fileContents;
+}
+
+int main(int argc, char **argv) {
+    if(argc != 2) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Usage: fuzz_reproduce_binary_message <testcase.file>");
+        return EXIT_FAILURE;
+    }
+        
+    UA_ByteString testcase = loadFile(argv[1]);
     UA_memoryManager_activate();
-    processOneInput(data, size);
+    int res = processOneInput(testcase.data, testcase.length);
     UA_memoryManager_deactivate();
-    return 0;
+    UA_ByteString_clear(&testcase);
+    return res;
 }

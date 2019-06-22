@@ -52,5 +52,12 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
   return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 }
 
+void UA_sleep_ms(unsigned int miliSeconds) {
+    struct timespec timeToSleep;
+    timeToSleep.tv_sec = miliSeconds / 1000;
+    timeToSleep.tv_nsec = 1000000 * (miliSeconds % 1000);
+    nanosleep(&timeToSleep, NULL);
+}
+
 #endif /* UA_ARCHITECTURE_VXWORKS */
 

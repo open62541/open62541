@@ -10,7 +10,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
-
+#include "custom_memory_manager.h"
 
 static UA_Boolean tortureEncoding(const uint8_t *data, size_t size, size_t *newOffset) {
     *newOffset = 0;
@@ -105,21 +105,26 @@ static UA_Boolean tortureExtensionObject(const uint8_t *data, size_t size, size_
 ** fuzzed input.
 */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-
-    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+    if(size <= 4)
         return 0;
-    size -= 4;
 
     size_t offset;
-    if (!tortureEncoding(data, size, &offset)) {
-        return 0;
-    }
-    if (offset >= size)
-        return 0;
 
+    UA_memoryManager_activate();
+
+    if(!UA_memoryManager_setLimitFromLast4Bytes(data, size))
+        goto cleanup;
+    size -= 4;
+
+    if(!tortureEncoding(data, size, &offset))
+        goto cleanup;
+
+    if(offset >= size)
+        goto cleanup;
 
     tortureExtensionObject(&data[offset], size-offset, &offset);
 
-
+ cleanup:
+    UA_memoryManager_deactivate();
     return 0;
 }

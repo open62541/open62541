@@ -52,15 +52,15 @@ void resetMembuf(void) {
 
 void useMembufAlloc(void) {
     pos = 0;
-    UA_globalMalloc = membufMalloc;
-    UA_globalFree = membufFree;
-    UA_globalCalloc = membufCalloc;
-    UA_globalRealloc = membufRealloc;
+    UA_mallocSingleton = membufMalloc;
+    UA_freeSingleton = membufFree;
+    UA_callocSingleton = membufCalloc;
+    UA_reallocSingleton = membufRealloc;
 }
 
 void useNormalAlloc(void) {
-    UA_globalMalloc = malloc;
-    UA_globalFree = free;
-    UA_globalCalloc = calloc;
-    UA_globalRealloc = realloc;
+    UA_mallocSingleton = malloc;
+    UA_freeSingleton = free;
+    UA_callocSingleton = calloc;
+    UA_reallocSingleton = realloc;
 }

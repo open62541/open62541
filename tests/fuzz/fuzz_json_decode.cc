@@ -5,10 +5,10 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
  */
 
-
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
 #include "ua_types_encoding_json.h"
+#include "custom_memory_manager.h"
 
 /*
 ** Main entry point.  The fuzzer invokes this function with each
@@ -16,6 +16,8 @@
 */
 extern "C" int
 LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
+    UA_memoryManager_activate();
+
     UA_ByteString buf;
     buf.data = (UA_Byte*)data;
     buf.length = size;
@@ -26,6 +28,8 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT]);
     if(retval == UA_STATUSCODE_GOOD)
         UA_Variant_deleteMembers(&out);
+
+    UA_memoryManager_deactivate();
 
     return 0;
 }

@@ -58,6 +58,7 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
+    ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c
     )
 
 if(UA_ENABLE_HISTORIZING)
@@ -102,11 +103,6 @@ macro(add_test_valgrind TEST_NAME)
         endif()
     else()
         add_test(${TEST_NAME} ${ARGN})
-    endif()
-    if (UA_BUILD_FUZZING_CORPUS)
-        target_sources(check_${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/tests/fuzz/ua_debug_dump_pkgs_file.c)
-        file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/${TEST_NAME})
-        target_compile_definitions(check_${TEST_NAME} PRIVATE UA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/${TEST_NAME}")
     endif()
 endmacro()
 
@@ -331,4 +327,12 @@ if(UA_ENABLE_ENCRYPTION)
 endif()
 
 # Tests for Nodeset Compiler
+
 add_subdirectory(nodeset-compiler)
+
+# Reproduce fuzzing test cases without the fuzzing infrastructure
+
+add_executable(fuzz_reproduce_binary_message fuzz_reproduce_binary_message.c
+  #                                           fuzz/custom_memory_manager.c
+                                             $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(fuzz_reproduce_binary_message ${LIBS})

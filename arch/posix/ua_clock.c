@@ -9,10 +9,10 @@
 #ifdef UA_ARCHITECTURE_POSIX
 
 #include <open62541/types.h>
-
+#include <open62541/arch_posix.h>
 #include <time.h>
-
 #include <sys/time.h>
+#include <unistd.h>
 
 #if defined(__APPLE__) || defined(__MACH__)
 # include <mach/clock.h>
@@ -55,6 +55,13 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 #endif
+}
+
+void UA_sleep_ms(unsigned int miliSeconds) {
+    struct timespec timeToSleep;
+    timeToSleep.tv_sec = miliSeconds / 1000;
+    timeToSleep.tv_nsec = 1000000 * (miliSeconds % 1000);
+    nanosleep(&timeToSleep, NULL);
 }
 
 #endif /* UA_ARCHITECTURE_POSIX */

@@ -2,6 +2,8 @@
 
 set -e
 
+echo "=== Setting up the directories ===\n"
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 BASE_DIR="$( cd "$DIR/../../" && pwd )"
@@ -31,25 +33,31 @@ else
 	export CC=clang-6.0
 	export CXX=clang++-6.0
 fi
-# First build and run the unit tests without any specific fuzz settings
+
+echo "=== Build unit tests to emit corpus files ===\n"
+
 cmake -DUA_BUILD_FUZZING_CORPUS=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_ENABLE_ENCRYPTION=ON ..
 make -j && make test ARGS="-V"
 if [ $? -ne 0 ] ; then exit 1 ; fi
-# Run our special generator
+
+echo "=== Run the unit tests to emit the corpus files ===\n"
+
 $BUILD_DIR_CORPUS/bin/corpus_generator
 if [ $? -ne 0 ] ; then exit 1 ; fi
 
-# Now build the fuzzer executables
+echo "=== Build the fuzzing executables ===\n"
+
 cd $BUILD_DIR_FUZZ_MODE
-cmake -DUA_BUILD_FUZZING=ON ..
+cmake -DUA_BUILD_FUZZING=ON -DUA_ENABLE_MALLOC_SINGLETON=ON ..
 make -j
 if [ $? -ne 0 ] ; then exit 1 ; fi
+
+echo "=== Prepare combined files for the corpus ===\n"
 
 merge_corpus() {
     local fuzzer="$1"
     local corpus_existing="$2"
     local corpus_new="$3"
-
 
     if [ -d "$corpus_existing" ]; then
         echo "Merging ${corpus_new} into ${corpus_existing}"
@@ -60,14 +68,9 @@ merge_corpus() {
     fi
 }
 
-
 # Iterate over all files and combine single message files to a full interaction, i.e.,
 # After running the corpus generator, the output directory contains single files for each
 # message (HEL, OPN, MSG..., CLO). Fuzzer needs these files to be combined into one single file
-
-
-
-
 
 CORPUS_SINGLE=$BUILD_DIR_CORPUS/corpus
 CORPUS_COMBINED=$BUILD_DIR_CORPUS/corpus_combined
@@ -76,10 +79,6 @@ if [ -d  $CORPUS_COMBINED ]; then
 	rm -r $CORPUS_COMBINED
 fi
 mkdir $CORPUS_COMBINED
-
-
-
-
 
 # iterate over all the subdirectories
 subDirs=$(find $CORPUS_SINGLE -maxdepth 1 -mindepth 1 -type d)
@@ -114,8 +113,6 @@ for dirPath in $subDirs; do
 		fi
 	done
 done
-
-
 
 merge_corpus $BUILD_DIR_FUZZ_MODE/bin/fuzz_binary_message $BASE_DIR/tests/fuzz/fuzz_binary_message_corpus/generated $CORPUS_COMBINED
 if [ $? -ne 0 ] ; then exit 1 ; fi

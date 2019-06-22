@@ -28,4 +28,9 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
   return (((UA_DateTime)xTaskGetTickCount()) * 1000 / configTICK_RATE_HZ) * UA_DATETIME_MSEC;
 }
 
+void UA_sleep_ms(unsigned int miliSeconds) {
+    const TickType_t delay = miliSeconds / portTICK_PERIOD_MS;
+    vTaskDelay(delay);
+}
+
 #endif /* UA_ARCHITECTURE_FREERTOSLWIP */

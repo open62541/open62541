@@ -10,8 +10,6 @@
 #ifndef PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_
 
-#include <open62541/architecture_base.h>
-
 #include <errno.h>
 #include <time.h>
 
@@ -22,14 +20,6 @@
 
 #include <hostLib.h>
 #include <selectLib.h>
-
-#define UA_sleep_ms(X)                            \
- {                                                \
- struct timespec timeToSleep;                     \
-   timeToSleep.tv_sec = X / 1000;                 \
-   timeToSleep.tv_nsec = 1000000 * (X % 1000);    \
-   nanosleep(&timeToSleep, NULL);                 \
- }
 
 #ifdef UINT32_C
 # undef UINT32_C
@@ -109,7 +99,7 @@
     LOG; \
 }
 
-#include <open62541/architecture_functions.h>
+#include <open62541/arch_common.h>
 
 #endif /* PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_ */
 
