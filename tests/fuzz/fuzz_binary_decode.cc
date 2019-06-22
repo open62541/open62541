@@ -105,6 +105,9 @@ static UA_Boolean tortureExtensionObject(const uint8_t *data, size_t size, size_
 ** fuzzed input.
 */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    if(size <= 4)
+        return 0;
+
     size_t offset;
 
     UA_memoryManager_activate();

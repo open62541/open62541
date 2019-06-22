@@ -35,16 +35,18 @@ static int tortureParseEndpointUrlEthernet(const uint8_t *data, size_t size) {
 ** fuzzed input.
 */
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    if(size <= 4)
+        return 0;
 
     UA_memoryManager_activate();
 
-    if (!UA_memoryManager_setLimitFromLast4Bytes(data, size)) {
+    if(!UA_memoryManager_setLimitFromLast4Bytes(data, size)) {
         UA_memoryManager_deactivate();
         return 0;
     }
     size -= 4;
 
-    if (size == 0) {
+    if(size == 0) {
         UA_memoryManager_deactivate();
         return 0;
     }
@@ -60,8 +62,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     switch(select) {
         case 0:
             retval = tortureParseEndpointUrl(newData, newSize);
+            break;
         case 1:
             retval = tortureParseEndpointUrlEthernet(newData, newSize);
+            break;
         default:
             break;
     }
