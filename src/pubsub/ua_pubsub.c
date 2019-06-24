@@ -463,12 +463,9 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
              }
          }
 
-        UA_Boolean processMsg = true;
-        if(processMsg) {
-           for(UA_Byte iterator = 0; iterator < anzDataSets; iterator++) {
-               UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Process Msg with DataSetReader!");
-               UA_Server_DataSetReader_process(server, dataSetReaderErg, &pMsg->payload.dataSetPayload.dataSetMessages[iterator]);
-           }
+        for(UA_Byte iterator = 0; iterator < anzDataSets; iterator++) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Process Msg with DataSetReader!");
+            UA_Server_DataSetReader_process(server, dataSetReaderErg, &pMsg->payload.dataSetPayload.dataSetMessages[iterator]);
         }
 
         /* To Do the condition with dataSetWriterId and WriterGroupId
