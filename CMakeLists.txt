@@ -394,7 +394,7 @@ include(CompilerFlags)
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
     add_definitions(-std=c99 -pipe
-                    -Wall -Wextra -Werror -Wpedantic
+                    -Wall -Wextra -Wpedantic
                     -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
                     -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
                     -Wno-unused-parameter # some methods may require unused arguments to cast to a method pointer
@@ -410,6 +410,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -fno-strict-aliasing # fewer compiler assumptions about pointer types
                     -fexceptions # recommended for multi-threaded C code, also in combination with C++ code
                     )
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Werror")
 
     if (NOT MINGW)
         if(UA_ENABLE_HARDENING)
