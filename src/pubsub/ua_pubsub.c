@@ -422,7 +422,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
 
                                 case UA_PUBLISHERDATATYPE_UINT16:
                                     if((tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16]) &&
-                                        (pMsg->publisherId.publisherIdByte == (*(UA_UInt16*)tmpReader->config.publisherId.data))) {
+                                        (pMsg->publisherId.publisherIdUInt16 == (*(UA_UInt16*)tmpReader->config.publisherId.data))) {
                                          UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
                                          dataSetReaderErg = tmpReader;
                                     }
