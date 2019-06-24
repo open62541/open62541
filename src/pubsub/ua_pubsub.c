@@ -367,6 +367,68 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     return UA_STATUSCODE_GOOD;
 }
 
+
+static UA_DataSetReader *
+getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_PubSubConnection *pConnection) {
+    if(pConnection->readerGroupsSize == 1) {
+        if(LIST_FIRST(&pConnection->readerGroups)->readersCount == 1) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "only 1 DataSetReader available. This one will be used.");
+            return LIST_FIRST(&LIST_FIRST(&pConnection->readerGroups)->readers);
+        }
+    }
+
+    if(!pMsg->publisherIdEnabled)
+        return NULL;
+
+    UA_ReaderGroup* readerGroup;
+    LIST_FOREACH(readerGroup, &pConnection->readerGroups, listEntry) {
+        UA_DataSetReader *tmpReader;
+        LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
+            switch (pMsg->publisherIdType) {
+            case UA_PUBLISHERDATATYPE_BYTE:
+                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
+                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
+                   pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
+                    return tmpReader;
+                }
+                break;
+            case UA_PUBLISHERDATATYPE_UINT16:
+                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
+                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
+                   pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*)tmpReader->config.publisherId.data) {
+                    return tmpReader;
+                }
+                break;
+            case UA_PUBLISHERDATATYPE_UINT32:
+                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
+                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
+                   pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
+                    return tmpReader;
+                }
+                break;
+            case UA_PUBLISHERDATATYPE_UINT64:
+                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
+                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
+                   pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
+                    return tmpReader;
+                }
+                break;
+            case UA_PUBLISHERDATATYPE_STRING:
+                if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
+                   pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
+                   UA_String_equal(&pMsg->publisherId.publisherIdString, (UA_String*)tmpReader->config.publisherId.data)) {
+                    return tmpReader;
+                }
+                break;
+            default:
+                return NULL;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 /**
  * Process NetworkMessage.
  *
@@ -376,87 +438,15 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
  */
 UA_StatusCode
 UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
-                                          UA_PubSubConnection *pConnection) {
-    if((pMsg == NULL) || (pConnection == NULL)) {
+                                UA_PubSubConnection *pConnection) {
+    if(!pMsg || !pConnection)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_Boolean publisherIdAvailable = false;
-    if(pMsg->publisherIdEnabled) {
-        publisherIdAvailable = true;
-    }
 
     /* To Do The condition with dataSetWriterIdAvailable and WriterGroupIdAvailable to be handled
      * when pMsg->groupHeaderEnabled, pMsg->dataSetClassIdEnabled, pMsg->payloadHeaderEnabled
      * Here some filtering is possible */
 
-    UA_Byte anzDataSets = 1;
-    if(pMsg->payloadHeaderEnabled) {
-        anzDataSets = pMsg->payloadHeader.dataSetPayloadHeader.count;
-    }
-
-    UA_DataSetReader* dataSetReaderErg = NULL;
-    if(pConnection->readerGroupsSize == 1) {
-        if(LIST_FIRST(&pConnection->readerGroups)->readersCount == 1) {
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "only 1 DataSetReader available. This one will be used.");
-            dataSetReaderErg = LIST_FIRST(&LIST_FIRST(&pConnection->readerGroups)->readers);
-        }
-    } else {
-        if(publisherIdAvailable) {
-            UA_ReaderGroup* readerGroup;
-            LIST_FOREACH(readerGroup, &pConnection->readerGroups, listEntry) {
-                UA_DataSetReader *tmpReader;
-                LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
-                    if(publisherIdAvailable && (tmpReader->config.publisherId.type != NULL)) {
-                        switch (pMsg->publisherIdType) {
-                        case UA_PUBLISHERDATATYPE_BYTE:
-                            if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
-                               pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
-                               pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
-                                dataSetReaderErg = tmpReader;
-                                goto process;
-                            }
-                            break;
-                        case UA_PUBLISHERDATATYPE_UINT16:
-                            if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
-                               pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
-                               pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*)tmpReader->config.publisherId.data) {
-                                dataSetReaderErg = tmpReader;
-                                goto process;
-                            }
-                            break;
-                        case UA_PUBLISHERDATATYPE_UINT32:
-                            if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
-                               pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
-                               pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
-                                dataSetReaderErg = tmpReader;
-                                goto process;
-                            }
-                            break;
-                        case UA_PUBLISHERDATATYPE_UINT64:
-                            if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
-                               pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
-                               pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
-                                dataSetReaderErg = tmpReader;
-                                goto process;
-                            }
-                            break;
-                        case UA_PUBLISHERDATATYPE_STRING:
-                            if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
-                               pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
-                               UA_String_equal(&pMsg->publisherId.publisherIdString, (UA_String*)tmpReader->config.publisherId.data)) {
-                                dataSetReaderErg = tmpReader;
-                                goto process;
-                            }
-                            break;
-                        default:
-                            return UA_STATUSCODE_BADINTERNALERROR;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    UA_DataSetReader* dataSetReaderErg = getReaderFromIdentifier(server, pMsg, pConnection);
 
     /* No Reader with the specified id found */
     if(!dataSetReaderErg) {
@@ -466,8 +456,9 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
 
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
 
- process:
-
+    UA_Byte anzDataSets = 1;
+    if(pMsg->payloadHeaderEnabled)
+        anzDataSets = pMsg->payloadHeader.dataSetPayloadHeader.count;
     for(UA_Byte iterator = 0; iterator < anzDataSets; iterator++) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Process Msg with DataSetReader!");
         UA_Server_DataSetReader_process(server, dataSetReaderErg, &pMsg->payload.dataSetPayload.dataSetMessages[iterator]);
