@@ -414,6 +414,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
                             switch (pMsg->publisherIdType) {
                                 case UA_PUBLISHERDATATYPE_BYTE:
                                     if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
+                                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
                                        pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
                                         dataSetReaderErg = tmpReader;
                                     }
@@ -421,6 +422,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
 
                                 case UA_PUBLISHERDATATYPE_UINT16:
                                     if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
+                                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
                                        pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*)tmpReader->config.publisherId.data) {
                                          UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
                                          dataSetReaderErg = tmpReader;
@@ -429,6 +431,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
 
                                 case UA_PUBLISHERDATATYPE_UINT32:
                                     if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
+                                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
                                        pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
                                         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
                                         dataSetReaderErg = tmpReader;
@@ -437,6 +440,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
 
                                 case UA_PUBLISHERDATATYPE_UINT64:
                                     if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
+                                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
                                        pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
                                         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
                                         dataSetReaderErg = tmpReader;
@@ -444,12 +448,13 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
                                     break;
 
                                 case UA_PUBLISHERDATATYPE_STRING:
-                                     if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
-                                        UA_String_equal(&pMsg->publisherId.publisherIdString, (UA_String*)tmpReader->config.publisherId.data)) {
-                                         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
-                                         dataSetReaderErg = tmpReader;
-                                     }
-                                     break;
+                                    if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
+                                       pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
+                                       UA_String_equal(&pMsg->publisherId.publisherIdString, (UA_String*)tmpReader->config.publisherId.data)) {
+                                        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "DataSetReader found with PublisherId");
+                                        dataSetReaderErg = tmpReader;
+                                    }
+                                    break;
 
                             }
                          }
