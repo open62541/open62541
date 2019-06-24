@@ -86,7 +86,10 @@ typedef struct UA_LastSverity_Data {
     UA_DateTime sourceTimeStamp;
 } UA_LastSverity_Data;
 
-typedef struct UA_ConditionBranch_nodeListElement {
+/* in the first implementation there will be only one entry in this list
+ * conditionBranchId is always NULL.
+ */
+typedef struct UA_ConditionBranch_nodeListElement { 
     LIST_ENTRY(UA_ConditionBranch_nodeListElement) listEntry;
     UA_NodeId* conditionBranchId;
     UA_ByteString lastEventId;
