@@ -195,7 +195,11 @@ def generateCommonVariableCode(node, nodeset):
             code += code1
             codeCleanup += codeCleanup1
             codeGlobal += codeGlobal1
-            if node.valueRank is not None and node.valueRank > 0 and len(node.arrayDimensions) == node.valueRank and len(node.value.value) > 0:
+            # #1978 Variant arrayDimensions are only required to properly decode multidimensional arrays
+            # (valueRank > 1) from data stored as one-dimensional array of arrayLength elements.
+            # One-dimensional arrays are already completely defined by arraylength attribute so setting
+            # also arrayDimensions, even if not explicitly forbidden, can confuse clients
+            if node.valueRank is not None and node.valueRank > 1 and len(node.arrayDimensions) == node.valueRank and len(node.value.value) > 0:
                 numElements = 1
                 hasZero = False
                 for v in node.arrayDimensions:

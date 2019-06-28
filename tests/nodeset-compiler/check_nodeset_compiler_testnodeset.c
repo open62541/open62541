@@ -63,6 +63,7 @@ START_TEST(check1dimValues) {
     UA_Point *p = (UA_Point *)out.data;
     ck_assert(!UA_Variant_isScalar(&out));
     ck_assert(out.arrayLength == 4);
+    ck_assert(out.arrayDimensionsSize == 0);    // For 1 dimension arrays, initializing arrayDimensionsSize may confuse some OPC clients.
     ck_assert(p[0].x == (UA_Double)1.0);
     ck_assert(p[3].y == (UA_Double)8.0);
     UA_Variant_clear(&out);
