@@ -56,9 +56,6 @@ static int getaddr(UA_Server* server, char *iface, struct in_addr *ina)
 	char buf[20] = { 0 };
 	int rc = -1;
 
-	if(iface==NULL)
-		DBG("Multicast DNS: No multicast interface set, OS first interface will be used.");
-
 	rc = getifaddrs(&ifaddr);
 	if (rc)
 		return -1;
@@ -68,7 +65,7 @@ static int getaddr(UA_Server* server, char *iface, struct in_addr *ina)
 			continue;
 
 		if (ifa->ifa_flags & IFF_LOOPBACK)
-					continue;
+			continue;
 
 		if (!(ifa->ifa_flags & IFF_MULTICAST))
 			continue;
@@ -87,16 +84,17 @@ static int getaddr(UA_Server* server, char *iface, struct in_addr *ina)
 			if (!valid_addr(ina))
 				continue;
 
-			DBG("Multicast DNS: Found interface %s, address %s", ifa->ifa_name, buf);
+			UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: Found interface %s, address %s", ifa->ifa_name, buf);
 			break;
 		}
 	}
 	freeifaddrs(ifaddr);
 
-	if (rc || IN_ZERONET(ntohl(ina->s_addr)))
+	if (rc || IN_ZERONET(ntohl(ina->s_addr))){
+		UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: interface address is zero!");
 		return -1;
+	}
 
-	DBG("Multicast DNS: Using address: %s", inet_ntoa(*ina));
 
 	return 0;
 }
@@ -121,7 +119,9 @@ discovery_createMulticastSocket(UA_Server* server) {
 	memset(&ina, 0, sizeof(ina));
 	char* iName = NULL;
 	size_t length = server->config.discovery.mdnsInterface.length;
-	if(length > 0){
+	if(length == 0)
+		UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: No multicast interface set, OS first interface will be used");
+	else{
 		iName = (char*)UA_malloc(length+1);
 		if (!iName) {
 			UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: Cannot alloc memory for iface name");
@@ -131,7 +131,11 @@ discovery_createMulticastSocket(UA_Server* server) {
 		iName[length] = '\0';
 	}
 
-	getaddr(server, iName, &ina);
+	//interface was set, but search failed
+	if(getaddr(server, iName, &ina) < 0 && iName){
+		UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: set mutlicast interface %s not found, retrying for a default one", iName);
+		getaddr(server, NULL, &ina);
+	}
 	UA_free(iName);
 
 	if((s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == UA_INVALID_SOCKET)
