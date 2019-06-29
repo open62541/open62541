@@ -251,6 +251,8 @@ int main(int argc, char **argv) {
 
     config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
 
+    config->discovery.mdnsInterface = UA_String_fromChars("docker0");
+
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     // For a LDS server, you should only indicate the LDS capability.
     // If this instance is an LDS and at the same time a normal OPC UA server, you also have to indicate
