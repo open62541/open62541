@@ -24,171 +24,171 @@
 /* Create multicast 224.0.0.251:5353 socket */
 static UA_SOCKET
 discovery_createMulticastSocket(UA_Server* server) {
-	UA_SOCKET s;
-	int flag = 1, ittl = 255;
-	struct sockaddr_in in;
-	struct ip_mreq mc;
-	char ttl = (char)255; // publish to complete net, not only subnet. See:
-	// https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
+    UA_SOCKET s;
+    int flag = 1, ittl = 255;
+    struct sockaddr_in in;
+    struct ip_mreq mc;
+    char ttl = (char)255; // publish to complete net, not only subnet. See:
+    // https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
 
-	memset(&in, 0, sizeof(in));
-	in.sin_family = AF_INET;
-	in.sin_port = htons(5353);
-	in.sin_addr.s_addr = 0;
+    memset(&in, 0, sizeof(in));
+    in.sin_family = AF_INET;
+    in.sin_port = htons(5353);
+    in.sin_addr.s_addr = 0;
 
-	if((s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == UA_INVALID_SOCKET)
-		return UA_INVALID_SOCKET;
+    if((s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == UA_INVALID_SOCKET)
+        return UA_INVALID_SOCKET;
 
 
 #ifdef SO_REUSEPORT
-	UA_setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
+    UA_setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
 #endif
-	UA_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
-	if(UA_bind(s, (struct sockaddr *)&in, sizeof(in))) {
-		UA_close(s);
-		return UA_INVALID_SOCKET;
-	}
+    UA_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
+    if(UA_bind(s, (struct sockaddr *)&in, sizeof(in))) {
+        UA_close(s);
+        return UA_INVALID_SOCKET;
+    }
 
-	/* Custom outbound multicast interface */
-	struct in_addr ina;
-	memset(&ina, 0, sizeof(ina));
-	char* iName = NULL;
-	size_t length = server->config.discovery.mdnsInterfaceIP.length;
-	if(length > 0){
-		iName = (char*)UA_malloc(length+1);
-		if (!iName) {
-			UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: cannot alloc memory for iface name");
-			return 0;
-		}
-		memcpy(iName, server->config.discovery.mdnsInterfaceIP.data, length);
-		iName[length] = '\0';
-		inet_pton(AF_INET, iName, &ina);
-		UA_free(iName);
-		/* Set interface for outbound multicast */
-		if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &ina, sizeof(ina)) < 0)
-			UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: failed setting IP_MULTICAST_IF to %s: %s", inet_ntoa(ina), strerror(errno));
-	}
+    /* Custom outbound multicast interface */
+    struct in_addr ina;
+    memset(&ina, 0, sizeof(ina));
+    char* iName = NULL;
+    size_t length = server->config.discovery.mdnsInterfaceIP.length;
+    if(length > 0){
+        iName = (char*)UA_malloc(length+1);
+        if (!iName) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: cannot alloc memory for iface name");
+            return 0;
+        }
+        memcpy(iName, server->config.discovery.mdnsInterfaceIP.data, length);
+        iName[length] = '\0';
+        inet_pton(AF_INET, iName, &ina);
+        UA_free(iName);
+        /* Set interface for outbound multicast */
+        if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &ina, sizeof(ina)) < 0)
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: failed setting IP_MULTICAST_IF to %s: %s", inet_ntoa(ina), strerror(errno));
+    }
 
-	/* Check outbound multicast interface parameters */
-	struct in_addr interface_addr;
-	socklen_t addr_size = sizeof(struct in_addr);
-	if (getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &interface_addr, &addr_size) <  0) {
-		UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: getsockopt(IP_MULTICAST_IF) failed");
-	}
+    /* Check outbound multicast interface parameters */
+    struct in_addr interface_addr;
+    socklen_t addr_size = sizeof(struct in_addr);
+    if (getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &interface_addr, &addr_size) <  0) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: getsockopt(IP_MULTICAST_IF) failed");
+    }
 
-	if(IN_ZERONET(ntohl(interface_addr.s_addr))){
-		UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: outbound interface 0.0.0.0, it means that the first OS interface is used (you can explicitly set the interface by using 'discovery.mdnsInterfaceIP' config parameter)");
-	}else{
-		char buf[16];
-		inet_ntop(AF_INET, &interface_addr, buf, 16);
-		UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: outbound interface is %s", buf);
-	}
+    if(IN_ZERONET(ntohl(interface_addr.s_addr))){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: outbound interface 0.0.0.0, it means that the first OS interface is used (you can explicitly set the interface by using 'discovery.mdnsInterfaceIP' config parameter)");
+    }else{
+        char buf[16];
+        inet_ntop(AF_INET, &interface_addr, buf, 16);
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: outbound interface is %s", buf);
+    }
 
-	mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
-	mc.imr_interface.s_addr = htonl(INADDR_ANY);
-	UA_setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mc, sizeof(mc));
-	UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
-	UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ittl, sizeof(ittl));
+    mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
+    mc.imr_interface.s_addr = htonl(INADDR_ANY);
+    UA_setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mc, sizeof(mc));
+    UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
+    UA_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ittl, sizeof(ittl));
 
-	UA_socket_set_nonblocking(s); //TODO: check return value
-	return s;
+    UA_socket_set_nonblocking(s); //TODO: check return value
+    return s;
 }
 
 static UA_StatusCode
 initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server) {
-	server->discoveryManager.mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
-	UA_initialize_architecture_network();
+    server->discoveryManager.mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
+    UA_initialize_architecture_network();
 
-	if((server->discoveryManager.mdnsSocket = discovery_createMulticastSocket(server)) == UA_INVALID_SOCKET) {
-		UA_LOG_SOCKET_ERRNO_WRAP(
-				UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-						"Could not create multicast socket. Error: %s", errno_str));
-		return UA_STATUSCODE_BADUNEXPECTEDERROR;
-	}
-	mdnsd_register_receive_callback(server->discoveryManager.mdnsDaemon,
-			mdns_record_received, server);
-	return UA_STATUSCODE_GOOD;
+    if((server->discoveryManager.mdnsSocket = discovery_createMulticastSocket(server)) == UA_INVALID_SOCKET) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "Could not create multicast socket. Error: %s", errno_str));
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    mdnsd_register_receive_callback(server->discoveryManager.mdnsDaemon,
+            mdns_record_received, server);
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 destroyMulticastDiscoveryServer(UA_DiscoveryManager *dm) {
-	if (!dm->mdnsDaemon)
-		return;
+    if (!dm->mdnsDaemon)
+        return;
 
-	mdnsd_shutdown(dm->mdnsDaemon);
-	mdnsd_free(dm->mdnsDaemon);
+    mdnsd_shutdown(dm->mdnsDaemon);
+    mdnsd_free(dm->mdnsDaemon);
 
-	if(dm->mdnsSocket != UA_INVALID_SOCKET) {
-		UA_close(dm->mdnsSocket);
-		dm->mdnsSocket = UA_INVALID_SOCKET;
-	}
+    if(dm->mdnsSocket != UA_INVALID_SOCKET) {
+        UA_close(dm->mdnsSocket);
+        dm->mdnsSocket = UA_INVALID_SOCKET;
+    }
 }
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
 void
 UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
-	LIST_INIT(&dm->registeredServers);
-	dm->registeredServersSize = 0;
-	LIST_INIT(&dm->periodicServerRegisterCallbacks);
-	dm->registerServerCallback = NULL;
-	dm->registerServerCallbackData = NULL;
+    LIST_INIT(&dm->registeredServers);
+    dm->registeredServersSize = 0;
+    LIST_INIT(&dm->periodicServerRegisterCallbacks);
+    dm->registerServerCallback = NULL;
+    dm->registerServerCallbackData = NULL;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-	dm->mdnsDaemon = NULL;
-	dm->mdnsSocket = UA_INVALID_SOCKET;
-	dm->mdnsMainSrvAdded = false;
-	if(server->config.discovery.mdnsEnable)
-		initMulticastDiscoveryServer(dm, server);
+    dm->mdnsDaemon = NULL;
+    dm->mdnsSocket = UA_INVALID_SOCKET;
+    dm->mdnsMainSrvAdded = false;
+    if(server->config.discovery.mdnsEnable)
+        initMulticastDiscoveryServer(dm, server);
 
-	LIST_INIT(&dm->serverOnNetwork);
-	dm->serverOnNetworkSize = 0;
-	dm->serverOnNetworkRecordIdCounter = 0;
-	dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-	memset(dm->serverOnNetworkHash, 0,
-			sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
+    LIST_INIT(&dm->serverOnNetwork);
+    dm->serverOnNetworkSize = 0;
+    dm->serverOnNetworkRecordIdCounter = 0;
+    dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    memset(dm->serverOnNetworkHash, 0,
+            sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
 
-	dm->serverOnNetworkCallback = NULL;
-	dm->serverOnNetworkCallbackData = NULL;
+    dm->serverOnNetworkCallback = NULL;
+    dm->serverOnNetworkCallbackData = NULL;
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 }
 
 void
 UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
-	registeredServer_list_entry *rs, *rs_tmp;
-	LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
-		LIST_REMOVE(rs, pointers);
-		UA_RegisteredServer_deleteMembers(&rs->registeredServer);
-		UA_free(rs);
-	}
-	periodicServerRegisterCallback_entry *ps, *ps_tmp;
-	LIST_FOREACH_SAFE(ps, &dm->periodicServerRegisterCallbacks, pointers, ps_tmp) {
-		LIST_REMOVE(ps, pointers);
-		UA_free(ps->callback);
-		UA_free(ps);
-	}
+    registeredServer_list_entry *rs, *rs_tmp;
+    LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
+        LIST_REMOVE(rs, pointers);
+        UA_RegisteredServer_deleteMembers(&rs->registeredServer);
+        UA_free(rs);
+    }
+    periodicServerRegisterCallback_entry *ps, *ps_tmp;
+    LIST_FOREACH_SAFE(ps, &dm->periodicServerRegisterCallbacks, pointers, ps_tmp) {
+        LIST_REMOVE(ps, pointers);
+        UA_free(ps->callback);
+        UA_free(ps);
+    }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-	if(server->config.discovery.mdnsEnable)
-		destroyMulticastDiscoveryServer(dm);
+    if(server->config.discovery.mdnsEnable)
+        destroyMulticastDiscoveryServer(dm);
 
-	serverOnNetwork_list_entry *son, *son_tmp;
-	LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
-		LIST_REMOVE(son, pointers);
-		UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
-		if(son->pathTmp)
-			UA_free(son->pathTmp);
-		UA_free(son);
-	}
+    serverOnNetwork_list_entry *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
+        LIST_REMOVE(son, pointers);
+        UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
+        if(son->pathTmp)
+            UA_free(son->pathTmp);
+        UA_free(son);
+    }
 
-	for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
-		serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
-		while(currHash) {
-			serverOnNetwork_hash_entry* nextHash = currHash->next;
-			UA_free(currHash);
-			currHash = nextHash;
-		}
-	}
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
+        serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
+        while(currHash) {
+            serverOnNetwork_hash_entry* nextHash = currHash->next;
+            UA_free(currHash);
+            currHash = nextHash;
+        }
+    }
 
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 }
