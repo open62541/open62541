@@ -29,7 +29,7 @@ discovery_createMulticastSocket(UA_Server* server) {
     struct sockaddr_in in;
     struct ip_mreq mc;
     char ttl = (char)255; // publish to complete net, not only subnet. See:
-    // https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
+                          // https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
 
     memset(&in, 0, sizeof(in));
     in.sin_family = AF_INET;
