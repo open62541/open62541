@@ -102,11 +102,11 @@ initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server) {
     if((server->discoveryManager.mdnsSocket = discovery_createMulticastSocket(server)) == UA_INVALID_SOCKET) {
         UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Could not create multicast socket. Error: %s", errno_str));
+                    "Could not create multicast socket. Error: %s", errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     mdnsd_register_receive_callback(server->discoveryManager.mdnsDaemon,
-            mdns_record_received, server);
+                                    mdns_record_received, server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -146,7 +146,7 @@ UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server) {
     dm->serverOnNetworkRecordIdCounter = 0;
     dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
     memset(dm->serverOnNetworkHash, 0,
-            sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
+           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
 
     dm->serverOnNetworkCallback = NULL;
     dm->serverOnNetworkCallbackData = NULL;
