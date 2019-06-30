@@ -76,7 +76,7 @@ typedef struct {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration mdns;
-    UA_String mdnsInterface;
+    UA_String mdnsInterfaceIP;
 #endif
 
 } UA_ServerConfig_Discovery;

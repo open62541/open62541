@@ -17,88 +17,9 @@
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-/** https://github.com/troglobit/mdnsd/blob/b12ac76c456fb146a697bc3170e67a9ffc7dedbd/src/addr.c **/
-/** copy of addr.c **/
-#include <ifaddrs.h>
-
 #ifndef IN_ZERONET
 #define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
 #endif
-
-#ifndef IN_LOOPBACK
-#define IN_LOOPBACK(addr) ((addr & IN_CLASSA_NET) == 0x7f000000)
-#endif
-
-#ifndef IN_LINKLOCAL
-#define IN_LINKLOCALNETNUM 0xa9fe0000
-#define IN_LINKLOCAL(addr) ((addr & IN_CLASSB_NET) == IN_LINKLOCALNETNUM)
-#endif
-
-/* Check if valid address */
-static int valid_addr(struct in_addr *ina)
-{
-	in_addr_t addr;
-
-	addr = ntohl(ina->s_addr);
-	if (IN_ZERONET(addr) || IN_LOOPBACK(addr) || IN_LINKLOCAL(addr))
-		return 0;
-
-	return 1;
-}
-
-/* Find IPv4 address of default outbound LAN interface */
-#define DBG(...) UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,__VA_ARGS__)
-
-static int getaddr(UA_Server* server, char *iface, struct in_addr *ina)
-{
-
-	struct ifaddrs *ifaddr, *ifa;
-	char buf[20] = { 0 };
-	int rc = -1;
-
-	rc = getifaddrs(&ifaddr);
-	if (rc)
-		return -1;
-
-	for (ifa = ifaddr; ifa; ifa = ifa->ifa_next) {
-		if (!ifa->ifa_addr)
-			continue;
-
-		if (ifa->ifa_flags & IFF_LOOPBACK)
-			continue;
-
-		if (!(ifa->ifa_flags & IFF_MULTICAST))
-			continue;
-
-		if (ifa->ifa_addr->sa_family != AF_INET)
-			continue;
-
-		if (iface && strcmp(iface, ifa->ifa_name))
-			continue;
-
-		rc = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in),
-				buf, sizeof(buf), NULL, 0, NI_NUMERICHOST);
-		if (!rc) {
-			if (!inet_aton(buf, ina))
-				continue;
-			if (!valid_addr(ina))
-				continue;
-
-			UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: Found interface %s, address %s", ifa->ifa_name, buf);
-			break;
-		}
-	}
-	freeifaddrs(ifaddr);
-
-	if (rc || IN_ZERONET(ntohl(ina->s_addr))){
-		UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: interface address is zero!");
-		return -1;
-	}
-
-
-	return 0;
-}
-/** end copy of addr.c **/
 
 /* Create multicast 224.0.0.251:5353 socket */
 static UA_SOCKET
@@ -115,31 +36,9 @@ discovery_createMulticastSocket(UA_Server* server) {
 	in.sin_port = htons(5353);
 	in.sin_addr.s_addr = 0;
 
-	struct in_addr ina;
-	memset(&ina, 0, sizeof(ina));
-	char* iName = NULL;
-	size_t length = server->config.discovery.mdnsInterface.length;
-	if(length == 0)
-		UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: No multicast interface set, OS first interface will be used");
-	else{
-		iName = (char*)UA_malloc(length+1);
-		if (!iName) {
-			UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: Cannot alloc memory for iface name");
-			return 0;
-		}
-		memcpy(iName, server->config.discovery.mdnsInterface.data, length);
-		iName[length] = '\0';
-	}
-
-	//interface was set, but search failed
-	if(getaddr(server, iName, &ina) < 0 && iName){
-		UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: set mutlicast interface %s not found, retrying for a default one", iName);
-		getaddr(server, NULL, &ina);
-	}
-	UA_free(iName);
-
 	if((s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == UA_INVALID_SOCKET)
 		return UA_INVALID_SOCKET;
+
 
 #ifdef SO_REUSEPORT
 	UA_setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
@@ -150,9 +49,40 @@ discovery_createMulticastSocket(UA_Server* server) {
 		return UA_INVALID_SOCKET;
 	}
 
-	/* Set interface for outbound multicast */
-	if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &ina, sizeof(ina)))
-		UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "Failed setting IP_MULTICAST_IF to %s: %s", inet_ntoa(ina), strerror(errno));
+	/* Custom outbound multicast interface */
+	struct in_addr ina;
+	memset(&ina, 0, sizeof(ina));
+	char* iName = NULL;
+	size_t length = server->config.discovery.mdnsInterfaceIP.length;
+	if(length > 0){
+		iName = (char*)UA_malloc(length+1);
+		if (!iName) {
+			UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: cannot alloc memory for iface name");
+			return 0;
+		}
+		memcpy(iName, server->config.discovery.mdnsInterfaceIP.data, length);
+		iName[length] = '\0';
+		inet_pton(AF_INET, iName, &ina);
+		UA_free(iName);
+		/* Set interface for outbound multicast */
+		if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &ina, sizeof(ina)) < 0)
+			UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: failed setting IP_MULTICAST_IF to %s: %s", inet_ntoa(ina), strerror(errno));
+	}
+
+	/* Check outbound multicast interface parameters */
+	struct in_addr interface_addr;
+	socklen_t addr_size = sizeof(struct in_addr);
+	if (getsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &interface_addr, &addr_size) <  0) {
+		UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: getsockopt(IP_MULTICAST_IF) failed");
+	}
+
+	if(IN_ZERONET(ntohl(interface_addr.s_addr))){
+		UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: outbound interface 0.0.0.0, it means that the first OS interface is used (you can explicitly set the interface by using 'discovery.mdnsInterfaceIP' config parameter)");
+	}else{
+		char buf[16];
+		inet_ntop(AF_INET, &interface_addr, buf, 16);
+		UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: outbound interface is %s", buf);
+	}
 
 	mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
 	mc.imr_interface.s_addr = htonl(INADDR_ANY);
@@ -239,26 +169,26 @@ UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
 	}
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-if(server->config.discovery.mdnsEnable)
-	destroyMulticastDiscoveryServer(dm);
+	if(server->config.discovery.mdnsEnable)
+		destroyMulticastDiscoveryServer(dm);
 
-serverOnNetwork_list_entry *son, *son_tmp;
-LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
-	LIST_REMOVE(son, pointers);
-	UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
-	if(son->pathTmp)
-		UA_free(son->pathTmp);
-	UA_free(son);
-}
-
-for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
-	serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
-	while(currHash) {
-		serverOnNetwork_hash_entry* nextHash = currHash->next;
-		UA_free(currHash);
-		currHash = nextHash;
+	serverOnNetwork_list_entry *son, *son_tmp;
+	LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
+		LIST_REMOVE(son, pointers);
+		UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
+		if(son->pathTmp)
+			UA_free(son->pathTmp);
+		UA_free(son);
 	}
-}
+
+	for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
+		serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
+		while(currHash) {
+			serverOnNetwork_hash_entry* nextHash = currHash->next;
+			UA_free(currHash);
+			currHash = nextHash;
+		}
+	}
 
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 }

@@ -17,7 +17,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_ApplicationDescription_deleteMembers(&config->applicationDescription);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&config->discovery.mdns);
-    UA_String_clear(&config->discovery.mdnsInterface);
+    UA_String_clear(&config->discovery.mdnsInterfaceIP);
 #endif
 
     /* Custom DataTypes */
