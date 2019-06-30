@@ -49,20 +49,19 @@ discovery_createMulticastSocket(UA_Server* server) {
     }
 
     /* Custom outbound multicast interface */
-    struct in_addr ina;
-    memset(&ina, 0, sizeof(ina));
-    char* iName = NULL;
     size_t length = server->config.discovery.mdnsInterfaceIP.length;
     if(length > 0){
-        iName = (char*)UA_malloc(length+1);
-        if (!iName) {
+        char* interfaceName = (char*)UA_malloc(length+1);
+        if (!interfaceName) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_NETWORK, "Multicast DNS: cannot alloc memory for iface name");
             return 0;
         }
-        memcpy(iName, server->config.discovery.mdnsInterfaceIP.data, length);
-        iName[length] = '\0';
-        inet_pton(AF_INET, iName, &ina);
-        UA_free(iName);
+        struct in_addr ina;
+        memset(&ina, 0, sizeof(ina));
+        memcpy(interfaceName, server->config.discovery.mdnsInterfaceIP.data, length);
+        interfaceName[length] = '\0';
+        inet_pton(AF_INET, interfaceName, &ina);
+        UA_free(interfaceName);
         /* Set interface for outbound multicast */
         if (setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, (char*)&ina, sizeof(ina)) < 0)
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: failed setting IP_MULTICAST_IF to %s: %s", inet_ntoa(ina), strerror(errno));
