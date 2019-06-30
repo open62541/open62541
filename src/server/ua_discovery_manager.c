@@ -39,7 +39,6 @@ discovery_createMulticastSocket(UA_Server* server) {
     if((s = UA_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == UA_INVALID_SOCKET)
         return UA_INVALID_SOCKET;
 
-
 #ifdef SO_REUSEPORT
     UA_setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
 #endif
@@ -102,7 +101,7 @@ initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server) {
     if((server->discoveryManager.mdnsSocket = discovery_createMulticastSocket(server)) == UA_INVALID_SOCKET) {
         UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Could not create multicast socket. Error: %s", errno_str));
+                     "Could not create multicast socket. Error: %s", errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     mdnsd_register_receive_callback(server->discoveryManager.mdnsDaemon,
