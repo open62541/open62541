@@ -18,11 +18,6 @@
 
 #include "common.h"
 
-#define TRUSTLISTCOUNT       3
-#define REVOCATIONLISTCOUNT  4
-#define STARTOFLIST          5
-#define BASEVALUE            10
-
 /* This server is configured to the Compliance Testing Tools (CTT) against. The
  * corresponding CTT configuration is available at
  * https://github.com/open62541/open62541-ctt */
@@ -447,9 +442,26 @@ stopHandler(int sign) {
     running = 0;
 }
 
+static void
+usage(void) {
+    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                   "Usage:\n"
+                   "server_ctt <server-certificate.der> <private-key.der>\n"
+                   "[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
+                   "[--revocationlist <rv1.crl> <rv2.crl> ...]\n");
+}
+
 int main(int argc, char **argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
     signal(SIGTERM, stopHandler);
+
+    for(int i = 1; i < argc; i++) {
+        if(strcmp(argv[i], "--help") ||
+           strcmp(argv[i], "-h") == 0) {
+            usage();
+            return EXIT_SUCCESS;
+        }
+    }
 
     UA_Server *server = UA_Server_new();
     if(server == NULL)
@@ -458,10 +470,7 @@ int main(int argc, char **argv) {
 
 #ifdef UA_ENABLE_ENCRYPTION
     if(argc < 3) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Missing arguments for encryption support. "
-                       "Arguments are <server-certificate.der> "
-                       "<private-key.der> [<trustlist1.crl>, ...]");
+        usage();
         UA_ServerConfig_setDefault(config);
     } else {
         /* Load certificate and private key */
@@ -478,33 +487,56 @@ int main(int argc, char **argv) {
             return EXIT_FAILURE;
         }
 
-        UA_ByteString* trustList = NULL;
+        UA_ByteString trustList[100];
         size_t trustListSize = 0;
-        UA_ByteString* revocationList = NULL;
+        UA_ByteString revocationList[100];
         size_t revocationListSize = 0;
-
-        /* Load the trustlist */
-        if(argc >= 4) {
-            trustListSize = (size_t)strtol(argv[TRUSTLISTCOUNT], NULL, BASEVALUE);
-            if(trustListSize > (size_t)argc - 4)
-                trustListSize = (size_t)argc - 4;
-            UA_STACKARRAY(UA_ByteString, trustListArray, trustListSize);
-            trustList = trustListArray;
-            for(size_t i = 0; i <= trustListSize; i++) {
-                trustList[i] = loadFile(argv[i + STARTOFLIST]);
+        char filetype = ' '; /* t==trustlist, r==revocationlist */
+        for(int i = 3; i < argc; i++) {
+            if(strcmp(argv[i], "--trustlist") == 0) {
+                filetype = 't';
+                continue;
             }
-        }
 
-        /* Load the revocation list */
-        if(argc >= 5 + (int)trustListSize) {
-            revocationListSize = (size_t)strtol(argv[4 + trustListSize], NULL, BASEVALUE);
-            if(trustListSize > (size_t)argc - 5 - trustListSize)
-                trustListSize = (size_t)argc - 5 - trustListSize;
-            UA_STACKARRAY(UA_ByteString, revocationListArray, revocationListSize);
-            revocationList = revocationListArray;
-            for(size_t i = 0; i < revocationListSize; i++) {
-                revocationList[i] = loadFile(argv[i + trustListSize + STARTOFLIST]);
+            if(strcmp(argv[i], "--revocationlist") == 0) {
+                filetype = 'r';
+                continue;
             }
+
+            if(filetype == 't') {
+                if(trustListSize >= 100) {
+                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Too many trust lists");
+                    return EXIT_FAILURE;
+                }
+                trustList[trustListSize] = loadFile(argv[i]);
+                if(trustList[trustListSize].data == NULL) {
+                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Unable to load trust list %s", argv[i]);
+                    return EXIT_FAILURE;
+                }
+                trustListSize++;
+                continue;
+            }
+
+            if(filetype == 'r') {
+                if(revocationListSize >= 100) {
+                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Too many revocation lists");
+                    return EXIT_FAILURE;
+                }
+                if(revocationList[revocationListSize].data == NULL) {
+                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Unable to load revocationlist %s", argv[i]);
+                    return EXIT_FAILURE;
+                }
+                revocationList[revocationListSize] = loadFile(argv[i]);
+                revocationListSize++;
+                continue;
+            }
+
+            usage();
+            return EXIT_FAILURE;
         }
 
         UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
@@ -514,9 +546,10 @@ int main(int argc, char **argv) {
 
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);
-        for(size_t iteratorValue = 0; iteratorValue < trustListSize; iteratorValue++) {
-            UA_ByteString_clear(&trustList[iteratorValue]);
-        }
+        for(size_t i = 0; i < trustListSize; i++)
+            UA_ByteString_clear(&trustList[i]);
+        for(size_t i = 0; i < revocationListSize; i++)
+            UA_ByteString_clear(&revocationList[i]);
     }
 #else
     UA_ByteString certificate = UA_BYTESTRING_NULL;
