@@ -133,6 +133,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_init(&conf->discovery.mdns);
+    conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
 #endif
 
     /* Custom DataTypes */
