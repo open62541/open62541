@@ -81,9 +81,6 @@ certificateVerification_verify(void *verificationContext,
     /* Flag value to identify if the parent certificate found */
     int parentFound = 0;
 
-    /* Flag value to identify if that there is an intermediate CA present */
-    int dualParent = 0;
-
     mbedtls_x509_crt_init(&remoteCertificate);
     int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
                                          certificate->length);
@@ -131,6 +128,9 @@ certificateVerification_verify(void *verificationContext,
 
         /* Check if the parent certificate has a CRL file available */
         if(!mbedErr) {
+            /* Flag value to identify if that there is an intermediate CA present */
+            int dualParent = 0;
+
             /* Identify the topmost parent certificate for the remoteCertificate */
             for( parentCert = &ci->certificateIssuerList; parentCert != NULL; parentCert = parentCert->next ) {
                 if(memcmp(remoteCertificate.issuer_raw.p, parentCert->subject_raw.p, parentCert->subject_raw.len) == 0) {
@@ -186,6 +186,47 @@ certificateVerification_verify(void *verificationContext,
             }
 
         }
+
+    }
+    else if(!mbedErr && !TRUSTED) {
+        /* This else if section is to identify if the parent certificate which is present in trustList
+         * has CRL file corresponding to it */
+
+        /* Identify the parent certificate of the remoteCertificate */
+        for(parentCert = &ci->certificateTrustList; parentCert != NULL; parentCert = parentCert->next) {
+            if(memcmp(remoteCertificate.issuer_raw.p, parentCert->subject_raw.p, parentCert->subject_raw.len) == 0) {
+                parentFound = PARENTFOUND;
+                break;
+            }
+
+        }
+
+        /* If the parent certificate is found traverse the revocationList and identify
+         * if there is any CRL file that corresponds to the parentCertificate */
+        if(parentFound == PARENTFOUND &&
+            memcmp(remoteCertificate.issuer_raw.p, remoteCertificate.subject_raw.p, remoteCertificate.subject_raw.len) != 0) {
+            tempCrl = &ci->certificateRevocationList;
+            while(tempCrl != NULL) {
+                if(tempCrl->version != 0 &&
+                   tempCrl->issuer_raw.len == parentCert->subject_raw.len &&
+                   memcmp(tempCrl->issuer_raw.p,
+                          parentCert->subject_raw.p,
+                          tempCrl->issuer_raw.len) == 0) {
+                    issuerKnown = ISSUERKNOWN;
+                    break;
+                }
+
+                tempCrl = tempCrl->next;
+            }
+
+            /* If the CRL file corresponding to the parent certificate is not present
+             * then return UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN */
+            if(!issuerKnown) {
+                return UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
+            }
+
+        }
+
     }
 
     // TODO: Extend verification
