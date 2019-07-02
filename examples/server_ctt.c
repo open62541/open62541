@@ -448,6 +448,7 @@ usage(void) {
                    "Usage:\n"
                    "server_ctt <server-certificate.der> <private-key.der>\n"
                    "[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
+                   "[--issuerlist <il1.der> <il2.der> ... ]\n"
                    "[--revocationlist <rv1.crl> <rv2.crl> ...]\n");
 }
 
@@ -489,12 +490,19 @@ int main(int argc, char **argv) {
 
         UA_ByteString trustList[100];
         size_t trustListSize = 0;
+        UA_ByteString issuerList[100];
+        size_t issuerListSize = 0;
         UA_ByteString revocationList[100];
         size_t revocationListSize = 0;
-        char filetype = ' '; /* t==trustlist, r==revocationlist */
+        char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
         for(int i = 3; i < argc; i++) {
             if(strcmp(argv[i], "--trustlist") == 0) {
                 filetype = 't';
+                continue;
+            }
+
+            if(strcmp(argv[i], "--issuerlist") == 0) {
+                filetype = 'l';
                 continue;
             }
 
@@ -516,6 +524,22 @@ int main(int argc, char **argv) {
                     return EXIT_FAILURE;
                 }
                 trustListSize++;
+                continue;
+            }
+
+            if(filetype == 'l') {
+                if(issuerListSize >= 100) {
+                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Too many trust lists");
+                    return EXIT_FAILURE;
+                }
+                issuerList[issuerListSize] = loadFile(argv[i]);
+                if(issuerList[issuerListSize].data == NULL) {
+                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Unable to load trust list %s", argv[i]);
+                    return EXIT_FAILURE;
+                }
+                issuerListSize++;
                 continue;
             }
 
@@ -542,12 +566,15 @@ int main(int argc, char **argv) {
         UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
                                                        &certificate, &privateKey,
                                                        trustList, trustListSize,
+                                                       issuerList, issuerListSize,
                                                        revocationList, revocationListSize);
 
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);
         for(size_t i = 0; i < trustListSize; i++)
             UA_ByteString_clear(&trustList[i]);
+        for(size_t i = 0; i < issuerListSize; i++)
+            UA_ByteString_clear(&issuerList[i]);
         for(size_t i = 0; i < revocationListSize; i++)
             UA_ByteString_clear(&revocationList[i]);
     }

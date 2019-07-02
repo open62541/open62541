@@ -4,6 +4,7 @@
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
 #ifndef UA_SERVER_CONFIG_DEFAULT_H_
@@ -66,6 +67,8 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                const UA_ByteString *privateKey,
                                                const UA_ByteString *trustList,
                                                size_t trustListSize,
+                                               const UA_ByteString *issuerList,
+                                               size_t issuerListSize,
                                                const UA_ByteString *revocationList,
                                                size_t revocationListSize);
 

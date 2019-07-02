@@ -543,6 +543,8 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                const UA_ByteString *privateKey,
                                                const UA_ByteString *trustList,
                                                size_t trustListSize,
+                                               const UA_ByteString *issuerList,
+                                               size_t issuerListSize,
                                                const UA_ByteString *revocationList,
                                                size_t revocationListSize) {
     UA_StatusCode retval = setDefaultConfig(conf);
@@ -553,6 +555,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 
     retval = UA_CertificateVerification_Trustlist(&conf->certificateVerification,
                                                   trustList, trustListSize,
+                                                  issuerList, issuerListSize,
                                                   revocationList, revocationListSize);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -673,6 +676,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 
     retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
                                                   trustList, trustListSize,
+                                                  NULL, 0,
                                                   revocationList, revocationListSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

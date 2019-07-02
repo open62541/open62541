@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *
+ */
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
@@ -48,6 +52,10 @@ static void setup(void) {
     size_t trustListSize = 0;
     UA_ByteString *trustList = NULL;
 
+    /* Load the issuerList */
+    size_t issuerListSize = 0;
+    UA_ByteString *issuerList = NULL;
+
     /* TODO test trustList
     if(argc > 3)
         trustListSize = (size_t)argc-3;
@@ -64,6 +72,7 @@ static void setup(void) {
     UA_ServerConfig_setDefaultWithSecurityPolicies(UA_Server_getConfig(server),
                                                    4840, &certificate, &privateKey,
                                                    trustList, trustListSize,
+                                                   issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
 
     for(size_t i = 0; i < trustListSize; i++)
