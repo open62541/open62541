@@ -1,5 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *
+ */
 
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/log_stdout.h>
@@ -42,6 +46,10 @@ int main(int argc, char* argv[]) {
     for(size_t i = 0; i < trustListSize; i++)
         trustList[i] = loadFile(argv[i+3]);
 
+    /* Loading of a issuer list, not used in this application */
+    size_t issuerListSize = 0;
+    UA_ByteString *issuerList = NULL;
+
     /* Loading of a revocation list currently unsupported */
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
@@ -53,6 +61,7 @@ int main(int argc, char* argv[]) {
         UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
                                                        &certificate, &privateKey,
                                                        trustList, trustListSize,
+                                                       issuerList, issuerListSize,
                                                        revocationList, revocationListSize);
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
