@@ -19,6 +19,7 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 static UA_Server *server;
+static size_t serverIterations;
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 static MUTEX_HANDLE serverMutex;
@@ -167,9 +168,27 @@ THREAD_CALLBACK(serverloop) {
     while (running) {
         serverMutexLock();
         UA_Server_run_iterate(server, false);
+        serverIterations++;
         serverMutexUnlock();
     }
     return 0;
+}
+
+static void
+sleepUntilAnswer(UA_Double sleepMs) {
+    UA_fakeSleep((UA_UInt32)sleepMs);
+    serverMutexLock();
+    size_t oldIterations = serverIterations;
+    size_t newIterations;
+    serverMutexUnlock();
+    while(true) {
+        serverMutexLock();
+        newIterations = serverIterations;
+        serverMutexUnlock();
+        if(oldIterations != newIterations)
+            return;
+        UA_realSleep(1);
+    }
 }
 
 static void
@@ -201,7 +220,8 @@ setup(void) {
         exit(1);
     }
     setupSubscription();
-    UA_comboSleep((UA_UInt32) publishingInterval + 100);
+
+    sleepUntilAnswer(publishingInterval + 100);
 }
 
 static void
@@ -338,7 +358,9 @@ START_TEST(generateEvents) {
 
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
-    UA_comboSleep((UA_UInt32) publishingInterval + 100);
+    sleepUntilAnswer(publishingInterval + 100);
+    retval = UA_Client_run_iterate(client, 0);
+    sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
@@ -354,7 +376,7 @@ START_TEST(generateEvents) {
     UA_DeleteMonitoredItemsResponse deleteResponse =
         UA_Client_MonitoredItems_delete(client, deleteRequest);
 
-    UA_realSleep((UA_UInt32)publishingInterval + 100);
+    sleepUntilAnswer(publishingInterval + 100);
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
@@ -425,7 +447,7 @@ START_TEST(uppropagation) {
 
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
-    UA_comboSleep((UA_UInt32) publishingInterval + 100);
+    sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
@@ -485,7 +507,7 @@ START_TEST(eventOverflow) {
     // fetch the events, ensure both the overflow and the original event are received
     notificationReceived = false;
     overflowNotificationReceived = true;
-    UA_comboSleep((UA_UInt32) publishingInterval + 100);
+    sleepUntilAnswer(publishingInterval + 100);
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
