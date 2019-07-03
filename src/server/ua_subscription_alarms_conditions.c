@@ -1712,8 +1712,10 @@ setConditionInConditionList(UA_Server *server,
 
     UA_ConditionBranch_nodeListElement *conditionBranchListEntry;
     conditionBranchListEntry = (UA_ConditionBranch_nodeListElement*) UA_malloc(sizeof(UA_ConditionBranch_nodeListElement));
-    if(!conditionBranchListEntry)
+    if(!conditionBranchListEntry) {
+		UA_free(conditionListEntry);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
 
     memset(conditionBranchListEntry, 0, sizeof(UA_ConditionBranch_nodeListElement));
 

@@ -1363,8 +1363,8 @@ typedef UA_StatusCode
  * @param conditionName The name of the condition to be created
  * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
  * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType between Condition and its source
- * @param outNodeId The NodeId of the created Condition
- * @return The StatusCode of the UA_Server_triggerEvent method */
+ * @param outConditionId The NodeId of the created Condition
+ * @return The StatusCode of the UA_Server_createCondition method */
 UA_StatusCode UA_EXPORT
 UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
                           UA_QualifiedName conditionName, const UA_NodeId conditionSource,
@@ -1377,7 +1377,7 @@ UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
  * @param variantValue Variant Value to be written to the Field
  * @param type Variant Type.
  * @param fieldName Name of the Field in which the value should be written
- * @return The StatusCode of the UA_Server_triggerEvent method*/
+ * @return The StatusCode of the UA_Server_setConditionField method*/
 UA_StatusCode UA_EXPORT
 UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
                             const void* variantValue, UA_UInt16 type,
@@ -1391,7 +1391,7 @@ UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
  * @param type Variant Type
  * @param variableFieldName Name of the Field which has a property
  * @param variablePropertyName Name of the Field Property in which the value should be written
- * @return The StatusCode of the UA_Server_triggerEvent method*/
+ * @return The StatusCode of the UA_Server_setConditionVariableFieldProperty*/
 UA_StatusCode UA_EXPORT
 UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId condition,
                                             const void *variantValue, UA_UInt16 type,
@@ -1405,7 +1405,7 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId c
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source
  * @param outEventId last generated EventId
- * @return The StatusCode of the UA_Server_triggerEvent method*/
+ * @return The StatusCode of the UA_Server_triggerConditionEvent method*/
 UA_StatusCode UA_EXPORT
 UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
                                 const UA_NodeId conditionSource, UA_ByteString *outEventId);
@@ -1419,7 +1419,7 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
  * from which the optional field comes
  * @param fieldName Name of the optional field
  * @param outOptionalVariable The NodeId of the created field (Variable Node)
- * @return The StatusCode of the UA_Server_triggerEvent method*/
+ * @return The StatusCode of the UA_Server_addConditionOptionalField method*/
 UA_StatusCode UA_EXPORT
 UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
                                     const UA_NodeId conditionType, const UA_QualifiedName fieldName,
@@ -1435,8 +1435,8 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition
  * @param conditionSource The NodeId of the node representation of the Condition Source
  * @param removeBranch (Not Implemented yet)
  * @param callback User specific callback function
- * @param callback Callback function type, indicates where it should be called
- * @return The StatusCode of the UA_Server_triggerEvent method*/
+ * @param callbackType Callback function type, indicates where it should be called
+ * @return The StatusCode of the UA_Server_setConditionTwoStateVariableCallback method*/
 UA_StatusCode UA_EXPORT
 UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId condition,
                                                const UA_NodeId conditionSource, UA_Boolean removeBranch,
