@@ -19,6 +19,10 @@
 
 #include "ua_server_internal.h"
 
+#if UA_MULTITHREADING >= 100
+#include "server/ua_server_methodqueue.h"
+#endif
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
 #endif
@@ -193,6 +197,12 @@ void UA_Server_delete(UA_Server *server) {
     UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
 
+#if UA_MULTITHREADING >= 100
+    UA_Server_removeCallback(server, server->nCBIdResponse);
+    UA_Server_MethodQueues_delete(server);
+    UA_AsyncMethodManager_deleteMembers(&server->asyncMethodManager);
+#endif
+
     /* Clean up the Admin Session */
     UA_LOCK(server->serviceMutex);
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
@@ -277,6 +287,14 @@ UA_Server_init(UA_Server *server) {
     /* Initialized SecureChannel and Session managers */
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
+
+#if UA_MULTITHREADING >= 100
+    UA_AsyncMethodManager_init(&server->asyncMethodManager, server);
+    UA_Server_MethodQueues_init(server);
+    /* Add a regular callback for for checking responmses using a 50ms interval. */
+    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_CallMethodResponse, NULL,
+                                  50.0, &server->nCBIdResponse);
+#endif
 
     /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
@@ -491,6 +509,73 @@ verifyServerApplicationURI(const UA_Server *server) {
     }
 #endif
 }
+#endif
+
+#if UA_MULTITHREADING >= 100
+
+void
+UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
+                               const UA_NodeId *nSessionId, const UA_UInt32 nIndex,
+                               const UA_CallMethodResult *response) {
+    /* Grab the open Request, so we can continue to construct the response */
+    asyncmethod_list_entry *data =
+        UA_AsyncMethodManager_getById(&server->asyncMethodManager, nRequestId, nSessionId);
+    if(!data) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "UA_Server_InsertMethodResponse: can not find UA_CallRequest/UA_CallResponse "
+                       "for Req# %u", nRequestId);
+        return;
+    }
+
+    /* Add UA_CallMethodResult to UA_CallResponse */
+    UA_CallResponse* pResponse = &data->response;
+    UA_CallMethodResult_copy(response, pResponse->results + nIndex);
+
+    /* Reduce the number of open results. Are we done yet with all requests? */
+    data->nCountdown -= 1;
+    if(data->nCountdown > 0)
+        return;
+    
+    /* Get the session */
+    UA_LOCK(server->serviceMutex);
+    UA_Session* session = UA_SessionManager_getSessionById(&server->sessionManager, data->sessionId);
+    UA_UNLOCK(server->serviceMutex);
+    if(!session) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_Server_InsertMethodResponse: Session is gone");
+        UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+        return;
+    }
+
+    /* Check the channel */
+    UA_SecureChannel* channel = session->header.channel;
+    if(!channel) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_Server_InsertMethodResponse: Channel is gone");
+        UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+        return;
+    }
+
+    /* Okay, here we go, send the UA_CallResponse */
+    sendResponse(channel, data->requestId, data->requestHandle,
+                 (UA_ResponseHeader*)&data->response.responseHeader, data->responseType);
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "UA_Server_SendResponse: Response for Req# %u sent", data->requestId);
+    /* Remove this job from the UA_AsyncMethodManager */
+    UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+}
+
+void
+UA_Server_CallMethodResponse(UA_Server *server, void* data) {
+    /* Server fetches Result from queue */
+    struct AsyncMethodQueueElement* pResponseServer = NULL;
+    while(UA_Server_GetAsyncMethodResult(server, &pResponseServer)) {
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "UA_Server_CallMethodResponse: Got Response: OKAY");
+        UA_Server_InsertMethodResponse(server, pResponseServer->m_nRequestId, &pResponseServer->m_nSessionId,
+                                       pResponseServer->m_nIndex, &pResponseServer->m_Response);
+        UA_Server_DeleteMethodQueueElement(server, pResponseServer);
+    }
+}
+
 #endif
 
 /********************/

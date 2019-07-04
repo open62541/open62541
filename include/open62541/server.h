@@ -1368,6 +1368,75 @@ UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
                                                             bool isDeleteModified);
 #endif // UA_ENABLE_HISTORIZING
 
+/**
+* .. _async_methods:
+*
+* Async Methods
+* -------------
+* Sample on working with async method calls
+* Check client_method_async and tutorial_server_method_async for working samples.
+*
+* Minimal Server:
+*
+* - Create a method node
+* - mark as async: ``UA_Server_MethodNodeAsync``
+* - set callback to be notified: ``config->asyncOperationNotifyCallback = ...``
+* - fetch MethodCall: ``UA_Server_GetNextAsyncMethod``
+* - execute Method: e.g. UA_Server_call(UA_Server*, UA_CallMethodRequest*)
+* - pass back the result: ``UA_Server_SetAsyncMethodResult``
+* - free memory used: free UA_CallMethodResult */
+
+#if UA_MULTITHREADING >= 100
+
+/* Set the async flag in a method node */
+UA_StatusCode UA_EXPORT
+UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
+                             UA_Boolean isAsync);
+
+typedef enum {
+    UA_ASYNCOPERATIONTYPE_INVALID, /* 0, the default */
+    UA_ASYNCOPERATIONTYPE_CALL
+    /* UA_ASYNCOPERATIONTYPE_READ, */
+    /* UA_ASYNCOPERATIONTYPE_WRITE, */
+} UA_AsyncOperationType;
+
+typedef union {
+    UA_CallMethodRequest callMethodRequest;
+    /* UA_ReadValueId readValueId; */
+    /* UA_WriteValue writeValue; */
+} UA_AsyncOperationRequest;
+
+typedef union {
+    UA_CallMethodResult callMethodResult;
+    /* UA_DataValue readResult; */
+    /* UA_StatusCode writeResult; */
+} UA_AsyncOperationResponse;
+
+/* Get and remove next Method Call Request
+ *
+ * @param server The server object
+ * @param type The type of the async operation
+ * @param request Receives pointer to the operation
+ * @param context Receives the pointer to the operation context
+ * @return UA_FALSE if queue is empty, UA_TRUE else
+ * Note: Timeout is doubled for requests which already got fetched by worker via UA_Server_getAsyncOperation */
+UA_Boolean UA_EXPORT
+UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
+                            const UA_AsyncOperationRequest **request,
+                            void **context);
+
+/* Worker submits Method Call Response
+ *
+ * @param server The server object
+ * @param response Pointer to the operation result
+ * @param context Pointer to the operation context */
+void UA_EXPORT
+UA_Server_setAsyncOperationResult(UA_Server *server,
+                                  const UA_AsyncOperationResponse *response,
+                                  void *context);
+
+#endif /* !UA_MULTITHREADING >= 100 */
+
 _UA_END_DECLS
 
 #endif /* UA_SERVER_H_ */

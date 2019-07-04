@@ -216,6 +216,12 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* conf->deleteAtTimeDataCapability = UA_FALSE; */
 #endif
 
+#if UA_MULTITHREADING >= 100
+    conf->asyncOperationTimeout = 0;
+    conf->maxAsyncOperationQueueSize = 0;
+    conf->asyncCallRequestTimeout = 120000; /* Call request Timeout in ms (2 minutes) */
+#endif
+
     /* --> Finish setting the default static config <-- */
 
     return UA_STATUSCODE_GOOD;
