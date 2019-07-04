@@ -17,6 +17,8 @@
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
+#include "ua_server_methodqueue.h"
+
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
@@ -229,6 +231,94 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     UA_LOCK(server->serviceMutex);
     /* TODO: Verify Output matches the argument definition */
 }
+
+#if UA_MULTITHREADING >= 100
+
+static UA_StatusCode
+setMethodNodeAsync(UA_Server *server, UA_Session *session,
+                   UA_Node *node, UA_Boolean *isAsync) {
+    UA_MethodNode *method = (UA_MethodNode*)node;
+    if(method->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    method->async = *isAsync;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
+                             UA_Boolean isAsync) {
+    return UA_Server_editNode(server, &server->adminSession, &id,
+                              (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
+}
+
+static void
+Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
+    const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
+    struct AsyncMethodContextInternal *pContext = (struct AsyncMethodContextInternal*)context;
+
+    /* Get the method node */
+    const UA_MethodNode *method = (const UA_MethodNode*)
+        UA_Nodestore_getNode(server->nsCtx, &request->methodId);
+    if (!method) {
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
+
+    /* Get the object node */
+    const UA_ObjectNode *object = (const UA_ObjectNode*)
+        UA_Nodestore_getNode(server->nsCtx, &request->objectId);
+    if (!object) {
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)method);
+        return;
+    }
+
+    if (method->async) {
+        /* Async case */        
+        UA_StatusCode res = UA_Server_SetNextAsyncMethod(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, request);
+        if (res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Operation_CallMethodAsync: Adding request to queue: FAILED");
+            /* Set this Request as failed */
+            UA_CallMethodResult_clear(result);
+            result->statusCode = res;
+            UA_Server_InsertMethodResponse(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, result);
+            UA_CallMethodResult_deleteMembers(result);
+        }
+    }
+    else {
+        /* Sync execution case, continue with method and object as context */
+        callWithMethodAndObject(server, session, request, result, method, object);
+        UA_Server_InsertMethodResponse(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, result);
+        UA_CallMethodResult_deleteMembers(result);
+    }
+
+    /* Release the method and object node */
+    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)method);
+    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)object);
+}
+
+void Service_CallAsync(UA_Server *server, UA_Session *session, UA_SecureChannel* channel, UA_UInt32 requestId,
+    const UA_CallRequest *request, UA_CallResponse *response) {
+
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequestAsync");
+    if (server->config.maxNodesPerMethodCall != 0 &&
+        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
+    struct AsyncMethodContextInternal context;
+    context.nRequestId = requestId;
+    context.nSessionId = session->sessionId;
+    context.pRequest = request;
+    context.pChannel = (UA_SecureChannel*)channel;
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperationsAsync(server, session, (UA_ServiceOperation)Operation_CallMethodAsync, &context,
+            &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+            &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+}
+#endif
 
 static void
 Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,

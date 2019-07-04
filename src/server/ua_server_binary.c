@@ -402,7 +402,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
-static UA_StatusCode
+UA_StatusCode
 sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
              UA_ResponseHeader *responseHeader, const UA_DataType *responseType) {
     /* Prepare the ResponseHeader */
@@ -545,6 +545,26 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         UA_LOCK(server->serviceMutex);
         Service_Publish(server, session, (const UA_PublishRequest*)requestHeader, requestId);
         UA_UNLOCK(server->serviceMutex);
+        return UA_STATUSCODE_GOOD;
+    }
+#endif
+
+#if UA_MULTITHREADING >= 100
+    /* If marked as async, the call request is not answered immediately, unless
+     * there is an error */
+    if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
+        responseHeader->serviceResult =
+            UA_AsyncMethodManager_createEntry(&server->asyncMethodManager, &session->sessionId,
+                                              channel->securityToken.channelId, requestId, requestHeader->requestHandle, responseType,
+                                              (UA_UInt32)((const UA_CallRequest*)requestHeader)->methodsToCallSize);
+        if(responseHeader->serviceResult == UA_STATUSCODE_GOOD)
+            Service_CallAsync(server, session, channel, requestId,
+                              (const UA_CallRequest*)requestHeader, (UA_CallResponse*)responseHeader);
+
+        /* We got an error, so send response directly */
+        if(responseHeader->serviceResult != UA_STATUSCODE_GOOD)
+            return sendResponse(channel, requestId, requestHeader->requestHandle,
+                                responseHeader, responseType);
         return UA_STATUSCODE_GOOD;
     }
 #endif
