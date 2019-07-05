@@ -354,17 +354,6 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
     return UA_ORDER_EQ;
 }
 
-UA_Boolean
-UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
-    if(n1 == NULL || n2 == NULL)
-        return false;
-    if(n1->serverIndex != n2->serverIndex)
-        return false;
-    if(!UA_String_equal(&n1->namespaceUri, &n2->namespaceUri))
-        return false;
-    return UA_NodeId_equal(&n1->nodeId, &n2->nodeId);
-}
-
 /* FNV non-cryptographic hash function. See
  * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
 #define FNV_PRIME_32 16777619
@@ -406,6 +395,36 @@ ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
     retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
     dst->serverIndex = src->serverIndex;
     return retval;
+}
+
+UA_Order
+UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
+                        const UA_ExpandedNodeId *n2) {
+    if(n1->serverIndex > n2->serverIndex)
+        return UA_ORDER_MORE;
+    if(n1->serverIndex < n2->serverIndex)
+        return UA_ORDER_LESS;
+    if(n1->namespaceUri.length > 0) {
+        if(n1->namespaceUri.length > n2->namespaceUri.length)
+            return UA_ORDER_MORE;
+        if(n1->namespaceUri.length < n2->namespaceUri.length)
+            return UA_ORDER_LESS;
+        int cmp = strncmp((const char*)n1->namespaceUri.data,
+                          (const char*)n2->namespaceUri.data,
+                          n1->namespaceUri.length);
+        if(cmp < 0)
+            return UA_ORDER_LESS;
+        if(cmp > 0)
+            return UA_ORDER_MORE;
+    }
+    return UA_NodeId_order(&n1->nodeId, &n2->nodeId);
+}
+
+u32
+UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
+    u32 h = UA_NodeId_hash(&n->nodeId);
+    h = fnv32(h, (const UA_Byte*)&n->serverIndex, 4);
+    return fnv32(h, n->namespaceUri.data, n->namespaceUri.length);
 }
 
 /* ExtensionObject */
