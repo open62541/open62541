@@ -105,6 +105,22 @@ UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
                                    UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
 
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+/* Adds a Websocket network layer with custom buffer sizes
+ *
+ * @param conf The configuration to manipulate
+ * @param portNumber The port number for the tcp network layer
+ * @param sendBufferSize The size in bytes for the network send buffer. Pass 0
+ *        to use defaults.
+ * @param recvBufferSize The size in bytes for the network receive buffer.
+ *        Pass 0 to use defaults.
+ */
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
+                                  UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize);
+#endif
+
 /* Adds the security policy ``SecurityPolicy#None`` to the server. A
  * server certificate may be supplied but is optional.
  *
