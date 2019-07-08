@@ -390,16 +390,10 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     UA_Nodestore_releaseNode(server->nsCtx, originNode);
 
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    UA_NodeId *parentTypeHierachy = NULL;
-    size_t parentTypeHierachySize = 0;
-    getLocalRecursiveHierarchy(server, parentReferences_events, 2, &subtypeId, 1,
-                               true, &parentTypeHierachy, &parentTypeHierachySize);
-    UA_Boolean isInObjectsFolder = isNodeInTree(server->nsCtx, &origin, &objectsFolderId,
-                                                parentTypeHierachy, parentTypeHierachySize);
-    if(!isInObjectsFolder) {
+    if(!isNodeInTree(server->nsCtx, &origin, &objectsFolderId,
+                     parentReferences_events, 2)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
-        UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -408,17 +402,14 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not set the standard event fields with StatusCode %s",
                        UA_StatusCode_name(retval));
-        UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
     }
 
     /* Get the parents */
-    UA_NodeId *parents = NULL;
+    UA_ExpandedNodeId *parents = NULL;
     size_t parentsSize = 0;
-    retval = getLocalRecursiveHierarchy(server, &origin, 1,
-                                        parentTypeHierachy, parentTypeHierachySize,
-                                        false, &parents, &parentsSize);
-    UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = browseRecursive(server, 1, &origin, 2, parentReferences_events,
+                             UA_BROWSEDIRECTION_INVERSE, true, &parentsSize, &parents);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of nodes listening on the "
@@ -429,7 +420,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
     /* Add the event to each node's monitored items */
     for(size_t i = 0; i < parentsSize; i++) {
         const UA_ObjectNode *node = (const UA_ObjectNode*)
-            UA_Nodestore_getNode(server->nsCtx, &parents[i]);
+            UA_Nodestore_getNode(server->nsCtx, &parents[i].nodeId);
         if(!node)
             continue;
         if(node->nodeClass != UA_NODECLASS_OBJECT) {
