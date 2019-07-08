@@ -46,6 +46,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
       env:
         - MINGW=true
@@ -72,6 +73,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
 #
 # clang-6 full host build with tests:
@@ -96,6 +98,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
 #
 # clang-6 python-3 full host build with tests:
@@ -120,6 +123,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
       env:
         - PYTHON=python3
@@ -141,6 +145,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
 #
 # clang-6 python-3 install build and minimal example:
@@ -180,6 +185,7 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
+            - libsubunit-dev
             - clang-6.0
             - clang-tidy-6.0
       env:
@@ -218,6 +224,7 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
+            - libsubunit-dev
             - clang-6.0
             - clang-tidy-6.0
             - libfuzzer-6.0-dev
