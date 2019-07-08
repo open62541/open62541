@@ -458,18 +458,16 @@ UA_BrowseResult UA_EXPORT
 UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
                  const UA_BrowseDescription *bd);
 
-/* Nonstandard version of the browse service that recurses into child nodes.
- * Possible loops (that can occur for non-hierarchical references) are handled
- * by adding every target node at most once to the result array. The returned
- * ReferenceDescription refers has the `ReferenceTypeId` and `IsForward` fields
- * set according to the last reference in the (recursive) chain. */
-UA_BrowseResult UA_EXPORT
-UA_Server_browseRecursive(UA_Server *server, UA_UInt32 maxReferences,
-                          const UA_BrowseDescription *bd);
-
 UA_BrowseResult UA_EXPORT
 UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint);
+
+/* Nonstandard version of the browse service that recurses into child nodes.
+ * Possible loops (that can occur for non-hierarchical references) are handled
+ * by adding every target node at most once to the results array. */
+UA_StatusCode UA_EXPORT
+UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
+                          size_t *resultsSize, UA_ExpandedNodeId *results);
 
 UA_BrowsePathResult UA_EXPORT
 UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
