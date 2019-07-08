@@ -361,10 +361,8 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    struct BrowseOpts bo;
-    bo.maxReferences = 0;
-    bo.recursive = false;
-    Operation_Browse(server, session, &bo, &bd, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -527,10 +525,8 @@ copyAllChildren(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    struct BrowseOpts bo;
-    bo.maxReferences = 0;
-    bo.recursive = false;
-    Operation_Browse(server, session, &bo, &bd, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -556,15 +552,15 @@ addTypeChildren(UA_Server *server, UA_Session *session,
                                                               &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+    UA_assert(hierarchySize < 1000);
 
     /* Copy members of the type and supertypes (and instantiate them) */
     for(size_t i = 0; i < hierarchySize; ++i) {
         retval = copyAllChildren(server, session, &hierarchy[i], &node->nodeId);
         if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+            break;
     }
 
-cleanup:
     UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
     return retval;
 }
@@ -697,56 +693,70 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         if(node->nodeClass == UA_NODECLASS_VARIABLE) {
             if(((const UA_VariableTypeNode*)type)->isAbstract) {
                 /* Get subtypes of the parent reference types */
-                UA_NodeId *parentTypeHierachy = NULL;
-                size_t parentTypeHierachySize = 0;
-                retval = getLocalRecursiveHierarchy(server, parentReferences, UA_PARENT_REFERENCES_COUNT,
-                                                    &subtypeId, 1, true, &parentTypeHierachy, &parentTypeHierachySize);
-                if(retval != UA_STATUSCODE_GOOD)
+                UA_NodeId *parentTypeHierarchy = NULL;
+                size_t parentTypeHierarchySize = 0;
+                retval |= referenceSubtypes(server, &parentReferences[0],
+                                            &parentTypeHierarchySize, &parentTypeHierarchy);
+                retval |= referenceSubtypes(server, &parentReferences[1],
+                                            &parentTypeHierarchySize, &parentTypeHierarchy);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_Array_delete(parentTypeHierarchy, parentTypeHierarchySize,
+                                    &UA_TYPES[UA_TYPES_NODEID]);
                     goto cleanup;
-                /* Abstract variable is allowed if parent is a children of a base data variable */
+                }
+
+                /* Abstract variable is allowed if parent is a children of a
+                 * base data variable. An abstract variable may be part of an
+                 * object type which again is below BaseObjectType */
                 const UA_NodeId variableTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
-                /* A variable may be of an object type which again is below BaseObjectType */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
                 if(!isNodeInTree(server->nsCtx, parentNodeId, &variableTypes,
-                                 parentTypeHierachy, parentTypeHierachySize) &&
+                                 parentTypeHierarchy, parentTypeHierarchySize) &&
                    !isNodeInTree(server->nsCtx, parentNodeId, &objectTypes,
-                                 parentTypeHierachy,parentTypeHierachySize)) {
-                    UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
+                                 parentTypeHierarchy, parentTypeHierarchySize)) {
                     UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                                         "AddNodes: Type of variable node %.*s must "
                                         "be VariableType and not cannot be abstract",
                                         (int)nodeIdStr.length, nodeIdStr.data));
                     retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-                    goto cleanup;
                 }
-                UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
+                UA_Array_delete(parentTypeHierarchy, parentTypeHierarchySize,
+                                &UA_TYPES[UA_TYPES_NODEID]);
+                if(retval != UA_STATUSCODE_GOOD)
+                    goto cleanup;
             }
         }
 
         if(node->nodeClass == UA_NODECLASS_OBJECT) {
             if(((const UA_ObjectTypeNode*)type)->isAbstract) {
                 /* Get subtypes of the parent reference types */
-                UA_NodeId *parentTypeHierachy = NULL;
-                size_t parentTypeHierachySize = 0;
-                retval = getLocalRecursiveHierarchy(server, parentReferences, UA_PARENT_REFERENCES_COUNT,
-                                                    &subtypeId, 1, true, &parentTypeHierachy, &parentTypeHierachySize);
-                if(retval != UA_STATUSCODE_GOOD)
+                UA_NodeId *parentTypeHierarchy = NULL;
+                size_t parentTypeHierarchySize = 0;
+                retval |= referenceSubtypes(server, &parentReferences[0],
+                                            &parentTypeHierarchySize, &parentTypeHierarchy);
+                retval |= referenceSubtypes(server, &parentReferences[1],
+                                            &parentTypeHierarchySize, &parentTypeHierarchy);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_Array_delete(parentTypeHierarchy, parentTypeHierarchySize,
+                                    &UA_TYPES[UA_TYPES_NODEID]);
                     goto cleanup;
+                }
+
                 /* Object node created of an abstract ObjectType. Only allowed
                  * if within BaseObjectType folder */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
-                UA_Boolean isInBaseObjectType = isNodeInTree(server->nsCtx, parentNodeId, &objectTypes,
-                                                             parentTypeHierachy, parentTypeHierachySize);
-
-                UA_Array_delete(parentTypeHierachy, parentTypeHierachySize, &UA_TYPES[UA_TYPES_NODEID]);
-                if(!isInBaseObjectType) {
-                    UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
+                if(!isNodeInTree(server->nsCtx, parentNodeId, &objectTypes,
+                                 parentTypeHierarchy, parentTypeHierarchySize)) {
+                    UA_LOG_NODEID_WRAP(nodeId, UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                         "AddNodes: Type of object node %.*s must "
                                         "be ObjectType and not be abstract",
                                         (int)nodeIdStr.length, nodeIdStr.data));
                     retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-                    goto cleanup;
                 }
+                UA_Array_delete(parentTypeHierarchy, parentTypeHierarchySize,
+                                &UA_TYPES[UA_TYPES_NODEID]);
+                if(retval != UA_STATUSCODE_GOOD)
+                    goto cleanup;
             }
         }
     }
@@ -1027,10 +1037,8 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    struct BrowseOpts bo;
-    bo.maxReferences = 0;
-    bo.recursive = false;
-    Operation_Browse(server, session, &bo, &bd, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
@@ -1122,13 +1130,13 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 static void
 recursiveDeconstructNode(UA_Server *server, UA_Session *session,
                          size_t hierarchicalReferencesSize,
-                         UA_NodeId *hierarchicalReferences,
+                         UA_ExpandedNodeId *hierarchicalReferences,
                          const UA_Node *node);
 
 static void
 recursiveDeleteNode(UA_Server *server, UA_Session *session,
                     size_t hierarchicalReferencesSize,
-                    UA_NodeId *hierarchicalReferences,
+                    UA_ExpandedNodeId *hierarchicalReferences,
                     const UA_Node *node, UA_Boolean removeTargetRefs);
 
 /* Children, references, type-checking, constructors. */
@@ -1317,7 +1325,7 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
 /* A node can only be deleted if it has at most one incoming hierarchical
  * reference. If hierarchicalReferences is NULL, always remove. */
 static UA_Boolean
-multipleHierarchies(size_t hierarchicalRefsSize, UA_NodeId *hierarchicalRefs,
+multipleHierarchies(size_t hierarchicalRefsSize, UA_ExpandedNodeId *hierarchicalRefs,
                     const UA_Node *node) {
     if(!hierarchicalRefs)
         return false;
@@ -1330,7 +1338,7 @@ multipleHierarchies(size_t hierarchicalRefsSize, UA_NodeId *hierarchicalRefs,
 
         UA_Boolean hierarchical = false;
         for(size_t j = 0; j < hierarchicalRefsSize; j++) {
-            if(UA_NodeId_equal(&hierarchicalRefs[j],
+            if(UA_NodeId_equal(&hierarchicalRefs[j].nodeId,
                                &k->referenceTypeId)) {
                 hierarchical = true;
                 break;
@@ -1352,7 +1360,7 @@ multipleHierarchies(size_t hierarchicalRefsSize, UA_NodeId *hierarchicalRefs,
 static void
 recursiveDeconstructNode(UA_Server *server, UA_Session *session,
                          size_t hierarchicalRefsSize,
-                         UA_NodeId *hierarchicalRefs,
+                         UA_ExpandedNodeId *hierarchicalRefs,
                          const UA_Node *node) {
     /* Was the constructor called for the node? */
     if(!node->constructed)
@@ -1398,10 +1406,8 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    struct BrowseOpts bo;
-    bo.maxReferences = 0;
-    bo.recursive = false;
-    Operation_Browse(server, session, &bo, &bd, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -1424,7 +1430,7 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
 static void
 recursiveDeleteNode(UA_Server *server, UA_Session *session,
                     size_t hierarchicalRefsSize,
-                    UA_NodeId *hierarchicalRefs,
+                    UA_ExpandedNodeId *hierarchicalRefs,
                     const UA_Node *node, UA_Boolean removeTargetRefs) {
     /* Browse to get all children of the node */
     UA_BrowseDescription bd;
@@ -1436,10 +1442,8 @@ recursiveDeleteNode(UA_Server *server, UA_Session *session,
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    struct BrowseOpts bo;
-    bo.maxReferences = 0;
-    bo.recursive = false;
-    Operation_Browse(server, session, &bo, &bd, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, session, &maxrefs, &bd, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -1471,10 +1475,11 @@ static void
 deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
                     const UA_DeleteNodesItem *item, UA_StatusCode *result) {
     /* Do not check access for server */
-    if(session != &server->adminSession && server->config.accessControl.allowDeleteNode &&
-       !server->config.accessControl.
-       allowDeleteNode(server, &server->config.accessControl, &session->sessionId,
-                       session->sessionHandle, item)) {
+    if(session != &server->adminSession &&
+       server->config.accessControl.allowDeleteNode &&
+       !server->config.accessControl.allowDeleteNode(server, &server->config.accessControl,
+                                                     &session->sessionId,
+                                                     session->sessionHandle, item)) {
         *result = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
@@ -1502,22 +1507,20 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
      * hierarchical references are checked to see if a node can be deleted.
      * Getting the type hierarchy can fail in case of low RAM. In that case the
      * nodes are always deleted. */
-    UA_NodeId *hierarchicalRefs = NULL;
+    UA_ExpandedNodeId *hierarchicalRefs = NULL;
     size_t hierarchicalRefsSize = 0;
     UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
-    getLocalRecursiveHierarchy(server, &hr, 1, &subtypeId, 1, true, &hierarchicalRefs, &hierarchicalRefsSize);
+    browseRecursive(server, 1, &hr, 1, &subtypeId, UA_BROWSEDIRECTION_FORWARD, true,
+                    &hierarchicalRefsSize, &hierarchicalRefs);
     if(!hierarchicalRefs) {
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "Delete Nodes: Cannot test for hierarchical "
                                "references. Deleting the node and all child nodes.");
     }
-
     recursiveDeconstructNode(server, session, hierarchicalRefsSize, hierarchicalRefs, node);
     recursiveDeleteNode(server, session, hierarchicalRefsSize, hierarchicalRefs, node,
                         item->deleteTargetReferences);
-
-    UA_Array_delete(hierarchicalRefs, hierarchicalRefsSize,
-                    &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Array_delete(hierarchicalRefs, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     
     UA_Nodestore_releaseNode(server->nsCtx, node);
 }
@@ -1678,10 +1681,12 @@ static void
 Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
                           const UA_DeleteReferencesItem *item, UA_StatusCode *retval) {
     /* Do not check access for server */
-    if(session != &server->adminSession && server->config.accessControl.allowDeleteReference &&
-       !server->config.accessControl.
-       allowDeleteReference(server, &server->config.accessControl,
-                            &session->sessionId, session->sessionHandle, item)) {
+    if(session != &server->adminSession &&
+       server->config.accessControl.allowDeleteReference &&
+       !server->config.accessControl.allowDeleteReference(server,
+                                                          &server->config.accessControl,
+                                                          &session->sessionId,
+                                                          session->sessionHandle, item)) {
         *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
@@ -1874,10 +1879,8 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId, UA_M
 
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
-    struct BrowseOpts bo;
-    bo.maxReferences = 0;
-    bo.recursive = false;
-    Operation_Browse(server, &server->adminSession, &bo, &bd, &br);
+    UA_UInt32 maxrefs = 0;
+    Operation_Browse(server, &server->adminSession, &maxrefs, &bd, &br);
 
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
