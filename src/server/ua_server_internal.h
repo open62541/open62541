@@ -153,9 +153,16 @@ isNodeInTree(void *nsCtx, const UA_NodeId *leafNode,
  * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
  * indicates the direction of search. */
 UA_StatusCode
-getLocalRecursiveHierarchy(UA_Server *server, const UA_NodeId *startNodes, size_t startNodesSize,
-                           const UA_NodeId *refTypes, size_t refTypesSize, UA_Boolean walkDownwards,
-                           UA_NodeId **results, size_t *resultsSize);
+browseRecursive(UA_Server *server,
+                size_t startNodesSize, const UA_NodeId *startNodes,
+                size_t refTypesSize, const UA_NodeId *refTypes,
+                UA_BrowseDirection browseDirection, UA_Boolean includeStartNodes,
+                size_t *resultsSize, UA_ExpandedNodeId **results);
+
+/* If refTypes is non-NULL, tries to realloc and increase the length */
+UA_StatusCode
+referenceSubtypes(UA_Server *server, const UA_NodeId *refType,
+                  size_t *refTypesSize, UA_NodeId **refTypes);
 
 /* Returns the recursive type and interface hierarchy of the node */ 
 UA_StatusCode
@@ -245,7 +252,7 @@ struct BrowseOpts {
 };
 
 void
-Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts *maxrefs,
+Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue
