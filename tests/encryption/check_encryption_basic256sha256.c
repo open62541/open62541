@@ -22,12 +22,10 @@
 #include "certificates.h"
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -121,7 +119,7 @@ START_TEST(encryption_connect) {
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     ck_assert(client != NULL);
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
-                                                  &endpointArraySize, &endpointArray);
+                                    &endpointArraySize, &endpointArray);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(endpointArraySize > 0);
 

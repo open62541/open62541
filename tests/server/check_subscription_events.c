@@ -23,9 +23,7 @@ static size_t serverIterations;
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
 static MUTEX_HANDLE serverMutex;
-
-UA_Client *client;
-
+static UA_Client *client;
 static UA_UInt32 subscriptionId;
 static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
@@ -33,8 +31,7 @@ static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
 static UA_Boolean overflowNotificationReceived;
 static UA_SimpleAttributeOperand *selectClauses;
-
-UA_Double publishingInterval = 500.0;
+static UA_Double publishingInterval = 500.0;
 
 static void
 addNewEventType(void) {
@@ -360,9 +357,10 @@ START_TEST(generateEvents) {
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
     sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
+    retval = UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
+    retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);

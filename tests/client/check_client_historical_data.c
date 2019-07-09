@@ -20,7 +20,7 @@
 #include <check.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
+#include <testing_socket.h>
 #include "thread_wrapper.h"
 #ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
@@ -141,8 +141,8 @@ static void setup(void) {
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
+    UA_Socket_activity = UA_Connection_getSocket(client->connection)->activity;
+    UA_Connection_getSocket(client->connection)->activity = UA_Socket_activityTesting;
 }
 
 static void

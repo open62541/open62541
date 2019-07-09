@@ -12,13 +12,16 @@
 
 #include <check.h>
 #include <time.h>
+#include <testing_socket.h>
+#include <open62541/plugin/log_stdout.h>
 
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 
 static UA_SecureChannel testChannel;
 static UA_SecurityPolicy dummyPolicy;
-static UA_Connection testingConnection;
+static UA_Connection *testingConnection;
+static UA_Socket dummySocket;
+static UA_ByteString sentData;
 static funcs_called funcsCalled;
 static key_sizes keySizes;
 static UA_Server *server;
@@ -29,9 +32,10 @@ static void setup(void) {
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
     UA_SecureChannel_init(&testChannel);
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
-    testingConnection = createDummyConnection(65535, NULL);
-    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-    testChannel.connection = &testingConnection;
+    dummySocket = createDummySocket(&sentData);
+    UA_Connection_new(UA_ConnectionConfig_default, &dummySocket, NULL, UA_Log_Stdout, &testingConnection);
+    UA_Connection_attachSecureChannel(testingConnection, &testChannel);
+    testChannel.connection = testingConnection;
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->logger.log = NULL;
@@ -41,7 +45,9 @@ static void teardown(void) {
     UA_SecureChannel_close(&testChannel);
     UA_SecureChannel_deleteMembers(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
-    testingConnection.close(&testingConnection);
+    UA_Connection_close(testingConnection);
+    UA_Connection_free(testingConnection);
+    dummySocket.close(&dummySocket);
     UA_Server_delete(server);
 }
 

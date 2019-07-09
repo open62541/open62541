@@ -20,7 +20,7 @@ createDummySocket(UA_ByteString *verificationBuffer);
 
 extern UA_UInt32 UA_Socket_activitySleepDuration;
 extern UA_StatusCode
-(*UA_Socket_activity)(UA_Socket *sock);
+(*UA_Socket_activity)(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean writeActivity);
 
 extern UA_StatusCode UA_Socket_activityTesting_result;
 
@@ -28,7 +28,7 @@ extern UA_StatusCode UA_Socket_activityTesting_result;
  * UA_Socket_activitySleepDuration is set to zero after the first recv.
  * UA_Socket_activityTesting_result can be used to simulate an error */
 UA_StatusCode
-UA_Socket_activityTesting(UA_Socket *sock);
+UA_Socket_activityTesting(UA_Socket *sock, UA_Boolean readActivity, UA_Boolean writeActivity);
 
 extern UA_StatusCode UA_NetworkManager_processTesting_result;
 

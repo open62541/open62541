@@ -13,9 +13,7 @@
 #include <open62541/types.h>
 
 #include "ua_server_internal.h"
-
-#include "testing_networklayers.h"
-
+#include "testing_socket.h"
 #define RECEIVE_BUFFER_SIZE 65535
 
 /*
@@ -29,7 +27,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return 0;
     size -= 4;
 
-    UA_Connection c = createDummyConnection(RECEIVE_BUFFER_SIZE, NULL);
     UA_Server *server = UA_Server_new();
     if(!server) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -45,8 +42,23 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return 0;
     }
 
+    UA_Socket sock = createDummySocket(nullptr);
+    UA_Connection *connection = nullptr;
+    retval = UA_Connection_new(server->config.connectionConfig, &sock,
+                               nullptr, UA_Log_Stdout, &connection);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Server_delete(server);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not create new connection");
+        return 0;
+    }
+    connection->chunkCallback.function = (UA_ProcessChunkCallbackFunction)UA_Server_processChunk;
+    connection->chunkCallback.callbackContext = server;
+    sock.context = connection;
+
     // we need to copy the message because it will be freed in the processing function
-    UA_ByteString msg = UA_ByteString();
+    UA_ByteString msg{};
+    UA_ByteString_init(&msg);
     retval = UA_ByteString_allocBuffer(&msg, size);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Server_delete(server);
@@ -56,12 +68,12 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     memcpy(msg.data, data, size);
 
-    UA_Server_processBinaryMessage(server, &c, &msg);
+    UA_Connection_assembleChunks(&msg, &sock);
     // if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_deleteMembers(&msg);
     UA_Server_run_shutdown(server);
+    UA_Connection_close(connection);
+    UA_Connection_free(connection);
     UA_Server_delete(server);
-    c.close(&c);
-    UA_Connection_clear(&c);
     return 0;
 }

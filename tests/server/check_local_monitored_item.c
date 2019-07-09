@@ -14,7 +14,6 @@
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 
 #ifdef UA_ENABLE_STATUSCODE_DESCRIPTIONS
     #define ASSERT_STATUSCODE(a,b) ck_assert_str_eq(UA_StatusCode_name(a),UA_StatusCode_name(b));

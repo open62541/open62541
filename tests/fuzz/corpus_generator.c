@@ -147,14 +147,9 @@ initUaRegisterServer(UA_RegisteredServer *requestServer) {
     requestServer->serverNames = &server->config.applicationDescription.applicationName;
     requestServer->serverNamesSize = 1;
 
-    size_t nl_discurls = server->config.networkLayersSize;
-    requestServer->discoveryUrls = (UA_String*)UA_malloc(sizeof(UA_String) * nl_discurls);
-    requestServer->discoveryUrlsSize = nl_discurls;
-    for(size_t i = 0; i < nl_discurls; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        requestServer->discoveryUrls[i] = nl->discoveryUrl;
-    }
-
+    server->config.networkManager->getDiscoveryUrls(server->config.networkManager,
+                                                    &requestServer->discoveryUrls,
+                                                    &requestServer->discoveryUrlsSize);
 }
 
 static UA_StatusCode

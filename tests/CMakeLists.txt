@@ -54,18 +54,20 @@ endif()
 
 
 # Use different plugins for testing
-set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
-    ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
-    )
+set(test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
+                        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
+                        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_listener_socket.c
+                        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_data_socket.c
+                        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
+)
 
 if(UA_ENABLE_HISTORIZING)
     set(test_plugin_sources ${test_plugin_sources}

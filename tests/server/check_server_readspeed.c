@@ -5,6 +5,8 @@
    not open a TCP port. */
 
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/log_stdout.h>
+#include "testing_socket.h"
 #include <open62541/plugin/nodestore_default.h>
 
 #include "server/ua_services.h"
@@ -14,9 +16,14 @@
 #include <check.h>
 #include <time.h>
 
-#include "testing_networklayers.h"
 #include "testing_policy.h"
 
+static UA_SecureChannel testChannel;
+static UA_SecurityPolicy dummyPolicy;
+static UA_Connection *testingConnection;
+static UA_Socket dummySocket;
+static funcs_called funcsCalled;
+static key_sizes keySizes;
 #define READNODES 10000 /* Number of nodes to be created for reading */
 #define READS 1000000  /* Number of reads to perform */
 
@@ -24,19 +31,33 @@ static UA_Server *server;
 static UA_NodeId readNodeIds[READNODES];
 
 static void setup(void) {
-    UA_ServerConfig config;
-    memset(&config, 0, sizeof(UA_ServerConfig));
-    UA_Nodestore_HashMap(&config.nodestore);
-    server = UA_Server_newWithConfig(&config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
+    UA_SecureChannel_init(&testChannel);
+    UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
+
+    dummySocket = createDummySocket(NULL);
+    UA_Connection_new(UA_ConnectionConfig_default, &dummySocket, NULL, UA_Log_Stdout, &testingConnection);
+    UA_Connection_attachSecureChannel(testingConnection, &testChannel);
+    testChannel.connection = testingConnection;
 }
 
 static void teardown(void) {
+    UA_SecureChannel_close(&testChannel);
+    UA_SecureChannel_deleteMembers(&testChannel);
+    dummyPolicy.clear(&dummyPolicy);
+    UA_Connection_close(testingConnection);
+    UA_Connection_free(testingConnection);
+    dummySocket.close(&dummySocket);
+
     UA_Server_delete(server);
 }
 
 START_TEST(readSpeed) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    
+
     /* Add variable nodes to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
@@ -73,7 +94,7 @@ START_TEST(readSpeed) {
 
     UA_ReadResponse res;
     UA_ReadResponse_init(&res);
-    
+
     clock_t begin, finish;
     begin = clock();
 
@@ -105,7 +126,7 @@ END_TEST
 
 START_TEST(readSpeedWithEncoding) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    
+
     /* Add variable nodes to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
