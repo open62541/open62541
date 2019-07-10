@@ -13,12 +13,7 @@ file(GLOB DOC_SRC "${PROJECT_SOURCE_DIR}/doc/*")
 list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/conf.py")
 list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/CMakeLists.txt")
 string(REPLACE "${PROJECT_SOURCE_DIR}/doc" "${DOC_SRC_DIR}" DOC_TARGET "${DOC_SRC}")
-add_custom_command(OUTPUT ${DOC_TARGET}
-                   PRE_BUILD
-                   DEPENDS ${DOC_SRC}
-                   COMMAND ${CMAKE_COMMAND}
-                   ARGS -E copy ${DOC_SRC} ${DOC_SRC_DIR}
-)
+file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
 
 configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
 
