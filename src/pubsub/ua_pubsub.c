@@ -271,6 +271,8 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+    /* Unregister subscribe callback */
+    UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* To Do:RemoveGroupRepresentation(server, &readerGroup->identifier) */
 #endif
