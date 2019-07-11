@@ -200,6 +200,9 @@ endif()
 option(UA_ENABLE_CUSTOM_NODESTORE "Do not compile the default Nodestore implementation into the library" OFF)
 mark_as_advanced(UA_ENABLE_CUSTOM_NODESTORE)
 
+option(UA_ENABLE_NODESTORE_SWITCH "Plugin nodestore switch for dynamic handling of nodestores. UA_ENABLE_CUSTOM_NODESTORE has to be defined." OFF)
+mark_as_advanced(UA_ENABLE_NODESTORE_SWITCH)
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
@@ -655,6 +658,7 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
 )
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
@@ -762,6 +766,15 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     set(lib_sources
         ${lib_sources}
         ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
+endif()
+
+if(UA_ENABLE_NODESTORE_SWITCH)
+    list(APPEND default_plugin_headers
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_switch.h
+         )
+    list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_switch.c
+         )
 endif()
 
 #########################

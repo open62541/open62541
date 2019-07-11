@@ -6,10 +6,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
-
-#ifndef UA_ENABLE_CUSTOM_NODESTORE
 
 #ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
@@ -124,7 +122,7 @@ cleanupEntry(NodeEntry *entry) {
 
 /* Not yet inserted into the NodeMap */
 UA_Node *
-UA_Nodestore_newNode(void *nsCtx, UA_NodeClass nodeClass) {
+UA_Nodestore_Default_newNode(void *nsCtx, UA_NodeClass nodeClass) {
     NodeEntry *entry = newEntry(nodeClass);
     if(!entry)
         return NULL;
@@ -133,12 +131,12 @@ UA_Nodestore_newNode(void *nsCtx, UA_NodeClass nodeClass) {
 
 /* Not yet inserted into the NodeMap */
 void
-UA_Nodestore_deleteNode(void *nsCtx, UA_Node *node) {
+UA_Nodestore_Default_deleteNode(void *nsCtx, UA_Node *node) {
     deleteEntry(container_of(node, NodeEntry, nodeId));
 }
 
 const UA_Node *
-UA_Nodestore_getNode(void *nsCtx, const UA_NodeId *nodeId) {
+UA_Nodestore_Default_getNode(void *nsCtx, const UA_NodeId *nodeId) {
     NodeMap *ns = (NodeMap*)nsCtx;
     BEGIN_CRITSECT(ns);
     NodeEntry dummy;
@@ -155,7 +153,7 @@ UA_Nodestore_getNode(void *nsCtx, const UA_NodeId *nodeId) {
 }
 
 void
-UA_Nodestore_releaseNode(void *nsCtx, const UA_Node *node) {
+UA_Nodestore_Default_releaseNode(void *nsCtx, const UA_Node *node) {
     if(!node)
         return;
 #ifdef UA_ENABLE_MULTITHREADING
@@ -170,24 +168,24 @@ UA_Nodestore_releaseNode(void *nsCtx, const UA_Node *node) {
 }
 
 UA_StatusCode
-UA_Nodestore_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
+UA_Nodestore_Default_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
                          UA_Node **outNode) {
     /* Find the node */
-    const UA_Node *node = UA_Nodestore_getNode(nsCtx, nodeId);
+    const UA_Node *node = UA_Nodestore_Default_getNode(nsCtx, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* Create the new entry */
     NodeEntry *ne = newEntry(node->nodeClass);
     if(!ne) {
-        UA_Nodestore_releaseNode(nsCtx, node);
+        UA_Nodestore_Default_releaseNode(nsCtx, node);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* Copy the node content */
     UA_Node *nnode = (UA_Node*)&ne->nodeId;
     UA_StatusCode retval = UA_Node_copy(node, nnode);
-    UA_Nodestore_releaseNode(nsCtx, node);
+    UA_Nodestore_Default_releaseNode(nsCtx, node);
     if(retval != UA_STATUSCODE_GOOD) {
         deleteEntry(ne);
         return retval;
@@ -199,7 +197,7 @@ UA_Nodestore_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
 }
 
 UA_StatusCode
-UA_Nodestore_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
+UA_Nodestore_Default_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     NodeMap *ns = (NodeMap*)nsCtx;
     BEGIN_CRITSECT(ns);
@@ -241,9 +239,9 @@ UA_Nodestore_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 }
 
 UA_StatusCode
-UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
+UA_Nodestore_Default_replaceNode(void *nsCtx, UA_Node *node) {
     /* Find the node */
-    const UA_Node *oldNode = UA_Nodestore_getNode(nsCtx, &node->nodeId);
+    const UA_Node *oldNode = UA_Nodestore_Default_getNode(nsCtx, &node->nodeId);
     if(!oldNode)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -253,7 +251,7 @@ UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
     if(oldEntry != entry->orig) {
         /* The node was already updated since the copy was made */
         deleteEntry(entry);
-        UA_Nodestore_releaseNode(nsCtx, oldNode);
+        UA_Nodestore_Default_releaseNode(nsCtx, oldNode);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -266,12 +264,12 @@ UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
     oldEntry->deleted = true;
     END_CRITSECT(ns);
 
-    UA_Nodestore_releaseNode(nsCtx, oldNode);
+    UA_Nodestore_Default_releaseNode(nsCtx, oldNode);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Nodestore_removeNode(void *nsCtx, const UA_NodeId *nodeId) {
+UA_Nodestore_Default_removeNode(void *nsCtx, const UA_NodeId *nodeId) {
     NodeMap *ns = (NodeMap*)nsCtx;
     BEGIN_CRITSECT(ns);
     NodeEntry dummy;
@@ -301,7 +299,7 @@ nodeVisitor(NodeEntry *entry, void *data) {
 }
 
 void
-UA_Nodestore_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
+UA_Nodestore_Default_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
                      void *visitorCtx) {
     struct VisitorData d;
     d.visitor = visitor;
@@ -320,11 +318,11 @@ deleteNodeVisitor(NodeEntry *entry, void *data) {
 /***********************/
 /* Nodestore Lifecycle */
 /***********************/
-
+#ifndef UA_ENABLE_CUSTOM_NODESTORE
 const UA_Boolean inPlaceEditAllowed = true;
-
+#endif
 UA_StatusCode
-UA_Nodestore_new(void **nsCtx) {
+UA_Nodestore_Default_new(void **nsCtx) {
     /* Allocate and initialize the nodemap */
     NodeMap *nodemap = (NodeMap*)UA_malloc(sizeof(NodeMap));
     if(!nodemap)
@@ -341,7 +339,7 @@ UA_Nodestore_new(void **nsCtx) {
 }
 
 void
-UA_Nodestore_delete(void *nsCtx) {
+UA_Nodestore_Default_delete(void *nsCtx) {
     if (!nsCtx)
         return;
 
@@ -352,5 +350,3 @@ UA_Nodestore_delete(void *nsCtx) {
     ZIP_ITER(NodeTree, &ns->root, deleteNodeVisitor, NULL);
     UA_free(ns);
 }
-
-#endif /* UA_ENABLE_CUSTOM_NODESTORE */
