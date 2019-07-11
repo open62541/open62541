@@ -426,6 +426,14 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
        /* Encrypted password? */
        if(!UA_String_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+           /* Test if the encryption algorithm is correctly specified */
+           if(!UA_String_equal(&userToken->encryptionAlgorithm,
+                               &securityPolicy->asymmetricModule.cryptoModule.
+                               encryptionAlgorithm.uri)) {
+               response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+               return;
+           }
+
            /* Create a temporary channel context if a different SecurityPolicy is
             * used for the password from the SecureChannel */
            void *tempChannelContext = channel->channelContext;
