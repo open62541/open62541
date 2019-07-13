@@ -4,6 +4,7 @@
 #include <string.h>
 
 #define _XOPEN_SOURCE 500 /* Enable certain library functions (strdup) on linux.  See feature_test_macros(7) */
+#define _POSIX_C_SOURCE >= 200809
 
 struct entry_s {
 	char *key;
@@ -14,7 +15,7 @@ struct entry_s {
 typedef struct entry_s entry_t;
 
 struct hashtable_s {
-	int size;
+	size_t size;
 	struct entry_s **table;	
 };
 
@@ -22,23 +23,22 @@ typedef struct hashtable_s hashtable_t;
 
 
 /* Create a new hashtable. */
-static hashtable_t *ht_create( int size ) {
+static hashtable_t *ht_create( size_t size ) {
 
 	hashtable_t *hashtable = NULL;
-	int i;
 
 	if( size < 1 ) return NULL;
 
 	/* Allocate the table itself. */
-	if( ( hashtable = malloc( sizeof( hashtable_t ) ) ) == NULL ) {
+	if( ( hashtable = (hashtable_t*) malloc( sizeof( hashtable_t ) ) ) == NULL ) {
 		return NULL;
 	}
 
 	/* Allocate pointers to the head nodes. */
-	if( ( hashtable->table = malloc( sizeof( entry_t * ) * size ) ) == NULL ) {
+	if( ( hashtable->table = (entry_t**) malloc( sizeof( entry_t * ) * (unsigned long) size ) ) == NULL ) {
 		return NULL;
 	}
-	for( i = 0; i < size; i++ ) {
+	for( size_t i = 0; i < size; i++ ) {
 		hashtable->table[i] = NULL;
 	}
 
@@ -51,12 +51,12 @@ static hashtable_t *ht_create( int size ) {
 static int ht_hash( hashtable_t *hashtable, char *key ) {
 
 	unsigned long int hashval;
-	int i = 0;
+	size_t i = 0;
 
 	/* Convert our string to an integer */
 	while( hashval < ULONG_MAX && i < strlen( key ) ) {
 		hashval = hashval << 8;
-		hashval += key[ i ];
+		hashval += (unsigned long) key[ i ];
 		i++;
 	}
 
@@ -67,7 +67,7 @@ static int ht_hash( hashtable_t *hashtable, char *key ) {
 static entry_t *ht_newpair( char *key, char *value ) {
 	entry_t *newpair;
 
-	if( ( newpair = malloc( sizeof( entry_t ) ) ) == NULL ) {
+	if( ( newpair = (entry_t*) malloc( sizeof( entry_t ) ) ) == NULL ) {
 		return NULL;
 	}
 
@@ -153,14 +153,15 @@ static char *ht_get( hashtable_t *hashtable, char *key ) {
 
 int main( int argc, char **argv ) {
 
-	hashtable_t *hashtable = ht_create( 200000 );
+	hashtable_t *hashtable = ht_create( 100 );
 
 	ht_set( hashtable, "key1", "inky" );
 	ht_set( hashtable, "key2", "pinky" );
 	ht_set( hashtable, "key3", "blinky" );
 	ht_set( hashtable, "key4", "floyd" );
 
-	printf( "%s\n", ht_get( hashtable, "key1" ) );
+	char *test = ht_get(hashtable, "key1");
+	printf("%s\n", test);
 	printf( "%s\n", ht_get( hashtable, "key2" ) );
 	printf( "%s\n", ht_get( hashtable, "key3" ) );
 	printf( "%s\n", ht_get( hashtable, "key4" ) );
