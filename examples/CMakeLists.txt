@@ -69,6 +69,8 @@ endmacro()
 # Tutorials #
 #############
 
+add_example(ht ht.c)
+
 add_example(tutorial_datatypes tutorial_datatypes.c)
 
 add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
