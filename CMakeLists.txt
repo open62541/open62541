@@ -203,6 +203,9 @@ mark_as_advanced(UA_ENABLE_CUSTOM_NODESTORE)
 option(UA_ENABLE_NODESTORE_SWITCH "Plugin nodestore switch for dynamic handling of nodestores. UA_ENABLE_CUSTOM_NODESTORE has to be defined." OFF)
 mark_as_advanced(UA_ENABLE_NODESTORE_SWITCH)
 
+option(UA_ENABLE_NODESTORE_XML "Plugin nodestore with support for loading xml nodeset" OFF)
+mark_as_advanced(UA_ENABLE_NODESTORE_SWITCH)
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
@@ -385,6 +388,11 @@ if(UA_ENABLE_ENCRYPTION)
     # defined in /tools/cmake/FindMbedTLS.cmake.
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+endif()
+
+if(UA_ENABLE_NODESTORE_XML)
+    find_package(LibXml2 REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBXML2_LIBRARIES})
 endif()
 
 #####################
@@ -777,6 +785,20 @@ if(UA_ENABLE_NODESTORE_SWITCH)
          )
 endif()
 
+if(UA_ENABLE_NODESTORE_XML)
+    list(APPEND default_plugin_headers
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodeset.h
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodesetLoader.h
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/util.h
+         )
+    list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodeset.c
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodesetLoader.c
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/util.c
+         )
+endif()
+
+
 #########################
 # Generate source files #
 #########################
@@ -1033,6 +1055,10 @@ else()
     # Option-specific includes
     if(UA_ENABLE_DISCOVERY)
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
+    endif()
+
+    if(UA_ENABLE_NODESTORE_XML)
+        include_directories_private(${LIBXML2_INCLUDE_DIR})
     endif()
 
 endif()
