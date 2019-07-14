@@ -30,15 +30,15 @@ struct TParserCtx {
     TParserState prev_state;
     size_t unknown_depth;
     TNodeClass nodeClass;
-    TNode *node;
-    char **nextOnCharacters;
+    UA_Node *node;
+    Alias *alias;
     void *userContext;
+    char *onCharacters;
 };
 
 static void extractReferenceAttributes(TParserCtx *ctx, int attributeSize,
                                        const char **attributes) {
-    Reference *newRef = Nodeset_newReference(ctx->node, attributeSize, attributes);
-    ctx->nextOnCharacters = &newRef->target.idString;
+    Nodeset_newReference(ctx->node, attributeSize, attributes);
 }
 
 static void enterUnknownState(TParserCtx *ctx) {
@@ -96,66 +96,64 @@ static void OnStartElementNs(void *ctx, const char *localname, const char *prefi
                 pctx->state = PARSER_STATE_ALIAS;
                 pctx->node = NULL;
                 Alias *alias = Nodeset_newAlias(nb_attributes, attributes);
-                pctx->nextOnCharacters = &alias->id.idString;
+                pctx->alias = alias;
                 pctx->state = PARSER_STATE_ALIAS;
             }
-                else if(strEqual(localname, "UANodeSet") ||
-                        strEqual(localname, "Aliases") ||
-                        strEqual(localname, "Extensions")) {
-                    pctx->state = PARSER_STATE_INIT;
-                }
-                else {
-                    enterUnknownState(pctx);
-                }
-                break;
-                case PARSER_STATE_NAMESPACEURIS:
-                    if(strEqual(localname, NAMESPACEURI)) {
-                        TNamespace *ns = Nodeset_newNamespace();
-                        pctx->nextOnCharacters = &ns->name;
-                        pctx->state = PARSER_STATE_URI;
-                    } else {
-                        enterUnknownState(pctx);
-                    }
-                    break;
-                case PARSER_STATE_URI:
-                    enterUnknownState(pctx);
-                    break;
-                case PARSER_STATE_NODE:
-                    if(strEqual(localname, DISPLAYNAME)) {
-                        pctx->nextOnCharacters = &pctx->node->displayName;
-                        pctx->state = PARSER_STATE_DISPLAYNAME;
-                    } else if(strEqual(localname, REFERENCES)) {
-                        pctx->state = PARSER_STATE_REFERENCES;
-                    } else if(strEqual(localname, DESCRIPTION)) {
-                        pctx->state = PARSER_STATE_DESCRIPTION;
-                    } else {
-                        enterUnknownState(pctx);
-                    }
-                    break;
+            else if(strEqual(localname, "UANodeSet") ||
+                    strEqual(localname, "Aliases") ||
+                    strEqual(localname, "Extensions")) {
+                pctx->state = PARSER_STATE_INIT;
+            }
+            else {
+                enterUnknownState(pctx);
+            }
+            break;
+        case PARSER_STATE_NAMESPACEURIS:
+            if(strEqual(localname, NAMESPACEURI)) {
+                TNamespace *ns = Nodeset_newNamespace();
+                pctx->state = PARSER_STATE_URI;
+            } else {
+                enterUnknownState(pctx);
+            }
+            break;
+        case PARSER_STATE_URI:
+            enterUnknownState(pctx);
+            break;
+        case PARSER_STATE_NODE:
+            if(strEqual(localname, DISPLAYNAME)) {
+                pctx->state = PARSER_STATE_DISPLAYNAME;
+            } else if(strEqual(localname, REFERENCES)) {
+                pctx->state = PARSER_STATE_REFERENCES;
+            } else if(strEqual(localname, DESCRIPTION)) {
+                pctx->state = PARSER_STATE_DESCRIPTION;
+            } else {
+                enterUnknownState(pctx);
+            }
+            break;
 
-                case PARSER_STATE_REFERENCES:
-                    if(strEqual(localname, REFERENCE)) {
-                        pctx->state = PARSER_STATE_REFERENCE;
-                        extractReferenceAttributes(pctx, nb_attributes, attributes);
-                    } else {
-                        enterUnknownState(pctx);
-                    }
-                    break;
-                case PARSER_STATE_DESCRIPTION:
-                    enterUnknownState(pctx);
-                    break;
-                case PARSER_STATE_ALIAS:
-                    enterUnknownState(pctx);
-                    break;
-                case PARSER_STATE_DISPLAYNAME:
-                    enterUnknownState(pctx);
-                    break;
-                case PARSER_STATE_REFERENCE:
-                    enterUnknownState(pctx);
-                    break;
-                case PARSER_STATE_UNKNOWN:
-                    pctx->unknown_depth++;
-                    break;
+        case PARSER_STATE_REFERENCES:
+            if(strEqual(localname, REFERENCE)) {
+                pctx->state = PARSER_STATE_REFERENCE;
+                extractReferenceAttributes(pctx, nb_attributes, attributes);
+            } else {
+                enterUnknownState(pctx);
+            }
+            break;
+        case PARSER_STATE_DESCRIPTION:
+            enterUnknownState(pctx);
+            break;
+        case PARSER_STATE_ALIAS:
+            enterUnknownState(pctx);
+            break;
+        case PARSER_STATE_DISPLAYNAME:
+            enterUnknownState(pctx);
+            break;
+        case PARSER_STATE_REFERENCE:
+            enterUnknownState(pctx);
+            break;
+        case PARSER_STATE_UNKNOWN:
+            pctx->unknown_depth++;
+            break;
     }
 }
 
@@ -166,11 +164,11 @@ static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
         case PARSER_STATE_INIT:
             break;
         case PARSER_STATE_ALIAS:
-            Nodeset_newAliasFinish();
+            Nodeset_newAliasFinish(pctx->onCharacters);
             pctx->state = PARSER_STATE_INIT;
             break;
         case PARSER_STATE_URI: {
-            Nodeset_newNamespaceFinish(pctx->userContext);
+            Nodeset_newNamespaceFinish(pctx->userContext, pctx->onCharacters);
             pctx->state = PARSER_STATE_NAMESPACEURIS;
         } break;
         case PARSER_STATE_NAMESPACEURIS:
@@ -182,11 +180,12 @@ static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
             break;
         case PARSER_STATE_DESCRIPTION:
         case PARSER_STATE_DISPLAYNAME:
+            // pctx->node->displayName = extractDisplayname(pctx->onCharacters);
         case PARSER_STATE_REFERENCES:
             pctx->state = PARSER_STATE_NODE;
             break;
         case PARSER_STATE_REFERENCE: {
-            Nodeset_newReferenceFinish(pctx->node);            
+            Nodeset_newReferenceFinish(pctx->node, pctx->onCharacters);
             pctx->state = PARSER_STATE_REFERENCES;
         } break;
         case PARSER_STATE_UNKNOWN:
@@ -195,14 +194,14 @@ static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
                 pctx->state = pctx->prev_state;
             }
     }
-    pctx->nextOnCharacters = NULL;
+    pctx->onCharacters = NULL;
 }
 
-static void OnCharacters(void *ctx, const char *ch, int len) {
+static void OnCharacters(void *ctx, const char *ch, int len) 
+{
+
     TParserCtx *pctx = (TParserCtx *)ctx;
-    if(pctx->state == PARSER_STATE_UNKNOWN || pctx->nextOnCharacters == NULL)
-        return;
-    char *oldString = pctx->nextOnCharacters[0];
+    char *oldString = pctx->onCharacters;
     size_t oldLength = 0;
     if(oldString != NULL) {
         oldLength = strlen(oldString);
@@ -212,7 +211,7 @@ static void OnCharacters(void *ctx, const char *ch, int len) {
     strncpy(newValue + oldLength, ch, (size_t)len);
     Nodeset_addRefCountedChar(newValue);
     newValue[oldLength + (size_t)len] = '\0';
-    pctx->nextOnCharacters[0] = newValue;
+    pctx->onCharacters = newValue;
 }
 
 static xmlSAXHandler make_sax_handler(void) {
@@ -260,10 +259,6 @@ bool loadFile(const FileHandler *fileHandler) {
         printf("no fileHandler->addNamespace - return\n");
         return false;
     }
-    if(fileHandler->callback == NULL) {
-        printf("no fileHandler->callback - return\n");
-        return false;
-    }
     bool status = true;
     struct timespec start, startSort, startAdd, end;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -273,7 +268,7 @@ bool loadFile(const FileHandler *fileHandler) {
     ctx->state = PARSER_STATE_INIT;
     ctx->prev_state = PARSER_STATE_INIT;
     ctx->unknown_depth = 0;
-    ctx->nextOnCharacters = NULL;
+    ctx->onCharacters = NULL;
     ctx->userContext = fileHandler->userContext;
 
     FILE *f = fopen(fileHandler->file, "r");

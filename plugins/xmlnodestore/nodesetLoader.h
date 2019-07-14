@@ -1,6 +1,7 @@
 #ifndef NODESETLOADER_H
 #define NODESETLOADER_H
 #include <stdbool.h>
+#include <open62541/plugin/nodestore.h>
 
 #define NODECLASS_COUNT 7
 typedef enum {
@@ -14,6 +15,18 @@ typedef enum {
     // TODO: eventtype missing
 } TNodeClass;
 
+const UA_NodeClass UA_NODECLASSES[NODECLASS_COUNT] =
+{
+    UA_NODECLASS_OBJECT,
+    UA_NODECLASS_OBJECTTYPE,
+    UA_NODECLASS_VARIABLE,
+    UA_NODECLASS_DATATYPE,
+    UA_NODECLASS_METHOD,
+    UA_NODECLASS_REFERENCETYPE,
+    UA_NODECLASS_VARIABLETYPE
+}
+
+/*
 typedef struct {
     int nsIdx;
     char *id;
@@ -81,7 +94,9 @@ typedef struct {
 
 typedef struct { UA_NODE_ATTRIBUTES } TReferenceTypeNode;
 
-typedef void (*addNodeCb)(void* userContext, const TNode *);
+*/
+
+//typedef void (*addNodeCb)(void* userContext, const TNode *);
 
 typedef int (*addNamespaceCb)(void* userContext, const char *);
 
@@ -94,7 +109,6 @@ typedef struct {
 typedef struct {
     const char *file;
     addNamespaceCb addNamespace;
-    addNodeCb callback;
     const Statistics *stat;
     void *userContext;
 } FileHandler;

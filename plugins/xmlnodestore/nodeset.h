@@ -61,12 +61,12 @@ typedef struct Nodeset Nodeset;
 
 typedef struct {
     char *name;
-    TNodeId id;
+    UA_NodeId id;
 } Alias;
 
 typedef struct {
     size_t cnt;
-    TNode **nodes;
+    UA_Node *nodes;
 } NodeContainer;
 
 struct TParserCtx;
@@ -99,23 +99,23 @@ struct Nodeset {
     const char **hierachicalRefs;
 };
 
-TNodeId extractNodedId(const TNamespace *namespaces, char *s);
-TNodeId translateNodeId(const TNamespace *namespaces, TNodeId id);
-TNodeId alias2Id(const char *alias);
+UA_NodeId extractNodedId(const TNamespace *namespaces, char *s);
+UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id);
+UA_NodeId alias2Id(const char *alias);
 bool isHierachicalReference(const Reference *ref);
 void Nodeset_new(addNamespaceCb nsCallback);
 void Nodeset_cleanup(void);
 //void Nodeset_sort(void);
 //void Nodeset_addNodeToSort(const TNode *node);
 //bool Nodeset_getSortedNodes(void *userContext, addNodeCb callback);
-TNode *Nodeset_newNode(TNodeClass nodeClass, int attributeSize, const char **attributes);
-void Nodeset_newNodeFinish(TNode *node);
-Reference *Nodeset_newReference(TNode *node, int attributeSize, const char **attributes);
-void Nodeset_newReferenceFinish(TNode *node);
+UA_Node *Nodeset_newNode(TNodeClass nodeClass, int attributeSize, const char **attributes);
+void Nodeset_newNodeFinish(UA_Node *node);
+void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attributes);
+void Nodeset_newReferenceFinish(UA_Node *node, char* target);
 Alias *Nodeset_newAlias(int attributeSize, const char **attribute);
-void Nodeset_newAliasFinish(void);
+void Nodeset_newAliasFinish(char* idString);
 TNamespace *Nodeset_newNamespace(void);
-void Nodeset_newNamespaceFinish(void* userContext);
+void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri);
 void Nodeset_addRefCountedChar(char *newChar);
 
 #endif
