@@ -71,18 +71,21 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         }
         if(curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        curr++;
+        /* Set the hostname */
+        outHostname->data = &endpointUrl->data[11];
+        outHostname->length = curr - 11;
+        curr++;  // go over the last ']'
     } else {
         /* IPv4 or hostname: opc.tcp://something.something:1234/path */
         for(; curr < endpointUrl->length; ++curr) {
             if(endpointUrl->data[curr] == ':' || endpointUrl->data[curr] == '/')
                 break;
         }
+        /* Set the hostname */
+        outHostname->data = &endpointUrl->data[10];
+        outHostname->length = curr - 10;
     }
 
-    /* Set the hostname */
-    outHostname->data = &endpointUrl->data[10];
-    outHostname->length = curr - 10;
     if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
 
