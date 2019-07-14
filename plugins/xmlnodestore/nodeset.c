@@ -59,22 +59,43 @@ UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id) {
     return id;
 }
 
-UA_NodeId extractNodedId(const TNamespace *namespaces, char *s) {
-    if(s == NULL) {
+static UA_NodeId
+    getReferenceTypeId(const char *ref) {
+    if(ref==NULL)
+    {
         return UA_NODEID_NULL;
     }
-    UA_NodeId id;
-    id.namespaceIndex = 0;
-    char *idxSemi = strchr(s, ';');
-    if(idxSemi == NULL) {
-        id.id = s;
-        return id;
-    } else {
-        id.nsIdx = atoi(&s[3]);
-        id.id = idxSemi + 1;
+    if(!strcmp(ref, "HasProperty"))
+    {
+        return UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     }
-    return translateNodeId(namespaces, id);
+    else if (!strcmp(ref, "HasComponent"))
+    {
+        return UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    }
+    else if (!strcmp(ref, "Organizes"))
+    {
+        return UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    }
+    else if (!strcmp(ref, "HasTypeDefinition"))
+    {
+        return UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+    }
+    else if(!strcmp(ref, "HasSubtype")) 
+    {
+        return UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    } 
+    else if(!strcmp(ref, "HasEncoding")) 
+    {
+        return UA_NODEID_NUMERIC(0, UA_NS0ID_HASENCODING);
+    } 
+    else {
+        return extractNodedId(nodeset->namespaceTable, ref);
+    }
+    return UA_NODEID_NULL;
 }
+
+
 
 UA_NodeId alias2Id(const char *alias) {
     for(size_t cnt = 0; cnt < nodeset->aliasSize; cnt++) {
@@ -89,8 +110,6 @@ void Nodeset_new(addNamespaceCb nsCallback) {
     nodeset = (Nodeset *)malloc(sizeof(Nodeset));
     nodeset->aliasArray = (Alias **)malloc(sizeof(Alias *) * MAX_ALIAS);
     nodeset->aliasSize = 0;
-    nodeset->countedRefs =
-        (const Reference **)malloc(sizeof(Reference *) * MAX_REFCOUNTEDREFS);
     nodeset->refsSize = 0;
     nodeset->countedChars = (const char **)malloc(sizeof(char *) * MAX_REFCOUNTEDCHARS);
     nodeset->charsSize = 0;

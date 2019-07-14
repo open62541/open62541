@@ -87,7 +87,6 @@ typedef struct {
 } TNamespaceTable;
 
 struct Nodeset {
-    const Reference **countedRefs;
     const char **countedChars;
     Alias **aliasArray;
     NodeContainer *nodes[NODECLASS_COUNT];
@@ -102,12 +101,8 @@ struct Nodeset {
 UA_NodeId extractNodedId(const TNamespace *namespaces, char *s);
 UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id);
 UA_NodeId alias2Id(const char *alias);
-bool isHierachicalReference(const Reference *ref);
 void Nodeset_new(addNamespaceCb nsCallback);
 void Nodeset_cleanup(void);
-//void Nodeset_sort(void);
-//void Nodeset_addNodeToSort(const TNode *node);
-//bool Nodeset_getSortedNodes(void *userContext, addNodeCb callback);
 UA_Node *Nodeset_newNode(TNodeClass nodeClass, int attributeSize, const char **attributes);
 void Nodeset_newNodeFinish(UA_Node *node);
 void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attributes);
