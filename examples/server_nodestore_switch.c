@@ -89,10 +89,25 @@ int main(void) {
 	// Link the ns1Nodestore to namespace 1, so that all nodes created in namespace 1 reside in ns1Nodestore
 	UA_Nodestore_Switch_setNodestore(nodestoreSwitch, 1, ns1Nodestore);
 
+
+	//add xml nodestore
+	UA_NodestoreInterface * nsXmlStore = NULL;
+
+	retval = UA_Nodestore_Default_Interface_new(&ns1Nodestore);
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_Server_delete(server);
+		return EXIT_FAILURE;
+	}
+
+	// Link the ns1Nodestore to namespace 1, so that all nodes created in namespace 1 reside in ns1Nodestore
+	UA_Nodestore_Switch_setNodestore(nodestoreSwitch, 2, nsXmlStore);
+
 	// Add some test nodes to namespace 1
 	addVariableNode(server, 1, "TestNode1");
 	addVariableNode(server, 1, "TestNode2");
 	addVariableNode(server, 1, "TestNode3");
+
+	addVariableNode(server, 2, "TestNode4");
 	// Start server and run till SIGINT or SIGTERM
 	UA_Server_run(server, &running);
 

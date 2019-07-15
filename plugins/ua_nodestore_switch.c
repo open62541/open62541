@@ -147,6 +147,33 @@ UA_StatusCode UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** store) 
 	return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface** store) {
+	UA_NodestoreInterface* xmlStore = (UA_NodestoreInterface*) UA_malloc(
+			sizeof(UA_NodestoreInterface));
+	if (xmlStore == NULL) {
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
+
+	UA_StatusCode result = UA_Nodestore_Xml_new(
+			(void**) &xmlStore->context);
+	if (result != UA_STATUSCODE_GOOD) {
+		UA_free(xmlStore);
+		return result;
+	}
+	xmlStore->deleteNodestore = UA_Nodestore_Xml_delete;
+	xmlStore->newNode = UA_Nodestore_Xml_newNode;
+	xmlStore->deleteNode = UA_Nodestore_Xml_deleteNode;
+	xmlStore->getNode = UA_Nodestore_Xml_getNode;
+	xmlStore->releaseNode = UA_Nodestore_Xml_releaseNode;
+	xmlStore->getNodeCopy = UA_Nodestore_Xml_getNodeCopy;
+	xmlStore->insertNode = UA_Nodestore_Xml_insertNode;
+	xmlStore->replaceNode = UA_Nodestore_Xml_replaceNode;
+	xmlStore->iterate = UA_Nodestore_Xml_iterate;
+	xmlStore->removeNode = UA_Nodestore_Xml_removeNode;
+	*store = xmlStore;
+	return UA_STATUSCODE_GOOD;
+}
+
 static UA_NodestoreInterface* UA_Nodestore_Switch_Interface_new(
 		UA_Nodestore_Switch *storeSwitch) {
 	UA_NodestoreInterface* ns = (UA_NodestoreInterface*) UA_malloc(
