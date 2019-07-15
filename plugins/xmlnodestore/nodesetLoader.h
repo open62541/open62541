@@ -15,10 +15,7 @@ typedef enum {
     // TODO: eventtype missing
 } TNodeClass;
 
-const UA_NodeClass UA_NODECLASSES[NODECLASS_COUNT] = {
-    UA_NODECLASS_OBJECT,      UA_NODECLASS_OBJECTTYPE, UA_NODECLASS_VARIABLE,
-    UA_NODECLASS_DATATYPE,    UA_NODECLASS_METHOD,     UA_NODECLASS_REFERENCETYPE,
-    UA_NODECLASS_VARIABLETYPE};
+
 
 typedef UA_UInt16 (*addNamespaceCb)(void* userContext, const char *);
 

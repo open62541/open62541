@@ -112,5 +112,6 @@ void Nodeset_newAliasFinish(char* idString);
 TNamespace *Nodeset_newNamespace(void);
 void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri);
 void Nodeset_addRefCountedChar(char *newChar);
+const UA_Node * Nodeset_getNode(const UA_NodeId *nodeId);
 
 #endif

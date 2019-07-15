@@ -53,6 +53,11 @@ NodeAttribute attrIsForward = {ATTRIBUTE_ISFORWARD, "true", false};
 NodeAttribute attrReferenceType = {ATTRIBUTE_REFERENCETYPE, NULL, true};
 NodeAttribute attrAlias = {ATTRIBUTE_ALIAS, NULL, false};
 
+const UA_NodeClass UA_NODECLASSES[NODECLASS_COUNT] = {
+    UA_NODECLASS_OBJECT,      UA_NODECLASS_OBJECTTYPE, UA_NODECLASS_VARIABLE,
+    UA_NODECLASS_DATATYPE,    UA_NODECLASS_METHOD,     UA_NODECLASS_REFERENCETYPE,
+    UA_NODECLASS_VARIABLETYPE};
+
 const char *hierachicalReferences[MAX_HIERACHICAL_REFS] = {
     "Organizes",  "HasEventSource", "HasNotifier", "Aggregates",
     "HasSubtype", "HasComponent",   "HasProperty"};
@@ -63,6 +68,50 @@ UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id) {
         return id;
     }
     return id;
+}
+
+UA_NodeId extractNodedId(const TNamespace *namespaces, char *s) {
+    if(s == NULL) {
+        return UA_NODEID_NULL;
+    }
+    UA_NodeId id;
+    id.namespaceIndex = 0;
+    char *idxSemi = strchr(s, ';');
+
+
+    //namespaceindex zero?
+    if(idxSemi == NULL) {
+        id.namespaceIndex = 0;
+         switch(s[0]) {
+        // integer
+        case 'i': {
+            UA_UInt32 nodeId = (UA_UInt32)atoi(&s[2]);
+            return UA_NODEID_NUMERIC(0, nodeId);
+            break;
+        }
+        case 's':
+        {
+            return UA_NODEID_STRING_ALLOC(0, &s[2]);
+            break;
+        }
+    }
+    } else {
+        UA_UInt16 nsIdx= (UA_UInt16) atoi(&s[3]);
+         switch(idxSemi[1]) {
+        // integer
+        case 'i': {
+            UA_UInt32 nodeId = (UA_UInt32)atoi(&idxSemi[3]);
+            return UA_NODEID_NUMERIC(nsIdx, nodeId);
+            break;
+        }
+        case 's':
+        {
+            return UA_NODEID_STRING_ALLOC(nsIdx, &idxSemi[3]);
+            break;
+        }
+    }
+    }
+    return translateNodeId(namespaces, id);
 }
 
 /*
@@ -171,27 +220,27 @@ void Nodeset_new(addNamespaceCb nsCallback) {
 }
 
 void Nodeset_cleanup() {
-    Nodeset *n = nodeset;
+    //Nodeset *n = nodeset;
     // free chars
     //for(size_t cnt = 0; cnt < n->charsSize; cnt++) {
     //    free_const(n->countedChars[cnt]);
     //}
-    free(n->countedChars);
+    //free(n->countedChars);
 
     // free alias
-    for(size_t cnt = 0; cnt < n->aliasSize; cnt++) {
-        free(n->aliasArray[cnt]);
-    }
-    free(n->aliasArray);
+    //for(size_t cnt = 0; cnt < n->aliasSize; cnt++) {
+    //    free(n->aliasArray[cnt]);
+    //}
+    //free(n->aliasArray);
 
-    for(size_t cnt = 0; cnt < NODECLASS_COUNT; cnt++) {
-        free((void *)n->nodes[cnt]->nodes);
-        free((void *)n->nodes[cnt]);
-    }
+    //for(size_t cnt = 0; cnt < NODECLASS_COUNT; cnt++) {
+    //    free((void *)n->nodes[cnt]->nodes);
+    //    free((void *)n->nodes[cnt]);
+    //}
 
-    free(n->namespaceTable->ns);
-    free(n->namespaceTable);
-    free(n);
+    //free(n->namespaceTable->ns);
+    //free(n->namespaceTable);
+    //free(n);
 }
 
 /*
@@ -313,26 +362,39 @@ UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **a
     struct nodeEntry* n = (struct nodeEntry*)malloc(sizeof(struct nodeEntry));
     n->key = (char*) newNode->nodeId.identifier.string.data;
     n->node = newNode;
+    HASH_ADD_KEYPTR(hh, nodeHead, n->key, newNode->nodeId.identifier.string.length, n);
+
+    printf("nodeCnt: %d\n", HASH_COUNT(nodeHead));
 
     return newNode;    
 }
 
+const UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
+{
+    struct nodeEntry *entry = NULL;
+    HASH_FIND(hh, nodeHead, nodeId->identifier.string.data,
+              nodeId->identifier.string.length, entry);
+    if(entry)
+        return entry->node;
+    return NULL;
+}
+
 void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attributes) {
 
-    node->referencesSize++;
-    UA_NodeReferenceKind *refs =
-        (UA_NodeReferenceKind *)realloc(node->references, sizeof(UA_NodeReferenceKind)*node->referencesSize);
+    //node->referencesSize++;
+    //UA_NodeReferenceKind *refs =
+    //    (UA_NodeReferenceKind *)realloc(node->references, sizeof(UA_NodeReferenceKind)*node->referencesSize);
+    //node->references = refs;
+    //UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;
 
-    UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;
-
-    if(!strcmp("true", getAttributeValue(&attrIsForward, attributes, attributeSize))) {
-        newRef->isInverse = false;
-    } else {
-        newRef->isInverse = true;
-    }
-    newRef->referenceTypeId = 
-        extractNodedId(nodeset->namespaceTable->ns,
-                       getAttributeValue(&attrReferenceType, attributes, attributeSize));    
+    //if(!strcmp("true", getAttributeValue(&attrIsForward, attributes, attributeSize))) {
+    //    newRef->isInverse = false;
+    //} else {
+    //    newRef->isInverse = true;
+    //}
+    //newRef->referenceTypeId = 
+    //    extractNodedId(nodeset->namespaceTable->ns,
+    //                   getAttributeValue(&attrReferenceType, attributes, attributeSize));    
 }
 
 Alias *Nodeset_newAlias(int attributeSize, const char **attributes) {
@@ -377,12 +439,12 @@ void Nodeset_newNodeFinish(UA_Node* node)
 void Nodeset_newReferenceFinish(UA_Node* node, char* targetId)
 {
 
-    UA_NodeReferenceKind *ref = &node->references[node->referencesSize - 1];
-    ref->targetIdsSize = 1;
-    ref->targetIds = (UA_ExpandedNodeId*)malloc(sizeof(UA_ExpandedNodeId));
+    //UA_NodeReferenceKind *ref = &node->references[node->referencesSize - 1];
+    //ref->targetIdsSize = 1;
+    //ref->targetIds = (UA_ExpandedNodeId*)malloc(sizeof(UA_ExpandedNodeId));
 
     //todo: namespaceuri, serverindex missing
-    ref->targetIds->nodeId = extractNodedId(nodeset->namespaceTable->ns, targetId);
+    //ref->targetIds->nodeId = extractNodedId(nodeset->namespaceTable->ns, targetId);
 }
 
 void Nodeset_addRefCountedChar(char *newChar)

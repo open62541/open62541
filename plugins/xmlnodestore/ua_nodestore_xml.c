@@ -1,5 +1,6 @@
 #include <open62541/plugin/nodestore_xml.h>
 #include "nodesetLoader.h"
+#include "nodeset.h"
 
 UA_Node *
 UA_Nodestore_Xml_newNode(void *nsCtx, UA_NodeClass nodeClass)
@@ -9,7 +10,7 @@ UA_Nodestore_Xml_newNode(void *nsCtx, UA_NodeClass nodeClass)
 const UA_Node *
 UA_Nodestore_Xml_getNode(void *nsCtx, const UA_NodeId *nodeId)
 {
-    return NULL;
+    return Nodeset_getNode(nodeId);
 }
 void
 UA_Nodestore_Xml_deleteNode(void *nsCtx, UA_Node *node)
@@ -61,7 +62,7 @@ UA_Nodestore_Xml_new(void **nsCtx)
     FileHandler f;
     f.addNamespace = nscb;
     f.userContext = NULL;
-    f.file = "~/git/xmlparser/nodesets/testNodeset100nodes.xml";
+    f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset.xml";
     loadFile(&f);
     return UA_STATUSCODE_GOOD;
 }

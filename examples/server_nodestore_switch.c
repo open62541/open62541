@@ -93,7 +93,7 @@ int main(void) {
 	//add xml nodestore
 	UA_NodestoreInterface * nsXmlStore = NULL;
 
-	retval = UA_Nodestore_Default_Interface_new(&ns1Nodestore);
+	retval = UA_Nodestore_Xml_Interface_new(&nsXmlStore);
 	if (retval != UA_STATUSCODE_GOOD) {
 		UA_Server_delete(server);
 		return EXIT_FAILURE;
@@ -108,7 +108,12 @@ int main(void) {
 	addVariableNode(server, 1, "TestNode3");
 
 	addVariableNode(server, 2, "TestNode4");
-	// Start server and run till SIGINT or SIGTERM
+
+	UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+							UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+							UA_EXPANDEDNODEID_STRING(2, "system.ksdfvar.as0"), true);
+
+        // Start server and run till SIGINT or SIGTERM
 	UA_Server_run(server, &running);
 
 	// Unlink nodestore for namespace 1

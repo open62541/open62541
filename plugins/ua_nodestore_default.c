@@ -161,7 +161,7 @@ UA_Nodestore_Default_releaseNode(void *nsCtx, const UA_Node *node) {
 #endif
     BEGIN_CRITSECT(ns);
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
-    UA_assert(entry->refCount > 0);
+    //UA_assert(entry->refCount > 0);
     --entry->refCount;
     cleanupEntry(entry);
     END_CRITSECT(ns);
