@@ -6,15 +6,21 @@
  */
 
 #include "nodeset.h"
-//#include "sort.h"
-#include "util.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-//#define free_const(x) free((void *)(long)(x))
+#include "uthash.h"
 
 static Nodeset *nodeset = NULL;
+
+struct nodeEntry
+{
+    UT_hash_handle hh;
+    char *key;
+    UA_Node *node;
+};
+
+struct nodeEntry *nodeHead = NULL;
 
 // UANode
 #define ATTRIBUTE_NODEID "NodeId"
@@ -53,14 +59,15 @@ const char *hierachicalReferences[MAX_HIERACHICAL_REFS] = {
 
 UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id) {
     if(id.namespaceIndex > 0) {
-        id.namespaceIndex = (int)namespaces[id.namespaceIndex].idx;
+        id.namespaceIndex = namespaces[id.namespaceIndex].idx;
         return id;
     }
     return id;
 }
 
+/*
 static UA_NodeId
-    getReferenceTypeId(const char *ref) {
+    getReferenceTypeId(char *ref) {
     if(ref==NULL)
     {
         return UA_NODEID_NULL;
@@ -90,16 +97,16 @@ static UA_NodeId
         return UA_NODEID_NUMERIC(0, UA_NS0ID_HASENCODING);
     } 
     else {
-        return extractNodedId(nodeset->namespaceTable, ref);
+        return extractNodedId(nodeset->namespaceTable->ns, ref);
     }
     return UA_NODEID_NULL;
 }
 
-
+*/
 
 UA_NodeId alias2Id(const char *alias) {
     for(size_t cnt = 0; cnt < nodeset->aliasSize; cnt++) {
-        if(strEqual(alias, nodeset->aliasArray[cnt]->name)) {
+        if(!strcmp(alias, nodeset->aliasArray[cnt]->name)) {
             return nodeset->aliasArray[cnt]->id;
         }
     }
@@ -166,16 +173,10 @@ void Nodeset_new(addNamespaceCb nsCallback) {
 void Nodeset_cleanup() {
     Nodeset *n = nodeset;
     // free chars
-    for(size_t cnt = 0; cnt < n->charsSize; cnt++) {
-        free_const(n->countedChars[cnt]);
-    }
+    //for(size_t cnt = 0; cnt < n->charsSize; cnt++) {
+    //    free_const(n->countedChars[cnt]);
+    //}
     free(n->countedChars);
-
-    // free refs
-    for(size_t cnt = 0; cnt < n->refsSize; cnt++) {
-        free_const(n->countedRefs[cnt]);
-    }
-    free(n->countedRefs);
 
     // free alias
     for(size_t cnt = 0; cnt < n->aliasSize; cnt++) {
@@ -184,7 +185,6 @@ void Nodeset_cleanup() {
     free(n->aliasArray);
 
     for(size_t cnt = 0; cnt < NODECLASS_COUNT; cnt++) {
-        size_t storedNodes = n->nodes[cnt]->cnt;        
         free((void *)n->nodes[cnt]->nodes);
         free((void *)n->nodes[cnt]);
     }
@@ -224,67 +224,71 @@ static char *getAttributeValue(NodeAttribute *attr, const char **attributes,
     if(attr->defaultValue != NULL || attr->optional) {
         return attr->defaultValue;
     }
-    // todo: remove this assertation
-
-    printf("attribute: %s\n", attr->name);
-    assertf(false, "attribute not found, no default value set in getAttributeValue\n");
+    else
+    {
+        printf("error attribute lookup\n");
+        return NULL;
+    }
 }
 
 static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
                               int attributeSize, const char **attributes) {
     node->nodeId = extractNodedId(namespaces,
                               getAttributeValue(&attrNodeId, attributes, attributeSize));
-    node->browseName = getAttributeValue(&attrBrowseName, attributes, attributeSize);
+    //todo: getBrowseName
+    //node->browseName = getAttributeValue(&attrBrowseName, attributes, attributeSize);
     switch(node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE: 
             ((UA_ObjectTypeNode *)node)->isAbstract =
                 getAttributeValue(&attrIsAbstract, attributes, attributeSize);
             break;
         case UA_NODECLASS_OBJECT:
-            ((UA_ObjectNode *)node)->eventNotifier =
-                getAttributeValue(&attrEventNotifier, attributes, attributeSize);
+            //todo
+            //((UA_ObjectNode *)node)->eventNotifier =
+            //    getAttributeValue(&attrEventNotifier, attributes, attributeSize);
             break;
         case UA_NODECLASS_VARIABLE:
         {
             
             char *datatype = getAttributeValue(&attrDataType, attributes, attributeSize);
             UA_NodeId aliasId = alias2Id(datatype);
-            if(aliasId != UA_NODEID_NUMERIC) {
-                ((TVariableNode *)node)->datatype = aliasId;
+            if(!UA_NodeId_equal(&aliasId, &UA_NODEID_NULL)) {
+                ((UA_VariableNode *)node)->dataType= aliasId;
             } else {
-                ((TVariableNode *)node)->datatype = extractNodedId(namespaces, datatype);
+                ((UA_VariableNode *)node)->dataType = extractNodedId(namespaces, datatype);
             }
-            ((TVariableNode *)node)->valueRank =
-                getAttributeValue(&attrValueRank, attributes, attributeSize);
-            ((TVariableNode *)node)->arrayDimensions =
-                getAttributeValue(&attrArrayDimensions, attributes, attributeSize);
+            //todo: fix this
+            //((UA_VariableNode *)node)->valueRank =
+            //    getAttributeValue(&attrValueRank, attributes, attributeSize);
+            //((UA_VariableNode *)node)->arrayDimensions =
+            //    getAttributeValue(&attrArrayDimensions, attributes, attributeSize);
 
             break;
         }
         case UA_NODECLASS_VARIABLETYPE: {
 
-            ((UA_VariableTypeNode *)node)->valueRank =
-                getAttributeValue(&attrValueRank, attributes, attributeSize);
+            //todo
+            //((UA_VariableTypeNode *)node)->valueRank =
+            //    getAttributeValue(&attrValueRank, attributes, attributeSize);
             char *datatype = getAttributeValue(&attrDataType, attributes, attributeSize);
-            TNodeId aliasId = alias2Id(datatype);
-            if(aliasId.id != 0) {
-                ((TVariableTypeNode *)node)->datatype = aliasId;
+            UA_NodeId aliasId = alias2Id(datatype);
+            if(!UA_NodeId_equal(&aliasId, &UA_NODEID_NULL)) {
+                ((UA_VariableTypeNode *)node)->dataType= aliasId;
             } else {
-                ((TVariableTypeNode *)node)->datatype =
-                    extractNodedId(namespaces, datatype);
+                ((UA_VariableTypeNode *)node)->dataType = extractNodedId(namespaces, datatype);
             }
-            ((UA_VariableTypeNode *)node)->arrayDimensions =
-                getAttributeValue(&attrArrayDimensions, attributes, attributeSize);
-            ((UA_VariableTypeNode *)node)->isAbstract =
-                getAttributeValue(&attrIsAbstract, attributes, attributeSize);
+            //((UA_VariableTypeNode *)node)->arrayDimensions =
+            //    getAttributeValue(&attrArrayDimensions, attributes, attributeSize);
+            //((UA_VariableTypeNode *)node)->isAbstract =
+            //    getAttributeValue(&attrIsAbstract, attributes, attributeSize);
             break;
         }
         case UA_NODECLASS_DATATYPE:;
             break;
         case UA_NODECLASS_METHOD:
-            ((UA_MethodNode *)node)->executable =
-                extractNodedId(namespaces, getAttributeValue(&attrParentNodeId,
-                                                             attributes, attributeSize));
+            //((UA_MethodNode *)node)->executable =
+            //    extractNodedId(namespaces, getAttributeValue(&attrParentNodeId,
+            //                                                 attributes, attributeSize));
             break;
         case UA_NODECLASS_REFERENCETYPE:;
             break;
@@ -298,13 +302,18 @@ static void initNode(TNamespace *namespaces, UA_Node *node,
 }
 
 UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **attributes) {
-    //add link to hashtable here
-
+    
     size_t cnt = nodeset->nodes[nodeClass]->cnt;
     UA_Node *newNode = nodeset->nodes[nodeClass]->nodes + cnt;
     newNode->nodeClass = UA_NODECLASSES[nodeClass];
     nodeset->nodes[nodeClass]->cnt++;
     initNode(nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
+
+    //works currently only for nodes with string nodeIds
+    struct nodeEntry* n = (struct nodeEntry*)malloc(sizeof(struct nodeEntry));
+    n->key = (char*) newNode->nodeId.identifier.string.data;
+    n->node = newNode;
+
     return newNode;    
 }
 
@@ -316,7 +325,7 @@ void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attribu
 
     UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;
 
-    if(strEqual("true", getAttributeValue(&attrIsForward, attributes, attributeSize))) {
+    if(!strcmp("true", getAttributeValue(&attrIsForward, attributes, attributeSize))) {
         newRef->isInverse = false;
     } else {
         newRef->isInverse = true;
@@ -358,7 +367,7 @@ void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri)
         userContext, nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].name);
 
     nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].idx =
-        (size_t)globalIdx;
+        (UA_UInt16)globalIdx;
 }
 
 void Nodeset_newNodeFinish(UA_Node* node)
@@ -369,13 +378,11 @@ void Nodeset_newReferenceFinish(UA_Node* node, char* targetId)
 {
 
     UA_NodeReferenceKind *ref = &node->references[node->referencesSize - 1];
-
     ref->targetIdsSize = 1;
-
     ref->targetIds = (UA_ExpandedNodeId*)malloc(sizeof(UA_ExpandedNodeId));
 
     //todo: namespaceuri, serverindex missing
-    ref->targetIds->nodeId = extractNodedId(nodeset->namespaceTable->ns, targetId);    
+    ref->targetIds->nodeId = extractNodedId(nodeset->namespaceTable->ns, targetId);
 }
 
 void Nodeset_addRefCountedChar(char *newChar)

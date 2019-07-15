@@ -76,7 +76,7 @@ struct TNamespace;
 typedef struct TNamespace TNamespace;
 
 struct TNamespace {
-    size_t idx;
+    UA_UInt16 idx;
     char *name;
 };
 
