@@ -35,4 +35,6 @@ UA_Nodestore_Xml_new(void **nsCtx, UA_Server* server);
 void
 UA_Nodestore_Xml_delete(void *nsCtx);
 
+void UA_Nodestore_Xml_load(UA_Server *server);
+
 #endif /* UA_NODESTORE_XML_H_ */

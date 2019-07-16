@@ -86,6 +86,12 @@ typedef struct {
     addNamespaceCb cb;
 } TNamespaceTable;
 
+typedef struct
+{
+    UA_NodeId *src;
+    UA_NodeReferenceKind *ref;
+} TRef;
+
 struct Nodeset {
     const char **countedChars;
     Alias **aliasArray;
@@ -96,7 +102,7 @@ struct Nodeset {
     size_t hierachicalRefsSize;
     UA_NodeId *hierachicalRefs;
     size_t refsSize;
-    UA_NodeReferenceKind** refs;
+    TRef* refs;
 };
 
 UA_NodeId extractNodedId(const TNamespace *namespaces, char *s);
@@ -114,6 +120,7 @@ TNamespace *Nodeset_newNamespace(void);
 void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri);
 void Nodeset_addRefCountedChar(char *newChar);
 void Nodeset_linkReferences(UA_Server* server);
+UA_Node * NodelinkReferences(UA_Server* server);
 UA_Node * Nodeset_getNode(const UA_NodeId *nodeId);
 
 #endif

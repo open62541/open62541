@@ -109,16 +109,21 @@ UA_NodeId extractNodedId(const TNamespace *namespaces, char *s) {
         // integer
         case 'i': {
             UA_UInt32 nodeId = (UA_UInt32)atoi(&idxSemi[3]);
-            return UA_NODEID_NUMERIC(nsIdx, nodeId);
+            id.namespaceIndex = nsIdx;
+            id.identifierType = UA_NODEIDTYPE_NUMERIC;
+            id.identifier.numeric = nodeId;
             break;
         }
         case 's':
         {
-            return UA_NODEID_STRING_ALLOC(nsIdx, &idxSemi[3]);
+            UA_String sid = UA_STRING_ALLOC(&idxSemi[3]);
+            id.namespaceIndex = nsIdx;
+            id.identifierType = UA_NODEIDTYPE_STRING;
+            id.identifier.string = sid;
             break;
         }
     }
-    }
+    }    
     return translateNodeId(namespaces, id);
 }
 
@@ -188,7 +193,7 @@ void Nodeset_new(addNamespaceCb nsCallback) {
     nodeset->hierachicalRefs = hierachicalRefs;
     nodeset->hierachicalRefsSize = 7;
     //refs
-    nodeset->refs = (UA_NodeReferenceKind**) malloc(sizeof(UA_NodeReferenceKind*)*MAX_REFCOUNTEDREFS);
+    nodeset->refs = (TRef*) malloc(sizeof(TRef)*MAX_REFCOUNTEDREFS);
     nodeset->refsSize =0;
 
     TNamespaceTable *table = (TNamespaceTable *)malloc(sizeof(TNamespaceTable));
@@ -380,19 +385,15 @@ void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attribu
     if(!isNodeId(s))
     {
         //try it with alias
-        newRef->referenceTypeId = alias2Id(s);
+        newRef->referenceTypeId = translateNodeId(nodeset->namespaceTable->ns,alias2Id(s));
     }
     else
     {
         newRef->referenceTypeId = extractNodedId(nodeset->namespaceTable->ns, s);
     }    
-    nodeset->refs[nodeset->refsSize] = newRef;
+    nodeset->refs[nodeset->refsSize].ref = newRef;
+    nodeset->refs[nodeset->refsSize].src = &node->nodeId;
     nodeset->refsSize++;
-
-
-    
-
-    
 }
 
 void Nodeset_linkReferences(UA_Server* server)
@@ -405,48 +406,44 @@ void Nodeset_linkReferences(UA_Server* server)
     // References be instantiated as bidirectional to ensure browse connectivity. A bidirectional
     // Reference is modelled as two separate References
 
-    for(size_t i=0; i<nodeset->nodes[NODECLASS_VARIABLE]->cnt; i++)
+    for(size_t i=0; i<nodeset->refsSize; i++)
     {
-        UA_Node sourceNode = nodeset->nodes[NODECLASS_VARIABLE]->nodes[i];
-        for(size_t r=0; r<sourceNode.referencesSize; r++)
+        if(isHierachicalReference(&nodeset->refs[i].ref->referenceTypeId))
         {
-            if(isHierachicalReference(&sourceNode.references[r].referenceTypeId))
+            UA_Node*targetNode = NULL;
+            if(nodeset->refs[i].ref->targetIds[0].nodeId.identifierType == UA_NODEIDTYPE_STRING)
             {
-                UA_Node*targetNode = NULL;
-                if(sourceNode.references[r].targetIds[0].nodeId.identifierType == UA_NODEIDTYPE_STRING)
-                {
-                    targetNode = Nodeset_getNode(&sourceNode.references[r].targetIds[0].nodeId);
-                }
-                
-
-                if(targetNode)
-                {
-                    //add inverse reference
-                    UA_NodeReferenceKind *refs =
-                        (UA_NodeReferenceKind *)realloc(targetNode->references, sizeof(UA_NodeReferenceKind)*targetNode->referencesSize);
-                    targetNode->references = refs;
-                    UA_NodeReferenceKind *newRef = refs + targetNode->referencesSize - 1;
-                    newRef->isInverse = !sourceNode.references[r].isInverse;
-                    newRef->referenceTypeId = sourceNode.references[r].referenceTypeId;
-                    newRef->targetIdsSize++;
-                    UA_ExpandedNodeId* newTargetId = (UA_ExpandedNodeId*)realloc(newRef->targetIds, sizeof(UA_ExpandedNodeId)*newRef->targetIdsSize);
-                    newTargetId->namespaceUri=UA_STRING_NULL;
-                    newTargetId->nodeId = sourceNode.nodeId;
-                    newTargetId->serverIndex = 0;
-                    newRef->targetIds = newTargetId;
-                }
-                else
-                {
-                    //try it with server
-                    UA_ExpandedNodeId eId;
-                    eId.namespaceUri = UA_STRING_NULL;
-                    eId.nodeId = sourceNode.nodeId;
-                    eId.serverIndex = 0;
-                    UA_Server_addReference(server, sourceNode.references[r].targetIds[0].nodeId, sourceNode.references[r].referenceTypeId, eId, !sourceNode.references[r].isInverse);
-                }
-                
+                targetNode = Nodeset_getNode(&nodeset->refs[i].ref->targetIds[0].nodeId);
             }
-        }         
+            
+
+            if(targetNode)
+            {
+                //add inverse reference
+                UA_NodeReferenceKind *refs =
+                    (UA_NodeReferenceKind *)realloc(targetNode->references, sizeof(UA_NodeReferenceKind)*targetNode->referencesSize);
+                targetNode->references = refs;
+                UA_NodeReferenceKind *newRef = refs + targetNode->referencesSize - 1;
+                newRef->isInverse = !nodeset->refs[i].ref->isInverse;
+                newRef->referenceTypeId = nodeset->refs[i].ref->referenceTypeId;
+                newRef->targetIdsSize++;
+                UA_ExpandedNodeId* newTargetId = (UA_ExpandedNodeId*)realloc(newRef->targetIds, sizeof(UA_ExpandedNodeId)*newRef->targetIdsSize);
+                newTargetId[newRef->targetIdsSize-1].namespaceUri=UA_STRING_NULL;
+                newTargetId[newRef->targetIdsSize-1].nodeId = *nodeset->refs[i].src;
+                newTargetId[newRef->targetIdsSize-1].serverIndex = 0;
+                newRef->targetIds = newTargetId;
+            }
+            else
+            {
+                //try it with server
+                UA_ExpandedNodeId eId;
+                eId.namespaceUri = UA_STRING_NULL;
+                eId.nodeId = *nodeset->refs[i].src;
+                eId.serverIndex = 0;
+                UA_Server_addReference(server, nodeset->refs[i].ref->targetIds[0].nodeId, nodeset->refs[i].ref->referenceTypeId, eId, nodeset->refs[i].ref->isInverse);
+            }
+            
+        }
     }
 }
 
@@ -496,7 +493,7 @@ void Nodeset_newNodeFinish(UA_Node* node)
                 nodeset->hierachicalRefs[nodeset->hierachicalRefsSize++] = node->nodeId;
                 break;
             }
-        }        
+        }
     }
 }
 
