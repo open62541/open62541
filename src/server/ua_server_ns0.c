@@ -761,6 +761,14 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
+    /* According to Specification part-5 - pg.no-11(PDF pg.no-29), when the ServerDiagnostics is disabled the client
+     * may modify the value of enabledFlag=true in the server. By default, this node have CurrentRead/Write access.
+     * In CTT, Subscription_Minimum_1/002.js test will modify the above flag. This will not be a problem when build
+     * configuration is set at UA_NAMESPACE_ZERO="REDUCED" as NodeIds will not be present. When UA_NAMESPACE_ZERO="FULL",
+     * the test will fail. Hence made the NodeId as read only */
+    retVal |= UA_Server_writeAccessLevel(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG),
+                                         UA_ACCESSLEVELMASK_READ);
+
     /* Auditing */
     UA_DataSource auditing = {readAuditing, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
