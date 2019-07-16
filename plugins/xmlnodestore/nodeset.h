@@ -122,5 +122,7 @@ void Nodeset_addRefCountedChar(char *newChar);
 void Nodeset_linkReferences(UA_Server* server);
 UA_Node * NodelinkReferences(UA_Server* server);
 UA_Node * Nodeset_getNode(const UA_NodeId *nodeId);
+void
+Nodeset_setDisplayname(UA_Node *node, char *s);
 
 #endif

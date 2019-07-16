@@ -16,7 +16,8 @@ static Nodeset *nodeset = NULL;
 struct nodeEntry
 {
     UT_hash_handle hh;
-    char *key;
+    char *cKey;
+    int iKey;
     UA_Node *node;
 };
 
@@ -267,12 +268,14 @@ static char *getAttributeValue(NodeAttribute *attr, const char **attributes,
     }
 }
 
+static UA_DataSource noDataSource = {.read=NULL, .write=NULL};
+
 static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
                               int attributeSize, const char **attributes) {
     node->nodeId = extractNodedId(namespaces,
                               getAttributeValue(&attrNodeId, attributes, attributeSize));
     //todo: getBrowseName
-    //node->browseName = getAttributeValue(&attrBrowseName, attributes, attributeSize);
+    node->browseName = UA_QUALIFIEDNAME_ALLOC(2, getAttributeValue(&attrBrowseName, attributes, attributeSize));
     switch(node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE: 
             ((UA_ObjectTypeNode *)node)->isAbstract =
@@ -293,7 +296,10 @@ static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
             } else {
                 ((UA_VariableNode *)node)->dataType = extractNodedId(namespaces, datatype);
             }
-            //todo: fix this
+            ((UA_VariableNode *)node)->valueSource = UA_VALUESOURCE_DATASOURCE;
+            ((UA_VariableNode *)node)->value.dataSource = noDataSource;
+
+            // todo: fix this
             //((UA_VariableNode *)node)->valueRank =
             //    getAttributeValue(&attrValueRank, attributes, attributeSize);
             //((UA_VariableNode *)node)->arrayDimensions =
@@ -347,9 +353,20 @@ UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **a
 
     //works currently only for nodes with string nodeIds
     struct nodeEntry* n = (struct nodeEntry*)malloc(sizeof(struct nodeEntry));
-    n->key = (char*) newNode->nodeId.identifier.string.data;
     n->node = newNode;
-    HASH_ADD_KEYPTR(hh, nodeHead, n->key, newNode->nodeId.identifier.string.length, n);
+    switch(newNode->nodeId.identifierType)
+    {
+        case UA_NODEIDTYPE_STRING:
+            n->cKey = (char*) newNode->nodeId.identifier.string.data;
+            HASH_ADD_KEYPTR(hh, nodeHead, n->cKey, newNode->nodeId.identifier.string.length, n);
+            break;
+        case UA_NODEIDTYPE_NUMERIC:
+            n->iKey = (int)newNode->nodeId.identifier.numeric;
+            HASH_ADD_INT(nodeHead, iKey, n);
+            break;
+        default:
+            break;
+    }
 
     //printf("nodeCnt: %d\n", HASH_COUNT(nodeHead));
 
@@ -359,8 +376,19 @@ UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **a
 UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
 {
     struct nodeEntry *entry = NULL;
-    HASH_FIND(hh, nodeHead, nodeId->identifier.string.data,
+    switch(nodeId->identifierType)
+    {
+        case UA_NODEIDTYPE_STRING:
+            HASH_FIND(hh, nodeHead, nodeId->identifier.string.data,
               nodeId->identifier.string.length, entry);
+            break;
+        case UA_NODEIDTYPE_NUMERIC:
+            HASH_FIND_INT(nodeHead, &nodeId->identifier.numeric, entry);
+            break;
+        default:
+            break;
+    }
+
     if(entry)
         return entry->node;
     return NULL;
@@ -480,6 +508,11 @@ void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri)
 
     nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].idx =
         (UA_UInt16)globalIdx;
+}
+
+void Nodeset_setDisplayname(UA_Node* node, char* s)
+{
+    node->displayName = UA_LOCALIZEDTEXT_ALLOC("de", s);
 }
 
 void Nodeset_newNodeFinish(UA_Node* node)

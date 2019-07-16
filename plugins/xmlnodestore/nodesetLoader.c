@@ -155,6 +155,7 @@ static void OnStartElementNs(void *ctx, const char *localname, const char *prefi
             pctx->unknown_depth++;
             break;
     }
+    pctx->onCharacters = NULL;
 }
 
 static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
@@ -180,8 +181,12 @@ static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
             pctx->state = PARSER_STATE_INIT;            
             break;
         case PARSER_STATE_DESCRIPTION:
+            pctx->state = PARSER_STATE_NODE;
+            break;
         case PARSER_STATE_DISPLAYNAME:
-            // pctx->node->displayName = extractDisplayname(pctx->onCharacters);
+            Nodeset_setDisplayname(pctx->node, pctx->onCharacters);
+            pctx->state = PARSER_STATE_NODE;
+            break;
         case PARSER_STATE_REFERENCES:
             pctx->state = PARSER_STATE_NODE;
             break;
