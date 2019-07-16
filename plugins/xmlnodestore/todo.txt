@@ -1,0 +1,12 @@
+support generic hashing of UA_NodeId (currently only String supported)
+implement extract attributes
+rethink adding the reverse reference
+implement nodestore interface (currently only get)
+cleanup memory after loading
+hashtable to reduce duplicate strings
+support loading of extensions
+loading of datatypes
+loading of values
+
+
+
