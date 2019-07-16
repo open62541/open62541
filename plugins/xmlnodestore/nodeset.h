@@ -91,11 +91,12 @@ struct Nodeset {
     Alias **aliasArray;
     NodeContainer *nodes[NODECLASS_COUNT];
     size_t aliasSize;
-    size_t charsSize;
-    size_t refsSize;
+    size_t charsSize;    
     TNamespaceTable *namespaceTable;
     size_t hierachicalRefsSize;
-    const char **hierachicalRefs;
+    UA_NodeId *hierachicalRefs;
+    size_t refsSize;
+    UA_NodeReferenceKind** refs;
 };
 
 UA_NodeId extractNodedId(const TNamespace *namespaces, char *s);
@@ -112,6 +113,7 @@ void Nodeset_newAliasFinish(char* idString);
 TNamespace *Nodeset_newNamespace(void);
 void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri);
 void Nodeset_addRefCountedChar(char *newChar);
-const UA_Node * Nodeset_getNode(const UA_NodeId *nodeId);
+void Nodeset_linkReferences(UA_Server* server);
+UA_Node * Nodeset_getNode(const UA_NodeId *nodeId);
 
 #endif

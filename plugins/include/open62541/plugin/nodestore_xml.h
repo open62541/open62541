@@ -31,7 +31,7 @@ UA_Nodestore_Xml_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
 UA_StatusCode
 UA_Nodestore_Xml_replaceNode(void *nsCtx, UA_Node *node);
 UA_StatusCode
-UA_Nodestore_Xml_new(void **nsCtx);
+UA_Nodestore_Xml_new(void **nsCtx, UA_Server* server);
 void
 UA_Nodestore_Xml_delete(void *nsCtx);
 

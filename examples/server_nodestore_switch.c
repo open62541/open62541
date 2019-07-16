@@ -93,7 +93,7 @@ int main(void) {
 	//add xml nodestore
 	UA_NodestoreInterface * nsXmlStore = NULL;
 
-	retval = UA_Nodestore_Xml_Interface_new(&nsXmlStore);
+	retval = UA_Nodestore_Xml_Interface_new(&nsXmlStore, server);
 	if (retval != UA_STATUSCODE_GOOD) {
 		UA_Server_delete(server);
 		return EXIT_FAILURE;

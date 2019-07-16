@@ -147,7 +147,7 @@ UA_StatusCode UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** store) 
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface** store) {
+UA_StatusCode UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface** store, UA_Server* server) {
 	UA_NodestoreInterface* xmlStore = (UA_NodestoreInterface*) UA_malloc(
 			sizeof(UA_NodestoreInterface));
 	if (xmlStore == NULL) {
@@ -155,7 +155,7 @@ UA_StatusCode UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface** store) {
 	}
 
 	UA_StatusCode result = UA_Nodestore_Xml_new(
-			(void**) &xmlStore->context);
+			(void**) &xmlStore->context, server);
 	if (result != UA_STATUSCODE_GOOD) {
 		UA_free(xmlStore);
 		return result;
