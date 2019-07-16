@@ -20,7 +20,7 @@ else()
 endif()
 
 find_program(CLANG_FORMAT_PROGRAM
-  NAMES clang-format 3.9 clang-format-3.8 clang-format-3.7 clang-format-3.6 clang-format
+  NAMES clang-format-3.9 clang-format-3.8 clang-format-3.7 clang-format-3.6 clang-format
   PATHS $ENV{CLANG_TOOLS_PATH} /usr/local/bin /usr/bin
   NO_DEFAULT_PATH)
 
