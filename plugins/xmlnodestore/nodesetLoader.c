@@ -97,6 +97,7 @@ static void OnStartElementNs(void *ctx, const char *localname, const char *prefi
                 Alias *alias = Nodeset_newAlias(nb_attributes, attributes);
                 pctx->alias = alias;
                 pctx->state = PARSER_STATE_ALIAS;
+                pctx->onCharacters = NULL;
             }
             else if(!strcmp(localname, "UANodeSet") ||
                 !strcmp(localname, "Aliases") ||
@@ -164,6 +165,7 @@ static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
             break;
         case PARSER_STATE_ALIAS:
             Nodeset_newAliasFinish(pctx->onCharacters);
+            pctx->onCharacters = NULL;
             pctx->state = PARSER_STATE_INIT;
             break;
         case PARSER_STATE_URI: {

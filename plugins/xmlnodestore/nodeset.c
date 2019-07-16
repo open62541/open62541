@@ -374,10 +374,7 @@ void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attribu
     } else {
         newRef->isInverse = true;
     }
-        //we have to link it af terwards    }
-    newRef->referenceTypeId = 
-        extractNodedId(nodeset->namespaceTable->ns,
-                       getAttributeValue(&attrReferenceType, attributes, attributeSize));   
+    
 
     char* s = getAttributeValue(&attrReferenceType, attributes, attributeSize);
     if(!isNodeId(s))
@@ -415,7 +412,12 @@ void Nodeset_linkReferences(UA_Server* server)
         {
             if(isHierachicalReference(&sourceNode.references[r].referenceTypeId))
             {
-                UA_Node*targetNode = Nodeset_getNode(&sourceNode.references[r].targetIds[0].nodeId);
+                UA_Node*targetNode = NULL;
+                if(sourceNode.references[r].targetIds[0].nodeId.identifierType == UA_NODEIDTYPE_STRING)
+                {
+                    targetNode = Nodeset_getNode(&sourceNode.references[r].targetIds[0].nodeId);
+                }
+                
 
                 if(targetNode)
                 {

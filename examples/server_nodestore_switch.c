@@ -109,9 +109,11 @@ int main(void) {
 
 	addVariableNode(server, 2, "TestNode4");
 
+	/* 
 	UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
 							UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
 							UA_EXPANDEDNODEID_STRING(2, "system.ksdfvar.as0"), true);
+	*/
 
         // Start server and run till SIGINT or SIGTERM
 	UA_Server_run(server, &running);
