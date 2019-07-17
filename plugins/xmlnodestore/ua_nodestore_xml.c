@@ -69,9 +69,8 @@ void UA_Nodestore_Xml_load(UA_Server* server)
     f.userContext = NULL;
     //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset100nodes.xml";
     //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset.xml";
-    f.file = "/home/matzy/git/openMaster/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
-    // f.file =
-    // "/mnt/c/c2k/git/mkOpenImport/nodesetLoader/nodesets/testNodeset100nodes.xml";
+    //f.file = "/home/matzy/git/openMaster/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
+    f.file = "/mnt/c/c2k/git/mkOpenImport/nodesetLoader/nodesets/testNodeset.xml";
     loadFile(&f);
     Nodeset_linkReferences(server);
 }
