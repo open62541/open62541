@@ -9,6 +9,21 @@
 
 #include <open62541/plugin/nodestore.h>
 
+typedef UA_UInt16 (*addNamespaceCb)(UA_Server* server, const char *);
+
+typedef struct {
+    int loadTimeMs;
+    int sortTimeMs;
+    int addNodeTimeMs;
+} Statistics;
+
+typedef struct {
+    const char *file;
+    addNamespaceCb addNamespace;
+    const Statistics *stat;
+    void *userContext;
+} FileHandler;
+
 
 UA_Node *
 UA_Nodestore_Xml_newNode(void *nsCtx, UA_NodeClass nodeClass);
@@ -35,6 +50,6 @@ UA_Nodestore_Xml_new(void **nsCtx, UA_Server* server);
 void
 UA_Nodestore_Xml_delete(void *nsCtx);
 
-void UA_Nodestore_Xml_load(UA_Server *server);
+void UA_Nodestore_Xml_load(UA_Server *server, const FileHandler* f);
 
 #endif /* UA_NODESTORE_XML_H_ */

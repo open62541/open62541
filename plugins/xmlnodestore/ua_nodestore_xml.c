@@ -51,27 +51,15 @@ UA_Nodestore_Xml_replaceNode(void *nsCtx, UA_Node *node)
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
-static UA_UInt16 nscb(void * userCtxt, const char*uri)
-{
-    return 2;
-}
-
 UA_StatusCode
 UA_Nodestore_Xml_new(void **nsCtx, UA_Server* server)
 {
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_Nodestore_Xml_load(UA_Server* server)
-{
-    FileHandler f;
-    f.addNamespace = nscb;
-    f.userContext = NULL;
-    //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset100nodes.xml";
-    //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset.xml";
-    //f.file = "/home/matzy/git/openMaster/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
-    f.file = "/mnt/c/c2k/git/mkOpenImport/nodesetLoader/nodesets/testNodeset.xml";
-    loadFile(&f);
+void UA_Nodestore_Xml_load(UA_Server* server, const FileHandler* f)
+{    
+    loadFile(f);
     Nodeset_linkReferences(server);
 }
 

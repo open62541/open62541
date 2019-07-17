@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "uthash.h"
+#include <open62541/util.h>
 
 static Nodeset *nodeset = NULL;
 
@@ -156,39 +157,40 @@ void Nodeset_new(addNamespaceCb nsCallback) {
     // objects
     nodeset->nodes[NODECLASS_OBJECT] = (NodeContainer *)malloc(sizeof(NodeContainer));
     nodeset->nodes[NODECLASS_OBJECT]->nodes =
-        (UA_Node *)malloc(sizeof(UA_ObjectNode *) * MAX_OBJECTS);
+        (UA_Node *)calloc(MAX_OBJECTS, sizeof(UA_ObjectNode));
+
     nodeset->nodes[NODECLASS_OBJECT]->cnt = 0;
     // variables
     nodeset->nodes[NODECLASS_VARIABLE] = (NodeContainer *)malloc(sizeof(NodeContainer));
     nodeset->nodes[NODECLASS_VARIABLE]->nodes =
-        (UA_Node *)malloc(sizeof(UA_VariableNode *) * MAX_VARIABLES);
+        (UA_Node *)calloc(MAX_VARIABLES, sizeof(UA_VariableNode));
     nodeset->nodes[NODECLASS_VARIABLE]->cnt = 0;
     // methods
     nodeset->nodes[NODECLASS_METHOD] = (NodeContainer *)malloc(sizeof(NodeContainer));
     nodeset->nodes[NODECLASS_METHOD]->nodes =
-        (UA_Node *)malloc(sizeof(UA_MethodNode*) * MAX_METHODS);
+        (UA_Node *)calloc(MAX_METHODS, sizeof(UA_MethodNode));
     nodeset->nodes[NODECLASS_METHOD]->cnt = 0;
     // objecttypes
     nodeset->nodes[NODECLASS_OBJECTTYPE] = (NodeContainer *)malloc(sizeof(NodeContainer));
     nodeset->nodes[NODECLASS_OBJECTTYPE]->nodes =
-        (UA_Node *)malloc(sizeof(UA_ObjectTypeNode *) * MAX_OBJECTTYPES);
+        (UA_Node *)calloc(MAX_OBJECTTYPES, sizeof(UA_ObjectTypeNode));
     nodeset->nodes[NODECLASS_OBJECTTYPE]->cnt = 0;
     // datatypes
     nodeset->nodes[NODECLASS_DATATYPE] = (NodeContainer *)malloc(sizeof(NodeContainer));
     nodeset->nodes[NODECLASS_DATATYPE]->nodes =
-        (UA_Node *)malloc(sizeof(UA_DataTypeNode *) * MAX_DATATYPES);
+        (UA_Node *)calloc(MAX_DATATYPES, sizeof(UA_DataTypeNode));
     nodeset->nodes[NODECLASS_DATATYPE]->cnt = 0;
     // referencetypes
     nodeset->nodes[NODECLASS_REFERENCETYPE] =
         (NodeContainer *)malloc(sizeof(NodeContainer));
     nodeset->nodes[NODECLASS_REFERENCETYPE]->nodes =
-        (UA_Node *)malloc(sizeof(UA_ReferenceTypeNode *) * MAX_REFERENCETYPES);
+        (UA_Node *)calloc(MAX_REFERENCETYPES, sizeof(UA_ReferenceTypeNode));
     nodeset->nodes[NODECLASS_REFERENCETYPE]->cnt = 0;
     // variabletypes
     nodeset->nodes[NODECLASS_VARIABLETYPE] =
         (NodeContainer *)malloc(sizeof(NodeContainer));
     nodeset->nodes[NODECLASS_VARIABLETYPE]->nodes =
-        (UA_Node *)malloc(sizeof(UA_VariableTypeNode *) * MAX_VARIABLETYPES);
+        (UA_Node *)calloc(MAX_VARIABLETYPES, sizeof(UA_VariableTypeNode));
     nodeset->nodes[NODECLASS_VARIABLETYPE]->cnt = 0;
     // known hierachical refs
     nodeset->hierachicalRefs = hierachicalRefs;
@@ -278,8 +280,8 @@ static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
     node->browseName = UA_QUALIFIEDNAME_ALLOC(2, getAttributeValue(&attrBrowseName, attributes, attributeSize));
     switch(node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE: 
-            ((UA_ObjectTypeNode *)node)->isAbstract =
-                getAttributeValue(&attrIsAbstract, attributes, attributeSize);
+            //((UA_ObjectTypeNode *)node)->isAbstract =
+            //    getAttributeValue(&attrIsAbstract, attributes, attributeSize);
             break;
         case UA_NODECLASS_OBJECT:
             //todo
@@ -298,6 +300,10 @@ static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
             }
             ((UA_VariableNode *)node)->valueSource = UA_VALUESOURCE_DATASOURCE;
             ((UA_VariableNode *)node)->value.dataSource = noDataSource;
+            ((UA_VariableNode *)node)->valueRank = -1;
+            ((UA_VariableNode *)node)->writeMask = 0;
+            ((UA_VariableNode *)node)->arrayDimensionsSize = 0;
+
 
             // todo: fix this
             //((UA_VariableNode *)node)->valueRank =
@@ -351,7 +357,7 @@ UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **a
     nodeset->nodes[nodeClass]->cnt++;
     initNode(nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
 
-    //works currently only for nodes with string nodeIds
+    //works currently only for nodes with string nodeIds and numeric ones
     struct nodeEntry* n = (struct nodeEntry*)malloc(sizeof(struct nodeEntry));
     n->node = newNode;
     switch(newNode->nodeId.identifierType)
@@ -368,10 +374,12 @@ UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **a
             break;
     }
 
-    //printf("nodeCnt: %d\n", HASH_COUNT(nodeHead));
+    //printf("nodeHead cnt: %d\n", HASH_COUNT(nodeHead));
 
     return newNode;    
 }
+
+
 
 UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
 {
@@ -390,6 +398,24 @@ UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
     }
 
     if(entry)
+    {
+        UA_String s = UA_STRING_NULL;
+        UA_NodeId_toString(&entry->node->nodeId,&s);
+        printf("nodeId: %.*s\n", (int)s.length, s.data);
+
+        for(size_t i=0; i <entry->node->referencesSize;i++)
+        {
+            UA_NodeReferenceKind refKind = entry->node->references[i];
+            for(size_t j=0; j < refKind.targetIdsSize; j++)
+            {
+                UA_ExpandedNodeId id = refKind.targetIds[j];
+                s = UA_STRING_NULL;
+                UA_NodeId_toString(&id.nodeId,&s);
+                printf("\ttargetId: %.*s\n", (int)s.length, s.data);
+            }
+        }
+        printf("------\n");
+    }
         return entry->node;
     return NULL;
 }
@@ -400,7 +426,9 @@ void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attribu
     UA_NodeReferenceKind *refs =
         (UA_NodeReferenceKind *)realloc(node->references, sizeof(UA_NodeReferenceKind)*node->referencesSize);
     node->references = refs;
-    UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;
+    UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;    
+    newRef->targetIdsSize = 0;
+    newRef->targetIds = NULL;
 
     if(!strcmp("true", getAttributeValue(&attrIsForward, attributes, attributeSize))) {
         newRef->isInverse = false;
@@ -448,17 +476,18 @@ void Nodeset_linkReferences(UA_Server* server)
             if(targetNode)
             {
                 //add inverse reference
+                targetNode->referencesSize++;
                 UA_NodeReferenceKind *refs =
                     (UA_NodeReferenceKind *)realloc(targetNode->references, sizeof(UA_NodeReferenceKind)*targetNode->referencesSize);
                 targetNode->references = refs;
                 UA_NodeReferenceKind *newRef = refs + targetNode->referencesSize - 1;
                 newRef->isInverse = !nodeset->refs[i].ref->isInverse;
                 newRef->referenceTypeId = nodeset->refs[i].ref->referenceTypeId;
-                newRef->targetIdsSize++;
-                UA_ExpandedNodeId* newTargetId = (UA_ExpandedNodeId*)realloc(newRef->targetIds, sizeof(UA_ExpandedNodeId)*newRef->targetIdsSize);
-                newTargetId[newRef->targetIdsSize-1].namespaceUri=UA_STRING_NULL;
-                newTargetId[newRef->targetIdsSize-1].nodeId = *nodeset->refs[i].src;
-                newTargetId[newRef->targetIdsSize-1].serverIndex = 0;
+                newRef->targetIdsSize = 1;
+                UA_ExpandedNodeId* newTargetId = (UA_ExpandedNodeId*)calloc(1, sizeof(UA_ExpandedNodeId));
+                newTargetId->namespaceUri=UA_STRING_NULL;
+                newTargetId->nodeId = *nodeset->refs[i].src;
+                newTargetId->serverIndex = 0;
                 newRef->targetIds = newTargetId;
             }
             else
@@ -504,7 +533,7 @@ void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri)
 {
     nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].name = namespaceUri;
     int globalIdx = nodeset->namespaceTable->cb(
-        userContext, nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].name);
+        (UA_Server*)userContext, nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].name);
 
     nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].idx =
         (UA_UInt16)globalIdx;

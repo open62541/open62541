@@ -21,6 +21,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
+
 #include <signal.h>
 #include <stdlib.h>
 
@@ -104,7 +105,14 @@ int main(void) {
 	// Link the ns1Nodestore to namespace 1, so that all nodes created in namespace 1 reside in ns1Nodestore
 	UA_Nodestore_Switch_setNodestore(nodestoreSwitch, 2, nsXmlStore);
 	
-	UA_Nodestore_Xml_load(server);
+	FileHandler f;
+	f.addNamespace = UA_Server_addNamespace;
+    f.userContext = server;
+    //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset100nodes.xml";
+    //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset.xml";
+    f.file = "/mnt/c/c2k/git/mkOpen62541/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
+    //f.file = "/testNodeset.xml";
+	UA_Nodestore_Xml_load(server, &f);
 
 	// Add some test nodes to namespace 1
 	addVariableNode(server, 1, "TestNode1");

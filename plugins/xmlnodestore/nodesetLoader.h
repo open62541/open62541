@@ -2,6 +2,7 @@
 #define NODESETLOADER_H
 #include <stdbool.h>
 #include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/nodestore_xml.h>
 
 #define NODECLASS_COUNT 7
 typedef enum {
@@ -17,20 +18,7 @@ typedef enum {
 
 
 
-typedef UA_UInt16 (*addNamespaceCb)(void* userContext, const char *);
 
-typedef struct {
-    int loadTimeMs;
-    int sortTimeMs;
-    int addNodeTimeMs;
-} Statistics;
-
-typedef struct {
-    const char *file;
-    addNamespaceCb addNamespace;
-    const Statistics *stat;
-    void *userContext;
-} FileHandler;
 
 bool loadFile(const FileHandler *fileHandler);
 
