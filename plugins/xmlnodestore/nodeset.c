@@ -338,7 +338,9 @@ static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
             //    extractNodedId(namespaces, getAttributeValue(&attrParentNodeId,
             //                                                 attributes, attributeSize));
             break;
-        case UA_NODECLASS_REFERENCETYPE:;
+        case UA_NODECLASS_REFERENCETYPE:
+            ((UA_ReferenceTypeNode *)node)->inverseName =
+                UA_LOCALIZEDTEXT_ALLOC("de", "inverse");
             break;
         default:;
     }
@@ -352,7 +354,32 @@ static void initNode(TNamespace *namespaces, UA_Node *node,
 UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **attributes) {
     
     size_t cnt = nodeset->nodes[nodeClass]->cnt;
-    UA_Node *newNode = nodeset->nodes[nodeClass]->nodes + cnt;
+    UA_Node *newNode = NULL;
+    switch(nodeClass) {
+        case NODECLASS_OBJECTTYPE: 
+            newNode = (UA_Node *)((UA_ObjectTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            break;
+        case NODECLASS_OBJECT:
+            newNode = (UA_Node *)((UA_ObjectNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            break;
+        case NODECLASS_VARIABLE:
+            newNode = (UA_Node *)((UA_VariableNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            break;
+        case NODECLASS_VARIABLETYPE:
+            newNode = (UA_Node *)((UA_VariableTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            break;
+        case NODECLASS_DATATYPE:
+            newNode = (UA_Node *)((UA_DataTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            break;
+        case NODECLASS_METHOD:
+            newNode = (UA_Node *)((UA_MethodNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            break;
+        case NODECLASS_REFERENCETYPE:
+            newNode = (UA_Node *)((UA_ReferenceTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            break;
+        default:
+            newNode = NULL;
+    }
     newNode->nodeClass = UA_NODECLASSES[nodeClass];
     nodeset->nodes[nodeClass]->cnt++;
     initNode(nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
@@ -469,7 +496,7 @@ void Nodeset_linkReferences(UA_Server* server)
             UA_Node*targetNode = NULL;
             if(nodeset->refs[i].ref->targetIds[0].nodeId.identifierType == UA_NODEIDTYPE_STRING)
             {
-                targetNode = Nodeset_getNode(&nodeset->refs[i].ref->targetIds[0].nodeId);
+                //targetNode = Nodeset_getNode(&nodeset->refs[i].ref->targetIds[0].nodeId);
             }
             
 
