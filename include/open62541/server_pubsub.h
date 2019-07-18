@@ -339,6 +339,7 @@ typedef struct {
     UA_DataSetFieldContentMask dataSetFieldContentMask;
     UA_UInt32 keyFrameCount;
     UA_ExtensionObject messageSettings;
+    UA_ExtensionObject transportSettings;
     UA_String dataSetName;
     size_t dataSetWriterPropertiesSize;
     UA_KeyValuePair *dataSetWriterProperties;
@@ -394,6 +395,7 @@ typedef struct {
     UA_Double messageReceiveTimeout;
     UA_PubSubSecurityParameters securityParameters;
     UA_UadpDataSetReaderMessageDataType messageSettings;
+    UA_ExtensionObject transportSettings;
     UA_TargetVariablesDataType subscribedDataSetTarget;
 } UA_DataSetReaderConfig;
 

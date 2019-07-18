@@ -8,7 +8,8 @@
  */
 
 #include "server/ua_server_internal.h"
-
+#include "open62541/plugin/log_stdout.h"
+#include "open62541/types_generated.h"
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #include "ua_pubsub.h"
@@ -292,8 +293,6 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    /* Unregister subscribe callback */
-    UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* To Do:RemoveGroupRepresentation(server, &readerGroup->identifier) */
 #endif
@@ -2148,12 +2147,13 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
 void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
     UA_ByteString buffer;
+
     if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Message buffer alloc failed!");
         return;
     }
+   connection->channel->receive(connection->channel, &buffer, NULL, 300000);
 
-    connection->channel->receive(connection->channel, &buffer, NULL, 300000);
     if(buffer.length > 0) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
         UA_NetworkMessage currentNetworkMessage;
@@ -2185,4 +2185,41 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
     return retval;
 }
 
+/* Add mqtt Subscription settings for Subscriber
+ * ToDo: Implement multiple DataSetReaders */
+#ifdef UA_ENABLE_PUBSUB_MQTT
+UA_StatusCode addMqttSubscription(UA_Server *server, UA_PubSubConnection *connection, char *topic, char* resourceUri,
+                                  char* authenticationProfileUri, char *metaDataQueueName,
+                                  UA_BrokerTransportQualityOfService requestedDeliveryGuarantee) {
+
+     /* configure the mqtt publish topic */
+     UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+     memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
+
+     /* Assign the Topic at which MQTT subscription should happen */
+     brokerTransportSettings.queueName = UA_STRING(topic);
+     brokerTransportSettings.resourceUri = UA_STRING(resourceUri);
+     brokerTransportSettings.authenticationProfileUri = UA_STRING(authenticationProfileUri);
+     brokerTransportSettings.metaDataQueueName = UA_STRING(metaDataQueueName);
+
+     /* Choose the QOS Level for MQTT */
+     brokerTransportSettings.requestedDeliveryGuarantee = requestedDeliveryGuarantee;
+
+     /* Encapsulate config in transportSettings */
+     UA_ExtensionObject transportSettings;
+     memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+     transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+     /* ToDo: Pass UA_BrokerDataSetReaderTransportDataType as transportSettings */
+     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+     transportSettings.content.decoded.data = &brokerTransportSettings;
+
+     /* Register transport settings for Subscriber */
+     UA_StatusCode retval = connection->channel->regist(connection->channel, &transportSettings, NULL);
+     if (retval == UA_STATUSCODE_GOOD) {
+          return UA_STATUSCODE_GOOD;
+     }else{
+         return UA_STATUSCODE_BADNOSUBSCRIPTION;
+     }
+}
+#endif
 #endif /* UA_ENABLE_PUBSUB */
