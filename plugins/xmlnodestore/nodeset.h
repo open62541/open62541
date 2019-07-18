@@ -11,11 +11,12 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+//todo: memory pools needed
 #define MAX_OBJECTTYPES 1000
-#define MAX_OBJECTS 100000
+#define MAX_OBJECTS 1000
 #define MAX_METHODS 1000
 #define MAX_DATATYPES 1000
-#define MAX_VARIABLES 1000000
+#define MAX_VARIABLES 50000
 #define MAX_REFERENCETYPES 1000
 #define MAX_VARIABLETYPES 1000
 #define MAX_HIERACHICAL_REFS 50
