@@ -60,7 +60,7 @@ UA_Nodestore_Xml_new(void **nsCtx, UA_Server* server)
 void UA_Nodestore_Xml_load(UA_Server* server, const FileHandler* f)
 {    
     loadFile(f);
-    Nodeset_linkReferences(server);
+    //Nodeset_linkReferences(server);
 }
 
 void

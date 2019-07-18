@@ -93,7 +93,7 @@ typedef struct
 } TRef;
 
 struct Nodeset {
-    const char **countedChars;
+    char **countedChars;
     Alias **aliasArray;
     NodeContainer *nodes[NODECLASS_COUNT];
     size_t aliasSize;

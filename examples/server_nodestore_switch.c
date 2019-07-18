@@ -109,9 +109,9 @@ int main(void) {
 	f.addNamespace = UA_Server_addNamespace;
     f.userContext = server;
     //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset100nodes.xml";
-    //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset.xml";
+    f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset.xml";
     //f.file = "/mnt/c/c2k/git/mkOpen62541/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
-	f.file = "/home/matzy/git/openMaster/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
+	//f.file = "/home/matzy/git/openMaster/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
     //f.file = "/testNodeset.xml";
 	UA_Nodestore_Xml_load(server, &f);
 

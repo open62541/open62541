@@ -152,7 +152,7 @@ void Nodeset_new(addNamespaceCb nsCallback) {
     nodeset->aliasArray = (Alias **)malloc(sizeof(Alias *) * MAX_ALIAS);
     nodeset->aliasSize = 0;
     nodeset->refsSize = 0;
-    nodeset->countedChars = (const char **)malloc(sizeof(char *) * MAX_REFCOUNTEDCHARS);
+    nodeset->countedChars = (char **)malloc(sizeof(char *) * MAX_REFCOUNTEDCHARS);
     nodeset->charsSize = 0;
     // objects
     nodeset->nodes[NODECLASS_OBJECT] = (NodeContainer *)malloc(sizeof(NodeContainer));
@@ -209,27 +209,13 @@ void Nodeset_new(addNamespaceCb nsCallback) {
 }
 
 void Nodeset_cleanup() {
-    //Nodeset *n = nodeset;
+    Nodeset *n = nodeset;
     // free chars
-    //for(size_t cnt = 0; cnt < n->charsSize; cnt++) {
-    //    free_const(n->countedChars[cnt]);
-    //}
-    //free(n->countedChars);
-
-    // free alias
-    //for(size_t cnt = 0; cnt < n->aliasSize; cnt++) {
-    //    free(n->aliasArray[cnt]);
-    //}
-    //free(n->aliasArray);
-
-    //for(size_t cnt = 0; cnt < NODECLASS_COUNT; cnt++) {
-    //    free((void *)n->nodes[cnt]->nodes);
-    //    free((void *)n->nodes[cnt]);
-    //}
-
-    //free(n->namespaceTable->ns);
-    //free(n->namespaceTable);
-    //free(n);
+    for(size_t cnt = 0; cnt < n->charsSize; cnt++) {
+        free(n->countedChars[cnt]);
+    }
+    free(n->countedChars);
+    free(n->refs);
 }
 
 
@@ -426,6 +412,7 @@ UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
 
     if(entry)
     {
+#ifdef XMLSTORE_TRACE
         UA_String s = UA_STRING_NULL;
         UA_NodeId_toString(&entry->node->nodeId,&s);
         printf("nodeId: %.*s\n", (int)s.length, s.data);
@@ -442,8 +429,9 @@ UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
             }
         }
         printf("------\n");
-    }
+#endif
         return entry->node;
+    }        
     return NULL;
 }
 

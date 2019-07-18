@@ -286,7 +286,9 @@ bool loadFile(const FileHandler *fileHandler) {
     if(read_xmlfile(f, ctx)) {
         puts("xml read error.");
         status = false;
-    }  
+    }
+
+    Nodeset_linkReferences((UA_Server *)fileHandler->userContext);
 
 cleanup:
     Nodeset_cleanup();
