@@ -703,5 +703,39 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
      * and zero for WriterGroupId and DataSetWriterId */
     return UA_STATUSCODE_GOOD;
 }
+/* Add mqtt Subscription settings for Subscriber */
+#ifdef UA_ENABLE_PUBSUB_MQTT
+UA_StatusCode addMqttSubscription(UA_Server *server, UA_PubSubConnection *connection, char *topic, char* resourceUri,
+                                  char* authenticationProfileUri, char *metaDataQueueName,
+                                  UA_BrokerTransportQualityOfService requestedDeliveryGuarantee) {
+     /* configure the mqtt publish topic */
+     UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+     memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
 
+     /* Assign the Topic at which MQTT subscription should happen */
+     brokerTransportSettings.queueName = UA_STRING(topic);
+     brokerTransportSettings.resourceUri = UA_STRING(resourceUri);
+     brokerTransportSettings.authenticationProfileUri = UA_STRING(authenticationProfileUri);
+     brokerTransportSettings.metaDataQueueName = UA_STRING(metaDataQueueName);
+
+     /* Choose the QOS Level for MQTT */
+     brokerTransportSettings.requestedDeliveryGuarantee = requestedDeliveryGuarantee;
+
+     /* Encapsulate config in transportSettings */
+     UA_ExtensionObject transportSettings;
+     memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+     transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+     /* ToDo: Pass UA_BrokerDataSetReaderTransportDataType as transportSettings */
+     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+     transportSettings.content.decoded.data = &brokerTransportSettings;
+
+     /* Register transport settings for Subscriber */
+     UA_StatusCode retval = connection->channel->regist(connection->channel, &transportSettings, NULL);
+     if (retval == UA_STATUSCODE_GOOD) {
+          return UA_STATUSCODE_GOOD;
+     }else{
+         return UA_STATUSCODE_BADNOSUBSCRIPTION;
+     }
+}
+#endif
 #endif /* UA_ENABLE_PUBSUB */

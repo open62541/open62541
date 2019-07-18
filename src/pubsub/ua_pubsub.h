@@ -225,6 +225,14 @@ UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src, UA_
 UA_StatusCode
 UA_Server_DataSetReader_addTargetVariables(UA_Server* server, UA_NodeId* parentNode, UA_NodeId dataSetReaderIdentifier, UA_SubscribedDataSetEnumType sdsType);
 
+#ifdef UA_ENABLE_PUBSUB_MQTT
+/* Add mqtt Subscription settings for Subscriber */
+UA_StatusCode addMqttSubscription(UA_Server *server, UA_PubSubConnection *connection, char *topic, char* resourceUri,
+                                  char* authenticationProfileUri,char *metaDataQueueName,
+                                  UA_BrokerTransportQualityOfService requestedDeliveryGuarantee);
+#endif
+
+
 /**********************************************/
 /*                ReaderGroup                 */
 /**********************************************/
