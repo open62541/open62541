@@ -96,7 +96,7 @@ UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** store);
  * Creates xml nodestore and interface to it
 */
 UA_StatusCode UA_EXPORT
-UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface **store, UA_Server* server);
+UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface **store, const FileHandler* fileHandler);
 
 /*
  * Gets the nodestore interface to an existing switch, which can be created via UA_Nodestore_new or UA_Nodestore_newEmpty

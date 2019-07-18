@@ -46,10 +46,10 @@ UA_Nodestore_Xml_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
 UA_StatusCode
 UA_Nodestore_Xml_replaceNode(void *nsCtx, UA_Node *node);
 UA_StatusCode
-UA_Nodestore_Xml_new(void **nsCtx, UA_Server* server);
+UA_Nodestore_Xml_new(void **nsCtx, const FileHandler* f);
 void
 UA_Nodestore_Xml_delete(void *nsCtx);
 
-void UA_Nodestore_Xml_load(UA_Server *server, const FileHandler* f);
+void UA_Nodestore_Xml_load(void* nsCtx, const FileHandler* f);
 
 #endif /* UA_NODESTORE_XML_H_ */

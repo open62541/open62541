@@ -12,8 +12,6 @@
 #include "uthash.h"
 #include <open62541/util.h>
 
-static Nodeset *nodeset = NULL;
-
 struct nodeEntry
 {
     UT_hash_handle hh;
@@ -138,7 +136,7 @@ static bool isNodeId(const char* s)
     return false;
 }
 
-UA_NodeId alias2Id(const char *alias) {
+static UA_NodeId alias2Id(Nodeset* nodeset, const char *alias) {
     for(size_t cnt = 0; cnt < nodeset->aliasSize; cnt++) {
         if(!strcmp(alias, nodeset->aliasArray[cnt]->name)) {
             return nodeset->aliasArray[cnt]->id;
@@ -147,8 +145,8 @@ UA_NodeId alias2Id(const char *alias) {
     return UA_NODEID_NULL;
 }
 
-void Nodeset_new(addNamespaceCb nsCallback) {
-    nodeset = (Nodeset *)malloc(sizeof(Nodeset));
+Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
+    Nodeset* nodeset = (Nodeset *)malloc(sizeof(Nodeset));
     nodeset->aliasArray = (Alias **)malloc(sizeof(Alias *) * MAX_ALIAS);
     nodeset->aliasSize = 0;
     nodeset->refsSize = 0;
@@ -206,20 +204,16 @@ void Nodeset_new(addNamespaceCb nsCallback) {
     table->ns[0].idx = 0;
     table->ns[0].name = "http://opcfoundation.org/UA/";
     nodeset->namespaceTable = table;
+    return nodeset;
 }
 
-void Nodeset_cleanup() {
-    Nodeset *n = nodeset;
-    // free chars
-    for(size_t cnt = 0; cnt < n->charsSize; cnt++) {
-        free(n->countedChars[cnt]);
-    }
-    free(n->countedChars);
-    free(n->refs);
+void Nodeset_cleanup(Nodeset* nodeset) {
+    free(nodeset->countedChars);
+    free(nodeset->refs);
 }
 
 
-static bool isHierachicalReference(const UA_NodeId *refId) {
+static bool isHierachicalReference(Nodeset* nodeset, const UA_NodeId *refId) {
     for(size_t i = 0; i < nodeset->hierachicalRefsSize; i++) {
         if(UA_NodeId_equal(&nodeset->hierachicalRefs[i], refId))
         {
@@ -241,7 +235,8 @@ static char *getAttributeValue(NodeAttribute *attr, const char **attributes,
         const char *value_end = attributes[i * fields + 4];
         size_t size = (size_t)(value_end - value_start);
         char *value = (char *)malloc(sizeof(char) * size + 1);
-        nodeset->countedChars[nodeset->charsSize++] = value;
+        //todo: nodeset, refcount char
+        //nodeset->countedChars[nodeset->charsSize++] = value;
         memcpy(value, value_start, size);
         value[size] = '\0';
         return value;
@@ -258,12 +253,12 @@ static char *getAttributeValue(NodeAttribute *attr, const char **attributes,
 
 static UA_DataSource noDataSource = {.read=NULL, .write=NULL};
 
-static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
+static void extractAttributes(Nodeset* nodeset, const TNamespace *namespaces, UA_Node *node,
                               int attributeSize, const char **attributes) {
     node->nodeId = extractNodedId(namespaces,
                               getAttributeValue(&attrNodeId, attributes, attributeSize));
-    //todo: getBrowseName
-    node->browseName = UA_QUALIFIEDNAME_ALLOC(2, getAttributeValue(&attrBrowseName, attributes, attributeSize));
+    //todo: split on : , e.g. 1:Test
+    node->browseName = UA_QUALIFIEDNAME(2, getAttributeValue(&attrBrowseName, attributes, attributeSize));
     switch(node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE: 
             //((UA_ObjectTypeNode *)node)->isAbstract =
@@ -278,7 +273,7 @@ static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
         {
             
             char *datatype = getAttributeValue(&attrDataType, attributes, attributeSize);
-            UA_NodeId aliasId = alias2Id(datatype);
+            UA_NodeId aliasId = alias2Id(nodeset, datatype);
             if(!UA_NodeId_equal(&aliasId, &UA_NODEID_NULL)) {
                 ((UA_VariableNode *)node)->dataType= aliasId;
             } else {
@@ -305,7 +300,7 @@ static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
             //((UA_VariableTypeNode *)node)->valueRank =
             //    getAttributeValue(&attrValueRank, attributes, attributeSize);
             char *datatype = getAttributeValue(&attrDataType, attributes, attributeSize);
-            UA_NodeId aliasId = alias2Id(datatype);
+            UA_NodeId aliasId = alias2Id(nodeset, datatype);
             if(!UA_NodeId_equal(&aliasId, &UA_NODEID_NULL)) {
                 ((UA_VariableTypeNode *)node)->dataType= aliasId;
             } else {
@@ -332,12 +327,12 @@ static void extractAttributes(const TNamespace *namespaces, UA_Node *node,
     }
 }
 
-static void initNode(TNamespace *namespaces, UA_Node *node,
+static void initNode(Nodeset* nodeset, TNamespace *namespaces, UA_Node *node,
                      int nb_attributes, const char **attributes) {
-    extractAttributes(namespaces, node, nb_attributes, attributes);
+    extractAttributes(nodeset, namespaces, node, nb_attributes, attributes);
 }
 
-UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **attributes) {
+UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int nb_attributes, const char **attributes) {
     
     size_t cnt = nodeset->nodes[nodeClass]->cnt;
     UA_Node *newNode = NULL;
@@ -368,7 +363,7 @@ UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **a
     }
     newNode->nodeClass = UA_NODECLASSES[nodeClass];
     nodeset->nodes[nodeClass]->cnt++;
-    initNode(nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
+    initNode(nodeset, nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
 
     //works currently only for nodes with string nodeIds and numeric ones
     struct nodeEntry* n = (struct nodeEntry*)malloc(sizeof(struct nodeEntry));
@@ -386,13 +381,8 @@ UA_Node *Nodeset_newNode(TNodeClass nodeClass, int nb_attributes, const char **a
         default:
             break;
     }
-
-    //printf("nodeHead cnt: %d\n", HASH_COUNT(nodeHead));
-
-    return newNode;    
+    return newNode;
 }
-
-
 
 UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
 {
@@ -435,7 +425,7 @@ UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
     return NULL;
 }
 
-void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attributes) {
+void Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int attributeSize, const char **attributes) {
 
     node->referencesSize++;
     UA_NodeReferenceKind *refs =
@@ -456,7 +446,7 @@ void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attribu
     if(!isNodeId(s))
     {
         //try it with alias
-        newRef->referenceTypeId = translateNodeId(nodeset->namespaceTable->ns,alias2Id(s));
+        newRef->referenceTypeId = translateNodeId(nodeset->namespaceTable->ns,alias2Id(nodeset, s));
     }
     else
     {
@@ -467,7 +457,7 @@ void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attribu
     nodeset->refsSize++;
 }
 
-void Nodeset_linkReferences(UA_Server* server)
+void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
 {
     //iterate over all references, if it's an hierachical ref, insert the inverse ref
     // from UA Spec part 3, References:
@@ -477,14 +467,16 @@ void Nodeset_linkReferences(UA_Server* server)
     // References be instantiated as bidirectional to ensure browse connectivity. A bidirectional
     // Reference is modelled as two separate References
 
+
+    //refactor
     for(size_t i=0; i<nodeset->refsSize; i++)
     {
-        if(isHierachicalReference(&nodeset->refs[i].ref->referenceTypeId))
+        if(isHierachicalReference(nodeset, &nodeset->refs[i].ref->referenceTypeId))
         {
             UA_Node*targetNode = NULL;
             if(nodeset->refs[i].ref->targetIds[0].nodeId.identifierType == UA_NODEIDTYPE_STRING)
             {
-                //targetNode = Nodeset_getNode(&nodeset->refs[i].ref->targetIds[0].nodeId);
+                targetNode = Nodeset_getNode(&nodeset->refs[i].ref->targetIds[0].nodeId);
             }
             
 
@@ -519,21 +511,21 @@ void Nodeset_linkReferences(UA_Server* server)
     }
 }
 
-Alias *Nodeset_newAlias(int attributeSize, const char **attributes) {
+Alias *Nodeset_newAlias(Nodeset* nodeset, int attributeSize, const char **attributes) {
     nodeset->aliasArray[nodeset->aliasSize] = (Alias *)malloc(sizeof(Alias));
     nodeset->aliasArray[nodeset->aliasSize]->name =
         getAttributeValue(&attrAlias, attributes, attributeSize);
     return nodeset->aliasArray[nodeset->aliasSize];
 }
 
-void Nodeset_newAliasFinish(char* idString) {
+void Nodeset_newAliasFinish(Nodeset* nodeset, char* idString) {
     nodeset->aliasArray[nodeset->aliasSize]->id =
         extractNodedId(nodeset->namespaceTable->ns,
                        idString);
     nodeset->aliasSize++;
 }
 
-TNamespace* Nodeset_newNamespace()
+TNamespace* Nodeset_newNamespace(Nodeset* nodeset)
 {
     nodeset->namespaceTable->size++;
     TNamespace *ns =
@@ -544,7 +536,7 @@ TNamespace* Nodeset_newNamespace()
     return &ns[nodeset->namespaceTable->size - 1];
 }
 
-void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri)
+void Nodeset_newNamespaceFinish(Nodeset* nodeset, void* userContext, char* namespaceUri)
 {
     nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].name = namespaceUri;
     int globalIdx = nodeset->namespaceTable->cb(
@@ -559,7 +551,7 @@ void Nodeset_setDisplayname(UA_Node* node, char* s)
     node->displayName = UA_LOCALIZEDTEXT_ALLOC("de", s);
 }
 
-void Nodeset_newNodeFinish(UA_Node* node)
+void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node* node)
 {
     //add it to the known hierachical refs
     if(node->nodeClass == UA_NODECLASS_REFERENCETYPE) {
@@ -574,7 +566,7 @@ void Nodeset_newNodeFinish(UA_Node* node)
     }
 }
 
-void Nodeset_newReferenceFinish(UA_Node* node, char* targetId)
+void Nodeset_newReferenceFinish(Nodeset* nodeset, UA_Node* node, char* targetId)
 {
     //add target for every reference
     UA_NodeReferenceKind *ref = &node->references[node->referencesSize - 1];
@@ -586,7 +578,7 @@ void Nodeset_newReferenceFinish(UA_Node* node, char* targetId)
     ref->targetIds = eNodeId;
 }
 
-void Nodeset_addRefCountedChar(char *newChar)
+void Nodeset_addRefCountedChar(Nodeset* nodeset, char *newChar)
 {
     nodeset->countedChars[nodeset->charsSize++] = newChar;
 }

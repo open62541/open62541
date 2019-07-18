@@ -4,22 +4,8 @@
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/nodestore_xml.h>
 
-#define NODECLASS_COUNT 7
-typedef enum {
-    NODECLASS_OBJECT = 0,
-    NODECLASS_OBJECTTYPE = 1,
-    NODECLASS_VARIABLE = 2,
-    NODECLASS_DATATYPE = 3,
-    NODECLASS_METHOD = 4,
-    NODECLASS_REFERENCETYPE = 5,
-    NODECLASS_VARIABLETYPE = 6
-    // TODO: eventtype missing
-} TNodeClass;
-
-
-
-
-
-bool loadFile(const FileHandler *fileHandler);
+struct Nodeset;
+bool
+loadXmlFile(struct Nodeset *nodeset, const FileHandler *fileHandler);
 
 #endif

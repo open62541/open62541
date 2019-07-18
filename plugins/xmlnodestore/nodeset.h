@@ -38,6 +38,18 @@
 #define NAMESPACEURIS "NamespaceUris"
 #define NAMESPACEURI "Uri"
 
+#define NODECLASS_COUNT 7
+typedef enum {
+    NODECLASS_OBJECT = 0,
+    NODECLASS_OBJECTTYPE = 1,
+    NODECLASS_VARIABLE = 2,
+    NODECLASS_DATATYPE = 3,
+    NODECLASS_METHOD = 4,
+    NODECLASS_REFERENCETYPE = 5,
+    NODECLASS_VARIABLETYPE = 6
+    // TODO: eventtype missing
+} TNodeClass;
+
 typedef struct {
     const char *name;
     char *defaultValue;
@@ -107,22 +119,21 @@ struct Nodeset {
 
 UA_NodeId extractNodedId(const TNamespace *namespaces, char *s);
 UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id);
-UA_NodeId alias2Id(const char *alias);
-void Nodeset_new(addNamespaceCb nsCallback);
-void Nodeset_cleanup(void);
-UA_Node *Nodeset_newNode(TNodeClass nodeClass, int attributeSize, const char **attributes);
-void Nodeset_newNodeFinish(UA_Node *node);
-void Nodeset_newReference(UA_Node *node, int attributeSize, const char **attributes);
-void Nodeset_newReferenceFinish(UA_Node *node, char* target);
-Alias *Nodeset_newAlias(int attributeSize, const char **attribute);
-void Nodeset_newAliasFinish(char* idString);
-TNamespace *Nodeset_newNamespace(void);
-void Nodeset_newNamespaceFinish(void* userContext, char* namespaceUri);
-void Nodeset_addRefCountedChar(char *newChar);
-void Nodeset_linkReferences(UA_Server* server);
-UA_Node * NodelinkReferences(UA_Server* server);
+//UA_NodeId alias2Id(const char *alias);
+Nodeset* Nodeset_new(addNamespaceCb nsCallback);
+void Nodeset_cleanup(Nodeset* nodeset);
+UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int attributeSize, const char **attributes);
+void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node *node);
+void Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int attributeSize, const char **attributes);
+void Nodeset_newReferenceFinish(Nodeset* nodeset, UA_Node *node, char* target);
+Alias *Nodeset_newAlias(Nodeset* nodeset, int attributeSize, const char **attribute);
+void Nodeset_newAliasFinish(Nodeset* nodeset, char* idString);
+TNamespace *Nodeset_newNamespace(Nodeset* nodeset);
+void Nodeset_newNamespaceFinish(Nodeset* nodeset, void* userContext, char* namespaceUri);
+void Nodeset_addRefCountedChar(Nodeset* nodeset, char *newChar);
+void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server);
+//UA_Node * NodelinkReferences(Nodeset* nodeset, UA_Server* server);
 UA_Node * Nodeset_getNode(const UA_NodeId *nodeId);
-void
-Nodeset_setDisplayname(UA_Node *node, char *s);
+void Nodeset_setDisplayname(UA_Node *node, char *s);
 
 #endif

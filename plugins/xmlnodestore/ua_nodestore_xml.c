@@ -52,15 +52,15 @@ UA_Nodestore_Xml_replaceNode(void *nsCtx, UA_Node *node)
 }
 
 UA_StatusCode
-UA_Nodestore_Xml_new(void **nsCtx, UA_Server* server)
+UA_Nodestore_Xml_new(void **nsCtx, const FileHandler* f)
 {
+    *nsCtx = Nodeset_new(f->addNamespace);
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_Nodestore_Xml_load(UA_Server* server, const FileHandler* f)
+void UA_Nodestore_Xml_load(void* nsCtx, const FileHandler* f)
 {    
-    loadFile(f);
-    //Nodeset_linkReferences(server);
+    loadXmlFile((Nodeset*) nsCtx, f);
 }
 
 void
