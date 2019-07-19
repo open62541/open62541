@@ -49,7 +49,7 @@ In your own CMake project you can then include the open62541 library using:
 .. code-block:: cmake
 
    # optionally you can also specify a specific version
-   # e.g. find_package(open62541 0.4.0)
+   # e.g. find_package(open62541 1.0.0)
    find_package(open62541 REQUIRED COMPONENTS Events FullNamespace)
    add_executable(main main.cpp)
    target_link_libraries(main open62541::open62541)

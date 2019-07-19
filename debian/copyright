@@ -4,12 +4,11 @@ Upstream-Contact: open62541 Team <open62541-core@googlegroups.com>
 Source: https://open62541.org/
 
 Files: *
-Copyright: <years> <put author's name and email here>
-           <years> <likewise for another author>
-License: GPL-3.0+
+Copyright: 2019 open62541 Team <open62541-core@googlegroups.com>
+License: MPL-2.0
 
 Files: debian/*
-Copyright: 2018 open62541 Team <open62541-core@googlegroups.com>
+Copyright: 2019 open62541 Team <open62541-core@googlegroups.com>
 License: MPL-2.0
 
 License: MPL-2.0
