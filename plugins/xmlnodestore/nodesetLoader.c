@@ -30,6 +30,7 @@ struct TParserCtx {
     size_t unknown_depth;
     TNodeClass nodeClass;
     UA_Node *node;
+    UA_NodeReferenceKind* refKind;
     Alias *alias;
     void *userContext;
     char *onCharacters;
@@ -38,7 +39,7 @@ struct TParserCtx {
 
 static void extractReferenceAttributes(TParserCtx *ctx, int attributeSize,
                                        const char **attributes) {
-    Nodeset_newReference(ctx->nodeset, ctx->node, attributeSize, attributes);
+    ctx->refKind = Nodeset_newReference(ctx->nodeset, ctx->node, attributeSize, attributes);
 }
 
 static void enterUnknownState(TParserCtx *ctx) {
@@ -192,7 +193,7 @@ static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
             pctx->state = PARSER_STATE_NODE;
             break;
         case PARSER_STATE_REFERENCE: {
-            Nodeset_newReferenceFinish(pctx->nodeset, pctx->node, pctx->onCharacters);
+            Nodeset_newReferenceFinish(pctx->nodeset, pctx->refKind, pctx->onCharacters);
             pctx->state = PARSER_STATE_REFERENCES;
         } break;
         case PARSER_STATE_UNKNOWN:

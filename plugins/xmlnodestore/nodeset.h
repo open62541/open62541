@@ -12,8 +12,8 @@
 #include <stddef.h>
 
 //todo: memory pools needed
-#define MAX_OBJECTTYPES 1000
-#define MAX_OBJECTS 1000
+#define MAX_OBJECTTYPES 10000
+#define MAX_OBJECTS 10000
 #define MAX_METHODS 1000
 #define MAX_DATATYPES 1000
 #define MAX_VARIABLES 50000
@@ -125,8 +125,8 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback);
 void Nodeset_cleanup(Nodeset* nodeset);
 UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int attributeSize, const char **attributes);
 void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node *node);
-void Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int attributeSize, const char **attributes);
-void Nodeset_newReferenceFinish(Nodeset* nodeset, UA_Node *node, char* target);
+UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int attributeSize, const char **attributes);
+void Nodeset_newReferenceFinish(Nodeset* nodeset, UA_NodeReferenceKind* ref, char* target);
 Alias *Nodeset_newAlias(Nodeset* nodeset, int attributeSize, const char **attribute);
 void Nodeset_newAliasFinish(Nodeset* nodeset, char* idString);
 TNamespace *Nodeset_newNamespace(Nodeset* nodeset);
