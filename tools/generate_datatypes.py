@@ -19,6 +19,7 @@ import json
 from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
 types = OrderedDict() # contains types that were already parsed
+types_imported = OrderedDict() # contains types that were already parsed and marked as imported types (do not write to source code)
 typedescriptions = {} # contains type nodeids
 user_opaque_type_mapping = {} # contains user defined opaque type mapping
 
@@ -317,7 +318,7 @@ class StructType(Type):
 # Parse Typedefinitions #
 #########################
 
-def parseTypeDefinitions(outname, xmlDescription, namespace):
+def parseTypeDefinitions(outname, xmlDescription, namespace, addToTypes=None):
     def typeReady(element):
         "Are all member types defined?"
         for child in element:
@@ -364,15 +365,20 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
             if not typeReady(typeXml):
                 continue
             if name in builtin_types:
-                types[name] = BuiltinType(name)
+                newType = BuiltinType(name)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-                types[name] = EnumerationType(outname, typeXml, namespace)
+                newType = EnumerationType(outname, typeXml, namespace)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                types[name] = OpaqueType(outname, typeXml, namespace, get_base_type_for_opaque(name)['name'])
+                newType = OpaqueType(outname, typeXml, namespace, get_base_type_for_opaque(name)['name'])
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
-                types[name] = StructType(outname, typeXml, namespace)
+                newType = StructType(outname, typeXml, namespace)
             else:
                 raise Exception("Type not known")
+
+            types[name] = newType
+            if addToTypes is not None:
+                addToTypes[name] = newType
+
             del snippets[name]
 
 ##########################
@@ -492,6 +498,14 @@ parser.add_argument('-t', '--type-bsd',
                     default=[],
                     help='bsd file with type definitions')
 
+parser.add_argument('-i', '--import',
+                    metavar="<importBsds>",
+                    type=str,
+                    dest="import_bsd",
+                    action='append',
+                    default=[],
+                    help='combination of TYPE_ARRAY#filepath.bsd with type definitions which should be loaded but not exported/generated')
+
 parser.add_argument('outfile',
                     metavar='<outputFile>',
                     help='output file w/o extension')
@@ -511,6 +525,13 @@ for builtin in builtin_types:
 
 for f in args.opaque_map:
     user_opaque_type_mapping.update(json.load(f))
+
+for i in args.import_bsd:
+    (outname_import, file_import) = i.split("#")
+    outname_import = outname_import.lower()
+    if outname_import.startswith("ua_"):
+        outname_import = outname_import[3:]
+    parseTypeDefinitions(outname_import, file_import, args.namespace, addToTypes=types_imported)
 
 for f in args.type_bsd:
     parseTypeDefinitions(outname, f, args.namespace)
@@ -554,6 +575,7 @@ def iter_types(v):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
+    l = list(filter(lambda t: t.name not in types_imported, l))
     return l
 
 ################
