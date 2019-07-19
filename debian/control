@@ -31,6 +31,6 @@ Package: open62541-dbg
 Section: debug
 Architecture: any
 Priority: extra
-Depends: librl (= ${binary:Version}), ${misc:Depends}
+Depends: open62541 (= ${binary:Version}), ${misc:Depends}
 Description: Debugging symbols for open62541
  open62541 is an open source C (C99) implementation of the OPC UA standard

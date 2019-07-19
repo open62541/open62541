@@ -32,8 +32,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Version #
 ###########
 
-set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 4)
+set(OPEN62541_VER_MAJOR 1)
+set(OPEN62541_VER_MINOR 0)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "-dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
@@ -1110,7 +1110,7 @@ set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
 
 # This list of components allows to define a find_package requirement.
 # E.g.:
-# find_package(open62541 0.4.0 REQUIRED COMPONENTS Events Methods FullNamespace)
+# find_package(open62541 1.0.0 REQUIRED COMPONENTS Events Methods FullNamespace)
 set(open62541_enabled_components "")
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     list(APPEND open62541_enabled_components "FullNamespace")
