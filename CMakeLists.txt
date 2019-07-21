@@ -22,7 +22,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 set(OPEN62541_VER_MAJOR 0)
 set(OPEN62541_VER_MINOR 3)
-set(OPEN62541_VER_PATCH 0)
+set(OPEN62541_VER_PATCH 1)
 set(OPEN62541_VER_LABEL "") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
 # Set OPEN62541_VER_COMMIT
