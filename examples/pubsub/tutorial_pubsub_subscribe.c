@@ -87,7 +87,16 @@ addDataSetReader(UA_Server *server) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
-    readerConfig.dataSetWriterId = 1;
+    /* Parameters to filter which DataSetMessage has to be processed
+     * by the DataSetReader */
+    /* The following parameters are used to show that the data published by
+     * tutorial_pubsub_publish.c is being subscribed and is being updated in
+     * the information model */
+    UA_UInt16 publisherIdentifier = 2234;
+    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.writerGroupId    = 100;
+    readerConfig.dataSetWriterId  = 62541;
 
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
