@@ -42,6 +42,8 @@ if [ -z ${DOCKER+x} ]; then
 	echo "=== Installing python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
 	pip install --user cpp-coveralls
 	pip install --user 'sphinx==1.7.9'
+	# Pin docutils to version smaller 0.15. Otherwise we run into https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=839299
+	pip install --user 'docutils<=0.14'
 	pip install --user sphinx_rtd_theme
 	pip install --user cpplint
 	echo -en 'travis_fold:end:script.before_install.python\\r'
