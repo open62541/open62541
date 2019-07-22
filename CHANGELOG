@@ -1,6 +1,12 @@
 This changelog reports changes to the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2019-07-22 pro <profanter at fortiss.org>
+
+ * 0.3.1 release
+
+   This is the first maintenance release of the 0.3 release series.
+
 2018-12-19 pro <profanter at fortiss.org>
 
  * 0.3.0 release
