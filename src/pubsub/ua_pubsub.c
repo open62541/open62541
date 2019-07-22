@@ -122,6 +122,26 @@ UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connec
     UA_free(connection->config);
 }
 
+/**
+ * Regist connection given by connectionIdentifier
+ *
+ * @param server
+ * @param connectionIdentifier
+ */
+UA_StatusCode
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier) {
+    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, *connectionIdentifier);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(connection == NULL) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    retval = connection->channel->regist(connection->channel, NULL, NULL);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "register channel failed: 0x%x!", retval);
+    }
+    return retval;
+}
+
 UA_StatusCode
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
@@ -210,7 +230,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReaderGroupConfig tmpReaderGroupConfig;
 
-    /* Search the connection by the given connectionIdentifier */
+    /* Check for valid readergroup configuration */
     if(!readerGroupConfig) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -2124,20 +2144,9 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
 UA_StatusCode
 UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, readerGroup->linkedConnection);
-    if(connection != NULL) {
-        retval = connection->channel->regist(connection->channel, NULL, NULL);
-        if(retval == UA_STATUSCODE_GOOD) {
-            retval = UA_PubSubManager_addRepeatedCallback(server,
-                    (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
-                    readerGroup, 5,
-                    &readerGroup->subscribeCallbackId);
-        }
-        else {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "register channel failed: 0x%x!", retval);
-        }
-
-    }
+    retval |= UA_PubSubManager_addRepeatedCallback(server, (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
+                                                   readerGroup, 5,
+                                                   &readerGroup->subscribeCallbackId);
 
     if(retval == UA_STATUSCODE_GOOD) {
         readerGroup->subscribeCallbackIsRegistered = true;
