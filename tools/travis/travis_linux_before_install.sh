@@ -63,6 +63,8 @@ if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 
 	echo "=== Installing python packages ===" && echo -en 'travis_fold:start:before_install.python\\r'
 	pip install --user cpp-coveralls
+	# Pin docutils to version smaller 0.15. Otherwise we run into https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=839299
+	pip install --user 'docutils<=0.14'
 	pip install --user sphinx_rtd_theme
 	pip install --user cpplint
 	echo -en 'travis_fold:end:script.before_install.python\\r'
