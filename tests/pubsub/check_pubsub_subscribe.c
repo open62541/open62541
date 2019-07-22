@@ -22,6 +22,8 @@
 #define PUBLISHVARIABLE_NODEID   1000    /* Published data nodeId */
 #define SUBSCRIBEOBJECT_NODEID   1001    /* Object nodeId */
 #define SUBSCRIBEVARIABLE_NODEID 1002    /* Subscribed data nodeId */
+#define READERGROUP_COUNT        2       /* Value to add readergroup to connection */
+#define CHECK_READERGROUP_COUNT  3       /* Value to check readergroup count */
 
 /* Global declaration for test cases  */
 UA_Server *server = NULL;
@@ -55,6 +57,7 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
+    UA_PubSubConnection_regist(server, &connection_test);
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -135,6 +138,41 @@ START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
         /* Check readerGroup count */
         ck_assert_int_eq(readerGroupCount, 1);
         UA_Server_removeReaderGroup(server, localreaderGroup);
+    } END_TEST
+
+START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
+        UA_StatusCode retVal   = UA_STATUSCODE_GOOD;
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        readerGroupConfig.name = UA_STRING("ReaderGroup 1");
+        UA_NodeId localReaderGroup;
+        /* Add ReaderGroup */
+        retVal |= UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localReaderGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        /* Remove added ReaderGroup */
+        retVal |= UA_Server_removeReaderGroup(server, localReaderGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        size_t readerGroupCount = 0;
+        UA_ReaderGroup *readerGroup;
+        LIST_FOREACH(readerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection_test)->readerGroups, listEntry) {
+            readerGroupCount++;
+        }
+
+        /* Check ReaderGroup Count */
+        ck_assert_int_eq(readerGroupCount, 0);
+        /* Add Multiple ReaderGroups */
+        for (int iterator = 0; iterator <= READERGROUP_COUNT; iterator++) {
+            retVal |= UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localReaderGroup);
+            ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        }
+
+        readerGroupCount = 0;
+        /* Find ReaderGroup count */
+        LIST_FOREACH(readerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection_test)->readerGroups, listEntry) {
+            readerGroupCount++;
+        }
+        /* Check ReaderGroup Count */
+        ck_assert_int_eq(readerGroupCount, CHECK_READERGROUP_COUNT);
     } END_TEST
 
 START_TEST(UpdateReaderGroupWithInvalidIdentifier) {
@@ -264,6 +302,41 @@ START_TEST(RemoveDataSetReaderWithInvalidIdentifier) {
         /* Remove the added DataSetReader */
         retVal |= UA_Server_removeDataSetReader(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX));
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    } END_TEST
+
+START_TEST(AddMultipleDataSetReaderWithValidConfiguration) {
+        UA_StatusCode retVal    = UA_STATUSCODE_GOOD;
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+        readerGroupConfig.name  = UA_STRING("ReaderGroup 1");
+        UA_NodeId localReaderGroup;
+        UA_NodeId localReaderGroup2;
+        /* DataSetReader configuration */
+        UA_DataSetReaderConfig readerConfig;
+        memset (&readerConfig, 0, sizeof(readerConfig));
+        readerConfig.name       = UA_STRING("DataSet Reader 1");
+        UA_NodeId dataSetReader;
+        /* Add ReaderGroup */
+        retVal |= UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localReaderGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        retVal |= UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &localReaderGroup2);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_ReaderGroup *readerGroupIdent1 = UA_ReaderGroup_findRGbyId(server, localReaderGroup);
+        UA_ReaderGroup *readerGroupIdent2 = UA_ReaderGroup_findRGbyId(server, localReaderGroup2);
+        /* Add DataSetReaders to first ReaderGroup */
+        retVal = UA_Server_addDataSetReader(server, localReaderGroup, &readerConfig, &dataSetReader);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(readerGroupIdent1->readersCount, 1);
+        retVal = UA_Server_addDataSetReader(server, localReaderGroup, &readerConfig, &dataSetReader);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(readerGroupIdent1->readersCount, 2);
+        /* Add DataSetReaders to second ReaderGroup */
+        retVal = UA_Server_addDataSetReader(server, localReaderGroup2, &readerConfig, &dataSetReader);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(readerGroupIdent2->readersCount, 1);
+        retVal = UA_Server_addDataSetReader(server, localReaderGroup2, &readerConfig, &dataSetReader);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(readerGroupIdent2->readersCount, 2);
     } END_TEST
 
 START_TEST(UpdateDataSetReaderConfigWithInvalidId) {
@@ -1014,6 +1087,7 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_readergroup, AddReaderGroupWithNullConfig);
     tcase_add_test(tc_add_pubsub_readergroup, AddReaderGroupWithInvalidConnectionId);
     tcase_add_test(tc_add_pubsub_readergroup, RemoveReaderGroupWithInvalidIdentifier);
+    tcase_add_test(tc_add_pubsub_readergroup, AddRemoveMultipleAddReaderGroupWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, UpdateReaderGroupWithInvalidIdentifier);
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithInvalidConfig);
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithInvalidIdentifier);
@@ -1024,6 +1098,7 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_readergroup, AddDataSetReaderWithNullConfig);
     tcase_add_test(tc_add_pubsub_readergroup, RemoveDataSetReaderWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, RemoveDataSetReaderWithInvalidIdentifier);
+    tcase_add_test(tc_add_pubsub_readergroup, AddMultipleDataSetReaderWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, UpdateDataSetReaderConfigWithInvalidId);
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithInvalidConfiguration);
