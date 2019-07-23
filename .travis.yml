@@ -351,8 +351,7 @@ after_failure: |
 
 deploy:
   provider: releases
-  api_key:
-    secure: PKCoA7MBRtHloIbNF4Qj5LQyCafjekfVeFXlMBd9KmC0ynNuef+D7nn38f/jo25/b0Ii7r+hgslkQPezbKyEqo2zcCB8Pn8TWau2hbzKM/dUCPoN90HVaQcRjUi8P2Y+QkouwyPWSujBL35/X5QiAntRotCSbZx4fkyiN8cU95o=
+  api_key: $GITAUTH
   file:
     - open62541-win32.zip
     - open62541-win64.zip
