@@ -592,6 +592,8 @@ int main(int argc, char **argv) {
 
     /* Override with a custom access control policy */
     config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.server.application");
 
     setInformationModel(server);
 
