@@ -2175,7 +2175,8 @@ setStandardConditionCallbacks(UA_Server *server,
  * passed to make the condition unexposed.
  */
 UA_StatusCode
-UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
+UA_Server_createCondition(UA_Server *server,
+                          const UA_NodeId conditionId, const UA_NodeId conditionType,
                           UA_QualifiedName conditionName, const UA_NodeId conditionSource,
                           const UA_NodeId hierarchialReferenceType, UA_NodeId *outNodeId) {
     UA_StatusCode retval;
@@ -2212,7 +2213,7 @@ UA_Server_createCondition(UA_Server *server, const UA_NodeId conditionType,
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en", (char*)conditionName.name.data);
     retval = UA_Server_addObjectNode(server,
-                                     UA_NODEID_NULL, /* Set a random unused NodeId */
+                                     conditionId,
                                      UA_NODEID_NULL,
                                      UA_NODEID_NULL,
                                      conditionName,
@@ -2284,9 +2285,10 @@ addOptionalVariableField(UA_Server *server,
         else
             referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
 
+        UA_NodeId optionalVariable = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
         retval =
         UA_Server_addVariableNode(server,
-                                  UA_NODEID_NULL, /* Set a random unused NodeId */
+                                  optionalVariable, /* Set a random unused NodeId with specified Namespace Index*/
                                   *originCondition,
                                   referenceToParent,
                                   *fieldName,
@@ -2313,7 +2315,7 @@ addOptionalObjectField(UA_Server *server,
                        const UA_NodeId *originCondition,
                        const UA_QualifiedName* fieldName,
                        const UA_ObjectNode *optionalObjectFieldNode,
-                       UA_NodeId *outOptionalVariable) {
+                       UA_NodeId *outOptionalObject) {
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     UA_StatusCode retval = UA_LocalizedText_copy(&optionalObjectFieldNode->displayName, &oAttr.displayName);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Copying LocalizedText failed",);
@@ -2329,16 +2331,17 @@ addOptionalObjectField(UA_Server *server,
         else
             referenceToParent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
 
+        UA_NodeId optionalObject = {originCondition->namespaceIndex, UA_NODEIDTYPE_NUMERIC, {0}};
         retval =
         UA_Server_addObjectNode(server,
-                                  UA_NODEID_NULL, /* Set a random unused NodeId */
-                                  *originCondition,
-                                  referenceToParent,
-                                  *fieldName,
-                                  type->nodeId,   /* the type of the Field */
-                                  oAttr,
-                                  NULL,           /* no node context */
-                                  outOptionalVariable);
+                                optionalObject, /* Set a random unused NodeId with specified Namespace Index*/
+                                *originCondition,
+                                referenceToParent,
+                                *fieldName,
+                                type->nodeId,   /* the type of the Field */
+                                oAttr,
+                                NULL,           /* no node context */
+                                outOptionalObject);
 
         UA_Nodestore_releaseNode(server->nsCtx, type);
         UA_ObjectAttributes_deleteMembers(&oAttr);

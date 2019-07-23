@@ -70,9 +70,10 @@ addCondition_1(UA_Server *server) {
                      "creating Condition Source failed. StatusCode %s", UA_StatusCode_name(retval));
     }
 
-    retval = UA_Server_createCondition(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
-                                        UA_QUALIFIEDNAME(0, "Condition 1"), conditionSource,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), &conditionInstance_1);
+    retval = UA_Server_createCondition(server,
+                                       UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+                                       UA_QUALIFIEDNAME(0, "Condition 1"), conditionSource,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), &conditionInstance_1);
 
     return retval;
 }
@@ -83,9 +84,10 @@ addCondition_1(UA_Server *server) {
  */
 static UA_StatusCode
 addCondition_2(UA_Server *server) {
-    UA_StatusCode retval = UA_Server_createCondition(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
-                                       UA_QUALIFIEDNAME(0, "Condition 2"), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                       UA_NODEID_NULL, &conditionInstance_2);
+    UA_StatusCode retval = UA_Server_createCondition(server,
+                                                     UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+                                                     UA_QUALIFIEDNAME(0, "Condition 2"), UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                                     UA_NODEID_NULL, &conditionInstance_2);
 
     return retval;
 }
