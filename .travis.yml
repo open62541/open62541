@@ -368,4 +368,4 @@ deploy:
   on:
     repo: open62541/open62541
     tags: true
-    condition: $CC = gcc-4.8 && $ANALYZE = false
+    condition: $MINGW=true
