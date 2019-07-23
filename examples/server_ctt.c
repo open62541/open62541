@@ -2,7 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  * Copyright 2019 (c) Kalycito Infotech Private Limited
- *
+ * Copyright 2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
 #ifdef _MSC_VER
@@ -216,6 +216,7 @@ setInformationModel(UA_Server *server) {
 #define ARRAYID 50002
 #define MATRIXID 50003
 #define DEPTHID 50004
+#define SCALETESTID 50005
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.description = UA_LOCALIZEDTEXT("en-US", "Demo");
@@ -243,6 +244,12 @@ setInformationModel(UA_Server *server) {
     object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Matrix");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Matrix"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+
+    object_attr.description = UA_LOCALIZEDTEXT("en-US", "ScaleTest");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "ScaleTest");
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALETESTID), UA_NODEID_NUMERIC(1, DEMOID),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "ScaleTest"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
     /* Fill demo nodes for each type*/
@@ -350,6 +357,41 @@ setInformationModel(UA_Server *server) {
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                 UA_QUALIFIEDNAME(1, name),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+    }
+
+    /* Scale Test: 100 nodes of each type */
+    int scale_i = 0;
+    UA_UInt32 scale_nodeid = 53000;
+    for(UA_UInt32 type = 0; type < UA_TYPES_DIAGNOSTICINFO; type++) {
+        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
+            continue;
+
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.dataType = UA_TYPES[type].typeId;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+        attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+        attr.valueRank = UA_VALUERANK_SCALAR;
+        void *value = UA_new(&UA_TYPES[type]);
+        UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
+
+        for(size_t j = 0; j < 100; j++) {
+            char name[32];
+#ifndef UA_ENABLE_TYPENAMES
+            UA_snprintf(name, 20, "%02d - %i", type, scale_i);
+#else
+            UA_snprintf(name, 20, "%s - %i", UA_TYPES[type].typeName, scale_i);
+#endif
+            attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
+            UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
+            UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++scale_nodeid),
+                                      UA_NODEID_NUMERIC(1, SCALETESTID),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                      qualifiedName, baseDataVariableType, attr, NULL, NULL);
+            scale_i++;
+        }
+
+        UA_Variant_clear(&attr.value);
     }
 
     /* Add the variable to some more places to get a node with three inverse references for the CTT */
