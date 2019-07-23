@@ -525,6 +525,7 @@ disableUnencrypted(UA_ServerConfig *config) {
         config->endpoints = NULL;
     }
 }
+
 static void
 disableOutdatedSecurityPolicy(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
