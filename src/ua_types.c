@@ -332,19 +332,19 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
         break;
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING: {
+        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
+        int cmp = strncmp((const char*)n1->identifier.string.data,
+                          (const char*)n2->identifier.string.data,
+                          minLength);
+        if(cmp < 0)
+            return UA_ORDER_LESS;
+        if(cmp > 0)
+            return UA_ORDER_MORE;
+
         if(n1->identifier.string.length < n2->identifier.string.length)
             return UA_ORDER_LESS;
         if(n1->identifier.string.length > n2->identifier.string.length)
             return UA_ORDER_MORE;
-        if(n1->identifier.string.length > 0) {
-            int cmp = strncmp((const char*)n1->identifier.string.data,
-                              (const char*)n2->identifier.string.data,
-                              n1->identifier.string.length);
-            if(cmp < 0)
-                return UA_ORDER_LESS;
-            if(cmp > 0)
-                return UA_ORDER_MORE;
-        }
         break;
     }
     default:
