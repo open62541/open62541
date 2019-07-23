@@ -55,6 +55,7 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
+#define APPLICATION_URI_SERVER "urn:open62541.server.application"
 
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
@@ -119,9 +120,9 @@ setDefaultConfig(UA_ServerConfig *conf) {
     #else
     conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
     #endif
-    conf->buildInfo.buildDate = 0;
+    conf->buildInfo.buildDate = UA_DateTime_now();
 
-    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
+    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
     conf->applicationDescription.productUri = UA_STRING_ALLOC(PRODUCT_URI);
     conf->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
