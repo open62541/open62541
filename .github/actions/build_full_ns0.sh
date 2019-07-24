@@ -2,8 +2,10 @@
 
 set -eu
 
-echo -e "\r\n== Unit tests (full NS0) =="
-mkdir -p build && cd build
+build_dir=build-full-ns0-$PYTHON
+
+echo -e "== Build (full NS0) =="
+mkdir -p $build_dir && cd $build_dir
 
 # Valgrind cannot handle the full NS0 because the generated file is too big. Thus run NS0 full without valgrind
 cmake \
