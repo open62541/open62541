@@ -216,7 +216,7 @@ setInformationModel(UA_Server *server) {
 #define ARRAYID 50002
 #define MATRIXID 50003
 #define DEPTHID 50004
-#define SCALETESTID 50005
+#define SCALETESTID 40005
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.description = UA_LOCALIZEDTEXT("en-US", "Demo");
@@ -361,9 +361,9 @@ setInformationModel(UA_Server *server) {
 
     /* Scale Test: 100 nodes of each type */
     int scale_i = 0;
-    UA_UInt32 scale_nodeid = 53000;
-    for(UA_UInt32 type = 0; type < UA_TYPES_DIAGNOSTICINFO; type++) {
-        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
+    UA_UInt32 scale_nodeid = 43000;
+    for(UA_UInt32 type = 0; type < UA_TYPES_QUALIFIEDNAME; type++) {
+        if(type == UA_TYPES_VARIANT || type == UA_TYPES_QUALIFIEDNAME)
             continue;
 
         UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -525,6 +525,28 @@ disableUnencrypted(UA_ServerConfig *config) {
         config->endpoints = NULL;
     }
 }
+static void
+disableOutdatedSecurityPolicy(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_ByteString basic128uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+        if(!UA_String_equal(&ep->securityPolicyUri, &basic128uri))
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
 #endif
 
 UA_Boolean running = true;
@@ -547,6 +569,7 @@ usage(void) {
                    "\t[--issuerlist <il1.der> <il2.der> ... ]\n"
                    "\t[--revocationlist <rv1.crl> <rv2.crl> ...]\n"
                    "\t[--enableUnencrypted]\n"
+                   "\t[--enableOutdatedSecurityPolicy]\n"
 #endif
                    "\t[--enableAnonymous]\n");
 }
@@ -602,6 +625,8 @@ int main(int argc, char **argv) {
     size_t revocationListSize = 0;
     char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
     UA_Boolean enableUnencr = false;
+    UA_Boolean enableSec = false;
+
 #endif
 
     UA_Boolean enableAnon = false;
@@ -617,6 +642,11 @@ int main(int argc, char **argv) {
 #ifdef UA_ENABLE_ENCRYPTION
         if(strcmp(argv[pos], "--enableUnencrypted") == 0) {
             enableUnencr = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--enableOutdatedSecurityPolicy") == 0) {
+            enableSec = true;
             continue;
         }
 
@@ -696,6 +726,9 @@ int main(int argc, char **argv) {
                                                    revocationList, revocationListSize);
     if(!enableUnencr)
         disableUnencrypted(config);
+    if(!enableSec)
+        disableOutdatedSecurityPolicy(&config);
+
 #else
     UA_ServerConfig_setMinimal(config, 4840, &certificate);
 #endif
