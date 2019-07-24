@@ -384,7 +384,7 @@ START_TEST(generateEvents) {
     UA_DeleteMonitoredItemsResponse_deleteMembers(&deleteResponse);
 } END_TEST
 
-static bool hasBaseModelChangeEventType() {
+static bool hasBaseModelChangeEventType(void) {
 
     UA_QualifiedName readBrowsename;
     UA_QualifiedName_init(&readBrowsename);

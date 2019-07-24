@@ -366,7 +366,14 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
     UA_CreateMonitoredItemsResponse response = 
        UA_Client_MonitoredItems_createEvents(client, request, &context,
                                              &callback, &deleteCallback);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
     UA_MonitoredItemCreateResult result;
+    UA_MonitoredItemCreateResult_init(&result);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        result.statusCode = retval;
+        return result;
+    }
     UA_MonitoredItemCreateResult_copy(response.results , &result);
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
     return result;
