@@ -631,12 +631,12 @@ int main(int argc, char **argv) {
                              "Too many revocation lists");
                 return EXIT_FAILURE;
             }
+            revocationList[revocationListSize] = loadFile(argv[pos]);
             if(revocationList[revocationListSize].data == NULL) {
                 UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                              "Unable to load revocationlist %s", argv[pos]);
                 return EXIT_FAILURE;
             }
-            revocationList[revocationListSize] = loadFile(argv[pos]);
             revocationListSize++;
             continue;
         }
