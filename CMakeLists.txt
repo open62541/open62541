@@ -788,12 +788,14 @@ endif()
 if(UA_ENABLE_NODESTORE_XML)
     list(APPEND default_plugin_headers
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodeset.h
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/memory.h
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodesetLoader.h
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/uthash.h
          ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_xml.h
          )
     list(APPEND default_plugin_sources
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodeset.c
+         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/memory.c
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodesetLoader.c
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/ua_nodestore_xml.c
          )

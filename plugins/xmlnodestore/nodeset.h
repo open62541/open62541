@@ -77,9 +77,9 @@ typedef struct {
     UA_NodeId id;
 } Alias;
 
+struct MemoryPool;
 typedef struct {
-    size_t cnt;
-    UA_Node *nodes;
+    struct MemoryPool *nodePool;
 } NodeContainer;
 
 struct TParserCtx;
@@ -108,7 +108,7 @@ typedef struct
 struct Nodeset {
     char **countedChars;
     Alias **aliasArray;
-    NodeContainer *nodes[NODECLASS_COUNT];
+    NodeContainer *nodes;
     size_t aliasSize;
     size_t charsSize;    
     TNamespaceTable *namespaceTable;

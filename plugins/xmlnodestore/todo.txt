@@ -1,6 +1,8 @@
+memory management:
+- increase node pool size by e.g. 10k nodes if necessary
+- 
 support generic hashing of UA_NodeId (currently only String supported)
 implement extract attributes
-rethink adding the reverse reference
 implement nodestore interface (currently only get)
 cleanup memory after loading
 hashtable to reduce duplicate strings

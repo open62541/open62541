@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "uthash.h"
+#include "memory.h"
 #include <open62541/util.h>
 
 struct nodeEntry
@@ -152,44 +153,23 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
     nodeset->refsSize = 0;
     nodeset->countedChars = (char **)malloc(sizeof(char *) * MAX_REFCOUNTEDCHARS);
     nodeset->charsSize = 0;
-    // objects
-    nodeset->nodes[NODECLASS_OBJECT] = (NodeContainer *)malloc(sizeof(NodeContainer));
-    nodeset->nodes[NODECLASS_OBJECT]->nodes =
-        (UA_Node *)calloc(MAX_OBJECTS, sizeof(UA_ObjectNode));
+    // mem pools
+    nodeset->nodes = (NodeContainer *)malloc(sizeof(NodeContainer)*NODECLASS_COUNT);
+    nodeset->nodes[NODECLASS_OBJECT].nodePool =
+    MemoryPool_init(sizeof(UA_ObjectNode), 1000);
+    nodeset->nodes[NODECLASS_VARIABLE].nodePool = MemoryPool_init(sizeof(UA_VariableNode),
+    1000);   
+    nodeset->nodes[NODECLASS_METHOD].nodePool = MemoryPool_init(sizeof(UA_MethodNode),
+    1000);   
+    nodeset->nodes[NODECLASS_OBJECTTYPE].nodePool = MemoryPool_init(sizeof(UA_ObjectTypeNode),
+    1000);
+    nodeset->nodes[NODECLASS_VARIABLETYPE].nodePool = MemoryPool_init(sizeof(UA_VariableTypeNode),
+    1000);
+    nodeset->nodes[NODECLASS_REFERENCETYPE].nodePool = MemoryPool_init(sizeof(UA_ReferenceTypeNode),
+    1000);
+    nodeset->nodes[NODECLASS_DATATYPE].nodePool = MemoryPool_init(sizeof(UA_DataTypeNode),
+    1000);
 
-    nodeset->nodes[NODECLASS_OBJECT]->cnt = 0;
-    // variables
-    nodeset->nodes[NODECLASS_VARIABLE] = (NodeContainer *)malloc(sizeof(NodeContainer));
-    nodeset->nodes[NODECLASS_VARIABLE]->nodes =
-        (UA_Node *)calloc(MAX_VARIABLES, sizeof(UA_VariableNode));
-    nodeset->nodes[NODECLASS_VARIABLE]->cnt = 0;
-    // methods
-    nodeset->nodes[NODECLASS_METHOD] = (NodeContainer *)malloc(sizeof(NodeContainer));
-    nodeset->nodes[NODECLASS_METHOD]->nodes =
-        (UA_Node *)calloc(MAX_METHODS, sizeof(UA_MethodNode));
-    nodeset->nodes[NODECLASS_METHOD]->cnt = 0;
-    // objecttypes
-    nodeset->nodes[NODECLASS_OBJECTTYPE] = (NodeContainer *)malloc(sizeof(NodeContainer));
-    nodeset->nodes[NODECLASS_OBJECTTYPE]->nodes =
-        (UA_Node *)calloc(MAX_OBJECTTYPES, sizeof(UA_ObjectTypeNode));
-    nodeset->nodes[NODECLASS_OBJECTTYPE]->cnt = 0;
-    // datatypes
-    nodeset->nodes[NODECLASS_DATATYPE] = (NodeContainer *)malloc(sizeof(NodeContainer));
-    nodeset->nodes[NODECLASS_DATATYPE]->nodes =
-        (UA_Node *)calloc(MAX_DATATYPES, sizeof(UA_DataTypeNode));
-    nodeset->nodes[NODECLASS_DATATYPE]->cnt = 0;
-    // referencetypes
-    nodeset->nodes[NODECLASS_REFERENCETYPE] =
-        (NodeContainer *)malloc(sizeof(NodeContainer));
-    nodeset->nodes[NODECLASS_REFERENCETYPE]->nodes =
-        (UA_Node *)calloc(MAX_REFERENCETYPES, sizeof(UA_ReferenceTypeNode));
-    nodeset->nodes[NODECLASS_REFERENCETYPE]->cnt = 0;
-    // variabletypes
-    nodeset->nodes[NODECLASS_VARIABLETYPE] =
-        (NodeContainer *)malloc(sizeof(NodeContainer));
-    nodeset->nodes[NODECLASS_VARIABLETYPE]->nodes =
-        (UA_Node *)calloc(MAX_VARIABLETYPES, sizeof(UA_VariableTypeNode));
-    nodeset->nodes[NODECLASS_VARIABLETYPE]->cnt = 0;
     // known hierachical refs
     nodeset->hierachicalRefs = hierachicalRefs;
     nodeset->hierachicalRefsSize = 7;
@@ -334,35 +314,34 @@ static void initNode(Nodeset* nodeset, TNamespace *namespaces, UA_Node *node,
 
 UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int nb_attributes, const char **attributes) {
     
-    size_t cnt = nodeset->nodes[nodeClass]->cnt;
+
     UA_Node *newNode = NULL;
     switch(nodeClass) {
         case NODECLASS_OBJECTTYPE: 
-            newNode = (UA_Node *)((UA_ObjectTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            newNode = (UA_Node *)((UA_ObjectTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
             break;
         case NODECLASS_OBJECT:
-            newNode = (UA_Node *)((UA_ObjectNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            newNode = (UA_Node *)((UA_ObjectNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
             break;
         case NODECLASS_VARIABLE:
-            newNode = (UA_Node *)((UA_VariableNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            newNode = (UA_Node *)((UA_VariableNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
             break;
         case NODECLASS_VARIABLETYPE:
-            newNode = (UA_Node *)((UA_VariableTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            newNode = (UA_Node *)((UA_VariableTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
             break;
         case NODECLASS_DATATYPE:
-            newNode = (UA_Node *)((UA_DataTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            newNode = (UA_Node *)((UA_DataTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
             break;
         case NODECLASS_METHOD:
-            newNode = (UA_Node *)((UA_MethodNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            newNode = (UA_Node *)((UA_MethodNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
             break;
         case NODECLASS_REFERENCETYPE:
-            newNode = (UA_Node *)((UA_ReferenceTypeNode*)nodeset->nodes[nodeClass]->nodes + cnt);
+            newNode = (UA_Node *)((UA_ReferenceTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
             break;
         default:
             newNode = NULL;
     }
     newNode->nodeClass = UA_NODECLASSES[nodeClass];
-    nodeset->nodes[nodeClass]->cnt++;
     initNode(nodeset, nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
 
     //works currently only for nodes with string nodeIds and numeric ones
@@ -427,13 +406,10 @@ UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
 
 
 UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int attributeSize, const char **attributes) {
-    
-
     UA_Boolean isForward = false;
     if(!strcmp("true", getAttributeValue(&attrIsForward, attributes, attributeSize))) {
         isForward = true;
     }
-    
 
     char* s = getAttributeValue(&attrReferenceType, attributes, attributeSize);
     UA_NodeId refTypeId = UA_NODEID_NULL;
@@ -445,7 +421,7 @@ UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int 
     else
     {
         refTypeId = extractNodedId(nodeset->namespaceTable->ns, s);
-    }    
+    }
 
     UA_NodeReferenceKind *existingRefs = NULL;
     for(size_t i = 0; i < node->referencesSize; ++i) {
@@ -465,12 +441,11 @@ UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int 
     UA_NodeReferenceKind *refs =
         (UA_NodeReferenceKind *)realloc(node->references, sizeof(UA_NodeReferenceKind)*node->referencesSize);
     node->references = refs;
-    UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;    
+    UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;
     newRef->referenceTypeId = refTypeId;
     newRef->isInverse = !isForward;
     newRef->targetIdsSize = 0;
-    newRef->targetIds = NULL;    
-
+    newRef->targetIds = NULL;
     return newRef;
 }
 
@@ -484,46 +459,18 @@ void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
     // References be instantiated as bidirectional to ensure browse connectivity. A bidirectional
     // Reference is modelled as two separate References
 
-
-    //refactor
     for(size_t i=0; i<nodeset->refsSize; i++)
     {
         if(isHierachicalReference(nodeset, &nodeset->refs[i].ref->referenceTypeId))
         {
             for(size_t cnt=0; cnt < nodeset->refs[i].ref->targetIdsSize; cnt++)
             {
-                UA_Node*targetNode = NULL;
-                if(nodeset->refs[i].ref->targetIds[0].nodeId.identifierType == UA_NODEIDTYPE_STRING)
-                {
-                    //targetNode = Nodeset_getNode(&nodeset->refs[i].ref->targetIds[0].nodeId);
-                }            
-
-                if(targetNode)
-                {
-                    //add inverse reference
-                    targetNode->referencesSize++;
-                    UA_NodeReferenceKind *refs =
-                        (UA_NodeReferenceKind *)realloc(targetNode->references, sizeof(UA_NodeReferenceKind)*targetNode->referencesSize);
-                    targetNode->references = refs;
-                    UA_NodeReferenceKind *newRef = refs + targetNode->referencesSize - 1;
-                    newRef->isInverse = !nodeset->refs[i].ref->isInverse;
-                    newRef->referenceTypeId = nodeset->refs[i].ref->referenceTypeId;
-                    newRef->targetIdsSize = 1;
-                    UA_ExpandedNodeId* newTargetId = (UA_ExpandedNodeId*)calloc(1, sizeof(UA_ExpandedNodeId));
-                    newTargetId->namespaceUri=UA_STRING_NULL;
-                    newTargetId->nodeId = *nodeset->refs[i].src;
-                    newTargetId->serverIndex = 0;
-                    newRef->targetIds = newTargetId;
-                }
-                else
-                {
-                    //try it with server
-                    UA_ExpandedNodeId eId;
-                    eId.namespaceUri = UA_STRING_NULL;
-                    eId.nodeId = *nodeset->refs[i].src;
-                    eId.serverIndex = 0;
-                    UA_Server_addReference(server, nodeset->refs[i].ref->targetIds[cnt].nodeId, nodeset->refs[i].ref->referenceTypeId, eId, nodeset->refs[i].ref->isInverse);                
-                }
+                //try it with server
+                UA_ExpandedNodeId eId;
+                eId.namespaceUri = UA_STRING_NULL;
+                eId.nodeId = *nodeset->refs[i].src;
+                eId.serverIndex = 0;
+                UA_Server_addReference(server, nodeset->refs[i].ref->targetIds[cnt].nodeId, nodeset->refs[i].ref->referenceTypeId, eId, nodeset->refs[i].ref->isInverse);
             }
         }
     }
