@@ -194,7 +194,7 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
     nodeset->hierachicalRefs = hierachicalRefs;
     nodeset->hierachicalRefsSize = 7;
     //refs
-    nodeset->refs = (TRef*) malloc(sizeof(TRef)*MAX_REFCOUNTEDREFS);
+    nodeset->refs = (TRef*) calloc(MAX_REFCOUNTEDREFS, sizeof(TRef));
     nodeset->refsSize =0;
 
     TNamespaceTable *table = (TNamespaceTable *)malloc(sizeof(TNamespaceTable));
@@ -457,7 +457,7 @@ UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int 
         }
     }
     //if we have an existing referenceKind, use this one
-    if(existingRefs != NULL) {       
+    if(existingRefs != NULL) {
         return existingRefs;
     }
 
@@ -469,13 +469,7 @@ UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int 
     newRef->referenceTypeId = refTypeId;
     newRef->isInverse = !isForward;
     newRef->targetIdsSize = 0;
-    newRef->targetIds = NULL;
-
-
-    //store ref to new created referenceKind
-    nodeset->refs[nodeset->refsSize].ref = newRef;
-    nodeset->refs[nodeset->refsSize].src = &node->nodeId;
-    nodeset->refsSize++;
+    newRef->targetIds = NULL;    
 
     return newRef;
 }
@@ -530,7 +524,7 @@ void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
                     eId.serverIndex = 0;
                     UA_Server_addReference(server, nodeset->refs[i].ref->targetIds[cnt].nodeId, nodeset->refs[i].ref->referenceTypeId, eId, nodeset->refs[i].ref->isInverse);                
                 }
-            }                        
+            }
         }
     }
 }
@@ -587,6 +581,14 @@ void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node* node)
                 break;
             }
         }
+    }
+
+    //store all references
+    for(size_t cnt = 0; cnt < node->referencesSize; cnt++)
+    {
+        nodeset->refs[nodeset->refsSize].ref = &node->references[cnt];
+        nodeset->refs[nodeset->refsSize].src = &node->nodeId;
+        nodeset->refsSize++;
     }
 }
 
