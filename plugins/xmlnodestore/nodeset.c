@@ -189,7 +189,7 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
 
 void Nodeset_cleanup(Nodeset* nodeset) {
     free(nodeset->countedChars);
-    //free(nodeset->refs);
+    free(nodeset->refs);
 }
 
 
