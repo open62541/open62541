@@ -1,8 +1,8 @@
+fix issue on linking references: server is doing realloc on referencekind...
+support loading of extensions
 setup tests
 implement nodestore interface (currently only get)
-cleanup memory after loading
-hashtable to reduce duplicate strings
-support loading of extensions
+rethink char* handling: hashtable to reduce duplicate strings
 loading of datatypes
 loading of values
 memory management:
