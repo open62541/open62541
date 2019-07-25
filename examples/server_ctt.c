@@ -586,10 +586,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    UA_Server *server = UA_Server_new();
-    if(server == NULL)
-        return EXIT_FAILURE;
-    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
 
     /* Load certificate */
     size_t pos = 1;
@@ -719,22 +717,22 @@ int main(int argc, char **argv) {
     }
 
 #ifdef UA_ENABLE_ENCRYPTION
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
                                                    &certificate, &privateKey,
                                                    trustList, trustListSize,
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
     if(!enableUnencr)
-        disableUnencrypted(config);
+        disableUnencrypted(&config);
     if(!enableSec)
         disableOutdatedSecurityPolicy(&config);
 
 #else
-    UA_ServerConfig_setMinimal(config, 4840, &certificate);
+    UA_ServerConfig_setMinimal(&config, 4840, &certificate);
 #endif
 
     if(!enableAnon)
-        disableAnonymous(config);
+        disableAnonymous(&config);
 
     /* Clean up temp values */
     UA_ByteString_clear(&certificate);
@@ -749,9 +747,14 @@ int main(int argc, char **argv) {
 #endif
 
     /* Override with a custom access control policy */
-    config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
-    UA_String_clear(&config->applicationDescription.applicationUri);
-    config->applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.server.application");
+    config.accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
+    UA_String_clear(&config.applicationDescription.applicationUri);
+    config.applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.server.application");
+
+    UA_Server *server = UA_Server_newWithConfig(&config);
+    if(server == NULL)
+        return EXIT_FAILURE;
 
     setInformationModel(server);
 
