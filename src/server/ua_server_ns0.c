@@ -872,7 +872,9 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL,
                                &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
 
-#ifdef UA_ENABLE_HISTORIZING
+#ifndef UA_ENABLE_HISTORIZING
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_HISTORYSERVERCAPABILITIES), true);
+#else
     /* ServerCapabilities - HistoryServerCapabilities - AccessHistoryDataCapability */
     retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_ACCESSHISTORYDATACAPABILITY,
                                &server->config.accessHistoryDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
