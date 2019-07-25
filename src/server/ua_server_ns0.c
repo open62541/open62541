@@ -483,6 +483,33 @@ readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+static UA_StatusCode
+readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
+               const UA_NumericRange *range,
+               UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode retval;
+    retval = UA_Variant_setScalarCopy(&value->value,
+                                      &server->config.samplingIntervalLimits.min,
+                                      &UA_TYPES[UA_TYPES_DURATION]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    value->hasValue = true;
+    if(includeSourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 #if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
@@ -729,10 +756,6 @@ UA_Server_initNS0(UA_Server *server) {
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 
-    /* MinSupportedSampleRate */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
-                               &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_DURATION]);
-
     /* SecondsTillShutdown */
     UA_UInt32 secondsTillShutdown = 0;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN,
@@ -812,8 +835,10 @@ UA_Server_initNS0(UA_Server *server) {
                                &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerCapabilities - MinSupportedSampleRate */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
-                               &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_DURATION]);
+    UA_DataSource samplingInterval = {readMinSamplingInterval, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE),
+                                                   samplingInterval);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerRead */
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD,
