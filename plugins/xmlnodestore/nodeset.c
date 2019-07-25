@@ -287,9 +287,9 @@ static UA_QualifiedName extractBrowseName(char* s)
     char *idxSemi = strchr(s, ':');
     if(!idxSemi)
     {
-        return UA_QUALIFIEDNAME((UA_UInt16) 0, s);
+        return UA_QUALIFIEDNAME_ALLOC((UA_UInt16) 0, s);
     }
-    return UA_QUALIFIEDNAME((UA_UInt16) atoi(s), idxSemi + 1);
+    return UA_QUALIFIEDNAME_ALLOC((UA_UInt16) atoi(s), idxSemi + 1);
 }
 
 static UA_Boolean isTrue(const char* s)
