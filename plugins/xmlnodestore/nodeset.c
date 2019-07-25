@@ -23,6 +23,12 @@ struct nodeEntry
 
 struct nodeEntry *nodeHead = NULL;
 
+#define MAX_HIERACHICAL_REFS 50
+#define MAX_ALIAS 100
+#define MAX_REFCOUNTEDCHARS 10000000
+#define MAX_REFCOUNTEDREFS 1000000
+#define NODECLASS_COUNT 7
+
 // UANode
 #define ATTRIBUTE_NODEID "NodeId"
 #define ATTRIBUTE_BROWSENAME "BrowseName"
@@ -42,6 +48,12 @@ struct nodeEntry *nodeHead = NULL;
 #define ATTRIBUTE_SYMMETRIC "Symmetric"
 #define ATTRIBUTE_ALIAS "Alias"
 
+typedef struct {
+    const char *name;
+    char *defaultValue;
+    bool optional;
+} NodeAttribute;
+
 NodeAttribute attrNodeId = {ATTRIBUTE_NODEID, NULL, false};
 NodeAttribute attrBrowseName = {ATTRIBUTE_BROWSENAME, NULL, false};
 NodeAttribute attrParentNodeId = {ATTRIBUTE_PARENTNODEID, NULL, true};
@@ -59,6 +71,44 @@ const UA_NodeClass UA_NODECLASSES[NODECLASS_COUNT] = {
     UA_NODECLASS_DATATYPE,    UA_NODECLASS_METHOD,     UA_NODECLASS_REFERENCETYPE,
     UA_NODECLASS_VARIABLETYPE};
 
+struct Alias{
+    char *name;
+    UA_NodeId id;
+};
+
+struct MemoryPool;
+typedef struct {
+    struct MemoryPool *nodePool;
+} NodeContainer;
+
+struct TNamespace {
+    UA_UInt16 idx;
+    char *name;
+};
+
+typedef struct {
+    size_t size;
+    TNamespace *ns;
+    addNamespaceCb cb;
+} TNamespaceTable;
+
+typedef struct
+{
+    UA_NodeId *src;
+    UA_NodeReferenceKind *ref;
+} TRef;
+
+struct Nodeset {
+    char **countedChars;
+    Alias **aliasArray;
+    NodeContainer *nodes;
+    size_t aliasSize;
+    size_t charsSize;    
+    TNamespaceTable *namespaceTable;
+    size_t hierachicalRefsSize;
+    UA_NodeId *hierachicalRefs;
+    struct MemoryPool *refPool;
+};
 
 //hierachical references
 UA_NodeId hierachicalRefs[MAX_HIERACHICAL_REFS] = {
@@ -71,7 +121,7 @@ UA_NodeId hierachicalRefs[MAX_HIERACHICAL_REFS] = {
     {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = UA_NS0ID_HASPROPERTY}
     };
 
-UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id) {
+static UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id) {
     if(id.namespaceIndex > 0) {
         id.namespaceIndex = namespaces[id.namespaceIndex].idx;
         return id;
@@ -79,7 +129,7 @@ UA_NodeId translateNodeId(const TNamespace *namespaces, UA_NodeId id) {
     return id;
 }
 
-UA_NodeId extractNodedId(const TNamespace *namespaces, char *s) {
+static UA_NodeId extractNodedId(const TNamespace *namespaces, char *s) {
     if(s == NULL) {
         return UA_NODEID_NULL;
     }
@@ -150,7 +200,6 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
     Nodeset* nodeset = (Nodeset *)malloc(sizeof(Nodeset));
     nodeset->aliasArray = (Alias **)malloc(sizeof(Alias *) * MAX_ALIAS);
     nodeset->aliasSize = 0;
-    nodeset->refsSize = 0;
     nodeset->countedChars = (char **)malloc(sizeof(char *) * MAX_REFCOUNTEDCHARS);
     nodeset->charsSize = 0;
     // mem pools
@@ -174,8 +223,7 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
     nodeset->hierachicalRefs = hierachicalRefs;
     nodeset->hierachicalRefsSize = 7;
     //refs
-    nodeset->refs = (TRef*) calloc(MAX_REFCOUNTEDREFS, sizeof(TRef));
-    nodeset->refsSize =0;
+    nodeset->refPool = MemoryPool_init(sizeof(TRef), 1000);
 
     TNamespaceTable *table = (TNamespaceTable *)malloc(sizeof(TNamespaceTable));
     table->cb = nsCallback;
@@ -189,7 +237,6 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
 
 void Nodeset_cleanup(Nodeset* nodeset) {
     free(nodeset->countedChars);
-    free(nodeset->refs);
 }
 
 
@@ -231,23 +278,43 @@ static char *getAttributeValue(NodeAttribute *attr, const char **attributes,
     }
 }
 
-static UA_DataSource noDataSource = {.read=NULL, .write=NULL};
+static UA_QualifiedName extractBrowseName(char* s)
+{
+    char *idxSemi = strchr(s, ':');
+    if(!idxSemi)
+    {
+        return UA_QUALIFIEDNAME((UA_UInt16) 0, s);
+    }
+    return UA_QUALIFIEDNAME((UA_UInt16) atoi(s), idxSemi + 1);
+}
+
+static UA_Boolean isTrue(const char* s)
+{
+    if(!s)
+    {
+        return false;
+    }
+    if(strcmp(s, "true"))
+    {
+        return false;
+    }
+    return true;
+}
 
 static void extractAttributes(Nodeset* nodeset, const TNamespace *namespaces, UA_Node *node,
                               int attributeSize, const char **attributes) {
     node->nodeId = extractNodedId(namespaces,
                               getAttributeValue(&attrNodeId, attributes, attributeSize));
-    //todo: split on : , e.g. 1:Test
-    node->browseName = UA_QUALIFIEDNAME(2, getAttributeValue(&attrBrowseName, attributes, attributeSize));
+    
+    node->browseName = extractBrowseName(getAttributeValue(&attrBrowseName, attributes, attributeSize));
     switch(node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE: 
-            //((UA_ObjectTypeNode *)node)->isAbstract =
-            //    getAttributeValue(&attrIsAbstract, attributes, attributeSize);
+            ((UA_ObjectTypeNode *)node)->isAbstract =
+                getAttributeValue(&attrIsAbstract, attributes, attributeSize);
             break;
         case UA_NODECLASS_OBJECT:
-            //todo
-            //((UA_ObjectNode *)node)->eventNotifier =
-            //    getAttributeValue(&attrEventNotifier, attributes, attributeSize);
+            ((UA_ObjectNode *)node)->eventNotifier =
+                isTrue(getAttributeValue(&attrEventNotifier, attributes, attributeSize));
             break;
         case UA_NODECLASS_VARIABLE:
         {
@@ -259,14 +326,12 @@ static void extractAttributes(Nodeset* nodeset, const TNamespace *namespaces, UA
             } else {
                 ((UA_VariableNode *)node)->dataType = extractNodedId(namespaces, datatype);
             }
-            ((UA_VariableNode *)node)->valueSource = UA_VALUESOURCE_DATASOURCE;
-            ((UA_VariableNode *)node)->value.dataSource = noDataSource;
             ((UA_VariableNode *)node)->valueRank = -1;
             ((UA_VariableNode *)node)->writeMask = 0;
             ((UA_VariableNode *)node)->arrayDimensionsSize = 0;
 
 
-            // todo: fix this
+            // todo: fix this, or on first read?
             //((UA_VariableNode *)node)->valueRank =
             //    getAttributeValue(&attrValueRank, attributes, attributeSize);
             //((UA_VariableNode *)node)->arrayDimensions =
@@ -288,20 +353,17 @@ static void extractAttributes(Nodeset* nodeset, const TNamespace *namespaces, UA
             }
             //((UA_VariableTypeNode *)node)->arrayDimensions =
             //    getAttributeValue(&attrArrayDimensions, attributes, attributeSize);
-            //((UA_VariableTypeNode *)node)->isAbstract =
-            //    getAttributeValue(&attrIsAbstract, attributes, attributeSize);
+            ((UA_VariableTypeNode *)node)->isAbstract =
+            isTrue(getAttributeValue(&attrIsAbstract, attributes, attributeSize));
             break;
         }
         case UA_NODECLASS_DATATYPE:;
             break;
         case UA_NODECLASS_METHOD:
             //((UA_MethodNode *)node)->executable =
-            //    extractNodedId(namespaces, getAttributeValue(&attrParentNodeId,
-            //                                                 attributes, attributeSize));
+            //    isTrue(extractNodedId(namespaces, getAttributeValue(&attrParentNodeId, attributes, attributeSize));
             break;
-        case UA_NODECLASS_REFERENCETYPE:
-            ((UA_ReferenceTypeNode *)node)->inverseName =
-                UA_LOCALIZEDTEXT_ALLOC("de", "inverse");
+        case UA_NODECLASS_REFERENCETYPE:            
             break;
         default:;
     }
@@ -312,35 +374,10 @@ static void initNode(Nodeset* nodeset, TNamespace *namespaces, UA_Node *node,
     extractAttributes(nodeset, namespaces, node, nb_attributes, attributes);
 }
 
-UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int nb_attributes, const char **attributes) {
-    
-
-    UA_Node *newNode = NULL;
-    switch(nodeClass) {
-        case NODECLASS_OBJECTTYPE: 
-            newNode = (UA_Node *)((UA_ObjectTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
-            break;
-        case NODECLASS_OBJECT:
-            newNode = (UA_Node *)((UA_ObjectNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
-            break;
-        case NODECLASS_VARIABLE:
-            newNode = (UA_Node *)((UA_VariableNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
-            break;
-        case NODECLASS_VARIABLETYPE:
-            newNode = (UA_Node *)((UA_VariableTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
-            break;
-        case NODECLASS_DATATYPE:
-            newNode = (UA_Node *)((UA_DataTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
-            break;
-        case NODECLASS_METHOD:
-            newNode = (UA_Node *)((UA_MethodNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
-            break;
-        case NODECLASS_REFERENCETYPE:
-            newNode = (UA_Node *)((UA_ReferenceTypeNode*)MemoryPool_getMemoryForElement(nodeset->nodes[nodeClass].nodePool));
-            break;
-        default:
-            newNode = NULL;
-    }
+UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int nb_attributes, const char **attributes) 
+{
+    struct MemoryPool *nodePool = nodeset->nodes[nodeClass].nodePool;
+    UA_Node *newNode = (UA_Node *)MemoryPool_getMemoryForElement(nodePool);    
     newNode->nodeClass = UA_NODECLASSES[nodeClass];
     initNode(nodeset, nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
 
@@ -449,31 +486,37 @@ UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int 
     return newRef;
 }
 
+
+static void addReference(void* ref, void* nodeset, void* server)
+{
+    TRef *tref = (TRef *)ref;
+    Nodeset *ns = (Nodeset *)nodeset;
+
+    if(isHierachicalReference(ns, &tref->ref->referenceTypeId)) {
+        for(size_t cnt = 0; cnt < tref->ref->targetIdsSize; cnt++) {
+            // try it with server
+            UA_ExpandedNodeId eId;
+            eId.namespaceUri = UA_STRING_NULL;
+            eId.nodeId = *tref->src;
+            eId.serverIndex = 0;
+            UA_Server_addReference((UA_Server*)server, tref->ref->targetIds[cnt].nodeId,
+                                   tref->ref->referenceTypeId, eId,
+                                   tref->ref->isInverse);
+        }
+    }
+}
+
 void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
 {
-    //iterate over all references, if it's an hierachical ref, insert the inverse ref
+    // iterate over all references, if it's an hierachical ref, insert the inverse ref
     // from UA Spec part 3, References:
     // It might not always be possible for Servers to instantiate both forward and inverse References
     // for non-symmetric ReferenceTypes as shown in Figure 9. When they do, the References are
     // referred to as bidirectional. Although not required, it is recommended that all hierarchical
     // References be instantiated as bidirectional to ensure browse connectivity. A bidirectional
     // Reference is modelled as two separate References
-
-    for(size_t i=0; i<nodeset->refsSize; i++)
-    {
-        if(isHierachicalReference(nodeset, &nodeset->refs[i].ref->referenceTypeId))
-        {
-            for(size_t cnt=0; cnt < nodeset->refs[i].ref->targetIdsSize; cnt++)
-            {
-                //try it with server
-                UA_ExpandedNodeId eId;
-                eId.namespaceUri = UA_STRING_NULL;
-                eId.nodeId = *nodeset->refs[i].src;
-                eId.serverIndex = 0;
-                UA_Server_addReference(server, nodeset->refs[i].ref->targetIds[cnt].nodeId, nodeset->refs[i].ref->referenceTypeId, eId, nodeset->refs[i].ref->isInverse);
-            }
-        }
-    }
+    MemoryPool_forEach(nodeset->refPool, addReference, nodeset, server);
+    MemoryPool_cleanup(nodeset->refPool);
 }
 
 Alias *Nodeset_newAlias(Nodeset* nodeset, int attributeSize, const char **attributes) {
@@ -513,6 +556,7 @@ void Nodeset_newNamespaceFinish(Nodeset* nodeset, void* userContext, char* names
 
 void Nodeset_setDisplayname(UA_Node* node, char* s)
 {
+    //todo
     node->displayName = UA_LOCALIZEDTEXT_ALLOC("de", s);
 }
 
@@ -533,9 +577,9 @@ void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node* node)
     //store all references
     for(size_t cnt = 0; cnt < node->referencesSize; cnt++)
     {
-        nodeset->refs[nodeset->refsSize].ref = &node->references[cnt];
-        nodeset->refs[nodeset->refsSize].src = &node->nodeId;
-        nodeset->refsSize++;
+        TRef *ref = (TRef *)MemoryPool_getMemoryForElement(nodeset->refPool);
+        ref->ref = &node->references[cnt];
+        ref->src = &node->nodeId;
     }
 }
 

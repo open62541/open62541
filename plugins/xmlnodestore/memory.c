@@ -40,7 +40,7 @@ MemoryPool_getMemoryForElement(struct MemoryPool *memPool)
     {
         struct RawMem* newRawMem = (struct RawMem*) malloc(sizeof(struct RawMem));
         newRawMem->prev = memPool->mem;
-        newRawMem->mem = memPool->mem->mem = calloc(memPool->elementSize, memPool->incrementCount);
+        newRawMem->mem = calloc(memPool->elementSize, memPool->incrementCount);
         memPool->size = 0;
         memPool->mem = newRawMem;
     }
@@ -51,5 +51,29 @@ MemoryPool_getMemoryForElement(struct MemoryPool *memPool)
 
 void MemoryPool_cleanup(struct MemoryPool *memPool)
 {
-    //todo
+    //cleanup rawmem
+    while(memPool->mem) {
+        free(memPool->mem->mem);
+        struct RawMem *nextToFree = memPool->mem->prev;
+        free(memPool->mem);
+        memPool->mem = nextToFree;
+    }
+    free(memPool);
+}
+
+//todo: beautify
+void
+MemoryPool_forEach(const struct MemoryPool *memPool, void (*f)(void *element, void *data1, void* data2),
+                   void *data1, void* data2)
+{
+    struct RawMem *actMem = memPool->mem;
+    while(actMem)
+    {
+        for(size_t cnt = 0; cnt < memPool->size; cnt++)
+        {
+            uintptr_t adr = (uintptr_t)actMem->mem + memPool->elementSize * cnt;
+            f((void *)adr, data1, data2);
+        }
+        actMem = actMem->prev;
+    }
 }

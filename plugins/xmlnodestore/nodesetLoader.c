@@ -11,6 +11,21 @@
 #include <stdio.h>
 #include <string.h>
 
+#define OBJECT "UAObject"
+#define METHOD "UAMethod"
+#define OBJECTTYPE "UAObjectType"
+#define VARIABLE "UAVariable"
+#define VARIABLETYPE "UAVariableType"
+#define DATATYPE "UADataType"
+#define REFERENCETYPE "UAReferenceType"
+#define DISPLAYNAME "DisplayName"
+#define REFERENCES "References"
+#define REFERENCE "Reference"
+#define DESCRIPTION "Description"
+#define ALIAS "Alias"
+#define NAMESPACEURIS "NamespaceUris"
+#define NAMESPACEURI "Uri"
+
 typedef enum {
     PARSER_STATE_INIT,
     PARSER_STATE_NODE,
@@ -36,6 +51,9 @@ struct TParserCtx {
     char *onCharacters;
     Nodeset *nodeset;
 };
+
+struct TParserCtx;
+typedef struct TParserCtx TParserCtx;
 
 static void extractReferenceAttributes(TParserCtx *ctx, int attributeSize,
                                        const char **attributes) {

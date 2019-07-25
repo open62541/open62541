@@ -1,5 +1,4 @@
 setup tests
-implement extract attributes
 implement nodestore interface (currently only get)
 cleanup memory after loading
 hashtable to reduce duplicate strings
