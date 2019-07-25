@@ -51,7 +51,6 @@ MemoryPool_getMemoryForElement(struct MemoryPool *memPool)
 
 void MemoryPool_cleanup(struct MemoryPool *memPool)
 {
-    //cleanup rawmem
     while(memPool->mem) {
         free(memPool->mem->mem);
         struct RawMem *nextToFree = memPool->mem->prev;

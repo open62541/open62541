@@ -236,6 +236,10 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
 }
 
 void Nodeset_cleanup(Nodeset* nodeset) {
+    for(size_t cnt = 0; cnt < nodeset->charsSize; cnt++)
+    {
+        free(nodeset->countedChars[cnt]);
+    }
     free(nodeset->countedChars);
 }
 
@@ -251,7 +255,7 @@ static bool isHierachicalReference(Nodeset* nodeset, const UA_NodeId *refId) {
 }
 
 
-static char *getAttributeValue(NodeAttribute *attr, const char **attributes,
+static char *getAttributeValue(Nodeset* nodeset, NodeAttribute *attr, const char **attributes,
                                int nb_attributes) {
     const int fields = 5;
     for(int i = 0; i < nb_attributes; i++) {
@@ -263,7 +267,7 @@ static char *getAttributeValue(NodeAttribute *attr, const char **attributes,
         size_t size = (size_t)(value_end - value_start);
         char *value = (char *)malloc(sizeof(char) * size + 1);
         //todo: nodeset, refcount char
-        //nodeset->countedChars[nodeset->charsSize++] = value;
+        nodeset->countedChars[nodeset->charsSize++] = value;
         memcpy(value, value_start, size);
         value[size] = '\0';
         return value;
@@ -304,22 +308,22 @@ static UA_Boolean isTrue(const char* s)
 static void extractAttributes(Nodeset* nodeset, const TNamespace *namespaces, UA_Node *node,
                               int attributeSize, const char **attributes) {
     node->nodeId = extractNodedId(namespaces,
-                              getAttributeValue(&attrNodeId, attributes, attributeSize));
+                              getAttributeValue(nodeset, &attrNodeId, attributes, attributeSize));
     
-    node->browseName = extractBrowseName(getAttributeValue(&attrBrowseName, attributes, attributeSize));
+    node->browseName = extractBrowseName(getAttributeValue(nodeset, &attrBrowseName, attributes, attributeSize));
     switch(node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE: 
             ((UA_ObjectTypeNode *)node)->isAbstract =
-                getAttributeValue(&attrIsAbstract, attributes, attributeSize);
+                getAttributeValue(nodeset, &attrIsAbstract, attributes, attributeSize);
             break;
         case UA_NODECLASS_OBJECT:
             ((UA_ObjectNode *)node)->eventNotifier =
-                isTrue(getAttributeValue(&attrEventNotifier, attributes, attributeSize));
+                isTrue(getAttributeValue(nodeset, &attrEventNotifier, attributes, attributeSize));
             break;
         case UA_NODECLASS_VARIABLE:
         {
             
-            char *datatype = getAttributeValue(&attrDataType, attributes, attributeSize);
+            char *datatype = getAttributeValue(nodeset, &attrDataType, attributes, attributeSize);
             UA_NodeId aliasId = alias2Id(nodeset, datatype);
             if(!UA_NodeId_equal(&aliasId, &UA_NODEID_NULL)) {
                 ((UA_VariableNode *)node)->dataType= aliasId;
@@ -344,7 +348,7 @@ static void extractAttributes(Nodeset* nodeset, const TNamespace *namespaces, UA
             //todo
             //((UA_VariableTypeNode *)node)->valueRank =
             //    getAttributeValue(&attrValueRank, attributes, attributeSize);
-            char *datatype = getAttributeValue(&attrDataType, attributes, attributeSize);
+            char *datatype = getAttributeValue(nodeset, &attrDataType, attributes, attributeSize);
             UA_NodeId aliasId = alias2Id(nodeset, datatype);
             if(!UA_NodeId_equal(&aliasId, &UA_NODEID_NULL)) {
                 ((UA_VariableTypeNode *)node)->dataType= aliasId;
@@ -354,7 +358,7 @@ static void extractAttributes(Nodeset* nodeset, const TNamespace *namespaces, UA
             //((UA_VariableTypeNode *)node)->arrayDimensions =
             //    getAttributeValue(&attrArrayDimensions, attributes, attributeSize);
             ((UA_VariableTypeNode *)node)->isAbstract =
-            isTrue(getAttributeValue(&attrIsAbstract, attributes, attributeSize));
+            isTrue(getAttributeValue(nodeset, &attrIsAbstract, attributes, attributeSize));
             break;
         }
         case UA_NODECLASS_DATATYPE:;
@@ -444,11 +448,11 @@ UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
 
 UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int attributeSize, const char **attributes) {
     UA_Boolean isForward = false;
-    if(!strcmp("true", getAttributeValue(&attrIsForward, attributes, attributeSize))) {
+    if(!strcmp("true", getAttributeValue(nodeset, &attrIsForward, attributes, attributeSize))) {
         isForward = true;
     }
 
-    char* s = getAttributeValue(&attrReferenceType, attributes, attributeSize);
+    char* s = getAttributeValue(nodeset, &attrReferenceType, attributes, attributeSize);
     UA_NodeId refTypeId = UA_NODEID_NULL;
     if(!isNodeId(s))
     {
@@ -522,7 +526,7 @@ void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
 Alias *Nodeset_newAlias(Nodeset* nodeset, int attributeSize, const char **attributes) {
     nodeset->aliasArray[nodeset->aliasSize] = (Alias *)malloc(sizeof(Alias));
     nodeset->aliasArray[nodeset->aliasSize]->name =
-        getAttributeValue(&attrAlias, attributes, attributeSize);
+        getAttributeValue(nodeset, &attrAlias, attributes, attributeSize);
     return nodeset->aliasArray[nodeset->aliasSize];
 }
 
