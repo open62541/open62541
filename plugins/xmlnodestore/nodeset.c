@@ -218,12 +218,9 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
     1000);
     nodeset->nodes[NODECLASS_DATATYPE].nodePool = MemoryPool_init(sizeof(UA_DataTypeNode),
     1000);
-
-    // known hierachical refs
     nodeset->hierachicalRefs = hierachicalRefs;
     nodeset->hierachicalRefsSize = 7;
-    //refs
-    nodeset->refPool = MemoryPool_init(sizeof(TRef), 200000);
+    nodeset->refPool = MemoryPool_init(sizeof(TRef), 1000);
 
     TNamespaceTable *table = (TNamespaceTable *)malloc(sizeof(TNamespaceTable));
     table->cb = nsCallback;
@@ -510,6 +507,14 @@ static void addReference(void* ref, void* nodeset, void* server)
     }
 }
 
+static void cleanupRefs(void* ref, void* empty, void* empty2)
+{
+    TRef *tref = (TRef *)ref;
+    UA_free(tref->ref->targetIds);
+    //UA_NodeId_delete(&tref->ref->referenceTypeId);
+    UA_free(tref->ref);
+}
+
 void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
 {
     // iterate over all references, if it's an hierachical ref, insert the inverse ref
@@ -520,6 +525,7 @@ void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
     // References be instantiated as bidirectional to ensure browse connectivity. A bidirectional
     // Reference is modelled as two separate References
     MemoryPool_forEach(nodeset->refPool, addReference, nodeset, server);
+    MemoryPool_forEach(nodeset->refPool, cleanupRefs, NULL, NULL);
     MemoryPool_cleanup(nodeset->refPool);
 }
 
@@ -586,14 +592,12 @@ void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node* node)
         UA_NodeReferenceKind *copyRef = (UA_NodeReferenceKind*)malloc(sizeof(UA_NodeReferenceKind));
         memcpy(copyRef, &node->references[cnt], sizeof(UA_NodeReferenceKind));
         copyRef->targetIds =
-            (UA_ExpandedNodeId*) malloc(sizeof(UA_ExpandedNodeId) * node->references->targetIdsSize);
-        memcpy(copyRef->targetIds, node->references->targetIds,
-               sizeof(UA_ExpandedNodeId) * node->references->targetIdsSize);
+            (UA_ExpandedNodeId*) malloc(sizeof(UA_ExpandedNodeId) * node->references[cnt].targetIdsSize);
+        memcpy(copyRef->targetIds, node->references[cnt].targetIds,
+               sizeof(UA_ExpandedNodeId) * node->references[cnt].targetIdsSize);
         UA_NodeId_copy(&node->references[cnt].referenceTypeId, &copyRef->referenceTypeId);
         ref->ref = copyRef;
         ref->src = &node->nodeId;
-        //UA_NodeId_copy(&node->nodeId, ref->src);
-        //ref->src = &node->nodeId;
     }
 }
 
