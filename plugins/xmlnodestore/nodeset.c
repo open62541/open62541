@@ -223,7 +223,7 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
     nodeset->hierachicalRefs = hierachicalRefs;
     nodeset->hierachicalRefsSize = 7;
     //refs
-    nodeset->refPool = MemoryPool_init(sizeof(TRef), 1000);
+    nodeset->refPool = MemoryPool_init(sizeof(TRef), 200000);
 
     TNamespaceTable *table = (TNamespaceTable *)malloc(sizeof(TNamespaceTable));
     table->cb = nsCallback;
@@ -582,8 +582,18 @@ void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node* node)
     for(size_t cnt = 0; cnt < node->referencesSize; cnt++)
     {
         TRef *ref = (TRef *)MemoryPool_getMemoryForElement(nodeset->refPool);
-        ref->ref = &node->references[cnt];
+        //store a copy
+        UA_NodeReferenceKind *copyRef = (UA_NodeReferenceKind*)malloc(sizeof(UA_NodeReferenceKind));
+        memcpy(copyRef, &node->references[cnt], sizeof(UA_NodeReferenceKind));
+        copyRef->targetIds =
+            (UA_ExpandedNodeId*) malloc(sizeof(UA_ExpandedNodeId) * node->references->targetIdsSize);
+        memcpy(copyRef->targetIds, node->references->targetIds,
+               sizeof(UA_ExpandedNodeId) * node->references->targetIdsSize);
+        UA_NodeId_copy(&node->references[cnt].referenceTypeId, &copyRef->referenceTypeId);
+        ref->ref = copyRef;
         ref->src = &node->nodeId;
+        //UA_NodeId_copy(&node->nodeId, ref->src);
+        //ref->src = &node->nodeId;
     }
 }
 
