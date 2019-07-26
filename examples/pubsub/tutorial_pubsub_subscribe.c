@@ -117,6 +117,7 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     UA_Server_DataSetReader_addTargetVariables (server, &folderId,
                                                dataSetReaderId,
                                                UA_PUBSUB_SDS_TARGET);
+    UA_free(readerConfig.dataSetMetaData.fields);
 }
 
 /* Define MetaData for TargetVariables */
@@ -126,8 +127,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     }
 
     UA_DataSetMetaDataType_init (pMetaData);
-    UA_String strTmp = UA_STRING ("DataSet 1");
-    UA_String_copy (&strTmp, &pMetaData->name);
+    pMetaData->name = UA_STRING ("DataSet 1");
 
     /* Static definition of number of fields size to 4 to create four different
      * targetVariables of distinct datatype
@@ -141,8 +141,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
                     &pMetaData->fields[0].dataType);
     pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
-    strTmp = UA_STRING ("DateTime");
-    UA_String_copy (&strTmp, &pMetaData->fields[0].name);
+    pMetaData->fields[0].name =  UA_STRING ("DateTime");
     pMetaData->fields[0].valueRank = -1; /* scalar */
 
     /* Int32 DataType */
@@ -150,8 +149,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId,
                    &pMetaData->fields[1].dataType);
     pMetaData->fields[1].builtInType = UA_NS0ID_INT32;
-    strTmp = UA_STRING ("Int32");
-    UA_String_copy (&strTmp, &pMetaData->fields[1].name);
+    pMetaData->fields[1].name =  UA_STRING ("Int32");
     pMetaData->fields[1].valueRank = -1; /* scalar */
 
     /* Int64 DataType */
@@ -159,8 +157,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT64].typeId,
                    &pMetaData->fields[2].dataType);
     pMetaData->fields[2].builtInType = UA_NS0ID_INT64;
-    strTmp = UA_STRING ("Int64");
-    UA_String_copy (&strTmp, &pMetaData->fields[2].name);
+    pMetaData->fields[2].name =  UA_STRING ("Int64");
     pMetaData->fields[2].valueRank = -1; /* scalar */
 
     /* Boolean DataType */
@@ -168,8 +165,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_NodeId_copy (&UA_TYPES[UA_TYPES_BOOLEAN].typeId,
                     &pMetaData->fields[3].dataType);
     pMetaData->fields[3].builtInType = UA_NS0ID_BOOLEAN;
-    strTmp = UA_STRING ("BoolToggle");
-    UA_String_copy (&strTmp, &pMetaData->fields[3].name);
+    pMetaData->fields[3].name =  UA_STRING ("BoolToggle");
     pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
