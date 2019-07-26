@@ -9,7 +9,6 @@
 
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/nodestore_default.h>
-#include <open62541/plugin/nodestore_xml.h>
 
 /* Plug in nodestore switch if enabled */
 #define UA_Nodestore_Switch_new UA_Nodestore_new
@@ -91,12 +90,6 @@ UA_Nodestore_Switch_newEmpty(void **nsCtx);
  */
 UA_StatusCode UA_EXPORT
 UA_Nodestore_Default_Interface_new(UA_NodestoreInterface** store);
-
-/*
- * Creates xml nodestore and interface to it
-*/
-UA_StatusCode UA_EXPORT
-UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface **store, const FileHandler* fileHandler);
 
 /*
  * Gets the nodestore interface to an existing switch, which can be created via UA_Nodestore_new or UA_Nodestore_newEmpty

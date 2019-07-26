@@ -5,6 +5,7 @@
  */
 
 #include <open62541/plugin/nodestore_switch.h>
+#include <open62541/plugin/nodestore_xml.h>
 
 const UA_Boolean inPlaceEditAllowed = UA_FALSE;
 

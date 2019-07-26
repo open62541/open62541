@@ -8,6 +8,7 @@
 #define UA_NODESTORE_XML_H_
 
 #include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/nodestore_switch.h>
 
 typedef UA_UInt16 (*addNamespaceCb)(UA_Server* server, const char *);
 
@@ -23,6 +24,12 @@ typedef struct {
     const Statistics *stat;
     void *userContext;
 } FileHandler;
+
+/*
+ * Creates xml nodestore and interface to it
+*/
+UA_StatusCode UA_EXPORT
+UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface **store, const FileHandler* fileHandler);
 
 
 UA_Node *

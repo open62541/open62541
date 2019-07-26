@@ -5,13 +5,13 @@
  *    Copyright 2019 (c) Matthias Konnerth
  */
 
-#include "nodeset.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "nodeset.h"
 #include "uthash.h"
 #include "memory.h"
-#include <open62541/util.h>
 
 struct nodeEntry
 {

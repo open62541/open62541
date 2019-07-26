@@ -17,6 +17,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/nodestore_switch.h>
+#include <open62541/plugin/nodestore_xml.h>
 #include <open62541/util.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
