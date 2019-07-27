@@ -493,11 +493,19 @@ UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int 
     return newRef;
 }
 
+struct NodesetServer
+{
+    Nodeset *nodeset;
+    UA_Server *server;
+};
 
-static void addReference(void* ref, void* nodeset, void* server)
+static void addReference(void* ref, void* userData)
 {
     TRef *tref = (TRef *)ref;
-    Nodeset *ns = (Nodeset *)nodeset;
+
+    
+    struct NodesetServer *data = (struct NodesetServer *)userData;
+    Nodeset *ns = data->nodeset;
 
     if(isHierachicalReference(ns, &tref->ref->referenceTypeId)) {
         for(size_t cnt = 0; cnt < tref->ref->targetIdsSize; cnt++) {
@@ -506,14 +514,14 @@ static void addReference(void* ref, void* nodeset, void* server)
             eId.namespaceUri = UA_STRING_NULL;
             eId.nodeId = *tref->src;
             eId.serverIndex = 0;
-            UA_Server_addReference((UA_Server*)server, tref->ref->targetIds[cnt].nodeId,
+            UA_Server_addReference(data->server, tref->ref->targetIds[cnt].nodeId,
                                    tref->ref->referenceTypeId, eId,
                                    tref->ref->isInverse);
         }
     }
 }
 
-static void cleanupRefs(void* ref, void* empty, void* empty2)
+static void cleanupRefs(void* ref, void* userData)
 {
     TRef *tref = (TRef *)ref;
     UA_free(tref->ref->targetIds);
@@ -530,8 +538,10 @@ void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server)
     // referred to as bidirectional. Although not required, it is recommended that all hierarchical
     // References be instantiated as bidirectional to ensure browse connectivity. A bidirectional
     // Reference is modelled as two separate References
-    MemoryPool_forEach(nodeset->refPool, addReference, nodeset, server);
-    MemoryPool_forEach(nodeset->refPool, cleanupRefs, NULL, NULL);
+
+    struct NodesetServer data = {nodeset, server};
+    MemoryPool_forEach(nodeset->refPool, addReference, &data);
+    MemoryPool_forEach(nodeset->refPool, cleanupRefs, NULL);
     MemoryPool_cleanup(nodeset->refPool);
 }
 

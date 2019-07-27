@@ -13,7 +13,6 @@ MemoryPool_getMemoryForElement(struct MemoryPool *memPool);
 void MemoryPool_cleanup(struct MemoryPool *memPool);
 
 void
-MemoryPool_forEach(const struct MemoryPool *memPool, void (*f)(void *element, void *data1, void* data2),
-                   void *data1, void* data2);
+MemoryPool_forEach(const struct MemoryPool *memPool, void (*f)(void *element, void* data), void* data);
 
 #endif

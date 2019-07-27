@@ -62,8 +62,8 @@ void MemoryPool_cleanup(struct MemoryPool *memPool)
 
 //todo: beautify
 void
-MemoryPool_forEach(const struct MemoryPool *memPool, void (*f)(void *element, void *data1, void* data2),
-                   void *data1, void* data2)
+MemoryPool_forEach(const struct MemoryPool *memPool, void (*f)(void *element, void *data),
+                   void *data1)
 {
     struct RawMem *actMem = memPool->mem;
     while(actMem)
@@ -71,7 +71,7 @@ MemoryPool_forEach(const struct MemoryPool *memPool, void (*f)(void *element, vo
         for(size_t cnt = 0; cnt < memPool->size; cnt++)
         {
             uintptr_t adr = (uintptr_t)actMem->mem + memPool->elementSize * cnt;
-            f((void *)adr, data1, data2);
+            f((void *)adr, data1);
         }
         actMem = actMem->prev;
     }
