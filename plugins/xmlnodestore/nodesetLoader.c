@@ -56,11 +56,6 @@ struct TParserCtx {
 struct TParserCtx;
 typedef struct TParserCtx TParserCtx;
 
-static void extractReferenceAttributes(TParserCtx *ctx, int attributeSize,
-                                       const char **attributes) {
-    ctx->refKind = Nodeset_newReference(ctx->nodeset, ctx->node, attributeSize, attributes);
-}
-
 static void enterUnknownState(TParserCtx *ctx) {
     ctx->prev_state = ctx->state;
     ctx->state = PARSER_STATE_UNKNOWN;
@@ -155,7 +150,7 @@ static void OnStartElementNs(void *ctx, const char *localname, const char *prefi
         case PARSER_STATE_REFERENCES:
             if(!strcmp(localname, REFERENCE)) {
                 pctx->state = PARSER_STATE_REFERENCE;
-                extractReferenceAttributes(pctx, nb_attributes, attributes);
+                pctx->refKind = Nodeset_newReference(pctx->nodeset, pctx->node, nb_attributes, attributes);
             } else {
                 enterUnknownState(pctx);
             }

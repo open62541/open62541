@@ -525,7 +525,6 @@ static void cleanupRefs(void* ref, void* userData)
 {
     TRef *tref = (TRef *)ref;
     UA_free(tref->ref->targetIds);
-    //UA_NodeId_delete(&tref->ref->referenceTypeId);
     UA_free(tref->ref);
 }
 
