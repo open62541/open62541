@@ -46,7 +46,7 @@ TNamespace *Nodeset_newNamespace(Nodeset* nodeset);
 void Nodeset_newNamespaceFinish(Nodeset* nodeset, void* userContext, char* namespaceUri);
 void Nodeset_addRefCountedChar(Nodeset* nodeset, char *newChar);
 void Nodeset_linkReferences(Nodeset* nodeset, UA_Server* server);
-UA_Node * Nodeset_getNode(const UA_NodeId *nodeId);
+UA_Node * Nodeset_getNode(const Nodeset* nodeset, const UA_NodeId *nodeId);
 void Nodeset_setDisplayname(UA_Node *node, char *s);
 
 #endif

@@ -13,16 +13,6 @@
 #include "uthash.h"
 #include "memory.h"
 
-struct nodeEntry
-{
-    UT_hash_handle hh;
-    char *cKey;
-    int iKey;
-    UA_Node *node;
-};
-
-struct nodeEntry *nodeHead = NULL;
-
 #define MAX_HIERACHICAL_REFS 50
 #define MAX_ALIAS 100
 #define MAX_REFCOUNTEDCHARS 10000000
@@ -98,6 +88,14 @@ typedef struct
     UA_NodeReferenceKind *ref;
 } TRef;
 
+struct nodeEntry
+{
+    UT_hash_handle hh;
+    char *cKey;
+    int iKey;
+    UA_Node *node;
+};
+
 struct Nodeset {
     char **countedChars;
     Alias **aliasArray;
@@ -108,6 +106,7 @@ struct Nodeset {
     size_t hierachicalRefsSize;
     UA_NodeId *hierachicalRefs;
     struct MemoryPool *refPool;
+    struct nodeEntry *nodeHead;
 };
 
 //hierachical references
@@ -219,6 +218,7 @@ Nodeset* Nodeset_new() {
     nodeset->hierachicalRefs = hierachicalRefs;
     nodeset->hierachicalRefsSize = 7;
     nodeset->refPool = MemoryPool_init(sizeof(TRef), 1000);
+    nodeset->nodeHead = NULL;
 
     TNamespaceTable *table = (TNamespaceTable *)malloc(sizeof(TNamespaceTable));
     table->cb = NULL;
@@ -393,11 +393,11 @@ UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int nb_attribut
     {
         case UA_NODEIDTYPE_STRING:
             n->cKey = (char*) newNode->nodeId.identifier.string.data;
-            HASH_ADD_KEYPTR(hh, nodeHead, n->cKey, newNode->nodeId.identifier.string.length, n);
+            HASH_ADD_KEYPTR(hh, nodeset->nodeHead, n->cKey, newNode->nodeId.identifier.string.length, n);
             break;
         case UA_NODEIDTYPE_NUMERIC:
             n->iKey = (int)newNode->nodeId.identifier.numeric;
-            HASH_ADD_INT(nodeHead, iKey, n);
+            HASH_ADD_INT(nodeset->nodeHead, iKey, n);
             break;
         default:
             break;
@@ -405,17 +405,17 @@ UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int nb_attribut
     return newNode;
 }
 
-UA_Node * Nodeset_getNode(const UA_NodeId *nodeId)
+UA_Node * Nodeset_getNode(const Nodeset* nodeset, const UA_NodeId *nodeId)
 {
     struct nodeEntry *entry = NULL;
     switch(nodeId->identifierType)
     {
         case UA_NODEIDTYPE_STRING:
-            HASH_FIND(hh, nodeHead, nodeId->identifier.string.data,
+            HASH_FIND(hh, nodeset->nodeHead, nodeId->identifier.string.data,
               nodeId->identifier.string.length, entry);
             break;
         case UA_NODEIDTYPE_NUMERIC:
-            HASH_FIND_INT(nodeHead, &nodeId->identifier.numeric, entry);
+            HASH_FIND_INT(nodeset->nodeHead, &nodeId->identifier.numeric, entry);
             break;
         default:
             break;

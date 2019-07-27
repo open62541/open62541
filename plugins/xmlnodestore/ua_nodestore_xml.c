@@ -9,7 +9,7 @@ UA_Nodestore_Xml_newNode(void *nsCtx, UA_NodeClass nodeClass)
 const UA_Node *
 UA_Nodestore_Xml_getNode(void *nsCtx, const UA_NodeId *nodeId)
 {
-    return Nodeset_getNode(nodeId);
+    return Nodeset_getNode((Nodeset*)nsCtx,nodeId);
 }
 void
 UA_Nodestore_Xml_deleteNode(void *nsCtx, UA_Node *node)
