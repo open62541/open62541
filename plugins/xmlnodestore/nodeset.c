@@ -196,7 +196,7 @@ static UA_NodeId alias2Id(Nodeset* nodeset, const char *alias) {
     return UA_NODEID_NULL;
 }
 
-Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
+Nodeset* Nodeset_new() {
     Nodeset* nodeset = (Nodeset *)malloc(sizeof(Nodeset));
     nodeset->aliasArray = (Alias **)malloc(sizeof(Alias *) * MAX_ALIAS);
     nodeset->aliasSize = 0;
@@ -223,13 +223,19 @@ Nodeset* Nodeset_new(addNamespaceCb nsCallback) {
     nodeset->refPool = MemoryPool_init(sizeof(TRef), 1000);
 
     TNamespaceTable *table = (TNamespaceTable *)malloc(sizeof(TNamespaceTable));
-    table->cb = nsCallback;
+    table->cb = NULL;
     table->size = 1;
     table->ns = (TNamespace *)malloc((sizeof(TNamespace)));
     table->ns[0].idx = 0;
     table->ns[0].name = "http://opcfoundation.org/UA/";
     nodeset->namespaceTable = table;
     return nodeset;
+}
+
+void
+Nodeset_setNewNamespaceCallback(Nodeset* nodeset, addNamespaceCb nsCallback)
+{
+    nodeset->namespaceTable->cb = nsCallback;
 }
 
 void Nodeset_cleanup(Nodeset* nodeset) {

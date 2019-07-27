@@ -97,12 +97,10 @@ int main(int argc, char* argv[]) {
 
 	FileHandler f;
 	f.addNamespace = UA_Server_addNamespace;
-    f.userContext = server;
-    //f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset100nodes.xml";
-    f.file = "/home/matzy/git/xmlparser/nodesets/testNodeset.xml";
+    f.userContext = server;    
     for(int cnt = 1; cnt < argc; cnt++) {
         f.file = argv[cnt];
-		retval = UA_Nodestore_Xml_Interface_new(&nsXmlStore, &f);
+		retval = UA_Nodestore_Xml_Interface_new(&nsXmlStore);
 		if (retval != UA_STATUSCODE_GOOD) {
 			UA_Server_delete(server);
 			return EXIT_FAILURE;
@@ -110,13 +108,7 @@ int main(int argc, char* argv[]) {
 
 		// Link the ns1Nodestore to namespace 1, so that all nodes created in namespace 1 reside in ns1Nodestore
 		UA_Nodestore_Switch_setNodestore(nodestoreSwitch, (UA_UInt16)(1+cnt), nsXmlStore);
-		
-		
-		// f.file =
-		// "/mnt/c/c2k/git/mkOpen62541/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml"; f.file =
-		// "/home/matzy/git/openMaster/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml";
-		// f.file = "/testNodeset.xml";
-		UA_Nodestore_Xml_load(nsXmlStore->context, &f);
+		UA_Nodestore_Xml_load((struct Nodeset*)nsXmlStore->context, &f);
 	}
 
 	

@@ -7,9 +7,10 @@
 
 #ifndef NODESET_H
 #define NODESET_H
-#include "nodesetLoader.h"
 #include <stdbool.h>
 #include <stddef.h>
+#include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/nodestore_xml.h>
 
 typedef enum {
     NODECLASS_OBJECT = 0,
@@ -30,8 +31,11 @@ typedef struct TNamespace TNamespace;
 struct Alias;
 typedef struct Alias Alias;
 
-Nodeset* Nodeset_new(addNamespaceCb nsCallback);
-void Nodeset_cleanup(Nodeset* nodeset);
+Nodeset* Nodeset_new(void);
+void
+Nodeset_setNewNamespaceCallback(Nodeset* nodeset, addNamespaceCb nsCallback);
+void
+Nodeset_cleanup(Nodeset *nodeset);
 UA_Node *Nodeset_newNode(Nodeset* nodeset, TNodeClass nodeClass, int attributeSize, const char **attributes);
 void Nodeset_newNodeFinish(Nodeset* nodeset, UA_Node *node);
 UA_NodeReferenceKind* Nodeset_newReference(Nodeset* nodeset, UA_Node *node, int attributeSize, const char **attributes);

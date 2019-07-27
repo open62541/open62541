@@ -10,26 +10,11 @@
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/nodestore_switch.h>
 
-typedef UA_UInt16 (*addNamespaceCb)(UA_Server* server, const char *);
-
-typedef struct {
-    int loadTimeMs;
-    int sortTimeMs;
-    int addNodeTimeMs;
-} Statistics;
-
-typedef struct {
-    const char *file;
-    addNamespaceCb addNamespace;
-    const Statistics *stat;
-    void *userContext;
-} FileHandler;
-
 /*
  * Creates xml nodestore and interface to it
 */
 UA_StatusCode UA_EXPORT
-UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface **store, const FileHandler* fileHandler);
+UA_Nodestore_Xml_Interface_new(UA_NodestoreInterface **store);
 
 
 UA_Node *
@@ -53,10 +38,26 @@ UA_Nodestore_Xml_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
 UA_StatusCode
 UA_Nodestore_Xml_replaceNode(void *nsCtx, UA_Node *node);
 UA_StatusCode
-UA_Nodestore_Xml_new(void **nsCtx, const FileHandler* f);
+UA_Nodestore_Xml_new(void **nsCtx);
 void
 UA_Nodestore_Xml_delete(void *nsCtx);
 
-void UA_Nodestore_Xml_load(void* nsCtx, const FileHandler* f);
+typedef UA_UInt16 (*addNamespaceCb)(UA_Server* server, const char *);
+
+typedef struct {
+    int loadTimeMs;
+} Statistics;
+
+typedef struct {
+    const char *file;
+    addNamespaceCb addNamespace;
+    const Statistics *stat;
+    void *userContext;
+} FileHandler;
+
+struct Nodeset;
+UA_StatusCode
+UA_Nodestore_Xml_load(struct Nodeset *nodeset, const FileHandler *fileHandler);
+
 
 #endif /* UA_NODESTORE_XML_H_ */

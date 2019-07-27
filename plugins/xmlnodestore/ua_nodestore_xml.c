@@ -1,5 +1,4 @@
 #include <open62541/plugin/nodestore_xml.h>
-#include "nodesetLoader.h"
 #include "nodeset.h"
 
 UA_Node *
@@ -52,15 +51,10 @@ UA_Nodestore_Xml_replaceNode(void *nsCtx, UA_Node *node)
 }
 
 UA_StatusCode
-UA_Nodestore_Xml_new(void **nsCtx, const FileHandler* f)
+UA_Nodestore_Xml_new(void **nsCtx)
 {
-    *nsCtx = Nodeset_new(f->addNamespace);
+    *nsCtx = Nodeset_new();
     return UA_STATUSCODE_GOOD;
-}
-
-void UA_Nodestore_Xml_load(void* nsCtx, const FileHandler* f)
-{    
-    loadXmlFile((Nodeset*) nsCtx, f);
 }
 
 void

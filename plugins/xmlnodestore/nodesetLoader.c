@@ -5,11 +5,12 @@
  *    Copyright 2019 (c) Matthias Konnerth
  */
 
-#include "nodesetLoader.h"
-#include "nodeset.h"
+#include <open62541/plugin/nodestore_xml.h>
 #include <libxml/SAX.h>
 #include <stdio.h>
 #include <string.h>
+#include "nodeset.h"
+
 
 #define OBJECT "UAObject"
 #define METHOD "UAMethod"
@@ -275,18 +276,18 @@ static int read_xmlfile(FILE *f, TParserCtx *parserCtxt) {
     return 0;
 }
 
-bool loadXmlFile(Nodeset* nodeset, const FileHandler *fileHandler) {
+UA_StatusCode UA_Nodestore_Xml_load(Nodeset* nodeset, const FileHandler *fileHandler) {
 
     if(fileHandler == NULL) {
         printf("no filehandler - return\n");
-        return false;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     if(fileHandler->addNamespace == NULL) {
         printf("no fileHandler->addNamespace - return\n");
-        return false;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    bool status = true;
-    
+    bool status = UA_STATUSCODE_GOOD;
+
     TParserCtx *ctx = (TParserCtx *)malloc(sizeof(TParserCtx));
     ctx->state = PARSER_STATE_INIT;
     ctx->prev_state = PARSER_STATE_INIT;
@@ -295,16 +296,18 @@ bool loadXmlFile(Nodeset* nodeset, const FileHandler *fileHandler) {
     ctx->userContext = fileHandler->userContext;
     ctx->nodeset = nodeset;
 
+    Nodeset_setNewNamespaceCallback(nodeset, fileHandler->addNamespace);
+
     FILE *f = fopen(fileHandler->file, "r");
     if(!f) {
         puts("file open error.");
-        status = false;
+        status = UA_STATUSCODE_BADNOTFOUND;
         goto cleanup;
     }
 
     if(read_xmlfile(f, ctx)) {
         puts("xml read error.");
-        status = false;
+        status = UA_STATUSCODE_BADNOTFOUND;
     }
 
     Nodeset_linkReferences(nodeset, (UA_Server *)fileHandler->userContext);

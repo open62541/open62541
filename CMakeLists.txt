@@ -789,7 +789,6 @@ if(UA_ENABLE_NODESTORE_XML)
     list(APPEND default_plugin_headers
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodeset.h
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/memory.h
-         ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/nodesetLoader.h
          ${PROJECT_SOURCE_DIR}/plugins/xmlnodestore/uthash.h
          ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_xml.h
          )
