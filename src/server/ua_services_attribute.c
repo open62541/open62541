@@ -110,29 +110,32 @@ readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
         return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
 
-    setScalarNoDelete(v, isAbstract, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    v->storageType = UA_VARIANT_DATA_NODELETE;
-    return UA_STATUSCODE_GOOD;
+    return UA_Variant_setScalarCopy(v, isAbstract, &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 static UA_StatusCode
 readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
+    /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
         vn->value.data.callback.onRead(server, &session->sessionId,
                                        session->sessionHandle, &vn->nodeId,
                                        vn->context, rangeptr, &vn->value.data.value);
-        const UA_Node *old = (const UA_Node *)vn;
-        /* Reopen the node to see the changes from onRead */
         vn = (const UA_VariableNode*)UA_Nodestore_getNode(server->nsCtx, &vn->nodeId);
-        UA_Nodestore_releaseNode(server->nsCtx, old);
+        if(!vn)
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
+
+    /* Set the result */
     if(rangeptr)
         return UA_Variant_copyRange(&vn->value.data.value.value, &v->value, *rangeptr);
-    *v = vn->value.data.value;
-    v->value.storageType = UA_VARIANT_DATA_NODELETE;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_DataValue_copy(&vn->value.data.value, v);
+
+    /* Clean up */
+    if(vn->value.data.callback.onRead)
+        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node *)vn);
+    return retval;
 }
 
 static UA_StatusCode
