@@ -79,6 +79,20 @@ if(UA_ENABLE_ENCRYPTION)
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
 endif()
 
+if(UA_ENABLE_XML_IMPORT)
+    find_package(LibXml2 REQUIRED)
+    include_directories(${LIBXML2_INCLUDE_DIR})
+    list(APPEND ${LIBS} ${LIBXML2_LIBRARIES})
+
+
+    list(APPEND test_plugin_sources
+            ${PROJECT_SOURCE_DIR}/plugins/xmlimport/value.c
+            ${PROJECT_SOURCE_DIR}/plugins/xmlimport/nodeset.c
+            ${PROJECT_SOURCE_DIR}/plugins/xmlimport/memory.c
+            ${PROJECT_SOURCE_DIR}/plugins/xmlimport/nodesetLoader.c
+            )
+endif()
+
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -343,3 +357,8 @@ endif()
 
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
+
+# Tests for Nodeset import
+if(UA_ENABLE_XML_IMPORT)
+    add_subdirectory(nodeset-import)
+endif()

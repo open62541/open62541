@@ -280,6 +280,10 @@ UA_Server_new() {
     return UA_Server_init(server);
 }
 
+void* UA_Server_getNsCtx(UA_Server* server)
+{
+    return server->nsCtx;
+}
 
 UA_Server *
 UA_Server_newWithConfig(const UA_ServerConfig *config) {

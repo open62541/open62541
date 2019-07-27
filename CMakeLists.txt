@@ -204,6 +204,9 @@ endif()
 option(UA_ENABLE_CUSTOM_NODESTORE "Do not compile the default Nodestore implementation into the library" OFF)
 mark_as_advanced(UA_ENABLE_CUSTOM_NODESTORE)
 
+option(UA_ENABLE_XML_IMPORT "Support importing xml nodesets at runtime (libxml required)" OFF)
+mark_as_advanced(UA_ENABLE_XML_IMPORT)
+
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
@@ -388,6 +391,10 @@ if(UA_ENABLE_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
+if(UA_ENABLE_XML_IMPORT)
+    find_package(LibXml2 REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBXML2_LIBRARIES})
+endif()
 if(UA_ENABLE_WEBSOCKET_SERVER)
     # The recommended way is to install libwebsockets via the OS package manager. If
     # that is not possible, manually compile libwebsockets and set the cmake variables
@@ -776,6 +783,22 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
         ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
+if(UA_ENABLE_XML_IMPORT)
+    list(APPEND default_plugin_headers
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/nodeset.h
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/memory.h
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/nodesetLoader.h
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/value.h
+         )
+    list(APPEND default_plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/nodeset.c
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/memory.c
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/nodesetLoader.c
+         ${PROJECT_SOURCE_DIR}/plugins/xmlimport/value.c
+         )
+endif()
+
+
 #########################
 # Generate source files #
 #########################
@@ -1032,6 +1055,10 @@ else()
     # Option-specific includes
     if(UA_ENABLE_DISCOVERY)
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
+    endif()
+
+    if(UA_ENABLE_XML_IMPORT)
+        include_directories_private(${LIBXML2_INCLUDE_DIR})
     endif()
 
 endif()

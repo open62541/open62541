@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/test/Types.xsd" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <NamespaceUris>
+        <Uri>http://open62541.com/nodesetimport/tests/namespaceZeroValues</Uri>
+    </NamespaceUris>
+    <Aliases>
+        <Alias Alias="Int32">i=6</Alias>
+        <Alias Alias="UInt32">i=7</Alias>
+        <Alias Alias="Double">i=11</Alias>
+        <Alias Alias="Organizes">i=35</Alias>
+        <Alias Alias="HasModellingRule">i=37</Alias>
+        <Alias Alias="HasEncoding">i=38</Alias>
+        <Alias Alias="HasTypeDefinition">i=40</Alias>
+        <Alias Alias="HasSubtype">i=45</Alias>
+        <Alias Alias="HasComponent">i=47</Alias>
+        <Alias Alias="IdType">i=256</Alias>
+        <Alias Alias="Argument">i=296</Alias>
+        <Alias Alias="HasDescription">i=39</Alias>
+        <Alias Alias="ServerStatusDataType">i=862</Alias>
+    </Aliases>
+    <UAVariable NodeId="ns=1;i=1000" BrowseName="InputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>Arguments_Array</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Context</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1001" BrowseName="InputArguments" DataType="i=296" ValueRank="-1">
+    <DisplayName>Arguments_Scalar</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Context</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1002" BrowseName="InputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>Arguments_Array_2Arguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Context</Name>
+              <DataType>
+                <Identifier>i=12</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+            <TypeId>
+                <Identifier>i=297</Identifier>
+            </TypeId>
+            <Body>
+                <Argument>
+                <Name>Arg2</Name>
+                <DataType>
+                    <Identifier>i=12</Identifier>
+                </DataType>
+                <ValueRank>-1</ValueRank>
+                <ArrayDimensions />
+                </Argument>
+            </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1003" BrowseName="Double" DataType="i=11" ValueRank="-1">
+    <DisplayName>Double</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <Double>3.1415</Double>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1004" BrowseName="UInt32Array" DataType="UInt32" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>UInt32Array</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <ListOfUInt32>
+        <Double>120</Double>
+        <Double>130</Double>
+        <Double>140</Double>
+      </ListOfUInt32>
+    </Value>
+  </UAVariable>
+  <UAVariable DataType="ServerStatusDataType" NodeId="ns=1;i=1005" BrowseName="1:VarWithNestedStruct">
+        <DisplayName>VarWithNestedStruct</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+        </References>
+        <Value>
+            <uax:ExtensionObject>
+                <uax:TypeId>
+                    <uax:Identifier>i=863</uax:Identifier>
+                </uax:TypeId>
+                <uax:Body>
+                    <ServerStatusDataType xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                        <StartTime>2000-01-01T00:00:00Z</StartTime>
+                        <CurrentTime>2000-01-01T00:00:00Z</CurrentTime>
+                        <State>5</State>
+                        <BuildInfo>
+                            <ProductUri>open62541</ProductUri>
+                            <ManufacturerName>oss</ManufacturerName>
+                            <ProductName>open62541</ProductName>
+                            <SoftwareVersion>master</SoftwareVersion>
+                            <BuildNumber>latest</BuildNumber>
+                            <BuildDate>2000-01-01T00:00:00Z</BuildDate>
+                        </BuildInfo>
+                        <SecondsTillShutdown>0</SecondsTillShutdown>
+                        <ShutdownReason>
+                            <Locale>en</Locale>
+                            <Text>noReason</Text>
+                        </ShutdownReason>
+                    </ServerStatusDataType>
+                </uax:Body>
+            </uax:ExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="ServerStatusDataType" NodeId="ns=1;i=1006" BrowseName="1:VarWithNestedStructArray" ValueRank="1">
+        <DisplayName>VarWithNestedStructArray</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+        </References>
+        <Value>
+            <ListOfExtensionObject>
+              <uax:ExtensionObject>
+                  <uax:TypeId>
+                      <uax:Identifier>i=863</uax:Identifier>
+                  </uax:TypeId>
+                  <uax:Body>
+                      <ServerStatusDataType xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                          <StartTime>2000-01-01T00:00:00Z</StartTime>
+                          <CurrentTime>2000-01-01T00:00:00Z</CurrentTime>
+                          <State>5</State>
+                          <BuildInfo>
+                              <ProductUri>open62541</ProductUri>
+                              <ManufacturerName>oss</ManufacturerName>
+                              <ProductName>open62541</ProductName>
+                              <SoftwareVersion>master</SoftwareVersion>
+                              <BuildNumber>latest</BuildNumber>
+                              <BuildDate>2000-01-01T00:00:00Z</BuildDate>
+                          </BuildInfo>
+                          <SecondsTillShutdown>0</SecondsTillShutdown>
+                          <ShutdownReason>
+                              <Locale>en</Locale>
+                              <Text>noReason</Text>
+                          </ShutdownReason>
+                      </ServerStatusDataType>
+                  </uax:Body>
+              </uax:ExtensionObject>
+              <uax:ExtensionObject>
+                  <uax:TypeId>
+                      <uax:Identifier>i=863</uax:Identifier>
+                  </uax:TypeId>
+                  <uax:Body>
+                      <ServerStatusDataType xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                          <StartTime>2000-01-01T00:00:00Z</StartTime>
+                          <CurrentTime>2000-01-01T00:00:00Z</CurrentTime>
+                          <State>3</State>
+                          <BuildInfo>
+                              <ProductUri>open62541</ProductUri>
+                              <ManufacturerName>oss</ManufacturerName>
+                              <ProductName>open62541</ProductName>
+                              <SoftwareVersion>master</SoftwareVersion>
+                              <BuildNumber>latest</BuildNumber>
+                              <BuildDate>2000-01-01T00:00:00Z</BuildDate>
+                          </BuildInfo>
+                          <SecondsTillShutdown>0</SecondsTillShutdown>
+                          <ShutdownReason>
+                              <Locale>en</Locale>
+                              <Text>noReason</Text>
+                          </ShutdownReason>
+                      </ServerStatusDataType>
+                  </uax:Body>
+              </uax:ExtensionObject>
+            </ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+</UANodeSet>

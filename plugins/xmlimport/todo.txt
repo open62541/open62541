@@ -1,0 +1,13 @@
+Support loading of extensions
+    idea: Could be done like describing a value, value of extension could be stored
+    as variant in the node context.
+Loading of values:
+    Basis there for loading values with namespace 0 datatypes.
+    For loading values with datatype other than namespace zero,
+    loading oft datatypes is needed
+Loading of datatypes
+
+
+
+
+

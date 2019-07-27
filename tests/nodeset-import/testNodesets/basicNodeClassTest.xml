@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/TestProjectsOpen/Types.xsd" xmlns:ua="http://unifiedautomation.com/Configuration/NodeSet.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <NamespaceUris>
+        <Uri>http://open62541.com/tests/BasicNodeClassTests/</Uri>
+    </NamespaceUris>
+    <Aliases>
+        <Alias Alias="Double">i=11</Alias>
+        <Alias Alias="String">i=12</Alias>
+        <Alias Alias="ByteString">i=15</Alias>
+        <Alias Alias="Organizes">i=35</Alias>
+        <Alias Alias="HasModellingRule">i=37</Alias>
+        <Alias Alias="HasEncoding">i=38</Alias>
+        <Alias Alias="HasDescription">i=39</Alias>
+        <Alias Alias="HasTypeDefinition">i=40</Alias>
+        <Alias Alias="HasSubtype">i=45</Alias>
+        <Alias Alias="HasProperty">i=46</Alias>
+        <Alias Alias="HasComponent">i=47</Alias>
+        <Alias Alias="Point">ns=1;i=3002</Alias>
+    </Aliases>
+    <UADataType NodeId="ns=1;i=3002" BrowseName="1:Point">
+        <DisplayName>Point</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+        </References>
+        <Definition Name="1:Point">
+            <Field DataType="Double" Name="x"/>
+            <Field DataType="Double" Name="y"/>
+            <Field DataType="Double" Name="z"/>
+        </Definition>
+    </UADataType>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6001" NodeId="ns=1;i=6005" BrowseName="1:Point">
+        <DisplayName>Point</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6001</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+            <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:String>Point</uax:String>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="String" ParentNodeId="ns=1;i=6003" NodeId="ns=1;i=6006" BrowseName="1:Point">
+        <DisplayName>Point</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=6003</Reference>
+            <Reference ReferenceType="HasTypeDefinition">i=69</Reference>
+            <Reference ReferenceType="HasDescription" IsForward="false">ns=1;i=5002</Reference>
+        </References>
+        <Value>
+            <uax:String>//xs:element[@name='Point']</uax:String>
+        </Value>
+    </UAVariable>    
+    <UAReferenceType NodeId="ns=1;i=4002" BrowseName="1:HasLeaf">
+        <DisplayName>HasLeaf</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=33</Reference>
+        </References>
+        <InverseName>LeafOf</InverseName>
+    </UAReferenceType>
+    <UAVariableType DataType="Point" NodeId="ns=1;i=2001" BrowseName="1:PointType">
+        <DisplayName>PointType</DisplayName>
+        <References>
+            <Reference ReferenceType="HasComponent">ns=1;i=6007</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6008</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=6009</Reference>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
+        </References>
+    </UAVariableType>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=2001" NodeId="ns=1;i=6007" BrowseName="1:x">
+        <DisplayName>x</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2001</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=2001" NodeId="ns=1;i=6008" BrowseName="1:y">
+        <DisplayName>y</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2001</Reference>
+        </References>
+    </UAVariable>
+    <UAVariable DataType="Double" ParentNodeId="ns=1;i=2001" NodeId="ns=1;i=6009" BrowseName="1:z">
+        <DisplayName>z</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2001</Reference>
+        </References>
+    </UAVariable>
+    <UAObjectType NodeId="ns=1;i=1002" BrowseName="1:SimpleObjectType">
+        <DisplayName>SimpleObjectType</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+        </References>
+    </UAObjectType>
+    <UAVariable DataType="Double" NodeId="ns=1;i=6011" BrowseName="1:Double1" AccessLevel="3">
+        <DisplayName>Double1</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
+        </References>
+    </UAVariable>
+    <UAObject NodeId="ns=1;i=4001" BrowseName="1:SimpleObject">
+        <DisplayName>SimpleObject</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">ns=1;i=1002</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+        </References>
+    </UAObject>
+</UANodeSet>
