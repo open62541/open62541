@@ -483,6 +483,33 @@ readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+static UA_StatusCode
+readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
+               const UA_NumericRange *range,
+               UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode retval;
+    retval = UA_Variant_setScalarCopy(&value->value,
+                                      &server->config.samplingIntervalLimits.min,
+                                      &UA_TYPES[UA_TYPES_DURATION]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    value->hasValue = true;
+    if(includeSourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 #if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
@@ -729,10 +756,6 @@ UA_Server_initNS0(UA_Server *server) {
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 
-    /* MinSupportedSampleRate */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
-                               &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_DURATION]);
-
     /* SecondsTillShutdown */
     UA_UInt32 secondsTillShutdown = 0;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN,
@@ -761,6 +784,14 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
+    /* According to Specification part-5 - pg.no-11(PDF pg.no-29), when the ServerDiagnostics is disabled the client
+     * may modify the value of enabledFlag=true in the server. By default, this node have CurrentRead/Write access.
+     * In CTT, Subscription_Minimum_1/002.js test will modify the above flag. This will not be a problem when build
+     * configuration is set at UA_NAMESPACE_ZERO="REDUCED" as NodeIds will not be present. When UA_NAMESPACE_ZERO="FULL",
+     * the test will fail. Hence made the NodeId as read only */
+    retVal |= UA_Server_writeAccessLevel(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG),
+                                         UA_ACCESSLEVELMASK_READ);
+
     /* Auditing */
     UA_DataSource auditing = {readAuditing, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
@@ -782,21 +813,13 @@ UA_Server_initNS0(UA_Server *server) {
                                &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerProfileArray */
-    UA_String profileArray[5];
+    UA_String profileArray[2];
     UA_UInt16 profileArraySize = 0;
 #define ADDPROFILEARRAY(x) profileArray[profileArraySize++] = UA_STRING(x)
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NanoEmbeddedDevice");
-#ifdef UA_ENABLE_NODEMANAGEMENT
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
-#endif
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/MicroEmbeddedDevice");
+
 #ifdef UA_ENABLE_METHODCALLS
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/Methods");
-#endif
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/EmbeddedDataChangeSubscription");
-#endif
-#ifdef UA_ENABLE_HISTORIZING
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/HistoricalRawData");
 #endif
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
                                     profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
@@ -812,8 +835,10 @@ UA_Server_initNS0(UA_Server *server) {
                                &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerCapabilities - MinSupportedSampleRate */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
-                               &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_DURATION]);
+    UA_DataSource samplingInterval = {readMinSamplingInterval, NULL};
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE),
+                                                   samplingInterval);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerRead */
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD,
@@ -847,7 +872,9 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL,
                                &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
 
-#ifdef UA_ENABLE_HISTORIZING
+#ifndef UA_ENABLE_HISTORIZING
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_HISTORYSERVERCAPABILITIES), true);
+#else
     /* ServerCapabilities - HistoryServerCapabilities - AccessHistoryDataCapability */
     retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_ACCESSHISTORYDATACAPABILITY,
                                &server->config.accessHistoryDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);

@@ -2,7 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  * Copyright 2019 (c) Kalycito Infotech Private Limited
- *
+ * Copyright 2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
 #ifdef _MSC_VER
@@ -216,6 +216,7 @@ setInformationModel(UA_Server *server) {
 #define ARRAYID 50002
 #define MATRIXID 50003
 #define DEPTHID 50004
+#define SCALETESTID 40005
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.description = UA_LOCALIZEDTEXT("en-US", "Demo");
@@ -243,6 +244,12 @@ setInformationModel(UA_Server *server) {
     object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Matrix");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Matrix"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+
+    object_attr.description = UA_LOCALIZEDTEXT("en-US", "ScaleTest");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "ScaleTest");
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALETESTID), UA_NODEID_NUMERIC(1, DEMOID),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "ScaleTest"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
     /* Fill demo nodes for each type*/
@@ -352,6 +359,41 @@ setInformationModel(UA_Server *server) {
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
     }
 
+    /* Scale Test: 100 nodes of each type */
+    int scale_i = 0;
+    UA_UInt32 scale_nodeid = 43000;
+    for(UA_UInt32 type = 0; type < UA_TYPES_QUALIFIEDNAME; type++) {
+        if(type == UA_TYPES_VARIANT || type == UA_TYPES_QUALIFIEDNAME)
+            continue;
+
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.dataType = UA_TYPES[type].typeId;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+        attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+        attr.valueRank = UA_VALUERANK_SCALAR;
+        void *value = UA_new(&UA_TYPES[type]);
+        UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
+
+        for(size_t j = 0; j < 100; j++) {
+            char name[32];
+#ifndef UA_ENABLE_TYPENAMES
+            UA_snprintf(name, 20, "%02d - %i", type, scale_i);
+#else
+            UA_snprintf(name, 20, "%s - %i", UA_TYPES[type].typeName, scale_i);
+#endif
+            attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
+            UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
+            UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++scale_nodeid),
+                                      UA_NODEID_NUMERIC(1, SCALETESTID),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                      qualifiedName, baseDataVariableType, attr, NULL, NULL);
+            scale_i++;
+        }
+
+        UA_Variant_clear(&attr.value);
+    }
+
     /* Add the variable to some more places to get a node with three inverse references for the CTT */
     UA_ExpandedNodeId answer_nodeid = UA_EXPANDEDNODEID_STRING(1, "the.answer");
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, DEMOID),
@@ -434,6 +476,79 @@ setInformationModel(UA_Server *server) {
 #endif
 }
 
+static void
+disableAnonymous(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+
+        for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
+            UA_UserTokenPolicy *utp = &ep->userIdentityTokens[j];
+            if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
+                continue;
+
+            UA_UserTokenPolicy_clear(utp);
+            /* Move the last to this position */
+            if(j + 1 < ep->userIdentityTokensSize) {
+                ep->userIdentityTokens[j] = ep->userIdentityTokens[ep->userIdentityTokensSize-1];
+                j--;
+            }
+            ep->userIdentityTokensSize--;
+        }
+
+        /* Delete the entire array if the last UserTokenPolicy was removed */
+        if(ep->userIdentityTokensSize == 0) {
+            UA_free(ep->userIdentityTokens);
+            ep->userIdentityTokens = NULL;
+        }
+    }
+}
+
+#ifdef UA_ENABLE_ENCRYPTION
+static void
+disableUnencrypted(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        if(ep->securityMode != UA_MESSAGESECURITYMODE_NONE)
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
+static void
+disableOutdatedSecurityPolicy(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_ByteString basic128uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+        if(!UA_String_equal(&ep->securityPolicyUri, &basic128uri))
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
+#endif
+
 UA_Boolean running = true;
 
 static void
@@ -446,10 +561,17 @@ static void
 usage(void) {
     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                    "Usage:\n"
+#ifndef UA_ENABLE_ENCRYPTION
+                   "server_ctt [<server-certificate.der>]\n"
+#else
                    "server_ctt <server-certificate.der> <private-key.der>\n"
-                   "[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
-                   "[--issuerlist <il1.der> <il2.der> ... ]\n"
-                   "[--revocationlist <rv1.crl> <rv2.crl> ...]\n");
+                   "\t[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
+                   "\t[--issuerlist <il1.der> <il2.der> ... ]\n"
+                   "\t[--revocationlist <rv1.crl> <rv2.crl> ...]\n"
+                   "\t[--enableUnencrypted]\n"
+                   "\t[--enableOutdatedSecurityPolicy]\n"
+#endif
+                   "\t[--enableAnonymous]\n");
 }
 
 int main(int argc, char **argv) {
@@ -464,134 +586,175 @@ int main(int argc, char **argv) {
         }
     }
 
-    UA_Server *server = UA_Server_new();
-    if(server == NULL)
-        return EXIT_FAILURE;
-    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
 
-#ifdef UA_ENABLE_ENCRYPTION
-    if(argc < 3) {
-        usage();
-        UA_ServerConfig_setDefault(config);
-    } else {
-        /* Load certificate and private key */
-        UA_ByteString certificate = loadFile(argv[1]);
+    /* Load certificate */
+    size_t pos = 1;
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    if((size_t)argc >= pos + 1) {
+        certificate = loadFile(argv[1]);
         if(certificate.length == 0) {
             UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                           "Unable to load file %s.", argv[1]);
+                           "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }
-        UA_ByteString privateKey = loadFile(argv[2]);
+        pos++;
+    }
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Load the private key */
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    if((size_t)argc >= pos + 1) {
+        privateKey = loadFile(argv[2]);
         if(privateKey.length == 0) {
             UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                           "Unable to load file %s.", argv[2]);
+                           "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }
-
-        UA_ByteString trustList[100];
-        size_t trustListSize = 0;
-        UA_ByteString issuerList[100];
-        size_t issuerListSize = 0;
-        UA_ByteString revocationList[100];
-        size_t revocationListSize = 0;
-        char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
-        for(int i = 3; i < argc; i++) {
-            if(strcmp(argv[i], "--trustlist") == 0) {
-                filetype = 't';
-                continue;
-            }
-
-            if(strcmp(argv[i], "--issuerlist") == 0) {
-                filetype = 'l';
-                continue;
-            }
-
-            if(strcmp(argv[i], "--revocationlist") == 0) {
-                filetype = 'r';
-                continue;
-            }
-
-            if(filetype == 't') {
-                if(trustListSize >= 100) {
-                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                 "Too many trust lists");
-                    return EXIT_FAILURE;
-                }
-                trustList[trustListSize] = loadFile(argv[i]);
-                if(trustList[trustListSize].data == NULL) {
-                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                 "Unable to load trust list %s", argv[i]);
-                    return EXIT_FAILURE;
-                }
-                trustListSize++;
-                continue;
-            }
-
-            if(filetype == 'l') {
-                if(issuerListSize >= 100) {
-                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                 "Too many trust lists");
-                    return EXIT_FAILURE;
-                }
-                issuerList[issuerListSize] = loadFile(argv[i]);
-                if(issuerList[issuerListSize].data == NULL) {
-                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                 "Unable to load trust list %s", argv[i]);
-                    return EXIT_FAILURE;
-                }
-                issuerListSize++;
-                continue;
-            }
-
-            if(filetype == 'r') {
-                if(revocationListSize >= 100) {
-                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                 "Too many revocation lists");
-                    return EXIT_FAILURE;
-                }
-                if(revocationList[revocationListSize].data == NULL) {
-                    UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                 "Unable to load revocationlist %s", argv[i]);
-                    return EXIT_FAILURE;
-                }
-                revocationList[revocationListSize] = loadFile(argv[i]);
-                revocationListSize++;
-                continue;
-            }
-
-            usage();
-            return EXIT_FAILURE;
-        }
-
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
-                                                       &certificate, &privateKey,
-                                                       trustList, trustListSize,
-                                                       issuerList, issuerListSize,
-                                                       revocationList, revocationListSize);
-
-        UA_ByteString_clear(&certificate);
-        UA_ByteString_clear(&privateKey);
-        for(size_t i = 0; i < trustListSize; i++)
-            UA_ByteString_clear(&trustList[i]);
-        for(size_t i = 0; i < issuerListSize; i++)
-            UA_ByteString_clear(&issuerList[i]);
-        for(size_t i = 0; i < revocationListSize; i++)
-            UA_ByteString_clear(&revocationList[i]);
+        pos++;
     }
+
+    UA_ByteString trustList[100];
+    size_t trustListSize = 0;
+    UA_ByteString issuerList[100];
+    size_t issuerListSize = 0;
+    UA_ByteString revocationList[100];
+    size_t revocationListSize = 0;
+    char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
+    UA_Boolean enableUnencr = false;
+    UA_Boolean enableSec = false;
+
+#endif
+
+    UA_Boolean enableAnon = false;
+
+    /* Loop over the remaining arguments */
+    for(; pos < (size_t)argc; pos++) {
+
+        if(strcmp(argv[pos], "--enableAnonymous") == 0) {
+            enableAnon = true;
+            continue;
+        }
+
+#ifdef UA_ENABLE_ENCRYPTION
+        if(strcmp(argv[pos], "--enableUnencrypted") == 0) {
+            enableUnencr = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--enableOutdatedSecurityPolicy") == 0) {
+            enableSec = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--trustlist") == 0) {
+            filetype = 't';
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--issuerlist") == 0) {
+            filetype = 'l';
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--revocationlist") == 0) {
+            filetype = 'r';
+            continue;
+        }
+
+        if(filetype == 't') {
+            if(trustListSize >= 100) {
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                             "Too many trust lists");
+                return EXIT_FAILURE;
+            }
+            trustList[trustListSize] = loadFile(argv[pos]);
+            if(trustList[trustListSize].data == NULL) {
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                             "Unable to load trust list %s", argv[pos]);
+                return EXIT_FAILURE;
+            }
+            trustListSize++;
+            continue;
+        }
+
+        if(filetype == 'l') {
+            if(issuerListSize >= 100) {
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                             "Too many trust lists");
+                return EXIT_FAILURE;
+            }
+            issuerList[issuerListSize] = loadFile(argv[pos]);
+            if(issuerList[issuerListSize].data == NULL) {
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                             "Unable to load trust list %s", argv[pos]);
+                return EXIT_FAILURE;
+            }
+            issuerListSize++;
+            continue;
+        }
+
+        if(filetype == 'r') {
+            if(revocationListSize >= 100) {
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                             "Too many revocation lists");
+                return EXIT_FAILURE;
+            }
+            revocationList[revocationListSize] = loadFile(argv[pos]);
+            if(revocationList[revocationListSize].data == NULL) {
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                             "Unable to load revocationlist %s", argv[pos]);
+                return EXIT_FAILURE;
+            }
+            revocationListSize++;
+            continue;
+        }
+#endif
+
+        usage();
+        return EXIT_FAILURE;
+    }
+
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
+                                                   &certificate, &privateKey,
+                                                   trustList, trustListSize,
+                                                   issuerList, issuerListSize,
+                                                   revocationList, revocationListSize);
+    if(!enableUnencr)
+        disableUnencrypted(&config);
+    if(!enableSec)
+        disableOutdatedSecurityPolicy(&config);
+
 #else
-    UA_ByteString certificate = UA_BYTESTRING_NULL;
-    if(argc < 2) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Missing argument for the server certificate");
-    } else {
-        certificate = loadFile(argv[1]);
-    }
-    UA_ServerConfig_setDefault(config);
+    UA_ServerConfig_setMinimal(&config, 4840, &certificate);
+#endif
+
+    if(!enableAnon)
+        disableAnonymous(&config);
+
+    /* Clean up temp values */
     UA_ByteString_clear(&certificate);
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ByteString_clear(&privateKey);
+    for(size_t i = 0; i < trustListSize; i++)
+        UA_ByteString_clear(&trustList[i]);
+    for(size_t i = 0; i < issuerListSize; i++)
+        UA_ByteString_clear(&issuerList[i]);
+    for(size_t i = 0; i < revocationListSize; i++)
+        UA_ByteString_clear(&revocationList[i]);
 #endif
 
     /* Override with a custom access control policy */
-    config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
+    config.accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
+    UA_String_clear(&config.applicationDescription.applicationUri);
+    config.applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.server.application");
+
+    UA_Server *server = UA_Server_newWithConfig(&config);
+    if(server == NULL)
+        return EXIT_FAILURE;
 
     setInformationModel(server);
 

@@ -156,10 +156,10 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
 
     /* Int64 DataType */
     UA_FieldMetaData_init (&pMetaData->fields[2]);
-    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId,
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT64].typeId,
                    &pMetaData->fields[2].dataType);
-    pMetaData->fields[2].builtInType = UA_NS0ID_INT32;
-    strTmp = UA_STRING ("Int32Fast");
+    pMetaData->fields[2].builtInType = UA_NS0ID_INT64;
+    strTmp = UA_STRING ("Int64");
     UA_String_copy (&strTmp, &pMetaData->fields[2].name);
     pMetaData->fields[2].valueRank = -1; /* scalar */
 

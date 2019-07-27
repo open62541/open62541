@@ -32,8 +32,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Version #
 ###########
 
-set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 4)
+set(OPEN62541_VER_MAJOR 1)
+set(OPEN62541_VER_MINOR 0)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "-dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
@@ -113,7 +113,13 @@ set(ua_architecture_headers ${ua_architecture_headers}
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    set(ua_architecture_sources ${ua_architecture_sources}
+                                ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
 
+    set(ua_architecture_headers ${ua_architecture_headers}
+                                ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
+endif()
 
 if(${UA_ARCHITECTURE} STREQUAL "None")
   message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
@@ -142,6 +148,7 @@ option(UA_ENABLE_QUERY "Enable query support." OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
 
 # Namespace Zero
 set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
@@ -393,6 +400,13 @@ endif()
 if(UA_ENABLE_NODESTORE_XML)
     find_package(LibXml2 REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBXML2_LIBRARIES})
+endif()
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    # The recommended way is to install libwebsockets via the OS package manager. If
+    # that is not possible, manually compile libwebsockets and set the cmake variables
+    # defined in /tools/cmake/Findlibwebsockets.cmake
+    find_package(libwebsockets REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
 endif()
 
 #####################
@@ -1151,7 +1165,7 @@ set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
 
 # This list of components allows to define a find_package requirement.
 # E.g.:
-# find_package(open62541 0.4.0 REQUIRED COMPONENTS Events Methods FullNamespace)
+# find_package(open62541 1.0.0 REQUIRED COMPONENTS Events Methods FullNamespace)
 set(open62541_enabled_components "")
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     list(APPEND open62541_enabled_components "FullNamespace")

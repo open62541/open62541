@@ -7,7 +7,6 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
-#include <open62541/server_config_default.h>
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -271,6 +270,8 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
+    /* Unregister subscribe callback */
+    UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* To Do:RemoveGroupRepresentation(server, &readerGroup->identifier) */
 #endif
@@ -1490,11 +1491,19 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
         return UA_STATUSCODE_BADNOTFOUND;
     //The update functionality will be extended during the next PubSub batches.
     //Currently is only a change of the publishing interval possible.
+    if(currentWriterGroup->config.maxEncapsulatedDataSetMessageCount != config->maxEncapsulatedDataSetMessageCount){
+        currentWriterGroup->config.maxEncapsulatedDataSetMessageCount = config->maxEncapsulatedDataSetMessageCount;
+        if(currentWriterGroup->config.messageSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "MaxEncapsulatedDataSetMessag need enabled 'PayloadHeader' within the message settings.");
+        }
+    }
     if(currentWriterGroup->config.publishingInterval != config->publishingInterval) {
         UA_PubSubManager_removeRepeatedPubSubCallback(server, currentWriterGroup->publishCallbackId);
         currentWriterGroup->config.publishingInterval = config->publishingInterval;
         UA_WriterGroup_addPublishCallback(server, currentWriterGroup);
-    } else if(currentWriterGroup->config.priority != config->priority) {
+    }
+    if(currentWriterGroup->config.priority != config->priority) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "No or unsupported WriterGroup update.");
     }
@@ -2329,7 +2338,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     size_t nmCount = (dsmCount / maxDSM) + ((dsmCount % maxDSM) == 0 ? 0 : 1);
     for(UA_UInt32 i = 0; i < nmCount; i++) {
         UA_Byte nmDsmCount = maxDSM;
-        if(i == nmCount - 1)
+        if(i == nmCount - 1  && (dsmCount % maxDSM))
             nmDsmCount = (UA_Byte)dsmCount % maxDSM;
 
         UA_StatusCode res3 = UA_STATUSCODE_GOOD;

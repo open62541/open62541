@@ -13,6 +13,9 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/network_tcp.h>
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+#include <open62541/network_ws.h>
+#endif
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pki_default.h>
@@ -55,6 +58,7 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
+#define APPLICATION_URI_SERVER "urn:open62541.server.application"
 
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
@@ -119,9 +123,9 @@ setDefaultConfig(UA_ServerConfig *conf) {
     #else
     conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
     #endif
-    conf->buildInfo.buildDate = 0;
+    conf->buildInfo.buildDate = UA_DateTime_now();
 
-    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
+    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
     conf->applicationDescription.productUri = UA_STRING_ALLOC(PRODUCT_URI);
     conf->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
@@ -223,6 +227,33 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
                         UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
     return UA_ServerConfig_addNetworkLayerTCP(conf, portNumber, sendBufferSize, recvBufferSize);
 }
+
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
+                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
+    /* Add a network layer */
+    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
+        UA_realloc(conf->networkLayers, sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    conf->networkLayers = tmp;
+
+    UA_ConnectionConfig config = UA_ConnectionConfig_default;
+    if (sendBufferSize > 0)
+        config.sendBufferSize = sendBufferSize;
+    if (recvBufferSize > 0)
+        config.recvBufferSize = recvBufferSize;
+
+    conf->networkLayers[conf->networkLayersSize] =
+        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger);
+    if (!conf->networkLayers[conf->networkLayersSize].handle)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    conf->networkLayersSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,

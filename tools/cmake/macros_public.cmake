@@ -98,6 +98,10 @@ endfunction()
 #
 #   FILES_BSD        Path to the .bsd file containing the type definitions, e.g. 'Opc.Ua.Di.Types.bsd'. Multiple files can be
 #                   passed which will all combined to one resulting code.
+#   IMPORT_BSD      Combination of types array and path to the .bsd file containing additional type definitions referenced by
+#                   the FILES_BSD files. The value is separated with a hash sign, i.e.
+#                   'UA_TYPES#${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd'
+#                   Multiple files can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list of types which should be included in the generation.
 #                   The file should contain one type per line. Multiple files can be passed to this argument.
 #
@@ -105,7 +109,7 @@ endfunction()
 function(ua_generate_datatypes)
     set(options BUILTIN INTERNAL)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX NAMESPACE_IDX OUTPUT_DIR FILE_CSV)
-    set(multiValueArgs FILES_BSD FILES_SELECTED)
+    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -160,6 +164,11 @@ function(ua_generate_datatypes)
         set(BSD_FILES_TMP ${BSD_FILES_TMP} "--type-bsd=${f}")
     endforeach()
 
+    set(IMPORT_BSD_TMP "")
+    foreach(f ${UA_GEN_DT_IMPORT_BSD})
+        set(IMPORT_BSD_TMP ${IMPORT_BSD_TMP} "--import=${f}")
+    endforeach()
+
     # Make sure that the output directory exists
     if(NOT EXISTS ${UA_GEN_DT_OUTPUT_DIR})
         file(MAKE_DIRECTORY ${UA_GEN_DT_OUTPUT_DIR})
@@ -177,6 +186,7 @@ function(ua_generate_datatypes)
         --namespace=${UA_GEN_DT_NAMESPACE_IDX}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
+        ${IMPORT_BSD_TMP}
         --type-csv=${UA_GEN_DT_FILE_CSV}
         ${UA_GEN_DT_NO_BUILTIN}
         ${UA_GEN_DT_INTERNAL_ARG}

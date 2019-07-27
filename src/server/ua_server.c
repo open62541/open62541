@@ -220,13 +220,8 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 /* Server Lifecycle */
 /********************/
 
-UA_Server *
-UA_Server_new() {
-    /* Allocate the server */
-    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
-        return NULL;
-
+static UA_Server *
+UA_Server_init(UA_Server *server) {
     /* Init start time to zero, the actual start time will be sampled in
      * UA_Server_run_startup() */
     server->startTime = 0;
@@ -285,6 +280,26 @@ UA_Server_new() {
  cleanup:
     UA_Server_delete(server);
     return NULL;
+}
+
+UA_Server *
+UA_Server_new() {
+    /* Allocate the server */
+    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
+    if(!server)
+        return NULL;
+    return UA_Server_init(server);
+}
+
+
+UA_Server *
+UA_Server_newWithConfig(const UA_ServerConfig *config) {
+    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
+    if(!server)
+        return NULL;
+    if(config)
+        server->config = *config;
+    return UA_Server_init(server);
 }
 
 /*******************/
