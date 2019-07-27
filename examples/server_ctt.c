@@ -570,6 +570,7 @@ usage(void) {
                    "\t[--revocationlist <rv1.crl> <rv2.crl> ...]\n"
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
+                   "\t[--enableTimestampCheck]\n"
 #endif
                    "\t[--enableAnonymous]\n");
 }
@@ -624,6 +625,7 @@ int main(int argc, char **argv) {
     char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
     UA_Boolean enableUnencr = false;
     UA_Boolean enableSec = false;
+    UA_Boolean enableTime = false;
 
 #endif
 
@@ -645,6 +647,11 @@ int main(int argc, char **argv) {
 
         if(strcmp(argv[pos], "--enableOutdatedSecurityPolicy") == 0) {
             enableSec = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--enableTimestampCheck") == 0) {
+            enableTime = true;
             continue;
         }
 
@@ -726,6 +733,12 @@ int main(int argc, char **argv) {
         disableUnencrypted(&config);
     if(!enableSec)
         disableOutdatedSecurityPolicy(&config);
+
+    /* If RequestTimestamp is '0', log the warning and proceed */
+    config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;
+
+    if(enableTime)
+        config.verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
 
 #else
     UA_ServerConfig_setMinimal(&config, 4840, &certificate);
