@@ -69,7 +69,7 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
             return retval;
     } else {
         UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "No PKI plugin set. Accepting all certificates");
+                       "Security policy None is used to create SecureChannel. Accepting all certificates");
     }
 
     retval = securityPolicy->channelModule.
