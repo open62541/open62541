@@ -146,12 +146,10 @@ static UA_NodeId extractNodedId(const TNamespace *namespaces, char *s) {
         case 'i': {
             UA_UInt32 nodeId = (UA_UInt32)atoi(&s[2]);
             return UA_NODEID_NUMERIC(0, nodeId);
-            break;
         }
         case 's':
         {
             return UA_NODEID_STRING_ALLOC(0, &s[2]);
-            break;
         }
     }
     } else {
