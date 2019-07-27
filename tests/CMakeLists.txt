@@ -181,6 +181,10 @@ add_executable(check_services_nodemanagement server/check_services_nodemanagemen
 target_link_libraries(check_services_nodemanagement ${LIBS})
 add_test_valgrind(services_nodemanagement ${TESTS_BINARY_DIR}/check_services_nodemanagement)
 
+add_executable(check_server_callbacks server/check_server_callbacks.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_server_callbacks ${LIBS})
+add_test_valgrind(server_callbacks ${TESTS_BINARY_DIR}/check_server_callbacks)
+
 add_executable(check_services_call server/check_services_call.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_call ${LIBS})
 add_test_valgrind(services_call ${TESTS_BINARY_DIR}/check_services_call)
