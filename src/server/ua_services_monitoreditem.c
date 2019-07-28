@@ -113,7 +113,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 
     /* Register sample callback if reporting is enabled */
     mon->monitoringMode = monitoringMode;
-    if(monitoringMode == UA_MONITORINGMODE_REPORTING)
+    if(monitoringMode == UA_MONITORINGMODE_SAMPLING ||
+       monitoringMode == UA_MONITORINGMODE_REPORTING)
         return UA_MonitoredItem_registerSampleCallback(server, mon);
 
     return UA_STATUSCODE_GOOD;
