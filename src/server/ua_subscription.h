@@ -32,6 +32,10 @@ _UA_BEGIN_DECLS
         else DST = SRC;                                \
     }
 
+/* Set to the TAILQ_NEXT pointer of a notification, the sentinel that the
+ * notification was not added to the global queue */
+#define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
+
 /**
  * MonitoredItems create Notifications. Subscriptions collect Notifications from
  * (several) MonitoredItems and publish them to the client.
