@@ -407,6 +407,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
+    UA_Subscription *sub = mon->subscription;
 
     /* Check if the MonitoringMode is valid or not */
     if(smc->monitoringMode > UA_MONITORINGMODE_REPORTING) {
@@ -420,12 +421,47 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
 
     mon->monitoringMode = smc->monitoringMode;
 
+    /* When reporting is enabled, put all notifications that were already
+     * sampled into the global queue of the subscription. When sampling is
+     * enabled, remove all notifications from the global queue. !!! This needs
+     * to be the same operation as in UA_Notification_enqueue !!! */
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING) {
+        UA_Notification *notification;
+        TAILQ_FOREACH(notification, &mon->queue, listEntry) {
+            TAILQ_INSERT_TAIL(&sub->notificationQueue, notification, globalEntry);
+            ++sub->notificationQueueSize;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+            if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+                ++sub->eventNotifications;
+            } else
+#endif
+            {
+                ++sub->dataChangeNotifications;
+            }
+        }
+        /* Register the sampling callback with an interval */
+        *result = UA_MonitoredItem_registerSampleCallback(server, mon);
+    } else if(mon->monitoringMode == UA_MONITORINGMODE_SAMPLING) {
+        UA_Notification *notification;
+        TAILQ_FOREACH(notification, &mon->queue, listEntry) {
+            TAILQ_REMOVE(&sub->notificationQueue, notification, globalEntry);
+            TAILQ_NEXT(notification, globalEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
+            --sub->notificationQueueSize;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+            if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+                --sub->eventNotifications;
+            } else
+#endif
+            {
+                --sub->dataChangeNotifications;
+            }
+        }
+        /* Register the sampling callback with an interval */
         *result = UA_MonitoredItem_registerSampleCallback(server, mon);
     } else {
+        /* UA_MONITORINGMODE_DISABLED */
         UA_MonitoredItem_unregisterSampleCallback(server, mon);
 
-        // TODO correctly implement SAMPLING
         /* Setting the mode to DISABLED or SAMPLING causes all queued Notifications to be deleted */
         UA_Notification *notification, *notification_tmp;
         TAILQ_FOREACH_SAFE(notification, &mon->queue, listEntry, notification_tmp) {
