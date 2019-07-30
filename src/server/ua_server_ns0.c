@@ -279,14 +279,44 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_assert(nodeId->identifierType == UA_NODEIDTYPE_NUMERIC);
 
     switch(nodeId->identifier.numeric) {
+    case UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN: {
+        UA_UInt32 *shutdown = UA_UInt32_new();
+        if(!shutdown)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        if(server->endTime != 0)
+            *shutdown = (UA_UInt32)((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
+        value->value.data = shutdown;
+        value->value.type = &UA_TYPES[UA_TYPES_UINT32];
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    case UA_NS0ID_SERVER_SERVERSTATUS_STATE: {
+        UA_ServerState *state = UA_ServerState_new();
+        if(!state)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        if(server->endTime != 0)
+            *state = UA_SERVERSTATE_SHUTDOWN;
+        value->value.data = state;
+        value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATE];
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
+    }
+
     case UA_NS0ID_SERVER_SERVERSTATUS: {
         UA_ServerStatusDataType *statustype = UA_ServerStatusDataType_new();
         if(!statustype)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         statustype->startTime = server->startTime;
         statustype->currentTime = UA_DateTime_now();
+
         statustype->state = UA_SERVERSTATE_RUNNING;
         statustype->secondsTillShutdown = 0;
+        if(server->endTime != 0) {
+            statustype->state = UA_SERVERSTATE_SHUTDOWN;
+            statustype->secondsTillShutdown = (UA_UInt32)((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
+        }
+
         value->value.data = statustype;
         value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
         value->hasValue = true;
@@ -561,14 +591,6 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
 
-static UA_StatusCode
-writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
-    UA_Variant var;
-    UA_Variant_init(&var);
-    UA_Variant_setScalar(&var, v, type);
-    return UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, id), var);
-}
-
 UA_StatusCode
 writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type) {
@@ -660,6 +682,14 @@ UA_Server_minimalServerObject(UA_Server *server) {
 }
 
 #else
+
+static UA_StatusCode
+writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
+    UA_Variant var;
+    UA_Variant_init(&var);
+    UA_Variant_setScalar(&var, v, type);
+    return UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, id), var);
+}
 
 static void
 addModellingRules(UA_Server *server) {
@@ -766,9 +796,9 @@ UA_Server_initNS0(UA_Server *server) {
                  UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
 
     /* State */
-    UA_ServerState state = UA_SERVERSTATE_RUNNING;
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_STATE,
-                               &state, &UA_TYPES[UA_TYPES_SERVERSTATE]);
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE),
+                                                   serverStatus);
 
     /* BuildInfo */
     retVal |= UA_Server_setVariableNode_dataSource(server,
@@ -807,9 +837,9 @@ UA_Server_initNS0(UA_Server *server) {
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 
     /* SecondsTillShutdown */
-    UA_UInt32 secondsTillShutdown = 0;
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN,
-                               &secondsTillShutdown, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                 UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN),
+                                                   serverStatus);
 
     /* ShutDownReason */
     UA_LocalizedText shutdownReason;
