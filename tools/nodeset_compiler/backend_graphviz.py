@@ -36,7 +36,7 @@ def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
     iter = depth
     processed = []
     if rootNode is None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
-        root = nodeset.getRoot()
+        root = nodeset.get_root()
     else:
         root = rootNode
 
@@ -138,7 +138,7 @@ def addNodeToGraph(nodeset, node, graph, alreadyAdded=set(), relevantReferences=
 
 def generateGraphvizCode(nodeset, filename="dependencies", rootNode=None, excludeNodeIds=[]):
     if rootNode is None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
-        root = nodeset.getRoot()
+        root = nodeset.get_root()
     else:
         root = rootNode
 
@@ -154,7 +154,7 @@ def generateGraphvizCode(nodeset, filename="dependencies", rootNode=None, exclud
     ignoreNodes.add(NodeId("i=63")) # BaseDataVariableType
     ignoreNodes.add(NodeId("i=61")) # FolderType
     addNodeToGraph(nodeset, root, g, alreadyAdded, isRoot=True,
-                   relevantReferences=nodeset.getRelevantOrderingReferences(),
+                   relevantReferences=nodeset.get_relevant_ordering_references(),
                    ignoreNodes=ignoreNodes)
 
     g.render(filename)

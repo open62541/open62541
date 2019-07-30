@@ -18,10 +18,10 @@ class testing:
         self.ns.sanitize()
 
         logger.debug("Phase 3: Comprehending DataType encoding rules")
-        self.ns.buildEncodingRules()
+        self.ns.build_encoding_rules()
 
         logger.debug("Phase 4: Allocating variable value data")
-        self.ns.allocateVariables()
+        self.ns.allocate_variables()
 
         bin = self.ns.buildBinary()
         f = codecs.open("binary.base64", "w+", encoding='utf-8')
@@ -29,7 +29,7 @@ class testing:
         f.close()
 
         allnodes = self.ns.nodes
-        ns = [self.ns.getRoot()]
+        ns = [self.ns.get_root()]
 
         i = 0
         # print "Starting depth search on " + str(len(allnodes)) + " nodes starting
@@ -54,7 +54,7 @@ class testing_open62541_header:
         self.ns = opcua_ns("testing")
 
         logger.debug("Phase 1: Reading XML file nodessets")
-        self.ns.parseXML("Opc.Ua.NodeSet2.xml")
+        self.ns.parse_xml("Opc.Ua.NodeSet2.xml")
         # self.ns.parseXML("Opc.Ua.NodeSet2.Part4.xml")
         # self.ns.parseXML("Opc.Ua.NodeSet2.Part5.xml")
         # self.ns.parseXML("Opc.Ua.SimulationNodeSet2.xml")
