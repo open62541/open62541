@@ -108,6 +108,8 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->nThreads = 1;
     conf->logger = UA_Log_Stdout_;
 
+    conf->shutdownDelay = 0.0;
+
     /* Server Description */
     conf->buildInfo.productUri = UA_STRING_ALLOC(PRODUCT_URI);
     conf->buildInfo.manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
