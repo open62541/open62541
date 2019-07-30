@@ -18,6 +18,8 @@
 
 #include "common.h"
 
+#define MAX_OPERATION_LIMIT 10000
+
 /* This server is configured to the Compliance Testing Tools (CTT) against. The
  * corresponding CTT configuration is available at
  * https://github.com/open62541/open62541-ctt */
@@ -733,6 +735,16 @@ int main(int argc, char **argv) {
         disableUnencrypted(&config);
     if(!enableSec)
         disableOutdatedSecurityPolicy(&config);
+
+    /* Set operation limits */
+    config.maxNodesPerRead = MAX_OPERATION_LIMIT;
+    config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
+    config.maxNodesPerMethodCall = MAX_OPERATION_LIMIT;
+    config.maxNodesPerBrowse = MAX_OPERATION_LIMIT;
+    config.maxNodesPerRegisterNodes = MAX_OPERATION_LIMIT;
+    config.maxNodesPerTranslateBrowsePathsToNodeIds = MAX_OPERATION_LIMIT;
+    config.maxNodesPerNodeManagement = MAX_OPERATION_LIMIT;
+    config.maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
 
     /* If RequestTimestamp is '0', log the warning and proceed */
     config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;
