@@ -658,6 +658,56 @@ UA_Server_minimalServerObject(UA_Server *server) {
 
     return retval;
 }
+
+#else
+
+static void
+addModellingRules(UA_Server *server) {
+    /* Test if the ModellingRules folder was added. (Only for the full ns0.) */
+    UA_NodeClass mrnc = UA_NODECLASS_UNSPECIFIED;
+    UA_StatusCode retval = UA_Server_readNodeClass(server,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES),
+                                                   &mrnc);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Add ExposesItsArray */
+    UA_Server_addReference(server,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_EXPOSESITSARRAY),
+                           true);
+
+    /* Add Mandatory */
+    UA_Server_addReference(server,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY),
+                           true);
+
+
+    /* Add MandatoryPlaceholder */
+    UA_Server_addReference(server,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORYPLACEHOLDER),
+                           true);
+
+    /* Add Optional */
+    UA_Server_addReference(server,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_OPTIONAL),
+                           true);
+
+    /* Add OptionalPlaceholder */
+    UA_Server_addReference(server,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_OPTIONALPLACEHOLDER),
+                           true);
+}
+
 #endif
 
 /* Initialize the nodeset 0 by using the generated code of the nodeset compiler.
@@ -936,6 +986,10 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= UA_Server_setMethodNode_callback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);
 #endif
+
+    /* The HasComponent references to the ModellingRules are not part of the
+     * Nodeset2.xml. So we add the references manually. */
+    addModellingRules(server);
 
 #endif /* UA_GENERATED_NAMESPACE_ZERO */
 
