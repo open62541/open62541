@@ -92,6 +92,10 @@ struct UA_ServerConfig {
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
 
+    UA_Double shutdownDelay; /* Delay in ms from the shutdown signal (ctrl-c)
+                                until the actual shutdown. Clients need to be
+                                able to get a notification ahead of time. */
+
     /* Rule Handling */
     UA_RuleHandling verifyRequestTimestamp; /* Verify that the server sends a
                                              * timestamp in the request header */

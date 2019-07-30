@@ -765,6 +765,8 @@ int main(int argc, char **argv) {
     config.applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.server.application");
 
+    config.shutdownDelay = 5000.0; /* 5s */
+
     UA_Server *server = UA_Server_newWithConfig(&config);
     if(server == NULL)
         return EXIT_FAILURE;
