@@ -59,6 +59,8 @@ struct UA_Server {
     /* Config */
     UA_ServerConfig config;
     UA_DateTime startTime;
+    UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
+                          * down once the time has been reached */
 
     /* Nodestore */
     void *nsCtx;
