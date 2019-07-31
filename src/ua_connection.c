@@ -20,6 +20,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
+
 /* Hides some errors before sending them to a client according to the
  * standard. */
 static void
