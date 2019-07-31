@@ -141,6 +141,7 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_QUERY "Enable query support." OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
+option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
 # Namespace Zero
@@ -156,6 +157,12 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)
     # See https://github.com/open62541/open62541/issues/1326
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
+endif()
+
+if(UA_ENABLE_MICRO_EMB_DEV_PROFILE)
+    if(NOT (UA_NAMESPACE_ZERO STREQUAL "FULL"))
+        message(FATAL_ERROR "CTT Compliant Micro Embedded Device Server Profile needs full namespace zero")
+    endif()
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
