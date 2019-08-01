@@ -35,7 +35,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 0)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc1") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "-rc2") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
