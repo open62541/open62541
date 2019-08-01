@@ -723,7 +723,7 @@ UA_StatusCode UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_N
             vAttr.displayName.text = pDataSetReader->config.dataSetMetaData.fields[iteratorField].name;
             if(pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.length < slen) {
                 slen = (UA_UInt16)pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.length;
-                UA_snprintf(szTmpName, sizeof(szTmpName), "%s", (const char*)pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.data);
+                UA_snprintf(szTmpName, sizeof(szTmpName), "%.*s", (int)slen, (const char*)pDataSetReader->config.dataSetMetaData.fields[iteratorField].name.data);
             }
 
             szTmpName[slen] = '\0';
@@ -744,7 +744,7 @@ UA_StatusCode UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_N
             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "addVariableNode %s succeeded", szTmpName);
         }
         else {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_USERLAND, "addVariableNode: error 0x%x", retval);
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND, "addVariableNode: error 0x%x", retval);
         }
 
         UA_FieldTargetDataType_init(&targetVars.targetVariables[iteratorField]);
