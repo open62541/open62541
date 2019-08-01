@@ -121,7 +121,7 @@ addDataSetReader(UA_Server *server) {
         /* Setting up Subscription settings in DataSetReader */
         addMqttSubscription(server, connection, SUBSCRIBER_TOPIC, NULL, NULL, METADATAQUEUENAME, UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT);
         UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                          &readerIdentifier);
+                                   &readerIdentifier);
     }
 }
 
@@ -183,21 +183,18 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
         UA_DataSetMetaDataType_init (pMetaData);
         pMetaData->name = UA_STRING ("DataSet 1");
 
-        /* Static definition of number of fields size to 4 to create four different
+        /* Static definition of number of fields size to 2 to create two different
          * targetVariables of distinct datatype
          * Currently the publisher sends only DateTime data type */
-        pMetaData->fieldsSize = 4;
+        pMetaData->fieldsSize = 2;
         pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                              &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
         /* DateTime DataType */
-        initMetadata(0, pMetaData, UA_TYPES_DATETIME, "DateTime", UA_NS0ID_DATETIME);
+        initMetadata(0, pMetaData, UA_TYPES_INT32, "CounterVariable", UA_NS0ID_INT32);
         /* Int32 DataType */
-        initMetadata(1, pMetaData, UA_TYPES_INT32, "Int32", UA_NS0ID_INT32);
-        /* Int64 DataType */
-        initMetadata(2, pMetaData, UA_TYPES_INT32, "Int32Fast", UA_NS0ID_INT32);
-        /* Boolean DataType */
-        initMetadata(3, pMetaData, UA_TYPES_BOOLEAN, "BoolToggle", UA_NS0ID_BOOLEAN);
+        initMetadata(1, pMetaData, UA_TYPES_DATETIME, "DateTime", UA_NS0ID_DATETIME);
+
     }
 }
 
@@ -210,7 +207,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
  *     :figwidth: 100 %
  *     :alt: OPC UA PubSub communication in wireshark
  *
- * The open62541 subscriber API will be released later. If you want to process the the datagrams,
+ * If you want to process the the datagrams,
  * take a look on the ua_network_pubsub_networkmessage.c which already contains the decoding code for UADP messages.
  *
  * It follows the main server code, making use of the above definitions. */
@@ -277,7 +274,7 @@ int main(int argc, char **argv) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* Details about the connection configuration and handling are located in the pubsub connection tutorial */
     UA_ServerConfig_setMinimal(config, 4801, NULL);
-     config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(1 * sizeof(UA_PubSubTransportLayer));
+    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(1 * sizeof(UA_PubSubTransportLayer));
     if(!config->pubsubTransportLayers) {
         return -1;
     }
@@ -288,7 +285,7 @@ int main(int argc, char **argv) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdent);
 
     if(!connection) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+       UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Could not create a PubSubConnection");
         UA_Server_delete(server);
         return -1;
