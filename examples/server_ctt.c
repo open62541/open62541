@@ -552,6 +552,77 @@ disableOutdatedSecurityPolicy(UA_ServerConfig *config) {
         config->endpoints = NULL;
     }
 }
+
+static void
+disableBasic128SecurityPolicy(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_ByteString basic128uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+        if(!UA_String_equal(&ep->securityPolicyUri, &basic128uri))
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
+
+static void
+disableBasic256SecurityPolicy(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_ByteString basic256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+        if(!UA_String_equal(&ep->securityPolicyUri, &basic256uri))
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
+
+
+static void
+disableBasic256Sha256SecurityPolicy(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_ByteString basic256sha256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        if(!UA_String_equal(&ep->securityPolicyUri, &basic256sha256uri))
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
+
 #endif
 
 UA_Boolean running = true;
@@ -576,6 +647,9 @@ usage(void) {
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
                    "\t[--enableTimestampCheck]\n"
+                   "\t[--disableBasic128]\n"
+                   "\t[--disableBasic256]\n"
+                   "\t[--disableBasic256Sha256]\n"
 #endif
                    "\t[--enableAnonymous]\n");
 }
@@ -631,6 +705,9 @@ int main(int argc, char **argv) {
     UA_Boolean enableUnencr = false;
     UA_Boolean enableSec = false;
     UA_Boolean enableTime = false;
+    UA_Boolean disableBasic128 = false;
+    UA_Boolean disableBasic256 = false;
+    UA_Boolean disableBasic256Sha256 = false;
 
 #endif
 
@@ -659,6 +736,21 @@ int main(int argc, char **argv) {
             enableTime = true;
             continue;
         }
+
+        if(strcmp(argv[pos], "--disableBasic128") == 0) {
+            disableBasic128 = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--disableBasic256") == 0) {
+            disableBasic256 = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--disableBasic256Sha256") == 0) {
+            disableBasic256Sha256 = true;
+            continue;
+        }        
 
         if(strcmp(argv[pos], "--trustlist") == 0) {
             filetype = 't';
@@ -738,6 +830,13 @@ int main(int argc, char **argv) {
         disableUnencrypted(&config);
     if(!enableSec)
         disableOutdatedSecurityPolicy(&config);
+
+    if(disableBasic128)
+        disableBasic128SecurityPolicy(&config);
+    if(disableBasic256)
+        disableBasic256SecurityPolicy(&config);
+    if(disableBasic256Sha256)
+        disableBasic256Sha256SecurityPolicy(&config);
 
     /* Set operation limits */
     config.maxNodesPerRead = MAX_OPERATION_LIMIT;
