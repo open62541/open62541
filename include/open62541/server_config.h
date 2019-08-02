@@ -14,10 +14,11 @@
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/pki.h>
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/server.h>
+#include <open62541/connection.h>
+#include "open62541/plugin/networkmanager.h"
 
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/plugin/pubsub.h>
@@ -121,9 +122,19 @@ struct UA_ServerConfig {
      *    ``/examples/custom_datatype/``. */
 
     /* Networking */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
-    UA_String customHostname;
+    UA_NetworkManager *networkManager;
+
+    /**
+     * One ore more sockets will be created for each socket config depending on the
+     * createSocket function.
+     */
+    UA_ListenerSocketConfig *listenerSocketConfigs;
+    size_t listenerSocketConfigsSize;
+
+    /**
+     * The connection config contains parameters for all connections created by the server.
+     */
+    UA_ConnectionConfig connectionConfig;
 
 #ifdef UA_ENABLE_PUBSUB
     /*PubSub network layer */

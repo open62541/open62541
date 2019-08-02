@@ -102,12 +102,22 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
     /* FIXME: Will most likely break somewhere in the future */
     /************************************************************/
 
+    if(client->config.networkManager == NULL) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "No NetworkManager configured");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     if(timeout) {
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
         retval = UA_Client_backgroundConnectivity(client);
         if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        retval = client->config.networkManager->process(client->config.networkManager, timeout);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             return retval;
 
         UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
@@ -125,11 +135,29 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         /* Connection failed, drop the rest */
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
+
+        retval = client->config.networkManager->process(client->config.networkManager, timeout);
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
+            if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+                setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+            UA_Client_disconnect(client);
+            return retval;
+        }
+
+        // TODO: Do we need this?
         if((cs == UA_CLIENTSTATE_SECURECHANNEL) || (cs == UA_CLIENTSTATE_SESSION)) {
             /* Check for new data */
             retval = receiveServiceResponseAsync(client, NULL, NULL);
-        } else {
-            retval = receivePacketAsync(client);
+        } else if(cs == UA_CLIENTSTATE_CONNECTED) {
+            /* Open a SecureChannel. TODO: Select with endpoint  */
+            UA_Connection_attachSecureChannel(client->connection, &client->channel);
+            retval = UA_CLient_openSecureChannelAsync(client/*, false*/);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+        } else if(cs == UA_CLIENTSTATE_SECURECHANNEL_OPENING) {
+            retval = UA_Client_processOPNAsync(client);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
         }
     }
 #ifdef UA_ENABLE_SUBSCRIPTIONS

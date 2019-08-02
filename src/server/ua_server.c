@@ -17,6 +17,8 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
+#include <open62541/plugin/networkmanager.h>
+#include <open62541/plugin/networking/sockets.h>
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -169,10 +171,11 @@ cleanup:
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
-    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_LOCK(server->serviceMutex);
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_UNLOCK(server->serviceMutex);
+    UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+    UA_ConnectionManager_deleteMembers(&server->connectionManager);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -227,6 +230,7 @@ UA_Server_cleanup(UA_Server *server, void *_) {
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
+    UA_ConnectionManager_cleanupTimedOut(&server->connectionManager, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
@@ -240,7 +244,7 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 static UA_Server *
 UA_Server_init(UA_Server *server) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    
+
     if(!server->config.nodestore.getNode) {
         UA_LOG_FATAL(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "No Nodestore configured in the server");
@@ -284,6 +288,7 @@ UA_Server_init(UA_Server *server) {
     server->namespacesSize = 2;
 
     /* Initialized SecureChannel and Session managers */
+    UA_ConnectionManager_init(&server->connectionManager, &server->config.logger);
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
 
@@ -497,13 +502,51 @@ verifyServerApplicationURI(const UA_Server *server) {
 
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
 
+static UA_StatusCode
+removeConnection(UA_Socket *sock) {
+    (void)sock;
+    UA_Connection *const connection = (UA_Connection *const)sock->context;
+    return UA_Connection_free(connection);
+}
+
+static UA_StatusCode
+createConnection(UA_Socket *sock) {
+    UA_Server *const server = (UA_Server *const)sock->application;
+
+    UA_StatusCode retval = sock->open(sock);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "New data socket created. Adding corresponding connection");
+
+    UA_Connection *connection;
+    retval = UA_Connection_new(server->config.connectionConfig, sock, NULL, sock->networkManager->logger, &connection);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    connection->connectionManager = &server->connectionManager;
+    connection->chunkCallback.callbackContext = server;
+    connection->chunkCallback.function = (UA_ProcessChunkCallbackFunction)UA_Server_processChunk;
+
+    sock->dataCallback = (UA_Socket_DataCallbackFunction)UA_Connection_assembleChunks;
+
+    sock->context = connection;
+    sock->freeCallback = removeConnection;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+open_listener_socket(UA_Socket *sock) {
+    return sock->open(sock);
+}
+
 /* Start: Spin up the workers and the network layer and sample the server's
  *        start time.
  * Iterate: Process repeated callbacks and events in the network layer. This
  *          part can be driven from an external main-loop in an event-driven
  *          single-threaded architecture.
  * Stop: Stop workers, finish all callbacks, stop the network layer, clean up */
-
 UA_StatusCode
 UA_Server_run_startup(UA_Server *server) {
     /* ensure that the uri for ns1 is set up from the app description */
@@ -546,11 +589,18 @@ UA_Server_run_startup(UA_Server *server) {
                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME),
                          var);
 
-    /* Start the networklayers */
-    UA_StatusCode result = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        result |= nl->start(nl, &server->config.customHostname);
+    server->config.networkManager->start(server->config.networkManager);
+
+    /* Delayed creation of the server sockets. */
+    UA_NetworkManager *networkManager = server->config.networkManager;
+    for(size_t i = 0; i < server->config.listenerSocketConfigsSize; ++i) {
+        UA_ListenerSocketConfig listenerSocketConfig = server->config.listenerSocketConfigs[i];
+        listenerSocketConfig.socketConfig.application = server;
+        listenerSocketConfig.onAccept = createConnection;
+
+        listenerSocketConfig.socketConfig.networkManager
+                            ->createSocket(networkManager, (UA_SocketConfig *)&listenerSocketConfig,
+                                           open_listener_socket);
     }
 
     /* Update the application description to match the previously added discovery urls.
@@ -561,15 +611,16 @@ UA_Server_run_startup(UA_Server *server) {
                         &UA_TYPES[UA_TYPES_STRING]);
         server->config.applicationDescription.discoveryUrlsSize = 0;
     }
-    server->config.applicationDescription.discoveryUrls = (UA_String *)
-        UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
-    if(!server->config.applicationDescription.discoveryUrls)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
-    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
-    }
+    // TODO: Rework for new networking?
+//    server->config.applicationDescription.discoveryUrls = (UA_String *)
+//        UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
+//    if(!server->config.applicationDescription.discoveryUrls)
+//        return UA_STATUSCODE_BADOUTOFMEMORY;
+//    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
+//    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
+//        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+//        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
+//    }
 
     /* Spin up the worker threads */
 #if UA_MULTITHREADING >= 200
@@ -586,7 +637,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     server->state = UA_SERVERLIFECYCLE_FRESH;
 
-    return result;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -616,11 +667,8 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     if(waitInternal)
         timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
-    /* Listen on the networklayer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->listen(nl, server, timeout);
-    }
+    /* Listen for network activity */
+    server->config.networkManager->process(server->config.networkManager, timeout);
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
@@ -659,11 +707,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
-    /* Stop the netowrk layer */
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        nl->stop(nl, server);
-    }
+    server->config.networkManager->shutdown(server->config.networkManager);
 
 #if UA_MULTITHREADING >= 200
     /* Shut down the workers */

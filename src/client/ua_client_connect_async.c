@@ -6,6 +6,7 @@
 #include <open62541/transport_generated_encoding_binary.h>
 #include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated_encoding_binary.h>
+#include <open62541/plugin/networking/sockets.h>
 
 #include "ua_client_internal.h"
 
@@ -39,8 +40,6 @@
 /***********************/
 /* Open the Connection */
 /***********************/
-static UA_StatusCode
-openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/);
 
 static UA_StatusCode
 requestSession(UA_Client *client, UA_UInt32 *requestId);
@@ -48,47 +47,15 @@ requestSession(UA_Client *client, UA_UInt32 *requestId);
 static UA_StatusCode
 requestGetEndpoints(UA_Client *client, UA_UInt32 *requestId);
 
-/*receives hello ack, opens secure channel*/
-UA_StatusCode
-processACKResponseAsync(void *application, UA_Connection *connection,
-                         UA_ByteString *chunk) {
-    UA_Client *client = (UA_Client*)application;
-
-    /* Decode the message */
-    size_t offset = 0;
-    UA_TcpMessageHeader messageHeader;
-    UA_TcpAcknowledgeMessage ackMessage;
-    client->connectStatus = UA_TcpMessageHeader_decodeBinary (chunk, &offset,
-                                                              &messageHeader);
-    client->connectStatus |= UA_TcpAcknowledgeMessage_decodeBinary(
-            chunk, &offset, &ackMessage);
-    if (client->connectStatus != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "Decoding ACK message failed");
-        return client->connectStatus;
-    }
-    UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
-
-    client->connectStatus =
-        UA_Connection_processHELACK(connection, &client->config.localConnectionConfig,
-                                    (const UA_ConnectionConfig*)&ackMessage);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return client->connectStatus;
-
-    client->state = UA_CLIENTSTATE_CONNECTED;
-
-    /* Open a SecureChannel. TODO: Select with endpoint  */
-    client->channel.connection = &client->connection;
-    client->connectStatus = openSecureChannelAsync(client/*, false*/);
-    return client->connectStatus;
-}
-
 static UA_StatusCode
 sendHELMessage(UA_Client *client) {
     /* Get a buffer */
-    UA_ByteString message;
-    UA_Connection *conn = &client->connection;
-    UA_StatusCode retval = conn->getSendBuffer(conn, UA_MINMESSAGESIZE, &message);
+    UA_ByteString *message = NULL;
+    UA_Connection *conn = client->connection;
+    UA_Socket *sock = UA_Connection_getSocket(conn);
+    if(sock == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode retval = sock->acquireSendBuffer(sock, UA_MINMESSAGESIZE, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -98,25 +65,25 @@ sendHELMessage(UA_Client *client) {
     memcpy(&hello, &client->config.localConnectionConfig,
            sizeof(UA_ConnectionConfig)); /* same struct layout */
 
-    UA_Byte *bufPos = &message.data[8]; /* skip the header */
-    const UA_Byte *bufEnd = &message.data[message.length];
+    UA_Byte *bufPos = &message->data[8]; /* skip the header */
+    const UA_Byte *bufEnd = &message->data[message->length];
     client->connectStatus = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, bufEnd);
     UA_TcpHelloMessage_deleteMembers (&hello);
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
-    messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos - (uintptr_t)message.data);
-    bufPos = message.data;
+    messageHeader.messageSize = (UA_UInt32) ((uintptr_t)bufPos - (uintptr_t)message->data);
+    bufPos = message->data;
     retval = UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos, bufEnd);
     if(retval != UA_STATUSCODE_GOOD) {
-        conn->releaseSendBuffer(conn, &message);
+        sock->releaseSendBuffer(sock, message);
         return retval;
     }
 
     /* Send the HEL message */
-    message.length = messageHeader.messageSize;
-    retval = conn->send (conn, &message);
+    message->length = messageHeader.messageSize;
+    retval = sock->send(sock, message);
 
     if(retval == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_NETWORK, "Sent HEL message");
@@ -189,23 +156,17 @@ processDecodedOPNResponseAsync(void *application, UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-processOPNResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk) {
-    UA_Client *client = (UA_Client*) application;
-    UA_StatusCode retval = UA_SecureChannel_decryptAddChunk(&client->channel, chunk, true);
-    client->connectStatus = retval;
+UA_Client_processOPNAsync(UA_Client *client) {
+    UA_StatusCode retval =
+        UA_SecureChannel_processCompleteMessages(&client->channel,
+                                                 client, processDecodedOPNResponseAsync);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
-    UA_SecureChannel_processCompleteMessages(&client->channel, client, processDecodedOPNResponseAsync);
-    
-    if(client->state < UA_CLIENTSTATE_SECURECHANNEL) {
-        retval = UA_STATUSCODE_BADSECURECHANNELCLOSED;
-        goto error;
-    }
 
-    retval = UA_SecureChannel_persistIncompleteMessages(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
+    if(client->state < UA_CLIENTSTATE_SECURECHANNEL) {
+        /* Waiting for the opn response */
+        return UA_STATUSCODE_GOOD;
+    }
 
     retval = UA_SecureChannel_generateNewKeys(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
@@ -230,13 +191,15 @@ error:
 }
 
 /* OPN messges to renew the channel are sent asynchronous */
-static UA_StatusCode
-openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
+UA_StatusCode
+UA_CLient_openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
     /* Check if sc is still valid */
     /*if(renew && client->nextChannelRenewal - UA_DateTime_nowMonotonic () > 0)
         return UA_STATUSCODE_GOOD;*/
 
-    UA_Connection *conn = &client->connection;
+    UA_Connection *conn = client->connection;
+    if(conn == NULL)
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     if(conn->state != UA_CONNECTION_ESTABLISHED)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
@@ -298,6 +261,7 @@ openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/) {
         LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
         return retval;
     }*/
+    client->state = UA_CLIENTSTATE_SECURECHANNEL_OPENING;
     return retval;
 }
 
@@ -311,7 +275,7 @@ responseActivateSession(UA_Client *client, void *userdata, UA_UInt32 requestId,
                      "ActivateSession failed with error code %s",
                      UA_StatusCode_name(activateResponse->responseHeader.serviceResult));
     }
-    client->connection.state = UA_CONNECTION_ESTABLISHED;
+    client->connection->state = UA_CONNECTION_ESTABLISHED;
     setClientState(client, UA_CLIENTSTATE_SESSION);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -550,42 +514,75 @@ UA_StatusCode
 UA_Client_connect_iterate(UA_Client *client) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
-    if (client->connection.state == UA_CONNECTION_ESTABLISHED){
+    if(client->connection == NULL)
+        return client->connectStatus; /* not yet connected */
+    if(client->connection->state == UA_CONNECTION_OPENING) {
         if(client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
             client->connectStatus = sendHELMessage(client);
             if(client->connectStatus == UA_STATUSCODE_GOOD) {
                 setClientState(client, UA_CLIENTSTATE_WAITING_FOR_ACK);
             } else {
-                client->connection.close(&client->connection);
-                client->connection.free(&client->connection);
+                UA_Connection_close(client->connection);
             }
             return client->connectStatus;
         }
     }
 
     /* If server is not connected */
-    if(client->connection.state == UA_CONNECTION_CLOSED) {
+    if(client->connection->state == UA_CONNECTION_CLOSED) {
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_NETWORK,
                      "No connection to server.");
     }
 
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
-        client->connection.close(&client->connection);
-        client->connection.free(&client->connection);
-    }
+        UA_Connection_close(client->connection);
 
+    }
     return client->connectStatus;
+}
+
+static UA_StatusCode
+UA_Client_createConnectionAsync(UA_Socket *sock) {
+    UA_Client *const client = (UA_Client *const)sock->application;
+    if(client == NULL || sock == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    client->asyncOpeningSocket = NULL;
+    return UA_Client_createConnection(sock);
+}
+
+/* We want to clean up the asyncOpeningSocket variable if the socket is closed early in its lifecycle */
+static UA_StatusCode
+async_socket_free_callback(UA_Socket *sock) {
+    UA_Client *const client = (UA_Client *const)sock->application;
+    if(client->asyncOpeningSocket != NULL)
+        client->asyncOpeningSocket = NULL;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_Client_openSocketAsync(UA_Socket *sock) {
+    UA_Client *const client = (UA_Client *const)sock->application;
+    sock->openCallback = UA_Client_createConnectionAsync;
+    sock->freeCallback = async_socket_free_callback;
+    client->asyncOpeningSocket = sock;
+
+    return sock->open(sock);
 }
 
 UA_StatusCode
 UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
                         UA_ClientAsyncServiceCallback callback,
                         void *userdata) {
+    if(client->asyncOpeningSocket != NULL)
+        return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Client internal async");
 
     if(client->state >= UA_CLIENTSTATE_WAITING_FOR_ACK)
+        return UA_STATUSCODE_GOOD;
+
+    if(client->connection != NULL)
         return UA_STATUSCODE_GOOD;
 
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
@@ -597,17 +594,38 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
     UA_String_deleteMembers(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    client->connection =
-        client->config.initConnectionFunc(client->config.localConnectionConfig,
-                                          client->endpointUrl,
-                                          client->config.timeout, &client->config.logger);
-    if(client->connection.state != UA_CONNECTION_OPENING) {
-        UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Could not init async connection");
-        retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
-        goto cleanup;
+    // we can autoconfigure in this case. Otherwise the user has to configure the endpoint data
+    // in the config.
+    UA_ClientSocketConfig clientSocketConfig = client->config.clientSocketConfig;
+    if(clientSocketConfig.socketConfig.createSocket != UA_TCP_ClientDataSocket) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Cannot configure endpointUrl when using non default tcp sockets. "
+                     "Please configure the appropriate data in the config.");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    if(clientSocketConfig.targetEndpointUrl.data == NULL) {
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "No target endpoint configured. Using the supplied endpoint");
+        clientSocketConfig.targetEndpointUrl = client->endpointUrl;
+    }
+    if(clientSocketConfig.socketConfig.networkManager == NULL) {
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "No target endpoint configured. Using the supplied endpoint");
+        clientSocketConfig.socketConfig.networkManager = client->config.networkManager;
+    }
+    if(clientSocketConfig.socketConfig.application == NULL) {
+        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "No application configured. Using the client as application");
+        clientSocketConfig.socketConfig.application = client;
+    }
+
+    UA_StatusCode retval = clientSocketConfig.socketConfig.networkManager
+                                 ->createSocket(client->config.networkManager,
+                                                (UA_SocketConfig *)&clientSocketConfig,
+                                                UA_Client_openSocketAsync);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Set the channel SecurityMode if not done so far */
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
@@ -630,16 +648,6 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
 
     client->asyncConnectCall.callback = callback;
     client->asyncConnectCall.userdata = userdata;
-
-    if(!client->connection.connectCallbackID) {
-        UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Adding async connection callback");
-        retval = UA_Client_addRepeatedCallback(
-                     client, client->config.pollConnectionFunc, &client->connection, 100.0,
-                     &client->connection.connectCallbackID);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
 
     retval = UA_SecureChannel_generateLocalNonce(&client->channel);
     if(retval != UA_STATUSCODE_GOOD)
@@ -716,9 +724,13 @@ UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
     /* Close the TCP connection
      * shutdown and close (in tcp.c) are already async*/
     if (client->state >= UA_CLIENTSTATE_CONNECTED)
-        client->connection.close(&client->connection);
-    else
-        UA_Client_removeRepeatedCallback(client, client->connection.connectCallbackID);
+        UA_Connection_close(client->connection);
+    else {
+        if(client->asyncOpeningSocket != NULL) {
+            client->asyncOpeningSocket->close(client->asyncOpeningSocket);
+            client->asyncOpeningSocket = NULL;
+        }
+    }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 // TODO REMOVE WHEN UA_SESSION_RECOVERY IS READY

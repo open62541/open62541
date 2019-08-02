@@ -53,6 +53,9 @@ typedef UA_StatusCode status;
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
+#define UA_BITMASK_MESSAGETYPE 0x00ffffffu
+#define UA_BITMASK_CHUNKTYPE 0xff000000u
+
 _UA_END_DECLS
 
 #endif /* UA_UTIL_H_ */

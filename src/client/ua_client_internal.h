@@ -22,6 +22,8 @@
 #include "ua_securechannel.h"
 #include "ua_timer.h"
 #include "ua_workqueue.h"
+#include "open62541_queue.h"
+#include "open62541/plugin/networkmanager.h"
 
 _UA_BEGIN_DECLS
 
@@ -133,8 +135,11 @@ struct UA_Client {
     UA_Timer timer;
     UA_StatusCode connectStatus;
 
+    /* NetworkManager */
+    UA_Socket *asyncOpeningSocket;
+
     /* Connection */
-    UA_Connection connection;
+    UA_Connection* connection;
 
     /* SecureChannel */
     UA_SecureChannel channel;
@@ -183,8 +188,23 @@ UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
 void
 setClientState(UA_Client *client, UA_ClientState state);
 
-/* The endpointUrl must be set in the configuration. If the complete
- * endpointdescription is not set, a GetEndpoints is performed. */
+/**
+ * Creates a new connection with the supplied socket.
+ * @param client
+ * @param sock
+ * @return
+ */
+UA_StatusCode
+UA_Client_createConnection(UA_Socket *sock);
+
+/**
+ * Removes the currently set connection from the client.
+ * @param sock
+ * @return
+ */
+UA_StatusCode
+UA_Client_removeConnection(UA_Socket *sock);
+
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const UA_String endpointUrl);
 
@@ -199,18 +219,15 @@ UA_Client_getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
                                size_t *endpointDescriptionsSize,
                                UA_EndpointDescription **endpointDescriptions);
 
-/* Receive and process messages until a synchronous message arrives or the
- * timout finishes */
 UA_StatusCode
-receivePacketAsync(UA_Client *client);
+UA_CLient_openSecureChannelAsync(UA_Client *client/*, UA_Boolean renew*/);
 
 UA_StatusCode
-processACKResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk);
+processACKResponse(void *application, UA_Connection *connection,
+                   UA_ByteString *chunk, size_t *offset);
 
 UA_StatusCode
-processOPNResponseAsync(void *application, UA_Connection *connection,
-                        UA_ByteString *chunk);
+UA_Client_processOPNAsync(UA_Client *client);
 
 UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew);
@@ -238,6 +255,12 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri);
 UA_StatusCode
 encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPolicy,
                          UA_ExtensionObject *userIdentityToken);
+/********************/
+/** Chunk handling **/
+/********************/
+
+UA_StatusCode
+UA_Client_processChunk(UA_Client *client, UA_Connection *connection, UA_ByteString *chunk);
 
 _UA_END_DECLS
 

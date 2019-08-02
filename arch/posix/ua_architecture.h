@@ -82,6 +82,10 @@
 #define UA_WOULDBLOCK EWOULDBLOCK
 #define UA_ERR_CONNECTION_PROGRESS EINPROGRESS
 
+#define UA_SHUT_RD SHUT_RD
+#define UA_SHUT_WR SHUT_WR
+#define UA_SHUT_RDWR SHUT_RDWR
+
 #define UA_ENABLE_LOG_COLORS
 
 #define UA_getnameinfo getnameinfo
@@ -91,6 +95,8 @@
 #define UA_recvfrom recvfrom
 #define UA_htonl htonl
 #define UA_ntohl ntohl
+#define UA_ntohs ntohs
+#define UA_htons htons
 #define UA_close close
 #define UA_select select
 #define UA_shutdown shutdown
@@ -100,6 +106,7 @@
 #define UA_accept accept
 #define UA_connect connect
 #define UA_getaddrinfo getaddrinfo
+#define UA_getsockname getsockname
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
 #define UA_freeaddrinfo freeaddrinfo
@@ -138,14 +145,14 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
 #include <stdio.h>
 #define UA_snprintf snprintf
 
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) do { \
     char *errno_str = strerror(errno); \
     LOG; \
-}
-#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) { \
+} while(0)
+#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) do { \
     const char *errno_str = gai_strerror(errno); \
     LOG; \
-}
+} while(0)
 
 #if UA_MULTITHREADING >= 100
 #include <pthread.h>

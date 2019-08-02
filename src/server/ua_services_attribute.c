@@ -258,7 +258,7 @@ void
 ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
              UA_TimestampsToReturn timestampsToReturn,
              const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_TRACE_SESSION(&server->config.logger, session,
                          "Read the attribute %i", id->attributeId);
 
     /* Only Binary Encoding is supported */

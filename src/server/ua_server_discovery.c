@@ -48,8 +48,14 @@ register_server_with_discovery_server(UA_Server *server,
 
     /* Copy the discovery urls from the server config and the network layers*/
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
-    size_t nl_discurls = server->config.networkLayersSize;
-    size_t total_discurls = config_discurls + nl_discurls;
+    UA_String *discoveryUrls;
+    size_t discoveryUrlsSize;
+    UA_StatusCode retval =
+        server->config.networkManager->getDiscoveryUrls(server->config.networkManager,
+                                                        &discoveryUrls, &discoveryUrlsSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    size_t total_discurls = config_discurls + discoveryUrlsSize;
     UA_STACKARRAY(UA_String, urlsBuf, total_discurls);
     request.server.discoveryUrls = urlsBuf;
     request.server.discoveryUrlsSize = total_discurls;
@@ -57,11 +63,11 @@ register_server_with_discovery_server(UA_Server *server,
     for(size_t i = 0; i < config_discurls; ++i)
         request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];
 
-    /* TODO: Add nl only if discoveryUrl not already present */
-    for(size_t i = 0; i < nl_discurls; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
+    /* TODO: Add network discoveryUrls only if discoveryUrl not already present */
+    for(size_t i = 0; i < discoveryUrlsSize; ++i) {
+        request.server.discoveryUrls[config_discurls + i] = discoveryUrls[i];
     }
+    UA_free(discoveryUrls);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     request.discoveryConfigurationSize = 1;

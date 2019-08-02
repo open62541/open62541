@@ -95,12 +95,10 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
-    ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
 )
 
 set(ua_architecture_headers ${ua_architecture_headers}
-    ${PROJECT_SOURCE_DIR}/include/open62541/network_tcp.h
-    ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
+                            ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
 if(UA_ENABLE_WEBSOCKET_SERVER)
@@ -609,7 +607,9 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 set(exported_headers ${exported_headers}
+                     ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
+                     ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
@@ -618,15 +618,16 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/network.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/socket.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/networkmanager.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/connection.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
-                     ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_config.h
@@ -636,8 +637,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h)
 
-set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
-                     ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
+set(internal_headers ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
@@ -646,7 +646,6 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_encoding_binary.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/ua_workqueue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h
@@ -672,7 +671,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_workqueue.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
-                ${PROJECT_SOURCE_DIR}/src/ua_connection.c
+                ${PROJECT_SOURCE_DIR}/src/connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
@@ -704,6 +703,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_chunk_handling.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_async.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
@@ -722,6 +722,8 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
+    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/networking/sockets.h
+    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/networking/networkmanagers.h
 )
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
@@ -731,6 +733,9 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
+                           ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_listener_socket.c
+                           ${PROJECT_SOURCE_DIR}/plugins/networking/ua_tcp_data_socket.c
+                           ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
 )
 
 if(UA_GENERATED_NAMESPACE_ZERO)
