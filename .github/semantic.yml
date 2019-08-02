@@ -1,0 +1,11 @@
+# Valid scopes for commit messages. 
+scopes:
+  - arch
+  - core
+  - encrypt
+  - multithread
+# Nodeset Compiler
+  - nc
+  - server
+  - client
+
