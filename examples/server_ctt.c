@@ -59,6 +59,240 @@ readTimeData(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+readRandomBoolData(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_Boolean toggle = !((UA_UInt32_random() % 10 ) % 2);
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readRandomInt16Data(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_Int16 toggle = (UA_Int16)UA_UInt32_random();
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_INT16]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readRandomInt32Data(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_Int32 toggle = (UA_Int32)UA_UInt32_random();
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_INT32]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+    
+static UA_StatusCode
+readRandomInt64Data(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+    value->hasStatus = true;
+    value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+    return UA_STATUSCODE_GOOD;
+    }
+        UA_Int64 toggle = (UA_Int64)UA_UInt32_random();
+        UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_INT64]);
+        value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+    
+static UA_StatusCode
+readRandomUInt16Data(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_UInt16 toggle = (UA_UInt16)UA_UInt32_random();
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_UINT16]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readRandomUInt32Data(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_UInt32 toggle = UA_UInt32_random();
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_UINT32]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+    
+static UA_StatusCode
+readRandomUInt64Data(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_UInt64 toggle = UA_UInt32_random();
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_UINT64]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readRandomStringData (UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    char randomName[12];
+    UA_snprintf(randomName, 12, "Random%d", UA_UInt32_random());
+    UA_String toggle = UA_STRING(randomName);
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_STRING]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+   return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readRandomFloatData (UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_Float toggle = (UA_Float)UA_UInt32_random();
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_FLOAT]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+   return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readRandomDoubleData (UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_Double toggle = (UA_Double)UA_UInt32_random();
+    UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_DOUBLE]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+   return UA_STATUSCODE_GOOD;
+}
+static UA_StatusCode
+readByteString (UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    char randomName[8];
+    UA_snprintf(randomName, 8, "%d%d", UA_UInt32_random(), UA_UInt32_random());
+    UA_ByteString randomByte = UA_BYTESTRING(randomName);
+    UA_Variant_setScalarCopy(&value->value, &randomByte, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+   return UA_STATUSCODE_GOOD;
+}
+    
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
 
@@ -364,18 +598,80 @@ setInformationModel(UA_Server *server) {
     /* Scale Test: 100 nodes of each type */
     int scale_i = 0;
     UA_UInt32 scale_nodeid = 43000;
-    for(UA_UInt32 type = 0; type < UA_TYPES_QUALIFIEDNAME; type++) {
-        if(type == UA_TYPES_VARIANT || type == UA_TYPES_QUALIFIEDNAME)
+    for(UA_UInt32 type = 0; type < 15; type++) {
+        if(type == UA_TYPES_SBYTE || type == UA_TYPES_BYTE
+                || type == UA_TYPES_GUID)
             continue;
 
+        UA_DataSource scaleTestDataSource;
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.dataType = UA_TYPES[type].typeId;
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         attr.valueRank = UA_VALUERANK_SCALAR;
-        void *value = UA_new(&UA_TYPES[type]);
-        UA_Variant_setScalar(&attr.value, value, &UA_TYPES[type]);
+        switch(UA_TYPES[type].typeIndex) {
+            case UA_TYPES_BOOLEAN: {
+                scaleTestDataSource.read = readRandomBoolData;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_INT16: {
+                scaleTestDataSource.read = readRandomInt16Data;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_UINT16: {
+                scaleTestDataSource.read = readRandomUInt16Data;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_INT32: {
+                scaleTestDataSource.read = readRandomInt32Data;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_UINT32: {
+                scaleTestDataSource.read = readRandomUInt32Data;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_INT64: {
+                scaleTestDataSource.read = readRandomInt64Data;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_UINT64: {
+                scaleTestDataSource.read = readRandomUInt64Data;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_STRING: {
+                scaleTestDataSource.read = readRandomStringData;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_FLOAT: {
+                scaleTestDataSource.read = readRandomFloatData;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_DOUBLE: {
+                scaleTestDataSource.read = readRandomDoubleData;
+                scaleTestDataSource.write = NULL;
+                break;
+            }
+            case UA_TYPES_DATETIME:
+                scaleTestDataSource.read = readTimeData;
+                scaleTestDataSource.write = NULL;
+                break;
+            case UA_TYPES_BYTESTRING:
+                scaleTestDataSource.read = readByteString;
+                scaleTestDataSource.write = NULL;
+                break;
+            default:
+                break;
+        }
 
         for(size_t j = 0; j < 100; j++) {
             char name[32];
@@ -386,13 +682,12 @@ setInformationModel(UA_Server *server) {
 #endif
             attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
             UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
-            UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++scale_nodeid),
+            UA_Server_addDataSourceVariableNode(server, UA_NODEID_NUMERIC(1, ++scale_nodeid),
                                       UA_NODEID_NUMERIC(1, SCALETESTID),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                      qualifiedName, baseDataVariableType, attr, NULL, NULL);
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),qualifiedName,
+                                      baseDataVariableType, attr, scaleTestDataSource, NULL, NULL);
             scale_i++;
         }
-
         UA_Variant_clear(&attr.value);
     }
 
