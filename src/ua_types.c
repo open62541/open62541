@@ -309,34 +309,42 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
             return UA_ORDER_MORE;
         break;
     case UA_NODEIDTYPE_GUID:
-        if(n1->identifier.guid.data1 < n2->identifier.guid.data1 ||
-           n1->identifier.guid.data2 < n2->identifier.guid.data2 ||
-           n1->identifier.guid.data3 < n2->identifier.guid.data3 ||
-           strncmp((const char*)n1->identifier.guid.data4,
-                   (const char*)n2->identifier.guid.data4, 8) < 0)
+        if(n1->identifier.guid.data1 < n2->identifier.guid.data1) {
             return UA_ORDER_LESS;
-        if(n1->identifier.guid.data1 > n2->identifier.guid.data1 ||
-           n1->identifier.guid.data2 > n2->identifier.guid.data2 ||
-           n1->identifier.guid.data3 > n2->identifier.guid.data3 ||
-           strncmp((const char*)n1->identifier.guid.data4,
-                   (const char*)n2->identifier.guid.data4, 8) > 0)
+        } else if(n1->identifier.guid.data1 > n2->identifier.guid.data1) {
             return UA_ORDER_MORE;
+        } else if(n1->identifier.guid.data2 < n2->identifier.guid.data2) {
+            return UA_ORDER_LESS;
+        } else if(n1->identifier.guid.data2 > n2->identifier.guid.data2) {
+            return UA_ORDER_MORE;
+        } else if(n1->identifier.guid.data3 < n2->identifier.guid.data3) {
+            return UA_ORDER_LESS;
+        } else if(n1->identifier.guid.data3 > n2->identifier.guid.data3) {
+            return UA_ORDER_MORE;
+        } else {
+            int cmp = memcmp(n1->identifier.guid.data4, n2->identifier.guid.data4, 8);
+
+            if(cmp < 0) return UA_ORDER_LESS;
+            if(cmp > 0) return UA_ORDER_MORE;
+
+        }
+
         break;
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING: {
+        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
+        int cmp = strncmp((const char*)n1->identifier.string.data,
+                          (const char*)n2->identifier.string.data,
+                          minLength);
+        if(cmp < 0)
+            return UA_ORDER_LESS;
+        if(cmp > 0)
+            return UA_ORDER_MORE;
+
         if(n1->identifier.string.length < n2->identifier.string.length)
             return UA_ORDER_LESS;
         if(n1->identifier.string.length > n2->identifier.string.length)
             return UA_ORDER_MORE;
-        if(n1->identifier.string.length > 0) {
-            int cmp = strncmp((const char*)n1->identifier.string.data,
-                              (const char*)n2->identifier.string.data,
-                              n1->identifier.string.length);
-            if(cmp < 0)
-                return UA_ORDER_LESS;
-            if(cmp > 0)
-                return UA_ORDER_MORE;
-        }
         break;
     }
     default:

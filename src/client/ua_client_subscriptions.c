@@ -366,7 +366,14 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
     UA_CreateMonitoredItemsResponse response = 
        UA_Client_MonitoredItems_createEvents(client, request, &context,
                                              &callback, &deleteCallback);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
     UA_MonitoredItemCreateResult result;
+    UA_MonitoredItemCreateResult_init(&result);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        result.statusCode = retval;
+        return result;
+    }
     UA_MonitoredItemCreateResult_copy(response.results , &result);
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
     return result;
@@ -670,6 +677,14 @@ UA_Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequ
         UA_Client_disconnect(client); /* TODO: This should be handled before the process callback */
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Received BadSessionIdInvalid");
+        return;
+    }
+
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
+        if (client->config.inactivityCallback)
+            client->config.inactivityCallback(client);
+        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Received Timeout for Publish Response");
         return;
     }
 

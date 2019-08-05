@@ -121,7 +121,7 @@ readRandomInt32Data(UA_Server *server,
     }
     return UA_STATUSCODE_GOOD;
 }
-    
+
 static UA_StatusCode
 readRandomInt64Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
@@ -142,7 +142,7 @@ readRandomInt64Data(UA_Server *server,
     }
     return UA_STATUSCODE_GOOD;
 }
-    
+
 static UA_StatusCode
 readRandomUInt16Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
@@ -184,7 +184,7 @@ readRandomUInt32Data(UA_Server *server,
     }
     return UA_STATUSCODE_GOOD;
 }
-    
+
 static UA_StatusCode
 readRandomUInt64Data(UA_Server *server,
              const UA_NodeId *sessionId, void *sessionContext,
@@ -292,7 +292,7 @@ readByteString (UA_Server *server,
     }
    return UA_STATUSCODE_GOOD;
 }
-    
+
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
 
@@ -1043,7 +1043,7 @@ int main(int argc, char **argv) {
         if(strcmp(argv[pos], "--disableBasic256Sha256") == 0) {
             disableBasic256Sha256 = true;
             continue;
-        }        
+        }
 
         if(strcmp(argv[pos], "--trustlist") == 0) {
             filetype = 't';

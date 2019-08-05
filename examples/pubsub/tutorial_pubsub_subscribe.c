@@ -38,7 +38,7 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    if((server == NULL) && (transportProfile == NULL) &&
+    if((server == NULL) || (transportProfile == NULL) ||
         (networkAddressUrl == NULL)) {
         return;
     }

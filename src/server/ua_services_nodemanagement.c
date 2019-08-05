@@ -743,11 +743,16 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                 }
 
                 /* Object node created of an abstract ObjectType. Only allowed
-                 * if within BaseObjectType folder */
+                 * if within BaseObjectType folder or if it's an event (subType of BaseEventType) */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
-                if(!isNodeInTree(server->nsCtx, parentNodeId, &objectTypes,
-                                 parentTypeHierarchy, parentTypeHierarchySize)) {
-                    UA_LOG_NODEID_WRAP(nodeId, UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                UA_Boolean isInBaseObjectType = isNodeInTree(server->nsCtx, parentNodeId, &objectTypes,
+                                                             parentTypeHierarchy, parentTypeHierarchySize);
+
+                const UA_NodeId eventTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+                UA_Boolean isInBaseEventType = isNodeInTree(server->nsCtx, &type->nodeId, &eventTypes, &hasSubtype, 1);
+
+                if(!isInBaseObjectType && !(isInBaseEventType && UA_NodeId_isNull(parentNodeId))) {
+                    UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                                         "AddNodes: Type of object node %.*s must "
                                         "be ObjectType and not be abstract",
                                         (int)nodeIdStr.length, nodeIdStr.data));
