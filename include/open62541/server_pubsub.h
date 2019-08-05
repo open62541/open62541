@@ -120,6 +120,9 @@ typedef struct {
     size_t connectionPropertiesSize;
     UA_KeyValuePair *connectionProperties;
     UA_Variant connectionTransportSettings;
+
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_PubSubConnectionConfig;
 
 UA_StatusCode UA_EXPORT
@@ -188,6 +191,8 @@ typedef struct {
         UA_PublishedEventConfig event;
         UA_PublishedEventTemplateConfig eventTemplate;
     } config;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_PublishedDataSetConfig;
 
 void UA_EXPORT
@@ -229,6 +234,9 @@ typedef struct{
     UA_String fieldNameAlias;
     UA_Boolean promotedField;
     UA_PublishedVariableDataType publishParameters;
+    /* non std. field */
+    UA_Boolean staticValueSourceEnabled;
+    UA_DataValue staticValueSource;
 } UA_DataSetVariableConfig;
 
 typedef enum {
@@ -242,6 +250,8 @@ typedef struct {
         /* events need other config later */
         UA_DataSetVariableConfig variable;
     } field;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_DataSetFieldConfig;
 
 void UA_EXPORT
@@ -282,6 +292,41 @@ typedef enum {
     UA_PUBSUB_ENCODING_UADP
 } UA_PubSubEncodingType;
 
+/**
+ * WriterGroup
+ * -----------
+ * The message publishing can be configured for realtime requirements. The RT-levels
+ * go along with different requirements. The below listed levels can be configured:
+ *
+ * UA_PUBSUB_RT_NONE -
+ * ---> Description: Default "none-RT" Mode
+ * ---> Requirements: -
+ * ---> Restrictions: -
+ * UA_PUBSUB_RT_DIRECT_VALUE_ACCESS (Preview - not implemented)
+ * ---> Description: Normally, the latest value for each DataSetField is read out of the information model. Within this RT-mode, the
+ * value source of each field configured as static pointer to an DataValue. The publish cycle won't use call the server read function.
+ * ---> Requirements: All fields must be configured with a 'staticValueSource'.
+ * ---> Restrictions: -
+ * UA_PUBSUB_RT_FIXED_LENGTH (Preview - not implemented)
+ * ---> Description: All DataSetFields have a known, non-changing length. The server will pre-generate some
+ * buffers and use only memcopy operations to generate requested PubSub packages.
+ * ---> Requirements: DataSetFields with variable size can't be used within this mode.
+ * ---> Restrictions: The configuration must be frozen and changes are not allowed while the WriterGroup is 'Operational'.
+ * UA_PUBSUB_RT_DETERMINISTIC (Preview - not implemented)
+ * ---> Description: -
+ * ---> Requirements: -
+ * ---> Restrictions: -
+ *
+ * WARNING! For hard real time requirements the underlying system must be rt-capable.
+ *
+ */
+typedef enum {
+    UA_PUBSUB_RT_NONE = 0,
+    UA_PUBSUB_RT_DIRECT_VALUE_ACCESS = 1,
+    UA_PUBSUB_RT_FIXED_SIZE = 2,
+    UA_PUBSUB_RT_DETERMINISTIC = 4,
+} UA_PubSubRTLevel;
+
 typedef struct {
     UA_String name;
     UA_Boolean enabled;
@@ -299,6 +344,10 @@ typedef struct {
     /* non std. config parameter. maximum count of embedded DataSetMessage in
      * one NetworkMessage */
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
+    /* non std. field */
+    UA_PubSubRTLevel rtLevel;
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -322,8 +371,21 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
 UA_StatusCode UA_EXPORT
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 
+UA_StatusCode UA_EXPORT
+UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
+
+UA_StatusCode UA_EXPORT
+UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
+
+UA_StatusCode UA_EXPORT
+UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGroup);
+
+UA_StatusCode UA_EXPORT
+UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
+
 /**
- * .. _dsw:
+ * .. _dsw:    UA_Boolean configurationFrozen;
+
  *
  * DataSetWriter
  * -------------
@@ -342,6 +404,8 @@ typedef struct {
     UA_String dataSetName;
     size_t dataSetWriterPropertiesSize;
     UA_KeyValuePair *dataSetWriterProperties;
+    /* This flag is 'read only' and is set internally based on the PubSub state. */
+    UA_Boolean configurationFrozen;
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT

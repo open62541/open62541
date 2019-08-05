@@ -227,6 +227,12 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     if(!publishedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    if(publishedDataSet->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     //search for referenced writers -> delete this writers. (Standard: writer must be connected with PDS)
     for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
         UA_WriterGroup *writerGroup;

@@ -40,6 +40,7 @@ typedef struct{
     UA_NodeId identifier;
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
+    UA_UInt16 configurationFreezeCounter;
 } UA_PublishedDataSet;
 
 UA_StatusCode
@@ -61,6 +62,8 @@ typedef struct{
     LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
     LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
     size_t readerGroupsSize;
+
+    UA_UInt16 configurationFreezeCounter;
 } UA_PubSubConnection;
 
 UA_StatusCode
@@ -94,6 +97,7 @@ typedef struct UA_DataSetWriter{
     UA_NodeId linkedWriterGroup;
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
+    UA_PubSubState state;
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     UA_UInt16 deltaFrameCounter;            //actual count of sent deltaFrames
     size_t lastSamplesCount;
@@ -106,6 +110,39 @@ UA_StatusCode
 UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src, UA_DataSetWriterConfig *dst);
 UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
+UA_StatusCode
+UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetWriter *dataSetWriter);
+
+/**********************************************/
+/*          Network Message Offsets           */
+/**********************************************/
+
+/* Offsets for buffered messages in the PubSub fast path.
+ * TODO: Implement the generation of the offsets */
+typedef enum {
+	UA_PUBSUB_OFFSETTYPE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
+	UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
+	UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
+	UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW
+    /* Add more offset types as needed */
+} UA_NetworkMessageOffsetType;
+
+typedef struct {
+    UA_NetworkMessageOffsetType contentType;
+	union {
+		UA_DateTime *timestamp;
+		UA_DataValue *value;
+	} offsetData;
+	size_t offset;
+} UA_NetworkMessageOffset;
+
+typedef struct {
+    UA_ByteString buffer; /* The precomputed message buffer */
+    UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
+    size_t offsetsSize;
+} UA_NetworkMessageOffsetBuffer;
 
 /**********************************************/
 /*               WriterGroup                  */
@@ -121,12 +158,16 @@ struct UA_WriterGroup{
     UA_UInt32 writersCount;
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
+    UA_PubSubState state;
+    UA_NetworkMessageOffsetBuffer bufferedMessage;
 };
 
 UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src, UA_WriterGroupConfig *dst);
 UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
+UA_StatusCode
+UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_WriterGroup *writerGroup);
 
 /**********************************************/
 /*               DataSetField                 */
@@ -141,6 +182,7 @@ typedef struct UA_DataSetField{
     UA_FieldMetaData fieldMetaData;
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
+
 } UA_DataSetField;
 
 UA_StatusCode
