@@ -97,6 +97,7 @@ START_TEST(CheckNMandDSMcalculation){
     //maximum DSM in one NM = 10
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 10;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(wgm);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -180,10 +181,52 @@ START_TEST(CheckNMandDSMcalculation){
 
     } END_TEST
 
+START_TEST(CheckNMandDSMBufferCalculation){
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
+        writerGroupConfig.name = UA_STRING("Demo WriterGroup");
+        writerGroupConfig.publishingInterval = 10;
+        writerGroupConfig.enabled = UA_FALSE;
+        writerGroupConfig.writerGroupId = 100;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+
+        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
+        wgm->networkMessageContentMask = UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
+        writerGroupConfig.messageSettings.content.decoded.data = wgm;
+        writerGroupConfig.messageSettings.content.decoded.type =
+                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+
+        //maximum DSM in one NM = 10
+        writerGroupConfig.maxEncapsulatedDataSetMessageCount = 10;
+        UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroupIdent);
+        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        UA_UadpWriterGroupMessageDataType_delete(wgm);
+
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
+        dataSetWriterConfig.dataSetWriterId = 10;
+        dataSetWriterConfig.keyFrameCount = 1;
+        //add 10 dataSetWriter
+        for(UA_UInt16 i = 0; i < 10; i++){
+            dataSetWriterConfig.dataSetWriterId = (UA_UInt16) (dataSetWriterConfig.dataSetWriterId + 1);
+            UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
+                                       &dataSetWriterConfig, &dataSetWriterIdent);
+        }
+
+        //TODO extend this test with the buffer and offset calculation of the uadp network layer
+        UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
+        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
+
+    } END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_DSMandNMcalculation = tcase_create("PubSub NM and DSM");
     tcase_add_checked_fixture(tc_add_pubsub_DSMandNMcalculation, setup, teardown);
     tcase_add_test(tc_add_pubsub_DSMandNMcalculation, CheckNMandDSMcalculation);
+    tcase_add_test(tc_add_pubsub_DSMandNMcalculation, CheckNMandDSMBufferCalculation);
 
     Suite *s = suite_create("PubSub NM and DSM calculation");
     suite_add_tcase(s, tc_add_pubsub_DSMandNMcalculation);
