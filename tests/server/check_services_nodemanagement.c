@@ -57,6 +57,32 @@ START_TEST(AddVariableNode) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
+START_TEST(AddVariableNode_ExtensionObject) {
+    /* Add a variable node to the address space */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the extensionobject");
+
+    /* Set an ExtensionObject with an unknown binary encoding */
+    UA_ExtensionObject myExtensionObject;
+    UA_ExtensionObject_init(&myExtensionObject);
+    myExtensionObject.encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+    myExtensionObject.content.encoded.typeId = UA_NODEID_NUMERIC(5, 1234);
+    UA_ByteString byteString = UA_BYTESTRING("String Payload as a ByteString extension");
+    myExtensionObject.content.encoded.body = byteString;
+    UA_Variant_setScalar(&attr.value, &myExtensionObject, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+
+    UA_NodeId myEONodeId = UA_NODEID_STRING(1, "the.extensionobject");
+    UA_QualifiedName myEOName = UA_QUALIFIEDNAME(1, "the extensionobject");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, myEONodeId, parentNodeId,
+                                  parentReferenceNodeId, myEOName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, NULL);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+} END_TEST
+
 static UA_NodeId pointTypeId;
 
 static void
@@ -565,6 +591,7 @@ int main(void) {
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, AddVariableNode_ExtensionObject);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeWrongDims);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
