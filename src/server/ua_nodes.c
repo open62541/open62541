@@ -318,26 +318,9 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     node->valueRank = attr->valueRank;
 
     /* Copy the value */
-    node->valueSource = UA_VALUESOURCE_DATA;
-    UA_NodeId extensionObject = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
-    /* If we have an extension object which is still encoded (e.g. from the
-     * nodeset compiler) return an error.
-     * This was used in the old version of the nodeset compiler and is not
-     * needed anymore. */
-    if(attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
-        /* Do nothing since we got an empty array of extension objects */
-        if(attr->value.data == UA_EMPTY_ARRAY_SENTINEL)
-            return UA_STATUSCODE_GOOD;
-
-        const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
-        if(obj && obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
-    }
-
     retval = UA_Variant_copy(&attr->value, &node->value.data.value.value);
-
-    node->value.data.value.hasValue = node->value.data.value.value.type != NULL;
+    node->valueSource = UA_VALUESOURCE_DATA;
+    node->value.data.value.hasValue = (node->value.data.value.value.type != NULL);
 
     return retval;
 }
