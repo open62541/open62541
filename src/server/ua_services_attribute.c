@@ -189,6 +189,55 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
         break;                                                  \
     }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+static const UA_DataType *
+findDataType(const UA_Node *node, const UA_DataTypeArray *customTypes) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_NodeId_equal(&UA_TYPES[i].typeId, &node->nodeId)) {
+            return &UA_TYPES[i];
+        }
+    }
+
+    // lookup custom type
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            if(UA_NodeId_equal(&customTypes->types[i].typeId, &node->nodeId))
+                return &customTypes->types[i];
+        }
+        customTypes = customTypes->next;
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
+    def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    def->defaultEncodingId =
+        UA_NODEID_NUMERIC(type->typeId.namespaceIndex, type->binaryEncodingId);
+    def->structureType = UA_STRUCTURETYPE_STRUCTURE;
+    def->fieldsSize = type->membersSize;
+    def->fields =
+        (UA_StructureField *)UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
+    if(!def->fields) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    const UA_DataType *typelists[2] = {UA_TYPES, &type[-type->typeIndex]};
+    for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
+        const UA_DataTypeMember *m = &type->members[cnt];
+        def->fields[cnt].valueRank = UA_TRUE == m->isArray ? 1 : -1;
+        def->fields[cnt].arrayDimensions = NULL;
+        def->fields[cnt].arrayDimensionsSize = 0;
+        def->fields[cnt].name =
+            UA_STRING((char *)(uintptr_t)m->memberName);
+        def->fields[cnt].description.locale = UA_STRING_NULL;
+        def->fields[cnt].description.text = UA_STRING_NULL;
+        def->fields[cnt].dataType = typelists[!m->namespaceZero][m->memberTypeIndex].typeId;
+        def->fields[cnt].maxStringLength = 0;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 /* Returns a datavalue that may point into the node via the
  * UA_VARIANT_DATA_NODELETE tag. Don't access the returned DataValue once the
  * node has been released! */
@@ -339,6 +388,30 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         UA_Boolean userExecutable = getUserExecutable(server, session, (const UA_MethodNode*)node);
         retval = UA_Variant_setScalarCopy(&v->value, &userExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break; }
+    case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
+        CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        const UA_DataType *type = findDataType(node, server->config.customDataTypes);
+        if(!type) {
+            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            break;
+        }
+
+        if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
+           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind) {
+            UA_StructureDefinition def;
+            retval = getStructureDefinition(type, &def);
+            if(UA_STATUSCODE_GOOD!=retval)
+                break;            
+            retval = UA_Variant_setScalarCopy(&v->value, &def,
+                                              &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+            UA_free(def.fields);
+            break;
+        }
+#endif
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break; }
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;

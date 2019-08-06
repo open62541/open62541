@@ -480,7 +480,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     UA_Session anonymousSession;
     if(!session) {
         if(sessionRequired) {
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
             UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                    "%s refused without a valid session",
                                    requestType->typeName);
@@ -503,7 +503,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
      * CloseSessionRequest */
     if(sessionRequired && !session->activated &&
        requestType != &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "%s refused on a non-activated session",
                                requestType->typeName);

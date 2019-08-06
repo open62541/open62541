@@ -796,7 +796,7 @@ typedef struct UA_DiagnosticInfo {
  * type operations as static inline functions. */
 
 typedef struct {
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *memberName;
 #endif
     UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data
@@ -852,7 +852,7 @@ typedef enum {
 } UA_DataTypeKind;
 
 struct UA_DataType {
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *typeName;
 #endif
     UA_NodeId typeId;                /* The nodeid of the type */
@@ -992,7 +992,7 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 
 /* The following is used to exclude type names in the definition of UA_DataType
  * structures if the feature is disabled. */
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
 # define UA_TYPENAME(name) name,
 #else
 # define UA_TYPENAME(name)

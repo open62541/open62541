@@ -497,7 +497,7 @@ setInformationModel(UA_Server *server) {
 
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.dataType = UA_TYPES[type].typeId;
-#ifndef UA_ENABLE_TYPENAMES
+#ifndef UA_ENABLE_TYPEDESCRIPTION
         char name[15];
         UA_snprintf(name, 15, "%02d", type);
         attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
@@ -546,7 +546,7 @@ setInformationModel(UA_Server *server) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
                                   baseDataVariableType, attr, NULL, NULL);
         UA_Variant_clear(&attr.value);
-#ifdef UA_ENABLE_TYPENAMES
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LocalizedText_clear(&attr.displayName);
         UA_QualifiedName_clear(&qualifiedName);
 #endif
@@ -675,7 +675,7 @@ setInformationModel(UA_Server *server) {
 
         for(size_t j = 0; j < 100; j++) {
             char name[32];
-#ifndef UA_ENABLE_TYPENAMES
+#ifndef UA_ENABLE_TYPEDESCRIPTION
             UA_snprintf(name, 20, "%02d - %i", type, scale_i);
 #else
             UA_snprintf(name, 20, "%s - %i", UA_TYPES[type].typeName, scale_i);
