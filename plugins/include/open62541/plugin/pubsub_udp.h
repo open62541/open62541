@@ -11,7 +11,7 @@
 
 _UA_BEGIN_DECLS
 
-UA_PubSubTransportLayer UA_EXPORT
+UA_PubSubTransportLayer UA_EXPORT;
 UA_PubSubTransportLayerUDPMP(void);
 
 _UA_END_DECLS
