@@ -9,9 +9,10 @@
 #define _CRT_SECURE_NO_WARNINGS /* disable fopen deprication warning in msvs */
 #endif
 
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/pki_default.h>
 
 #include <signal.h>
 #include <stdlib.h>
@@ -936,9 +937,15 @@ usage(void) {
                    "server_ctt [<server-certificate.der>]\n"
 #else
                    "server_ctt <server-certificate.der> <private-key.der>\n"
+#ifndef __linux__
                    "\t[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
                    "\t[--issuerlist <il1.der> <il2.der> ... ]\n"
                    "\t[--revocationlist <rv1.crl> <rv2.crl> ...]\n"
+#else
+                   "\t[--trustlistFolder <folder>]\n"
+                   "\t[--issuerlistFolder <folder>]\n"
+                   "\t[--revocationlistFolder <folder>]\n"
+#endif
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
                    "\t[--enableTimestampCheck]\n"
@@ -990,12 +997,6 @@ int main(int argc, char **argv) {
         pos++;
     }
 
-    UA_ByteString trustList[100];
-    size_t trustListSize = 0;
-    UA_ByteString issuerList[100];
-    size_t issuerListSize = 0;
-    UA_ByteString revocationList[100];
-    size_t revocationListSize = 0;
     char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
     UA_Boolean enableUnencr = false;
     UA_Boolean enableSec = false;
@@ -1003,6 +1004,19 @@ int main(int argc, char **argv) {
     UA_Boolean disableBasic128 = false;
     UA_Boolean disableBasic256 = false;
     UA_Boolean disableBasic256Sha256 = false;
+
+#ifndef __linux__
+    UA_ByteString trustList[100];
+    size_t trustListSize = 0;
+    UA_ByteString issuerList[100];
+    size_t issuerListSize = 0;
+    UA_ByteString revocationList[100];
+    size_t revocationListSize = 0;
+#else
+    const char *trustlistFolder = NULL;
+    const char *issuerlistFolder = NULL;
+    const char *revocationlistFolder = NULL;
+#endif
 
 #endif
 
@@ -1047,6 +1061,7 @@ int main(int argc, char **argv) {
             continue;
         }        
 
+#ifndef __linux__
         if(strcmp(argv[pos], "--trustlist") == 0) {
             filetype = 't';
             continue;
@@ -1109,6 +1124,38 @@ int main(int argc, char **argv) {
             revocationListSize++;
             continue;
         }
+#else
+        if(strcmp(argv[pos], "--trustlistFolder") == 0) {
+            filetype = 't';
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--issuerlistFolder") == 0) {
+            filetype = 'l';
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--revocationlistFolder") == 0) {
+            filetype = 'r';
+            continue;
+        }
+
+        if(filetype == 't') {
+            trustlistFolder = argv[pos];
+            continue;
+        }
+
+        if(filetype == 'l') {
+            issuerlistFolder = argv[pos];
+            continue;
+        }
+
+        if(filetype == 'r') {
+            revocationlistFolder = argv[pos];
+            continue;
+        }
+#endif
+
 #endif
 
         usage();
@@ -1116,11 +1163,22 @@ int main(int argc, char **argv) {
     }
 
 #ifdef UA_ENABLE_ENCRYPTION
+#ifndef __linux__
     UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
                                                    &certificate, &privateKey,
                                                    trustList, trustListSize,
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
+#else
+    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
+                                                   &certificate, &privateKey,
+                                                   NULL, 0, NULL, 0, NULL, 0);
+    config.certificateVerification.deleteMembers(&config.certificateVerification);
+    UA_CertificateVerification_CertFolders(&config.certificateVerification,
+                                           trustlistFolder, issuerlistFolder,
+                                           revocationlistFolder);
+#endif
+
     if(!enableUnencr)
         disableUnencrypted(&config);
     if(!enableSec)
@@ -1158,7 +1216,7 @@ int main(int argc, char **argv) {
 
     /* Clean up temp values */
     UA_ByteString_clear(&certificate);
-#ifdef UA_ENABLE_ENCRYPTION
+#if defined(UA_ENABLE_ENCRYPTION) && !defined(__linux__)
     UA_ByteString_clear(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_clear(&trustList[i]);
