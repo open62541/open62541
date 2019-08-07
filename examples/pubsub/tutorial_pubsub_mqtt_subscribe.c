@@ -295,6 +295,24 @@ int main(int argc, char **argv) {
     addDataSetReader(server);
     addSubscribedVariables(server, readerIdentifier);
     UA_Server_run(server, &running);
+
+    /* Unregister to existing subscriptions on the broker */
+    UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
+    /* Remove subscription specified in brokerTransportSettings->queueName, i.e. based on topic */
+    brokerTransportSettings.queueName = UA_STRING(SUBSCRIBER_TOPIC);
+
+    /* Encapsulate config in transportSettings */
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    /* ToDo: Pass UA_BrokerDataSetReaderTransportDataType as transportSettings */
+    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &brokerTransportSettings;
+
+    /* To unregister susbcriptions to a topic, pass the channel configuration and broker transportSettings */
+    connection->channel->unregist(connection->channel, &transportSettings);
+
     UA_Server_delete(server);
     return 0;
 }
