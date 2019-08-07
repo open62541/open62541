@@ -77,26 +77,6 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    /* so abstract Events : RefreshStart and RefreshEnd could be created */
-    const UA_Node* node = UA_Nodestore_getNode(server->nsCtx, &eventType);
-    if(false == ((const UA_ObjectTypeNode*)node)->isAbstract)
-        UA_Nodestore_releaseNode(server->nsCtx, node);
-    else
-    {
-        UA_Nodestore_releaseNode(server->nsCtx, node);
-        UA_Node* nodeInner;
-        if(UA_STATUSCODE_GOOD != UA_Nodestore_getNodeCopy(server->nsCtx, &eventType, &nodeInner))
-            UA_assert(0);
-        else
-        {
-            ((UA_ObjectTypeNode*)nodeInner)->isAbstract = false;
-            UA_Nodestore_replaceNode(server->nsCtx, nodeInner);
-        }
-    }
-#endif/*UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS*/
-
     /* Create an ObjectNode which represents the event */
     UA_QualifiedName name;
     // set a dummy name. This is not used.

@@ -1376,27 +1376,27 @@ UA_Server_createCondition(UA_Server *server,
  * set the value of condition field.
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
- * @param variantValue Variant Value to be written to the Field
- * @param type Variant Type.
+ * @param value Variant Value to be written to the Field
  * @param fieldName Name of the Field in which the value should be written
  * @return The StatusCode of the UA_Server_setConditionField method*/
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
-                            const void* variantValue, UA_UInt16 type,
+UA_Server_setConditionField(UA_Server *server,
+                            const UA_NodeId condition,
+                            const UA_Variant* value,
                             const UA_QualifiedName fieldName);
 
 /**
  * set the value of property of condition field.
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
- * @param variantValue Variant Value to be written to the Field
- * @param type Variant Type
+ * @param value Variant Value to be written to the Field
  * @param variableFieldName Name of the Field which has a property
  * @param variablePropertyName Name of the Field Property in which the value should be written
  * @return The StatusCode of the UA_Server_setConditionVariableFieldProperty*/
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId condition,
-                                            const void *variantValue, UA_UInt16 type,
+UA_Server_setConditionVariableFieldProperty(UA_Server *server,
+                                            const UA_NodeId condition,
+                                            const UA_Variant* value,
                                             const UA_QualifiedName variableFieldName,
                                             const UA_QualifiedName variablePropertyName);
 

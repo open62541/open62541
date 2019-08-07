@@ -150,6 +150,7 @@ afterWriteCallbackVariable_1(UA_Server *server,
                const UA_NumericRange *range, const UA_DataValue *data) {
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
+    UA_Variant value;
 
     UA_StatusCode retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
                                                   &data->sourceTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -160,9 +161,9 @@ afterWriteCallbackVariable_1(UA_Server *server,
          * automatically and then will trigger event notification.
          */
         UA_Boolean activeStateId = true;
+        UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
         retval |= UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                              &activeStateId, UA_TYPES_BOOLEAN,
-                                                              activeStateField, activeStateIdField);
+                                                              &value, activeStateField, activeStateIdField);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                          "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -177,9 +178,9 @@ afterWriteCallbackVariable_1(UA_Server *server,
          * ConditionRefresh method with client to update the event notification.
          */
         UA_Boolean activeStateId = false;
+        UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
         retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                             &activeStateId, UA_TYPES_BOOLEAN,
-                                                             activeStateField, activeStateIdField);
+                                                             &value, activeStateField, activeStateIdField);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                          "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -235,11 +236,11 @@ afterWriteCallbackVariable_3(UA_Server *server,
 
     UA_StatusCode retval = UA_Server_writeObjectProperty_scalar(server, conditionInstance_1, UA_QUALIFIEDNAME(0, "Time"),
                                                   &data->serverTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
-
+    UA_Variant value;
     UA_Boolean idValue = false;
+    UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     retval |= UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                          &idValue, UA_TYPES_BOOLEAN,
-                                                          activeStateField, idField);
+                                                          &value, activeStateField, idField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -247,8 +248,7 @@ afterWriteCallbackVariable_3(UA_Server *server,
     }
 
     retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                         &idValue, UA_TYPES_BOOLEAN,
-                                                         ackedStateField, idField);
+                                                         &value, ackedStateField, idField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting AckedState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -256,8 +256,7 @@ afterWriteCallbackVariable_3(UA_Server *server,
     }
 
     retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_1,
-                                                         &idValue, UA_TYPES_BOOLEAN,
-                                                         confirmedStateField, idField);
+                                                         &value, confirmedStateField, idField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ConfirmedState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -265,8 +264,9 @@ afterWriteCallbackVariable_3(UA_Server *server,
     }
 
     UA_UInt16 severityValue = 100;
+    UA_Variant_setScalar(&value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
     retval = UA_Server_setConditionField(server, conditionInstance_1,
-                                         &severityValue, UA_TYPES_UINT16, severityField);
+                                         &value, severityField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Severity Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -274,8 +274,9 @@ afterWriteCallbackVariable_3(UA_Server *server,
     }
 
     UA_LocalizedText messageValue = UA_LOCALIZEDTEXT("en", "Condition returned to normal state");
+    UA_Variant_setScalar(&value, &messageValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     retval = UA_Server_setConditionField(server, conditionInstance_1,
-                                         &messageValue, UA_TYPES_LOCALIZEDTEXT, messageField);
+                                         &value, messageField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Message Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -283,8 +284,9 @@ afterWriteCallbackVariable_3(UA_Server *server,
     }
 
     UA_LocalizedText commentValue = UA_LOCALIZEDTEXT("en", "Normal State");
+    UA_Variant_setScalar(&value, &commentValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     retval = UA_Server_setConditionField(server, conditionInstance_1,
-                                         &commentValue, UA_TYPES_LOCALIZEDTEXT, commentField);
+                                         &value, commentField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Comment Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -292,8 +294,9 @@ afterWriteCallbackVariable_3(UA_Server *server,
     }
 
     UA_Boolean retainValue = false;
+    UA_Variant_setScalar(&value, &retainValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     retval = UA_Server_setConditionField(server, conditionInstance_1,
-                                         &retainValue, UA_TYPES_BOOLEAN, retainField);
+                                         &value, retainField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting Retain Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -325,12 +328,13 @@ static UA_StatusCode
 enteringAckedStateCallback(UA_Server *server, const UA_NodeId *condition) {
     /* deactivate Alarm when acknowledging*/
     UA_Boolean activeStateId = false;
+    UA_Variant value;
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
 
+    UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, *condition,
-                                                         &activeStateId, UA_TYPES_BOOLEAN,
-                                                         activeStateField, activeStateIdField);
+                                                         &value, activeStateField, activeStateIdField);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -345,20 +349,23 @@ enteringConfirmedStateCallback(UA_Server *server, const UA_NodeId *condition) {
 	/* deactivate Alarm and put it out of the interesting state (by writing false to Retain field) when confirming*/
     UA_Boolean activeStateId = false;
     UA_Boolean retain = false;
+    UA_Variant value;
     UA_QualifiedName activeStateField = UA_QUALIFIEDNAME(0,"ActiveState");
     UA_QualifiedName activeStateIdField = UA_QUALIFIEDNAME(0,"Id");
     UA_QualifiedName retainField = UA_QUALIFIEDNAME(0,"Retain");
 
+    UA_Variant_setScalar(&value, &activeStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, *condition,
-                                                         &activeStateId, UA_TYPES_BOOLEAN, activeStateField, activeStateIdField);
+                                                         &value, activeStateField, activeStateIdField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
         return retval;
     }
 
+    UA_Variant_setScalar(&value, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
     retval = UA_Server_setConditionField(server, *condition,
-                                         &retain, UA_TYPES_BOOLEAN, retainField);
+                                         &value, retainField);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Setting ActiveState/Id Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -434,11 +441,13 @@ setUpEnvironment(UA_Server *server) {
     UA_Server_writeObjectProperty_scalar(server, conditionInstance_2, UA_QUALIFIEDNAME(0, "Retain"),
                                          &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
+    UA_Variant value;
     UA_Boolean enabledStateId = true;
     UA_QualifiedName enabledStateField = UA_QUALIFIEDNAME(0,"EnabledState");
     UA_QualifiedName enabledStateIdField = UA_QUALIFIEDNAME(0,"Id");
+    UA_Variant_setScalar(&value, &enabledStateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
     retval = UA_Server_setConditionVariableFieldProperty(server, conditionInstance_2,
-                                                         &enabledStateId, UA_TYPES_BOOLEAN, enabledStateField, enabledStateIdField);
+                                                         &value, enabledStateField, enabledStateIdField);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,

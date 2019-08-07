@@ -158,16 +158,16 @@ UA_Notification_dequeue(UA_Server *server, UA_Notification *n) {
         {
             --sub->dataChangeNotifications;
         }
-		
-		/*
-		  see open issue #2114:
-		  in the function UA_MonitoredItem_ensureQueueSpace, a greater overflow event size
-		  than event queue size will result in false assertion.
-		  to fix this problem, we assume that only one overflow event is allowed, so by 
-		  dequeueing a notification, we remove the overflow event by setting its size to 0.
-		*/
-		mon->eventOverflows = 0;
-		
+
+        /*
+          see open issue #2114:
+          in the function UA_MonitoredItem_ensureQueueSpace, a greater overflow event size
+          than event queue size will result in false assertion.
+          to fix this problem, we assume that only one overflow event is allowed, so by
+          dequeueing a notification, we remove the overflow event by setting its size to 0.
+        */
+        //mon->eventOverflows = 0; 
+
         TAILQ_REMOVE(&sub->notificationQueue, n, globalEntry);
         --sub->notificationQueueSize;
     }
