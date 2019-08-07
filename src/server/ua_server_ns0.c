@@ -983,9 +983,10 @@ UA_Server_initNS0(UA_Server *server) {
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), true);
     UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), true);
 
-    /* Removing these NodeIds make Server Object to be non-complaint with UA 1.03  in CTT (Base Inforamtion/Base Info Core Structure/ 001.js)*/
-    //UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), true);
-    //UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), true);
+    /* Removing these NodeIds make Server Object to be non-complaint with UA 1.03  in CTT (Base Inforamtion/Base Info Core Structure/ 001.js)
+     * In the 1.04 specification this has been resolved by allowing to remove these static nodes as well */
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), true);
+    UA_Server_deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), true);
 #endif
 
 #ifndef UA_ENABLE_HISTORIZING
