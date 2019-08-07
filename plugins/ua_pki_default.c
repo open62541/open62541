@@ -346,6 +346,7 @@ certificateVerification_deleteMembers(UA_CertificateVerification *cv) {
         return;
     mbedtls_x509_crt_free(&ci->certificateTrustList);
     mbedtls_x509_crl_free(&ci->certificateRevocationList);
+    mbedtls_x509_crt_free(&ci->certificateIssuerList);
     UA_free(ci);
     cv->context = NULL;
 }
