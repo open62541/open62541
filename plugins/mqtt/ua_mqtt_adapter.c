@@ -233,9 +233,32 @@ subscribeMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic, UA_Byte qo
     return UA_STATUSCODE_GOOD;
 }
 
+/* This function unsubscribes to a topic
+ * @return UA_STATUSCODE_GOOD if success
+ */
 UA_StatusCode
 unSubscribeMqtt(UA_PubSubChannelDataMQTT* channelData, UA_String topic){
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    /* Check the recieved channel configuration and topic*/
+    if(channelData == NULL || topic.length == 0){
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    struct mqtt_client* client = (struct mqtt_client*)channelData->mqttClient;
+
+    /* Allocate memory for topicStr which is of char type*/
+    UA_STACKARRAY(char, topicStr, sizeof(char) * topic.length +1);
+    memcpy(topicStr, topic.data, topic.length);
+    topicStr[topic.length] = '\0';
+
+    /* Unsubscribing subscriptions based on topic */
+    enum MQTTErrors mqttErr = mqtt_unsubscribe(client, topicStr);
+    if(mqttErr != MQTT_OK){
+        const char* errorStr = mqtt_error_str(mqttErr);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: unsubscribe: %s", errorStr);
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    }else{
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: unsubscribe successful");
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode

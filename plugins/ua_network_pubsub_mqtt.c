@@ -184,7 +184,6 @@ UA_PubSubChannelMQTT_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tra
     }
 
     UA_PubSubChannelDataMQTT * channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: unregister");
     if(transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED
             && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE){
         UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
