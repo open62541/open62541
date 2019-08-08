@@ -810,7 +810,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
     UA_SecureChannel_persistIncompleteMessages(connection->channel);
 }
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 static void
 deleteConnection(UA_Server *server, UA_Connection *connection) {
     connection->free(connection);
@@ -820,9 +820,7 @@ deleteConnection(UA_Server *server, UA_Connection *connection) {
 void
 UA_Server_removeConnection(UA_Server *server, UA_Connection *connection) {
     UA_Connection_detachSecureChannel(connection);
-#ifndef UA_ENABLE_MULTITHREADING
-    connection->free(connection);
-#else
+#if UA_MULTITHREADING >= 200
     UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_malloc(sizeof(UA_DelayedCallback));
     if(!dc)
         return; /* Malloc cannot fail on OS's that support multithreading. They
@@ -831,5 +829,7 @@ UA_Server_removeConnection(UA_Server *server, UA_Connection *connection) {
     dc->application = server;
     dc->data = connection;
     UA_WorkQueue_enqueueDelayed(&server->workQueue, dc);
+#else
+    connection->free(connection);
 #endif
 }

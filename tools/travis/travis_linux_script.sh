@@ -355,7 +355,7 @@ if [ "$CC" != "tcc" ]; then
     cmake \
     -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
     -DUA_BUILD_EXAMPLES=ON \
-    -DUA_ENABLE_MULTITHREADING=ON ..
+    -DUA_MULTITHREADING=200 ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -393,7 +393,7 @@ if [ "$CC" != "tcc" ]; then
         -DUA_BUILD_EXAMPLES=ON \
         -DUA_ENABLE_DISCOVERY=ON \
         -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
-        -DUA_ENABLE_MULTITHREADING=ON ..
+        -DUA_MULTITHREADING=200 ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf

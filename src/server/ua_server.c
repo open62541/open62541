@@ -175,6 +175,11 @@ void UA_Server_delete(UA_Server *server) {
     UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
 
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_RELEASE(server->networkMutex)
+    UA_LOCK_RELEASE(server->serviceMutex)
+#endif
+
     /* Clean up the Admin Session */
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
 
@@ -218,6 +223,11 @@ UA_Server_init(UA_Server *server) {
     /* Set a seed for non-cyptographic randomness */
 #ifndef UA_ENABLE_DETERMINISTIC_RNG
     UA_random_seed((UA_UInt64)UA_DateTime_now());
+#endif
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_INIT(server->networkMutex)
+    UA_LOCK_INIT(server->serviceMutex)
 #endif
 
     /* Initialize the handling of repeated callbacks */
@@ -491,7 +501,7 @@ UA_Server_run_startup(UA_Server *server) {
     }
 
     /* Spin up the worker threads */
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Spinning up %u worker thread(s)", server->config.nThreads);
     UA_WorkQueue_start(&server->workQueue, server->config.nThreads);
@@ -511,10 +521,10 @@ UA_Server_run_startup(UA_Server *server) {
 static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                         void *callbackApplication, void *data) {
-#ifndef UA_ENABLE_MULTITHREADING
-    cb(callbackApplication, data);
-#else
+#if UA_MULTITHREADING >= 200
     UA_WorkQueue_enqueue(&server->workQueue, cb, callbackApplication, data);
+#else
+    cb(callbackApplication, data);
 #endif
 }
 
@@ -541,7 +551,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         nl->listen(nl, server, timeout);
     }
 
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
     if(server->config.discovery.mdnsEnable) {
         // TODO multicastNextRepeat does not consider new input data (requests)
         // on the socket. It will be handled on the next call. if needed, we
@@ -555,7 +565,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 
-#ifndef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING < 200
     UA_WorkQueue_manuallyProcessDelayed(&server->workQueue);
 #endif
 
@@ -574,7 +584,7 @@ UA_Server_run_shutdown(UA_Server *server) {
         nl->stop(nl, server);
     }
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     /* Shut down the workers */
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Shutting down %u worker thread(s)",

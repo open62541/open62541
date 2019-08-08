@@ -974,7 +974,7 @@ void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 /**
  * Random Number Generator
  * -----------------------
- * If UA_ENABLE_MULTITHREADING is defined, then the seed is stored in thread
+ * If UA_MULTITHREADING is defined, then the seed is stored in thread
  * local storage. The seed is initialized for every thread in the
  * server/client. */
 void UA_EXPORT UA_random_seed(UA_UInt64 seed);
