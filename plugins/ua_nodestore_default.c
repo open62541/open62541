@@ -244,8 +244,10 @@ UA_StatusCode
 UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
     /* Find the node */
     const UA_Node *oldNode = UA_Nodestore_getNode(nsCtx, &node->nodeId);
-    if(!oldNode)
+    if(!oldNode) {
+        deleteEntry(container_of(node, NodeEntry, nodeId));
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
 
     /* Test if the copy is current */
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
