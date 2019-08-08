@@ -774,6 +774,7 @@ UA_ClientConnectionTCP_init(UA_ConnectionConfig config, const UA_String endpoint
 
     TCPClientConnection *tcpClientConnection = (TCPClientConnection*) UA_malloc(
                     sizeof(TCPClientConnection));
+    memset(tcpClientConnection, 0, sizeof(TCPClientConnection));
     connection.handle = (void*) tcpClientConnection;
     tcpClientConnection->timeout = timeout;
     UA_String hostnameString = UA_STRING_NULL;
