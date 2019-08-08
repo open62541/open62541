@@ -287,7 +287,7 @@ referenceSubtypes(UA_Server *server, const UA_NodeId *refType,
 
 UA_StatusCode
 UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
-                          size_t *resultsSize, UA_ExpandedNodeId *results) {
+                          size_t *resultsSize, UA_ExpandedNodeId **results) {
     /* Set the list of relevant reference types */
     UA_NodeId *refTypes = NULL;
     size_t refTypesSize = 0;
@@ -306,7 +306,7 @@ UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
 
     /* Browse */
     retval = browseRecursive(server, 1, &bd->nodeId, refTypesSize, refTypes,
-                             bd->browseDirection, false, resultsSize, &results);
+                             bd->browseDirection, false, resultsSize, results);
 
     /* Clean up */
     if(refTypes && bd->includeSubtypes)

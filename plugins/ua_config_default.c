@@ -232,19 +232,19 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
 
 static UA_StatusCode
 addDiscoveryUrl(UA_ServerConfig *config, UA_UInt16 portNumber) {
-       config->applicationDescription.discoveryUrlsSize = 1;
+    config->applicationDescription.discoveryUrlsSize = 1;
     UA_String *discurl = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
     char discoveryUrlBuffer[220];
     if (config->customHostname.length) {
         UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%.*s:%d/",
-                                                 (int)config->customHostname.length,
-                                                 config->customHostname.data,
-                                                 portNumber);
+                    (int)config->customHostname.length,
+                    config->customHostname.data,
+                    portNumber);
     } else {
-    char hostnameBuffer[200];
-       if(UA_gethostname(hostnameBuffer, 200) == 0) {
-               UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%s:%d/", hostnameBuffer, portNumber);
-       } else {
+        char hostnameBuffer[200];
+        if(UA_gethostname(hostnameBuffer, 200) == 0) {
+            UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%s:%d/", hostnameBuffer, portNumber);
+        } else {
             UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
         }
     }
@@ -423,7 +423,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         UA_ServerConfig_clean(config);
         return retval;
     }
-    
+
     retval = addDiscoveryUrl(config, portNumber);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);

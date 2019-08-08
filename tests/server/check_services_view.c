@@ -129,6 +129,38 @@ START_TEST(Service_Browse_WithBrowseName) {
 }
 END_TEST
 
+START_TEST(Service_Browse_Recursive) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    size_t resultSize = 0;
+    UA_ExpandedNodeId *result = NULL;
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    bd.includeSubtypes = true;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    UA_StatusCode retval = UA_Server_browseRecursive(server, &bd, &resultSize, &result);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resultSize, 3);
+
+    UA_NodeId expected[3];
+    expected[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    expected[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    expected[2] = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+
+    for(size_t i = 0; i < resultSize; i++) {
+        ck_assert(UA_NodeId_equal(&expected[i], &result[i].nodeId));
+    }
+
+    UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Service_TranslateBrowsePathsToNodeIds) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
@@ -196,6 +228,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     TCase *tc_browse = tcase_create("Browse Service");
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
     tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
+    tcase_add_test(tc_browse, Service_Browse_Recursive);
     suite_add_tcase(s, tc_browse);
 
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");

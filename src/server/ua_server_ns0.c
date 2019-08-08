@@ -899,11 +899,13 @@ UA_Server_initNS0(UA_Server *server) {
                                &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerProfileArray */
-    UA_String profileArray[2];
+    UA_String profileArray[3];
     UA_UInt16 profileArraySize = 0;
 #define ADDPROFILEARRAY(x) profileArray[profileArraySize++] = UA_STRING(x)
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/MicroEmbeddedDevice");
-
+#ifdef UA_ENABLE_NODEMANAGEMENT
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
+#endif
 #ifdef UA_ENABLE_METHODCALLS
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/Methods");
 #endif
