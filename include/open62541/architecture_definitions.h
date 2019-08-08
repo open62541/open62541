@@ -93,6 +93,8 @@
 # define UA_EXPORT /* fallback to default */
 #endif
 
+#define UA_THREADSAFE
+
 /**
  * Inline Functions
  * ---------------- */
