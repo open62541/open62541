@@ -138,7 +138,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
 #endif
         asyncServiceTimeoutCheck(client);
 
-#ifndef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING < 200
         /* Process delayed callbacks when all callbacks and network events are
          * done */
         UA_WorkQueue_manuallyProcessDelayed(&client->workQueue);

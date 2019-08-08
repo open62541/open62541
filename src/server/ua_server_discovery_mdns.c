@@ -331,13 +331,13 @@ mdns_record_remove(UA_Server *server, const char *record,
     if(entry->pathTmp)
         UA_free(entry->pathTmp);
 
-#ifndef UA_ENABLE_MULTITHREADING
-    dm->serverOnNetworkSize--;
-    UA_free(entry);
-#else
+#if UA_MULTITHREADING >= 200
     UA_atomic_subSize(&dm->serverOnNetworkSize, 1);
     entry->delayedCleanup.callback = NULL; /* Only free the structure */
     UA_WorkQueue_enqueueDelayed(&server->workQueue, &entry->delayedCleanup);
+#else
+    dm->serverOnNetworkSize--;
+    UA_free(entry);
 #endif
 }
 

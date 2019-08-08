@@ -108,6 +108,11 @@ struct UA_Server {
 #ifdef UA_ENABLE_PUBSUB
     UA_PubSubManager pubSubManager;
 #endif
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_TYPE(networkMutex)
+    UA_LOCK_TYPE(serviceMutex)
+#endif
 };
 
 /*****************/

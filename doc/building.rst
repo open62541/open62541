@@ -191,7 +191,7 @@ Detailed SDK Features
 **UA_ENABLE_AMALGAMATION**
    Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not receommended for installation.
 
-**UA_ENABLE_MULTITHREADING (EXPERIMENTAL)**
+**UA_MULTITHREADING (EXPERIMENTAL)**
    Enable multi-threading support. Work is distributed to a number of worker threads.
    This is a new feature and currently marked as EXPERIMENTAL.
 
@@ -200,7 +200,7 @@ Detailed SDK Features
    replacement is done with atomic operations so that the information model is
    always consistent and can be accessed from an interrupt or parallel thread
    (depends on the node storage plugin implementation). This feature is a
-   prerequisite for ``UA_ENABLE_MULTITHREADING``.
+   prerequisite for ``UA_MULTITHREADING``.
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests

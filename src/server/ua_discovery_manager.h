@@ -23,7 +23,7 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_DISCOVERY
 
 typedef struct registeredServer_list_entry {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_DelayedCallback delayedCleanup;
 #endif
     LIST_ENTRY(registeredServer_list_entry) pointers;
@@ -41,7 +41,7 @@ struct PeriodicServerRegisterCallback {
 };
 
 typedef struct periodicServerRegisterCallback_entry {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_DelayedCallback delayedCleanup;
 #endif
     LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
@@ -62,7 +62,7 @@ typedef struct periodicServerRegisterCallback_entry {
  */
 
 typedef struct serverOnNetwork_list_entry {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_DelayedCallback delayedCleanup;
 #endif
     LIST_ENTRY(serverOnNetwork_list_entry) pointers;
@@ -106,7 +106,7 @@ typedef struct {
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void* serverOnNetworkCallbackData;
 
-#  ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     pthread_t mdnsThread;
     UA_Boolean mdnsRunning;
 #  endif
