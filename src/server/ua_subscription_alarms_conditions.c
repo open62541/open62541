@@ -658,62 +658,6 @@ isTwoStateVariableInTrueState(UA_Server *server,
     return false;
 }
 
-/**
- * Set the value of condition field (only scalar).
- */
-static UA_StatusCode
-setConditionField(UA_Server *server,
-                  const UA_NodeId condition,
-                  const void* variantValue,
-                  UA_UInt16 type,
-                  const UA_QualifiedName fieldName) {
-    //TODO implement logic for array dataTypes!
-    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, condition, 1, &fieldName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD)
-        return bpr.statusCode;
-
-    UA_Variant value;
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)variantValue, &UA_TYPES[type]);
-    UA_StatusCode retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
-
-    return retval;
-}
-
-/**
- * Set the value of property of condition field.
- */
-static UA_StatusCode
-setConditionVariableFieldProperty(UA_Server *server,
-                                  const UA_NodeId condition,
-                                  const void* variantValue,
-                                  UA_UInt16 type,
-                                  const UA_QualifiedName variableFieldName,
-                                  const UA_QualifiedName variablePropertyName) {
-    /*1) find Variable Field of the Condition*/
-    UA_BrowsePathResult bprConditionVariableField = UA_Server_browseSimplifiedBrowsePath(server, condition, 1, &variableFieldName);
-    if(bprConditionVariableField.statusCode != UA_STATUSCODE_GOOD)
-        return bprConditionVariableField.statusCode;
-
-    /*2) find Property of the Variable Field of the Condition*/
-    UA_BrowsePathResult bprVariableFieldProperty = UA_Server_browseSimplifiedBrowsePath(server, bprConditionVariableField.targets->targetId.nodeId, 1, &variablePropertyName);
-    if(bprVariableFieldProperty.statusCode != UA_STATUSCODE_GOOD) {
-        UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
-        return bprVariableFieldProperty.statusCode;
-    }
-
-    UA_Variant value;
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)variantValue, &UA_TYPES[type]);
-    UA_StatusCode retval = UA_Server_writeValue(server, bprVariableFieldProperty.targets[0].targetId.nodeId, value);
-
-    UA_BrowsePathResult_deleteMembers(&bprConditionVariableField);
-    UA_BrowsePathResult_deleteMembers(&bprVariableFieldProperty);
-
-    return retval;
-}
-
-
-
 static UA_StatusCode
 enteringDisabledState(UA_Server *server,
                       const UA_NodeId *conditionId,
@@ -725,6 +669,7 @@ enteringDisabledState(UA_Server *server,
     UA_LocalizedText message;
     UA_LocalizedText enableText;
     UA_NodeId triggeredNode;
+    UA_Variant value;
 
     /* Get ConditionSource Entry */
     UA_ConditionSource_nodeListElement *conditionSourceEntryTmp;
@@ -747,13 +692,16 @@ enteringDisabledState(UA_Server *server,
 
                 message = UA_LOCALIZEDTEXT(LOCALE, DISABLED_MESSAGE);
                 enableText = UA_LOCALIZEDTEXT(LOCALE, DISABLED_TEXT);
-                UA_StatusCode retval = setConditionField(server, triggeredNode, &message, UA_TYPES_LOCALIZEDTEXT, fieldMessage);
+                UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+                UA_StatusCode retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldMessage);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Message failed",);
 
-                retval = setConditionField(server, triggeredNode, &enableText, UA_TYPES_LOCALIZEDTEXT, fieldEnabledState);
+                UA_Variant_setScalar(&value, &enableText, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+                retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldEnabledState);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition EnabledState text failed",);
 
-                retval = setConditionField(server, triggeredNode, &retain, UA_TYPES_BOOLEAN, fieldRetain);
+                UA_Variant_setScalar(&value, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldRetain);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Retain failed",);
 
                 /* Trigger event */
@@ -787,6 +735,7 @@ enteringEnabledState(UA_Server *server,
     UA_LocalizedText message;
     UA_LocalizedText enableText;
     UA_NodeId triggeredNode;
+    UA_Variant value;
 
     /* Get ConditionSource Entry */
     UA_ConditionSource_nodeListElement *conditionSourceEntryTmp;
@@ -809,10 +758,12 @@ enteringEnabledState(UA_Server *server,
 
                 message = UA_LOCALIZEDTEXT(LOCALE, ENABLED_MESSAGE);
                 enableText = UA_LOCALIZEDTEXT(LOCALE, ENABLED_TEXT);
-                UA_StatusCode retval = setConditionField(server, triggeredNode, &message, UA_TYPES_LOCALIZEDTEXT, fieldMessage);
+                UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+                UA_StatusCode retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldMessage);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "set Condition Message failed",);
 
-                retval = setConditionField(server, triggeredNode, &enableText, UA_TYPES_LOCALIZEDTEXT, fieldEnabledState);
+                UA_Variant_setScalar(&value, &enableText, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+                retval = UA_Server_setConditionField(server, triggeredNode, &value, fieldEnabledState);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "set Condition EnabledState text failed",);
 
                 /* User callback TODO how should branches be evaluated? see p.19 (5.5.2) */
@@ -886,6 +837,7 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
     UA_QualifiedName fieldMessage = UA_QUALIFIEDNAME(0, CONDITION_FIELD_MESSAGE);
     UA_LocalizedText message;
     UA_LocalizedText text;
+    UA_Variant value;
 
     UA_NodeId twoStateVariableNode;
     /* Get the AckedState NodeId then The Condition NodeId */
@@ -912,12 +864,14 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
 
             /* Set Message */
             message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE);
-            retval = setConditionField(server, conditionNode, &message, UA_TYPES_LOCALIZEDTEXT, fieldMessage);
+            UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldMessage);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Message failed", UA_NodeId_deleteMembers(&conditionNode););
 
             /* Set AckedState text */
             text = UA_LOCALIZEDTEXT(LOCALE, ACKED_TEXT);
-            retval = setConditionField(server, conditionNode, &text, UA_TYPES_LOCALIZEDTEXT, fieldAckedState);
+            UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldAckedState);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition AckedState failed", UA_NodeId_deleteMembers(&conditionNode););
 
             /* Get conditionSource */
@@ -940,8 +894,8 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
         else {
             /* Set AckedState/Id to false*/
             UA_Boolean idValue = false;
-            retval = setConditionVariableFieldProperty(server, conditionNode,
-                                                                 &idValue, UA_TYPES_BOOLEAN, fieldAckedState, fieldAckedStateId);
+            UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode, &value, fieldAckedState, fieldAckedStateId);
             UA_NodeId_deleteMembers(&conditionNode);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set AckedState/Id failed",);
         }
@@ -954,7 +908,8 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
 
         /* Set AckedState text to Unacknowledged*/
         text = UA_LOCALIZEDTEXT(LOCALE, UNACKED_TEXT);
-        retval = setConditionField(server, conditionNode, &text, UA_TYPES_LOCALIZEDTEXT, fieldAckedState);
+        UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_setConditionField(server, conditionNode, &value, fieldAckedState);
         UA_NodeId_deleteMembers(&conditionNode);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition AckedState failed",);
     }
@@ -973,6 +928,7 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
     UA_QualifiedName fieldMessage = UA_QUALIFIEDNAME(0, CONDITION_FIELD_MESSAGE);
     UA_LocalizedText message;
     UA_LocalizedText text;
+    UA_Variant value;
 
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -998,12 +954,14 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
 
             /* Set Message */
             message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE);
-            retval = setConditionField(server, conditionNode, &message, UA_TYPES_LOCALIZEDTEXT, fieldMessage);
+            UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldMessage);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Message failed", UA_NodeId_deleteMembers(&conditionNode););
 
             /* Set ConfirmedState text */
             text = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_TEXT);
-            retval = setConditionField(server, conditionNode, &text, UA_TYPES_LOCALIZEDTEXT, fieldConfirmedState);
+            UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldConfirmedState);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ConfirmedState failed", UA_NodeId_deleteMembers(&conditionNode););
 
             /* Get conditionSource */
@@ -1026,8 +984,8 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
         else {
             /* Set confirmedState/Id to false*/
             UA_Boolean idValue = false;
-            retval = setConditionVariableFieldProperty(server, conditionNode,
-                                                                 &idValue, UA_TYPES_BOOLEAN, fieldConfirmedState, fieldConfirmedStateId);
+            UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode, &value, fieldConfirmedState, fieldConfirmedStateId);
             UA_NodeId_deleteMembers(&conditionNode);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set ConfirmedState/Id failed",);
         }
@@ -1040,7 +998,8 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
 
         /* Set ConfirmedState text to (Unconfirmed)*/
         text = UA_LOCALIZEDTEXT(LOCALE, UNCONFIRMED_TEXT);
-        retval = setConditionField(server, conditionNode, &text, UA_TYPES_LOCALIZEDTEXT, fieldConfirmedState);
+        UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_setConditionField(server, conditionNode, &value, fieldConfirmedState);
         UA_NodeId_deleteMembers(&conditionNode);
         CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ConfirmedState failed",);
     }
@@ -1056,6 +1015,7 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
     UA_QualifiedName fieldActiveState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_ACTIVESTATE);
     UA_QualifiedName fieldActiveStateId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TWOSTATEVARIABLE_ID);
     UA_LocalizedText text;
+    UA_Variant value;
 
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -1112,7 +1072,8 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
 
             /* Set ActiveState text */
             text = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_TEXT);
-            retval = setConditionField(server, conditionNode, &text, UA_TYPES_LOCALIZEDTEXT, fieldActiveState);
+            UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            retval = UA_Server_setConditionField(server, conditionNode, &value, fieldActiveState);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ActiveState failed", UA_NodeId_deleteMembers(&conditionNode);
                                          UA_NodeId_deleteMembers(&conditionSource););
 
@@ -1132,8 +1093,8 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
         else {
             /* Set ActiveState/Id to false -> don't apply changes in case of disabled or not retained*/
             UA_Boolean idValue = false;
-            retval = setConditionVariableFieldProperty(server, conditionNode,
-                                                                 &idValue, UA_TYPES_BOOLEAN, fieldActiveState, fieldActiveStateId);
+            UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode, &value, fieldActiveState, fieldActiveStateId);
             UA_NodeId_deleteMembers(&conditionSource);
             UA_NodeId_deleteMembers(&conditionNode);
             CONDITION_ASSERT_RETURN_VOID(retval, "Set ActiveState/Id failed",);
@@ -1143,7 +1104,8 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
             (lastActiveState != currentActiveState)) {
              /* Set ActiveState text to (Inactive) */
              text = UA_LOCALIZEDTEXT(LOCALE, INACTIVE_TEXT);
-             retval = setConditionField(server, conditionNode, &text, UA_TYPES_LOCALIZEDTEXT, fieldActiveState);
+             UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+             retval = UA_Server_setConditionField(server, conditionNode, &value, fieldActiveState);
              CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition ActiveState failed", UA_NodeId_deleteMembers(&conditionNode);
                                           UA_NodeId_deleteMembers(&conditionSource););
 
@@ -1179,6 +1141,7 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     UA_QualifiedName fieldTime = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TIME);
     UA_NodeId condition;
     UA_LocalizedText message;
+    UA_Variant value;
 
     UA_StatusCode retval = getFieldParentNodeId(server, nodeId, &condition);
     CONDITION_ASSERT_RETURN_VOID(retval, "No Parent Condition found for given Severity Field",);
@@ -1200,14 +1163,14 @@ afterWriteCallbackSeverityChange(UA_Server *server,
         message = UA_LOCALIZEDTEXT(LOCALE, SEVERITY_DECREASED_MESSAGE);
 
     /* Set LastSeverity */
-    retval = setConditionField(server, condition, &outLastSeverity.lastSeverity,
-                                         UA_TYPES_UINT16, fieldLastSeverity);
+    UA_Variant_setScalar(&value, &outLastSeverity.lastSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+    retval = UA_Server_setConditionField(server, condition, &value, fieldLastSeverity);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition LAstSeverity failed", UA_NodeId_deleteMembers(&condition);
                                  UA_NodeId_deleteMembers(&conditionSource););
 
     /* Set SourceTimestamp */
-    retval = setConditionVariableFieldProperty(server, condition, &outLastSeverity.sourceTimeStamp,
-                                                         UA_TYPES_DATETIME, fieldLastSeverity, fieldSourceTimeStamp);
+    UA_Variant_setScalar(&value, &outLastSeverity.sourceTimeStamp, &UA_TYPES[UA_TYPES_DATETIME]);
+    retval = UA_Server_setConditionVariableFieldProperty(server, condition, &value, fieldLastSeverity, fieldSourceTimeStamp);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set LastSeverity SourceTimestamp failed", UA_NodeId_deleteMembers(&condition);
                                  UA_NodeId_deleteMembers(&conditionSource););
 
@@ -1219,12 +1182,13 @@ afterWriteCallbackSeverityChange(UA_Server *server,
     UA_NodeId_deleteMembers(&conditionSource););
 
     /* Set Time (Time of Value Change) */
-    retval = setConditionField(server, condition, (const UA_DateTime*)&data->sourceTimestamp,
-                                         UA_TYPES_DATETIME, fieldTime);
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)((const UA_DateTime*)&data->sourceTimestamp), &UA_TYPES[UA_TYPES_DATETIME]);
+    retval = UA_Server_setConditionField(server, condition, &value, fieldTime);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Time failed", UA_NodeId_deleteMembers(&condition););
 
     /* Set Message */
-    retval = setConditionField(server, condition, &message, UA_TYPES_LOCALIZEDTEXT, fieldMessage);
+    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_setConditionField(server, condition, &value, fieldMessage);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set Condition Message failed", UA_NodeId_deleteMembers(&condition););
 
 #ifdef CONDITION_SEVERITYCHANGECALLBACK_ENABLE
@@ -1250,6 +1214,7 @@ disableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       UA_Variant *output) {
     UA_QualifiedName fieldEnabledState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_ENABLEDSTATE);
     UA_QualifiedName fieldEnabledStateId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TWOSTATEVARIABLE_ID);
+    UA_Variant value;
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
@@ -1262,8 +1227,8 @@ disableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(isTwoStateVariableInTrueState(server, objectId, &fieldEnabledState)) {
         /* disable by writing false to EnabledState/Id--> will cause a callback to trigger the new events */
         UA_Boolean idValue = false;
-        UA_StatusCode retval = setConditionVariableFieldProperty(server, *objectId, &idValue, UA_TYPES_BOOLEAN,
-                                                                           fieldEnabledState, fieldEnabledStateId);
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, *objectId, &value, fieldEnabledState, fieldEnabledStateId);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Disable Condition failed",);
     }
     else
@@ -1281,6 +1246,7 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                      UA_Variant *output) {
     UA_QualifiedName fieldEnabledState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_ENABLEDSTATE);
     UA_QualifiedName fieldEnabledStateId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TWOSTATEVARIABLE_ID);
+    UA_Variant value;
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
@@ -1293,8 +1259,8 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     if(!isTwoStateVariableInTrueState(server, objectId, &fieldEnabledState)) {
         /* enable by writing true to EnabledStateId--> will cause a callback to trigger the new events */
         UA_Boolean idValue = true;
-        UA_StatusCode retval = setConditionVariableFieldProperty(server, *objectId, &idValue, UA_TYPES_BOOLEAN,
-                                                                           fieldEnabledState, fieldEnabledStateId);
+        UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        UA_StatusCode retval = UA_Server_setConditionVariableFieldProperty(server, *objectId, &value, fieldEnabledState, fieldEnabledStateId);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Enable Condition failed",);
     }
     else
@@ -1315,6 +1281,7 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_QualifiedName fieldMessage = UA_QUALIFIEDNAME(0, CONDITION_FIELD_MESSAGE);
     UA_LocalizedText message;
     UA_NodeId triggerEvent;
+    UA_Variant value;
     UA_DateTime fieldSourceTimeStampValue = UA_DateTime_now();
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
@@ -1336,8 +1303,8 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Check if enabled */
     if(isRetained(server, &triggerEvent)) {
         /* Set SourceTimestamp */
-        retval = setConditionVariableFieldProperty(server, triggerEvent, &fieldSourceTimeStampValue,
-                                                             UA_TYPES_DATETIME, fieldComment, fieldSourceTimeStamp);
+        UA_Variant_setScalar(&value, &fieldSourceTimeStampValue, &UA_TYPES[UA_TYPES_DATETIME]);
+        retval = UA_Server_setConditionVariableFieldProperty(server, triggerEvent, &value, fieldComment, fieldSourceTimeStamp);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition EnabledState text failed", UA_NodeId_deleteMembers(&triggerEvent););
 
         /* Set adding comment time (the same value of SourceTimestamp) */
@@ -1347,7 +1314,8 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
         /* Set Message */
         message = UA_LOCALIZEDTEXT(LOCALE, COMMENT_MESSAGE);
-        retval = setConditionField(server, triggerEvent, &message, UA_TYPES_LOCALIZEDTEXT, fieldMessage);
+        UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_setConditionField(server, triggerEvent, &value, fieldMessage);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Message failed", UA_NodeId_deleteMembers(&triggerEvent););
 
         /* Set Comment. Check whether comment is empty -> leave the last value as is*/
@@ -1355,7 +1323,8 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         UA_String nullString = UA_STRING_NULL;
         if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
            !UA_ByteString_equal(&inputComment->text, &nullString)) {
-            retval = setConditionField(server, triggerEvent, inputComment, UA_TYPES_LOCALIZEDTEXT, fieldComment);
+            UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            retval = UA_Server_setConditionField(server, triggerEvent, &value, fieldComment);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed", UA_NodeId_deleteMembers(&triggerEvent););
         }
 
@@ -1388,6 +1357,7 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_QualifiedName fieldAckedStateId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TWOSTATEVARIABLE_ID);
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_NodeId conditionNode;
+    UA_Variant value;
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
@@ -1427,13 +1397,14 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
             UA_String nullString = UA_STRING_NULL;
             if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
                !UA_ByteString_equal(&inputComment->text, &nullString)) {
-              retval = setConditionField(server, conditionNode, inputComment, UA_TYPES_LOCALIZEDTEXT, fieldComment);
-              CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed", UA_NodeId_deleteMembers(&conditionNode););
+                UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+                retval = UA_Server_setConditionField(server, conditionNode, &value, fieldComment);
+                CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed", UA_NodeId_deleteMembers(&conditionNode););
             }
             /* Set AcknowledgeableStateId */
             UA_Boolean idValue = true;
-            retval = setConditionVariableFieldProperty(server, conditionNode, &idValue, UA_TYPES_BOOLEAN,
-                                                                 fieldAckedState, fieldAckedStateId);
+            UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode, &value, fieldAckedState, fieldAckedStateId);
             UA_NodeId_deleteMembers(&conditionNode);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Acknowledge Condition failed",);
         }
@@ -1454,10 +1425,11 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
-    UA_QualifiedName fieldConfirmededState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_CONFIRMEDSTATE);
+    UA_QualifiedName fieldConfirmedState = UA_QUALIFIEDNAME(0, CONDITION_FIELD_CONFIRMEDSTATE);
     UA_QualifiedName fieldConfirmedStateId = UA_QUALIFIEDNAME(0, CONDITION_FIELD_TWOSTATEVARIABLE_ID);
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_NodeId conditionNode;
+    UA_Variant value;
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
@@ -1473,7 +1445,7 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Check if retained */
     if(isRetained(server, &conditionNode)) {
         /* Check if already confirmed */
-        if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldConfirmededState)) {
+        if(!isTwoStateVariableInTrueState(server, &conditionNode, &fieldConfirmedState)) {
             /* Get EventType */
             UA_NodeId eventType;
             retval = getNodeIdValueOfConditionField(server, &conditionNode, UA_QUALIFIEDNAME(0, CONDITION_FIELD_EVENTTYPE), &eventType);
@@ -1497,14 +1469,15 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
             UA_String nullString = UA_STRING_NULL;
             if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
                !UA_ByteString_equal(&inputComment->text, &nullString)) {
-              retval = setConditionField(server, conditionNode, inputComment, UA_TYPES_LOCALIZEDTEXT, fieldComment);
-              CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed", UA_NodeId_deleteMembers(&conditionNode););
+                UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+                retval = UA_Server_setConditionField(server, conditionNode, &value, fieldComment);
+                CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed", UA_NodeId_deleteMembers(&conditionNode););
             }
 
             /* Set ConfirmedStateId */
             UA_Boolean idValue = true;
-            retval = setConditionVariableFieldProperty(server, conditionNode, &idValue, UA_TYPES_BOOLEAN,
-                                                                 fieldConfirmededState, fieldConfirmedStateId);
+            UA_Variant_setScalar(&value, &idValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+            retval = UA_Server_setConditionVariableFieldProperty(server, conditionNode, &value, fieldConfirmedState, fieldConfirmedStateId);
             UA_NodeId_deleteMembers(&conditionNode);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Acknowledge Condition failed",);
         }
@@ -1527,25 +1500,30 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
     UA_String sourceNameString = UA_STRING("Server"); //server is the source of Refresh Events
     UA_UInt16 severityValue = REFRESHEVENT_SEVERITY_DEFAULT;
     UA_ByteString eventId  = UA_BYTESTRING_NULL;
+    UA_Variant value;
 
     /* Set Severity */
-    UA_StatusCode retval = setConditionField(server, *refreshEventNodId, &severityValue, UA_TYPES_UINT16, fieldSeverity);
+    UA_Variant_setScalar(&value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldSeverity);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent Severity failed",);
 
     /* Set SourceName */
-    retval = setConditionField(server, *refreshEventNodId, &sourceNameString, UA_TYPES_STRING, fieldSourceName);
+    UA_Variant_setScalar(&value, &sourceNameString, &UA_TYPES[UA_TYPES_STRING]);
+    retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldSourceName);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent Source failed",);
 
     /* Set ReceiveTime */
     UA_DateTime fieldReceiveTimeValue = UA_DateTime_now();
-    retval = setConditionField(server, *refreshEventNodId, &fieldReceiveTimeValue, UA_TYPES_DATETIME, fieldReceiveTime);
+    UA_Variant_setScalar(&value, &fieldReceiveTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
+    retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldReceiveTime);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent ReceiveTime failed",);
 
     /* Set EventId */
     retval = UA_Event_generateEventId(&eventId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Generating EventId failed",);
 
-    retval = setConditionField(server, *refreshEventNodId, &eventId, UA_TYPES_BYTESTRING, fieldEventId);
+    UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    retval = UA_Server_setConditionField(server, *refreshEventNodId, &value, fieldEventId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent EventId failed",);
 
     UA_ByteString_deleteMembers(&eventId);
@@ -1899,34 +1877,35 @@ setStandardConditionFields(UA_Server *server,
                            const UA_NodeId* conditionType,
                            const UA_NodeId* conditionSource,
                            UA_QualifiedName* conditionName) {
+    UA_Variant value;
     /* Set Fields */
     /* 1.Set EventType */
-    UA_StatusCode retval = setConditionField(server, *condition, conditionType, UA_TYPES_NODEID,
-                                                       UA_QUALIFIEDNAME(0,CONDITION_FIELD_EVENTTYPE));
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)conditionType, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_StatusCode retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_EVENTTYPE));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EventType Field failed",);
 
     /* 2.Set ConditionName */
-    retval = setConditionField(server, *condition, &conditionName->name, UA_TYPES_STRING,
-                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONDITIONNAME));
+    UA_Variant_setScalar(&value, &conditionName->name, &UA_TYPES[UA_TYPES_STRING]);
+    retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONDITIONNAME));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionName Field failed",);
 
     /* 3.Set EnabledState (Disabled by default -> Retain Field = false) */
     UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, DISABLED_TEXT);
-    retval = setConditionField(server, *condition, &text, UA_TYPES_LOCALIZEDTEXT,
-                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_ENABLEDSTATE));
+    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_ENABLEDSTATE));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState Field failed",);
 
     /* 4.Set EnabledState/Id */
     UA_Boolean stateId = false;
-    retval = setConditionVariableFieldProperty(server, *condition,
-                                                         &stateId, UA_TYPES_BOOLEAN,
-                                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_ENABLEDSTATE),
-                                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_TWOSTATEVARIABLE_ID));
+    UA_Variant_setScalar(&value, &stateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retval = UA_Server_setConditionVariableFieldProperty(server, *condition, &value,
+                                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_ENABLEDSTATE),
+                                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_TWOSTATEVARIABLE_ID));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
 
     /* 5.Set Retain*/
-    retval = setConditionField(server, *condition, &stateId, UA_TYPES_BOOLEAN,
-                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_RETAIN));
+    UA_Variant_setScalar(&value, &stateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_RETAIN));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Retain Field failed",);
 
     /* Get ConditionSourceNode*/
@@ -1938,8 +1917,8 @@ setStandardConditionFields(UA_Server *server,
     }
 
     /*6.Set SourceName*/
-    retval = setConditionField(server, *condition, &conditionSourceNode->browseName.name, UA_TYPES_STRING,
-                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_SOURCENAME));
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->browseName.name, &UA_TYPES[UA_TYPES_STRING]);
+    retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_SOURCENAME));
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Set SourceName Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -1948,8 +1927,8 @@ setStandardConditionFields(UA_Server *server,
     }
 
     /*7.Set SourceNode*/
-    retval = setConditionField(server, *condition, &conditionSourceNode->nodeId, UA_TYPES_NODEID,
-                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_SOURCENODE));
+    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_SOURCENODE));
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Set SourceNode Field failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -1961,14 +1940,14 @@ setStandardConditionFields(UA_Server *server,
 
     /*8.Set Quality (TODO not supported, thus set with Status Good)*/
     UA_StatusCode qualityValue = UA_STATUSCODE_GOOD;
-    retval = setConditionField(server, *condition, &qualityValue, UA_TYPES_STATUSCODE,
-                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_QUALITY));
+    UA_Variant_setScalar(&value, &qualityValue, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_QUALITY));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Quality Field failed",);
 
     /*9.Set Severity*/
     UA_UInt16 severityValue = 0;
-    retval = setConditionField(server, *condition, &severityValue, UA_TYPES_UINT16,
-                                         UA_QUALIFIEDNAME(0,CONDITION_FIELD_SEVERITY));
+    UA_Variant_setScalar(&value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
+    retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_SEVERITY));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Severity Field failed",);
 
     /* Check subTypes of ConditionType to set further Fields*/
@@ -1979,14 +1958,14 @@ setStandardConditionFields(UA_Server *server,
     if(isNodeInTree(server->nsCtx, conditionType, &acknowledgeableConditionTypeId, &hasSubtypeId, 1)) {
         /* Set AckedState (Id = false by default) */
         text = UA_LOCALIZEDTEXT(LOCALE, UNACKED_TEXT);
-        retval = setConditionField(server, *condition, &text, UA_TYPES_LOCALIZEDTEXT,
-                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_ACKEDSTATE));
+        UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_ACKEDSTATE));
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set AckedState Field failed",);
 
-        retval = setConditionVariableFieldProperty(server, *condition,
-                                                             &stateId, UA_TYPES_BOOLEAN,
-                                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_ACKEDSTATE),
-                                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_TWOSTATEVARIABLE_ID));
+        UA_Variant_setScalar(&value, &stateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retval = UA_Server_setConditionVariableFieldProperty(server, *condition, &value,
+                                                   UA_QUALIFIEDNAME(0,CONDITION_FIELD_ACKEDSTATE),
+                                                   UA_QUALIFIEDNAME(0,CONDITION_FIELD_TWOSTATEVARIABLE_ID));
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
@@ -1997,14 +1976,14 @@ setStandardConditionFields(UA_Server *server,
 
         /* Set ConfirmedState (Id = false by default) */
         text = UA_LOCALIZEDTEXT(LOCALE, UNCONFIRMED_TEXT);
-        retval = setConditionField(server, *condition, &text, UA_TYPES_LOCALIZEDTEXT,
-                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONFIRMEDSTATE));
+        UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONFIRMEDSTATE));
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConfirmedState Field failed",);
 
-        retval = setConditionVariableFieldProperty(server, *condition,
-                                                             &stateId, UA_TYPES_BOOLEAN,
-                                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONFIRMEDSTATE),
-                                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_TWOSTATEVARIABLE_ID));
+        UA_Variant_setScalar(&value, &stateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retval = UA_Server_setConditionVariableFieldProperty(server, *condition, &value,
+                                                   UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONFIRMEDSTATE),
+                                                   UA_QUALIFIEDNAME(0,CONDITION_FIELD_TWOSTATEVARIABLE_ID));
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
 #endif//CONDITIONOPTIONALFIELDS_SUPPORT
 
@@ -2013,8 +1992,8 @@ setStandardConditionFields(UA_Server *server,
         if(isNodeInTree(server->nsCtx, conditionType, &alarmConditionTypeId, &hasSubtypeId, 1)) {
             /* Set ActiveState (Id = false by default) */
             text = UA_LOCALIZEDTEXT(LOCALE, INACTIVE_TEXT);
-            retval = setConditionField(server, *condition, &text, UA_TYPES_LOCALIZEDTEXT,
-                                                 UA_QUALIFIEDNAME(0,CONDITION_FIELD_ACTIVESTATE));
+            UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+            retval = UA_Server_setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0,CONDITION_FIELD_ACTIVESTATE));
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ActiveState Field failed",);
         }
     }
