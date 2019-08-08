@@ -32,22 +32,12 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Version #
 ###########
 
-set(OPEN62541_VER_MAJOR 1)
-set(OPEN62541_VER_MINOR 0)
-set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+include(SetGitBasedVersion)
 
-# Set OPEN62541_VER_COMMIT
-if(GIT_FOUND)
-    execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
-                    RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    if(${res_var} EQUAL 0 AND NOT OPEN62541_VER_COMMIT STREQUAL "")
-        string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
-    endif()
-endif()
-if(NOT OPEN62541_VER_COMMIT OR OPEN62541_VER_COMMIT STREQUAL "")
-    set(OPEN62541_VER_COMMIT "undefined")
-endif()
+# The version string will be automatically set based on the git describe output.
+# This will automate the version strings. Just create a new tag, and the version will be set correctly.
+set_open62541_version()
+MESSAGE(STATUS "open62541 Version: ${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
 
 #################
 # Build Options #
