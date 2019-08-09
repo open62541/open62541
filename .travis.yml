@@ -9,6 +9,10 @@ env:
 
 dist: trusty
 
+# Make sure we have the git tags. Travis uses shallow checkout where git describe does not work
+git:
+  depth: false
+
 matrix:
   fast_finish: true
   include:
