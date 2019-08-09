@@ -438,6 +438,11 @@ echo -en 'travis_fold:end:script.build.unit_test_ns0_full\\r'
 
 if ! [ -z ${DEBIAN+x} ]; then
     echo -e "\r\n== Building the Debian package =="  && echo -en 'travis_fold:start:script.build.debian\\r'
+    /usr/bin/$PYTHON ./debian/update_changelog.py
+    echo -e "\r\n --- New debian changelog content ---"
+    echo -e "--------------------------------------"
+    cat ./debian/changelog
+    echo -e "--------------------------------------"
     dpkg-buildpackage -b
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cp ../open62541*.deb .
