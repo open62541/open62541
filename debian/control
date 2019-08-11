@@ -20,7 +20,7 @@ Depends: open62541 (= ${binary:Version}), ${misc:Depends}
 Description: Development header files for open62541
  open62541 is an open source C (C99) implementation of the OPC UA standard
 
-Package: open62541
+Package: libopen62541-1
 Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
