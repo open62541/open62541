@@ -440,9 +440,9 @@ if ! [ -z ${DEBIAN+x} ]; then
     echo -e "\r\n== Building the Debian package =="  && echo -en 'travis_fold:start:script.build.debian\\r'
     /usr/bin/$PYTHON ./debian/update_changelog.py
     echo -e "\r\n --- New debian changelog content ---"
-    echo -e "--------------------------------------"
+    echo "--------------------------------------"
     cat ./debian/changelog
-    echo -e "--------------------------------------"
+    echo "--------------------------------------"
     dpkg-buildpackage -b
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cp ../open62541*.deb .
@@ -512,6 +512,31 @@ if [ "$CC" != "tcc" ]; then
         echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
         coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
         echo -en 'travis_fold:end:script.build.coveralls\\r'
+
+        if ([ "${TRAVIS_PULL_REQUEST}" = "false" ] &&
+            ([ "${TRAVIS_BRANCH}" == "master" ] || "${TRAVIS_BRANCH}" == "1.0" ] || "${TRAVIS_BRANCH}" == "pack_branch" ])); then
+            # Create a separate branch with the `-pack` postfix. This branch has the correct debian/changelog set, and
+            # The submodules are directly copied
+            echo -e "\r\n== Pushing ${TRAVIS_BRANCH}-pack branch =="  && echo -en 'travis_fold:start:script.build.pack-branch\\r'
+
+            cp -r deps/mdnsd deps/mdnsd_back
+            cp -r deps/ua-nodeset deps/ua-nodeset_back
+            git rm -rf --cached deps/mdnsd
+            git rm -rf --cached deps/ua-nodeset
+            mv deps/mdnsd_back deps/mdnsd
+            rm -rf deps/mdnsd/.git
+            mv deps/ua-nodeset_back deps/ua-nodeset
+            rm -rf deps/ua-nodeset/.git
+            rm -rf .gitmodules
+            git add deps/*
+            git add debian/*
+            git commit -m "[ci skip] Pack with inline submodules"
+            git push -uf origin ${TRAVIS_BRANCH}:${TRAVIS_BRANCH}-pack
+
+            echo -en 'travis_fold:end:script.build.pack-branch\\r'
+        fi
+
+
     fi
     cd .. && rm build -rf
 fi
