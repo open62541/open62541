@@ -15,7 +15,6 @@ function(set_open62541_version)
             OUTPUT_STRIP_TRAILING_WHITESPACE
         )
         if(NOT GIT_DESCRIBE_ERROR_CODE)
-            set(OPEN62541_VERSION ${GIT_DESCRIBE_VERSION})
 
             # Example values can be:
             # v1.2
@@ -25,57 +24,57 @@ function(set_open62541_version)
             # v1.2.3-5-g4538abcd
             # v1.2.3-5-g4538abcd-dirty
 
-            STRING(REGEX REPLACE "^(v[0-9\\.]+)(.*)$"
-                   "\\1"
-                   GIT_VERSION_NUMBERS
-                   "${GIT_DESCRIBE_VERSION}" )
-            STRING(REGEX REPLACE "^v([0-9\\.]+)(.*)$"
-                   "\\2"
-                   GIT_VERSION_LABEL
-                   "${GIT_DESCRIBE_VERSION}" )
+            set(OPEN62541_VERSION ${GIT_DESCRIBE_VERSION})
+        endif()
+    endif()
 
-            if("${GIT_VERSION_NUMBERS}" MATCHES "^v([0-9]+)(.*)$")
-                STRING(REGEX REPLACE "^v([0-9]+)\\.?(.*)$"
-                       "\\1"
-                       GIT_VER_MAJOR
+    if(OPEN62541_VERSION)
+        STRING(REGEX REPLACE "^(v[0-9\\.]+)(.*)$"
+               "\\1"
+               GIT_VERSION_NUMBERS
+               "${OPEN62541_VERSION}" )
+        STRING(REGEX REPLACE "^v([0-9\\.]+)(.*)$"
+               "\\2"
+               GIT_VERSION_LABEL
+               "${OPEN62541_VERSION}" )
+
+        if("${GIT_VERSION_NUMBERS}" MATCHES "^v([0-9]+)(.*)$")
+            STRING(REGEX REPLACE "^v([0-9]+)\\.?(.*)$"
+                   "\\1"
+                   GIT_VER_MAJOR
+                   "${GIT_VERSION_NUMBERS}" )
+            if("${GIT_VERSION_NUMBERS}" MATCHES "^v([0-9]+)\\.([0-9]+)(.*)$")
+                STRING(REGEX REPLACE "^v([0-9]+)\\.([0-9]+)(.*)$"
+                       "\\2"
+                       GIT_VER_MINOR
                        "${GIT_VERSION_NUMBERS}" )
-                if("${GIT_VERSION_NUMBERS}" MATCHES "^v([0-9]+)\\.([0-9]+)(.*)$")
-                    STRING(REGEX REPLACE "^v([0-9]+)\\.([0-9]+)(.*)$"
-                           "\\2"
-                           GIT_VER_MINOR
+                if("${GIT_VERSION_NUMBERS}" MATCHES "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)$")
+                    STRING(REGEX REPLACE "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)$"
+                           "\\3"
+                           GIT_VER_PATCH
                            "${GIT_VERSION_NUMBERS}" )
-                    if("${GIT_VERSION_NUMBERS}" MATCHES "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)$")
-                        STRING(REGEX REPLACE "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)(.*)$"
-                               "\\3"
-                               GIT_VER_PATCH
-                               "${GIT_VERSION_NUMBERS}" )
-                    else()
-                        set(GIT_VER_PATCH 0)
-                    endif()
                 else()
-                    set(GIT_VER_MINOR 0)
                     set(GIT_VER_PATCH 0)
                 endif()
-
             else()
-                set(GIT_VER_MAJOR 0)
                 set(GIT_VER_MINOR 0)
                 set(GIT_VER_PATCH 0)
             endif()
-            set(OPEN62541_VER_MAJOR ${GIT_VER_MAJOR} PARENT_SCOPE)
-            set(OPEN62541_VER_MINOR ${GIT_VER_MINOR} PARENT_SCOPE)
-            set(OPEN62541_VER_PATCH ${GIT_VER_PATCH} PARENT_SCOPE)
-            set(OPEN62541_VER_LABEL "${GIT_VERSION_LABEL}" PARENT_SCOPE)
+
+        else()
+            set(GIT_VER_MAJOR 0)
+            set(GIT_VER_MINOR 0)
+            set(GIT_VER_PATCH 0)
         endif()
-        set(OPEN62541_VER_COMMIT ${GIT_DESCRIBE_VERSION} PARENT_SCOPE)
-
-
-    endif()
-
-    # Final fallback: Just use a bogus version string that is semantically older
-    # than anything else and spit out a warning to the developer.
-    if(NOT DEFINED OPEN62541_VERSION)
-        set(OPEN62541_VERSION "v0.0.0-unknown")
+        set(OPEN62541_VER_MAJOR ${GIT_VER_MAJOR} PARENT_SCOPE)
+        set(OPEN62541_VER_MINOR ${GIT_VER_MINOR} PARENT_SCOPE)
+        set(OPEN62541_VER_PATCH ${GIT_VER_PATCH} PARENT_SCOPE)
+        set(OPEN62541_VER_LABEL "${GIT_VERSION_LABEL}" PARENT_SCOPE)
+        set(OPEN62541_VER_COMMIT ${OPEN62541_VERSION} PARENT_SCOPE)
+    else()
+        # Final fallback: Just use a bogus version string that is semantically older
+        # than anything else and spit out a warning to the developer.
+        set(OPEN62541_VERSION "v0.0.0-unknown" PARENT_SCOPE)
         set(OPEN62541_VER_MAJOR 0 PARENT_SCOPE)
         set(OPEN62541_VER_MINOR 0 PARENT_SCOPE)
         set(OPEN62541_VER_PATCH 0 PARENT_SCOPE)
