@@ -441,14 +441,18 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #else
         UA_atomic_addSize(&server->discoveryManager.registeredServersSize, 1);
 #endif
-
-        if(server->discoveryManager.registerServerCallback)
-            server->discoveryManager.
-                registerServerCallback(requestServer,
-                                       server->discoveryManager.registerServerCallbackData);
     } else {
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
     }
+
+    // Always call the callback, if it is set.
+    // Previously we only called it if it was a new register call. It may be the case that this endpoint
+    // registered before, then crashed, restarts and registeres again. In that case the entry is not deleted
+    // and the callback would not be called.
+    if(server->discoveryManager.registerServerCallback)
+        server->discoveryManager.
+            registerServerCallback(requestServer,
+                                   server->discoveryManager.registerServerCallbackData);
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
