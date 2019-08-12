@@ -82,7 +82,6 @@ try {
     & cmake $cmake_cnf `
             -DBUILD_SHARED_LIBS:BOOL=OFF `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-static" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
             -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
@@ -107,7 +106,6 @@ try {
     cd build
     & cmake $cmake_cnf `
             -DBUILD_SHARED_LIBS:BOOL=ON `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-dynamic" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
@@ -134,7 +132,7 @@ try {
         New-Item -ItemType directory -Path "build"
         cd build
         & cmake $cmake_cnf `
-                -DCHECK_PREFIX=c:\check `
+                -DBUILD_SHARED_LIBS:BOOL=OFF `
                 -DCMAKE_BUILD_TYPE=Debug `
                 -DUA_BUILD_EXAMPLES=OFF `
                 -DUA_BUILD_UNIT_TESTS=ON `
@@ -152,7 +150,7 @@ try {
             Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
             exit $LASTEXITCODE
         }
-        & cmake --build . --target test-verbose --config debug
+        & cmake --build . --target test-verbose --config Debug
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
             exit $LASTEXITCODE
