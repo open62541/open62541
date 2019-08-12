@@ -564,8 +564,9 @@ typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *regi
                                                  void* data);
 
 /* Set the callback which is called if another server registeres or unregisters
- * with this instance. If called multiple times, previous data will be
- * overwritten.
+ * with this instance. This callback is called every time the server gets a register
+ * call. This especially means that for every periodic server register the callback will
+ * be called.
  *
  * @param server
  * @param cb the callback
