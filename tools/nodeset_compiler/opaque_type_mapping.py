@@ -1,8 +1,11 @@
 
-# Opaque types are in general defined as simple byte strings. For the base opaque types there is a corresponding node id definition
-# in the nodeset. E.g. Opc.Ua.Types.bsd contains the simple definition for OpaqueType LocaleId. In Opc.Ua.NodeSet2.xml the LocaleId
+# Opaque types are in general defined as simple byte strings.
+# For the base opaque types there is a corresponding node id definition
+# in the nodeset. E.g. Opc.Ua.Types.bsd contains the simple definition
+# for OpaqueType LocaleId. In Opc.Ua.NodeSet2.xml the LocaleId
 # is defined as a Subtype of String(i=12) thus LocaleId is a String object.
-# TODO we can automate this mapping by loading the NodeSet2.xml and read those mappings automatically. For now we just use this map
+# TODO we can automate this mapping by loading the NodeSet2.xml and read
+#  those mappings automatically. For now we just use this map
 opaque_type_mapping = {
     'Image': {
         'ns': 0,
@@ -126,9 +129,10 @@ opaque_type_mapping = {
     }
 }
 
-def get_base_type_for_opaque(opaqueTypeName):
-    if opaqueTypeName in opaque_type_mapping:
-        return opaque_type_mapping[opaqueTypeName]
+
+def get_base_type_for_opaque(opaque_type_name):
+    if opaque_type_name in opaque_type_mapping:
+        return opaque_type_mapping[opaque_type_name]
     # Default if not in mapping is ByteString
     return {
         'ns': 0,

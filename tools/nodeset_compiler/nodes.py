@@ -1,26 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 13
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+"""
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+Author:  Chris Iatrou (ichrispa@core-vector.net)
+"""
 
 import sys
 import logging
 from datatypes import *
 
-__all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
+__all__ = ['Reference', 'ref_or_alias', 'Node', 'ReferenceTypeNode',
            'ObjectNode', 'VariableNode', 'VariableTypeNode',
            'MethodNode', 'ObjectTypeNode', 'DataTypeNode', 'ViewNode']
 
@@ -31,13 +24,14 @@ if sys.version_info[0] >= 3:
     def unicode(s):
         return s
 
+
 class Reference(object):
     # all either nodeids or strings with an alias
-    def __init__(self, source, referenceType, target, isForward):
+    def __init__(self, source, reference_type, target, is_forward):
         self.source = source
-        self.referenceType = referenceType
+        self.referenceType = reference_type
         self.target = target
-        self.isForward = isForward
+        self.isForward = is_forward
 
     def __str__(self):
         retval = str(self.source)
@@ -60,11 +54,13 @@ class Reference(object):
     def __hash__(self):
         return hash(str(self))
 
-def RefOrAlias(s):
+
+def ref_or_alias(s):
     try:
         return NodeId(s)
     except Exception:
         return s
+
 
 class Node(object):
     def __init__(self):
@@ -75,11 +71,13 @@ class Node(object):
         self.symbolicName = None
         self.writeMask = None
         self.userWriteMask = None
+        self.eventNotifier = None
         self.references = set()
         self.hidden = False
         self.modelUri = None
         self.parent = None
         self.parentReference = None
+        self.dataType = None
 
     def __str__(self):
         return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -87,15 +85,16 @@ class Node(object):
     def __repr__(self):
         return str(self)
 
-    def sanitize(self):
-        pass
+    @staticmethod
+    def sanitize():
+        return True
 
-    def parseXML(self, xmlelement):
-        for idname in ['NodeId', 'NodeID', 'nodeid']:
-            if xmlelement.hasAttribute(idname):
-                self.id = RefOrAlias(xmlelement.getAttribute(idname))
+    def parse_xml(self, xml_element):
+        for id_name in ['NodeId', 'NodeID', 'nodeid']:
+            if xml_element.hasAttribute(id_name):
+                self.id = ref_or_alias(xml_element.getAttribute(id_name))
 
-        for (at, av) in xmlelement.attributes.items():
+        for (at, av) in xml_element.attributes.items():
             if at == "BrowseName":
                 self.browseName = QualifiedName(av)
             elif at == "DisplayName":
@@ -111,7 +110,7 @@ class Node(object):
             elif at == "SymbolicName":
                 self.symbolicName = String(av)
 
-        for x in xmlelement.childNodes:
+        for x in xml_element.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
                 continue
             if x.firstChild:
@@ -126,42 +125,42 @@ class Node(object):
                 elif x.localName == "UserWriteMask":
                     self.userWriteMask = int(unicode(x.firstChild.data))
                 if x.localName == "References":
-                    self.parseXMLReferences(x)
+                    self.parse_xml_references(x)
 
-    def parseXMLReferences(self, xmlelement):
-        for ref in xmlelement.childNodes:
+    def parse_xml_references(self, xml_element):
+        for ref in xml_element.childNodes:
             if ref.nodeType != ref.ELEMENT_NODE:
                 continue
-            source = RefOrAlias(str(self.id))  # deep-copy of the nodeid
-            target = RefOrAlias(ref.firstChild.data)
+            source = ref_or_alias(str(self.id))  # deep-copy of the nodeid
+            target = ref_or_alias(ref.firstChild.data)
 
-            reftype = None
+            ref_type = None
             forward = True
             for (at, av) in ref.attributes.items():
                 if at == "ReferenceType":
-                    reftype = RefOrAlias(av)
+                    ref_type = ref_or_alias(av)
                 elif at == "IsForward":
-                    forward = not "false" in av.lower()
-            self.references.add(Reference(source, reftype, target, forward))
+                    forward = "false" not in av.lower()
+            self.references.add(Reference(source, ref_type, target, forward))
 
-    def getParentReference(self, parentreftypes):
+    def get_parent_reference(self, parent_ref_types):
         # HasSubtype has precedence
         for ref in self.references:
             if ref.referenceType == NodeId("ns=0;i=45") and not ref.isForward:
                 return ref
         for ref in self.references:
-            if ref.referenceType in parentreftypes and not ref.isForward:
+            if ref.referenceType in parent_ref_types and not ref.isForward:
                 return ref
         return None
 
-    def popTypeDef(self):
+    def pop_type_def(self):
         for ref in self.references:
             if ref.referenceType.i == 40 and ref.isForward:
                 self.references.remove(ref)
                 return ref
         return Reference(NodeId(), NodeId(), NodeId(), False)
 
-    def replaceAliases(self, aliases):
+    def replace_aliases(self, aliases):
         if str(self.id) in aliases:
             self.id = NodeId(aliases[self.id])
         if isinstance(self, VariableNode) or isinstance(self, VariableTypeNode):
@@ -178,31 +177,32 @@ class Node(object):
             new_refs.add(ref)
         self.references = new_refs
 
-    def replaceNamespaces(self, nsMapping):
-        self.id.ns = nsMapping[self.id.ns]
-        self.browseName.ns = nsMapping[self.browseName.ns]
+    def replace_namespaces(self, ns_mapping):
+        self.id.ns = ns_mapping[self.id.ns]
+        self.browseName.ns = ns_mapping[self.browseName.ns]
         if hasattr(self, 'dataType') and isinstance(self.dataType, NodeId):
-            self.dataType.ns = nsMapping[self.dataType.ns]
+            self.dataType.ns = ns_mapping[self.dataType.ns]
         new_refs = set()
         for ref in self.references:
-            ref.source.ns = nsMapping[ref.source.ns]
-            ref.target.ns = nsMapping[ref.target.ns]
-            ref.referenceType.ns = nsMapping[ref.referenceType.ns]
+            ref.source.ns = ns_mapping[ref.source.ns]
+            ref.target.ns = ns_mapping[ref.target.ns]
+            ref.referenceType.ns = ns_mapping[ref.referenceType.ns]
             new_refs.add(ref)
         self.references = new_refs
 
+
 class ReferenceTypeNode(Node):
-    def __init__(self, xmlelement=None):
+    def __init__(self, xml_element=None):
         Node.__init__(self)
         self.isAbstract = False
         self.symmetric = False
         self.inverseName = ""
-        if xmlelement:
-            ReferenceTypeNode.parseXML(self, xmlelement)
+        if xml_element:
+            ReferenceTypeNode.parse_xml(self, xml_element)
 
-    def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
+    def parse_xml(self, xml_element):
+        Node.parse_xml(self, xml_element)
+        for (at, av) in xml_element.attributes.items():
             if at == "Symmetric":
                 self.symmetric = "false" not in av.lower()
             elif at == "InverseName":
@@ -210,23 +210,25 @@ class ReferenceTypeNode(Node):
             elif at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
 
-        for x in xmlelement.childNodes:
+        for x in xml_element.childNodes:
             if x.nodeType == x.ELEMENT_NODE:
                 if x.localName == "InverseName" and x.firstChild:
                     self.inverseName = str(unicode(x.firstChild.data))
 
+
 class ObjectNode(Node):
-    def __init__(self, xmlelement=None):
+    def __init__(self, xml_element=None):
         Node.__init__(self)
         self.eventNotifier = 0
-        if xmlelement:
-            ObjectNode.parseXML(self, xmlelement)
+        if xml_element:
+            ObjectNode.parse_xml(self, xml_element)
 
-    def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
+    def parse_xml(self, xml_element):
+        Node.parse_xml(self, xml_element)
+        for (at, av) in xml_element.attributes.items():
             if at == "EventNotifier":
                 self.eventNotifier = int(av)
+
 
 class VariableNode(Node):
     def __init__(self, xmlelement=None):
@@ -242,35 +244,36 @@ class VariableNode(Node):
         self.value = None
         self.xmlValueDef = None
         if xmlelement:
-            VariableNode.parseXML(self, xmlelement)
+            VariableNode.parse_xml(self, xmlelement)
 
-    def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
-            if at == "ValueRank":
-                self.valueRank = int(av)
-            elif at == "AccessLevel":
-                self.accessLevel = int(av)
-            elif at == "UserAccessLevel":
-                self.userAccessLevel = int(av)
-            elif at == "MinimumSamplingInterval":
-                self.minimumSamplingInterval = float(av)
-            elif at == "DataType":
-                self.dataType = RefOrAlias(av)
-            elif  at == "ArrayDimensions":
-                self.arrayDimensions = av.split(",")
+    def parse_xml(self, xml_element):
+        Node.parse_xml(self, xml_element)
+        attribute_type, attribute_value = None, None
+        for (attribute_type, attribute_value) in xml_element.attributes.items():
+            if attribute_type == "ValueRank":
+                self.valueRank = int(attribute_value)
+            elif attribute_type == "AccessLevel":
+                self.accessLevel = int(attribute_value)
+            elif attribute_type == "UserAccessLevel":
+                self.userAccessLevel = int(attribute_value)
+            elif attribute_type == "MinimumSamplingInterval":
+                self.minimumSamplingInterval = float(attribute_value)
+            elif attribute_type == "DataType":
+                self.dataType = ref_or_alias(attribute_value)
+            elif attribute_type == "ArrayDimensions":
+                self.arrayDimensions = attribute_value.split(",")
 
-        for x in xmlelement.childNodes:
+        for x in xml_element.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
                 continue
             if x.localName == "Value":
                 self.xmlValueDef = x
             elif x.localName == "DataType":
-                self.dataType = RefOrAlias(av)
+                self.dataType = ref_or_alias(attribute_value)
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
             elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
-                elements = x.getElementsByTagName("ListOfUInt32");
+                elements = x.getElementsByTagName("ListOfUInt32")
                 if len(elements):
                     for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
                         self.arrayDimensions.append(v.firstChild.data)
@@ -283,71 +286,77 @@ class VariableNode(Node):
             elif x.localName == "Historizing":
                 self.historizing = "false" not in x.lower()
 
-    def allocateValue(self, nodeset):
-        dataTypeNode = nodeset.getDataTypeNode(self.dataType)
-        if dataTypeNode is None:
+    def allocate_value(self, nodeset):
+        data_type_node = nodeset.get_data_type_node(self.dataType)
+        if data_type_node is None:
             return False
 
         # FIXME: Don't build at all or allocate "defaults"? I'm for not building at all.
         if self.xmlValueDef is None:
-            #logger.warn("Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.")
+            # logger.warn("Variable " + self.browseName() + "/" + str(self.id()) +
+            #             " is not initialized. No memory will be allocated.")
             return False
 
         self.value = Value()
-        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self, nodeset.namespaceMapping[self.modelUri])
+        self.value.parse_xml_encoding(self.xmlValueDef, data_type_node,
+                                      self, nodeset.namespace_mapping[self.modelUri])
         return True
 
 
 class VariableTypeNode(VariableNode):
-    def __init__(self, xmlelement=None):
+    def __init__(self, xml_element=None):
         VariableNode.__init__(self)
         self.isAbstract = False
-        if xmlelement:
-            VariableTypeNode.parseXML(self, xmlelement)
+        if xml_element:
+            VariableTypeNode.parse_xml(self, xml_element)
 
-    def parseXML(self, xmlelement):
-        VariableNode.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
-            if at == "IsAbstract":
-                self.isAbstract = "false" not in av.lower()
+    def parse_xml(self, xml_element):
+        VariableNode.parse_xml(self, xml_element)
+        attribute_type, attribute_value = None, None
+        for (attribute_type, attribute_value) in xml_element.attributes.items():
+            if attribute_type == "IsAbstract":
+                self.isAbstract = "false" not in attribute_value.lower()
 
-        for x in xmlelement.childNodes:
+        for x in xml_element.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
                 continue
             if x.localName == "IsAbstract":
-                self.isAbstract = "false" not in av.lower()
+                self.isAbstract = "false" not in attribute_value.lower()
+
 
 class MethodNode(Node):
-    def __init__(self, xmlelement=None):
+    def __init__(self, xml_element=None):
         Node.__init__(self)
         self.executable = True
         self.userExecutable = True
-        self.methodDecalaration = None
-        if xmlelement:
-            MethodNode.parseXML(self, xmlelement)
+        self.methodDeclaration = None
+        if xml_element:
+            MethodNode.parse_xml(self, xml_element)
 
-    def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
-            if at == "Executable":
-                self.executable = "false" not in av.lower()
-            if at == "UserExecutable":
-                self.userExecutable = "false" not in av.lower()
-            if at == "MethodDeclarationId":
-                self.methodDeclaration = str(av)
+    def parse_xml(self, xml_element):
+        Node.parse_xml(self, xml_element)
+        for attribute_type, attribute_value in xml_element.attributes.items():
+            if attribute_type == "Executable":
+                self.executable = "false" not in attribute_value.lower()
+            if attribute_type == "UserExecutable":
+                self.userExecutable = "false" not in attribute_value.lower()
+            if attribute_type == "MethodDeclarationId":
+                self.methodDeclaration = str(attribute_value)
+
 
 class ObjectTypeNode(Node):
-    def __init__(self, xmlelement=None):
+    def __init__(self, xml_element=None):
         Node.__init__(self)
         self.isAbstract = False
-        if xmlelement:
-            ObjectTypeNode.parseXML(self, xmlelement)
+        if xml_element:
+            ObjectTypeNode.parse_xml(self, xml_element)
 
-    def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
+    def parse_xml(self, xml_element):
+        Node.parse_xml(self, xml_element)
+        for (at, av) in xml_element.attributes.items():
             if at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
+
 
 class DataTypeNode(Node):
     """ DataTypeNode is a subtype of Node describing DataType nodes.
@@ -375,30 +384,30 @@ class DataTypeNode(Node):
         If encodable, the encoding can be retrieved using getEncoding().
     """
 
-    def __init__(self, xmlelement=None):
+    def __init__(self, xml_element=None):
         Node.__init__(self)
         self.isAbstract = False
         self.__xmlDefinition__ = None
         self.__baseTypeEncoding__ = []
         self.__encodable__ = None
         self.__definition__ = []
-        self.__isEnum__     = False
+        self.__isEnum__ = False
         self.__isOptionSet__ = False
-        if xmlelement:
-            DataTypeNode.parseXML(self, xmlelement)
+        if xml_element:
+            DataTypeNode.parse_xml(self, xml_element)
 
-    def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
+    def parse_xml(self, xml_element):
+        Node.parse_xml(self, xml_element)
+        for at, av in xml_element.attributes.items():
             if at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
 
-        for x in xmlelement.childNodes:
+        for x in xml_element.childNodes:
             if x.nodeType == x.ELEMENT_NODE:
                 if x.localName == "Definition":
                     self.__xmlDefinition__ = x
 
-    def isEncodable(self):
+    def is_encodable(self):
         """ Will return True if buildEncoding() was able to determine which builtin
             type corresponds to all fields of this DataType.
 
@@ -409,7 +418,7 @@ class DataTypeNode(Node):
             raise Exception("Encoding needs to be built first using buildEncoding()")
         return self.__encodable__
 
-    def getEncoding(self):
+    def get_encoding(self):
         """ If the dataType is encodable, getEncoding() returns a nested list
             containing the encoding the structure definition for this type.
 
@@ -425,9 +434,8 @@ class DataTypeNode(Node):
         else:
             return self.__baseTypeEncoding__
 
-
-    def buildEncoding(self, nodeset, indent=0, force=False):
-        """ buildEncoding() determines the structure and aliases used for variables
+    def build_encoding(self, nodeset, indent=0, force=False):
+        """ build_encoding() determines the structure and aliases used for variables
             of this DataType.
 
             The function will parse the XML <Definition> of the dataType and extract
@@ -465,129 +473,132 @@ class DataTypeNode(Node):
 
         prefix = " " + "|" * indent + "+"
 
-        if force==True:
+        if force:
             self.__encodable__ = None
 
         if self.__encodable__ is not None and self.__encodable__:
-            if self.isEncodable():
+            if self.is_encodable():
                 logger.debug(prefix + str(self.__baseTypeEncoding__) + " (already analyzed)")
             else:
-                logger.debug( prefix + str(self.__baseTypeEncoding__) + "(already analyzed, not encodable!)")
+                logger.debug(prefix + str(self.__baseTypeEncoding__) + "(already analyzed, not encodable!)")
             return self.__baseTypeEncoding__
 
         self.__encodable__ = True
 
-        if indent==0:
+        if indent == 0:
             logger.debug("Parsing DataType " + str(self.browseName) + " (" + str(self.id) + ")")
 
-        if valueIsInternalType(self.browseName.name):
+        if value_is_internal_type(self.browseName.name):
             self.__baseTypeEncoding__ = [self.browseName.name]
             self.__encodable__ = True
-            logger.debug( prefix + str(self.browseName) + "*")
+            logger.debug(prefix + str(self.browseName) + "*")
             logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
             logger.debug("")
             return self.__baseTypeEncoding__
 
-
         # Check if there is a supertype available
-        parentType = None
+        parent_type = None
+        target_node = None
         for ref in self.references:
             if ref.isForward:
                 continue
                 # hasSubtype
             if ref.referenceType.i == 45:
-                targetNode = nodeset.nodes[ref.target]
-                if targetNode is not None and isinstance(targetNode, DataTypeNode):
-                    parentType = targetNode
+                target_node = nodeset.nodes[ref.target]
+                if target_node is not None and isinstance(target_node, DataTypeNode):
+                    parent_type = target_node
                     break
 
         if self.__xmlDefinition__ is None:
-            if parentType is not None:
-                logger.debug( prefix + "Attempting definition using supertype " + str(targetNode.browseName) + " for DataType " + " " + str(self.browseName))
-                subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1)
-                if not targetNode.isEncodable():
+            if parent_type is not None:
+                logger.debug(prefix + "Attempting definition using supertype " + str(target_node.browseName) +
+                             " for DataType " + " " + str(self.browseName))
+                subenc = target_node.build_encoding(nodeset=nodeset, indent=indent + 1)
+                if not target_node.is_encodable():
                     self.__encodable__ = False
                 else:
                     self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
             if len(self.__baseTypeEncoding__) == 0:
-                logger.debug(prefix + "No viable definition for " + str(self.browseName) + " " + str(self.id) + " found.")
+                logger.debug(prefix + "No viable definition for " + str(self.browseName) + " " + str(self.id) +
+                             " found.")
                 self.__encodable__ = False
 
-            if indent==0:
+            if indent == 0:
                 if not self.__encodable__:
                     logger.debug("Not encodable (partial): " + str(self.__baseTypeEncoding__))
                 else:
                     logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
-                logger.debug( "")
+                logger.debug("")
 
             return self.__baseTypeEncoding__
 
-        isEnum = True
-        isSubType = True
+        is_enum = True
+        is_sub_type = True
         # An option set is at the same time also an enum, at least for the encoding below
-        isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i==12755
+        # TODO: remove magic number
+        is_option_set = parent_type is not None and parent_type.id.ns == 0 and parent_type.id.i == 12755
 
         # We need to store the definition as ordered data, but can't use orderedDict
         # for backward compatibility with Python 2.6 and 3.4
-        enumDict = []
-        typeDict = []
+        enum_dict = []
+        type_dict = []
 
         # An XML Definition is provided and will be parsed... now
         for x in self.__xmlDefinition__.childNodes:
             if x.nodeType == x.ELEMENT_NODE:
-                fname  = ""
-                fdtype = ""
-                enumVal = ""
-                valueRank = None
-                #symbolicName = None
-                for at,av in x.attributes.items():
+                field_name = ""
+                field_type = ""
+                enum_val = ""
+                value_rank = None
+                # symbolicName = None
+                for at, av in x.attributes.items():
                     if at == "DataType":
-                        fdtype = str(av)
-                        if fdtype in nodeset.aliases:
-                            fdtype = nodeset.aliases[fdtype]
-                        isEnum = False
+                        field_type = str(av)
+                        if field_type in nodeset.aliases:
+                            field_type = nodeset.aliases[field_type]
+                        is_enum = False
                     elif at == "Name":
-                        fname = str(av)
-                    #elif at == "SymbolicName":
-                    #    symbolicName = str(av)
+                        field_name = str(av)
+                    # elif at == "SymbolicName":
+                    #     symbolicName = str(av)
                     elif at == "Value":
-                        enumVal = int(av)
-                        isSubType = False
+                        enum_val = int(av)
+                        is_sub_type = False
                     elif at == "ValueRank":
-                        valueRank = int(av)
+                        value_rank = int(av)
                     else:
-                        logger.warn("Unknown Field Attribute " + str(at))
+                        logger.warning("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.
                 # Figure out which of the dictionaries gets the newly read value pair
-                if isEnum == isSubType:
+                if is_enum == is_sub_type:
                     # This is an error
-                    logger.warn("DataType contains both enumeration and subtype (or neither)")
+                    logger.warning("DataType contains both enumeration and subtype (or neither)")
                     self.__encodable__ = False
                     break
-                elif isEnum:
+                elif is_enum:
                     # This is an enumeration
-                    enumDict.append((fname, enumVal))
+                    enum_dict.append((field_name, enum_val))
                     continue
                 else:
-                    if fdtype == "":
+                    if field_type == "":
                         # If no datatype given use base datatype
-                        fdtype = "i=24"
+                        field_type = "i=24"
 
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
-                    fdTypeNodeId = NodeId(fdtype)
-                    fdTypeNodeId.ns = nodeset.namespaceMapping[self.modelUri][fdTypeNodeId.ns]
-                    if not fdTypeNodeId in nodeset.nodes:
-                        raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
-                    dtnode = nodeset.nodes[fdTypeNodeId]
+                    fd_type_node_id = NodeId(field_type)
+                    fd_type_node_id.ns = nodeset.namespace_mapping[self.modelUri][fd_type_node_id.ns]
+                    if fd_type_node_id not in nodeset.nodes:
+                        raise Exception("Node {} not found in nodeset".format(fd_type_node_id))
+                    dtnode = nodeset.nodes[fd_type_node_id]
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable
-                    typeDict.append([fname, dtnode])
-                    fdtype = str(dtnode.browseName.name)
-                    logger.debug( prefix + fname + " : " + fdtype + " -> " + str(dtnode.id))
-                    subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1)
-                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank]]
-                    if not dtnode.isEncodable():
+                    type_dict.append([field_name, dtnode])
+                    field_type = str(dtnode.browseName.name)
+                    logger.debug(prefix + field_name + " : " + field_type + " -> " + str(dtnode.id))
+                    subenc = dtnode.build_encoding(nodeset=nodeset, indent=indent + 1)
+                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[field_name, subenc, value_rank]]
+                    if not dtnode.is_encodable():
                         # If we inherit an encoding from an unencodable not, this node is
                         # also not encodable
                         self.__encodable__ = False
@@ -600,32 +611,34 @@ class DataTypeNode(Node):
         while len(self.__baseTypeEncoding__) == 1 and isinstance(self.__baseTypeEncoding__[0], list):
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__[0]
 
-        if isOptionSet == True:
+        if is_option_set:
             self.__isOptionSet__ = True
-            subenc = parentType.buildEncoding(nodeset=nodeset)
-            if not parentType.isEncodable():
+            subenc = parent_type.build_encoding(nodeset=nodeset)
+            if not parent_type.is_encodable():
                 self.__encodable__ = False
             else:
                 self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
-                self.__definition__ = enumDict
+                self.__definition__ = enum_dict
             return self.__baseTypeEncoding__
 
-        if isEnum == True:
+        if is_enum:
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + ['Int32']
-            self.__definition__ = enumDict
+            self.__definition__ = enum_dict
             self.__isEnum__ = True
-            logger.debug( prefix+"Int32* -> enumeration with dictionary " + str(enumDict) + " encodable " + str(self.__encodable__))
+            logger.debug(prefix + "Int32* -> enumeration with dictionary " + str(enum_dict) + " encodable " + str(
+                self.__encodable__))
             return self.__baseTypeEncoding__
 
-        if indent==0:
+        if indent == 0:
             if not self.__encodable__:
-                logger.debug( "Not encodable (partial): " + str(self.__baseTypeEncoding__))
+                logger.debug("Not encodable (partial): " + str(self.__baseTypeEncoding__))
             else:
-                logger.debug( "Encodable as: " + str(self.__baseTypeEncoding__))
+                logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
                 self.__isEnum__ = False
-                self.__definition__ = typeDict
-            logger.debug( "")
+                self.__definition__ = type_dict
+            logger.debug("")
         return self.__baseTypeEncoding__
+
 
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
@@ -633,11 +646,11 @@ class ViewNode(Node):
         self.containsNoLoops = False
         self.eventNotifier = False
         if xmlelement:
-            ViewNode.parseXML(self, xmlelement)
+            ViewNode.parse_xml(self, xmlelement)
 
-    def parseXML(self, xmlelement):
-        Node.parseXML(self, xmlelement)
-        for (at, av) in xmlelement.attributes.items():
+    def parse_xml(self, xml_element):
+        Node.parse_xml(self, xml_element)
+        for (at, av) in xml_element.attributes.items():
             if at == "ContainsNoLoops":
                 self.containsNoLoops = "false" not in av.lower()
             if at == "EventNotifier":

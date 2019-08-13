@@ -1,34 +1,35 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Authors:
-### - Chris Iatrou (ichrispa@core-vector.net)
-### - Julius Pfrommer
-### - Stefan Profanter (profanter@fortiss.org)
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+"""
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+Authors:
+- Chris Iatrou (ichrispa@core-vector.net)
+- Julius Pfrommer
+- Stefan Profanter (profanter@fortiss.org)
+"""
 from __future__ import print_function
-from os.path import basename
-import logging
+
 import codecs
 import os
+from os.path import basename
+
+import logging
+
+from backend_open62541_nodes import generate_node_code_begin, generate_node_code_finish, generate_reference_code, \
+    ReferenceTypeNode, DataTypeNode, MethodNode
+from datatypes import NodeId
+
 try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
 
 import sys
+
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
@@ -36,30 +37,26 @@ if sys.version_info[0] >= 3:
 
 logger = logging.getLogger(__name__)
 
-from datatypes import NodeId
-from nodes import *
-from nodeset import *
-from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode
 
 # Kahn's algorithm: https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-def sortNodes(nodeset):
+def sort_nodes(nodeset):
     # reverse hastypedefinition references to treat only forward references
-    hasTypeDef = NodeId("ns=0;i=40")
+    has_type_def = NodeId("ns=0;i=40")
     for u in nodeset.nodes.values():
         for ref in u.references:
-            if ref.referenceType == hasTypeDef:
+            if ref.referenceType == has_type_def:
                 ref.isForward = not ref.isForward
 
     # Only hierarchical types...
-    relevant_refs = nodeset.getRelevantOrderingReferences()
+    relevant_refs = nodeset.get_relevant_ordering_references()
 
     # determine in-degree of unfulfilled references
     L = [node for node in nodeset.nodes.values() if node.hidden]  # ordered list of nodes
-    R = {node.id: node for node in nodeset.nodes.values() if not node.hidden} # remaining nodes
-    in_degree = {id: 0 for id in R.keys()}
-    for u in R.values(): # for each node
+    R = {node.id: node for node in nodeset.nodes.values() if not node.hidden}  # remaining nodes
+    in_degree = {ident: 0 for ident in R.keys()}
+    for u in R.values():  # for each node
         for ref in u.references:
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -75,12 +72,12 @@ def sortNodes(nodeset):
     Q = [node for node in R.values() if in_degree[node.id] == 0 and
          (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))]
     while Q:
-        u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
+        u = Q.pop()  # choose node of zero in-degree and 'remove' it from graph
         L.append(u)
         del R[u.id]
 
         for ref in u.references:
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -93,12 +90,12 @@ def sortNodes(nodeset):
     # Order the remaining nodes
     Q = [node for node in R.values() if in_degree[node.id] == 0]
     while Q:
-        u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
+        u = Q.pop()  # choose node of zero in-degree and 'remove' it from graph
         L.append(u)
         del R[u.id]
 
         for ref in u.references:
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -111,26 +108,27 @@ def sortNodes(nodeset):
     # reverse hastype references
     for u in nodeset.nodes.values():
         for ref in u.references:
-            if ref.referenceType == hasTypeDef:
+            if ref.referenceType == has_type_def:
                 ref.isForward = not ref.isForward
 
     if len(L) != len(nodeset.nodes.values()):
         print(len(L))
-        stillOpen = ""
-        for id in in_degree:
-            if in_degree[id] == 0:
+        still_open = ""
+        for ident in in_degree:
+            if in_degree[ident] == 0:
                 continue
-            node = nodeset.nodes[id]
-            stillOpen += node.browseName.name + "/" + str(node.id) + " = " + str(in_degree[id]) + \
-                                                                         " " + str(node.references) + "\r\n"
-        raise Exception("Node graph is circular on the specified references. Still open nodes:\r\n" + stillOpen)
+            node = nodeset.nodes[ident]
+            still_open += node.browseName.name + "/" + str(node.id) + " = " + str(in_degree[ident]) + " " + str(
+                node.references) + "\r\n"
+        raise Exception("Node graph is circular on the specified references. Still open nodes:\r\n" + still_open)
     return L
 
 ###################
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=[]):
+
+def generate_open62541_code(nodeset, outfilename, internal_headers=False, types_array=None):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
@@ -142,15 +140,15 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     def writec(line):
         print(unicode(line), end='\n', file=outfilec)
 
-    additionalHeaders = ""
-    if len(typesArray) > 0:
-        for arr in set(typesArray):
+    additional_headers = ""
+    if types_array is not None and len(types_array) > 0:
+        for arr in set(types_array):
             if arr == "UA_TYPES":
                 continue
             # remove ua_ prefix if exists
-            typeFile = arr.lower()
-            typeFile = typeFile[typeFile.startswith("ua_") and len("ua_"):]
-            additionalHeaders += """#include "%s_generated.h"\n""" % typeFile
+            type_file = arr.lower()
+            type_file = type_file[type_file.startswith("ua_") and len("ua_"):]
+            additional_headers += """#include "%s_generated.h"\n""" % type_file
 
     # Print the preamble of the generated code
     writeh("""/* WARNING: This is a generated file.
@@ -195,7 +193,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 #endif
 
 %s
-""" % (additionalHeaders))
+""" % additional_headers)
     else:
         writeh("""
 #ifdef UA_ENABLE_AMALGAMATION
@@ -204,7 +202,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 # include <open62541/server.h>
 #endif
 %s
-""" % (additionalHeaders))
+""" % additional_headers)
     writeh("""
 _UA_BEGIN_DECLS
 
@@ -212,20 +210,20 @@ extern UA_StatusCode %s(UA_Server *server);
 
 _UA_END_DECLS
 
-#endif /* %s_H_ */""" % \
+#endif /* %s_H_ */""" %
            (outfilebase, outfilebase.upper()))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
 
 #include "%s.h"
-""" % (outfilebase))
+""" % outfilebase)
 
     # Loop over the sorted nodes
     logger.info("Reordering nodes for minimal dependencies during printing")
-    sorted_nodes = sortNodes(nodeset)
+    sorted_nodes = sort_nodes(nodeset)
     logger.info("Writing code for nodes and references")
-    functionNumber = 0
+    function_number = 0
 
     printed_ids = set()
     for node in sorted_nodes:
@@ -234,7 +232,7 @@ _UA_END_DECLS
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
             code_global = []
-            code = generateNodeCode_begin(node, nodeset, code_global)
+            code = generate_node_code_begin(node, nodeset, code_global)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
@@ -243,7 +241,8 @@ _UA_END_DECLS
                 if len(code_global) > 0:
                     writec("\n".join(code_global))
                     writec("\n")
-                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {")
+                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" +
+                       str(function_number) + "_begin(UA_Server *server, UA_UInt16* ns) {")
                 if isinstance(node, MethodNode):
                     writec("#ifdef UA_ENABLE_METHODCALLS")
                 writec(code)
@@ -254,11 +253,11 @@ _UA_END_DECLS
                 continue
             if node.hidden and nodeset.nodes[ref.target].hidden:
                 continue
-            if node.parent is not None and ref.target == node.parent.id \
-                and ref.referenceType == node.parentReference.id:
-                # Skip parent reference
-                continue
-            writec(generateReferenceCode(ref))
+            if node.parent is not None and ref.target == node.parent.id:
+                if ref.referenceType == node.parentReference.id:
+                    # Skip parent reference
+                    continue
+            writec(generate_reference_code(ref))
 
         if node.hidden:
             continue
@@ -269,45 +268,46 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
-        writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
+        writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(function_number) +
+               "_finish(UA_Server *server, UA_UInt16* ns) {")
 
         if isinstance(node, MethodNode):
             writec("#ifdef UA_ENABLE_METHODCALLS")
-        writec("return " + generateNodeCode_finish(node))
+        writec("return " + generate_node_code_finish(node))
         if isinstance(node, MethodNode):
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
-        functionNumber = functionNumber + 1
+        function_number = function_number + 1
 
     writec("""
 UA_StatusCode %s(UA_Server *server) {
-UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
+UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % outfilebase)
 
     # Generate namespaces (don't worry about duplicates)
     writec("/* Use namespace ids generated by the server */")
-    writec("UA_UInt16 ns[" + str(len(nodeset.namespaces)) + "];")
-    for i, nsid in enumerate(nodeset.namespaces):
+    writec("UA_UInt16 ns[" + str(len(nodeset.namespace_urls)) + "];")
+    for i, nsid in enumerate(nodeset.namespace_urls):
         nsid = nsid.replace("\"", "\\\"")
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
 
-    if functionNumber > 0:
+    if function_number > 0:
 
         # concatenate method calls with "&&" operator.
         # The first method which does not return UA_STATUSCODE_GOOD (=0) will cause aborting
         # the remaining calls and retVal will be set to that error code.
         writec("bool dummy = (")
-        for i in range(0, functionNumber):
+        for i in range(0, function_number):
             writec("!(retVal = function_{outfilebase}_{idx}_begin(server, ns)) &&".format(
                 outfilebase=outfilebase, idx=str(i)))
 
-        for i in reversed(range(0, functionNumber)):
+        for i in reversed(range(0, function_number)):
             writec("!(retVal = function_{outfilebase}_{idx}_finish(server, ns)) {concat}".format(
-                outfilebase=outfilebase, idx=str(i), concat= "&&" if i>0 else ""))
+                outfilebase=outfilebase, idx=str(i), concat="&&" if i > 0 else ""))
 
         # use (void)(dummy) to avoid unused variable error.
         writec("); (void)(dummy);")
@@ -316,12 +316,11 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     outfileh.flush()
     os.fsync(outfileh)
     outfileh.close()
-    fullCode = outfilec.getvalue()
+    full_code = outfilec.getvalue()
     outfilec.close()
 
     outfilec = codecs.open(outfilename + ".c", r"w+", encoding='utf-8')
-    outfilec.write(fullCode)
+    outfilec.write(full_code)
     outfilec.flush()
     os.fsync(outfilec)
     outfilec.close()
-
