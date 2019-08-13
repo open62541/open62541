@@ -31,6 +31,15 @@ typedef struct registeredServer_list_entry {
     UA_DateTime lastSeen;
 } registeredServer_list_entry;
 
+struct PeriodicServerRegisterCallback {
+    UA_UInt64 id;
+    UA_Double this_interval;
+    UA_Double default_interval;
+    UA_Boolean registered;
+    struct UA_Client* client;
+    char* discovery_server_url;
+};
+
 typedef struct periodicServerRegisterCallback_entry {
 #ifdef UA_ENABLE_MULTITHREADING
     UA_DelayedCallback delayedCleanup;
