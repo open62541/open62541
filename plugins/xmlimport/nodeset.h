@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+/*
 typedef enum {
     NODECLASS_OBJECT = 0,
     NODECLASS_OBJECTTYPE = 1,
@@ -22,6 +23,7 @@ typedef enum {
     NODECLASS_REFERENCETYPE = 5,
     NODECLASS_VARIABLETYPE = 6
 } TNodeClass;
+*/
 
 struct Nodeset;
 typedef struct Nodeset Nodeset;
@@ -39,7 +41,7 @@ Nodeset_setNewNamespaceCallback(Nodeset *nodeset, addNamespaceCb nsCallback);
 void
 Nodeset_cleanup(Nodeset *nodeset);
 UA_Node *
-Nodeset_newNode(Nodeset *nodeset, TNodeClass nodeClass, int attributeSize,
+Nodeset_newNode(Nodeset *nodeset, UA_NodeClass nodeClass, int attributeSize,
                 const char **attributes);
 void
 Nodeset_newNodeFinish(Nodeset *nodeset, UA_Node *node);

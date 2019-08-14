@@ -232,7 +232,7 @@ static const ConversionFn conversionTable[UA_DATATYPEKINDS] = {
     setUInt16,         setInt32,          setUInt32,         setInt64,
     setUInt64,         setFloat,          setDouble,         setString,
     setDateTime,       setNotImplemented,
-    setString,  // handle like bytestring like string
+    setString,  // handle bytestring like string
     setNotImplemented, setNodeId,         setNotImplemented, setNotImplemented,
     setNotImplemented, setLocalizedText,  setNotImplemented, setNotImplemented,
     setNotImplemented, setNotImplemented, setNotImplemented,

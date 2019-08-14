@@ -29,6 +29,7 @@
 #define ALIAS "Alias"
 #define NAMESPACEURIS "NamespaceUris"
 #define NAMESPACEURI "Uri"
+#define VALUE "Value"
 
 typedef enum {
     PARSER_STATE_INIT,
@@ -44,11 +45,11 @@ typedef enum {
     PARSER_STATE_VALUE
 } TParserState;
 
-struct TParserCtx {
+typedef struct {
     TParserState state;
     TParserState prev_state;
     size_t unknown_depth;
-    TNodeClass nodeClass;
+    UA_NodeClass nodeClass;
     UA_Node *node;
     UA_NodeReferenceKind *refKind;
     Alias *alias;
@@ -56,10 +57,7 @@ struct TParserCtx {
     char *onCharacters;
     Nodeset *nodeset;
     struct Value *val;
-};
-
-struct TParserCtx;
-typedef struct TParserCtx TParserCtx;
+} TParserCtx;
 
 static void enterUnknownState(TParserCtx *ctx) {
     ctx->prev_state = ctx->state;
@@ -76,43 +74,43 @@ OnStartElementNs(void *ctx, const char *localname, const char *prefix, const cha
         case PARSER_STATE_INIT:
             if(!strcmp(localname, VARIABLE)) {
                 pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = NODECLASS_VARIABLE;
+                pctx->nodeClass = UA_NODECLASS_VARIABLE;
                 pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
                                              nb_attributes, attributes);
                 pctx->state = PARSER_STATE_NODE;
             } else if(!strcmp(localname, OBJECT)) {
                 pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = NODECLASS_OBJECT;
+                pctx->nodeClass = UA_NODECLASS_OBJECT;
                 pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
                                              nb_attributes, attributes);
                 pctx->state = PARSER_STATE_NODE;
             } else if(!strcmp(localname, OBJECTTYPE)) {
                 pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = NODECLASS_OBJECTTYPE;
+                pctx->nodeClass = UA_NODECLASS_OBJECTTYPE;
                 pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
                                              nb_attributes, attributes);
                 pctx->state = PARSER_STATE_NODE;
             } else if(!strcmp(localname, DATATYPE)) {
                 pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = NODECLASS_DATATYPE;
+                pctx->nodeClass = UA_NODECLASS_DATATYPE;
                 pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
                                              nb_attributes, attributes);
                 pctx->state = PARSER_STATE_NODE;
             } else if(!strcmp(localname, METHOD)) {
                 pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = NODECLASS_METHOD;
+                pctx->nodeClass = UA_NODECLASS_METHOD;
                 pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
                                              nb_attributes, attributes);
                 pctx->state = PARSER_STATE_NODE;
             } else if(!strcmp(localname, REFERENCETYPE)) {
                 pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = NODECLASS_REFERENCETYPE;
+                pctx->nodeClass = UA_NODECLASS_REFERENCETYPE;
                 pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
                                              nb_attributes, attributes);
                 pctx->state = PARSER_STATE_NODE;
             } else if(!strcmp(localname, VARIABLETYPE)) {
                 pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = NODECLASS_VARIABLETYPE;
+                pctx->nodeClass = UA_NODECLASS_VARIABLETYPE;
                 pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
                                              nb_attributes, attributes);
                 pctx->state = PARSER_STATE_NODE;
@@ -150,7 +148,7 @@ OnStartElementNs(void *ctx, const char *localname, const char *prefix, const cha
                 pctx->state = PARSER_STATE_REFERENCES;
             } else if(!strcmp(localname, DESCRIPTION)) {
                 pctx->state = PARSER_STATE_DESCRIPTION;
-            }else if(!strcmp(localname, "Value")) {
+            }else if(!strcmp(localname, VALUE)) {
                 pctx->val = Value_new();
                 pctx->state = PARSER_STATE_VALUE;
             } else {

@@ -46,22 +46,24 @@ typedef struct {
     bool optional;
 } NodeAttribute;
 
-NodeAttribute attrNodeId = {ATTRIBUTE_NODEID, NULL, false};
-NodeAttribute attrBrowseName = {ATTRIBUTE_BROWSENAME, NULL, false};
-NodeAttribute attrParentNodeId = {ATTRIBUTE_PARENTNODEID, NULL, true};
-NodeAttribute attrEventNotifier = {ATTRIBUTE_EVENTNOTIFIER, NULL, true};
-NodeAttribute attrDataType = {ATTRIBUTE_DATATYPE, "i=24", false};
-NodeAttribute attrValueRank = {ATTRIBUTE_VALUERANK, "-1", false};
-NodeAttribute attrArrayDimensions = {ATTRIBUTE_ARRAYDIMENSIONS, "", false};
-NodeAttribute attrIsAbstract = {ATTRIBUTE_ISABSTRACT, "false", false};
-NodeAttribute attrIsForward = {ATTRIBUTE_ISFORWARD, "true", false};
-NodeAttribute attrReferenceType = {ATTRIBUTE_REFERENCETYPE, NULL, true};
-NodeAttribute attrAlias = {ATTRIBUTE_ALIAS, NULL, false};
+const NodeAttribute attrNodeId = {ATTRIBUTE_NODEID, NULL, false};
+const NodeAttribute attrBrowseName = {ATTRIBUTE_BROWSENAME, NULL, false};
+const NodeAttribute attrParentNodeId = {ATTRIBUTE_PARENTNODEID, NULL, true};
+const NodeAttribute attrEventNotifier = {ATTRIBUTE_EVENTNOTIFIER, NULL, true};
+const NodeAttribute attrDataType = {ATTRIBUTE_DATATYPE, "i=24", false};
+const NodeAttribute attrValueRank = {ATTRIBUTE_VALUERANK, "-1", false};
+const NodeAttribute attrArrayDimensions = {ATTRIBUTE_ARRAYDIMENSIONS, "", false};
+const NodeAttribute attrIsAbstract = {ATTRIBUTE_ISABSTRACT, "false", false};
+const NodeAttribute attrIsForward = {ATTRIBUTE_ISFORWARD, "true", false};
+const NodeAttribute attrReferenceType = {ATTRIBUTE_REFERENCETYPE, NULL, true};
+const NodeAttribute attrAlias = {ATTRIBUTE_ALIAS, NULL, false};
 
+/*
 const UA_NodeClass UA_NODECLASSES[NODECLASS_COUNT] = {
     UA_NODECLASS_OBJECT,      UA_NODECLASS_OBJECTTYPE, UA_NODECLASS_VARIABLE,
     UA_NODECLASS_DATATYPE,    UA_NODECLASS_METHOD,     UA_NODECLASS_REFERENCETYPE,
     UA_NODECLASS_VARIABLETYPE};
+*/
 
 struct Alias {
     char *name;
@@ -70,7 +72,7 @@ struct Alias {
 
 struct TNamespace {
     UA_UInt16 idx;
-    char *name;
+    char *uri;
 };
 
 typedef struct {
@@ -84,17 +86,13 @@ typedef struct {
     UA_NodeReferenceKind *ref;
 } TRef;
 
-struct MemoryPool;
-
-
-
 struct Nodeset {
     char **countedChars;
     struct MemoryPool *aliasPool;
     size_t charsSize;
     TNamespaceTable *namespaceTable;
     size_t hierachicalRefsSize;
-    UA_NodeId *hierachicalRefs;
+    UA_NodeId * hierachicalRefs;
     struct MemoryPool *refPool;
     UA_Server *server;
 };
@@ -189,7 +187,7 @@ Nodeset_new(UA_Server *server) {
         return NULL;
     }
     table->ns[0].idx = 0;
-    table->ns[0].name = "http://opcfoundation.org/UA/";
+    table->ns[0].uri = "http://opcfoundation.org/UA/";
     nodeset->namespaceTable = table;
     return nodeset;
 }
@@ -213,7 +211,7 @@ Nodeset_cleanup(Nodeset *nodeset) {
 }
 
 static char *
-getAttributeValue(Nodeset *nodeset, NodeAttribute *attr, const char **attributes,
+getAttributeValue(Nodeset *nodeset, const NodeAttribute *attr, const char **attributes,
                   int nb_attributes) {
     const int fields = 5;
     for(int i = 0; i < nb_attributes; i++) {
@@ -329,10 +327,10 @@ initNode(Nodeset *nodeset, TNamespace *namespaces, UA_Node *node, int nb_attribu
 }
 
 UA_Node *
-Nodeset_newNode(Nodeset *nodeset, TNodeClass nodeClass, int nb_attributes,
+Nodeset_newNode(Nodeset *nodeset, UA_NodeClass nodeClass, int nb_attributes,
                 const char **attributes) {
     UA_Node *newNode = UA_Nodestore_newNode(UA_Server_getNsCtx(nodeset->server),
-                                            UA_NODECLASSES[nodeClass]);
+                                            nodeClass);
     initNode(nodeset, nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
 
     return newNode;
@@ -465,16 +463,16 @@ Nodeset_newNamespace(Nodeset *nodeset) {
         (TNamespace *)UA_realloc(nodeset->namespaceTable->ns,
                                  sizeof(TNamespace) * (nodeset->namespaceTable->size));
     nodeset->namespaceTable->ns = ns;
-    ns[nodeset->namespaceTable->size - 1].name = NULL;
+    ns[nodeset->namespaceTable->size - 1].uri = NULL;
     return &ns[nodeset->namespaceTable->size - 1];
 }
 
 void
 Nodeset_newNamespaceFinish(Nodeset *nodeset, void *userContext, char *namespaceUri) {
-    nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].name = namespaceUri;
+    nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].uri = namespaceUri;
     int globalIdx = nodeset->namespaceTable->cb(
         nodeset->server,
-        nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].name);
+        nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].uri);
 
     nodeset->namespaceTable->ns[nodeset->namespaceTable->size - 1].idx =
         (UA_UInt16)globalIdx;

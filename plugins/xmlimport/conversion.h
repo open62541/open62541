@@ -23,7 +23,7 @@ isTrue(const char *s) {
 
 // todo: handle guid, bytestring
 static inline UA_NodeId
-extractNodeId(char *s) {
+extractNodeId(const char *s) {
     char *idxSemi = strchr(s, ';');
     // namespaceindex zero?
     if(idxSemi == NULL) {
