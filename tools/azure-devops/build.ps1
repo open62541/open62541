@@ -1,6 +1,8 @@
 
 try {
-    cd $env:APPVEYOR_BUILD_FOLDER
+
+
+    Write-Host -ForegroundColor Green "`n## Build Path $env:Build_Repository_LocalPath #####`n"
 
     $vcpkg_toolchain = ""
     $vcpkg_triplet = ""
@@ -13,11 +15,29 @@ try {
         $build_encryption = "ON"
     }
 
-    $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/Tools/vcpkg/scripts/buildsystems/vcpkg.cmake"'
-    $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
-    # since https://github.com/Microsoft/vcpkg/commit/0334365f516c5f229ff4fcf038c7d0190979a38a#diff-464a170117fa96bf98b2f8d224bf503c
-    # vcpkg need to have  "C:\Tools\vcpkg\installed\x86-windows-static"
-    New-Item -Force -ItemType directory -Path "C:\Tools\vcpkg\installed\x86-windows-static"
+    if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
+        # Workaround for CMake not wanting sh.exe on PATH for MinGW (necessary for CMake 3.12.2)
+        $env:PATH = ($env:PATH.Split(';') | Where-Object { $_ -ne 'C:\Program Files\Git\bin' }) -join ';'
+        $env:PATH = ($env:PATH.Split(';') | Where-Object { $_ -ne 'C:\Program Files\Git\usr\bin' }) -join ';'
+        # Add mingw to path so that CMake finds e.g. clang
+        $env:PATH = "$env:MSYS2_ROOT\mingw64\bin;$env:PATH"
+        [System.Environment]::SetEnvironmentVariable('Path', $path, 'Machine')
+    }
+
+    if ($env:CC_SHORTNAME -eq "mingw") {
+
+    } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
+        # Setup clang
+        $env:CC = "clang --target=x86_64-w64-mingw32"
+        $env:CXX = "clang++ --target=x86_64-w64-mingw32"
+        clang --version
+    } else {
+        $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"'
+        $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x86-windows-static"'
+        # since https://github.com/Microsoft/vcpkg/commit/0334365f516c5f229ff4fcf038c7d0190979a38a#diff-464a170117fa96bf98b2f8d224bf503c
+        # vcpkg need to have  "C:\Tools\vcpkg\installed\x86-windows-static"
+        New-Item -Force -ItemType directory -Path "C:/vcpkg/installed/x86-windows-static"
+    }
 
     $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-DUA_COMPILE_AS_CXX:BOOL=$env:FORCE_CXX"
 
@@ -73,7 +93,7 @@ try {
     & cmake $cmake_cnf `
             -DBUILD_SHARED_LIBS:BOOL=OFF `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-static" `
+            -DCMAKE_INSTALL_PREFIX="$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
             -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
     & cmake --build . --target install --config RelWithDebInfo
@@ -83,7 +103,7 @@ try {
         exit $LASTEXITCODE
     }
     cd ..
-    & 7z a -tzip open62541-$env:CC_SHORTNAME-static.zip "$env:APPVEYOR_BUILD_FOLDER\pack\*" "$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-static\*"
+    & 7z a -tzip open62541-$env:CC_SHORTNAME-static.zip "$env:Build_Repository_LocalPath\pack\*" "$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static\*"
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
         Write-Host -ForegroundColor Red "`n`n*** Zipping failed. Exiting ... ***"
@@ -98,7 +118,7 @@ try {
     & cmake $cmake_cnf `
             -DBUILD_SHARED_LIBS:BOOL=ON `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-dynamic" `
+            -DCMAKE_INSTALL_PREFIX="$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-dynamic" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
             -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
     & cmake --build . --target install --config RelWithDebInfo
@@ -108,13 +128,45 @@ try {
         exit $LASTEXITCODE
     }
     cd ..
-    & 7z a -tzip open62541-$env:CC_SHORTNAME-dynamic.zip "$env:APPVEYOR_BUILD_FOLDER\pack\*" "$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-static\*"
+    & 7z a -tzip open62541-$env:CC_SHORTNAME-dynamic.zip "$env:Build_Repository_LocalPath\pack\*" "$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static\*"
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
         Write-Host -ForegroundColor Red "`n`n*** Zipping failed. Exiting ... ***"
         exit $LASTEXITCODE
     }
     Remove-Item -Path build -Recurse -Force
+
+    # Only execute unit tests on vs2017 to save compilation time
+    if ($env:CC_SHORTNAME -eq "vs2017") {
+        Write-Host -ForegroundColor Green "`n###################################################################"
+        Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
+        New-Item -ItemType directory -Path "build"
+        cd build
+        & cmake $cmake_cnf `
+                -DBUILD_SHARED_LIBS:BOOL=OFF `
+                -DCMAKE_BUILD_TYPE=Debug `
+                -DUA_BUILD_EXAMPLES=OFF `
+                -DUA_BUILD_UNIT_TESTS=ON `
+                -DUA_ENABLE_DA=ON `
+                -DUA_ENABLE_DISCOVERY=ON `
+                -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
+                -DUA_ENABLE_ENCRYPTION:BOOL=$build_encryption `
+                -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
+                -DUA_ENABLE_PUBSUB:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
+                -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
+                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+        & cmake --build . --config Debug
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
+        & cmake --build . --target test-verbose --config Debug
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
+    }
 
     # # do not cache log
     # Remove-Item -Path c:\miktex\texmfs\data\miktex\log -Recurse -Force
