@@ -585,6 +585,24 @@ START_TEST(ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
+START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BUILDINFO);
+    rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
+    ck_assert_uint_eq(resp.value.type->typeIndex, UA_TYPES_STRUCTUREDEFINITION);
+    UA_StructureDefinition *def = (UA_StructureDefinition*)resp.value.data;
+    ck_assert_uint_eq(def->fieldsSize, 6);
+#else
+    ck_assert_int_eq(UA_STATUSCODE_BADATTRIBUTEIDINVALID, resp.status);
+#endif
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
 /* Tests for writeValue method */
 
 START_TEST(WriteSingleAttributeNodeId) {
@@ -927,6 +945,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
 
     suite_add_tcase(s, tc_readSingleAttributes);
 
