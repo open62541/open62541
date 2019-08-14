@@ -92,20 +92,23 @@ setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_
     if(result != UA_STATUSCODE_GOOD)
         return result;
 
-    /* add the discoveryUrls from the networklayers */
-    size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
-    UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
-    if(!disc)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    size_t existing = target->discoveryUrlsSize;
-    target->discoveryUrls = disc;
-    target->discoveryUrlsSize += server->config.networkLayersSize;
+    /* Add the discoveryUrls from the networklayers only if discoveryUrl
+     * not already present and to avoid redundancy */
+    if(!target->discoveryUrlsSize) {
+        size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
+        UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
+        if(!disc)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        size_t existing = target->discoveryUrlsSize;
+        target->discoveryUrls = disc;
+        target->discoveryUrlsSize += server->config.networkLayersSize;
 
-    // TODO: Add nl only if discoveryUrl not already present
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
-        UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
+        for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+            UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
+            UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
+        }
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
