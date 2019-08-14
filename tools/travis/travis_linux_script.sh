@@ -11,7 +11,6 @@ if ! [ -z ${SONAR+x} ]; then
         # Skip on forks
         exit 0;
     fi
-    git fetch --unshallow
 	mkdir -p build && cd build
 	build-wrapper-linux-x86-64 --out-dir ../bw-output cmake \
         -DCMAKE_BUILD_TYPE=Debug \
