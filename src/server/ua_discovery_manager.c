@@ -162,6 +162,8 @@ UA_DiscoveryManager_deleteMembers(UA_DiscoveryManager *dm, UA_Server *server) {
     periodicServerRegisterCallback_entry *ps, *ps_tmp;
     LIST_FOREACH_SAFE(ps, &dm->periodicServerRegisterCallbacks, pointers, ps_tmp) {
         LIST_REMOVE(ps, pointers);
+        if (ps->callback->discovery_server_url)
+            UA_free(ps->callback->discovery_server_url);
         UA_free(ps->callback);
         UA_free(ps);
     }

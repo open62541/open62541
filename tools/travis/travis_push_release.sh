@@ -33,7 +33,7 @@ if [ ! -e "releases/$TAG.zip" ]; then
     cp ./../../README.md .
     cp ./../../LICENSE .
     cp ./../../AUTHORS .
-    cp ./../../open62541*.deb .
+    cp ./../../libopen62541*.deb .
 
     zip -r "$TAG.zip" open62541.c open62541.h open62541.pdf README.md LICENSE AUTHORS open62541*.deb
     rm open62541.c
@@ -42,7 +42,7 @@ if [ ! -e "releases/$TAG.zip" ]; then
     rm README.md
     rm LICENSE
     rm AUTHORS
-    rm open62541*.deb
+    rm libopen62541*.deb
     git add "$TAG.zip"
 
     echo "$TAG.zip" | cat - raw.txt > temp && mv temp raw.txt

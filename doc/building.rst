@@ -3,6 +3,11 @@
 Building open62541
 ==================
 
+open62541 uses CMake to build the library and binaries. The library version is automatically
+detected using ``git describe``. This command returns a valid version string based on the current tag.
+If you did not directly clone the sources, but use the tar or zip package from a release, you need
+to manually specify the version. In that case use e.g. ``cmake -DOPEN62541_VERSION=v1.0.3``.
+
 Building the Examples
 ---------------------
 

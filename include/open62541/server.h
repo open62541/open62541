@@ -547,8 +547,8 @@ UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
   * @param client the client which is used to call the RegisterServer.
   *         It must not yet be connected and will be connected for every register call
   *         to the given discoveryServerUrl.
-  * @param discoveryServerUrl if set to NULL, the default value
-  *        'opc.tcp://localhost:4840' will be used
+  * @param discoveryServerUrl where this server should register itself.
+  *        The string will be copied internally. Therefore you can free it after calling this method.
   * @param intervalMs
   * @param delayFirstRegisterMs
   * @param periodicCallbackId */
@@ -564,8 +564,9 @@ typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *regi
                                                  void* data);
 
 /* Set the callback which is called if another server registeres or unregisters
- * with this instance. If called multiple times, previous data will be
- * overwritten.
+ * with this instance. This callback is called every time the server gets a register
+ * call. This especially means that for every periodic server register the callback will
+ * be called.
  *
  * @param server
  * @param cb the callback

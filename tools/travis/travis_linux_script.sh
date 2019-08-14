@@ -437,16 +437,20 @@ echo -en 'travis_fold:end:script.build.unit_test_ns0_full\\r'
 
 if ! [ -z ${DEBIAN+x} ]; then
     echo -e "\r\n== Building the Debian package =="  && echo -en 'travis_fold:start:script.build.debian\\r'
-    /usr/bin/$PYTHON ./debian/update_changelog.py
+    /usr/bin/$PYTHON ./tools/prepare_packaging.py
     echo -e "\r\n --- New debian changelog content ---"
-    echo -e "--------------------------------------"
+    echo "--------------------------------------"
     cat ./debian/changelog
-    echo -e "--------------------------------------"
+    echo "--------------------------------------"
+    # Create a backup copy. We need the clean debian directory for later packaging
+    cp -r debian debian_bak
     dpkg-buildpackage -b
     if [ $? -ne 0 ] ; then exit 1 ; fi
-    cp ../open62541*.deb .
+    rm -rf debian
+    mv debian_bak debian
+    cp ../libopen62541*.deb .
     # Copy for github release script
-    cp ../open62541*.deb ../..
+    cp ../libopen62541*.deb ../..
     echo -en 'travis_fold:end:script.build.debian\\r'
 fi
 
@@ -510,7 +514,36 @@ if [ "$CC" != "tcc" ]; then
 
         echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
         coveralls -E '.*/build/CMakeFiles/.*' -E '.*/examples/.*' -E '.*/tests/.*' -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
+        cd .. && rm build -rf
         echo -en 'travis_fold:end:script.build.coveralls\\r'
+
+		if [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then
+			if [ "${TRAVIS_BRANCH}" = "master" ] || [ "${TRAVIS_BRANCH}" = "1.0" ]; then
+				# Create a separate branch with the `pack/` prefix. This branch has the correct debian/changelog set, and
+				# The submodules are directly copied
+				echo -e "\r\n== Pushing 'pack/${TRAVIS_BRANCH}' branch =="  && echo -en 'travis_fold:start:script.build.pack-branch\\r'
+
+				git checkout -b pack-tmp/${TRAVIS_BRANCH}
+				cp -r deps/mdnsd deps/mdnsd_back
+				cp -r deps/ua-nodeset deps/ua-nodeset_back
+				git rm -rf --cached deps/mdnsd
+				git rm -rf --cached deps/ua-nodeset
+				mv deps/mdnsd_back deps/mdnsd
+				rm -rf deps/mdnsd/.git
+				mv deps/ua-nodeset_back deps/ua-nodeset
+				rm -rf deps/ua-nodeset/.git
+				rm -rf .gitmodules
+				git add deps/*
+				git add debian/*
+				git add CMakeLists.txt
+				git commit -m "[ci skip] Pack with inline submodules"
+				git remote add origin-auth https://$GITAUTH@github.com/${TRAVIS_REPO_SLUG}
+				git push -uf origin-auth pack-tmp/${TRAVIS_BRANCH}:pack/${TRAVIS_BRANCH}
+
+				echo -en 'travis_fold:end:script.build.pack-branch\\r'
+			fi
+        fi
+
+
     fi
-    cd .. && rm build -rf
 fi
