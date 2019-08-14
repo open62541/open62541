@@ -10,7 +10,7 @@ struct Value *
 Value_new(void);
 
 void
-Value_start(Value *val, UA_Node *node, const char* localname, int attributeSize, const char **attribute);
+Value_start(Value *val, const UA_Node *node, const char* localname);
 
 void
 Value_end(Value *val, UA_Node *node, const char* localname, char *value);

@@ -4,7 +4,7 @@
 
 static inline UA_Boolean
 isNodeId(const char *s) {
-    if(!strncmp(s, "ns=", 3) || !strncmp(s, "i=", 2) || !strncmp(s, "s=", 2)) {
+    if(!strncmp(s, "ns=", 3) || !strncmp(s, "i=", 2) || !strncmp(s, "s=", 2) || !strncmp(s, "g=",2) || !strncmp(s, "b=",2)) {
         return UA_TRUE;
     }
     return UA_FALSE;

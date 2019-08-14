@@ -4,8 +4,8 @@ Support loading of extensions
 Loading of values:
     Basis there for loading values with namespace 0 datatypes.
     For loading values with datatype other than namespace zero,
-    loading oft datatypes is needed
-Loading of datatypes
+    loading of datatypes is needed
+Loading of datatypes 
 
 
 

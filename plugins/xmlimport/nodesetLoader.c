@@ -158,7 +158,7 @@ OnStartElementNs(void *ctx, const char *localname, const char *prefix, const cha
             }
             break;
         case PARSER_STATE_VALUE:
-            Value_start(pctx->val, pctx->node, localname, nb_attributes, attributes);
+            Value_start(pctx->val, pctx->node, localname);
             break;
 
         case PARSER_STATE_REFERENCES:
