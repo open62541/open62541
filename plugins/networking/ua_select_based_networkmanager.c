@@ -209,8 +209,8 @@ select_nm_processSocket(UA_NetworkManager *networkManager, UA_UInt32 timeout,
     if(sock->waitForReadActivity)
         UA_fd_set((UA_SOCKET)sock->id, &readfdset);
 
-    long int secs = timeout / 1000;
-    long int microsecs = (timeout * 1000) % 1000000;
+    long int secs = (long int)timeout / 1000;
+    long int microsecs = ((long int)timeout * 1000) % 1000000;
     struct timeval tmptv = {secs, microsecs};
 
     int resultsize = UA_select((UA_Int32)(sock->id + 1), &readfdset, &writefdset, NULL, &tmptv);

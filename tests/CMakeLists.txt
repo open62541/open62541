@@ -69,6 +69,12 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_cloc
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_socket.c
 )
 
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    set(test_plugin_sources ${test_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_listener_socket.c
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_data_socket.c)
+endif()
+
 if(UA_ENABLE_HISTORIZING)
     set(test_plugin_sources ${test_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c

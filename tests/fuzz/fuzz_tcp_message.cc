@@ -16,8 +16,6 @@
 
 #include "ua_server_internal.h"
 
-#include "testing_networklayers.h"
-
 #define RECEIVE_BUFFER_SIZE 65535
 #define SERVER_PORT 4840
 

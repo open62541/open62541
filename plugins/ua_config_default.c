@@ -12,11 +12,6 @@
  */
 
 #include <open62541/client_config_default.h>
-#ifdef UA_ENABLE_WEBSOCKET_SERVER
-#ifdef ENABLE_TODOS
-#include <open62541/network_ws.h>
-#endif
-#endif
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
@@ -254,52 +249,26 @@ UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
     return res;
 }
 
-/*
- * TODO: Rework Websocket layer to new api
- */
-#ifdef UA_ENABLE_WEBSOCKET_SERVER
-#ifdef ENABLE_TODOS
-UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
-    /* Add a network layer */
-    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
-        UA_realloc(conf->networkLayers,
-                   sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
-    if(!tmp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayers = tmp;
-
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if (sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if (recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
-
-    conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger);
-    if (!conf->networkLayers[conf->networkLayersSize].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize++;
-
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-#endif
-
 static UA_StatusCode
 configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt32 sendBufferSize,
                             UA_UInt32 recvBufferSize) {
 
-    conf->listenerSocketConfigs = (UA_ListenerSocketConfig *)UA_malloc(sizeof(UA_ListenerSocketConfig));
-    if(conf->listenerSocketConfigs == NULL)
+    conf->listenerSocketConfigsSize = 1;
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+    conf->listenerSocketConfigsSize += 1;
+#endif
+    conf->listenerSocketConfigs = (UA_ListenerSocketConfig *)UA_malloc(
+        conf->listenerSocketConfigsSize * sizeof(UA_ListenerSocketConfig));
+    if(conf->listenerSocketConfigs == NULL) {
+        conf->listenerSocketConfigsSize = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UA_StatusCode retval = UA_SelectBasedNetworkManager(&conf->logger, &conf->networkManager);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    conf->listenerSocketConfigsSize = 1;
+    // TCP Listeners
     conf->listenerSocketConfigs[0].socketConfig.networkManager = conf->networkManager;
     conf->listenerSocketConfigs[0].socketConfig.sendBufferSize = sendBufferSize;
     if(conf->listenerSocketConfigs[0].socketConfig.sendBufferSize <= 0)
@@ -311,6 +280,21 @@ configureNetworking_default(UA_ServerConfig *conf, UA_UInt16 portNumber, UA_UInt
     conf->listenerSocketConfigs[0].socketConfig.createSocket = UA_TCP_ListenerSockets;
     conf->listenerSocketConfigs[0].socketConfig.customHostname = UA_STRING_NULL;
     conf->listenerSocketConfigs[0].socketConfig.additionalParameters = NULL;
+
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+    // Websocket Listeners
+    conf->listenerSocketConfigs[1].socketConfig.networkManager = conf->networkManager;
+    conf->listenerSocketConfigs[1].socketConfig.sendBufferSize = sendBufferSize;
+    if(conf->listenerSocketConfigs[1].socketConfig.sendBufferSize <= 0)
+        conf->listenerSocketConfigs[1].socketConfig.sendBufferSize = 65535;
+    conf->listenerSocketConfigs[1].socketConfig.recvBufferSize = recvBufferSize;
+    if(conf->listenerSocketConfigs[1].socketConfig.recvBufferSize <= 0)
+        conf->listenerSocketConfigs[1].socketConfig.recvBufferSize = 65535;
+    conf->listenerSocketConfigs[1].socketConfig.port = 4880;
+    conf->listenerSocketConfigs[1].socketConfig.createSocket = UA_WSS_ListenerSocket;
+    conf->listenerSocketConfigs[1].socketConfig.customHostname = UA_STRING_NULL;
+    conf->listenerSocketConfigs[1].socketConfig.additionalParameters = NULL;
+#endif
 
     conf->connectionConfig.sendBufferSize = sendBufferSize;
     if(conf->connectionConfig.sendBufferSize <= 0)

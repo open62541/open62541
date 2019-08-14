@@ -7,7 +7,7 @@
 #ifndef OPEN62541_SOCKETS_H
 #define OPEN62541_SOCKETS_H
 
-#include "open62541/plugin/socket.h"
+#include <open62541/plugin/socket.h>
 
 _UA_BEGIN_DECLS
 /**
@@ -45,6 +45,15 @@ UA_TCP_ListenerSockets(const UA_SocketConfig *socketConfig, UA_SocketCallbackFun
 typedef struct {
     UA_Socket *listenerSocket;
 } UA_TCP_DataSocket_AcceptFrom_AdditionalParameters;
+
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+UA_StatusCode
+UA_WSS_ListenerSocket(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback);
+
+UA_StatusCode
+UA_WSS_DataSocket_AcceptFrom(const UA_SocketConfig *socketConfig, UA_SocketCallbackFunction const creationCallback);
+#endif
+
 /**
  * Creates a data socket by accepting an incoming connection from the listenerSocket.
  *

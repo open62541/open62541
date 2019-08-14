@@ -4,7 +4,7 @@
  *    Copyright 2019 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include "open62541/plugin/networkmanager.h"
+#include <open62541/plugin/networkmanager.h>
 
 #ifndef OPEN62541_UA_NETWORKMANAGERS_H
 #define OPEN62541_UA_NETWORKMANAGERS_H

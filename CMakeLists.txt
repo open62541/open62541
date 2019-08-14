@@ -101,14 +101,6 @@ set(ua_architecture_headers ${ua_architecture_headers}
                             ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
-if(UA_ENABLE_WEBSOCKET_SERVER)
-    set(ua_architecture_sources ${ua_architecture_sources}
-                                ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
-
-    set(ua_architecture_headers ${ua_architecture_headers}
-                                ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
-endif()
-
 if(${UA_ARCHITECTURE} STREQUAL "None")
   message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
 endif(${UA_ARCHITECTURE} STREQUAL "None")
@@ -793,6 +785,13 @@ if(UA_ENABLE_PUBSUB)
             list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
         endif()
     endif()
+endif()
+
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/networking/wss_private.h)
+    set(default_plugin_sources ${default_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_listener_socket.c
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_data_socket.c)
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)

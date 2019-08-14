@@ -71,6 +71,12 @@ set(fuzzing_plugin_sources
         ${PROJECT_SOURCE_DIR}/plugins/networking/ua_select_based_networkmanager.c
 )
 
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    set(fuzzing_plugin_sources ${fuzzing_plugin_sources}
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_listener_socket.c
+        ${PROJECT_SOURCE_DIR}/plugins/networking/ua_wss_data_socket.c)
+endif()
+
 if(UA_ENABLE_ENCRYPTION)
   list(APPEND fuzzing_plugin_sources
        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
