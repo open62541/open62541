@@ -3289,7 +3289,7 @@ decodeJsonInternal(void *dst, const UA_DataType *type,
 status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     
-#ifndef UA_ENABLE_TYPENAMES
+#ifndef UA_ENABLE_TYPEDESCRIPTION
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
     

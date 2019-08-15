@@ -228,7 +228,7 @@ Detailed SDK Features
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
 
-**UA_ENABLE_TYPENAMES**
+**UA_ENABLE_TYPEDESCRIPTION**
    Add the type and member names to the UA_DataType structure. Enabled by default.
 
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
@@ -283,7 +283,7 @@ communication.
 Last, logging messages take up a lot of space in the binary and might not be
 needed in embedded scenarios. Setting ``UA_LOGLEVEL`` to a value above 600
 (``FATAL``) disables all logging. In addition, the feature-flags
-``UA_ENABLE_TYPENAMES`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
+``UA_ENABLE_TYPEDESCRIPTION`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
 information to the binary that is only used for human-readable logging and
 debugging.
 
