@@ -128,6 +128,14 @@ static void setup(void) {
                                    UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* DataTypeNode */
+    UA_DataTypeAttributes typeattr = UA_DataTypeAttributes_default;
+    typeattr.displayName = UA_LOCALIZEDTEXT("en-US", "TestDataType");
+    retval = UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                  UA_QUALIFIEDNAME(0, "Argument"), typeattr, NULL, NULL);
+
 #ifdef UA_ENABLE_METHODCALLS
     /* MethodNode */
     UA_MethodAttributes ma = UA_MethodAttributes_default;
@@ -588,15 +596,17 @@ START_TEST(ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
 START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
-    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BUILDINFO);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT);
     rvi.attributeId = UA_ATTRIBUTEID_DATATYPEDEFINITION;
 
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
     ck_assert_uint_eq(resp.value.type->typeIndex, UA_TYPES_STRUCTUREDEFINITION);
     UA_StructureDefinition *def = (UA_StructureDefinition*)resp.value.data;
-    ck_assert_uint_eq(def->fieldsSize, 6);
+    ck_assert_uint_eq(def->fieldsSize, 5);
 #else
     ck_assert_int_eq(UA_STATUSCODE_BADATTRIBUTEIDINVALID, resp.status);
 #endif
