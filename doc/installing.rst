@@ -78,3 +78,12 @@ Debian packages can be found in our official PPA:
 
  * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
  * Release Builds (starting with Version 0.4): https://launchpad.net/~open62541-team/+archive/ubuntu/ppa
+
+Install them with:
+
+
+.. code-block:: bash
+
+    sudo add-apt-repository ppa:open62541-team/ppa
+    sudo apt-get update
+    sudo apt-get install libopen62541-dev

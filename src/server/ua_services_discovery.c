@@ -441,14 +441,18 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #else
         UA_atomic_addSize(&server->discoveryManager.registeredServersSize, 1);
 #endif
-
-        if(server->discoveryManager.registerServerCallback)
-            server->discoveryManager.
-                registerServerCallback(requestServer,
-                                       server->discoveryManager.registerServerCallbackData);
     } else {
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
     }
+
+    // Always call the callback, if it is set.
+    // Previously we only called it if it was a new register call. It may be the case that this endpoint
+    // registered before, then crashed, restarts and registeres again. In that case the entry is not deleted
+    // and the callback would not be called.
+    if(server->discoveryManager.registerServerCallback)
+        server->discoveryManager.
+            registerServerCallback(requestServer,
+                                   server->discoveryManager.registerServerCallbackData);
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
@@ -541,15 +545,6 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
     }
 }
 
-struct PeriodicServerRegisterCallback {
-    UA_UInt64 id;
-    UA_Double this_interval;
-    UA_Double default_interval;
-    UA_Boolean registered;
-    UA_Client* client;
-    const char* discovery_server_url;
-};
-
 /* Called by the UA_Server callback. The OPC UA specification says:
  *
  * > If an error occurs during registration (e.g. the Discovery Server is not running) then the Server
@@ -565,14 +560,7 @@ periodicServerRegister(UA_Server *server, void *data) {
 
     struct PeriodicServerRegisterCallback *cb = (struct PeriodicServerRegisterCallback *)data;
 
-    /* Which URL to register on */
-    // fixme: remove magic url
-    const char * server_url;
-    if(cb->discovery_server_url != NULL)
-        server_url = cb->discovery_server_url;
-    else
-        server_url = "opc.tcp://localhost:4840";
-    UA_StatusCode retval = UA_Client_connect_noSession(cb->client, server_url);
+    UA_StatusCode retval = UA_Client_connect_noSession(cb->client, cb->discovery_server_url);
     if (retval == UA_STATUSCODE_GOOD) {
         /* Register
            You can also use a semaphore file. That file must exist. When the file is
@@ -656,6 +644,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                             "There is already a register callback for '%s' in place. Removing the older one.", discoveryServerUrl);
                 UA_Server_removeRepeatedCallback(server, rs->callback->id);
                 LIST_REMOVE(rs, pointers);
+                UA_free(rs->callback->discovery_server_url);
                 UA_free(rs->callback);
                 UA_free(rs);
                 break;
@@ -677,9 +666,13 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     cb->default_interval = intervalMs;
     cb->registered = false;
     cb->client = client;
-    cb->discovery_server_url = discoveryServerUrl;
-
-
+    size_t len = strlen(discoveryServerUrl);
+    cb->discovery_server_url = (char*)UA_malloc(len+1);
+    if (!cb->discovery_server_url) {
+        UA_free(cb);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    memcpy(cb->discovery_server_url, discoveryServerUrl, len+1);
 
     /* Add the callback */
     UA_StatusCode retval =
