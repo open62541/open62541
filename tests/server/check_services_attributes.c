@@ -131,7 +131,7 @@ static void setup(void) {
     /* DataTypeNode */
     UA_DataTypeAttributes typeattr = UA_DataTypeAttributes_default;
     typeattr.displayName = UA_LOCALIZEDTEXT("en-US", "TestDataType");
-    retval = UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT),
+    UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ARGUMENT),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                   UA_QUALIFIEDNAME(0, "Argument"), typeattr, NULL, NULL);
