@@ -13,18 +13,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/*
-typedef enum {
-    NODECLASS_OBJECT = 0,
-    NODECLASS_OBJECTTYPE = 1,
-    NODECLASS_VARIABLE = 2,
-    NODECLASS_DATATYPE = 3,
-    NODECLASS_METHOD = 4,
-    NODECLASS_REFERENCETYPE = 5,
-    NODECLASS_VARIABLETYPE = 6
-} TNodeClass;
-*/
-
 struct Nodeset;
 typedef struct Nodeset Nodeset;
 

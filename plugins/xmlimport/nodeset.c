@@ -58,13 +58,6 @@ const NodeAttribute attrIsForward = {ATTRIBUTE_ISFORWARD, "true", false};
 const NodeAttribute attrReferenceType = {ATTRIBUTE_REFERENCETYPE, NULL, true};
 const NodeAttribute attrAlias = {ATTRIBUTE_ALIAS, NULL, false};
 
-/*
-const UA_NodeClass UA_NODECLASSES[NODECLASS_COUNT] = {
-    UA_NODECLASS_OBJECT,      UA_NODECLASS_OBJECTTYPE, UA_NODECLASS_VARIABLE,
-    UA_NODECLASS_DATATYPE,    UA_NODECLASS_METHOD,     UA_NODECLASS_REFERENCETYPE,
-    UA_NODECLASS_VARIABLETYPE};
-*/
-
 struct Alias {
     char *name;
     UA_NodeId id;
@@ -315,6 +308,8 @@ extractAttributes(Nodeset *nodeset, const TNamespace *namespaces, UA_Node *node,
             //    attributes, attributeSize));
             break;
         case UA_NODECLASS_REFERENCETYPE:
+            break;
+        case UA_NODECLASS_VIEW:
             break;
         default:;
     }

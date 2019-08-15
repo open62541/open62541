@@ -22,6 +22,7 @@
 #define VARIABLETYPE "UAVariableType"
 #define DATATYPE "UADataType"
 #define REFERENCETYPE "UAReferenceType"
+#define VIEW "UAView"
 #define DISPLAYNAME "DisplayName"
 #define REFERENCES "References"
 #define REFERENCE "Reference"
@@ -30,6 +31,22 @@
 #define NAMESPACEURIS "NamespaceUris"
 #define NAMESPACEURI "Uri"
 #define VALUE "Value"
+
+typedef struct {
+    const char *name;
+    const UA_NodeClass nodeClass;
+} NodeClassMapping;
+
+#define NODECLASSCOUNT 8
+static const NodeClassMapping nodeClassTable[NODECLASSCOUNT] = {
+    {VARIABLE, UA_NODECLASS_VARIABLE},
+    {OBJECT, UA_NODECLASS_OBJECT},
+    {METHOD, UA_NODECLASS_METHOD},
+    {OBJECTTYPE, UA_NODECLASS_OBJECTTYPE},
+    {VARIABLETYPE, UA_NODECLASS_VARIABLETYPE},
+    {DATATYPE, UA_NODECLASS_DATATYPE},
+    {REFERENCETYPE, UA_NODECLASS_REFERENCETYPE},
+    {VIEW, UA_NODECLASS_VIEW}};
 
 typedef enum {
     PARSER_STATE_INIT,
@@ -65,6 +82,22 @@ static void enterUnknownState(TParserCtx *ctx) {
     ctx->unknown_depth = 1;
 }
 
+static bool getNode(TParserCtx* pctx, const char* name, int attributeSize, const char** attributes)
+{
+    for(size_t i = 0; i < NODECLASSCOUNT; i++)
+    {
+        if(!strcmp(name, nodeClassTable[i].name))
+        {
+            pctx->state = PARSER_STATE_NODE;
+            pctx->nodeClass = nodeClassTable[i].nodeClass;
+            pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
+                                             attributeSize, attributes);
+            return true;
+        }
+    }
+    return false;
+}
+
 static void
 OnStartElementNs(void *ctx, const char *localname, const char *prefix, const char *URI,
                  int nb_namespaces, const char **namespaces, int nb_attributes,
@@ -72,48 +105,9 @@ OnStartElementNs(void *ctx, const char *localname, const char *prefix, const cha
     TParserCtx *pctx = (TParserCtx *)ctx;
     switch(pctx->state) {
         case PARSER_STATE_INIT:
-            if(!strcmp(localname, VARIABLE)) {
-                pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = UA_NODECLASS_VARIABLE;
-                pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
-                                             nb_attributes, attributes);
-                pctx->state = PARSER_STATE_NODE;
-            } else if(!strcmp(localname, OBJECT)) {
-                pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = UA_NODECLASS_OBJECT;
-                pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
-                                             nb_attributes, attributes);
-                pctx->state = PARSER_STATE_NODE;
-            } else if(!strcmp(localname, OBJECTTYPE)) {
-                pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = UA_NODECLASS_OBJECTTYPE;
-                pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
-                                             nb_attributes, attributes);
-                pctx->state = PARSER_STATE_NODE;
-            } else if(!strcmp(localname, DATATYPE)) {
-                pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = UA_NODECLASS_DATATYPE;
-                pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
-                                             nb_attributes, attributes);
-                pctx->state = PARSER_STATE_NODE;
-            } else if(!strcmp(localname, METHOD)) {
-                pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = UA_NODECLASS_METHOD;
-                pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
-                                             nb_attributes, attributes);
-                pctx->state = PARSER_STATE_NODE;
-            } else if(!strcmp(localname, REFERENCETYPE)) {
-                pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = UA_NODECLASS_REFERENCETYPE;
-                pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
-                                             nb_attributes, attributes);
-                pctx->state = PARSER_STATE_NODE;
-            } else if(!strcmp(localname, VARIABLETYPE)) {
-                pctx->state = PARSER_STATE_NODE;
-                pctx->nodeClass = UA_NODECLASS_VARIABLETYPE;
-                pctx->node = Nodeset_newNode(pctx->nodeset, pctx->nodeClass,
-                                             nb_attributes, attributes);
-                pctx->state = PARSER_STATE_NODE;
+            if(getNode(pctx, localname, nb_attributes, attributes))
+            {
+                break;
             } else if(!strcmp(localname, NAMESPACEURIS)) {
                 pctx->state = PARSER_STATE_NAMESPACEURIS;
             } else if(!strcmp(localname, ALIAS)) {
