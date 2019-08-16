@@ -145,12 +145,6 @@ class NodeSet(object):
     def getNodeByBrowseName(self, idstring):
         return next((n for n in self.nodes.values() if idstring == n.browseName.name), None)
 
-    def getNodeById(self, namespace, id):
-        nodeId = NodeId()
-        nodeId.ns = namespace
-        nodeId.i = id
-        return self.nodes[nodeId]
-
     def getRoot(self):
         return self.getNodeByBrowseName("Root")
 
