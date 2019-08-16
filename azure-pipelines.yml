@@ -2,9 +2,6 @@
 # https://aka.ms/yaml
 
 
-pr:
-  autoCancel: true # indicates whether additional pushes to a PR should cancel in-progress runs for the same PR. Defaults to true
-
 variables:
   choco_cache: C:/ProgramData/chocolatey
   vcpkg_cache: C:/vcpkg/installed
