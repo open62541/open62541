@@ -3,7 +3,6 @@
 
 
 variables:
-  choco_cache: C:/ProgramData/chocolatey
   vcpkg_cache: C:/vcpkg/installed
 
 jobs:
@@ -20,11 +19,6 @@ jobs:
   - checkout: self
     submodules: recursive
 
-  - task: CacheBeta@0
-    inputs:
-      key: $(Build.SourcesDirectory)/tools/azure-devops/install.ps1
-      path: $(choco_cache)
-    displayName: Cache Choco
   - task: CacheBeta@0
     inputs:
       key: $(Build.SourcesDirectory)/tools/azure-devops/install.ps1
@@ -58,11 +52,6 @@ jobs:
   steps:
   - checkout: self
     submodules: recursive
-  - task: CacheBeta@0
-    inputs:
-      key: $(Build.SourcesDirectory)/tools/azure-devops/install.ps1
-      path: $(choco_cache)
-    displayName: Cache Choco
 
   - powershell: ./tools/azure-devops/install.ps1
     displayName: Install Requirements
@@ -93,11 +82,6 @@ jobs:
   steps:
   - checkout: self
     submodules: recursive
-  - task: CacheBeta@0
-    inputs:
-      key: $(Build.SourcesDirectory)/tools/azure-devops/install.ps1
-      path: $(choco_cache)
-    displayName: Cache Choco
 
   - powershell: ./tools/azure-devops/install.ps1
     displayName: Install Requirements
