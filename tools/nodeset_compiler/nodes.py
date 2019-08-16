@@ -288,7 +288,7 @@ class VariableNode(Node):
             return False
 
         self.value = Value()
-        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self, nodeset.namespaceMapping[self.modelUri])
+        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self)
         return True
 
 
@@ -420,7 +420,7 @@ class DataTypeNode(Node):
             return self.__baseTypeEncoding__
 
 
-    def buildEncoding(self, nodeset, indent=0, force=False):
+    def buildEncoding(self, nodeset, indent=0, force=False, namespaceMapping=None):
         """ buildEncoding() determines the structure and aliases used for variables
             of this DataType.
 
@@ -498,7 +498,8 @@ class DataTypeNode(Node):
         if self.__xmlDefinition__ is None:
             if parentType is not None:
                 logger.debug( prefix + "Attempting definition using supertype " + str(targetNode.browseName) + " for DataType " + " " + str(self.browseName))
-                subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1)
+                subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1,
+                                                  namespaceMapping=namespaceMapping)
                 if not targetNode.isEncodable():
                     self.__encodable__ = False
                 else:
@@ -570,7 +571,8 @@ class DataTypeNode(Node):
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
                     fdTypeNodeId = NodeId(fdtype)
-                    fdTypeNodeId.ns = nodeset.namespaceMapping[self.modelUri][fdTypeNodeId.ns]
+                    if namespaceMapping != None:
+                        fdTypeNodeId.ns = namespaceMapping[fdTypeNodeId.ns]
                     if not fdTypeNodeId in nodeset.nodes:
                         raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
                     dtnode = nodeset.nodes[fdTypeNodeId]
@@ -579,7 +581,8 @@ class DataTypeNode(Node):
                     typeDict.append([fname, dtnode])
                     fdtype = str(dtnode.browseName.name)
                     logger.debug( prefix + fname + " : " + fdtype + " -> " + str(dtnode.id))
-                    subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1)
+                    subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1,
+                                                  namespaceMapping=namespaceMapping)
                     self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank]]
                     if not dtnode.isEncodable():
                         # If we inherit an encoding from an unencodable not, this node is
@@ -596,7 +599,7 @@ class DataTypeNode(Node):
 
         if isOptionSet == True:
             self.__isOptionSet__ = True
-            subenc = parentType.buildEncoding(nodeset=nodeset)
+            subenc = parentType.buildEncoding(nodeset=nodeset, namespaceMapping=namespaceMapping)
             if not parentType.isEncodable():
                 self.__encodable__ = False
             else:
