@@ -121,6 +121,13 @@ START_TEST(Server_LoadNS0Values) {
     ck_assert(var.type->typeIndex == UA_TYPES_SERVERSTATUSDATATYPE);
     ck_assert_int_eq(((UA_ServerStatusDataType *)var.data)[1].state, 3);
     UA_Variant_clear(&var);
+    // LocalizedText
+    retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(nsIdx, 1007), &var);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(var.type->typeIndex == UA_TYPES_LOCALIZEDTEXT);
+    UA_String s = UA_STRING("en");
+    ck_assert(UA_String_equal(&((UA_LocalizedText *)var.data)->locale, &s));
+    UA_Variant_clear(&var);
 }
 END_TEST
 

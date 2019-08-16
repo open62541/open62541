@@ -17,8 +17,9 @@
         <Alias Alias="Argument">i=296</Alias>
         <Alias Alias="HasDescription">i=39</Alias>
         <Alias Alias="ServerStatusDataType">i=862</Alias>
+        <Alias Alias="LocalizedText">i=21</Alias>
     </Aliases>
-    <UAVariable NodeId="ns=1;i=1000" BrowseName="InputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+   <UAVariable NodeId="ns=1;i=1000" BrowseName="InputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
     <DisplayName>Arguments_Array</DisplayName>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
@@ -130,9 +131,9 @@
     </References>
     <Value>
       <ListOfUInt32>
-        <Double>120</Double>
-        <Double>130</Double>
-        <Double>140</Double>
+        <UInt32>120</UInt32>
+        <UInt32>130</UInt32>
+        <UInt32>140</UInt32>
       </ListOfUInt32>
     </Value>
   </UAVariable>
@@ -231,4 +232,17 @@
             </ListOfExtensionObject>
         </Value>
     </UAVariable>
+    <UAVariable NodeId="ns=1;i=1007" BrowseName="Localized" DataType="LocalizedText" ValueRank="-1">
+    <DisplayName>Localized</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <LocalizedText>
+        <Locale>en</Locale>
+        <Text>someText@42</Text>
+      </LocalizedText>
+    </Value>
+  </UAVariable>
 </UANodeSet>
