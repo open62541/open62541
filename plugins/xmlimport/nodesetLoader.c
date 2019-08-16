@@ -143,7 +143,7 @@ OnStartElementNs(void *ctx, const char *localname, const char *prefix, const cha
             } else if(!strcmp(localname, DESCRIPTION)) {
                 pctx->state = PARSER_STATE_DESCRIPTION;
             }else if(!strcmp(localname, VALUE)) {
-                pctx->val = Value_new();
+                pctx->val = Value_new(pctx->node);
                 pctx->state = PARSER_STATE_VALUE;
             } else {
                 enterUnknownState(pctx);

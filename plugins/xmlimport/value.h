@@ -7,7 +7,7 @@ struct Value;
 typedef struct Value Value;
 
 struct Value *
-Value_new(void);
+Value_new(const UA_Node* node);
 
 void
 Value_start(Value *val, const UA_Node *node, const char* localname);

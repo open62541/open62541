@@ -3,13 +3,11 @@
 
 enum VALUE_STATE {
     VALUE_STATE_INIT,
+    VALUE_STATE_DATA,
+    VALUE_STATE_FINISHED,
     VALUE_STATE_BUILTIN,
-    VALUE_STATE_EXTENSIONOBJECT,
-    VALUE_STATE_EXTENSIONOBJECT_BODY,
-    VALUE_STATE_EXTENSIONOBJECT_FIELD,
     VALUE_STATE_NODEID,
     VALUE_STATE_LOCALIZEDTEXT,
-    VALUE_STATE_EXTENSIONOBJECT_DATA,
     VALUE_STATE_ERROR
 };
 
@@ -27,18 +25,10 @@ struct Value {
     size_t arrayCnt;
     TypeList *typestack;
     size_t offset;
-    const UA_DataType *currentMemberType;
+    const char *name;
 };
 
 typedef void (*ConversionFn)(uintptr_t adr, char *value);
-
-Value *
-Value_new() {
-    Value *val = (Value *)UA_calloc(1, sizeof(Value));
-    val->state = VALUE_STATE_INIT;
-    val->typestack = (TypeList *)UA_calloc(1, sizeof(TypeList));
-    return val;
-}
 
 static UA_StatusCode
 getMem(Value *val) {
@@ -58,9 +48,32 @@ getMem(Value *val) {
     return UA_STATUSCODE_GOOD;
 }
 
+Value *
+Value_new(const UA_Node *node) {
+    Value *val = (Value *)UA_calloc(1, sizeof(Value));
+    val->state = VALUE_STATE_INIT;
+    val->typestack = (TypeList *)UA_calloc(1, sizeof(TypeList));
+
+    //looks only in UA_TYPES, should also look in custom types
+    val->typestack->type = UA_findDataType(&((const UA_VariableNode *)node)->dataType);
+    val->name = val->typestack->type->typeName;
+    if(!val->typestack->type) {
+        printf("could not determine type, value processing stopped\n");
+        val->state = VALUE_STATE_ERROR;
+    }
+    val->typestack->memberIndex = 0;
+    if(getMem(val)!=UA_STATUSCODE_GOOD)
+    {
+        printf("getMem failed, value processing stopped\n");
+        val->state = VALUE_STATE_ERROR;
+    }
+
+    return val;
+}
+
 static void isBuiltinSpecialType(Value* val)
 {
-    switch(val->currentMemberType->typeKind)
+    switch(val->typestack->type->typeKind)
     {
         case UA_DATATYPEKIND_NODEID:
             val->state = VALUE_STATE_NODEID;
@@ -81,72 +94,63 @@ Value_start(Value *val, const UA_Node *node, const char *localname)
     switch(val->state) {
         case VALUE_STATE_ERROR:
             break;
-        case VALUE_STATE_INIT:
-            if(!strncmp(localname, "ListOf", strlen("ListOf"))) {
-                val->isArray = true;
-                break;
-            } else if(!strcmp(localname, "ExtensionObject")) {
-                val->state = VALUE_STATE_EXTENSIONOBJECT;
-            } else {
-                val->state = VALUE_STATE_BUILTIN;
-            }
-            //looks only in UA_TYPES, should also look in custom types
-            val->typestack->type = UA_findDataType(&((const UA_VariableNode *)node)->dataType);
-            val->currentMemberType = val->typestack->type;
-            if(!val->typestack->type) {
-                printf("could not determine type, value processing stopped\n");
-                val->state = VALUE_STATE_ERROR;
-            }
+        case VALUE_STATE_FINISHED:
+            //gets called on array
             val->typestack->memberIndex = 0;
             if(getMem(val)!=UA_STATUSCODE_GOOD)
             {
                 printf("getMem failed, value processing stopped\n");
                 val->state = VALUE_STATE_ERROR;
             }
-            break;
-        case VALUE_STATE_BUILTIN:
-            break;
-        case VALUE_STATE_EXTENSIONOBJECT:
-            if(!strcmp(localname, "Body")) {
-                val->state = VALUE_STATE_EXTENSIONOBJECT_BODY;
+            val->state = VALUE_STATE_DATA;
+            if(val->typestack->type->members)
+            {
+                val->name =
+                    val->typestack->type->members[val->typestack->memberIndex].memberName;
             }
-            break;
-        case VALUE_STATE_EXTENSIONOBJECT_BODY:
-            if(!strcmp(localname, val->typestack->type->typeName)) {
-                val->state = VALUE_STATE_EXTENSIONOBJECT_DATA;
+            else
+            {
+                val->name = val->typestack->type->typeName;
             }
-            break;
-        case VALUE_STATE_EXTENSIONOBJECT_DATA:
-            if(!strcmp(
-                   val->typestack->type->members[val->typestack->memberIndex].memberName,
-                   localname)) {
+            //intentional fall trough
+        case VALUE_STATE_INIT:
+            val->state = VALUE_STATE_DATA;
+            if(!strncmp(localname, "ListOf", strlen("ListOf"))) {
+                val->isArray = true;
+                break;
+            }            
+            //intentional fall through
+        case VALUE_STATE_DATA:
+            if(!val->name)
+                break;
+            if(!strcmp(val->name, localname)) {
+
                 size_t idx = val->typestack->memberIndex;
-                // should also take a look in custom types
-                if(val->typestack->type->members[idx].namespaceZero) {
-                    val->currentMemberType =
-                        &UA_TYPES[val->typestack->type->members[idx].memberTypeIndex];
-                    val->state = VALUE_STATE_EXTENSIONOBJECT_FIELD;
-
-                    val->offset =
-                        val->offset +
-                        val->typestack->type->members[val->typestack->memberIndex]
-                            .padding;
-
-                    isBuiltinSpecialType(val);
-
-                    if(val->currentMemberType->membersSize > 0) {                        
+                if(val->typestack->type->members) {
+                        val->name = val->typestack->type->members[idx].memberName;
+                        val->offset = val->offset + val->typestack->type->members[idx].padding;
                         TypeList *newType = (TypeList *)(UA_calloc(1, sizeof(TypeList)));
                         newType->next = val->typestack;
-                        newType->type = val->currentMemberType;
-                        newType->memberIndex = 0;
+                        newType->type =
+                            &UA_TYPES[val->typestack->type->members[idx].memberTypeIndex];
                         val->typestack = newType;
-                        val->state = VALUE_STATE_EXTENSIONOBJECT_DATA;
-                    }
+                        val->state = VALUE_STATE_DATA;
+                        if(newType->type->members)
+                        {
+                            val->name = newType->type->members[0].memberName;
+                        }
                 }
+                if(!val->typestack->type->members)
+                {
+                    //its an builtin type
+                    val->state = VALUE_STATE_BUILTIN;
+                    isBuiltinSpecialType(val);
+                }
+                
             }
-            break;
-        case VALUE_STATE_EXTENSIONOBJECT_FIELD:
-            break;
+            break;        
+        case VALUE_STATE_BUILTIN:
+            break;        
         case VALUE_STATE_NODEID:
             break;
         case VALUE_STATE_LOCALIZEDTEXT:
@@ -261,7 +265,39 @@ setScalarValue(Value *val, const UA_DataType *type, char *value) {
     val->offset = val->offset + type->memSize;
 }
 
-
+static void nextType(Value* val)
+{
+    if(val->typestack->next == NULL)
+    {
+        if(!val->typestack->type->members)
+        {
+            val->state = VALUE_STATE_FINISHED;
+            return;
+        }
+        val->state = VALUE_STATE_INIT;
+    } else {
+        TypeList* tmp = val->typestack->next;
+        UA_free(val->typestack);
+        val->typestack = tmp;
+        val->state = VALUE_STATE_DATA;
+        
+    }
+    if(val->typestack->memberIndex>= val->typestack->type->membersSize)
+    {
+        val->state = VALUE_STATE_FINISHED;
+        return;
+    }
+    val->typestack->memberIndex++;
+    if(val->typestack->type->members)
+    {
+        val->name =
+            val->typestack->type->members[val->typestack->memberIndex].memberName;
+    }
+    else
+    {
+        val->name = val->typestack->type->typeName;
+    }
+}
 
 void
 Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
@@ -270,30 +306,12 @@ Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
             break;
         case VALUE_STATE_BUILTIN:
             setScalarValue(val, val->typestack->type, value);
-            val->state = VALUE_STATE_INIT;
-            break;
-        case VALUE_STATE_EXTENSIONOBJECT:
-            if(!strcmp(localname, "ExtensionObject")) {
-                val->state = VALUE_STATE_INIT;
-                break;
-            }
-            break;
-        case VALUE_STATE_EXTENSIONOBJECT_BODY:
-            if(!strcmp(localname, "Body")) {
-                val->state = VALUE_STATE_EXTENSIONOBJECT;
-                break;
-            }
-            break;
-        case VALUE_STATE_EXTENSIONOBJECT_FIELD:
-            setScalarValue(val, val->currentMemberType, value);
-            val->typestack->memberIndex++;
-            val->state = VALUE_STATE_EXTENSIONOBJECT_DATA;
+            nextType(val);
             break;
         case VALUE_STATE_NODEID:
             if(!strcmp(localname, "Identifier")) {
-                setScalarValue(val, val->currentMemberType, value);
-                val->typestack->memberIndex++;
-                val->state = VALUE_STATE_EXTENSIONOBJECT_DATA;
+                setScalarValue(val, val->typestack->type, value);
+                nextType(val);
             }
             break;
         case VALUE_STATE_LOCALIZEDTEXT:
@@ -309,28 +327,19 @@ Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
             }
             else
             {
-                val->typestack->memberIndex++;
-                val->state = VALUE_STATE_EXTENSIONOBJECT_DATA;
                 val->offset = val->offset + sizeof(UA_LocalizedText);
+                nextType(val);
             }
             break;
-        case VALUE_STATE_EXTENSIONOBJECT_DATA:
+        case VALUE_STATE_DATA:
             if(!strcmp(localname, val->typestack->type->typeName)) {
-                if(val->typestack->next == NULL)
-                {
-                    val->state = VALUE_STATE_EXTENSIONOBJECT_BODY;
-                }
-                else
-                {
-                    TypeList* tmp = val->typestack->next;
-                    UA_free(val->typestack);
-                    val->typestack = tmp;
-                    val->typestack->memberIndex++;
-                }
+                nextType(val);
                 break;
             }
             break;
         case VALUE_STATE_ERROR:
+            break;
+        case VALUE_STATE_FINISHED:
             break;
 
         default:
@@ -340,6 +349,10 @@ Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
 
 void
 Value_finish(Value *val, UA_Node *node) {
+    if(VALUE_STATE_FINISHED!=val->state)
+    {
+        printf("Warning: value finish called while value state != finished\n");
+    }
     if(val->value) {
         UA_VariableNode *varnode = (UA_VariableNode *)node;
         if(!val->isArray) {
