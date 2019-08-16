@@ -36,8 +36,7 @@ getMem(Value *val) {
         return UA_STATUSCODE_BADDATATYPEIDUNKNOWN;
     }
     void *newVal = UA_calloc(val->arrayCnt + 1, val->typestack->type->memSize);
-    if(!newVal)
-    {
+    if(!newVal) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     memcpy(newVal, val->value, val->typestack->type->memSize * val->arrayCnt);
@@ -54,7 +53,7 @@ Value_new(const UA_Node *node) {
     val->state = VALUE_STATE_INIT;
     val->typestack = (TypeList *)UA_calloc(1, sizeof(TypeList));
 
-    //looks only in UA_TYPES, should also look in custom types
+    // looks only in UA_TYPES, should also look in custom types
     val->typestack->type = UA_findDataType(&((const UA_VariableNode *)node)->dataType);
     val->name = val->typestack->type->typeName;
     if(!val->typestack->type) {
@@ -62,8 +61,7 @@ Value_new(const UA_Node *node) {
         val->state = VALUE_STATE_ERROR;
     }
     val->typestack->memberIndex = 0;
-    if(getMem(val)!=UA_STATUSCODE_GOOD)
-    {
+    if(getMem(val) != UA_STATUSCODE_GOOD) {
         printf("getMem failed, value processing stopped\n");
         val->state = VALUE_STATE_ERROR;
     }
@@ -71,10 +69,9 @@ Value_new(const UA_Node *node) {
     return val;
 }
 
-static void isBuiltinSpecialType(Value* val)
-{
-    switch(val->typestack->type->typeKind)
-    {
+static void
+isBuiltinSpecialType(Value *val) {
+    switch(val->typestack->type->typeKind) {
         case UA_DATATYPEKIND_NODEID:
             val->state = VALUE_STATE_NODEID;
             break;
@@ -86,8 +83,7 @@ static void isBuiltinSpecialType(Value* val)
 }
 
 void
-Value_start(Value *val, const UA_Node *node, const char *localname)
-{
+Value_start(Value *val, const UA_Node *node, const char *localname) {
     if(!(UA_NODECLASS_VARIABLE == node->nodeClass)) {
         UA_assert(false && "called on wrong node class");
     }
@@ -95,31 +91,26 @@ Value_start(Value *val, const UA_Node *node, const char *localname)
         case VALUE_STATE_ERROR:
             break;
         case VALUE_STATE_FINISHED:
-            //gets called on array
             val->typestack->memberIndex = 0;
-            if(getMem(val)!=UA_STATUSCODE_GOOD)
-            {
+            if(getMem(val) != UA_STATUSCODE_GOOD) {
                 printf("getMem failed, value processing stopped\n");
                 val->state = VALUE_STATE_ERROR;
             }
             val->state = VALUE_STATE_DATA;
-            if(val->typestack->type->members)
-            {
+            if(val->typestack->type->members) {
                 val->name =
                     val->typestack->type->members[val->typestack->memberIndex].memberName;
-            }
-            else
-            {
+            } else {
                 val->name = val->typestack->type->typeName;
             }
-            //intentional fall trough
+        // intentional fall trough
         case VALUE_STATE_INIT:
             val->state = VALUE_STATE_DATA;
             if(!strncmp(localname, "ListOf", strlen("ListOf"))) {
                 val->isArray = true;
                 break;
-            }            
-            //intentional fall through
+            }
+        // intentional fall through
         case VALUE_STATE_DATA:
             if(!val->name)
                 break;
@@ -127,30 +118,27 @@ Value_start(Value *val, const UA_Node *node, const char *localname)
 
                 size_t idx = val->typestack->memberIndex;
                 if(val->typestack->type->members) {
-                        val->name = val->typestack->type->members[idx].memberName;
-                        val->offset = val->offset + val->typestack->type->members[idx].padding;
-                        TypeList *newType = (TypeList *)(UA_calloc(1, sizeof(TypeList)));
-                        newType->next = val->typestack;
-                        newType->type =
-                            &UA_TYPES[val->typestack->type->members[idx].memberTypeIndex];
-                        val->typestack = newType;
-                        val->state = VALUE_STATE_DATA;
-                        if(newType->type->members)
-                        {
-                            val->name = newType->type->members[0].memberName;
-                        }
+                    val->name = val->typestack->type->members[idx].memberName;
+                    val->offset =
+                        val->offset + val->typestack->type->members[idx].padding;
+                    TypeList *newType = (TypeList *)(UA_calloc(1, sizeof(TypeList)));
+                    newType->next = val->typestack;
+                    newType->type =
+                        &UA_TYPES[val->typestack->type->members[idx].memberTypeIndex];
+                    val->typestack = newType;
+                    val->state = VALUE_STATE_DATA;
+                    if(newType->type->members) {
+                        val->name = newType->type->members[0].memberName;
+                    }
                 }
-                if(!val->typestack->type->members)
-                {
-                    //its an builtin type
+                if(!val->typestack->type->members) {
                     val->state = VALUE_STATE_BUILTIN;
                     isBuiltinSpecialType(val);
                 }
-                
             }
-            break;        
+            break;
         case VALUE_STATE_BUILTIN:
-            break;        
+            break;
         case VALUE_STATE_NODEID:
             break;
         case VALUE_STATE_LOCALIZEDTEXT:
@@ -243,15 +231,15 @@ static const ConversionFn conversionTable[UA_DATATYPEKINDS] = {
     setDateTime,       setNotImplemented,
     setString,  // handle bytestring like string
     setString,  // handle xmlElement like string
-    setNodeId,         setNotImplemented, setNotImplemented,
-    setNotImplemented, setNotImplemented,    // special handling needed
-    setNotImplemented, setNotImplemented,
-    setNotImplemented, setNotImplemented, setNotImplemented,
+    setNodeId,         setNotImplemented, setNotImplemented, setNotImplemented,
+    setNotImplemented,  // special handling needed
+    setNotImplemented, setNotImplemented, setNotImplemented, setNotImplemented,
+    setNotImplemented,
     setInt32,  // handle enum the same way like int32
     setNotImplemented, setNotImplemented, setNotImplemented, setNotImplemented};
 
-static void setScalarValueWithAddress(uintptr_t adr, UA_UInt32 kind, char* value)
-{
+static void
+setScalarValueWithAddress(uintptr_t adr, UA_UInt32 kind, char *value) {
     if(value) {
         conversionTable[kind](adr, value);
     }
@@ -265,36 +253,27 @@ setScalarValue(Value *val, const UA_DataType *type, char *value) {
     val->offset = val->offset + type->memSize;
 }
 
-static void nextType(Value* val)
-{
-    if(val->typestack->next == NULL)
-    {
-        if(!val->typestack->type->members)
-        {
+static void
+nextType(Value *val) {
+    if(val->typestack->next == NULL) {
+        if(!val->typestack->type->members) {
             val->state = VALUE_STATE_FINISHED;
             return;
         }
-        val->state = VALUE_STATE_INIT;
     } else {
-        TypeList* tmp = val->typestack->next;
+        TypeList *tmp = val->typestack->next;
         UA_free(val->typestack);
         val->typestack = tmp;
         val->state = VALUE_STATE_DATA;
-        
     }
-    if(val->typestack->memberIndex>= val->typestack->type->membersSize)
-    {
+    if(val->typestack->memberIndex >= val->typestack->type->membersSize) {
         val->state = VALUE_STATE_FINISHED;
         return;
     }
     val->typestack->memberIndex++;
-    if(val->typestack->type->members)
-    {
-        val->name =
-            val->typestack->type->members[val->typestack->memberIndex].memberName;
-    }
-    else
-    {
+    if(val->typestack->type->members) {
+        val->name = val->typestack->type->members[val->typestack->memberIndex].memberName;
+    } else {
         val->name = val->typestack->type->typeName;
     }
 }
@@ -315,18 +294,15 @@ Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
             }
             break;
         case VALUE_STATE_LOCALIZEDTEXT:
-            if(!strcmp(localname, "Locale"))
-            {
-                setScalarValueWithAddress(val->offset + (uintptr_t)&((UA_LocalizedText *)val->value)->locale,
+            if(!strcmp(localname, "Locale")) {
+                setScalarValueWithAddress(val->offset + (uintptr_t) &
+                                              ((UA_LocalizedText *)val->value)->locale,
                                           UA_DATATYPEKIND_STRING, value);
-            }
-            else if(!strcmp(localname, "Text"))
-            {
-                setScalarValueWithAddress(val->offset + (uintptr_t)&((UA_LocalizedText *)val->value)->text,
+            } else if(!strcmp(localname, "Text")) {
+                setScalarValueWithAddress(val->offset + (uintptr_t) &
+                                              ((UA_LocalizedText *)val->value)->text,
                                           UA_DATATYPEKIND_STRING, value);
-            }
-            else
-            {
+            } else {
                 val->offset = val->offset + sizeof(UA_LocalizedText);
                 nextType(val);
             }
@@ -349,26 +325,24 @@ Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
 
 void
 Value_finish(Value *val, UA_Node *node) {
-    if(VALUE_STATE_FINISHED!=val->state)
-    {
+    if(VALUE_STATE_FINISHED != val->state) {
         printf("Warning: value finish called while value state != finished\n");
     }
     if(val->value) {
         UA_VariableNode *varnode = (UA_VariableNode *)node;
         if(!val->isArray) {
-            UA_StatusCode retval = UA_Variant_setScalarCopy(&varnode->value.data.value.value, val->value,
-                                     val->typestack->type);
-            if(!(UA_STATUSCODE_GOOD==retval))
-            {
+            UA_StatusCode retval = UA_Variant_setScalarCopy(
+                &varnode->value.data.value.value, val->value, val->typestack->type);
+            if(!(UA_STATUSCODE_GOOD == retval)) {
                 printf("error on seting scalar\n");
             } else {
                 varnode->value.data.value.hasValue = UA_TRUE;
             }
         } else {
-            UA_StatusCode retval = UA_Variant_setArrayCopy(&varnode->value.data.value.value, val->value,
-                                    val->arrayCnt, val->typestack->type);
-            if(!(UA_STATUSCODE_GOOD==retval))
-            {
+            UA_StatusCode retval =
+                UA_Variant_setArrayCopy(&varnode->value.data.value.value, val->value,
+                                        val->arrayCnt, val->typestack->type);
+            if(!(UA_STATUSCODE_GOOD == retval)) {
                 printf("error on seting array\n");
             } else {
                 varnode->value.data.value.hasValue = UA_TRUE;
