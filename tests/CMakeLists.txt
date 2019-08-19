@@ -115,7 +115,7 @@ if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()
 # Workaround some clang warnings in the uni tests
-if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
+if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
     add_definitions(-Wno-sign-conversion)
 endif()
 
