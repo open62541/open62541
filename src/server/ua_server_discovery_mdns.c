@@ -488,8 +488,16 @@ mdns_record_received(const struct resource *r, void *data) {
     entry->lastSeen = UA_DateTime_nowMonotonic();
 
     /* TXT and SRV are already set */
-    if(entry->txtSet && entry->srvSet)
+    if(entry->txtSet && entry->srvSet) {
+        // call callback for every mdns package we received.
+        // This will also call the callback multiple times
+        if (server->discoveryManager.serverOnNetworkCallback &&
+            !mdns_is_self_announce(server, entry))
+            server->discoveryManager.
+                serverOnNetworkCallback(&entry->serverOnNetwork, true, entry->txtSet,
+                                        server->discoveryManager.serverOnNetworkCallbackData);
         return;
+    }
 
     /* Add the resources */
     if(r->type == QTYPE_TXT && !entry->txtSet)

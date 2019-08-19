@@ -9,6 +9,10 @@ env:
 
 dist: trusty
 
+# Make sure we have the git tags. Travis uses shallow checkout where git describe does not work
+git:
+  depth: false
+
 matrix:
   fast_finish: true
   include:
@@ -352,7 +356,7 @@ after_failure: |
 deploy:
   provider: releases
   api_key:
-    # Uses token from user open62541-travis-release (managed by @Pro)
+    # Uses token from user open62541-travis-release (managed by @Pro). Sets GITAUTH
     secure: dtn6ayBGoWzeVMM6xYpSRZly1XOhS/2jdiwEHd0hYZIr0dNq18CxTiqbGrUwW1JsSiXoHaGSZhUVr06O1P/tfC3Ma6i7ugyun+yXz6FdZiwirjURI8HQe+XwR4Ui3hqgQSOHLMK/xtOkjM28AN1jg9u3//Zep69xJVIGAqNT0bE=
   file:
     - open62541-win32.zip
