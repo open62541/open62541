@@ -923,6 +923,14 @@ recursiveTypeCheckAddChildren(UA_Server *server, UA_Session *session,
             return retval;
         }
 
+        /* Check NodeClass for 'hasSubtype'. UA_NODECLASS_VARIABLE not allowed to have subtype */
+        if((node->nodeClass == UA_NODECLASS_VARIABLE) && (UA_NodeId_equal(
+                &node->references->referenceTypeId, &hasSubtype))) {
+            UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                            "AddNodes: VariableType not allowed to have HasSubType");
+            return UA_STATUSCODE_BADREFERENCENOTALLOWED;
+        }
+
         /* Check if all attributes hold the constraints of the type now. The initial
          * attributes must type-check. The constructor might change the attributes
          * again. Then, the changes are type-checked by the normal write service. */
