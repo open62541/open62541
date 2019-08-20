@@ -684,17 +684,20 @@ typedef struct {
      *        shall be created, it will be a copy of this node.
      * @param targetParentNodeId Parent of the potential new child node
      * @param referenceTypeId Identifies the reference type which that the parent
-     *        node has to the new node. */
-    UA_Boolean (*onCreateOptionalChild)(UA_Server *server,
-                                        const UA_NodeId *sessionId,
-                                        void *sessionContext,
-                                        const UA_NodeId *sourceNodeId,
-                                        const UA_NodeId *targetParentNodeId,
-                                        const UA_NodeId *referenceTypeId);
+     *        node has to the new node. 
+     * @return Return UA_TRUE if the child node shall be instantiatet, 
+     *         UA_FALSE otherwise. */
+    UA_Boolean (*createOptionalChild)(UA_Server *server,
+                                      const UA_NodeId *sessionId,
+                                      void *sessionContext,
+                                      const UA_NodeId *sourceNodeId,
+                                      const UA_NodeId *targetParentNodeId,
+                                      const UA_NodeId *referenceTypeId);
 
     /* Can be NULL. Called when a node is to be copied during recursive
      * node instantiation. Allows definition of the NodeId for the new node.
-     * If this callback is not used, random numeric NodeIds will be generated.
+     * If the callback is set to NULL or the resulting NodeId is UA_NODEID_NULL,
+     * then a random NodeId will be generated.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
@@ -704,12 +707,12 @@ typedef struct {
      * @param targetParentNodeId Parent node of the new node
      * @param referenceTypeId Identifies the reference type which that the parent
      *        node has to the new node. */
-    void (*onDefineNodeId)(UA_Server *server,
-                           const UA_NodeId *sessionId, void *sessionContext,
-                           const UA_NodeId *sourceNodeId,
-                           const UA_NodeId *targetParentNodeId,
-                           const UA_NodeId *referenceTypeId,
-                           UA_NodeId *targetNodeId);
+    UA_StatusCode (*generateChildNodeId)(UA_Server *server,
+                                         const UA_NodeId *sessionId, void *sessionContext,
+                                         const UA_NodeId *sourceNodeId,
+                                         const UA_NodeId *targetParentNodeId,
+                                         const UA_NodeId *referenceTypeId,
+                                         UA_NodeId *targetNodeId);
     } UA_GlobalNodeLifecycle;
 
 typedef struct {

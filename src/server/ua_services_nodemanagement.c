@@ -446,15 +446,15 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
     /* Is the child mandatory? If not, ask callback whether child should be instantiated.
      * If not, skip. */
     if(!isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
-        if(!server->config.nodeLifecycle.onCreateOptionalChild)
+        if(!server->config.nodeLifecycle.createOptionalChild)
             return UA_STATUSCODE_GOOD;
 
-        if(server->config.nodeLifecycle.onCreateOptionalChild(server,
-                                                              &session->sessionId,
-                                                              session->sessionHandle,
-                                                              &rd->nodeId.nodeId,
-                                                              destinationNodeId,
-                                                              &rd->referenceTypeId) == UA_FALSE) {
+        if(server->config.nodeLifecycle.createOptionalChild(server,
+                                                            &session->sessionId,
+                                                            session->sessionHandle,
+                                                            &rd->nodeId.nodeId,
+                                                            destinationNodeId,
+                                                            &rd->referenceTypeId) == UA_FALSE) {
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -489,13 +489,15 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         UA_NodeId_deleteMembers(&node->nodeId);
         node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
 
-        if (server->config.nodeLifecycle.onDefineNodeId) {
-            server->config.nodeLifecycle.onDefineNodeId(server,
-                                                        &session->sessionId, session->sessionHandle,
-                                                        &rd->nodeId.nodeId,
-                                                        destinationNodeId,
-                                                        &rd->referenceTypeId,
-                                                        &node->nodeId);
+        if (server->config.nodeLifecycle.generateChildNodeId) {
+            retval = server->config.nodeLifecycle.generateChildNodeId(server,
+                                                                      &session->sessionId, session->sessionHandle,
+                                                                      &rd->nodeId.nodeId,
+                                                                      destinationNodeId,
+                                                                      &rd->referenceTypeId,
+                                                                      &node->nodeId);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
         }
 
 

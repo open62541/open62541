@@ -158,8 +158,8 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* Global Node Lifecycle */
     conf->nodeLifecycle.constructor = NULL;
     conf->nodeLifecycle.destructor = NULL;
-    conf->nodeLifecycle.onCreateOptionalChild = NULL;
-    conf->nodeLifecycle.onDefineNodeId = NULL;
+    conf->nodeLifecycle.createOptionalChild = NULL;
+    conf->nodeLifecycle.generateChildNodeId = NULL;
 
     /* Relax constraints for the InformationModel */
     conf->relaxEmptyValueConstraint = true; /* Allow empty values */
