@@ -202,8 +202,13 @@ endif()
 option(UA_ENABLE_CUSTOM_NODESTORE "Do not compile the default Nodestore implementation into the library" OFF)
 mark_as_advanced(UA_ENABLE_CUSTOM_NODESTORE)
 
-option(UA_ENABLE_NODESTORE_SWITCH "Plugin nodestore switch for dynamic handling of nodestores. UA_ENABLE_CUSTOM_NODESTORE has to be defined." OFF)
+option(UA_ENABLE_NODESTORE_SWITCH "Plugin nodestore switch for dynamic handling of nodestores." OFF)
 mark_as_advanced(UA_ENABLE_NODESTORE_SWITCH)
+if(UA_ENABLE_NODESTORE_SWITCH)
+    if(NOT UA_ENABLE_CUSTOM_NODESTORE)
+        message(FATAL_ERROR "Nodstore switch cannot be used with disabled UA_ENABLE_CUSTOM_NODESTORE.")
+    endif()
+endif()
 
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
@@ -769,12 +774,15 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
 endif()
 
 if(UA_ENABLE_NODESTORE_SWITCH)
+	# Make binary encodings public
+	list(REMOVE_ITEM internal_headers
+         ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h)
+	list(APPEND exported_headers
+         ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h)
     list(APPEND default_plugin_headers
-         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_switch.h
-         )
+         ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_switch.h)
     list(APPEND default_plugin_sources
-         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_switch.c
-         )
+         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_switch.c)
 endif()
 
 #########################
