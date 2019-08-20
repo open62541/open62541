@@ -1660,6 +1660,12 @@
     </References>
     <InverseName>IsWriterInGroup</InverseName>
   </UAReferenceType>
+  <UAObjectType NodeId="i=17998" BrowseName="WriterGroupMessageType" IsAbstract="true">
+    <DisplayName>WriterGroupMessageType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
   <UAMethod NodeId="i=16598" BrowseName="AddConnection" ParentNodeId="i=14416">
     <DisplayName>AddConnection</DisplayName>
     <References>
@@ -1888,4 +1894,31 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=17292</Reference>
     </References>
   </UAVariable>
+  <UAObjectType NodeId="i=21105" BrowseName="UadpWriterGroupMessageType">
+    <DisplayName>UadpWriterGroupMessageType</DisplayName>
+    <References>
+      <!-- <Reference ReferenceType="HasProperty">i=21106</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21107</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21108</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21109</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21110</Reference> -->
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17998</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=21096" BrowseName="DataSetWriterMessageType" IsAbstract="true">
+    <DisplayName>DataSetWriterMessageType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=21111" BrowseName="UadpDataSetWriterMessageType">
+    <DisplayName>UadpDataSetWriterMessageType</DisplayName>
+    <References>
+      <!-- <Reference ReferenceType="HasProperty">i=21112</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21113</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21114</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21115</Reference> -->
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=21096</Reference>
+    </References>
+  </UAObjectType>
 </UANodeSet>

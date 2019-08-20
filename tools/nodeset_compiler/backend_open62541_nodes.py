@@ -1,20 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 13
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+### This Source Code Form is subject to the terms of the Mozilla Public
+### License, v. 2.0. If a copy of the MPL was not distributed with this
+### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+###    Copyright 2019 (c) Andrea Minosu
+###    Copyright 2018 (c) Jannis Volker
+###    Copyright 2018 (c) Ralph Lange
 
 from nodes import *
 from backend_open62541_datatypes import *
@@ -195,7 +191,11 @@ def generateCommonVariableCode(node, nodeset):
             code += code1
             codeCleanup += codeCleanup1
             codeGlobal += codeGlobal1
-            if node.valueRank is not None and node.valueRank > 0 and len(node.arrayDimensions) == node.valueRank and len(node.value.value) > 0:
+            # #1978 Variant arrayDimensions are only required to properly decode multidimensional arrays
+            # (valueRank > 1) from data stored as one-dimensional array of arrayLength elements.
+            # One-dimensional arrays are already completely defined by arraylength attribute so setting
+            # also arrayDimensions, even if not explicitly forbidden, can confuse clients
+            if node.valueRank is not None and node.valueRank > 1 and len(node.arrayDimensions) == node.valueRank and len(node.value.value) > 0:
                 numElements = 1
                 hasZero = False
                 for v in node.arrayDimensions:

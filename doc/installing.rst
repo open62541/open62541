@@ -49,7 +49,7 @@ In your own CMake project you can then include the open62541 library using:
 .. code-block:: cmake
 
    # optionally you can also specify a specific version
-   # e.g. find_package(open62541 0.4.0)
+   # e.g. find_package(open62541 1.0.0)
    find_package(open62541 REQUIRED COMPONENTS Events FullNamespace)
    add_executable(main main.cpp)
    target_link_libraries(main open62541::open62541)
@@ -78,3 +78,12 @@ Debian packages can be found in our official PPA:
 
  * Daily Builds (based on master branch): https://launchpad.net/~open62541-team/+archive/ubuntu/daily
  * Release Builds (starting with Version 0.4): https://launchpad.net/~open62541-team/+archive/ubuntu/ppa
+
+Install them with:
+
+
+.. code-block:: bash
+
+    sudo add-apt-repository ppa:open62541-team/ppa
+    sudo apt-get update
+    sudo apt-get install libopen62541-dev

@@ -13,6 +13,9 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/network_tcp.h>
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+#include <open62541/network_ws.h>
+#endif
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pki_default.h>
@@ -55,6 +58,7 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
+#define APPLICATION_URI_SERVER "urn:open62541.server.application"
 
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
@@ -81,12 +85,10 @@ createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
                                          &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    endpoint->userIdentityTokensSize =
-        conf->accessControl.userTokenPoliciesSize;
+    endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
 
     UA_String_copy(&securityPolicy->localCertificate, &endpoint->serverCertificate);
-    UA_ApplicationDescription_copy(&conf->applicationDescription,
-                                   &endpoint->server);
+    UA_ApplicationDescription_copy(&conf->applicationDescription, &endpoint->server);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -109,6 +111,8 @@ setDefaultConfig(UA_ServerConfig *conf) {
     conf->nThreads = 1;
     conf->logger = UA_Log_Stdout_;
 
+    conf->shutdownDelay = 0.0;
+
     /* Server Description */
     conf->buildInfo.productUri = UA_STRING_ALLOC(PRODUCT_URI);
     conf->buildInfo.manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
@@ -121,9 +125,9 @@ setDefaultConfig(UA_ServerConfig *conf) {
     #else
     conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
     #endif
-    conf->buildInfo.buildDate = 0;
+    conf->buildInfo.buildDate = UA_DateTime_now();
 
-    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
+    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
     conf->applicationDescription.productUri = UA_STRING_ALLOC(PRODUCT_URI);
     conf->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
@@ -135,6 +139,7 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_init(&conf->discovery.mdns);
+    conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
 #endif
 
     /* Custom DataTypes */
@@ -156,14 +161,6 @@ setDefaultConfig(UA_ServerConfig *conf) {
     /* Global Node Lifecycle */
     conf->nodeLifecycle.constructor = NULL;
     conf->nodeLifecycle.destructor = NULL;
-
-    UA_StatusCode retval = UA_AccessControl_default(&conf->accessControl, true,
-                                                    usernamePasswordsSize,
-                                                    usernamePasswords);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
-        return retval;
-    }
 
     /* Relax constraints for the InformationModel */
     conf->relaxEmptyValueConstraint = true; /* Allow empty values */
@@ -232,6 +229,57 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
                         UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
     return UA_ServerConfig_addNetworkLayerTCP(conf, portNumber, sendBufferSize, recvBufferSize);
 }
+
+static UA_StatusCode
+addDiscoveryUrl(UA_ServerConfig *config, UA_UInt16 portNumber) {
+    config->applicationDescription.discoveryUrlsSize = 1;
+    UA_String *discurl = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    char discoveryUrlBuffer[220];
+    if (config->customHostname.length) {
+        UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%.*s:%d/",
+                    (int)config->customHostname.length,
+                    config->customHostname.data,
+                    portNumber);
+    } else {
+        char hostnameBuffer[200];
+        if(UA_gethostname(hostnameBuffer, 200) == 0) {
+            UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%s:%d/", hostnameBuffer, portNumber);
+        } else {
+            UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+        }
+    }
+    discurl[0] = UA_String_fromChars(discoveryUrlBuffer);
+    config->applicationDescription.discoveryUrls = discurl;
+    return UA_STATUSCODE_GOOD;
+}
+
+
+#ifdef UA_ENABLE_WEBSOCKET_SERVER
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
+                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize) {
+    /* Add a network layer */
+    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
+        UA_realloc(conf->networkLayers, sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    conf->networkLayers = tmp;
+
+    UA_ConnectionConfig config = UA_ConnectionConfig_default;
+    if (sendBufferSize > 0)
+        config.sendBufferSize = sendBufferSize;
+    if (recvBufferSize > 0)
+        config.recvBufferSize = recvBufferSize;
+
+    conf->networkLayers[conf->networkLayersSize] =
+        UA_ServerNetworkLayerWS(config, portNumber, &conf->logger);
+    if (!conf->networkLayers[conf->networkLayersSize].handle)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    conf->networkLayersSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
@@ -376,8 +424,23 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
+    retval = addDiscoveryUrl(config, portNumber);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(config);
+        return retval;
+    }
+
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(config);
+        return retval;
+    }
+
+    /* Initialize the Access Control plugin */
+    retval = UA_AccessControl_default(config, true,
+                &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
@@ -543,6 +606,8 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                const UA_ByteString *privateKey,
                                                const UA_ByteString *trustList,
                                                size_t trustListSize,
+                                               const UA_ByteString *issuerList,
+                                               size_t issuerListSize,
                                                const UA_ByteString *revocationList,
                                                size_t revocationListSize) {
     UA_StatusCode retval = setDefaultConfig(conf);
@@ -553,6 +618,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 
     retval = UA_CertificateVerification_Trustlist(&conf->certificateVerification,
                                                   trustList, trustListSize,
+                                                  issuerList, issuerListSize,
                                                   revocationList, revocationListSize);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -568,7 +634,21 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
+    retval = addDiscoveryUrl(conf, portNumber);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(conf);
+        return retval;
+    }
+
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(conf);
+        return retval;
+    }
+
+    retval = UA_AccessControl_default(conf, true,
+                &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
+                usernamePasswordsSize, usernamePasswords);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
@@ -665,6 +745,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 
     retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
                                                   trustList, trustListSize,
+                                                  NULL, 0,
                                                   revocationList, revocationListSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

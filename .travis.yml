@@ -9,6 +9,10 @@ env:
 
 dist: trusty
 
+# Make sure we have the git tags. Travis uses shallow checkout where git describe does not work
+git:
+  depth: false
+
 matrix:
   fast_finish: true
   include:
@@ -42,6 +46,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
       env:
         - MINGW=true
@@ -68,6 +73,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
 #
 # clang-6 full host build with tests:
@@ -92,6 +98,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
 #
 # clang-6 python-3 full host build with tests:
@@ -116,6 +123,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
       env:
         - PYTHON=python3
@@ -137,6 +145,7 @@ matrix:
             - latexmk
             # tests
             - check
+            - libsubunit-dev
             - valgrind
 #
 # clang-6 python-3 install build and minimal example:
@@ -176,6 +185,7 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
+            - libsubunit-dev
             - clang-6.0
             - clang-tidy-6.0
       env:
@@ -214,6 +224,7 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - check
+            - libsubunit-dev
             - clang-6.0
             - clang-tidy-6.0
             - libfuzzer-6.0-dev
@@ -352,7 +363,8 @@ after_failure: |
 deploy:
   provider: releases
   api_key:
-    secure: PKCoA7MBRtHloIbNF4Qj5LQyCafjekfVeFXlMBd9KmC0ynNuef+D7nn38f/jo25/b0Ii7r+hgslkQPezbKyEqo2zcCB8Pn8TWau2hbzKM/dUCPoN90HVaQcRjUi8P2Y+QkouwyPWSujBL35/X5QiAntRotCSbZx4fkyiN8cU95o=
+    # Uses token from user open62541-travis-release (managed by @Pro). Sets GITAUTH
+    secure: dtn6ayBGoWzeVMM6xYpSRZly1XOhS/2jdiwEHd0hYZIr0dNq18CxTiqbGrUwW1JsSiXoHaGSZhUVr06O1P/tfC3Ma6i7ugyun+yXz6FdZiwirjURI8HQe+XwR4Ui3hqgQSOHLMK/xtOkjM28AN1jg9u3//Zep69xJVIGAqNT0bE=
   file:
     - open62541-win32.zip
     - open62541-win64.zip
@@ -367,4 +379,4 @@ deploy:
   on:
     repo: open62541/open62541
     tags: true
-    condition: $CC = gcc-4.8 && $ANALYZE = false
+    condition: $MINGW=true

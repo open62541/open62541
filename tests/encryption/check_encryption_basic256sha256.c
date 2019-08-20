@@ -1,6 +1,10 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *
+ */
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
@@ -48,6 +52,10 @@ static void setup(void) {
     size_t trustListSize = 0;
     UA_ByteString *trustList = NULL;
 
+    /* Load the issuerList */
+    size_t issuerListSize = 0;
+    UA_ByteString *issuerList = NULL;
+
     /* TODO test trustList
     if(argc > 3)
         trustListSize = (size_t)argc-3;
@@ -64,6 +72,7 @@ static void setup(void) {
     UA_ServerConfig_setDefaultWithSecurityPolicies(UA_Server_getConfig(server),
                                                    4840, &certificate, &privateKey,
                                                    trustList, trustListSize,
+                                                   issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
 
     for(size_t i = 0; i < trustListSize; i++)
@@ -105,7 +114,7 @@ START_TEST(encryption_connect) {
      * and certificate */
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    ck_assert_msg(client != NULL);
+    ck_assert(client != NULL);
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -139,7 +148,7 @@ START_TEST(encryption_connect) {
                                          revocationList, revocationListSize);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
-    ck_assert_msg(client != NULL);
+    ck_assert(client != NULL);
 
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
         UA_ByteString_deleteMembers(&trustList[deleteCount]);

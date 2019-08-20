@@ -11,6 +11,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
+include(GNUInstallDirs)
 
 # Set when installed via make install
 set(open62541_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
@@ -31,25 +32,12 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Version #
 ###########
 
-set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+include(SetGitBasedVersion)
 
-#  If a relative path is specified, it is treated as relative to the $<INSTALL_PREFIX>
-set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
-
-# Set OPEN62541_VER_COMMIT
-if(GIT_FOUND)
-    execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
-                    RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    if(${res_var} EQUAL 0 AND NOT OPEN62541_VER_COMMIT STREQUAL "")
-        string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
-    endif()
-endif()
-if(NOT OPEN62541_VER_COMMIT OR OPEN62541_VER_COMMIT STREQUAL "")
-    set(OPEN62541_VER_COMMIT "undefined")
-endif()
+# The version string will be automatically set based on the git describe output.
+# This will automate the version strings. Just create a new tag, and the version will be set correctly.
+set_open62541_version()
+MESSAGE(STATUS "open62541 Version: ${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
 
 #################
 # Build Options #
@@ -115,7 +103,13 @@ set(ua_architecture_headers ${ua_architecture_headers}
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    set(ua_architecture_sources ${ua_architecture_sources}
+                                ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
 
+    set(ua_architecture_headers ${ua_architecture_headers}
+                                ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
+endif()
 
 if(${UA_ARCHITECTURE} STREQUAL "None")
   message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
@@ -143,7 +137,9 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_QUERY "Enable query support." OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
+option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
 
 # Namespace Zero
 set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
@@ -158,6 +154,12 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)
     # See https://github.com/open62541/open62541/issues/1326
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
+endif()
+
+if(UA_ENABLE_MICRO_EMB_DEV_PROFILE)
+    if(NOT (UA_NAMESPACE_ZERO STREQUAL "FULL"))
+        message(FATAL_ERROR "CTT Compliant Micro Embedded Device Server Profile needs full namespace zero")
+    endif()
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
@@ -190,12 +192,12 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
-option(UA_ENABLE_MULTITHREADING "Enable multithreading (EXPERIMENTAL)" OFF)
-mark_as_advanced(UA_ENABLE_MULTITHREADING)
-
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
-if(UA_ENABLE_MULTITHREADING)
+
+set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading")
+mark_as_advanced(UA_MULTITHREADING)
+if (UA_MULTITHREADING GREATER 100)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
@@ -260,8 +262,8 @@ mark_as_advanced(UA_ENABLE_JSON_ENCODING)
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
-option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" ON)
-mark_as_advanced(UA_ENABLE_TYPENAMES)
+option(UA_ENABLE_TYPEDESCRIPTION "Add the type and member names to the UA_DataType structure" ON)
+mark_as_advanced(UA_ENABLE_TYPEDESCRIPTION)
 
 option(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS "Set node description attribute for nodeset compiler generated nodes" ON)
 mark_as_advanced(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS)
@@ -341,7 +343,7 @@ option(UA_BUILD_FUZZING_CORPUS "Build the fuzzing corpus" OFF)
 mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
     add_definitions(-DUA_DEBUG_DUMP_PKGS_FILE)
-    set(UA_ENABLE_TYPENAMES ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_TYPEDESCRIPTION ON CACHE STRING "" FORCE)
     #set(UA_DEBUG_DUMP_PKGS ON CACHE STRING "" FORCE)
 endif()
 
@@ -362,8 +364,8 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 # Warn if experimental features are enabled
-if(UA_ENABLE_MULTITHREADING)
-    MESSAGE(WARNING "UA_ENABLE_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
+if(UA_MULTITHREADING)
+    MESSAGE(WARNING "UA_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
 ########################
@@ -394,6 +396,14 @@ if(UA_ENABLE_ENCRYPTION)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
 endif()
 
+if(UA_ENABLE_WEBSOCKET_SERVER)
+    # The recommended way is to install libwebsockets via the OS package manager. If
+    # that is not possible, manually compile libwebsockets and set the cmake variables
+    # defined in /tools/cmake/Findlibwebsockets.cmake
+    find_package(libwebsockets REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
+endif()
+
 #####################
 # Compiler Settings #
 #####################
@@ -402,7 +412,7 @@ include(CompilerFlags)
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
     add_definitions(-std=c99 -pipe
-                    -Wall -Wextra -Werror -Wpedantic
+                    -Wall -Wextra -Wpedantic
                     -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
                     -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
                     -Wno-unused-parameter # some methods may require unused arguments to cast to a method pointer
@@ -418,6 +428,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -fno-strict-aliasing # fewer compiler assumptions about pointer types
                     -fexceptions # recommended for multi-threaded C code, also in combination with C++ code
                     )
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Werror")
 
     if (NOT MINGW)
         if(UA_ENABLE_HARDENING)
@@ -635,11 +646,12 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
@@ -852,6 +864,9 @@ else()
 	if(UA_ENABLE_DA)
 		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_dataaccess.txt)
     endif()
+    if(UA_ENABLE_TYPEDESCRIPTION)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_typedescription.txt)
+    endif()
 endif()
 
 # standard-defined data types
@@ -995,7 +1010,7 @@ else()
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
-    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport)
+    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -1056,7 +1071,7 @@ if (UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
 # Generate properly versioned shared library links on Linux
-SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
+SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION "${OPEN62541_VER_MAJOR}" VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 ##################################
 #     Architectures changes      #
@@ -1125,13 +1140,13 @@ include(linting_target)
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake/open62541)
+set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
 set(open62541_install_tools_dir share/open62541/tools)
 set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
 
 # This list of components allows to define a find_package requirement.
 # E.g.:
-# find_package(open62541 0.4.0 REQUIRED COMPONENTS Events Methods FullNamespace)
+# find_package(open62541 1.0.0 REQUIRED COMPONENTS Events Methods FullNamespace)
 set(open62541_enabled_components "")
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     list(APPEND open62541_enabled_components "FullNamespace")
@@ -1160,7 +1175,7 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     list(APPEND open62541_enabled_components "Events")
 endif()
-if(UA_ENABLE_MULTITHREADING)
+if(UA_MULTITHREADING)
     list(APPEND open62541_enabled_components "Multithreading")
 endif()
 if(UA_ENABLE_DISCOVERY)
@@ -1173,8 +1188,8 @@ endif()
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
         EXPORT open62541Targets
-        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
         INCLUDES DESTINATION include)
 
@@ -1220,7 +1235,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
-            DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
 
 set(UA_install_tools_dirs "tools/certs"

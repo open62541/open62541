@@ -69,7 +69,7 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
             return retval;
     } else {
         UA_LOG_WARNING(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "No PKI plugin set. Accepting all certificates");
+                       "Security policy None is used to create SecureChannel. Accepting all certificates");
     }
 
     retval = securityPolicy->channelModule.
@@ -889,13 +889,8 @@ UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
                          const UA_DataType *contentType) {
     UA_StatusCode retval = UA_encodeBinary(content, contentType, &mc->buf_pos, &mc->buf_end,
                                            sendSymmetricEncodingCallback, mc);
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* TODO: Send the abort message */
-        if(mc->messageBuffer.length > 0) {
-            UA_Connection *connection = mc->channel->connection;
-            connection->releaseSendBuffer(connection, &mc->messageBuffer);
-        }
-    }
+    if(retval != UA_STATUSCODE_GOOD && mc->messageBuffer.length > 0)
+        UA_MessageContext_abort(mc);
     return retval;
 }
 

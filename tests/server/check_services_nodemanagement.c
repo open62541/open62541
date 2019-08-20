@@ -57,6 +57,61 @@ START_TEST(AddVariableNode) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
+START_TEST(AddVariableNode_Matrix) {
+    /* Add a variable node to the address space */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Double Matrix");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    attr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    attr.valueRank = UA_VALUERANK_TWO_DIMENSIONS;
+    UA_UInt32 arrayDims[2] = {2,2};
+    attr.arrayDimensions = arrayDims;
+    attr.arrayDimensionsSize = 2;
+    UA_Double zero[4] = {0.0, 0.0, 0.0, 0.0};
+    UA_Variant_setArray(&attr.value, zero, 4, &UA_TYPES[UA_TYPES_DOUBLE]);
+    attr.value.arrayDimensions = arrayDims;
+    attr.value.arrayDimensionsSize = 2;
+
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "double.matrix");
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "double matrix");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode res =
+        UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                                  parentReferenceNodeId, myIntegerName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, NULL);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+} END_TEST
+
+START_TEST(AddVariableNode_ExtensionObject) {
+        /* Add a variable node to the address space */
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.displayName = UA_LOCALIZEDTEXT("en-US","the extensionobject");
+
+        /* Set an ExtensionObject with an unknown binary encoding */
+        UA_ExtensionObject myExtensionObject;
+        UA_ExtensionObject_init(&myExtensionObject);
+        myExtensionObject.encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+        myExtensionObject.content.encoded.typeId = UA_NODEID_NUMERIC(5, 1234);
+        UA_ByteString byteString = UA_BYTESTRING("String Payload as a ByteString extension");
+        myExtensionObject.content.encoded.body = byteString;
+        UA_Variant_setScalar(&attr.value, &myExtensionObject, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+
+        UA_NodeId myEONodeId = UA_NODEID_STRING(1, "the.extensionobject");
+        UA_QualifiedName myEOName = UA_QUALIFIEDNAME(1, "the extensionobject");
+        UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+        UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        UA_StatusCode res =
+            UA_Server_addVariableNode(server, myEONodeId, parentNodeId,
+                                      parentReferenceNodeId, myEOName,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      attr, NULL, NULL);
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+    } END_TEST
+
+
 static UA_NodeId pointTypeId;
 
 static void
@@ -469,12 +524,104 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+static UA_NodeId
+findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
+	UA_BrowseDescription * bDesc = UA_BrowseDescription_new();
+	UA_NodeId_copy(&sourceId, &bDesc->nodeId);
+	bDesc->browseDirection = UA_BROWSEDIRECTION_FORWARD;
+	bDesc->includeSubtypes = true;
+	bDesc->resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID;
+	UA_BrowseResult bRes = UA_Server_browse(server, 0, bDesc);
+	ck_assert(bRes.statusCode == UA_STATUSCODE_GOOD);
+
+	UA_NodeId outNodeId = UA_NODEID_NULL;
+    for(size_t i = 0; i < bRes.referencesSize; i++) {
+        UA_ReferenceDescription rDesc = bRes.references[i];
+        if(UA_NodeId_equal(&rDesc.referenceTypeId, &refTypeId)) {
+            UA_NodeId_copy(&rDesc.nodeId.nodeId, &outNodeId);
+            break;
+        }
+    }
+
+	UA_BrowseDescription_deleteMembers(bDesc);
+	UA_BrowseDescription_delete(bDesc);
+	UA_BrowseResult_deleteMembers(&bRes);
+	return outNodeId;
+}
+
+static UA_NodeId
+registerRefType(char *forwName, char *invName) {
+	UA_NodeId outNodeId;
+	UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+	refattr.displayName = UA_LOCALIZEDTEXT(NULL, forwName);
+	refattr.inverseName = UA_LOCALIZEDTEXT(NULL, invName );
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, forwName);
+	UA_StatusCode st =
+        UA_Server_addReferenceTypeNode(server, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       browseName, refattr, NULL, &outNodeId);
+	ck_assert(st == UA_STATUSCODE_GOOD);
+	return outNodeId;
+}
+
+static UA_NodeId
+addObjInstance(const UA_NodeId parentNodeId, char *dispName) {
+	UA_NodeId outNodeId;
+	UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+	oAttr.displayName = UA_LOCALIZEDTEXT(NULL, dispName);
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, dispName);
+	UA_StatusCode st =
+        UA_Server_addObjectNode(server, UA_NODEID_NULL, 
+                                parentNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                browseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                oAttr, NULL, &outNodeId);
+	ck_assert(st == UA_STATUSCODE_GOOD);
+	return outNodeId;
+}
+
+START_TEST(AddDoubleReference) {
+	// create two different reference types
+	UA_NodeId ref1TypeId = registerRefType("HasRef1", "IsRefOf1");
+	UA_NodeId ref2TypeId = registerRefType("HasRef2", "IsRefOf2");
+
+	// create two different object instances
+    UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+	UA_NodeId sourceId = addObjInstance(objectsNodeId, "obj1");
+	UA_NodeId targetId = addObjInstance(objectsNodeId, "obj2");
+
+	// connect them twice, one time per reference type
+	UA_ExpandedNodeId targetExpId;
+	targetExpId.nodeId       = targetId;
+	targetExpId.namespaceUri = UA_STRING_NULL;
+	targetExpId.serverIndex  = 0;
+	UA_StatusCode st;
+	st = UA_Server_addReference(server, sourceId, ref1TypeId, targetExpId, true);
+	ck_assert(st == UA_STATUSCODE_GOOD);
+	st = UA_Server_addReference(server, sourceId, ref2TypeId, targetExpId, true);
+	ck_assert(st == UA_STATUSCODE_GOOD);
+    /* repetition fails */
+	st = UA_Server_addReference(server, sourceId, ref2TypeId, targetExpId, true);
+	ck_assert(st != UA_STATUSCODE_GOOD);
+
+	// check references where added
+	UA_NodeId targetCheckId;
+	targetCheckId = findReference(sourceId, ref1TypeId);
+	ck_assert(UA_NodeId_equal(&targetCheckId, &targetId));
+	targetCheckId = findReference(sourceId, ref2TypeId);
+	ck_assert(UA_NodeId_equal(&targetCheckId, &targetId));
+
+
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("services_nodemanagement");
 
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, AddVariableNode_Matrix);
+    tcase_add_test(tc_addnodes, AddVariableNode_ExtensionObject);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeWrongDims);
     tcase_add_test(tc_addnodes, InstantiateVariableTypeNodeLessDims);
@@ -489,6 +636,11 @@ int main(void) {
     tcase_add_test(tc_deletenodes, DeleteObjectWithDestructor);
     tcase_add_test(tc_deletenodes, DeleteObjectAndReferences);
     suite_add_tcase(s, tc_deletenodes);
+
+    TCase *tc_addreferences = tcase_create("addreferences");
+    tcase_add_checked_fixture(tc_addreferences, setup, teardown);
+    tcase_add_test(tc_addreferences, AddDoubleReference);
+    suite_add_tcase(s, tc_addreferences);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

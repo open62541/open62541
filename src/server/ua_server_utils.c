@@ -170,36 +170,60 @@ static const UA_NodeId hasInterfaceNodeId =
 UA_StatusCode
 getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
                                    UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-    UA_NodeId *subTypes = NULL;
+    UA_ExpandedNodeId *subTypes = NULL;
     size_t subTypesSize = 0;
-    UA_StatusCode retval =
-        getLocalRecursiveHierarchy(server, typeNode, 1, &subtypeId, 1,
-                                   false, &subTypes, &subTypesSize);
+    UA_StatusCode retval = browseRecursive(server, 1, typeNode, 1, &subtypeId,
+                                           UA_BROWSEDIRECTION_INVERSE, false,
+                                           &subTypesSize, &subTypes);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_NodeId *interfaces = NULL;
+    UA_assert(subTypesSize < 1000);
+
+    UA_ExpandedNodeId *interfaces = NULL;
     size_t interfacesSize = 0;
-    retval = getLocalRecursiveHierarchy(server, typeNode, 1, &hasInterfaceNodeId, 1,
-                                        true, &interfaces, &interfacesSize);
+    retval = browseRecursive(server, 1, typeNode, 1, &hasInterfaceNodeId,
+                             UA_BROWSEDIRECTION_FORWARD, false,
+                             &interfacesSize, &interfaces);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
     }
 
-    UA_NodeId *total = (UA_NodeId*)
-        UA_realloc(subTypes, sizeof(UA_NodeId)*(subTypesSize + interfacesSize - 1));
-    if(!total) {
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_assert(interfacesSize < 1000);
+
+    UA_NodeId *hierarchy = (UA_NodeId*)
+        UA_malloc(sizeof(UA_NodeId) * (1 + subTypesSize + interfacesSize));
+    if(!hierarchy) {
+        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    memcpy(&total[subTypesSize], &interfaces[1], sizeof(UA_NodeId)*(interfacesSize-1));
-    UA_free(interfaces);
-    
-    *typeHierarchy = total;
-    *typeHierarchySize = subTypesSize + interfacesSize - 1;
+    retval = UA_NodeId_copy(typeNode, hierarchy);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(hierarchy);
+        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < subTypesSize; i++) {
+        hierarchy[i+1] = subTypes[i].nodeId;
+        UA_NodeId_init(&subTypes[i].nodeId);
+    }
+    for(size_t i = 0; i < interfacesSize; i++) {
+        hierarchy[i+1+subTypesSize] = interfaces[i].nodeId;
+        UA_NodeId_init(&interfaces[i].nodeId);
+    }
+
+    *typeHierarchy = hierarchy;
+    *typeHierarchySize = subTypesSize + interfacesSize + 1;
+
+    UA_assert(*typeHierarchySize < 1000);
+
+    UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -243,7 +267,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   void *context, const size_t *requestOperations,
+                                   const void *context, const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType) {

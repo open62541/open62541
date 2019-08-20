@@ -20,7 +20,7 @@ void UA_WorkQueue_init(UA_WorkQueue *wq) {
     /* Initialized the linked list for delayed callbacks */
     SIMPLEQ_INIT(&wq->delayedCallbacks);
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     wq->delayedCallbacks_checkpoint = NULL;
     pthread_mutex_init(&wq->delayedCallbacks_accessMutex,  NULL);
 
@@ -32,13 +32,13 @@ void UA_WorkQueue_init(UA_WorkQueue *wq) {
 #endif
 }
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 /* Forward declaration */
 static void UA_WorkQueue_manuallyProcessDelayed(UA_WorkQueue *wq);
 #endif
 
 void UA_WorkQueue_cleanup(UA_WorkQueue *wq) {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     /* Shut down workers */
     UA_WorkQueue_stop(wq);
 
@@ -60,7 +60,7 @@ void UA_WorkQueue_cleanup(UA_WorkQueue *wq) {
     /* All workers are shut down. Execute remaining delayed work here. */
     UA_WorkQueue_manuallyProcessDelayed(wq);
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     wq->delayedCallbacks_checkpoint = NULL;
     pthread_mutex_destroy(&wq->dispatchQueue_accessMutex);
     pthread_cond_destroy(&wq->dispatchQueue_condition);
@@ -73,7 +73,7 @@ void UA_WorkQueue_cleanup(UA_WorkQueue *wq) {
 /* Workers */
 /***********/
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 
 static void *
 workerLoop(UA_Worker *worker) {
@@ -183,7 +183,7 @@ void UA_WorkQueue_enqueue(UA_WorkQueue *wq, UA_ApplicationCallback cb,
 /* Delayed Callbacks */
 /*********************/
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 
 /* Delayed Callbacks are called only when all callbacks that were dispatched
  * prior are finished. After every UA_MAX_DELAYED_SAMPLE delayed Callbacks that
@@ -229,13 +229,13 @@ dispatchDelayedCallbacks(UA_WorkQueue *wq, UA_DelayedCallback *cb) {
 
 void
 UA_WorkQueue_enqueueDelayed(UA_WorkQueue *wq, UA_DelayedCallback *cb) {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     pthread_mutex_lock(&wq->dispatchQueue_accessMutex);
 #endif
 
     SIMPLEQ_INSERT_HEAD(&wq->delayedCallbacks, cb, next);
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     wq->delayedCallbacks_sinceDispatch++;
     if(wq->delayedCallbacks_sinceDispatch > UA_MAX_DELAYED_SAMPLE) {
         dispatchDelayedCallbacks(wq, cb);
@@ -254,7 +254,7 @@ void UA_WorkQueue_manuallyProcessDelayed(UA_WorkQueue *wq) {
             dc->callback(dc->application, dc->data);
         UA_free(dc);
     }
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     wq->delayedCallbacks_checkpoint = NULL;
 #endif
 }

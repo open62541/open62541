@@ -59,6 +59,8 @@ struct UA_Server {
     /* Config */
     UA_ServerConfig config;
     UA_DateTime startTime;
+    UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
+                          * down once the time has been reached */
 
     /* Nodestore */
     void *nsCtx;
@@ -105,6 +107,11 @@ struct UA_Server {
     /* Publish/Subscribe */
 #ifdef UA_ENABLE_PUBSUB
     UA_PubSubManager pubSubManager;
+#endif
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_TYPE(networkMutex)
+    UA_LOCK_TYPE(serviceMutex)
 #endif
 };
 
@@ -153,9 +160,16 @@ isNodeInTree(void *nsCtx, const UA_NodeId *leafNode,
  * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
  * indicates the direction of search. */
 UA_StatusCode
-getLocalRecursiveHierarchy(UA_Server *server, const UA_NodeId *startNodes, size_t startNodesSize,
-                           const UA_NodeId *refTypes, size_t refTypesSize, UA_Boolean walkDownwards,
-                           UA_NodeId **results, size_t *resultsSize);
+browseRecursive(UA_Server *server,
+                size_t startNodesSize, const UA_NodeId *startNodes,
+                size_t refTypesSize, const UA_NodeId *refTypes,
+                UA_BrowseDirection browseDirection, UA_Boolean includeStartNodes,
+                size_t *resultsSize, UA_ExpandedNodeId **results);
+
+/* If refTypes is non-NULL, tries to realloc and increase the length */
+UA_StatusCode
+referenceSubtypes(UA_Server *server, const UA_NodeId *refType,
+                  size_t *refTypesSize, UA_NodeId **refTypes);
 
 /* Returns the recursive type and interface hierarchy of the node */ 
 UA_StatusCode
@@ -168,26 +182,70 @@ const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
 
 /* Write a node attribute with a defined session */
 UA_StatusCode
-UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
-                           const UA_WriteValue *value);
+writeWithSession(UA_Server *server, UA_Session *session,
+                 const UA_WriteValue *value);
 
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
-                                    void *context,
+                                    const void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
 UA_StatusCode
 UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    UA_ServiceOperation operationCallback,
-                                   void *context,
+                                   const void *context,
                                    const size_t *requestOperations,
                                    const UA_DataType *requestOperationsType,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+
+/******************************************/
+/* Internal function calls, without locks */
+/******************************************/
+UA_StatusCode
+deleteNode(UA_Server *server, const UA_NodeId nodeId,
+           UA_Boolean deleteReferences);
+
+UA_StatusCode
+addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId *requestedNewNodeId,
+        const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+        const UA_QualifiedName browseName, const UA_NodeId *typeDefinition,
+        const UA_NodeAttributes *attr, const UA_DataType *attributeType,
+        void *nodeContext, UA_NodeId *outNewNodeId);
+
+UA_StatusCode
+setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_DataSource dataSource);
+
+UA_StatusCode
+setMethodNode_callback(UA_Server *server,
+                       const UA_NodeId methodNodeId,
+                       UA_MethodCallback methodCallback);
+
+UA_StatusCode
+writeAttribute(UA_Server *server, const UA_WriteValue *value);
+
+UA_StatusCode
+writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
+                    const UA_AttributeId attributeId,
+                    const UA_DataType *attr_type,
+                    const void *attr);
+
+UA_DataValue
+readAttribute(UA_Server *server, const UA_ReadValueId *item,
+              UA_TimestampsToReturn timestamps);
+
+UA_StatusCode
+readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId, void *v);
+
+UA_BrowsePathResult
+translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
 /***************************************/
 /* Check Information Model Consistency */
@@ -245,7 +303,7 @@ struct BrowseOpts {
 };
 
 void
-Operation_Browse(UA_Server *server, UA_Session *session, const struct BrowseOpts *maxrefs,
+Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
 UA_DataValue

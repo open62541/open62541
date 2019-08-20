@@ -231,7 +231,7 @@ DNS.1 = ${hostname}
 DNS.2 = ${hostname}
 IP.1 = ${ipaddress1}
 IP.2 = ${ipaddress2}
-URI.1 = urn:unconfigured:application
+URI.1 = urn:open62541.server.application
 
 [ v3_ca ]
 

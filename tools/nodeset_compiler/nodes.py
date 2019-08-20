@@ -1,20 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-###
-### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 13
-###
-### This program was created for educational purposes and has been
-### contributed to the open62541 project by the author. All licensing
-### terms for this source is inherited by the terms and conditions
-### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
-###
-### This program is not meant to be used in a production environment. The
-### author is not liable for any complications arising due to the use of
-### this program.
-###
+### This Source Code Form is subject to the terms of the Mozilla Public
+### License, v. 2.0. If a copy of the MPL was not distributed with this
+### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+
 
 import sys
 import logging
@@ -294,7 +288,7 @@ class VariableNode(Node):
             return False
 
         self.value = Value()
-        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self, nodeset.namespaceMapping[self.modelUri])
+        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self)
         return True
 
 
@@ -426,7 +420,7 @@ class DataTypeNode(Node):
             return self.__baseTypeEncoding__
 
 
-    def buildEncoding(self, nodeset, indent=0, force=False):
+    def buildEncoding(self, nodeset, indent=0, force=False, namespaceMapping=None):
         """ buildEncoding() determines the structure and aliases used for variables
             of this DataType.
 
@@ -504,7 +498,8 @@ class DataTypeNode(Node):
         if self.__xmlDefinition__ is None:
             if parentType is not None:
                 logger.debug( prefix + "Attempting definition using supertype " + str(targetNode.browseName) + " for DataType " + " " + str(self.browseName))
-                subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1)
+                subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1,
+                                                  namespaceMapping=namespaceMapping)
                 if not targetNode.isEncodable():
                     self.__encodable__ = False
                 else:
@@ -576,7 +571,8 @@ class DataTypeNode(Node):
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
                     fdTypeNodeId = NodeId(fdtype)
-                    fdTypeNodeId.ns = nodeset.namespaceMapping[self.modelUri][fdTypeNodeId.ns]
+                    if namespaceMapping != None:
+                        fdTypeNodeId.ns = namespaceMapping[fdTypeNodeId.ns]
                     if not fdTypeNodeId in nodeset.nodes:
                         raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
                     dtnode = nodeset.nodes[fdTypeNodeId]
@@ -585,7 +581,8 @@ class DataTypeNode(Node):
                     typeDict.append([fname, dtnode])
                     fdtype = str(dtnode.browseName.name)
                     logger.debug( prefix + fname + " : " + fdtype + " -> " + str(dtnode.id))
-                    subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1)
+                    subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1,
+                                                  namespaceMapping=namespaceMapping)
                     self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank]]
                     if not dtnode.isEncodable():
                         # If we inherit an encoding from an unencodable not, this node is
@@ -602,7 +599,7 @@ class DataTypeNode(Node):
 
         if isOptionSet == True:
             self.__isOptionSet__ = True
-            subenc = parentType.buildEncoding(nodeset=nodeset)
+            subenc = parentType.buildEncoding(nodeset=nodeset, namespaceMapping=namespaceMapping)
             if not parentType.isEncodable():
                 self.__encodable__ = False
             else:

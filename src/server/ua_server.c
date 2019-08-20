@@ -186,6 +186,11 @@ void UA_Server_delete(UA_Server *server) {
     UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
 
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_RELEASE(server->networkMutex)
+    UA_LOCK_RELEASE(server->serviceMutex)
+#endif
+
     /* Clean up the Admin Session */
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
 
@@ -220,13 +225,8 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 /* Server Lifecycle */
 /********************/
 
-UA_Server *
-UA_Server_new() {
-    /* Allocate the server */
-    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
-        return NULL;
-
+static UA_Server *
+UA_Server_init(UA_Server *server) {
     /* Init start time to zero, the actual start time will be sampled in
      * UA_Server_run_startup() */
     server->startTime = 0;
@@ -234,6 +234,11 @@ UA_Server_new() {
     /* Set a seed for non-cyptographic randomness */
 #ifndef UA_ENABLE_DETERMINISTIC_RNG
     UA_random_seed((UA_UInt64)UA_DateTime_now());
+#endif
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_INIT(server->networkMutex)
+    UA_LOCK_INIT(server->serviceMutex)
 #endif
 
     /* Initialize the handling of repeated callbacks */
@@ -285,6 +290,39 @@ UA_Server_new() {
  cleanup:
     UA_Server_delete(server);
     return NULL;
+}
+
+UA_Server *
+UA_Server_new() {
+    /* Allocate the server */
+    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
+    if(!server)
+        return NULL;
+    return UA_Server_init(server);
+}
+
+
+UA_Server *
+UA_Server_newWithConfig(const UA_ServerConfig *config) {
+    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
+    if(!server)
+        return NULL;
+    if(config)
+        server->config = *config;
+    return UA_Server_init(server);
+}
+
+/* Returns if the server should be shut down immediately */
+static UA_Boolean
+setServerShutdown(UA_Server *server) {
+    if(server->endTime != 0)
+        return false;
+    if(server->config.shutdownDelay == 0)
+        return true;
+    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                   "Shutting down the server with a delay of %i ms", (int)server->config.shutdownDelay);
+    server->endTime = UA_DateTime_now() + (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
+    return false;
 }
 
 /*******************/
@@ -378,12 +416,10 @@ UA_Server_updateCertificate(UA_Server *server,
 
 UA_SecurityPolicy *
 UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
-                                         UA_ByteString *securityPolicyUri)
-{
+                                         const UA_ByteString *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
-        if(UA_ByteString_equal(securityPolicyUri,
-                               &securityPolicyCandidate->policyUri))
+        if(UA_ByteString_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
             return securityPolicyCandidate;
     }
     return NULL;
@@ -476,7 +512,7 @@ UA_Server_run_startup(UA_Server *server) {
     }
 
     /* Spin up the worker threads */
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Spinning up %u worker thread(s)", server->config.nThreads);
     UA_WorkQueue_start(&server->workQueue, server->config.nThreads);
@@ -496,10 +532,10 @@ UA_Server_run_startup(UA_Server *server) {
 static void
 serverExecuteRepeatedCallback(UA_Server *server, UA_ApplicationCallback cb,
                         void *callbackApplication, void *data) {
-#ifndef UA_ENABLE_MULTITHREADING
-    cb(callbackApplication, data);
-#else
+#if UA_MULTITHREADING >= 200
     UA_WorkQueue_enqueue(&server->workQueue, cb, callbackApplication, data);
+#else
+    cb(callbackApplication, data);
 #endif
 }
 
@@ -526,7 +562,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         nl->listen(nl, server, timeout);
     }
 
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
     if(server->config.discovery.mdnsEnable) {
         // TODO multicastNextRepeat does not consider new input data (requests)
         // on the socket. It will be handled on the next call. if needed, we
@@ -540,7 +576,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     }
 #endif
 
-#ifndef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING < 200
     UA_WorkQueue_manuallyProcessDelayed(&server->workQueue);
 #endif
 
@@ -559,7 +595,7 @@ UA_Server_run_shutdown(UA_Server *server) {
         nl->stop(nl, server);
     }
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     /* Shut down the workers */
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Shutting down %u worker thread(s)",
@@ -579,6 +615,13 @@ UA_Server_run_shutdown(UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_Boolean
+testShutdownCondition(UA_Server *server) {
+    if(server->endTime == 0)
+        return false;
+    return (UA_DateTime_now() > server->endTime);
+}
+
 UA_StatusCode
 UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     UA_StatusCode retval = UA_Server_run_startup(server);
@@ -587,7 +630,7 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
     size_t loopCount = 0;
 #endif
-    while(*running) {
+    while(!testShutdownCondition(server)) {
 #ifdef UA_ENABLE_VALGRIND_INTERACTIVE
         if(loopCount == 0) {
             VALGRIND_DO_LEAK_CHECK;
@@ -596,6 +639,10 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
         loopCount %= UA_VALGRIND_INTERACTIVE_INTERVAL;
 #endif
         UA_Server_run_iterate(server, true);
+        if(!*running) {
+            if(setServerShutdown(server))
+                break;
+        }
     }
     return UA_Server_run_shutdown(server);
 }

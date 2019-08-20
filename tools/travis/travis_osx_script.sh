@@ -48,7 +48,7 @@ echo "Compile multithreaded version" && echo -en 'travis_fold:start:script.build
 mkdir -p build && cd build
 cmake \
     -DUA_BUILD_EXAMPLES=ON \
-    -DUA_ENABLE_MULTITHREADING=ON ..
+    -DUA_MULTITHREADING=200 ..
 make -j
 if [ $? -ne 0 ] ; then exit 1 ; fi
 cd .. && rm -rf build
