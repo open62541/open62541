@@ -496,8 +496,10 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
                                                                       destinationNodeId,
                                                                       &rd->referenceTypeId,
                                                                       &node->nodeId);
-            if(retval != UA_STATUSCODE_GOOD)
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_Nodestore_deleteNode(server->nsCtx, node);
                 return retval;
+            }
         }
 
 
