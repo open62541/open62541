@@ -1120,8 +1120,8 @@ include(linting_target)
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
-set(open62541_install_tools_dir share/open62541/tools)
-set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
+set(open62541_install_tools_dir open62541/tools)
+set(open62541_install_nodeset_dir open62541/tools/ua-nodeset)
 
 # This list of components allows to define a find_package requirement.
 # E.g.:
