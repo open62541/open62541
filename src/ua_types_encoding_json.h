@@ -19,7 +19,7 @@
 
 _UA_BEGIN_DECLS
 
-#define TOKENCOUNT 1000
+#define UA_JSON_MAXTOKENCOUNT 1000
     
 size_t
 UA_calcSizeJson(const void *src, const UA_DataType *type,
