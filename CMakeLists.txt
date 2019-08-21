@@ -675,7 +675,6 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
 )
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c

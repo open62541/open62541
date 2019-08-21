@@ -8,21 +8,6 @@
 #define UA_NODESTORE_SWITCH_H_
 
 #include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/nodestore_default.h>
-
-/* Plug in nodestore switch if enabled */
-#define UA_Nodestore_Switch_new UA_Nodestore_new
-#define UA_Nodestore_Switch_delete UA_Nodestore_delete
-#define UA_Nodestore_Switch_newNode UA_Nodestore_newNode
-#define UA_Nodestore_Switch_deleteNode UA_Nodestore_deleteNode
-#define UA_Nodestore_Switch_getNode UA_Nodestore_getNode
-#define UA_Nodestore_Switch_releaseNode UA_Nodestore_releaseNode
-#define UA_Nodestore_Switch_getNodeCopy UA_Nodestore_getNodeCopy
-#define UA_Nodestore_Switch_insertNode UA_Nodestore_insertNode
-#define UA_Nodestore_Switch_replaceNode UA_Nodestore_replaceNode
-#define UA_Nodestore_Switch_removeNode UA_Nodestore_removeNode
-#define UA_Nodestore_Switch_iterate UA_Nodestore_iterate
-
 /*
  * Nodestore interface
  * Holds function pointers to the necessary nodestore functions
@@ -136,5 +121,36 @@ UA_Nodestore_Switch_changeNodestore(UA_Nodestore_Switch* storeSwitch,
 UA_StatusCode UA_EXPORT
 UA_Nodestore_Switch_getIndices(UA_Nodestore_Switch* storeSwitch,
 		UA_NodestoreInterface* store, UA_UInt16* count, UA_UInt16** indices);
+
+/**********************************************************
+ * Copy of default nodestore (include/open62541/plugin/nodestore.h),
+ * as it is unlinked with UA_ENABLE_CUSTOM_NODESTORE
+ * (See https://github.com/open62541/open62541/pull/2748#issuecomment-496834686)
+ **********************************************************/
+
+UA_Node *
+UA_Nodestore_Default_newNode(void *nsCtx, UA_NodeClass nodeClass);
+const UA_Node *
+UA_Nodestore_Default_getNode(void *nsCtx, const UA_NodeId *nodeId);
+void
+UA_Nodestore_Default_deleteNode(void *nsCtx, UA_Node *node);
+void
+UA_Nodestore_Default_releaseNode(void *nsCtx, const UA_Node *node);
+UA_StatusCode
+UA_Nodestore_Default_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
+                         UA_Node **outNode);
+UA_StatusCode
+UA_Nodestore_Default_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId);
+UA_StatusCode
+UA_Nodestore_Default_removeNode(void *nsCtx, const UA_NodeId *nodeId);
+void
+UA_Nodestore_Default_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
+                     void *visitorCtx);
+UA_StatusCode
+UA_Nodestore_Default_replaceNode(void *nsCtx, UA_Node *node);
+UA_StatusCode
+UA_Nodestore_Default_new(void **nsCtx);
+void
+UA_Nodestore_Default_delete(void *nsCtx);
 
 #endif /* UA_NODESTORE_SWITCH_H_ */
