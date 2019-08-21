@@ -3268,7 +3268,7 @@ tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src) {
     jsmn_init(&p);
     parseCtx->tokenCount = (UA_Int32)
         jsmn_parse(&p, (char*)src->data, src->length,
-                   parseCtx->tokenArray, TOKENCOUNT);
+                   parseCtx->tokenArray, UA_JSON_MAXTOKENCOUNT);
     
     if(parseCtx->tokenCount < 0) {
         if(parseCtx->tokenCount == JSMN_ERROR_NOMEM)
@@ -3300,7 +3300,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     /* Set up the context */
     CtxJson ctx;
     ParseCtx parseCtx;
-    parseCtx.tokenArray = (jsmntok_t*)UA_malloc(sizeof(jsmntok_t) * TOKENCOUNT);
+    parseCtx.tokenArray = (jsmntok_t*)UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
     if(!parseCtx.tokenArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     
