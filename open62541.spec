@@ -50,8 +50,8 @@ rm examples/CMakeLists.txt
 %dir %{_includedir}/open62541
 %{_includedir}/open62541/*
 %{_libdir}/cmake/open62541*
-%dir %{_exec_prefix}/share/open62541
-%{_exec_prefix}/share/open62541/*
+%dir %{_exec_prefix}/sopen62541
+%{_exec_prefix}/open62541/*
 
 %doc FEATURES.md
 %doc examples/
