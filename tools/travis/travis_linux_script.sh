@@ -1,6 +1,21 @@
 #!/bin/bash
 set -e
 
+if [ "$ARCH" = "freertoslwip" ]; then
+    echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.freertoslwip\\r'
+    export PATH="/home/travis/build/open62541/esp/xtensa-esp32-elf/bin:$PATH"
+    export IDF_PATH=/home/travis/build/open62541/esp-idf
+    cd $IDF_PATH/examples/opcua-esp32
+    cp /home/travis/build/open62541/open62541/build/open62541.c components/open62541lib
+    sed -i '/#define UA_IPV6 LWIP_IPV6/d' /home/travis/build/open62541/open62541/build/open62541.h
+    cp /home/travis/build/open62541/open62541/build/open62541.h components/open62541lib/include
+    rm -r components/tcpip_adapter components/lwip components/freertos
+    cp -r $IDF_PATH/components/tcpip_adapter components/ && cp -r $IDF_PATH/components/lwip components/ && cp -r $IDF_PATH/components/freertos components/ 
+    cp components/freertos/include/freertos/* components/freertos/include
+    make
+    echo -en 'travis_fold:end:script.build.freertoslwip\\r'
+    exit 0
+fi
 
 # Sonar code quality
 if ! [ -z ${SONAR+x} ]; then
