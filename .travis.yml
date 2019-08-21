@@ -254,11 +254,31 @@ matrix:
       cache:
         directories:
           - '$HOME/.sonar/cache'
+  #
+  # FREERTOS - gcc build
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          packages:
+            - gcc
+            - wget 
+            - gperf
+            - python
+            - python-pip 
+            - python-setuptools 
+            - python-serial 
+            - python-pyparsing
+      env:
+        - ARCH=freertoslwip
+          
   allow_failures:
     #
     # clang-format code analysis
+    # architecture : freertos
     - env:
         - CLANG_FORMAT=true
+        - ARCH=freertoslwip
 
 cache:
   pip: true

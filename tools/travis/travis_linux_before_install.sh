@@ -1,6 +1,35 @@
 #!/bin/bash
 set -e
 
+if [ "$ARCH" = "freertoslwip" ]; then
+    echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:before_install.build.multithread\\r'
+    mkdir -p build && cd build
+    cmake \
+    -DUA_ARCHITECTURE:STRING=freertosLWIP \
+    -DUA_ENABLE_PUBSUB:BOOL=OFF \
+    -DUA_ENABLE_METHODCALLS:BOOL=ON \
+    -DUA_ENABLE_NODEMANAGEMENT:BOOL=ON \
+    -DUA_ENABLE_AMALGAMATION:STRING=ON \
+    -DUA_ENABLE_PUBSUB:BOOL=ON \
+    -DUA_LOGLEVEL:STRING=600 ..
+	# Compile error ignored and does not cause any problems. Related Issues: #2887 and #2893
+    make -j || true
+	cd ../..
+	git clone --recursive https://github.com/espressif/esp-idf.git esp-idf
+	cd esp-idf && git checkout tags/v3.2
+	git submodule update --init && cd ..
+	export IDF_PATH=/home/travis/build/open62541/esp-idf
+	python -m pip install --user -r $IDF_PATH/requirements.txt
+	mkdir esp && cd esp
+	wget https://dl.espressif.com/dl/xtensa-esp32-elf-linux64-1.22.0-80-g6c4433a-5.2.0.tar.gz
+	tar -xzf xtensa-esp32-elf-linux64-1.22.0-80-g6c4433a-5.2.0.tar.gz
+	cd .. 
+	git clone https://github.com/cmbahadir/opcua-esp32.git opcua-esp32
+	mv opcua-esp32 $IDF_PATH/examples
+    echo -en 'travis_fold:end:before_install.build.multithread\\r'
+	exit 0
+fi
+
 if [ -z ${LOCAL_PKG+x} ] || [ -z "$LOCAL_PKG" ]; then
     echo "LOCAL_PKG is not set. Aborting..."
     exit 1
@@ -11,7 +40,7 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
     exit 0
 fi
 
-if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
+if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ] &&  [ -z ${ARCH} ]; then
 	# Only on non-docker builds required
 
  	echo "=== Installing from external package sources in $LOCAL_PKG ===" && echo -en 'travis_fold:start:before_install.external\\r'
