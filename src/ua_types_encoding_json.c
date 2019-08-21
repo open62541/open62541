@@ -2252,7 +2252,7 @@ searchObjectForKeyRec(const char *searchKey, CtxJson *ctx,
     CHECK_TOKEN_BOUNDS;
     
     if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-        size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
+        size_t objectCount = (size_t)parseCtx->tokenArray[parseCtx->index].size;
         parseCtx->index++; /*Object to first Key*/
         
         for(size_t i = 0; i < objectCount; i++) {
@@ -2262,8 +2262,7 @@ searchObjectForKeyRec(const char *searchKey, CtxJson *ctx,
                     /*found*/
                     parseCtx->index++; /*We give back a pointer to the value of the searched key!*/
                     *resultIndex = parseCtx->index;
-                    ret = UA_STATUSCODE_GOOD;
-                    break;
+                    return UA_STATUSCODE_GOOD;
                 }
             }
                
@@ -2282,7 +2281,7 @@ searchObjectForKeyRec(const char *searchKey, CtxJson *ctx,
             }
         }
     } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-        size_t arraySize = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
+        size_t arraySize = (size_t)parseCtx->tokenArray[parseCtx->index].size;
         parseCtx->index++; /*Object to first element*/
         
         for(size_t i = 0; i < arraySize; i++) {
