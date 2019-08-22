@@ -157,7 +157,7 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
                                         pthread_mutexattr_settype(&mutexName##_attr, PTHREAD_MUTEX_RECURSIVE); \
                                         pthread_mutex_init(&mutexName, &mutexName##_attr); \
                                         mutexName##Counter = 0;
-#define UA_LOCK_RELEASE(mutexName) pthread_mutex_destroy(&mutexName); \
+#define UA_LOCK_DESTROY(mutexName) pthread_mutex_destroy(&mutexName); \
                                    pthread_mutexattr_destroy(&mutexName##_attr);
 
 #define UA_LOCK(mutexName) pthread_mutex_lock(&mutexName); \
@@ -165,16 +165,15 @@ extern void * (*UA_globalRealloc)(void *ptr, size_t size);
 
 #define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
                              pthread_mutex_unlock(&mutexName);
-#define UA_LOCK_SWITCH(currentMutex, newMutex)  UA_UNLOCK(currentMutex) \
-                                                UA_LOCK(newMutex)
+#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
 #else
 #define UA_LOCK_TYPE_NAME
 #define UA_LOCK_TYPE(mutexName)
 #define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_RELEASE(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
 #define UA_LOCK(mutexName)
 #define UA_UNLOCK(mutexName)
-#define UA_LOCK_SWITCH(currentMutex, newMutex)
+#define UA_LOCK_ASSERT(mutexName, num)
 #endif
 
 #include <open62541/architecture_functions.h>
