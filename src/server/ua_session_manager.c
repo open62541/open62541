@@ -113,12 +113,14 @@ UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *toke
     }
 
     /* Session not found */
+#if UA_LOGLEVEL <= 300
     UA_String nodeIdStr = UA_STRING_NULL;
     UA_NodeId_toString(token, &nodeIdStr);
     UA_LOG_INFO(&sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                 "Try to use Session with token %.*s but is not found",
                 (int)nodeIdStr.length, nodeIdStr.data);
     UA_String_deleteMembers(&nodeIdStr);
+#endif
     return NULL;
 }
 
