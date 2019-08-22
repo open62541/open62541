@@ -1100,13 +1100,22 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
 }
 
 UA_BrowsePathResult
-UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
+translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath) {
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
     UA_UInt32 nodeClassMask = 0; /* All node classes */
     Operation_TranslateBrowsePathToNodeIds(server, &server->adminSession, &nodeClassMask,
                                            browsePath, &result);
+    return result;
+}
+
+UA_BrowsePathResult
+UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
+                                       const UA_BrowsePath *browsePath) {
+    UA_LOCK(server->serviceMutex);
+    UA_BrowsePathResult result = translateBrowsePathToNodeIds(server, browsePath);
+    UA_UNLOCK(server->serviceMutex);
     return result;
 }
 

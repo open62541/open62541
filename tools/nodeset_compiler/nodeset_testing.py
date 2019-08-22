@@ -25,10 +25,7 @@ class testing:
         self.ns.linkOpenPointers()
         self.ns.sanitize()
 
-        logger.debug("Phase 3: Comprehending DataType encoding rules")
-        self.ns.buildEncodingRules()
-
-        logger.debug("Phase 4: Allocating variable value data")
+        logger.debug("Phase 3: Allocating variable value data")
         self.ns.allocateVariables()
 
         bin = self.ns.buildBinary()

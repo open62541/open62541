@@ -40,16 +40,16 @@
 #cmakedefine UA_ENABLE_JSON_ENCODING
 
 /* Multithreading */
-#cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_IMMUTABLE_NODES
-#if defined(UA_ENABLE_MULTITHREADING) && !defined(UA_ENABLE_IMMUTABLE_NODES)
+#define UA_MULTITHREADING ${UA_MULTITHREADING}
+#if UA_MULTITHREADING >= 200 && !defined(UA_ENABLE_IMMUTABLE_NODES)
 #error "The multithreading feature requires nodes to be immutable"
 #endif
 
 /* Advanced Options */
 #cmakedefine UA_ENABLE_CUSTOM_NODESTORE
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
-#cmakedefine UA_ENABLE_TYPENAMES
+#cmakedefine UA_ENABLE_TYPEDESCRIPTION
 #cmakedefine UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS
 #cmakedefine UA_ENABLE_DETERMINISTIC_RNG
 #cmakedefine UA_ENABLE_DISCOVERY

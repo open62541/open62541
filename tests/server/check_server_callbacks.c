@@ -17,6 +17,7 @@ UA_Boolean running;
 UA_ServerNetworkLayer nl;
 UA_NodeId temperatureNodeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
 UA_Int32 temperature;
+UA_Boolean deleteNodeWhileWriting;
 THREAD_HANDLE server_thread;
 
 static void
@@ -95,6 +96,8 @@ writeTemperature(UA_Server *tmpServer,
                  const UA_NodeId *nodeId, void *nodeContext,
                  const UA_NumericRange *range, const UA_DataValue *data) {
     temperature = *(UA_Int32 *) data->value.data;
+    if (deleteNodeWhileWriting)
+        UA_Server_deleteNode(server, temperatureNodeId, true);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -197,12 +200,82 @@ START_TEST(client_readMultipleAttributes) {
     }
 END_TEST
 
+START_TEST(client_writeValueCallbackAttribute) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant *val = UA_Variant_new();
+        UA_Int32 value = 77;
+        UA_Variant_setScalarCopy(val, &value, &UA_TYPES[UA_TYPES_INT32]);
+        retval = UA_Client_writeValueAttribute(client, temperatureNodeId, val);
+
+#ifdef UA_ENABLE_IMMUTABLE_NODES
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+#else
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+#endif
+        UA_Variant_delete(val);
+
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    }
+END_TEST
+
+START_TEST(client_writeMultipleAttributes) {
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Int32 value1 = 23;
+        UA_WriteRequest wReq;
+        UA_WriteRequest_init(&wReq);
+        UA_LocalizedText string = UA_LOCALIZEDTEXT("en-US", "Temperature");
+        UA_WriteValue wv[2];
+        UA_WriteValue_init(&wv[0]);
+        UA_WriteValue_init(&wv[1]);
+        wReq.nodesToWrite = wv;
+        wReq.nodesToWriteSize = 2;
+        wReq.nodesToWrite[0].nodeId = temperatureNodeId;
+        wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+        wReq.nodesToWrite[0].value.hasValue = true;
+        wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+        wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE;
+        wReq.nodesToWrite[0].value.value.data = &string;
+
+        wReq.nodesToWrite[1].nodeId = temperatureNodeId;
+        wReq.nodesToWrite[1].attributeId = UA_ATTRIBUTEID_VALUE;
+        wReq.nodesToWrite[1].value.hasValue = true;
+        wReq.nodesToWrite[1].value.value.type = &UA_TYPES[UA_TYPES_INT32];
+        wReq.nodesToWrite[1].value.value.storageType = UA_VARIANT_DATA_NODELETE;
+        wReq.nodesToWrite[1].value.value.data = &value1;
+
+
+        UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
+
+        ck_assert_uint_eq(wResp.responseHeader.serviceResult,UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_WriteResponse_clear(&wResp);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    }
+END_TEST
+
 static Suite* testSuite_immutableNodes(void) {
     Suite *s = suite_create("Immutable Nodes");
     TCase *valueCallback = tcase_create("ValueCallback");
+
+    deleteNodeWhileWriting = UA_FALSE;
     tcase_add_checked_fixture(valueCallback, setup, teardown);
     tcase_add_test(valueCallback, client_readValueCallbackAttribute);
     tcase_add_test(valueCallback, client_readMultipleAttributes);
+
+    deleteNodeWhileWriting = UA_TRUE;
+    tcase_add_test(valueCallback, client_writeValueCallbackAttribute);
+    tcase_add_test(valueCallback, client_writeMultipleAttributes);
     suite_add_tcase(s,valueCallback);
     return s;
 }

@@ -35,10 +35,13 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
                  const UA_Node *node) {
     if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
-    return node->writeMask &
-        server->config.accessControl.getUserRightsMask(server, &server->config.accessControl,
-                                                       &session->sessionId, session->sessionHandle,
-                                                       &node->nodeId, node->context);
+    UA_UInt32 retval = node->writeMask;
+    UA_UNLOCK(server->serviceMutex);
+    retval &= server->config.accessControl.getUserRightsMask(server, &server->config.accessControl,
+                                                             &session->sessionId, session->sessionHandle,
+                                                             &node->nodeId, node->context);
+    UA_LOCK(server->serviceMutex);
+    return retval;
 }
 
 static UA_Byte
@@ -54,10 +57,13 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
-    return node->accessLevel &
-        server->config.accessControl.getUserAccessLevel(server, &server->config.accessControl,
-                                                        &session->sessionId, session->sessionHandle,
-                                                        &node->nodeId, node->context);
+    UA_Byte retval = node->accessLevel;
+    UA_UNLOCK(server->serviceMutex);
+    retval &= server->config.accessControl.getUserAccessLevel(server, &server->config.accessControl,
+                                                    &session->sessionId, session->sessionHandle,
+                                                    &node->nodeId, node->context);
+    UA_LOCK(server->serviceMutex);
+    return retval;
 }
 
 static UA_Boolean
@@ -65,10 +71,13 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
     if(session == &server->adminSession)
         return true; /* the local admin user has all rights */
-    return node->executable &
-        server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
-                                                       &session->sessionId, session->sessionHandle,
-                                                       &node->nodeId, node->context);
+    UA_Boolean retval = node->executable;
+    UA_UNLOCK(server->serviceMutex);
+    retval &= server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
+                                                             &session->sessionId, session->sessionHandle,
+                                                             &node->nodeId, node->context);
+    UA_LOCK(server->serviceMutex);
+    return retval;
 }
 
 /****************/
@@ -104,9 +113,11 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                            UA_NumericRange *rangeptr) {
     /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
+        UA_UNLOCK(server->serviceMutex);
         vn->value.data.callback.onRead(server, &session->sessionId,
                                        session->sessionHandle, &vn->nodeId,
                                        vn->context, rangeptr, &vn->value.data.value);
+        UA_LOCK(server->serviceMutex);
         vn = (const UA_VariableNode*)UA_Nodestore_getNode(server->nsCtx, &vn->nodeId);
         if(!vn)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -134,9 +145,11 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_DataValue v2;
     UA_DataValue_init(&v2);
+    UA_UNLOCK(server->serviceMutex);
     UA_StatusCode retval = vn->value.dataSource.
         read(server, &session->sessionId, session->sessionHandle,
              &vn->nodeId, vn->context, sourceTimeStamp, rangeptr, &v2);
+    UA_LOCK(server->serviceMutex);
     if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
         retval = UA_DataValue_copy(&v2, v);
         UA_DataValue_deleteMembers(&v2);
@@ -188,6 +201,55 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;           \
         break;                                                  \
     }
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+static const UA_DataType *
+findDataType(const UA_Node *node, const UA_DataTypeArray *customTypes) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_NodeId_equal(&UA_TYPES[i].typeId, &node->nodeId)) {
+            return &UA_TYPES[i];
+        }
+    }
+
+    // lookup custom type
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            if(UA_NodeId_equal(&customTypes->types[i].typeId, &node->nodeId))
+                return &customTypes->types[i];
+        }
+        customTypes = customTypes->next;
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
+    def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    def->defaultEncodingId =
+        UA_NODEID_NUMERIC(type->typeId.namespaceIndex, type->binaryEncodingId);
+    def->structureType = UA_STRUCTURETYPE_STRUCTURE;
+    def->fieldsSize = type->membersSize;
+    def->fields =
+        (UA_StructureField *)UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
+    if(!def->fields) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    const UA_DataType *typelists[2] = {UA_TYPES, &type[-type->typeIndex]};
+    for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
+        const UA_DataTypeMember *m = &type->members[cnt];
+        def->fields[cnt].valueRank = UA_TRUE == m->isArray ? 1 : -1;
+        def->fields[cnt].arrayDimensions = NULL;
+        def->fields[cnt].arrayDimensionsSize = 0;
+        def->fields[cnt].name =
+            UA_STRING((char *)(uintptr_t)m->memberName);
+        def->fields[cnt].description.locale = UA_STRING_NULL;
+        def->fields[cnt].description.text = UA_STRING_NULL;
+        def->fields[cnt].dataType = typelists[!m->namespaceZero][m->memberTypeIndex].typeId;
+        def->fields[cnt].maxStringLength = 0;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 /* Returns a datavalue that may point into the node via the
  * UA_VARIANT_DATA_NODELETE tag. Don't access the returned DataValue once the
@@ -340,6 +402,30 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         UA_Boolean userExecutable = getUserExecutable(server, session, (const UA_MethodNode*)node);
         retval = UA_Variant_setScalarCopy(&v->value, &userExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
         break; }
+    case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
+        CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        const UA_DataType *type = findDataType(node, server->config.customDataTypes);
+        if(!type) {
+            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            break;
+        }
+
+        if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
+           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind) {
+            UA_StructureDefinition def;
+            retval = getStructureDefinition(type, &def);
+            if(UA_STATUSCODE_GOOD!=retval)
+                break;            
+            retval = UA_Variant_setScalarCopy(&v->value, &def,
+                                              &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+            UA_free(def.fields);
+            break;
+        }
+#endif
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+        break; }
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
@@ -418,12 +504,13 @@ Service_Read(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-
+    UA_LOCK(server->serviceMutex);
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Read,
                                            request,
                                            &request->nodesToReadSize, &UA_TYPES[UA_TYPES_READVALUEID],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_DataValue
@@ -449,24 +536,21 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     return dv;
 }
 
-/* Exposes the Read service to local users */
 UA_DataValue
-UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
+readAttribute(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
     return UA_Server_readWithSession(server, &server->adminSession, item, timestamps);
 }
 
-/* Used in inline functions exposing the Read service with more syntactic sugar
- * for individual attributes */
 UA_StatusCode
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
-                 const UA_AttributeId attributeId, void *v) {
+readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
+                                const UA_AttributeId attributeId, void *v) {
     /* Call the read service */
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
     item.attributeId = attributeId;
-    UA_DataValue dv = UA_Server_read(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
+    UA_DataValue dv = readAttribute(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
 
     /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -489,6 +573,27 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
         UA_free(dv.value.data);
     }
     return retval;
+}
+
+/* Exposes the Read service to local users */
+UA_DataValue
+UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
+               UA_TimestampsToReturn timestamps) {
+    UA_LOCK(server->serviceMutex);
+    UA_DataValue dv = readAttribute(server, item, timestamps);
+    UA_UNLOCK(server->serviceMutex);
+    return dv;
+}
+
+/* Used in inline functions exposing the Read service with more syntactic sugar
+ * for individual attributes */
+UA_StatusCode
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
+                 const UA_AttributeId attributeId, void *v) {
+   UA_LOCK(server->serviceMutex);
+   UA_StatusCode retval = readWithReadValue(server, nodeId, attributeId, v);
+   UA_UNLOCK(server->serviceMutex);
+   return retval;
 }
 
 UA_StatusCode
@@ -1080,16 +1185,22 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
                                                     &node->nodeId, node->historizing, &adjustedValue);
 #endif
         /* Callback after writing */
-        if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite)
+        if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite) {
+            UA_UNLOCK(server->serviceMutex)
             node->value.data.callback.onWrite(server, &session->sessionId,
                                               session->sessionHandle, &node->nodeId,
                                               node->context, rangeptr,
                                               &adjustedValue);
+            UA_LOCK(server->serviceMutex);
+
+        }
     } else {
         if(node->value.dataSource.write) {
+            UA_UNLOCK(server->serviceMutex);
             retval = node->value.dataSource.write(server, &session->sessionId,
                                                   session->sessionHandle, &node->nodeId,
                                                   node->context, rangeptr, &adjustedValue);
+            UA_LOCK(server->serviceMutex);
         } else {
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         }
@@ -1343,15 +1454,16 @@ Service_Write(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-
+    UA_LOCK(server->serviceMutex)
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Write, NULL,
                                            &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode
-UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
+writeWithSession(UA_Server *server, UA_Session *session,
                            const UA_WriteValue *value) {
     return UA_Server_editNode(server, session, &value->nodeId,
                               (UA_EditNodeCallback)copyAttributeIntoNode,
@@ -1360,16 +1472,23 @@ UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
+writeAttribute(UA_Server *server, const UA_WriteValue *value) {
     return UA_Server_editNode(server, &server->adminSession, &value->nodeId,
                               (UA_EditNodeCallback)copyAttributeIntoNode,
-                              /* casting away const qualifier because callback uses const anyway */
+                               /* casting away const qualifier because callback uses const anyway */
                               (UA_WriteValue *)(uintptr_t)value);
 }
 
-/* Convenience function to be wrapped into inline functions */
 UA_StatusCode
-__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = writeAttribute(server, value);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+UA_StatusCode
+writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
                   const UA_DataType *attr_type,
                   const void *attr) {
@@ -1385,7 +1504,19 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     } else {
         wvalue.value.value = *(const UA_Variant*)attr;
     }
-    return UA_Server_write(server, &wvalue);
+    return writeAttribute(server, &wvalue);
+}
+
+/* Convenience function to be wrapped into inline functions */
+UA_StatusCode
+__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId,
+                  const UA_DataType *attr_type,
+                  const void *attr) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = writeWithWriteValue(server, nodeId, attributeId, attr_type, attr);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 #ifdef UA_ENABLE_HISTORIZING

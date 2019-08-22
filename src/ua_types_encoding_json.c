@@ -2252,22 +2252,17 @@ searchObjectForKeyRec(const char *searchKey, CtxJson *ctx,
     CHECK_TOKEN_BOUNDS;
     
     if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
-        size_t objectCount = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
-        
+        size_t objectCount = (size_t)parseCtx->tokenArray[parseCtx->index].size;
         parseCtx->index++; /*Object to first Key*/
-        CHECK_TOKEN_BOUNDS;
         
-        size_t i;
-        for(i = 0; i < objectCount; i++) {
-            
+        for(size_t i = 0; i < objectCount; i++) {
             CHECK_TOKEN_BOUNDS;
             if(depth == 0) { /* we search only on first layer */
                 if(jsoneq((char*)ctx->pos, &parseCtx->tokenArray[parseCtx->index], searchKey) == 0) {
                     /*found*/
                     parseCtx->index++; /*We give back a pointer to the value of the searched key!*/
                     *resultIndex = parseCtx->index;
-                    ret = UA_STATUSCODE_GOOD;
-                    break;
+                    return UA_STATUSCODE_GOOD;
                 }
             }
                
@@ -2286,13 +2281,11 @@ searchObjectForKeyRec(const char *searchKey, CtxJson *ctx,
             }
         }
     } else if(parseCtx->tokenArray[parseCtx->index].type == JSMN_ARRAY) {
-        size_t arraySize = (size_t)(parseCtx->tokenArray[parseCtx->index].size);
-        
+        size_t arraySize = (size_t)parseCtx->tokenArray[parseCtx->index].size;
         parseCtx->index++; /*Object to first element*/
-        CHECK_TOKEN_BOUNDS;
         
-        size_t i;
-        for(i = 0; i < arraySize; i++) {
+        for(size_t i = 0; i < arraySize; i++) {
+            CHECK_TOKEN_BOUNDS;
             if(parseCtx->tokenArray[parseCtx->index].type == JSMN_OBJECT) {
                ret = searchObjectForKeyRec(searchKey, ctx, parseCtx, resultIndex,
                                            (UA_UInt16)(depth + 1));
@@ -3268,7 +3261,7 @@ tokenize(ParseCtx *parseCtx, CtxJson *ctx, const UA_ByteString *src) {
     jsmn_init(&p);
     parseCtx->tokenCount = (UA_Int32)
         jsmn_parse(&p, (char*)src->data, src->length,
-                   parseCtx->tokenArray, TOKENCOUNT);
+                   parseCtx->tokenArray, UA_JSON_MAXTOKENCOUNT);
     
     if(parseCtx->tokenCount < 0) {
         if(parseCtx->tokenCount == JSMN_ERROR_NOMEM)
@@ -3289,7 +3282,7 @@ decodeJsonInternal(void *dst, const UA_DataType *type,
 status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     
-#ifndef UA_ENABLE_TYPENAMES
+#ifndef UA_ENABLE_TYPEDESCRIPTION
     return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
     
@@ -3300,7 +3293,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type) {
     /* Set up the context */
     CtxJson ctx;
     ParseCtx parseCtx;
-    parseCtx.tokenArray = (jsmntok_t*)UA_malloc(sizeof(jsmntok_t) * TOKENCOUNT);
+    parseCtx.tokenArray = (jsmntok_t*)UA_malloc(sizeof(jsmntok_t) * UA_JSON_MAXTOKENCOUNT);
     if(!parseCtx.tokenArray)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     

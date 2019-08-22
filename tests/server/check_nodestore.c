@@ -17,7 +17,7 @@
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 #include <pthread.h>
 #endif
 
@@ -212,7 +212,7 @@ END_TEST
 /* Performance Profiling Test Cases */
 /************************************/
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 struct UA_NodeStoreProfileTest {
     UA_Int32 min_val;
     UA_Int32 max_val;
@@ -246,7 +246,7 @@ START_TEST(profileGetDelete) {
         UA_Nodestore_insertNode(nsCtx, n, NULL);
     }
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 #define THREADS 4
     pthread_t t[THREADS];
     struct UA_NodeStoreProfileTest p[THREADS];

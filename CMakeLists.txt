@@ -192,12 +192,12 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
-option(UA_ENABLE_MULTITHREADING "Enable multithreading (EXPERIMENTAL)" OFF)
-mark_as_advanced(UA_ENABLE_MULTITHREADING)
-
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
-if(UA_ENABLE_MULTITHREADING)
+
+set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading")
+mark_as_advanced(UA_MULTITHREADING)
+if (UA_MULTITHREADING GREATER 100)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
 
@@ -257,8 +257,8 @@ mark_as_advanced(UA_ENABLE_JSON_ENCODING)
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
-option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" ON)
-mark_as_advanced(UA_ENABLE_TYPENAMES)
+option(UA_ENABLE_TYPEDESCRIPTION "Add the type and member names to the UA_DataType structure" ON)
+mark_as_advanced(UA_ENABLE_TYPEDESCRIPTION)
 
 option(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS "Set node description attribute for nodeset compiler generated nodes" ON)
 mark_as_advanced(UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS)
@@ -338,7 +338,7 @@ option(UA_BUILD_FUZZING_CORPUS "Build the fuzzing corpus" OFF)
 mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
 if(UA_BUILD_FUZZING_CORPUS)
     add_definitions(-DUA_DEBUG_DUMP_PKGS_FILE)
-    set(UA_ENABLE_TYPENAMES ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_TYPEDESCRIPTION ON CACHE STRING "" FORCE)
     #set(UA_DEBUG_DUMP_PKGS ON CACHE STRING "" FORCE)
 endif()
 
@@ -359,8 +359,8 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 # Warn if experimental features are enabled
-if(UA_ENABLE_MULTITHREADING)
-    MESSAGE(WARNING "UA_ENABLE_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
+if(UA_MULTITHREADING)
+    MESSAGE(WARNING "UA_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
 endif()
 
 ########################
@@ -866,6 +866,9 @@ else()
 	if(UA_ENABLE_DA)
 		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_dataaccess.txt)
     endif()
+    if(UA_ENABLE_TYPEDESCRIPTION)
+        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_typedescription.txt)
+    endif()
 endif()
 
 # standard-defined data types
@@ -1009,7 +1012,7 @@ else()
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
-    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport)
+    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -1074,7 +1077,7 @@ if (UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
 # Generate properly versioned shared library links on Linux
-SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
+SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION "${OPEN62541_VER_MAJOR}" VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 ##################################
 #     Architectures changes      #
@@ -1178,7 +1181,7 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     list(APPEND open62541_enabled_components "Events")
 endif()
-if(UA_ENABLE_MULTITHREADING)
+if(UA_MULTITHREADING)
     list(APPEND open62541_enabled_components "Multithreading")
 endif()
 if(UA_ENABLE_DISCOVERY)

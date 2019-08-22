@@ -71,6 +71,9 @@ void
 UA_PubSubConnectionConfig_deleteMembers(UA_PubSubConnectionConfig *connectionConfig);
 void
 UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connection);
+/* Register channel for given connectionIdentifier */
+UA_StatusCode
+UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
 
 /**********************************************/
 /*              DataSetWriter                 */

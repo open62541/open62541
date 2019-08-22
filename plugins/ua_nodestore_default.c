@@ -11,10 +11,9 @@
 
 #ifndef UA_ENABLE_CUSTOM_NODESTORE
 
-#ifdef UA_ENABLE_MULTITHREADING
-#include <pthread.h>
-#define BEGIN_CRITSECT(NODEMAP) pthread_mutex_lock(&(NODEMAP)->mutex)
-#define END_CRITSECT(NODEMAP) pthread_mutex_unlock(&(NODEMAP)->mutex)
+#if UA_MULTITHREADING >= 100
+#define BEGIN_CRITSECT(NODEMAP) UA_LOCK(NODEMAP->lock)
+#define END_CRITSECT(NODEMAP) UA_UNLOCK(NODEMAP->lock)
 #else
 #define BEGIN_CRITSECT(NODEMAP) do {} while(0)
 #define END_CRITSECT(NODEMAP) do {} while(0)
@@ -59,8 +58,8 @@ typedef struct NodeTree NodeTree;
 
 typedef struct {
     NodeTree root;
-#ifdef UA_ENABLE_MULTITHREADING
-    pthread_mutex_t mutex; /* Protect access */
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_TYPE(lock) /* Protect access */
 #endif
 } NodeMap;
 
@@ -158,8 +157,8 @@ void
 UA_Nodestore_releaseNode(void *nsCtx, const UA_Node *node) {
     if(!node)
         return;
-#ifdef UA_ENABLE_MULTITHREADING
-    NodeMap *ns = (NodeMap*)nsCtx;
+#if UA_MULTITHREADING >= 100
+        NodeMap *ns = (NodeMap*)nsCtx;
 #endif
     BEGIN_CRITSECT(ns);
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
@@ -244,8 +243,10 @@ UA_StatusCode
 UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
     /* Find the node */
     const UA_Node *oldNode = UA_Nodestore_getNode(nsCtx, &node->nodeId);
-    if(!oldNode)
+    if(!oldNode) {
+        deleteEntry(container_of(node, NodeEntry, nodeId));
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
 
     /* Test if the copy is current */
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
@@ -329,8 +330,8 @@ UA_Nodestore_new(void **nsCtx) {
     NodeMap *nodemap = (NodeMap*)UA_malloc(sizeof(NodeMap));
     if(!nodemap)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-#ifdef UA_ENABLE_MULTITHREADING
-    pthread_mutex_init(&nodemap->mutex, NULL);
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_INIT(nodemap->lock)
 #endif
 
     ZIP_INIT(&nodemap->root);
@@ -346,8 +347,8 @@ UA_Nodestore_delete(void *nsCtx) {
         return;
 
     NodeMap *ns = (NodeMap*)nsCtx;
-#ifdef UA_ENABLE_MULTITHREADING
-    pthread_mutex_destroy(&ns->mutex);
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_RELEASE(ns->lock);
 #endif
     ZIP_ITER(NodeTree, &ns->root, deleteNodeVisitor, NULL);
     UA_free(ns);

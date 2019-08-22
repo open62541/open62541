@@ -203,6 +203,40 @@ add_executable(check_server_callbacks server/check_server_callbacks.c $<TARGET_O
 target_link_libraries(check_server_callbacks ${LIBS})
 add_test_valgrind(server_callbacks ${TESTS_BINARY_DIR}/check_server_callbacks)
 
+if (UA_MULTITHREADING EQUAL 100)
+    add_executable(check_mt_addVariableNode multithreading/check_mt_addVariableNode.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_addVariableNode ${LIBS})
+    add_test_valgrind(mt_addVariableNode ${TESTS_BINARY_DIR}/check_mt_addVariableNode)
+
+    add_executable(check_mt_addVariableTypeNode multithreading/check_mt_addVariableTypeNode.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_addVariableTypeNode ${LIBS})
+    add_test_valgrind(mt_addVariableTypeNode ${TESTS_BINARY_DIR}/check_mt_addVariableTypeNode)
+
+    add_executable(check_mt_addObjectNode multithreading/check_mt_addObjectNode.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_addObjectNode ${LIBS})
+    add_test_valgrind(mt_addObjectNode ${TESTS_BINARY_DIR}/check_mt_addObjectNode)
+
+    add_executable(check_mt_readValueAttribute multithreading/check_mt_readValueAttribute.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_readValueAttribute ${LIBS})
+    add_test_valgrind(mt_readValueAttribute ${TESTS_BINARY_DIR}/check_mt_readValueAttribute)
+
+    add_executable(check_mt_writeValueAttribute multithreading/check_mt_writeValueAttribute.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_writeValueAttribute ${LIBS})
+    add_test_valgrind(mt_writeValueAttribute ${TESTS_BINARY_DIR}/check_mt_readWriteDelete)
+
+    add_executable(check_mt_readWriteDelete multithreading/check_mt_readWriteDelete.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_readWriteDelete ${LIBS})
+    add_test_valgrind(mt_readWriteDelete ${TESTS_BINARY_DIR}/check_mt_readWriteDelete)
+
+    add_executable(check_mt_readWriteDeleteCallback multithreading/check_mt_readWriteDeleteCallback.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_readWriteDeleteCallback ${LIBS})
+    add_test_valgrind(mt_readWriteDeleteCallback ${TESTS_BINARY_DIR}/check_mt_readWriteDeleteCallback)
+
+    add_executable(check_mt_addDeleteObject multithreading/check_mt_addDeleteObject.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_mt_addDeleteObject ${LIBS})
+    add_test_valgrind(mt_addDeleteObject ${TESTS_BINARY_DIR}/check_mt_addDeleteObject)
+endif()
+
 add_executable(check_services_call server/check_services_call.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_call ${LIBS})
 add_test_valgrind(services_call ${TESTS_BINARY_DIR}/check_services_call)

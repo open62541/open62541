@@ -12,7 +12,7 @@
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 
 static void *
 multicastWorkerLoop(UA_Server *server) {
@@ -72,7 +72,7 @@ multicastListenStop(UA_Server* server) {
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
-# endif /* UA_ENABLE_MULTITHREADING */
+# endif /* UA_MULTITHREADING */
 
 static UA_StatusCode
 addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
@@ -110,7 +110,7 @@ void startMulticastDiscoveryServer(UA_Server *server) {
     /* find any other server on the net */
     UA_Discovery_multicastQuery(server);
 
-# ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     multicastListenStart(server);
 # endif
 }
@@ -130,7 +130,7 @@ stopMulticastDiscoveryServer(UA_Server *server) {
                      "Could not get hostname for multicast discovery.");
     }
 
-# ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     multicastListenStop(server);
 # else
     // send out last package with TTL = 0
