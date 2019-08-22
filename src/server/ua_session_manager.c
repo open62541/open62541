@@ -43,6 +43,10 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     }
 #endif
 
+    /* Callback into userland access control */
+    server->config.accessControl.closeSession(server, &server->config.accessControl,
+                                              &session->sessionId, session->sessionHandle);
+
     /* Detach the Session from the SecureChannel */
     UA_Session_detachFromSecureChannel(&sentry->session);
 
