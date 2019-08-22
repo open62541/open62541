@@ -8,6 +8,7 @@ enum VALUE_STATE {
     VALUE_STATE_BUILTIN,
     VALUE_STATE_NODEID,
     VALUE_STATE_LOCALIZEDTEXT,
+    VALUE_STATE_QUALIFIEDNAME,
     VALUE_STATE_ERROR
 };
 
@@ -47,6 +48,14 @@ getMem(Value *val) {
     return UA_STATUSCODE_GOOD;
 }
 
+static TypeList* TypeList_push(TypeList* stack, const UA_DataType* newType)
+{
+    TypeList *newStack = (TypeList *)(UA_calloc(1, sizeof(TypeList)));
+    newStack->next = stack;
+    newStack->type = newType;
+    return newStack;
+}
+
 Value *
 Value_new(const UA_Node *node) {
     Value *val = (Value *)UA_calloc(1, sizeof(Value));
@@ -55,11 +64,11 @@ Value_new(const UA_Node *node) {
 
     // looks only in UA_TYPES, should also look in custom types
     val->typestack->type = UA_findDataType(&((const UA_VariableNode *)node)->dataType);
-    val->name = val->typestack->type->typeName;
     if(!val->typestack->type) {
         printf("could not determine type, value processing stopped\n");
         val->state = VALUE_STATE_ERROR;
     }
+    val->name = val->typestack->type->typeName;
     val->typestack->memberIndex = 0;
     if(getMem(val) != UA_STATUSCODE_GOOD) {
         printf("getMem failed, value processing stopped\n");
@@ -77,6 +86,9 @@ isBuiltinSpecialType(Value *val) {
             break;
         case UA_DATATYPEKIND_LOCALIZEDTEXT:
             val->state = VALUE_STATE_LOCALIZEDTEXT;
+            break;
+        case UA_DATATYPEKIND_QUALIFIEDNAME:
+            val->state = VALUE_STATE_QUALIFIEDNAME;
         default:
             break;
     }
@@ -121,14 +133,13 @@ Value_start(Value *val, const UA_Node *node, const char *localname) {
                     val->name = val->typestack->type->members[idx].memberName;
                     val->offset =
                         val->offset + val->typestack->type->members[idx].padding;
-                    TypeList *newType = (TypeList *)(UA_calloc(1, sizeof(TypeList)));
-                    newType->next = val->typestack;
-                    newType->type =
-                        &UA_TYPES[val->typestack->type->members[idx].memberTypeIndex];
-                    val->typestack = newType;
+                    
+                    val->typestack = TypeList_push(
+                        val->typestack,
+                        &UA_TYPES[val->typestack->type->members[idx].memberTypeIndex]);
                     val->state = VALUE_STATE_DATA;
-                    if(newType->type->members) {
-                        val->name = newType->type->members[0].memberName;
+                    if(val->typestack->type->members) {
+                        val->name = val->typestack->type->members[0].memberName;
                     }
                 }
                 if(!val->typestack->type->members) {
@@ -142,6 +153,10 @@ Value_start(Value *val, const UA_Node *node, const char *localname) {
         case VALUE_STATE_NODEID:
             break;
         case VALUE_STATE_LOCALIZEDTEXT:
+            break;
+        case VALUE_STATE_QUALIFIEDNAME:
+            break;
+        default:
             break;
     }
 }
@@ -307,6 +322,20 @@ Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
                 nextType(val);
             }
             break;
+        case VALUE_STATE_QUALIFIEDNAME:
+            if(!strcmp(localname, "NamespaceIndex")) {
+                setScalarValueWithAddress(val->offset + (uintptr_t) &
+                                              ((UA_QualifiedName *)val->value)->namespaceIndex,
+                                          UA_DATATYPEKIND_UINT16, value);
+            } else if(!strcmp(localname, "Name")) {
+                setScalarValueWithAddress(val->offset + (uintptr_t) &
+                                              ((UA_QualifiedName *)val->value)->name,
+                                          UA_DATATYPEKIND_STRING, value);
+            } else {
+                val->offset = val->offset + sizeof(UA_QualifiedName);
+                nextType(val);
+            }
+            break;
         case VALUE_STATE_DATA:
             if(!strcmp(localname, val->typestack->type->typeName)) {
                 nextType(val);
@@ -317,9 +346,8 @@ Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
             break;
         case VALUE_STATE_FINISHED:
             break;
-
         default:
-            UA_assert(false && "should never end up here");
+            break;
     }
 }
 

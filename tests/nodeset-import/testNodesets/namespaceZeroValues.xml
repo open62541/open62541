@@ -18,6 +18,7 @@
         <Alias Alias="HasDescription">i=39</Alias>
         <Alias Alias="ServerStatusDataType">i=862</Alias>
         <Alias Alias="LocalizedText">i=21</Alias>
+        <!--<Alias Alias="QualifiedName">i=20</Alias>-->
     </Aliases>
    <UAVariable NodeId="ns=1;i=1000" BrowseName="InputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
     <DisplayName>Arguments_Array</DisplayName>
@@ -243,6 +244,38 @@
         <Locale>en</Locale>
         <Text>someText@42</Text>
       </LocalizedText>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1008" BrowseName="LocalizedArray" DataType="LocalizedText" ValueRank="-1">
+    <DisplayName>LocalizedArray</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <ListOfLocalizedText>
+        <LocalizedText>
+          <Locale>at</Locale>
+          <Text>griasEich!</Text>
+        </LocalizedText>
+        <LocalizedText>
+          <Locale>en</Locale>
+          <Text>Hi!</Text>
+        </LocalizedText>
+      </ListOfLocalizedText>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=1;i=1009" BrowseName="QualifiedName" DataType="QualifiedName" ValueRank="-1">
+    <DisplayName>QualifiedName</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+    </References>
+    <Value>
+      <QualifiedName>
+        <NamespaceIndex>2</NamespaceIndex>
+        <Name>qualifiedName</Name>
+      </QualifiedName>
     </Value>
   </UAVariable>
 </UANodeSet>

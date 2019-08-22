@@ -91,7 +91,6 @@ START_TEST(Server_LoadNS0Values) {
     f.file = NS0VALUESXML;
     UA_StatusCode retval = UA_XmlImport_loadFile(&f);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
     UA_UInt16 nsIdx =
         getNamespaceIndex("http://open62541.com/nodesetimport/tests/namespaceZeroValues");
     ck_assert_uint_gt(nsIdx, 0);
@@ -127,6 +126,22 @@ START_TEST(Server_LoadNS0Values) {
     ck_assert(var.type->typeIndex == UA_TYPES_LOCALIZEDTEXT);
     UA_String s = UA_STRING("en");
     ck_assert(UA_String_equal(&((UA_LocalizedText *)var.data)->locale, &s));
+    UA_Variant_clear(&var);
+    // LocalizedTextArray
+    retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(nsIdx, 1008), &var);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(var.type->typeIndex == UA_TYPES_LOCALIZEDTEXT);
+    ck_assert_int_eq(var.arrayLength, 2);
+    s = UA_STRING("griasEich!");
+    ck_assert(UA_String_equal(&((UA_LocalizedText *)var.data)->text, &s));
+    s = UA_STRING("Hi!");
+    ck_assert(UA_String_equal(&((UA_LocalizedText*)var.data)[1].text, &s));
+    UA_Variant_clear(&var);
+    // QualifiedName
+    retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(nsIdx, 1009), &var);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(var.type->typeIndex == UA_TYPES_QUALIFIEDNAME);
+    ck_assert_uint_eq(((UA_QualifiedName *)var.data)->namespaceIndex, 2);
     UA_Variant_clear(&var);
 }
 END_TEST
