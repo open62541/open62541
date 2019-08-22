@@ -269,12 +269,11 @@ void Service_Call(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CallMethod, NULL,
                                            &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_CallMethodResult UA_EXPORT

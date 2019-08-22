@@ -504,13 +504,12 @@ Service_Read(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Read,
                                            request,
                                            &request->nodesToReadSize, &UA_TYPES[UA_TYPES_READVALUEID],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_DataValue
@@ -1454,12 +1453,11 @@ Service_Write(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex)
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Write, NULL,
                                            &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode
