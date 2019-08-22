@@ -52,7 +52,6 @@ else()
     set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
-
 # Use different plugins for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
@@ -305,6 +304,7 @@ if(UA_ENABLE_PUBSUB)
     #Link libraries for executing subscriber unit test
     add_executable(check_pubsub_subscribe pubsub/check_pubsub_subscribe.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_subscribe ${LIBS})
+    add_test_valgrind(check_pubsub_subscribe ${TESTS_BINARY_DIR}/check_pubsub_subscribe)
     add_executable(check_pubsub_publishspeed pubsub/check_pubsub_publishspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_publishspeed ${LIBS})
     add_test_valgrind(pubsub_publishspeed ${TESTS_BINARY_DIR}/check_pubsub_publish)
@@ -329,6 +329,10 @@ if(UA_ENABLE_PUBSUB)
             add_executable(check_pubsub_connection_mqtt pubsub/check_pubsub_connection_mqtt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
             target_link_libraries(check_pubsub_connection_mqtt ${LIBS})
             add_test_valgrind(pubsub_connection_mqtt ${TESTS_BINARY_DIR}/check_pubsub_connection_mqtt)
+
+            add_executable(check_pubsub_mqtt pubsub/check_pubsub_mqtt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+            target_link_libraries(check_pubsub_mqtt ${LIBS})
+            add_test_valgrind(pubsub_mqtt ${TESTS_BINARY_DIR}/check_pubsub_mqtt)
         endif()
     endif()
 endif()
