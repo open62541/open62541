@@ -18,7 +18,7 @@
         <Alias Alias="HasDescription">i=39</Alias>
         <Alias Alias="ServerStatusDataType">i=862</Alias>
         <Alias Alias="LocalizedText">i=21</Alias>
-        <!--<Alias Alias="QualifiedName">i=20</Alias>-->
+        <Alias Alias="QualifiedName">i=20</Alias>
     </Aliases>
    <UAVariable NodeId="ns=1;i=1000" BrowseName="InputArguments" DataType="i=296" ValueRank="1" ArrayDimensions="0">
     <DisplayName>Arguments_Array</DisplayName>

@@ -67,6 +67,7 @@ Value_new(const UA_Node *node) {
     if(!val->typestack->type) {
         printf("could not determine type, value processing stopped\n");
         val->state = VALUE_STATE_ERROR;
+        return val;
     }
     val->name = val->typestack->type->typeName;
     val->typestack->memberIndex = 0;
