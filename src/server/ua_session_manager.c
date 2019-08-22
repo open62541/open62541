@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
  *
- *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015 (c) Sten Grüner
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -29,28 +29,29 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
 
 static void
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
+    UA_Server *server = sm->server;
+    UA_Session *session = &sentry->session;
+
     /* Remove the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
-    LIST_FOREACH_SAFE(sub, &sentry->session.serverSubscriptions, listEntry, tempsub) {
-        UA_Session_deleteSubscription(sm->server, &sentry->session, sub->subscriptionId);
+    LIST_FOREACH_SAFE(sub, &session->serverSubscriptions, listEntry, tempsub) {
+        UA_Session_deleteSubscription(server, session, sub->subscriptionId);
     }
 
     UA_PublishResponseEntry *entry;
-    while((entry = UA_Session_dequeuePublishReq(&sentry->session))) {
+    while((entry = UA_Session_dequeuePublishReq(session))) {
         UA_PublishResponse_deleteMembers(&entry->response);
         UA_free(entry);
     }
 #endif
 
-    if(sm->server->config.accessControl.closeSession)
-        sm->server->config.accessControl.closeSession(sm->server,
-                                                      &sm->server->config.accessControl,
-                                                      &sentry->session.sessionId,
-                                                      sentry->session.sessionHandle);
+    if(server->config.accessControl.closeSession)
+        server->config.accessControl.closeSession(server, &server->config.accessControl,
+                                                  &session->sessionId, session->sessionHandle);
 
     /* Detach the Session from the SecureChannel */
-    UA_Session_detachFromSecureChannel(&sentry->session);
+    UA_Session_detachFromSecureChannel(session);
 
     /* Deactivate the session */
     sentry->session.activated = false;
@@ -65,7 +66,7 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     sentry->cleanupCallback.callback = (UA_ApplicationCallback)removeSessionCallback;
     sentry->cleanupCallback.application = sm->server;
     sentry->cleanupCallback.data = sentry;
-    UA_WorkQueue_enqueueDelayed(&sm->server->workQueue, &sentry->cleanupCallback);
+    UA_WorkQueue_enqueueDelayed(&server->workQueue, &sentry->cleanupCallback);
 }
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
@@ -78,17 +79,17 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
 void
 UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
                                   UA_DateTime nowMonotonic) {
+    UA_Server *server = sm->server;
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sm->sessions, pointers, temp) {
         /* Session has timed out? */
         if(sentry->session.validTill >= nowMonotonic)
             continue;
-        UA_LOG_INFO_SESSION(&sm->server->config.logger, &sentry->session,
+        UA_LOG_INFO_SESSION(&server->config.logger, &sentry->session,
                             "Session has timed out");
-        sm->server->config.accessControl.closeSession(sm->server,
-                                                      &sm->server->config.accessControl,
-                                                      &sentry->session.sessionId,
-                                                      sentry->session.sessionHandle);
+        server->config.accessControl.closeSession(server, &server->config.accessControl,
+                                                  &sentry->session.sessionId,
+                                                  sentry->session.sessionHandle);
         removeSession(sm, sentry);
     }
 }
