@@ -357,6 +357,22 @@ UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds, UA_DataSetMetaDataType *metaData){
+    if(!metaData)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_PublishedDataSet *currentPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
+    if(!currentPublishedDataSet)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_DataSetMetaDataType tmpDataSetMetaData;
+    UA_DataSetMetaDataType_copy(&currentPublishedDataSet->dataSetMetaData, &tmpDataSetMetaData);
+    *metaData = tmpDataSetMetaData;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier){
     for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; i++){
@@ -448,6 +464,20 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     if(newField->config.field.variable.promotedField)
         currentDataSet->promotedFieldsCount++;
     currentDataSet->fieldSize++;
+
+    //Extend DataSetMetaData with field information TODO finalize
+    currentDataSet->dataSetMetaData.fieldsSize++;
+    UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *) UA_realloc(currentDataSet->dataSetMetaData.fields, currentDataSet->dataSetMetaData.fieldsSize *
+            sizeof(UA_FieldMetaData));
+    if(!fieldMetaData){
+        result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    UA_FieldMetaData *currentFieldMetaData = &fieldMetaData[currentDataSet->fieldSize-1];
+    currentFieldMetaData->name = fieldConfig->field.variable.fieldNameAlias;
+    //TODO collect all the meta data informations for the current field
+    currentDataSet->dataSetMetaData.fields = fieldMetaData;
+
     result.result = retVal;
     result.configurationVersion.majorVersion = currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
     result.configurationVersion.minorVersion = currentDataSet->dataSetMetaData.configurationVersion.minorVersion;

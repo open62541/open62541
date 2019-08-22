@@ -201,12 +201,19 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     if(pdsIdentifier != NULL){
         UA_NodeId_copy(&newPubSubDataSet->identifier, pdsIdentifier);
     }
+    //Fill the DataSetMetaData
+    //todo check if the meta is right
+    newPubSubDataSet->dataSetMetaData.name = tmpPublishedDataSetConfig.name;
+    newPubSubDataSet->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    newPubSubDataSet->dataSetMetaData.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    //TODO Extend metaDataData
+
     server->pubSubManager.publishedDataSetsSize++;
     result.addResult = UA_STATUSCODE_GOOD;
     result.fieldAddResults = NULL;
     result.fieldAddResultsSize = 0;
-    result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-    result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    result.configurationVersion.majorVersion = newPubSubDataSet->dataSetMetaData.configurationVersion.majorVersion;
+    result.configurationVersion.minorVersion = newPubSubDataSet->dataSetMetaData.configurationVersion.minorVersion;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPublishedDataItemsRepresentation(server, newPubSubDataSet);
 #endif
