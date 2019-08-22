@@ -183,7 +183,7 @@ void Service_CloseSession(UA_Server *server, UA_Session *session,
  * AddNodes Service
  * ^^^^^^^^^^^^^^^^
  * Used to add one or more Nodes into the AddressSpace hierarchy. */
-UA_THREADSAFE void Service_AddNodes(UA_Server *server, UA_Session *session,
+void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
 
@@ -191,7 +191,7 @@ UA_THREADSAFE void Service_AddNodes(UA_Server *server, UA_Session *session,
  * AddReferences Service
  * ^^^^^^^^^^^^^^^^^^^^^
  * Used to add one or more References to one or more Nodes. */
-UA_THREADSAFE void Service_AddReferences(UA_Server *server, UA_Session *session,
+void Service_AddReferences(UA_Server *server, UA_Session *session,
                            const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response);
 
@@ -199,7 +199,7 @@ UA_THREADSAFE void Service_AddReferences(UA_Server *server, UA_Session *session,
  * DeleteNodes Service
  * ^^^^^^^^^^^^^^^^^^^
  * Used to delete one or more Nodes from the AddressSpace. */
-UA_THREADSAFE void Service_DeleteNodes(UA_Server *server, UA_Session *session,
+void Service_DeleteNodes(UA_Server *server, UA_Session *session,
                          const UA_DeleteNodesRequest *request,
                          UA_DeleteNodesResponse *response);
 
@@ -207,7 +207,7 @@ UA_THREADSAFE void Service_DeleteNodes(UA_Server *server, UA_Session *session,
  * DeleteReferences
  * ^^^^^^^^^^^^^^^^
  * Used to delete one or more References of a Node. */
-UA_THREADSAFE void Service_DeleteReferences(UA_Server *server, UA_Session *session,
+void Service_DeleteReferences(UA_Server *server, UA_Session *session,
                               const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response);
 
@@ -302,8 +302,8 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * elements are indexed, such as an array, this Service allows Clients to read
  * the entire set of indexed values as a composite, to read individual elements
  * or to read ranges of elements of the composite. */
-UA_THREADSAFE void Service_Read(UA_Server *server, UA_Session *session,
-                                const UA_ReadRequest *request, UA_ReadResponse *response);
+void Service_Read(UA_Server *server, UA_Session *session,
+                  const UA_ReadRequest *request, UA_ReadResponse *response);
 
 /**
  * Write Service
@@ -312,8 +312,8 @@ UA_THREADSAFE void Service_Read(UA_Server *server, UA_Session *session,
  * elements are indexed, such as an array, this Service allows Clients to write
  * the entire set of indexed values as a composite, to write individual elements
  * or to write ranges of elements of the composite. */
-UA_THREADSAFE void Service_Write(UA_Server *server, UA_Session *session,
-                                 const UA_WriteRequest *request, UA_WriteResponse *response);
+void Service_Write(UA_Server *server, UA_Session *session,
+                   const UA_WriteRequest *request, UA_WriteResponse *response);
 
 /**
  * HistoryRead Service
@@ -353,9 +353,9 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
  * context of an existing Session. If the Session is terminated, the results of
  * the method's execution cannot be returned to the Client and are discarded. */
 #ifdef UA_ENABLE_METHODCALLS
-UA_THREADSAFE void Service_Call(UA_Server *server, UA_Session *session,
-                                const UA_CallRequest *request,
-                                UA_CallResponse *response);
+void Service_Call(UA_Server *server, UA_Session *session,
+                  const UA_CallRequest *request,
+                  UA_CallResponse *response);
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

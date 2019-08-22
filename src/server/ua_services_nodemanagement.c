@@ -1285,13 +1285,12 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_addNode, NULL,
                                            &request->nodesToAddSize, &UA_TYPES[UA_TYPES_ADDNODESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
-    UA_UNLOCK(server->serviceMutex)
 }
 
 UA_StatusCode
@@ -1623,14 +1622,13 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)deleteNodeOperation,
                                            NULL, &request->nodesToDeleteSize,
                                            &UA_TYPES[UA_TYPES_DELETENODESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode
@@ -1748,14 +1746,13 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_addReference,
                                            NULL, &request->referencesToAddSize,
                                            &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode
@@ -1831,14 +1828,13 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_deleteReference,
                                            NULL, &request->referencesToDeleteSize,
                                            &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode

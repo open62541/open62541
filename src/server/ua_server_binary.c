@@ -539,7 +539,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #endif
 
     /* Dispatch the synchronous service call and send the response */
+    UA_LOCK(server->serviceMutex);
     service(server, session, requestHeader, responseHeader);
+    UA_UNLOCK(server->serviceMutex);
     return sendResponse(channel, requestId, requestHeader->requestHandle,
                         responseHeader, responseType);
 }
