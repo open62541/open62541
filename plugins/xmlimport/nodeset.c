@@ -5,16 +5,12 @@
  *    Copyright 2019 (c) Matthias Konnerth
  */
 
-#include "nodeset.h"
 
 #include <open62541/server.h>
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "memory.h"
 #include "conversion.h"
+#include "nodeset.h"
 
 #define MAX_BIDIRECTIONAL_REFS 50
 #define BIDIRECTIONAL_REF_COUNT 8

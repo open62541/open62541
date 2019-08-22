@@ -1,13 +1,13 @@
 #ifndef NODESETLOADER_H
 #define NODESETLOADER_H
 #include <open62541/types.h>
-struct UA_Server;
-typedef UA_UInt16 (*addNamespaceCb)(struct UA_Server *server, const char *);
+#include <open62541/server_config.h>
+typedef UA_UInt16 (*addNamespaceCb)(UA_Server *server, const char *);
 
 typedef struct {
     const char *file;
     addNamespaceCb addNamespace;
-    struct UA_Server *server;
+    UA_Server *server;
 } FileHandler;
 
 struct Nodeset;

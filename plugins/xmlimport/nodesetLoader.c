@@ -8,9 +8,6 @@
 #include <open62541/plugin/nodesetLoader.h>
 #include <open62541/plugin/nodestore.h>
 
-#include <stdio.h>
-#include <string.h>
-
 #include "nodeset.h"
 #include "value.h"
 #include <libxml/SAX.h>
@@ -74,6 +71,7 @@ typedef struct {
     char *onCharacters;
     Nodeset *nodeset;
     struct Value *val;
+    const UA_Logger *logger;
 } TParserCtx;
 
 static void enterUnknownState(TParserCtx *ctx) {
@@ -82,7 +80,7 @@ static void enterUnknownState(TParserCtx *ctx) {
     ctx->unknown_depth = 1;
 }
 
-static bool getNode(TParserCtx* pctx, const char* name, int attributeSize, const char** attributes)
+static bool isNode(TParserCtx* pctx, const char* name, int attributeSize, const char** attributes)
 {
     for(size_t i = 0; i < NODECLASSCOUNT; i++)
     {
@@ -105,7 +103,7 @@ OnStartElementNs(void *ctx, const char *localname, const char *prefix, const cha
     TParserCtx *pctx = (TParserCtx *)ctx;
     switch(pctx->state) {
         case PARSER_STATE_INIT:
-            if(getNode(pctx, localname, nb_attributes, attributes))
+            if(isNode(pctx, localname, nb_attributes, attributes))
             {
                 break;
             } else if(!strcmp(localname, NAMESPACEURIS)) {
@@ -219,7 +217,7 @@ static void OnEndElementNs(void *ctx, const char *localname, const char *prefix,
             pctx->state = PARSER_STATE_REFERENCES;
             break;
         case PARSER_STATE_VALUE:            
-            if(!strcmp(localname, "Value"))
+            if(!strcmp(localname, VALUE))
             {
                 Value_finish(pctx->val, pctx->node);
                 pctx->state = PARSER_STATE_NODE;
@@ -281,7 +279,8 @@ static int read_xmlfile(FILE *f, TParserCtx *parserCtxt) {
         xmlCreatePushParserCtxt(&SAXHander, parserCtxt, chars, res, NULL);
     while((res = (int)fread(chars, 1, sizeof(chars), f)) > 0) {
         if(xmlParseChunk(ctxt, chars, res, 0)) {
-            xmlParserError(ctxt, "xmlParseChunk");
+            UA_LOG_ERROR(parserCtxt->logger, UA_LOGCATEGORY_SERVER,
+                     "xml parsing error: %s", chars);
             return 1;
         }
     }
@@ -293,16 +292,17 @@ static int read_xmlfile(FILE *f, TParserCtx *parserCtxt) {
 
 UA_StatusCode UA_XmlImport_loadFile(const FileHandler *fileHandler) {
 
-    if(fileHandler == NULL) {
-        printf("no filehandler - return\n");
+    if(!fileHandler) {        
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    if(fileHandler->addNamespace == NULL) {
-        printf("no fileHandler->addNamespace - return\n");
+    if(!fileHandler->addNamespace) {
+        UA_LOG_ERROR(&UA_Server_getConfig(fileHandler->server)->logger, UA_LOGCATEGORY_SERVER,
+                     "no addNamespace callback provided, abort import");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
-    if(fileHandler->file == NULL) {
-        printf("no fileHandler->file return\n");
+    if(!fileHandler->file) {
+        UA_LOG_ERROR(&UA_Server_getConfig(fileHandler->server)->logger, UA_LOGCATEGORY_SERVER,
+                     "no file handle provided, abort import");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     UA_StatusCode status = UA_STATUSCODE_GOOD;
@@ -314,18 +314,21 @@ UA_StatusCode UA_XmlImport_loadFile(const FileHandler *fileHandler) {
     ctx->onCharacters = NULL;
     ctx->userContext = NULL;
     ctx->nodeset = Nodeset_new(fileHandler->server);
+    ctx->logger = &UA_Server_getConfig(fileHandler->server)->logger;
 
     Nodeset_setNewNamespaceCallback(ctx->nodeset, fileHandler->addNamespace);
 
     FILE *f = fopen(fileHandler->file, "r");
     if(!f) {
-        puts("file open error.");
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_SERVER,
+                     "file open error, abort import");
         status = UA_STATUSCODE_BADNOTFOUND;
         goto cleanup;
     }
 
     if(read_xmlfile(f, ctx)) {
-        puts("xml read error.");
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_SERVER,
+                     "xml read error, abort import");
         status = UA_STATUSCODE_BADNOTFOUND;
     }
 
