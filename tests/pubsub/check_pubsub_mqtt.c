@@ -16,6 +16,7 @@
 #define CONNECTION_NAME         "Mqtt Connection"
 #define FIRST_SUBSCRIBER_TOPIC  "customTopic"
 #define SECOND_SUBSCRIBER_TOPIC "TopicCustom"
+#define BUFFER_STRING           "Hello! This is MQTT Testing"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
@@ -145,14 +146,75 @@ START_TEST (RegisterUnregisterRegisterToMultipleTopic) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
+START_TEST (SendNullMessageViaMqttConnection) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+
+    /* Assign the Topic at which MQTT subscription should happen */
+    brokerTransportSettings.queueName = UA_STRING(FIRST_SUBSCRIBER_TOPIC);
+    brokerTransportSettings.resourceUri = UA_STRING_NULL;
+    brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
+
+   /* Choose the QOS Level for MQTT */
+    brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+
+    /* Encapsulate config in transportSettings */
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &brokerTransportSettings;
+
+    retVal = connection->channel->send(connection->channel, &transportSettings, NULL);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    } END_TEST
+
+START_TEST (SendMessageViaMqttConnection) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* Initialize a buffer to send data */
+    UA_ByteString testBuffer = UA_STRING(BUFFER_STRING);
+
+    /* Assign brokerTransportSettings */
+    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+
+    /* Assign the Topic at which MQTT subscription should happen */
+    brokerTransportSettings.queueName = UA_STRING(FIRST_SUBSCRIBER_TOPIC);
+    brokerTransportSettings.resourceUri = UA_STRING_NULL;
+    brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
+
+   /* Choose the QOS Level for MQTT */
+    brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+
+    /* Encapsulate config in transportSettings */
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &brokerTransportSettings;
+
+    /* Send the published data as NetworkMessage */
+    retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    } END_TEST
+
 int main(void) {
     TCase *tc_register_unregister_mqtt = tcase_create("Register and Unregister subscriptions");
     tcase_add_checked_fixture(tc_register_unregister_mqtt, setup, teardown);
     tcase_add_test(tc_register_unregister_mqtt, RegisterUnregisterToATopic);
     tcase_add_test(tc_register_unregister_mqtt, RegisterUnregisterRegisterToMultipleTopic);
 
+    TCase *tc_send_mqtt = tcase_create("Publish Mqtt Message");
+    tcase_add_checked_fixture(tc_send_mqtt, setup, teardown);
+    tcase_add_test(tc_send_mqtt, SendNullMessageViaMqttConnection);
+    tcase_add_test(tc_send_mqtt, SendMessageViaMqttConnection);
+
     Suite *s = suite_create("PubSub Mqtt");
     suite_add_tcase(s, tc_register_unregister_mqtt);
+    suite_add_tcase(s, tc_send_mqtt);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
