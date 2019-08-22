@@ -247,10 +247,12 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     if(server->config.monitoredItemRegisterCallback) {
         void *targetContext = NULL;
         UA_Server_getNodeContext(server, request->itemToMonitor.nodeId, &targetContext);
+        UA_UNLOCK(server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server, &session->sessionId,
                                                      session->sessionHandle,
                                                      &request->itemToMonitor.nodeId,
                                                      targetContext, newMon->attributeId, false);
+        UA_LOCK(server->serviceMutex);
         newMon->registered = true;
     }
 
@@ -263,7 +265,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING &&
        newMon->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
-        UA_MonitoredItem_sampleCallback(server, newMon);
+        monitoredItem_sampleCallback(server, newMon);
 
     /* Prepare the response */
     result->revisedSamplingInterval = newMon->samplingInterval;
@@ -321,7 +323,9 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
 
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
+    UA_LOCK(server->serviceMutex);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
+    UA_UNLOCK(server->serviceMutex);
     return result;
 }
 
@@ -544,14 +548,17 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
+    UA_LOCK(server->serviceMutex);
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &server->localMonitoredItems, listEntry) {
         if(mon->monitoredItemId != monitoredItemId)
             continue;
         LIST_REMOVE(mon, listEntry);
         UA_MonitoredItem_delete(server, mon);
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
+    UA_UNLOCK(server->serviceMutex);
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 

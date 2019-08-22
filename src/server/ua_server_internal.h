@@ -247,6 +247,13 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
+void
+monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+
+UA_BrowsePathResult
+browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
+                           size_t browsePathSize, const UA_QualifiedName *browsePath);
+
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/

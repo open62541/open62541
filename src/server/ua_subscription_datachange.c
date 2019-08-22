@@ -112,7 +112,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
         else if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
             /* Browse for the percent range */
             UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
-            UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
+            UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
             if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
                   UA_BrowsePathResult_deleteMembers(&bpr);
                   return UA_STATUSCODE_GOOD;
@@ -306,18 +306,28 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
         void *nodeContext = NULL;
         UA_Server_getNodeContext(server, mon->monitoredNodeId, &nodeContext);
+        UA_UNLOCK(server->serviceMutex);
         localMon->callback.dataChangeCallback(server, mon->monitoredItemId,
                                               localMon->context,
                                               &mon->monitoredNodeId,
                                               nodeContext, mon->attributeId,
                                               value);
+        UA_LOCK(server->serviceMutex);
     }
 
     return UA_STATUSCODE_GOOD;
 }
 
 void
-UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
+{
+    UA_LOCK(server->serviceMutex);
+    monitoredItem_sampleCallback(server, monitoredItem);
+    UA_UNLOCK(server->serviceMutex)
+}
+
+void
+monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     UA_Session *session = &server->adminSession;
     if(sub)
