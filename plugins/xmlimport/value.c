@@ -2,7 +2,6 @@
 #include "conversion.h"
 
 enum VALUE_STATE {
-    VALUE_STATE_INIT,
     VALUE_STATE_DATA,
     VALUE_STATE_FINISHED,
     VALUE_STATE_BUILTIN,
@@ -60,10 +59,17 @@ static TypeList* TypeList_push(TypeList* stack, const UA_DataType* newType)
     return newStack;
 }
 
+static TypeList* TypeList_pop(TypeList* stack)
+{
+    TypeList *tmp = stack->next;
+    UA_free(stack);
+    return tmp;
+}
+
 Value *
 Value_new(const UA_Node *node) {
     Value *val = (Value *)UA_calloc(1, sizeof(Value));
-    val->state = VALUE_STATE_INIT;
+    val->state = VALUE_STATE_DATA;
     val->typestack = (TypeList *)UA_calloc(1, sizeof(TypeList));
 
     // looks only in UA_TYPES, should also look in custom types
@@ -109,31 +115,29 @@ Value_start(Value *val, const UA_Node *node, const char *localname) {
         case VALUE_STATE_ERROR:
             break;
         case VALUE_STATE_FINISHED:
-            val->typestack = (TypeList *)UA_calloc(1, sizeof(TypeList));
-            val->typestack->type = val->datatype;
-            val->typestack->memberIndex = 0;
-            if(getMem(val) != UA_STATUSCODE_GOOD) {
-                printf("getMem failed, value processing stopped\n");
-                val->state = VALUE_STATE_ERROR;
+        case VALUE_STATE_DATA:
+            if(val->state == VALUE_STATE_FINISHED)
+            {
+                val->typestack = (TypeList *)UA_calloc(1, sizeof(TypeList));
+                val->typestack->type = val->datatype;
+                val->typestack->memberIndex = 0;
+                if(getMem(val) != UA_STATUSCODE_GOOD) {
+                    printf("getMem failed, value processing stopped\n");
+                    val->state = VALUE_STATE_ERROR;
+                }
+                val->state = VALUE_STATE_DATA;
+                if(val->typestack->type->members) {
+                    val->name =
+                        val->typestack->type->members[val->typestack->memberIndex].memberName;
+                } else {
+                    val->name = val->typestack->type->typeName;
+                }
+                val->state = VALUE_STATE_DATA;
             }
-            val->state = VALUE_STATE_DATA;
-            if(val->typestack->type->members) {
-                val->name =
-                    val->typestack->type->members[val->typestack->memberIndex].memberName;
-            } else {
-                val->name = val->typestack->type->typeName;
-            }
-        // intentional fall trough
-        case VALUE_STATE_INIT:
-            val->state = VALUE_STATE_DATA;
             if(!strncmp(localname, "ListOf", strlen("ListOf"))) {
                 val->isArray = true;
                 break;
             }
-        // intentional fall through
-        case VALUE_STATE_DATA:
-            if(!val->name)
-                break;
             if(!strcmp(val->name, localname)) {
 
                 size_t idx = val->typestack->memberIndex;
@@ -278,11 +282,7 @@ setScalarValue(Value *val, const UA_DataType *type, char *value) {
 
 static void
 nextType(Value *val) {
-
-    //get next type
-    TypeList *tmp = val->typestack->next;
-    UA_free(val->typestack);
-    val->typestack = tmp;
+    val->typestack = TypeList_pop(val->typestack);
     val->state = VALUE_STATE_DATA;
 
     if(!val->typestack)
@@ -307,8 +307,6 @@ nextType(Value *val) {
 void
 Value_end(Value *val, UA_Node *node, const char *localname, char *value) {
     switch(val->state) {
-        case VALUE_STATE_INIT:
-            break;
         case VALUE_STATE_BUILTIN:
             setScalarValue(val, val->typestack->type, value);
             nextType(val);
