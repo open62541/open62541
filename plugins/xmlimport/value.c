@@ -27,6 +27,7 @@ struct Value {
     TypeList *typestack;
     size_t offset;
     const char *name;
+    const UA_DataType *datatype;
 };
 
 typedef void (*ConversionFn)(uintptr_t adr, char *value);
@@ -40,8 +41,11 @@ getMem(Value *val) {
     if(!newVal) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    memcpy(newVal, val->value, val->typestack->type->memSize * val->arrayCnt);
-    UA_free(val->value);
+    if(val->value)
+    {
+        memcpy(newVal, val->value, val->typestack->type->memSize * val->arrayCnt);
+        UA_free(val->value);
+    }    
     val->value = newVal;
     val->offset = val->typestack->type->memSize * val->arrayCnt;
     val->arrayCnt++;
@@ -64,6 +68,7 @@ Value_new(const UA_Node *node) {
 
     // looks only in UA_TYPES, should also look in custom types
     val->typestack->type = UA_findDataType(&((const UA_VariableNode *)node)->dataType);
+    val->datatype = val->typestack->type;
     if(!val->typestack->type) {
         printf("could not determine type, value processing stopped\n");
         val->state = VALUE_STATE_ERROR;
@@ -104,6 +109,8 @@ Value_start(Value *val, const UA_Node *node, const char *localname) {
         case VALUE_STATE_ERROR:
             break;
         case VALUE_STATE_FINISHED:
+            val->typestack = (TypeList *)UA_calloc(1, sizeof(TypeList));
+            val->typestack->type = val->datatype;
             val->typestack->memberIndex = 0;
             if(getMem(val) != UA_STATUSCODE_GOOD) {
                 printf("getMem failed, value processing stopped\n");
@@ -271,21 +278,24 @@ setScalarValue(Value *val, const UA_DataType *type, char *value) {
 
 static void
 nextType(Value *val) {
-    if(val->typestack->next == NULL) {
-        if(!val->typestack->type->members) {
-            val->state = VALUE_STATE_FINISHED;
-            return;
-        }
-    } else {
-        TypeList *tmp = val->typestack->next;
-        UA_free(val->typestack);
-        val->typestack = tmp;
-        val->state = VALUE_STATE_DATA;
-    }
-    if(val->typestack->memberIndex >= val->typestack->type->membersSize) {
+
+    //get next type
+    TypeList *tmp = val->typestack->next;
+    UA_free(val->typestack);
+    val->typestack = tmp;
+    val->state = VALUE_STATE_DATA;
+
+    if(!val->typestack)
+    {
         val->state = VALUE_STATE_FINISHED;
         return;
     }
+
+    if(val->typestack->memberIndex >= (size_t)val->typestack->type->membersSize-1)
+    {
+        return;
+    }
+
     val->typestack->memberIndex++;
     if(val->typestack->type->members) {
         val->name = val->typestack->type->members[val->typestack->memberIndex].memberName;
@@ -361,7 +371,7 @@ Value_finish(Value *val, UA_Node *node) {
         UA_VariableNode *varnode = (UA_VariableNode *)node;
         if(!val->isArray) {
             UA_StatusCode retval = UA_Variant_setScalarCopy(
-                &varnode->value.data.value.value, val->value, val->typestack->type);
+                &varnode->value.data.value.value, val->value, val->datatype);
             if(!(UA_STATUSCODE_GOOD == retval)) {
                 printf("error on seting scalar\n");
             } else {
@@ -370,7 +380,7 @@ Value_finish(Value *val, UA_Node *node) {
         } else {
             UA_StatusCode retval =
                 UA_Variant_setArrayCopy(&varnode->value.data.value.value, val->value,
-                                        val->arrayCnt, val->typestack->type);
+                                        val->arrayCnt, val->datatype);
             if(!(UA_STATUSCODE_GOOD == retval)) {
                 printf("error on seting array\n");
             } else {
