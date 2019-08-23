@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -46,6 +46,7 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     }
 #endif
 
+    /* Callback into userland access control */
     if(server->config.accessControl.closeSession)
         server->config.accessControl.closeSession(server, &server->config.accessControl,
                                                   &session->sessionId, session->sessionHandle);
@@ -79,17 +80,13 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
 void
 UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
                                   UA_DateTime nowMonotonic) {
-    UA_Server *server = sm->server;
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sm->sessions, pointers, temp) {
         /* Session has timed out? */
         if(sentry->session.validTill >= nowMonotonic)
             continue;
-        UA_LOG_INFO_SESSION(&server->config.logger, &sentry->session,
+        UA_LOG_INFO_SESSION(&sm->server->config.logger, &sentry->session,
                             "Session has timed out");
-        server->config.accessControl.closeSession(server, &server->config.accessControl,
-                                                  &sentry->session.sessionId,
-                                                  sentry->session.sessionHandle);
         removeSession(sm, sentry);
     }
 }
