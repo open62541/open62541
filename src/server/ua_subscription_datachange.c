@@ -201,6 +201,8 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
 static UA_StatusCode
     detectValueChange(UA_Server *server, UA_Session *session, UA_MonitoredItem *mon,
                   UA_DataValue value, UA_ByteString *encoding, UA_Boolean *changed) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Apply Filter */
     if(mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS)
         value.hasValue = false;

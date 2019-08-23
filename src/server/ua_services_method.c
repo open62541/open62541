@@ -263,6 +263,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
                   UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing CallRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxNodesPerMethodCall != 0 &&
        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {

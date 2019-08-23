@@ -522,6 +522,7 @@ Service_CloseSession(UA_Server *server, UA_Session *session,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
     UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,
