@@ -703,6 +703,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing BrowseRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Test the number of operations in the request */
     if(server->config.maxNodesPerBrowse != 0 &&
@@ -783,6 +784,8 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
                    UA_BrowseNextResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing BrowseNextRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_Boolean releaseContinuationPoints = request->releaseContinuationPoints; /* request is const */
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_BrowseNext,
@@ -1134,6 +1137,7 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                       UA_TranslateBrowsePathsToNodeIdsResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Test the number of operations in the request */
     if(server->config.maxNodesPerTranslateBrowsePathsToNodeIds != 0 &&
@@ -1194,6 +1198,7 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                            UA_RegisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RegisterNodesRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     //TODO: hang the nodeids to the session if really needed
     if(request->nodesToRegisterSize == 0) {
@@ -1220,6 +1225,7 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              UA_UnregisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing UnRegisterNodesRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     //TODO: remove the nodeids from the session if really needed
     if(request->nodesToUnregisterSize == 0)
