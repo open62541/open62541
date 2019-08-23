@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -44,8 +44,10 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
 #endif
 
     /* Callback into userland access control */
-    server->config.accessControl.closeSession(server, &server->config.accessControl,
-                                              &session->sessionId, session->sessionHandle);
+    sm->server->config.accessControl.closeSession(sm->server,
+                                                  &sm->server->config.accessControl,
+                                                  &sentry->session.sessionId,
+                                                  sentry->session.sessionHandle);
 
     /* Detach the Session from the SecureChannel */
     UA_Session_detachFromSecureChannel(&sentry->session);
