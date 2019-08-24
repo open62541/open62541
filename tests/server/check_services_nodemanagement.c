@@ -31,6 +31,8 @@ static void setup(void) {
     UA_GlobalNodeLifecycle lifecycle;
     lifecycle.constructor = globalInstantiationMethod;
     lifecycle.destructor = NULL;
+    lifecycle.createOptionalChild = NULL;
+    lifecycle.generateChildNodeId = NULL;
     config->nodeLifecycle = lifecycle;
 }
 
