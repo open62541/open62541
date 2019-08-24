@@ -445,9 +445,21 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         return retval;
     }
 
-    /* Is the child mandatory? If not, skip */
-    if(!isMandatoryChild(server, session, &rd->nodeId.nodeId))
-        return UA_STATUSCODE_GOOD;
+    /* Is the child mandatory? If not, ask callback whether child should be instantiated.
+     * If not, skip. */
+    if(!isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
+        if(!server->config.nodeLifecycle.createOptionalChild)
+            return UA_STATUSCODE_GOOD;
+
+        if(server->config.nodeLifecycle.createOptionalChild(server,
+                                                            &session->sessionId,
+                                                            session->sessionHandle,
+                                                            &rd->nodeId.nodeId,
+                                                            destinationNodeId,
+                                                            &rd->referenceTypeId) == UA_FALSE) {
+            return UA_STATUSCODE_GOOD;
+        }
+    }
 
     /* Child is a method -> create a reference */
     if(rd->nodeClass == UA_NODECLASS_METHOD) {
@@ -478,6 +490,20 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
         UA_NodeId_deleteMembers(&node->nodeId);
         node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
+
+        if (server->config.nodeLifecycle.generateChildNodeId) {
+            retval = server->config.nodeLifecycle.generateChildNodeId(server,
+                                                                      &session->sessionId, session->sessionHandle,
+                                                                      &rd->nodeId.nodeId,
+                                                                      destinationNodeId,
+                                                                      &rd->referenceTypeId,
+                                                                      &node->nodeId);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_Nodestore_deleteNode(server->nsCtx, node);
+                return retval;
+            }
+        }
+
 
         /* Remove references, they are re-created from scratch in addnode_finish */
         /* TODO: Be more clever in removing references that are re-added during
