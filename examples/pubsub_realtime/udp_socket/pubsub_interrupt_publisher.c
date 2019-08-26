@@ -54,13 +54,17 @@
  * uncomment: PUB_SYSTEM_INTERRUPT
  * comment: PUBLISHER, SUBSCRIBER
  */
-//#define             PUB_SYSTEM_INTERRUPT
+#define             PUB_SYSTEM_INTERRUPT
 
 /* Note: To run publisher/interrupt_publisher and subscriber
  * uncomment: SUBSCRIBER, PUB_SYSTEM_INTERRUPT/PUBLISHER
  * comment: PUB_SYSTEM_INTERRUPT/PUBLISHER
  * Only one publisher can be started
  */
+#if defined(PUBLISHER) && defined(PUB_SYSTEM_INTERRUPT)
+	#error "Cannot enable both interrupt based publisher and thread based publisher.\
+	       Enable any one type of publisher"
+#endif
 
 /* Publish interval in milliseconds- Now @100us */
 #define             PUB_INTERVAL                    0.1
@@ -82,8 +86,8 @@
 #define             PORT_NUMBER                     62541
 #define             FAILURE_EXIT                    -1
 #define             CLOCKID                         CLOCK_TAI
-#define             SIG                             SIGUSR1
-#define             LEADTIME                        300000
+#define             SIG                             SIGRTMAX
+#define             LEADTIME                        1000000
 
 /* This is a hardcoded publisher/subscriber IP address. If the IP address need
  * to be changed, change it in the below line.
@@ -126,12 +130,6 @@ static void removeServerNodes(UA_Server *server);
 
 #if defined(PUBLISHER)
 
-/* Thread for subscriber */
-pthread_t                    pubThreadID;
-
-/* Process scheduling parameter for publisher */
-struct sched_param           schedParamPublisher;
-
 /* Publisher thread routine for ETF */
 void*                        publisherETF(void* arg);
 
@@ -172,6 +170,9 @@ size_t                       measurementsPublisher  = 0;
 UA_Server*                   pubServer;
 void*                        pubData;
 
+/* Thread for subscriber */
+pthread_t                    pubThreadID;
+
 /* Variable for PubSub callback */
 UA_ServerCallback            pubCallback;
 
@@ -183,6 +184,8 @@ UA_NodeId                    connectionIdent;
 /* Array to store timestamp */
 struct timespec              publishTimestamp[MAX_MEASUREMENTS];
 
+struct sched_param schedParamPublisher;
+
 /* File operations */
 struct timespec              dataModificationTime;
 static void updateMeasurementsPublisher(struct timespec, UA_UInt64);
@@ -190,6 +193,14 @@ static void updateMeasurementsPublisher(struct timespec, UA_UInt64);
 /* Nanoseconds conversion */
 static void nanoSecondFieldConversion(struct timespec *);
 
+/* Set Priority */
+static int setSelfPrio(void);
+
+#endif
+
+#if defined(PUBLISHER) || defined(SUBSCRIBER) || defined(PUB_SYSTEM_INTERRUPT)
+UA_Int32                     errorSetAffinity    = 0;
+UA_Int32                     returnValue         = 0;
 #endif
 
 #if defined(SUBSCRIBER)
@@ -257,6 +268,29 @@ UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callb
 /*****************************/
 
 static void handler(int sig, siginfo_t *si, void *uc) {
+    if(firstTxTime == 0) {
+        clock_gettime(CLOCKID, &nextCycleStartTime);
+        nextCycleStartTime.tv_sec += 0;
+        /* Initial start time 100us offset */
+        nextCycleStartTime.tv_nsec += LEADTIME;
+        nanoSecondFieldConversion(&nextCycleStartTime);
+        firstTxTime++;
+    }
+    else {
+        nextCycleStartTime.tv_nsec += CYCLE_TIME;
+        nanoSecondFieldConversion(&nextCycleStartTime);
+    }
+
+    pubCounterData++;
+    UA_Variant_setScalar(&pubCounter, &pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_NodeId currentNodeId         = UA_NODEID_STRING(1, "PublisherCounter");
+    UA_Server_writeValue(pubServer, currentNodeId, pubCounter);
+    clock_gettime(CLOCKID, &dataModificationTime);
+    if(measurementsPublisher < MAX_MEASUREMENTS) {
+        updateMeasurementsPublisher(dataModificationTime, pubCounterData);
+    }
+
+    pubCallback(pubServer, pubData);
     if(si->si_value.sival_ptr != &pubEventTimer) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "stray signal");
         return;
@@ -267,20 +301,28 @@ static void handler(int sig, siginfo_t *si, void *uc) {
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                                      void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+    int  retVal;
+
     pubServer                       = server;
     pubCallback                     = callback;
     pubData                         = data;
-    pubIntervalNs                   = (UA_Int64)interval_ms * MILLI_SECONDS;
+    pubIntervalNs                   = (UA_Int64)(interval_ms * MILLI_SECONDS);
 
-    /* Handle the signal */
-    struct sigaction sa;
+    /*set self priority for the application */
+    retVal = setSelfPrio();
+    if(retVal != 0) {
+        printf("Not able to self priority\n");
+    }
+
+    memset(&sa, 0, sizeof(sa));
     sa.sa_flags                     = SA_SIGINFO;
     sa.sa_sigaction                 = handler;
     sigemptyset(&sa.sa_mask);
     sigaction(SIG, &sa, NULL);
 
     /* Create the event */
-    pubEvent.sigev_notify           = SIGEV_NONE;
+    memset(&pubEventTimer, 0, sizeof(pubEventTimer));
+    pubEvent.sigev_notify           = SIGEV_SIGNAL;
     pubEvent.sigev_signo            = SIG;
     pubEvent.sigev_value.sival_ptr  = &pubEventTimer;
     int resultTimerCreate           = timer_create(CLOCKID, &pubEvent, &pubEventTimer);
@@ -291,11 +333,10 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callba
 
     /* Arm the timer */
     struct itimerspec timerspec;
-
-    timerspec.it_interval.tv_sec   = 0;
-    timerspec.it_interval.tv_nsec  = pubIntervalNs;
-    timerspec.it_value.tv_sec      = 0;
-    timerspec.it_value.tv_nsec     = pubIntervalNs;
+    timerspec.it_interval.tv_sec   = (long int) (pubIntervalNs / (SECONDS));
+    timerspec.it_interval.tv_nsec  = CYCLE_TIME;
+    timerspec.it_value.tv_sec      = ONE_SECOND;
+    timerspec.it_value.tv_nsec     = (long int) (pubIntervalNs / (SECONDS));
     resultTimerCreate = timer_settime(pubEventTimer, 0, &timerspec, NULL);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to arm the system timer");
@@ -303,7 +344,6 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callba
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    clock_gettime(CLOCKID, &pubStartTime);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Created Publish Callback with interval %f", interval_ms);
     return UA_STATUSCODE_GOOD;
@@ -312,12 +352,12 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callba
 UA_StatusCode
 UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                                 UA_Double interval_ms) {
-    pubIntervalNs                 = (UA_Int64)interval_ms * MILLI_SECONDS;
+    pubIntervalNs                 = (UA_Int64)(interval_ms * MILLI_SECONDS);
     struct itimerspec timerspec;
-    timerspec.it_interval.tv_sec  = 0;
-    timerspec.it_interval.tv_nsec = pubIntervalNs;
-    timerspec.it_value.tv_sec     = 0;
-    timerspec.it_value.tv_nsec    = pubIntervalNs;
+    timerspec.it_interval.tv_sec   = (long int) (pubIntervalNs / (SECONDS));
+    timerspec.it_interval.tv_nsec  = (long int) (pubIntervalNs % (SECONDS));
+    timerspec.it_value.tv_sec      = (long int) (pubIntervalNs / (SECONDS));
+    timerspec.it_value.tv_nsec     = (long int) (pubIntervalNs % (SECONDS));
     int resultTimerCreate         = timer_settime(pubEventTimer, 0, &timerspec, NULL);
     if(resultTimerCreate != 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to arm the system timer");
@@ -333,7 +373,9 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 cal
 /* Remove the callback added for cyclic repetition */
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
+    printf("Timer event deleted\n");
     timer_delete(pubEventTimer);
+    pubCallback = NULL;
 }
 #endif
 
@@ -646,6 +688,44 @@ static void removeServerNodes(UA_Server *server) {
     UA_NodeId_deleteMembers(&subNodeID);
 }
 
+#if defined(PUBLISHER) || defined(PUB_SYSTEM_INTERRUPT)
+
+static int setSelfPrio(void) {
+
+    /* Core affinity set for publisher */
+    cpu_set_t cpusetPub;
+    /* Return the ID for publisher thread */
+    pubThreadID = pthread_self();
+    schedParamPublisher.sched_priority = PUB_SCHED_PRIORITY; /* sched_get_priority_max(SCHED_FIFO) */
+    returnValue = pthread_setschedparam(pubThreadID, SCHED_FIFO, &schedParamPublisher);
+    if(returnValue != 0) {
+        printf("pthread_setschedparam: failed\n");
+        exit(1);
+    }
+
+    CPU_ZERO(&cpusetPub);
+    CPU_SET(CORE_TWO, &cpusetPub);
+    errorSetAffinity = pthread_setaffinity_np(pubThreadID, sizeof(cpu_set_t), &cpusetPub);
+    if(errorSetAffinity) {
+        fprintf(stderr, "pthread_setaffinity_np: %s\n", strerror(errorSetAffinity));
+        return -1;
+    }
+
+    returnValue = pthread_getaffinity_np(pubThreadID, sizeof(cpu_set_t), &cpusetPub);
+    if(returnValue != 0) {
+        printf("Get affinity fail\n");
+    }
+
+    if(CPU_ISSET(CORE_TWO, &cpusetPub)) {
+            printf("CPU %d\n", CORE_TWO);
+    }
+
+    printf("pthread_setschedparam: publisher thread priority is %d \n", schedParamPublisher.sched_priority);
+
+    return 0;
+}
+#endif
+
 /**
  * **Main Server code**
  *
@@ -659,14 +739,9 @@ int main(void) {
     UA_Server*       server              = UA_Server_new();
     UA_ServerConfig* config              = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
-
+	
 #if defined(PUBLISHER) || defined(PUB_SYSTEM_INTERRUPT)
     fpPublisher                          = fopen(filePublishedData, "a");
-#endif
-
-#if defined(PUBLISHER) || defined (SUBSCRIBER)
-    UA_Int32         errorSetAffinity    = 0;
-    UA_Int32         returnValue         = 0;
 #endif
 
 #if defined(SUBSCRIBER)
@@ -736,40 +811,11 @@ int main(void) {
 #endif
 
 #if defined(PUBLISHER)
-    /* Core affinity set for publisher */
-    cpu_set_t cpusetPub;
-    /* Return the ID for publisher thread */
-    pubThreadID = pthread_self();
-    schedParamPublisher.sched_priority = PUB_SCHED_PRIORITY; /* sched_get_priority_max(SCHED_FIFO) */
-
-    returnValue = pthread_setschedparam(pubThreadID, SCHED_FIFO, &schedParamPublisher);
-    if(returnValue != 0) {
-        printf("pthread_setschedparam: failed\n");
-        exit(1);
-    }
-
-    CPU_ZERO(&cpusetPub);
-    CPU_SET(CORE_TWO, &cpusetPub);
-    errorSetAffinity = pthread_setaffinity_np(pubThreadID, sizeof(cpu_set_t), &cpusetPub);
-    if(errorSetAffinity) {
-        fprintf(stderr, "pthread_setaffinity_np: %s\n", strerror(errorSetAffinity));
-        return -1;
-    }
-
-    printf("pthread_setschedparam: publisher thread priority is %d \n", schedParamPublisher.sched_priority);
+    returnValue = setSelfPrio();
     returnValue = pthread_create(&pubThreadID, NULL, &publisherETF, NULL);
     if(returnValue != 0) {
         printf("publisherETF: cannot create thread\n");
         exit(1);
-    }
-
-    returnValue = pthread_getaffinity_np(pubThreadID, sizeof(cpu_set_t), &cpusetPub);
-    if(returnValue != 0) {
-        printf("Get affinity fail\n");
-    }
-
-    if(CPU_ISSET(CORE_TWO, &cpusetPub)) {
-            printf("CPU %d\n", CORE_TWO);
     }
 #endif
 
