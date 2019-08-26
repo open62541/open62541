@@ -28,6 +28,11 @@
 
 _UA_BEGIN_DECLS
 
+#if UA_MULTITHREADING >= 100
+#undef UA_THREADSAFE
+#define UA_THREADSAFE UA_DEPRECATED
+#endif
+
 #ifdef UA_ENABLE_PUBSUB
 #include "ua_pubsub_manager.h"
 #endif
