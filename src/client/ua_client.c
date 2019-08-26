@@ -525,8 +525,8 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
                            UA_UInt32 *requestId) {
     if (UA_Client_getState(client) < UA_CLIENTSTATE_SECURECHANNEL) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Cient must be connected to send high-level requests");
-        return UA_STATUSCODE_GOOD;
+				"Client must be connected to send high-level requests");
+		return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
     return __UA_Client_AsyncService(client, request, requestType, callback,
                                     responseType, userdata, requestId);
