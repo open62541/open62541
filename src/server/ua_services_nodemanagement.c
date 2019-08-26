@@ -451,12 +451,15 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         if(!server->config.nodeLifecycle.createOptionalChild)
             return UA_STATUSCODE_GOOD;
 
-        if(server->config.nodeLifecycle.createOptionalChild(server,
-                                                            &session->sessionId,
-                                                            session->sessionHandle,
-                                                            &rd->nodeId.nodeId,
-                                                            destinationNodeId,
-                                                            &rd->referenceTypeId) == UA_FALSE) {
+        UA_UNLOCK(server->serviceMutex);
+        retval = server->config.nodeLifecycle.createOptionalChild(server,
+                                                                 &session->sessionId,
+                                                                 session->sessionHandle,
+                                                                 &rd->nodeId.nodeId,
+                                                                 destinationNodeId,
+                                                                 &rd->referenceTypeId);
+        UA_LOCK(server->serviceMutex);
+        if(retval == UA_FALSE) {
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -492,12 +495,14 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
 
         if (server->config.nodeLifecycle.generateChildNodeId) {
+            UA_UNLOCK(server->serviceMutex);
             retval = server->config.nodeLifecycle.generateChildNodeId(server,
                                                                       &session->sessionId, session->sessionHandle,
                                                                       &rd->nodeId.nodeId,
                                                                       destinationNodeId,
                                                                       &rd->referenceTypeId,
                                                                       &node->nodeId);
+            UA_LOCK(server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_Nodestore_deleteNode(server->nsCtx, node);
                 return retval;
