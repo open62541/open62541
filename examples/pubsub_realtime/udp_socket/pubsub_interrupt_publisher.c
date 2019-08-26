@@ -74,6 +74,7 @@
 #define             FAILURE_EXIT                    -1
 #define             CLOCKID                         CLOCK_TAI
 #define             SIG                             SIGUSR1
+#define             LEADTIME                        300000
 
 /* This is a hardcoded publisher/subscriber IP address. If the IP address need
  * to be changed, change it in the below line.
@@ -84,7 +85,7 @@
  * UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING_TSN is enabled,
  * change in line number 46 in plugins/ua_pubsub_udp_custom_handling.c
  */
-#define             PUBSUB_IP_ADDRESS              "192.168.9.10"
+#define             PUBSUB_IP_ADDRESS              "192.168.1.11"
 #define             PUBLISHER_MULTICAST_ADDRESS    "opc.udp://224.0.0.32:4840/"
 #define             SUBSCRIBER_MULTICAST_ADDRESS   "opc.udp://224.0.0.22:4840/"
 /* Variable for next cycle start time */
@@ -454,63 +455,35 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
  * This routine publishes the data at a cycle time of 100us.
  */
 void* publisherETF(void *arg) {
-    struct timespec nextnanosleeptime, currenttime;
-    UA_Int64        clockNanoSleep                 = 0;
-    UA_Int32        txtime_reach                   = 0;
-
-    /* Initialise value for nextnanosleeptime timespec */
-    nextnanosleeptime.tv_nsec                      = 0;
+    struct timespec nextnanosleeptime;
     /* Get current time and compute the next nanosleeptime */
     clock_gettime(CLOCKID, &nextnanosleeptime);
-    /* Variable to nano Sleep until 1ms before a 1 second boundary */
-    nextnanosleeptime.tv_sec                      += SECONDS_SLEEP;
-    nextnanosleeptime.tv_nsec                      = NANO_SECONDS_SLEEP;
-    /* For spinloop until the second boundary is reached */
+    nextnanosleeptime.tv_sec   += 0;
+    nextnanosleeptime.tv_nsec  += CYCLE_TIME;
     clock_gettime(CLOCKID, &nextCycleStartTime);
-    nextCycleStartTime.tv_sec += NEXT_CYCLE_START_TIME ;
-    nextCycleStartTime.tv_nsec = 0;
-    clockNanoSleep = clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
-
-    while(txtime_reach == TX_TIME_ZERO) {
-        clock_gettime(CLOCKID, &currenttime);
-        if(currenttime.tv_sec == nextCycleStartTime.tv_sec) {
-            txtime_reach = TX_TIME_ONE;
-        }
-    }
-
-    txtime_reach = TX_TIME_ONE;
-
+    nextCycleStartTime.tv_sec  += 0;
+    /*This is the lead time gap for the first tx, after the loop has been started.
+     * This value can be adjusted as per the target platform
+     */
+    nextCycleStartTime.tv_nsec += LEADTIME;
     while(running) {
-        /* TODO: For lower cycletimes, the value may have to be less than 90% of cycle time */
-        UA_Double cycletimeval = CYCLE_TIME_NINTY_FIVE_PERCENT * (UA_Double)CYCLE_TIME;
-        nextnanosleeptime.tv_nsec = nextCycleStartTime.tv_nsec + (__syscall_slong_t)cycletimeval;
-        nanoSecondFieldConversion(&nextnanosleeptime);
-        clockNanoSleep = clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
+        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
         pubCounterData++;
         clock_gettime(CLOCKID, &dataModificationTime);
         UA_Variant_setScalar(&pubCounter, &pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
         UA_NodeId currentNodeId = UA_NODEID_STRING(1, "PublisherCounter");
         UA_Server_writeValue(pubServer, currentNodeId, pubCounter);
         pubCallback(pubServer, pubData);
-        updateMeasurementsPublisher(dataModificationTime, pubCounterData);
+        if(measurementsPublisher < MAX_MEASUREMENTS) {
+            updateMeasurementsPublisher(dataModificationTime, pubCounterData);
+        }
 
-        if (!clockNanoSleep) {
-                txtime_reach = TX_TIME_ZERO;
-                while(txtime_reach == TX_TIME_ZERO) {
-                    clock_gettime(CLOCKID, &currenttime);
-                    if(currenttime.tv_sec == nextCycleStartTime.tv_sec && currenttime.tv_nsec > nextCycleStartTime.tv_nsec) {
-                        nextCycleStartTime.tv_nsec = nextCycleStartTime.tv_nsec + (CYCLE_TIME);
-                        nanoSecondFieldConversion(&nextCycleStartTime);
-                        txtime_reach = TX_TIME_ONE;
-                    }
-                    else if(currenttime.tv_sec > nextCycleStartTime.tv_sec) {
-                        nextCycleStartTime.tv_nsec = nextCycleStartTime.tv_nsec + (CYCLE_TIME);
-                        nanoSecondFieldConversion(&nextCycleStartTime);
-                        txtime_reach = TX_TIME_ONE;
-                    }
-               }
-         }
+        nextnanosleeptime.tv_nsec += CYCLE_TIME;
+        nanoSecondFieldConversion(&nextnanosleeptime);
+        nextCycleStartTime.tv_nsec += CYCLE_TIME;
+        nanoSecondFieldConversion(&nextCycleStartTime);
     }
+
     return (void*)NULL;
 }
 #endif
@@ -832,14 +805,6 @@ int main(void) {
     if(CPU_ISSET(CORE_THREE, &cpusetSub)) {
         printf("CPU %d\n", CORE_THREE);
     }
-
-    /* Create the subscriber thread */
-    returnValue                          = pthread_create(&subThreadID, NULL,
-                                                          &subscriber, NULL);
-    if (returnValue != 0) {
-        printf("Subscriber thread cannot be created\n");
-    }
-
 #endif
 
 #if defined(PUBLISHER) || defined(SUBSCRIBER)

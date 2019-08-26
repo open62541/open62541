@@ -45,7 +45,7 @@
 #endif
 
 #define       MULTICAST_ADDRESS                  "224.0.0.32"
-#define       PUBSUB_IP_ADDRESS                  "192.168.9.10"
+#define       PUBSUB_IP_ADDRESS                  "192.168.1.11"
 
 #define       PRINT_ERROR(ERROR_INFO)            fprintf(stderr, ERROR_INFO "\n")
 
@@ -96,8 +96,6 @@ static ssize_t udp_send(UA_Int32 fd, void *buf, UA_Int32 len, __u64 tx_time, clo
     char dataPacket[CMSG_SPACE(sizeof(tx_time))] = {0};
     /* Structure for socket internet address */
     struct sockaddr_in    socketAddress;
-    /* Structure for storing the necessary data */
-    struct cmsghdr*       controlMsg;
     /* Structure for messages sent and received */
     struct msghdr         message;
     /* Structure for scattering or gathering of input/output */
@@ -133,6 +131,8 @@ static ssize_t udp_send(UA_Int32 fd, void *buf, UA_Int32 len, __u64 tx_time, clo
      * We specify the transmission time in the CMSG.
      */
     if(txTimeEnable) {
+        /* Structure for storing the necessary data */
+        struct cmsghdr*       controlMsg;
         /* Provide the necessary data */
         message.msg_control    = dataPacket;
         /* Provide the size of necessary bytes */
@@ -158,8 +158,6 @@ static ssize_t udp_send(UA_Int32 fd, void *buf, UA_Int32 len, __u64 tx_time, clo
 static int sockErrorQueueProcess(int fd) {
     uint8_t dataErrorPacket[CMSG_SPACE(sizeof(struct sock_extended_err))];
     unsigned char errorBuffer[sizeof(txBuffer)];
-    /* Structure for storing the error queue*/
-    struct sock_extended_err* sockErrorQueue;
     /* Structure for storing the error data */
     struct cmsghdr*           controlErrorMsg;
     __u64 timeStamp           = 0;
@@ -185,7 +183,8 @@ static int sockErrorQueueProcess(int fd) {
 
     controlErrorMsg = CMSG_FIRSTHDR(&messageError);
     while(controlErrorMsg != NULL) {
-        sockErrorQueue = (void *) CMSG_DATA(controlErrorMsg);
+        struct sock_extended_err* sockErrorQueue;
+        sockErrorQueue = (struct sock_extended_err *) CMSG_DATA(controlErrorMsg);
         if(sockErrorQueue->ee_origin == SO_EE_ORIGIN_TXTIME) {
             timeStamp = ((__u64) sockErrorQueue->ee_data << SHIFT_32BITS) + sockErrorQueue->ee_info;
             switch(sockErrorQueue->ee_code) {

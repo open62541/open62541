@@ -10,8 +10,6 @@
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/util.h>
 
-#define  PUBSUB_IP_ADDRESS    "192.168.9.10"
-
 // UDP multicast network layer specific internal data
 typedef struct {
     int ai_family;                        //Protocol family for socket.  IPv4/IPv6
@@ -280,8 +278,7 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
         }
         struct ip_mreq groupV4;
         memcpy(&groupV4.imr_multiaddr, &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr, sizeof(struct ip_mreq));
-        //groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
-        groupV4.imr_interface.s_addr = inet_addr(PUBSUB_IP_ADDRESS);
+        groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
         //multihomed hosts can join several groups on different IF, INADDR_ANY -> kernel decides
 
         if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0) {
