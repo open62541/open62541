@@ -1,3 +1,16 @@
+/**
+*******************************************************************************
+
+\file   pubsub_interrupt_publisher.c
+
+\brief  Interrupt based publisher(Real-time OPC UA Pub/Sub)
+
+This file contains the main implementation of the interrupt based pulisher,
+thread based publisher and thread based subscriber
+
+\ingroup interrupt based publisher
+*******************************************************************************/
+
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
@@ -48,7 +61,7 @@
  * uncomment: SUBSCRIBER
  * comment: PUBLISHER, PUB_SYSTEM_INTERRUPT
  */
-#define             SUBSCRIBER
+//#define             SUBSCRIBER
 
 /* To run interrupt based standalone publisher
  * uncomment: PUB_SYSTEM_INTERRUPT
@@ -63,9 +76,8 @@
  */
 #if defined(PUBLISHER) && defined(PUB_SYSTEM_INTERRUPT)
 	#error "Cannot enable both interrupt based publisher and thread based publisher.\
-	       Enable any one type of publisher"
+	        Enable any one type of publisher"
 #endif
-
 /* Publish interval in milliseconds- Now @100us */
 #define             PUB_INTERVAL                    0.1
 #define             FIVE_MILLI_SECOND               5
@@ -189,7 +201,6 @@ struct sched_param schedParamPublisher;
 /* File operations */
 struct timespec              dataModificationTime;
 static void updateMeasurementsPublisher(struct timespec, UA_UInt64);
-
 /* Nanoseconds conversion */
 static void nanoSecondFieldConversion(struct timespec *);
 
@@ -236,12 +247,30 @@ void                         subscribe(void);
 
 #endif
 
-/* Stop signal */
+//------------------------------------------------------------------------------
+/**
+\brief  Signal handler ctrl+c
+
+The function obtains the SoC time information.
+*/
+//------------------------------------------------------------------------------
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = UA_FALSE;
 }
 
+//------------------------------------------------------------------------------
+/**
+\brief  Custom callback for cyclic repitition(Thread based publisher)
+
+The function creates a callback that triggers the collection and publish of
+NetworkMessages and the contained DataSetMessages
+
+\param[in]     pubServer          Server instance
+
+\return The function returns a status code
+*/
+//------------------------------------------------------------------------------
 #if defined(PUBLISHER)
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
@@ -253,6 +282,17 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callba
     return UA_STATUSCODE_GOOD;
 }
 
+//------------------------------------------------------------------------------
+/**
+\brief Remove the callback added for cyclic repetition(Thread based publisher)
+
+The function removes the callback
+
+\param[in]     pubCallback          Callback
+
+\return The function returns a status code
+*/
+//------------------------------------------------------------------------------
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
  /*Since this is a custom while loop execution, no timer is required for this callback
@@ -263,10 +303,14 @@ UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callb
 #endif
 
 #if defined (PUB_SYSTEM_INTERRUPT)
-/*****************************/
-/* System Interrupt Callback */
-/*****************************/
+//------------------------------------------------------------------------------
+/**
+\brief  Interrupt based publisher handler
 
+The function is a signal handler function that tiggers for every timer event
+
+*/
+//------------------------------------------------------------------------------
 static void handler(int sig, siginfo_t *si, void *uc) {
     if(firstTxTime == 0) {
         clock_gettime(CLOCKID, &nextCycleStartTime);
@@ -295,9 +339,24 @@ static void handler(int sig, siginfo_t *si, void *uc) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "stray signal");
         return;
     }
+
 }
 
-/* Add a callback for cyclic repetition */
+//------------------------------------------------------------------------------
+/**
+\brief  Custom callback for cyclic repitition(Interrupt based publisher)
+
+The function creates a callback that triggers the collection and publish of
+NetworkMessages and the contained DataSetMessages
+
+\param[in]     server          Server instance
+\param[in]     data            Publisher data
+\param[in]     callback        callback function
+\param[in]     interval_ms     Publisher interval
+
+\return The function returns a status code
+*/
+//------------------------------------------------------------------------------
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                                      void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
@@ -349,6 +408,19 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callba
     return UA_STATUSCODE_GOOD;
 }
 
+//------------------------------------------------------------------------------
+/**
+\brief Modify interval of callback - cyclic repetition(Interrupt based publisher)
+
+The function modifies the callback interval the triggers the collection and
+publish of NetworkMessages and the contained DataSetMessages
+
+\param[in]     server          Server instance
+\param[in]     interval_ms     Publisher interval
+
+\return The function returns a status code
+*/
+//------------------------------------------------------------------------------
 UA_StatusCode
 UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                                 UA_Double interval_ms) {
@@ -370,7 +442,15 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 cal
     return UA_STATUSCODE_GOOD;
 }
 
-/* Remove the callback added for cyclic repetition */
+//------------------------------------------------------------------------------
+/**
+\brief Remove the callback added for cyclic repetition(Thread based publisher)
+
+The function removes the callback
+
+\param[in]     pubCallback          Callback
+*/
+//------------------------------------------------------------------------------
 void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
     printf("Timer event deleted\n");
@@ -381,7 +461,16 @@ UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callb
 
 
 #if defined(PUBLISHER) || defined(PUB_SYSTEM_INTERRUPT)
+//------------------------------------------------------------------------------
+/**
+\brief Publisher measurements
 
+The function stores the timestamp with data for latency and Jitter measurements
+
+\param[in]     start_time          Publisher start time
+\param[in]     counterValue        Counter value from information model
+*/
+//------------------------------------------------------------------------------
 static void
 updateMeasurementsPublisher(struct timespec start_time,
                             UA_UInt64 counterValue) {
@@ -390,6 +479,16 @@ updateMeasurementsPublisher(struct timespec start_time,
     measurementsPublisher++;
 }
 
+//------------------------------------------------------------------------------
+/**
+\brief Nanosecond field conversion
+
+The function check the timespec to avoid overflow in nano second field and
+increment the seconds field
+
+\param[in]     timeSpecValue       Current time
+*/
+//------------------------------------------------------------------------------
 static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
     /* Check if ns field is greater than '1 ns less than 1sec' */
     while(timeSpecValue->tv_nsec > (SECONDS -1)) {
@@ -399,6 +498,17 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
     }
 }
 
+//------------------------------------------------------------------------------
+/**
+\brief Pubsub connection
+
+Create a new ConnectionConfig. The addPubSubConnection function takes the config
+and create a new connection. The Connection identifier is copied to the NodeId
+parameter
+
+\param[in]       server              Server instance
+*/
+//------------------------------------------------------------------------------
 static void
 addPubSubConnection(UA_Server *server){
     /* Details about the connection configuration and handling are located
@@ -416,10 +526,15 @@ addPubSubConnection(UA_Server *server){
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
+//------------------------------------------------------------------------------
 /**
- * **PublishedDataSet handling**
- *
- */
+\brief Pubsub dataset handling
+
+Create a new dataset
+
+\param[in]       server              Server instance
+*/
+//------------------------------------------------------------------------------
 static void
 addPublishedDataSet(UA_Server *server) {
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -429,12 +544,16 @@ addPublishedDataSet(UA_Server *server) {
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
 
+//------------------------------------------------------------------------------
 /**
- * **DataSetField handling**
- *
- * The DataSetField (DSF) is part of the PDS and describes exactly one
- * published field.
- */
+\brief Dataset field handling
+
+The DataSetField (DSF) is part of the PDS and describes exactly one published
+field
+
+\param[in]       server              Server instance
+*/
+//------------------------------------------------------------------------------
 static void
 addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
@@ -461,12 +580,16 @@ addDataSetField(UA_Server *server) {
     UA_Server_addDataSetField(server, publishedDataSetIdent, &subCounterField, &subCounterFieldIdent);
 }
 
+//------------------------------------------------------------------------------
 /**
- * **WriterGroup handling**
- *
- * The WriterGroup (WG) is part of the connection and contains the primary
- * configuration parameters for the message creation.
- */
+\brief Writer group handling
+
+The WriterGroup (WG) is part of the connection and contains the primary
+configuration parameters for the message creation.
+
+\param[in]       server              Server instance
+*/
+//------------------------------------------------------------------------------
 static void
 addWriterGroup(UA_Server *server) {
     UA_WriterGroupConfig writerGroupConfig;
@@ -478,11 +601,17 @@ addWriterGroup(UA_Server *server) {
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
 }
 
+//------------------------------------------------------------------------------
 /**
- * **Published data handling**
- *
- * The published data is updated in the array using this function
- */
+\brief DataSetWriter handling
+
+A DataSetWriter (DSW) is the glue between the WG and the PDS. The DSW is linked
+to exactly one PDS and contains additional informations for the message
+generation.
+
+\param[in]       server              Server instance
+*/
+//------------------------------------------------------------------------------
 static void
 addDataSetWriter(UA_Server *server) {
     UA_NodeId dataSetWriterIdent;
@@ -498,12 +627,14 @@ addDataSetWriter(UA_Server *server) {
 
 
 #if defined(PUBLISHER)
+//------------------------------------------------------------------------------
 /**
- * **Publisher thread routine**
- *
- * The publisherTBS function is the routine used by the publisher thread.
- * This routine publishes the data at a cycle time of 100us.
- */
+\brief Publisher thread routine
+
+The function is the routine used by the publisher thread. This
+routine publishes the data at every given  cycle time
+*/
+//------------------------------------------------------------------------------
 void* publisherETF(void *arg) {
     struct timespec nextnanosleeptime;
     /* Get current time and compute the next nanosleeptime */
@@ -539,11 +670,16 @@ void* publisherETF(void *arg) {
 #endif
 
 #if defined(SUBSCRIBER)
+//------------------------------------------------------------------------------
 /**
- * **Subscribed data handling**
- *
- * The subscribed data is updated in the array using this function
- */
+\brief Subscriber measurements
+
+The function stores the subcriber timestamp with data for latency and Jitter
+measurements
+\param[in]     receive_time        Subscribed date receive time
+\param[in]     counterValue        Counter value from information model
+*/
+//------------------------------------------------------------------------------
 static void
 updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValue) {
     subscribeTimestamp[measurementsSubscriber]     = receive_time;
@@ -551,11 +687,14 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
     measurementsSubscriber++;
 }
 
+//------------------------------------------------------------------------------
 /**
- * **Subscriber thread routine**
- *
- * The subscriber function is the routine used by the subscriber thread.
- */
+\brief Subscriber thread routine
+
+The function is the routine used by the subscriber thread. This routine
+subscribes the data in continous loop with us sleep
+*/
+//------------------------------------------------------------------------------
 void* subscriber(void *arg) {
     while(running) {
        subscribe();
@@ -563,6 +702,14 @@ void* subscriber(void *arg) {
     return (void*)NULL;
 }
 
+//------------------------------------------------------------------------------
+/**
+\brief Subscriber thread routine
+
+The function is the routine used by the subscriber thread. This routine
+subscribes the data in continous loop with us sleep
+*/
+//------------------------------------------------------------------------------
 void subscribe(void) {
     UA_ByteString buffer;
     if(UA_ByteString_allocBuffer(&buffer, BUFFER_LENGTH) != UA_STATUSCODE_GOOD) {
@@ -636,12 +783,15 @@ cleanup:
 }
 #endif
 
+//------------------------------------------------------------------------------
 /**
- * **Creation of nodes**
- *
- * The addServerNodes function is used to create the publisher and subscriber
- * nodes.
- */
+\brief Creation of nodes
+
+The addServerNodes function is used to create new nodes into the information model
+
+\param[in]     server              Server instance
+*/
+//------------------------------------------------------------------------------
 static void addServerNodes(UA_Server *server) {
     UA_NodeId robotId;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -672,12 +822,16 @@ static void addServerNodes(UA_Server *server) {
                               UA_NODEID_NULL, p5Attr, NULL, &subNodeID);
 }
 
+//------------------------------------------------------------------------------
 /**
- * **Deletion of nodes**
- *
- * The removeServerNodes function is used to delete the publisher and subscriber
- * nodes.
- */
+\brief Deletion of nodes
+
+The removeServerNodes function is used to remove the nodes from the information
+model
+
+\param[in]     server              Server instance
+*/
+//------------------------------------------------------------------------------
 static void removeServerNodes(UA_Server *server) {
     /* Delete the Publisher Counter Node*/
     UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
@@ -689,7 +843,16 @@ static void removeServerNodes(UA_Server *server) {
 }
 
 #if defined(PUBLISHER) || defined(PUB_SYSTEM_INTERRUPT)
+//------------------------------------------------------------------------------
+/**
+\brief  Set priority for the main thread
 
+The function schedules a priority for the self thread(Main thread) and set
+core affinity
+
+\return The function returns a status code
+*/
+//------------------------------------------------------------------------------
 static int setSelfPrio(void) {
 
     /* Core affinity set for publisher */
@@ -726,12 +889,14 @@ static int setSelfPrio(void) {
 }
 #endif
 
+//------------------------------------------------------------------------------
 /**
- * **Main Server code**
- *
- * The main function contains publisher and subscriber threads running in
- * parallel.
- */
+\brief Main function
+
+Intialize a server with pubsub connection and creates two independent threads
+(publisher and subscriber)
+*/
+//------------------------------------------------------------------------------
 int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
@@ -739,7 +904,7 @@ int main(void) {
     UA_Server*       server              = UA_Server_new();
     UA_ServerConfig* config              = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
-	
+
 #if defined(PUBLISHER) || defined(PUB_SYSTEM_INTERRUPT)
     fpPublisher                          = fopen(filePublishedData, "a");
 #endif
