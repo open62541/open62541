@@ -1181,10 +1181,13 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         /* node is a UA_VariableNode*, but it may also point to a UA_VariableTypeNode */
         /* UA_VariableTypeNode doesn't have the historizing attribute */
         if(retval == UA_STATUSCODE_GOOD && node->nodeClass == UA_NODECLASS_VARIABLE &&
-                server->config.historyDatabase.setValue)
+                server->config.historyDatabase.setValue) {
+            UA_UNLOCK(server->serviceMutex);
             server->config.historyDatabase.setValue(server, server->config.historyDatabase.context,
                                                     &session->sessionId, session->sessionHandle,
                                                     &node->nodeId, node->historizing, &adjustedValue);
+            UA_LOCK(server->serviceMutex);
+        }
 #endif
         /* Callback after writing */
         if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite) {
@@ -1593,6 +1596,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         response->results[i].historyData.content.decoded.data = data;
         historyData[i] = data;
     }
+    UA_UNLOCK(server->serviceMutex);
     server->config.historyDatabase.readRaw(server, server->config.historyDatabase.context,
                                            &session->sessionId, session->sessionHandle,
                                            &request->requestHeader, details,
@@ -1600,6 +1604,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                                            request->releaseContinuationPoints,
                                            request->nodesToReadSize, request->nodesToRead,
                                            response, historyData);
+    UA_LOCK(server->serviceMutex);
     UA_free(historyData);
 }
 
@@ -1623,12 +1628,14 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
         if (request->historyUpdateDetails[i].content.decoded.type
                 == &UA_TYPES[UA_TYPES_UPDATEDATADETAILS]) {
             if (server->config.historyDatabase.updateData) {
+                UA_UNLOCK(server->serviceMutex);
                 server->config.historyDatabase.updateData(server,
                                                           server->config.historyDatabase.context,
                                                           &session->sessionId, session->sessionHandle,
                                                           &request->requestHeader,
                                                           (UA_UpdateDataDetails*)request->historyUpdateDetails[i].content.decoded.data,
                                                           &response->results[i]);
+                UA_LOCK(server->serviceMutex);
             } else {
                 response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
             }
@@ -1637,12 +1644,14 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
         if (request->historyUpdateDetails[i].content.decoded.type
                 == &UA_TYPES[UA_TYPES_DELETERAWMODIFIEDDETAILS]) {
             if (server->config.historyDatabase.deleteRawModified) {
+                UA_UNLOCK(server->serviceMutex);
                 server->config.historyDatabase.deleteRawModified(server,
                                                                  server->config.historyDatabase.context,
                                                                  &session->sessionId, session->sessionHandle,
                                                                  &request->requestHeader,
                                                                  (UA_DeleteRawModifiedDetails*)request->historyUpdateDetails[i].content.decoded.data,
                                                                  &response->results[i]);
+                UA_LOCK(server->serviceMutex);
             } else {
                 response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
             }
