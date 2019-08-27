@@ -45,23 +45,23 @@ interfaceName=$1
 ptp4l_master() {
                 sudo modprobe 8021q
                 sudo pkill ptp4l
-                sudo taskset -c 1 chrt 90 ptp4l -i $interfaceName -2 -mq > /home/$username/ptp4l_master.txt 2>&1 &
+                sudo taskset -c 1 chrt 90 ptp4l -i $interfaceName -2 -mq | sudo tee /home/$username/ptp4l_master.txt 2>&1 &
 }
 
 ptp4l_slave() {
                 sudo modprobe 8021q
                 sudo pkill ptp4l
-                sudo taskset -c 1 chrt 90 ptp4l -i $interfaceName -2 -mq -s > /home/$username/ptp4l_slave.txt 2>&1 &
+                sudo taskset -c 1 chrt 90 ptp4l -i $interfaceName -2 -mq -s | sudo tee /home/$username/ptp4l_slave.txt 2>&1 &
 }
 
 phc2sys_master() {
                 sudo pkill phc2sys
-                sudo taskset -c 1 chrt 89 phc2sys -s $interfaceName -w -mq -O 0 > /home/$username/phc2sys_master.txt 2>&1 &
+                sudo taskset -c 1 chrt 89 phc2sys -s $interfaceName -w -mq -O 0 | sudo tee /home/$username/phc2sys_master.txt 2>&1 &
 }
 
 phc2sys_slave() {
                 sudo pkill phc2sys
-                sudo taskset -c 1 chrt 89 phc2sys -s $interfaceName -w -mq -O 0 > /home/$username/phc2sys_slave.txt 2>&1 &
+                sudo taskset -c 1 chrt 89 phc2sys -s $interfaceName -w -mq -O 0 | sudo tee /home/$username/phc2sys_slave.txt 2>&1 &
 }
 
 #Set static IP
