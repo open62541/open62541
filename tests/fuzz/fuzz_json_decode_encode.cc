@@ -69,12 +69,10 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
 		UA_ByteString_deleteMembers(&buf3);
 		return 0;
 	}
-    if (memcmp(buf2.data, buf3.data, buf.length) != 0) {
-    	// ignore
-    }
 
+    UA_assert(buf2.length == buf3.length);
+    UA_assert(memcmp(buf2.data, buf3.data, buf2.length) == 0);
     UA_ByteString_deleteMembers(&buf2);
     UA_ByteString_deleteMembers(&buf3);
-
     return 0;
 }
