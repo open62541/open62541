@@ -149,22 +149,21 @@
                                 int mutexName##Counter;
 #define UA_LOCK_INIT(mutexName) InitializeCriticalSection(&mutexName); \
                                 mutexName##Counter = 0;;
-#define UA_LOCK_RELEASE(mutexName) DeleteCriticalSection(&mutexName);
+#define UA_LOCK_DESTROY(mutexName) DeleteCriticalSection(&mutexName);
 #define UA_LOCK(mutexName) EnterCriticalSection(&mutexName); \
                            UA_assert(++(mutexName##Counter) == 1);
 #define UA_UNLOCK(mutexName) UA_assert(--(mutexName##Counter) == 0); \
                              LeaveCriticalSection(&mutexName);
-#define UA_LOCK_SWITCH(currentMutex, newMutex)  UA_UNLOCK(currentMutex) \
-                                                        UA_LOCK(newMutex)
+#define UA_LOCK_ASSERT(mutexName, num) UA_assert(mutexName##Counter == num);
 #else
 #define UA_LOCK_TYPE_NAME
 #define UA_LOCK_TYPE(mutexName)
 #define UA_LOCK_TYPE_POINTER(mutexName)
 #define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_RELEASE(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
 #define UA_LOCK(mutexName)
 #define UA_UNLOCK(mutexName)
-#define UA_LOCK_SWITCH(currentMutex, newMutex)
+#define UA_LOCK_ASSERT(mutexName, num)
 #endif
 
 #include <open62541/architecture_functions.h>
