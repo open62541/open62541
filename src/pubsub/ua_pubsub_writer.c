@@ -474,7 +474,7 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
     UA_FieldMetaData *currentFieldMetaData = &fieldMetaData[currentDataSet->fieldSize-1];
-    currentFieldMetaData->name = fieldConfig->field.variable.fieldNameAlias;
+    UA_String_copy(&fieldConfig->field.variable.fieldNameAlias, &currentFieldMetaData->name);
     //TODO collect all the meta data informations for the current field
     currentDataSet->dataSetMetaData.fields = fieldMetaData;
 
