@@ -369,7 +369,6 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds, UA
     UA_DataSetMetaDataType tmpDataSetMetaData;
     UA_DataSetMetaDataType_copy(&currentPublishedDataSet->dataSetMetaData, &tmpDataSetMetaData);
     *metaData = tmpDataSetMetaData;
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -415,6 +414,41 @@ UA_PublishedDataSet_deleteMembers(UA_Server *server, UA_PublishedDataSet *publis
         UA_Server_removeDataSetField(server, field->identifier);
     }
     UA_NodeId_deleteMembers(&publishedDataSet->identifier);
+}
+
+static UA_FieldMetaData
+generateFieldMetaData(UA_Server *server, UA_DataSetField *field){
+    UA_FieldMetaData fieldMetaData;
+    UA_FieldMetaData_init(&fieldMetaData);
+    if(field->config.dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE){
+        UA_String_copy(&field->config.field.variable.fieldNameAlias, &fieldMetaData.name);
+        fieldMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
+        fieldMetaData.dataSetFieldId = UA_GUID_NULL;
+        //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
+        UA_Variant value;
+        UA_Variant_init(&value);
+        UA_Server_readArrayDimensions(server, field->config.field.variable.publishParameters.publishedVariable, &value);
+        fieldMetaData.arrayDimensions = (UA_UInt32 *) UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
+        memcpy(fieldMetaData.arrayDimensions, value.arrayDimensions, sizeof(UA_UInt32)*value.arrayDimensionsSize);
+        fieldMetaData.arrayDimensionsSize = value.arrayDimensionsSize;
+        UA_NodeId dataType;
+        UA_Server_readDataType(server, field->config.field.variable.publishParameters.publishedVariable, &dataType);
+        UA_NodeId_copy(&dataType, &fieldMetaData.dataType);
+        fieldMetaData.properties = NULL;
+        fieldMetaData.propertiesSize = 0;
+        UA_Int32 valueRank;
+        UA_Server_readValueRank(server, field->config.field.variable.publishParameters.publishedVariable, &valueRank);
+        fieldMetaData.valueRank = valueRank;
+        if(field->config.field.variable.promotedField){
+            fieldMetaData.fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
+        } else {
+            fieldMetaData.fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+        }
+        //TODO collect the following fields
+        //fieldMetaData.builtInType
+        //fieldMetaData.maxStringLength
+    }
+    return fieldMetaData;
 }
 
 UA_DataSetFieldResult
@@ -465,7 +499,7 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         currentDataSet->promotedFieldsCount++;
     currentDataSet->fieldSize++;
 
-    //Extend DataSetMetaData with field information TODO finalize
+    //generate fieldMetadata within the DataSetMetaData
     currentDataSet->dataSetMetaData.fieldsSize++;
     UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *) UA_realloc(currentDataSet->dataSetMetaData.fields, currentDataSet->dataSetMetaData.fieldsSize *
             sizeof(UA_FieldMetaData));
@@ -473,9 +507,7 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
         return result;
     }
-    UA_FieldMetaData *currentFieldMetaData = &fieldMetaData[currentDataSet->fieldSize-1];
-    UA_String_copy(&fieldConfig->field.variable.fieldNameAlias, &currentFieldMetaData->name);
-    //TODO collect all the meta data informations for the current field
+    fieldMetaData[currentDataSet->fieldSize-1] = generateFieldMetaData(server, newField);
     currentDataSet->dataSetMetaData.fields = fieldMetaData;
 
     result.result = retVal;
@@ -520,6 +552,24 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_DataSetField_deleteMembers(currentField);
     LIST_REMOVE(currentField, listEntry);
     UA_free(currentField);
+
+    //regenerate DataSetMetaData
+    for(size_t i = 0; i < parentPublishedDataSet->dataSetMetaData.fieldsSize; i++){
+        UA_FieldMetaData_deleteMembers(&parentPublishedDataSet->dataSetMetaData.fields[i]);
+    }
+    UA_free(parentPublishedDataSet->dataSetMetaData.fields);
+    parentPublishedDataSet->dataSetMetaData.fieldsSize--;
+    UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *) UA_calloc(parentPublishedDataSet->dataSetMetaData.fieldsSize,
+                                                                     sizeof(UA_FieldMetaData));
+    if(!fieldMetaData){
+        result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    UA_DataSetField *tmpDSF;
+    size_t counter = 0;
+    LIST_FOREACH(tmpDSF, &parentPublishedDataSet->fields, listEntry){
+        fieldMetaData[counter++] = generateFieldMetaData(server, tmpDSF);
+    }
 
     result.result = UA_STATUSCODE_GOOD;
     result.configurationVersion.majorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion;
