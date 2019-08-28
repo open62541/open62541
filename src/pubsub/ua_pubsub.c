@@ -1955,7 +1955,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+        nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT32;
         nm.publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
     } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
         nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;

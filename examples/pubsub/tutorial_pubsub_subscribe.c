@@ -92,8 +92,8 @@ addDataSetReader(UA_Server *server) {
     /* The following parameters are used to show that the data published by
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
-    UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+    UA_UInt32 publisherIdentifier = 2234;
+    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
     readerConfig.publisherId.data = &publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;

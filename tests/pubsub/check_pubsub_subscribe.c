@@ -683,8 +683,8 @@ START_TEST(SinglePublishSubscribeInt32) {
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
-        UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+        UA_UInt32 publisherIdentifier = PUBLISHER_ID;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
         readerConfig.publisherId.data = &publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
@@ -857,8 +857,8 @@ START_TEST(SinglePublishSubscribeInt64) {
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
-        UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+        UA_UInt32 publisherIdentifier = PUBLISHER_ID;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
         readerConfig.publisherId.data = &publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
@@ -1031,8 +1031,8 @@ START_TEST(SinglePublishSubscribeBool) {
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
-        UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+        UA_UInt32 publisherIdentifier = PUBLISHER_ID;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
         readerConfig.publisherId.data = &publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
@@ -1206,8 +1206,8 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         /* Parameters to filter received NetworkMessage */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
-        UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
+        UA_UInt32 publisherIdentifier = PUBLISHER_ID;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
         readerConfig.publisherId.data = &publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
