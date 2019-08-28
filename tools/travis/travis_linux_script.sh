@@ -519,12 +519,19 @@ if [ "$CC" != "tcc" ]; then
         echo -en 'travis_fold:end:script.build.coveralls\\r'
 
 		if [ "${TRAVIS_PULL_REQUEST}" = "false" ]; then
-			if [ "${TRAVIS_BRANCH}" = "master" ] || [ "${TRAVIS_BRANCH}" = "1.0" ]; then
+			REAL_BRANCH="${TRAVIS_BRANCH}"
+       		echo -en "== Checking branch for packing: BRANCH_FOR_TAG='$BRANCH_FOR_TAG' and TRAVIS_TAG='${TRAVIS_TAG}'. \n"
+			if [ "${TRAVIS_TAG}" = "${TRAVIS_BRANCH}" ]; then
+				REAL_BRANCH="$BRANCH_FOR_TAG"
+        		echo -en "== Commit is tag build for '${TRAVIS_TAG}'. Detected branch for tag = '$BRANCH_FOR_TAG' \n"
+			fi
+
+			if [ "${REAL_BRANCH}" = "master" ] || [ "${REAL_BRANCH}" = "1.0" ]; then
 				# Create a separate branch with the `pack/` prefix. This branch has the correct debian/changelog set, and
 				# The submodules are directly copied
-				echo -e "\r\n== Pushing 'pack/${TRAVIS_BRANCH}' branch =="  && echo -en 'travis_fold:start:script.build.pack-branch\\r'
+				echo -e "\r\n== Pushing 'pack/${REAL_BRANCH}' branch =="  && echo -en 'travis_fold:start:script.build.pack-branch\\r'
 
-				git checkout -b pack-tmp/${TRAVIS_BRANCH}
+				git checkout -b pack-tmp/${REAL_BRANCH}
 				cp -r deps/mdnsd deps/mdnsd_back
 				cp -r deps/ua-nodeset deps/ua-nodeset_back
 				git rm -rf --cached deps/mdnsd
@@ -539,10 +546,14 @@ if [ "$CC" != "tcc" ]; then
 				git add CMakeLists.txt
 				git commit -m "[ci skip] Pack with inline submodules"
 				git remote add origin-auth https://$GITAUTH@github.com/${TRAVIS_REPO_SLUG}
-				git push -uf origin-auth pack-tmp/${TRAVIS_BRANCH}:pack/${TRAVIS_BRANCH}
+				git push -uf origin-auth pack-tmp/${REAL_BRANCH}:pack/${REAL_BRANCH}
 
 				echo -en 'travis_fold:end:script.build.pack-branch\\r'
+			else
+				echo -en "== Skipping push to pack/ because branch does not match: REAL_BRANCH='${REAL_BRANCH}' \n"
 			fi
+        else
+        	echo -en "== Skipping push to pack/ because TRAVIS_PULL_REQUEST=false \n"
         fi
 
 
