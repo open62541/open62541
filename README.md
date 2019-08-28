@@ -125,11 +125,39 @@ A list of projects and companies using our open62541 stack can be found in our W
 
 https://github.com/open62541/open62541/wiki/References-to-open62541
 
+## Installation and code usage
+
+For every release, we provide some pre-packed release packages which you can directly use in your compile infrastructure.
+
+Have a look at the [release page](https://github.com/open62541/open62541/releases) and the corresponding attached assets.
+
+A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://open62541.org/doc/current/installing.html).
+
+You can not directly download a .zip package from the main branches using the Github UI, since then some of the submodules and version strings are missing.
+Therefore you have three options to install and use this stack:
+
+- **Recommended:** Use any of the prepared packages attached to every release or in the package repository of your distro (if available).  
+  Please check the install guide for more info.
+  
+- Download a .zip package of special `pack/` branches.  
+  These pack branches are up-to-date with the corresponding base branches, but already have the submodules in-place and the version string set correctly.  
+  Here are some direct download links for the current pack branches:  
+  - [pack/master.zip](https://github.com/open62541/open62541/archive/pack/master.zip)
+  - [pack/1.0.zip](https://github.com/open62541/open62541/archive/pack/1.0.zip)
+   
+- Clone this repository and initialize all the submodules using `git submodule update --init --recursive`. Then either use `make install` or setup your CMake project correspondingly.
+
 ## Examples
 
+A complete list of examples can be found in the [examples directory](https://github.com/open62541/open62541/tree/master/examples).
+
+To build the examples, we recommend to install the open62541 project as mentioned in previous section.
+
 ### Example Server Implementation
-Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
-Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> open62541.c -o server``` (under Windows you may need to add ``` -lws2_32``` 
+
+The following simple server example can be built using gcc, after you installed open62541 on your system.
+
+Using the GCC compiler, just run ```gcc -std=c99 -lopen62541 -DUA_ARCHITECTURE_POSIX <server.c> -o server``` (under Windows you may need to add ``` -lws2_32``` 
 and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
 #include <signal.h>
