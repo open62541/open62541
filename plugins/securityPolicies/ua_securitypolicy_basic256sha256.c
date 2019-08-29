@@ -715,7 +715,7 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
 
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not create securityContext");
+                 "Could not create securityContext: %s", UA_StatusCode_name(retval));
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic256sha256(securityPolicy);
     return retval;
