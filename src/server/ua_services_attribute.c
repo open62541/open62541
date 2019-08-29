@@ -400,8 +400,7 @@ Service_Read(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ReadRequest");
 
     /* Check if the timestampstoreturn is valid */
-    if(request->timestampsToReturn < 0 ||
-       request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
         return;
     }
