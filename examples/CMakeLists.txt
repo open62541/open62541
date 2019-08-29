@@ -178,6 +178,7 @@ add_subdirectory(nodeset)
 
 if(UA_ENABLE_CUSTOM_NODESTORE AND UA_ENABLE_NODESTORE_SWITCH)
     add_example(server_nodestore_switch server_nodestore_switch.c)
+    add_example(server_nodestore_custom server_nodestore_custom.c)
 endif()
 
 ####################
