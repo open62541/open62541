@@ -650,6 +650,12 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    if (localPrivateKey.length == 0) {
+        UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Can not initialize security policy. Private key is empty.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     Basic256Sha256_PolicyContext *pc = (Basic256Sha256_PolicyContext *)
         UA_malloc(sizeof(Basic256Sha256_PolicyContext));
     securityPolicy->policyContext = (void *)pc;
