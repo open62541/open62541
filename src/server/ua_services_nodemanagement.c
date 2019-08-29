@@ -445,9 +445,24 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         return retval;
     }
 
-    /* Is the child mandatory? If not, skip */
-    if(!isMandatoryChild(server, session, &rd->nodeId.nodeId))
-        return UA_STATUSCODE_GOOD;
+    /* Is the child mandatory? If not, ask callback whether child should be instantiated.
+     * If not, skip. */
+    if(!isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
+        if(!server->config.nodeLifecycle.createOptionalChild)
+            return UA_STATUSCODE_GOOD;
+
+        UA_UNLOCK(server->serviceMutex);
+        retval = server->config.nodeLifecycle.createOptionalChild(server,
+                                                                 &session->sessionId,
+                                                                 session->sessionHandle,
+                                                                 &rd->nodeId.nodeId,
+                                                                 destinationNodeId,
+                                                                 &rd->referenceTypeId);
+        UA_LOCK(server->serviceMutex);
+        if(retval == UA_FALSE) {
+            return UA_STATUSCODE_GOOD;
+        }
+    }
 
     /* Child is a method -> create a reference */
     if(rd->nodeClass == UA_NODECLASS_METHOD) {
@@ -478,6 +493,22 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
         UA_NodeId_deleteMembers(&node->nodeId);
         node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
+
+        if (server->config.nodeLifecycle.generateChildNodeId) {
+            UA_UNLOCK(server->serviceMutex);
+            retval = server->config.nodeLifecycle.generateChildNodeId(server,
+                                                                      &session->sessionId, session->sessionHandle,
+                                                                      &rd->nodeId.nodeId,
+                                                                      destinationNodeId,
+                                                                      &rd->referenceTypeId,
+                                                                      &node->nodeId);
+            UA_LOCK(server->serviceMutex);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_Nodestore_deleteNode(server->nsCtx, node);
+                return retval;
+            }
+        }
+
 
         /* Remove references, they are re-created from scratch in addnode_finish */
         /* TODO: Be more clever in removing references that are re-added during
@@ -1253,19 +1284,19 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
                  const UA_AddNodesRequest *request,
                  UA_AddNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing AddNodesRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_addNode, NULL,
                                            &request->nodesToAddSize, &UA_TYPES[UA_TYPES_ADDNODESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
-    UA_UNLOCK(server->serviceMutex)
 }
 
 UA_StatusCode
@@ -1591,20 +1622,20 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
                          UA_DeleteNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing DeleteNodesRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)deleteNodeOperation,
                                            NULL, &request->nodesToDeleteSize,
                                            &UA_TYPES[UA_TYPES_DELETENODESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode
@@ -1716,20 +1747,20 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
                            UA_AddReferencesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing AddReferencesRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_addReference,
                                            NULL, &request->referencesToAddSize,
                                            &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode
@@ -1799,20 +1830,20 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
                          UA_DeleteReferencesResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing DeleteReferencesRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-    UA_LOCK(server->serviceMutex);
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_deleteReference,
                                            NULL, &request->referencesToDeleteSize,
                                            &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode

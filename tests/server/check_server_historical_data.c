@@ -305,7 +305,9 @@ requestHistory(UA_DateTime start,
     request.nodesToReadSize = 1;
     request.nodesToRead = valueId;
 
+    UA_LOCK(server->serviceMutex);
     Service_HistoryRead(server, &server->adminSession, &request, response);
+    UA_UNLOCK(server->serviceMutex);
     UA_HistoryReadRequest_deleteMembers(&request);
 }
 
@@ -497,7 +499,9 @@ deleteHistory(UA_DateTime start,
 
     UA_HistoryUpdateResponse response;
     UA_HistoryUpdateResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
     Service_HistoryUpdate(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     UA_HistoryUpdateRequest_deleteMembers(&request);
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
@@ -549,7 +553,9 @@ updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData, UA_Statu
 
     UA_HistoryUpdateResponse response;
     UA_HistoryUpdateResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
     Service_HistoryUpdate(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
     UA_HistoryUpdateRequest_deleteMembers(&request);
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)

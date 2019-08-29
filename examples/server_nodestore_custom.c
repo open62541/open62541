@@ -171,7 +171,7 @@ static UA_StatusCode myNodestore_replaceNode(void *nsCtx, UA_Node *node) {
 static void myNodestore_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
 		void *visitorCtx) {
 	UA_VariableNode * myNodestore = (UA_VariableNode*) nsCtx;
-	for(size_t i ; i < myNodestoreSize ; ++i){
+	for(size_t i = 0 ; i < myNodestoreSize ; ++i){
 		if(!UA_NodeId_isNull(&myNodestore[i].nodeId))
 				visitor(visitorCtx, (UA_Node*) &myNodestore[i]);
 	}
@@ -228,7 +228,7 @@ static void addVariableNodeInteral(UA_Server* server, void* nsCtx, char* name) {
 	node->description = UA_LOCALIZEDTEXT_ALLOC("en-US",
 			"This node was added to the nodestore directly.");
 	node->displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", name);
-    /* Constraints on possible values */                                \
+    /* Constraints on possible values */
 	node->dataType = UA_TYPES[UA_TYPES_INT32].typeId;
 	node->valueRank = UA_VALUERANK_SCALAR;
 	/* value */
