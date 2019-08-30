@@ -546,7 +546,9 @@ class DataTypeNode(Node):
                             fdtype = nodeset.aliases[fdtype]
                     elif at == "Name":
                         fname = str(av)
-                    #elif at == "SymbolicName":
+                    elif at == "SymbolicName":
+                        # ignore
+                        continue
                     #    symbolicName = str(av)
                     elif at == "Value":
                         enumVal = int(av)
