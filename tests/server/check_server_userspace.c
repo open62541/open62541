@@ -146,6 +146,7 @@ START_TEST(Server_set_customHostname) {
 
     // TODO when we have more network layers, extend this
     ck_assert_uint_ge(config->networkLayersSize, 1);
+    ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, config->networkLayersSize);
 
 
     for (size_t i=0; i<config->networkLayersSize; i++) {
@@ -153,7 +154,9 @@ START_TEST(Server_set_customHostname) {
         char discoveryUrl[256];
         int len = snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
         ck_assert_int_eq(nl->discoveryUrl.length, len);
+        ck_assert_int_eq(config->applicationDescription.discoveryUrls[i].length, len);
         ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);
+        ck_assert(strncmp(discoveryUrl, (char*)config->applicationDescription.discoveryUrls[i].data, len)==0);
     }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
