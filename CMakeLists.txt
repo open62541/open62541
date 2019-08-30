@@ -441,7 +441,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
     # Debug
-    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug")
+    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX)
         if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
