@@ -229,28 +229,6 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
     return UA_ServerConfig_addNetworkLayerTCP(conf, portNumber, sendBufferSize, recvBufferSize);
 }
 
-static UA_StatusCode
-addDiscoveryUrl(UA_ServerConfig *config, UA_UInt16 portNumber) {
-       config->applicationDescription.discoveryUrlsSize = 1;
-    UA_String *discurl = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
-    char discoveryUrlBuffer[220];
-    if (config->customHostname.length) {
-        UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%.*s:%d/",
-                                                 (int)config->customHostname.length,
-                                                 config->customHostname.data,
-                                                 portNumber);
-    } else {
-    char hostnameBuffer[200];
-       if(UA_gethostname(hostnameBuffer, 200) == 0) {
-               UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%s:%d/", hostnameBuffer, portNumber);
-       } else {
-            UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
-        }
-    }
-    discurl[0] = UA_String_fromChars(discoveryUrlBuffer);
-    config->applicationDescription.discoveryUrls = discurl;
-    return UA_STATUSCODE_GOOD;
-}
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addNetworkLayerTCP(UA_ServerConfig *conf, UA_UInt16 portNumber,
@@ -391,12 +369,6 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
 
     retval = addDefaultNetworkLayers(config, portNumber, sendBufferSize, recvBufferSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(config);
-        return retval;
-    }
-    
-    retval = addDiscoveryUrl(config, portNumber);
-    if (retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
     }
@@ -601,12 +573,6 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 
     retval = addDefaultNetworkLayers(conf, portNumber, 0, 0);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
-        return retval;
-    }
-
-    retval = addDiscoveryUrl(conf, portNumber);
-    if (retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
     }
