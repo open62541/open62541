@@ -231,24 +231,26 @@ addDefaultNetworkLayers(UA_ServerConfig *conf, UA_UInt16 portNumber,
 
 static UA_StatusCode
 addDiscoveryUrl(UA_ServerConfig *config, UA_UInt16 portNumber) {
-       config->applicationDescription.discoveryUrlsSize = 1;
-    UA_String *discurl = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
-    char discoveryUrlBuffer[220];
+    char discoveryUrlBuffer[220]; //FIXME: Remove magic number
+    memset(discoveryUrlBuffer, 0, 220);
     if (config->customHostname.length) {
         UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%.*s:%d/",
                                                  (int)config->customHostname.length,
                                                  config->customHostname.data,
                                                  portNumber);
     } else {
-    char hostnameBuffer[200];
-       if(UA_gethostname(hostnameBuffer, 200) == 0) {
-               UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%s:%d/", hostnameBuffer, portNumber);
-       } else {
+        char hostnameBuffer[200]; //FIXME: Remove magic number
+        memset(hostnameBuffer, 0, 200);
+        if(UA_gethostname(hostnameBuffer, 200) == 0) {
+            UA_snprintf(discoveryUrlBuffer, 220, "opc.tcp://%s:%d/", hostnameBuffer, portNumber);
+        } else {
             UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+            return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
         }
     }
-    discurl[0] = UA_String_fromChars(discoveryUrlBuffer);
-    config->applicationDescription.discoveryUrls = discurl;
+    config->applicationDescription.discoveryUrlsSize = 1;
+    config->applicationDescription.discoveryUrls = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+    config->applicationDescription.discoveryUrls[0] = UA_String_fromChars(discoveryUrlBuffer);
     return UA_STATUSCODE_GOOD;
 }
 
