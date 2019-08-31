@@ -96,9 +96,9 @@ int __month_to_secs(int month, int is_leap)
 long long __year_to_secs(long long year, int *is_leap)
 {
 	if (year-(int)2ULL <= 136) {
-		int y = (int)year;
-		int leaps = (y-68)>>2;
-		if (!((y-68)&3)) {
+		long long y = (int)year;
+		long long leaps = (y-68)>>2;
+		if (!((y-8)&3)) {
 			leaps--;
 			if (is_leap) *is_leap = 1;
 		} else if (is_leap) *is_leap = 0;
