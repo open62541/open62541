@@ -195,6 +195,27 @@ UA_DateTime_toStruct(UA_DateTime t) {
     return dateTimeStruct;
 }
 
+UA_DateTime
+UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
+    /* Seconds since the Unix epoch */
+    struct mytm tm;
+    memset(&tm, 0, sizeof(struct mytm));
+    tm.tm_year = ts.year - 1900;
+    tm.tm_mon = ts.month - 1;
+    tm.tm_mday = ts.day;
+    tm.tm_hour = ts.hour;
+    tm.tm_min = ts.min;
+    tm.tm_sec = ts.sec;
+    long long sec_epoch = __tm_to_secs(&tm);
+
+    UA_DateTime t = UA_DATETIME_UNIX_EPOCH;
+    t += sec_epoch * UA_DATETIME_SEC;
+    t += ts.milliSec * UA_DATETIME_MSEC;
+    t += ts.microSec * UA_DATETIME_USEC;
+    t += ts.nanoSec / 100;
+    return t;
+}
+
 /* Guid */
 UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
