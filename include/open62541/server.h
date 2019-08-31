@@ -670,7 +670,50 @@ typedef struct {
     void (*destructor)(UA_Server *server,
                        const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *nodeId, void *nodeContext);
-} UA_GlobalNodeLifecycle;
+
+    /* Can be NULL. Called during recursive node instantiation. While mandatory
+     * child nodes are automatically created if not already present, optional child
+     * nodes are not. This callback can be used to define whether an optional child
+     * node should be created.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param sourceNodeId Source node from the type definition. If the new node
+     *        shall be created, it will be a copy of this node.
+     * @param targetParentNodeId Parent of the potential new child node
+     * @param referenceTypeId Identifies the reference type which that the parent
+     *        node has to the new node. 
+     * @return Return UA_TRUE if the child node shall be instantiatet, 
+     *         UA_FALSE otherwise. */
+    UA_Boolean (*createOptionalChild)(UA_Server *server,
+                                      const UA_NodeId *sessionId,
+                                      void *sessionContext,
+                                      const UA_NodeId *sourceNodeId,
+                                      const UA_NodeId *targetParentNodeId,
+                                      const UA_NodeId *referenceTypeId);
+
+    /* Can be NULL. Called when a node is to be copied during recursive
+     * node instantiation. Allows definition of the NodeId for the new node.
+     * If the callback is set to NULL or the resulting NodeId is UA_NODEID_NULL,
+     * then a random NodeId will be generated.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param sourceNodeId Source node of the copy operation
+     * @param targetParentNodeId Parent node of the new node
+     * @param referenceTypeId Identifies the reference type which that the parent
+     *        node has to the new node. */
+    UA_StatusCode (*generateChildNodeId)(UA_Server *server,
+                                         const UA_NodeId *sessionId, void *sessionContext,
+                                         const UA_NodeId *sourceNodeId,
+                                         const UA_NodeId *targetParentNodeId,
+                                         const UA_NodeId *referenceTypeId,
+                                         UA_NodeId *targetNodeId);
+    } UA_GlobalNodeLifecycle;
 
 typedef struct {
     /* Can be NULL. May replace the nodeContext */
@@ -867,7 +910,7 @@ typedef void (*UA_Server_EventNotificationCallback)
  * @return Returns a description of the created MonitoredItem. The structure
  * also contains a StatusCode (in case of an error) and the identifier of the
  * new MonitoredItem. */
-UA_MonitoredItemCreateResult UA_EXPORT
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
 UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           UA_TimestampsToReturn timestampsToReturn,
           const UA_MonitoredItemCreateRequest item,
@@ -880,7 +923,7 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
 /*           const UA_MonitoredItemCreateRequest item, void *context, */
 /*           UA_Server_EventNotificationCallback callback); */
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 #endif
@@ -1272,7 +1315,7 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  * @param eventType The type of the event for which a node should be created
  * @param outNodeId The NodeId of the newly created node for the event
  * @return The StatusCode of the UA_Server_createEvent method */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId);
 
@@ -1283,7 +1326,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
  * @param outEvent the EventId of the new event
  * @param deleteEventNode Specifies whether the node representation of the event should be deleted
  * @return The StatusCode of the UA_Server_triggerEvent method */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId originId,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode);
 

@@ -144,9 +144,10 @@ removeSubscription(void) {
 
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
-
+    UA_LOCK(server->serviceMutex);
     Service_DeleteSubscriptions(server, &server->adminSession, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
+    UA_UNLOCK(server->serviceMutex);
     UA_DeleteSubscriptionsResponse_deleteMembers(&deleteSubscriptionsResponse);
 }
 

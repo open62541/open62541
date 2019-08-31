@@ -61,6 +61,8 @@ void
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Check limits for the number of subscriptions */
     if(((server->config.maxSubscriptions != 0) &&
         (server->numSubscriptions >= server->config.maxSubscriptions)) ||
@@ -110,6 +112,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            const UA_ModifySubscriptionRequest *request,
                            UA_ModifySubscriptionResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ModifySubscriptionRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
@@ -151,6 +154,8 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           const UA_SetPublishingModeRequest *request,
                           UA_SetPublishingModeResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing SetPublishingModeRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_Boolean publishingEnabled = request->publishingEnabled; /* request is const */
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_SetPublishingMode,
@@ -317,6 +322,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                             UA_DeleteSubscriptionsResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing DeleteSubscriptionsRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -338,6 +344,7 @@ Service_Republish(UA_Server *server, UA_Session *session,
                   UA_RepublishResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing RepublishRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);

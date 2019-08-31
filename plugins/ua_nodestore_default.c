@@ -348,7 +348,7 @@ UA_Nodestore_delete(void *nsCtx) {
 
     NodeMap *ns = (NodeMap*)nsCtx;
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_RELEASE(ns->lock);
+    UA_LOCK_DESTROY(ns->lock);
 #endif
     ZIP_ITER(NodeTree, &ns->root, deleteNodeVisitor, NULL);
     UA_free(ns);

@@ -176,8 +176,8 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_RELEASE(server->networkMutex)
-    UA_LOCK_RELEASE(server->serviceMutex)
+    UA_LOCK_DESTROY(server->networkMutex)
+    UA_LOCK_DESTROY(server->serviceMutex)
 #endif
 
     /* Clean up the Admin Session */

@@ -522,10 +522,8 @@ Service_CloseSession(UA_Server *server, UA_Session *session,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
     UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
-    /* Callback into userland access control */
-    server->config.accessControl.closeSession(server, &server->config.accessControl,
-                                              &session->sessionId, session->sessionHandle);
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken);
