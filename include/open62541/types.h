@@ -187,8 +187,12 @@ UA_STRING(char *chars) {
  * which represents the number of 100 nanosecond intervals since January 1, 1601
  * (UTC).
  *
- * The methods providing an interface to the system clock are provided by a
- * "plugin" that is statically linked with the library. */
+ * The methods providing an interface to the system clock are architecture-
+ * specific. Usually, they provide a UTC clock that includes leap seconds. The
+ * OPC UA standard allows the use of International Atomic Time (TAI) for the
+ * DateTime instead. But this is still unusual and not implemented for most
+ * SDKs. Currently (2019), UTC and TAI are 37 seconds apart due to leap
+ * seconds. */
 
 typedef int64_t UA_DateTime;
 
@@ -215,8 +219,8 @@ typedef struct UA_DateTimeStruct {
     UA_UInt16 sec;
     UA_UInt16 min;
     UA_UInt16 hour;
-    UA_UInt16 day;
-    UA_UInt16 month;
+    UA_UInt16 day;   /* From 1 to 31 */
+    UA_UInt16 month; /* From 1 to 12 */
     UA_UInt16 year;
 } UA_DateTimeStruct;
 
