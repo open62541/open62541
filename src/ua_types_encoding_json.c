@@ -656,18 +656,12 @@ ENCODE_JSON(ByteString) {
     }
 
     status ret = writeJsonQuote(ctx);
-    int flen;
-    char *ba64 = UA_base64(src->data, (int)src->length, &flen);
+    size_t flen = 0;
+    unsigned char *ba64 = UA_base64(src->data, src->length, &flen);
     
     /* Not converted, no mem */
     if(!ba64)
         return UA_STATUSCODE_BADENCODINGERROR;
-
-    /* Check if negative... (TODO: Why is base64 3rd argument type int?) */
-    if(flen < 0) {
-        UA_free(ba64);
-        return UA_STATUSCODE_BADENCODINGERROR;
-    }
 
     if(ctx->pos + flen > ctx->end) {
         UA_free(ba64);
@@ -676,7 +670,7 @@ ENCODE_JSON(ByteString) {
     
     /* Copy flen bytes to output stream. */
     if(!ctx->calcOnly)
-        memcpy(ctx->pos, ba64, (size_t)flen);
+        memcpy(ctx->pos, ba64, flen);
     ctx->pos += flen;
 
     /* Base64 result no longer needed */
@@ -2205,13 +2199,13 @@ DECODE_JSON(ByteString) {
         return UA_STATUSCODE_GOOD;
     }
 
-    int flen;
-    unsigned char* unB64 = UA_unbase64(tokenData, (int)tokenSize, &flen);
+    size_t flen = 0;
+    unsigned char* unB64 = UA_unbase64((unsigned char*)tokenData, tokenSize, &flen);
     if(unB64 == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     dst->data = (u8*)unB64;
-    dst->length = (size_t)flen;
+    dst->length = flen;
     
     if(moveToken)
         parseCtx->index++;
