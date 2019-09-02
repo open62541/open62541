@@ -107,5 +107,6 @@ Install them with:
 
 Arch packages are available in the AUR
 
- * Stable Builds: <insert_link_here>
+ * Stable Builds: https://aur.archlinux.org/packages/open62541/
+ * Unstable Builds (current master): https://aur.archlinux.org/packages/open62541-git/
  * In order to add custom build options (:ref:`build_options`), you can set the environment variable ``OPEN62541_CMAKE_FLAGS``
