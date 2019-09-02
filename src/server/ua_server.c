@@ -500,6 +500,22 @@ UA_Server_run_startup(UA_Server *server) {
         result |= nl->start(nl, &server->config.customHostname);
     }
 
+    /* Update the application description to match the previously added discovery urls.
+     * We can only do this after the network layer is started since it inits the discovery url */
+    if (server->config.applicationDescription.discoveryUrlsSize != 0) {
+        UA_Array_delete(server->config.applicationDescription.discoveryUrls, server->config.applicationDescription.discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+        server->config.applicationDescription.discoveryUrlsSize = 0;
+    }
+    server->config.applicationDescription.discoveryUrls = (UA_String *) UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
+    if (!server->config.applicationDescription.discoveryUrls) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
+    for (size_t i=0; i< server->config.applicationDescription.discoveryUrlsSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
+    }
+
     /* Spin up the worker threads */
 #if UA_MULTITHREADING >= 200
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,

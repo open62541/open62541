@@ -659,6 +659,12 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    if (localPrivateKey.length == 0) {
+        UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Can not initialize security policy. Private key is empty.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)
         UA_malloc(sizeof(Basic128Rsa15_PolicyContext));
     securityPolicy->policyContext = (void *)pc;
@@ -725,7 +731,7 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
 
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not create securityContext");
+                 "Could not create securityContext: %s", UA_StatusCode_name(retval));
     if(securityPolicy->policyContext != NULL)
         deleteMembers_sp_basic128rsa15(securityPolicy);
     return retval;

@@ -190,10 +190,9 @@ UA_StatusCode UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_S
     if (byteString == str)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    int resSize = 0;
-    str->data = (UA_Byte*)UA_base64(byteString->data, (int)byteString->length, &resSize);
-    str->length = (size_t) resSize;
-    if (str->data == NULL)
+    str->data = (UA_Byte*)UA_base64(byteString->data,
+                                    byteString->length, &str->length);
+    if(str->data == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     return UA_STATUSCODE_GOOD;

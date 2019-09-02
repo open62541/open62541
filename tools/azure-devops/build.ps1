@@ -68,8 +68,9 @@ try {
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with full NS0 #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
+    # Use build type Debug here, to force `-Werror`
     & cmake $cmake_cnf `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_BUILD_TYPE=Debug `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
             -DUA_ENABLE_DA:BOOL=ON `
             -DUA_ENABLE_JSON_ENCODING:BOOL=ON `

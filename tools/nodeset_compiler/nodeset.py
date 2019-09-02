@@ -321,8 +321,6 @@ class NodeSet(object):
             if not isinstance(dataTypeNode, DataTypeNode):
                 logger.error("Node id " + str(dataType) + " is not reference a valid dataType.")
                 return None
-            if not dataTypeNode.isEncodable():
-                logger.warn("DataType " + str(dataTypeNode.browseName) + " is not encodable.")
             return dataTypeNode
         return None
 
