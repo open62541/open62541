@@ -10,9 +10,6 @@ struct mytm {
     int tm_year;
     int tm_wday;
     int tm_yday;
-    int tm_isdst;
-    /* long __tm_gmtoff; */
-    /* const char *__tm_zone; */
 };
 
 int __secs_to_tm(long long t, struct mytm *tm);
