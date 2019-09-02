@@ -1,8 +1,12 @@
 FROM alpine:3.10
 RUN apk add --no-cache cmake gcc git g++ musl-dev mbedtls-dev python py-pip make && rm -rf /var/cache/apk/*
 ADD . /opt/open62541
+
+# Get all the git tags to make sure we detect the correct version with git describe
 WORKDIR /opt/open62541
-RUN git submodule update --init --recursive
+RUN git remote add github-upstream https://github.com/open62541/open62541.git
+RUN git fetch --tags github-upstream
+
 WORKDIR /opt/open62541/build
 RUN cmake -DBUILD_SHARED_LIBS=ON \
 		-DCMAKE_BUILD_TYPE=Debug \
@@ -16,6 +20,8 @@ RUN cmake -DBUILD_SHARED_LIBS=ON \
          /opt/open62541
 RUN make -j
 RUN make install
+WORKDIR /opt/open62541
+RUN rm -rf /opt/open62541/build
 
 # Generate certificates
 RUN apk add --no-cache python-dev linux-headers openssl && rm -rf /var/cache/apk/*
@@ -24,6 +30,5 @@ RUN mkdir -p /opt/open62541/pki/created
 RUN python /opt/open62541/tools/certs/create_self-signed.py /opt/open62541/pki/created
 
 
-WORKDIR /opt/open62541
 EXPOSE 4840
 CMD ["/opt/open62541/build/bin/examples/server_ctt" , "/opt/open62541/pki/created/server_cert.der", "/opt/open62541/pki/created/server_key.der", "--enableUnencrypted", "--enableAnonymous"]

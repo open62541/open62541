@@ -13,6 +13,7 @@ Build Status:
 [![Build Status](https://img.shields.io/travis/open62541/open62541/master.svg)](https://travis-ci.org/open62541/open62541)
 [![Build Status](https://dev.azure.com/open62541/open62541/_apis/build/status/open62541.open62541?branchName=master)](https://dev.azure.com/open62541/open62541/_build/latest?definitionId=1&branchName=master)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/open62541/open62541?branch=master&svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/master)
+[![Build Status](https://img.shields.io/docker/cloud/build/open62541/open62541)](https://cloud.docker.com/u/open62541/repository/docker/open62541/open62541)
 
 Code Quality:
 
