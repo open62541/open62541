@@ -21,7 +21,6 @@ RUN cmake -DBUILD_SHARED_LIBS=ON \
 RUN make -j
 RUN make install
 WORKDIR /opt/open62541
-RUN rm -rf /opt/open62541/build
 
 # Generate certificates
 RUN apk add --no-cache python-dev linux-headers openssl && rm -rf /var/cache/apk/*
