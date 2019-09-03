@@ -24,7 +24,7 @@
 
 UA_CreateSubscriptionResponse UA_EXPORT
 UA_Client_Subscriptions_create(UA_Client *client,
-                               const UA_CreateSubscriptionRequest request,
+                               const UA_CreateSubscriptionRequest& request,
                                void *subscriptionContext,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                UA_Client_DeleteSubscriptionCallback deleteCallback) {
@@ -74,7 +74,7 @@ findSubscription(const UA_Client *client, UA_UInt32 subscriptionId) {
 }
 
 UA_ModifySubscriptionResponse UA_EXPORT
-UA_Client_Subscriptions_modify(UA_Client *client, const UA_ModifySubscriptionRequest request) {
+UA_Client_Subscriptions_modify(UA_Client *client, const UA_ModifySubscriptionRequest& request) {
     UA_ModifySubscriptionResponse response;
     UA_ModifySubscriptionResponse_init(&response);
 
@@ -113,7 +113,7 @@ UA_Client_Subscription_deleteInternal(UA_Client *client, UA_Client_Subscription 
 }
 
 UA_DeleteSubscriptionsResponse UA_EXPORT
-UA_Client_Subscriptions_delete(UA_Client *client, const UA_DeleteSubscriptionsRequest request) {
+UA_Client_Subscriptions_delete(UA_Client *client, const UA_DeleteSubscriptionsRequest& request) {
     UA_STACKARRAY(UA_Client_Subscription*, subs, request.subscriptionIdsSize);
     memset(subs, 0, sizeof(void*) * request.subscriptionIdsSize);
 
@@ -303,7 +303,7 @@ __UA_Client_MonitoredItems_create(UA_Client *client,
 
 UA_CreateMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
-            const UA_CreateMonitoredItemsRequest request, void **contexts,
+            const UA_CreateMonitoredItemsRequest& request, void **contexts,
             UA_Client_DataChangeNotificationCallback *callbacks,
             UA_Client_DeleteMonitoredItemCallback *deleteCallbacks) {
     UA_CreateMonitoredItemsResponse response;
@@ -343,7 +343,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
 
 UA_CreateMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_createEvents(UA_Client *client,
-            const UA_CreateMonitoredItemsRequest request, void **contexts,
+            const UA_CreateMonitoredItemsRequest& request, void **contexts,
             UA_Client_EventNotificationCallback *callback,
             UA_Client_DeleteMonitoredItemCallback *deleteCallback) {
     UA_CreateMonitoredItemsResponse response;
@@ -380,7 +380,7 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
 }
 
 UA_DeleteMonitoredItemsResponse UA_EXPORT
-UA_Client_MonitoredItems_delete(UA_Client *client, const UA_DeleteMonitoredItemsRequest request) {
+UA_Client_MonitoredItems_delete(UA_Client *client, const UA_DeleteMonitoredItemsRequest& request) {
     /* Send the request */
     UA_DeleteMonitoredItemsResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
@@ -448,7 +448,7 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionI
 
 UA_ModifyMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_modify(UA_Client *client,
-                                const UA_ModifyMonitoredItemsRequest request) {
+                                const UA_ModifyMonitoredItemsRequest& request) {
     UA_ModifyMonitoredItemsResponse response;
 
     UA_Client_Subscription *sub = 0;
