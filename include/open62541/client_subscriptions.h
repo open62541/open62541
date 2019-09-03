@@ -82,7 +82,7 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 
 static UA_INLINE UA_SetPublishingModeResponse
 UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
-                                          const UA_SetPublishingModeRequest request) {
+                                          const UA_SetPublishingModeRequest& request) {
     UA_SetPublishingModeResponse response;
     __UA_Client_Service(client, &request,
                         &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST], &response,
@@ -180,7 +180,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
 
 static UA_INLINE UA_SetMonitoringModeResponse
 UA_Client_MonitoredItems_setMonitoringMode(UA_Client *client,
-                                           const UA_SetMonitoringModeRequest request) {
+                                           const UA_SetMonitoringModeRequest& request) {
     UA_SetMonitoringModeResponse response;
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST],
@@ -190,7 +190,7 @@ UA_Client_MonitoredItems_setMonitoringMode(UA_Client *client,
 
 static UA_INLINE UA_SetTriggeringResponse
 UA_Client_MonitoredItems_setTriggering(UA_Client *client,
-                                       const UA_SetTriggeringRequest request) {
+                                       const UA_SetTriggeringRequest& request) {
     UA_SetTriggeringResponse response;
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],
