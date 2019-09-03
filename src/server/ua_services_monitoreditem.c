@@ -317,7 +317,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
 UA_MonitoredItemCreateResult
 UA_Server_createDataChangeMonitoredItem(UA_Server *server,
                                         UA_TimestampsToReturn timestampsToReturn,
-                                        const UA_MonitoredItemCreateRequest item,
+                                        const UA_MonitoredItemCreateRequest& item,
                                         void *monitoredItemContext,
                                         UA_Server_DataChangeNotificationCallback callback) {
     struct createMonContext cmc;
