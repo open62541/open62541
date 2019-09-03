@@ -172,7 +172,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     }
 
     char fileName[250];
-    snprintf(fileName, 255, "%s/%05d_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
+    snprintf(fileName, sizeof(fileName), "%s/%05d_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
              dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);
 
     char dumpOutputFile[266];
