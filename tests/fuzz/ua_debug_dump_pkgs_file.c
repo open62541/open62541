@@ -172,7 +172,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     }
 
     char fileName[250];
-    snprintf(fileName, sizeof(fileName), "%s/%05d_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
+    snprintf(fileName, sizeof(fileName), "%s/%05u_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
              dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);
 
     char dumpOutputFile[266];
@@ -180,7 +180,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     // check if file exists and if yes create a counting filename to avoid overwriting
     unsigned cnt = 1;
     while ( access( dumpOutputFile, F_OK ) != -1 ) {
-        snprintf(dumpOutputFile, 266, "%s_%d.bin", fileName, cnt);
+        snprintf(dumpOutputFile, 266, "%s_%u.bin", fileName, cnt);
         cnt++;
     }
 
