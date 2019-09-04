@@ -104,3 +104,9 @@ Install them with:
     sudo add-apt-repository ppa:open62541-team/ppa
     sudo apt-get update
     sudo apt-get install libopen62541-dev
+
+Arch packages are available in the AUR
+
+ * Stable Builds: https://aur.archlinux.org/packages/open62541/
+ * Unstable Builds (current master): https://aur.archlinux.org/packages/open62541-git/
+ * In order to add custom build options (:ref:`build_options`), you can set the environment variable ``OPEN62541_CMAKE_FLAGS``
