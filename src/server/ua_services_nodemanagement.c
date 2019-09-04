@@ -645,8 +645,20 @@ AddNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         }
     }
 
+    UA_StatusCode retval;
+    /* Make sure newly created node does not have itself as parent */
+    if (UA_NodeId_equal(nodeId, parentNodeId)) {
+        UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                                       "AddNodes: The node %.*s can not have "
+                                                       "itself as parent",
+                                                       (int)nodeIdStr.length, nodeIdStr.data));
+        retval = UA_STATUSCODE_BADINVALIDARGUMENT;
+        goto cleanup;
+    }
+
+
     /* Check parent reference. Objects may have no parent. */
-    UA_StatusCode retval = checkParentReference(server, session, node->nodeClass,
+    retval = checkParentReference(server, session, node->nodeClass,
                                                 parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_NODEID_WRAP(nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,

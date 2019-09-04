@@ -170,13 +170,19 @@ UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
-    dateTimeStruct.microSec = (u16)((t % 10000) / 10);
-    dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
+    if(t >= 0) {
+        dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
+        dateTimeStruct.microSec = (u16)((t % 10000) / 10);
+        dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
+    } else {
+        dateTimeStruct.nanoSec  = (u16)(((t % 10 + t) % 10) * 100);
+        dateTimeStruct.microSec = (u16)(((t % 10000 + t) % 10000) / 10);
+        dateTimeStruct.milliSec = (u16)(((t % 10000000 + t) % 10000000) / 10000);
+    }
 
     /* Calculating the unix time with #include <time.h> */
-    long long secSinceUnixEpoch = (long long)
-        ((t - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
+    long long secSinceUnixEpoch = (long long)(t / UA_DATETIME_SEC)
+        - (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC);
     struct mytm ts;
     memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
