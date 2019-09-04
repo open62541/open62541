@@ -11,9 +11,6 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	dh_auto_test -- ARGS+=--output-on-failure
 
-override_dh_strip:
-	dh_strip --dbg-package=libopen62541-<soname>-dbg
-
 %:
 	dh $@ --buildsystem=cmake --parallel
 
