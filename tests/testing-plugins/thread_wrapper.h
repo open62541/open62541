@@ -10,18 +10,19 @@
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) pthread_create(&handle, NULL, callback, NULL)
+#define THREAD_CREATE_PARAM(handle, callback, param) pthread_create(&(handle), NULL, callback, (void*) &(param))
 #define THREAD_JOIN(handle) pthread_join(handle, NULL)
 #define THREAD_CALLBACK(name) static void * name(void *_)
-
+#define THREAD_CALLBACK_PARAM(name, param) static void * name(void *param)
 #else
 
 #include <windows.h>
 #define THREAD_HANDLE HANDLE
 #define THREAD_CREATE(handle, callback) { handle = CreateThread( NULL, 0, callback, NULL, 0, NULL); }
+#define THREAD_CREATE_PARAM(handle, callback, param) { handle = CreateThread( NULL, 0, callback,  (LPVOID) &param, 0, NULL); }
 #define THREAD_JOIN(handle) WaitForSingleObject(handle, INFINITE)
-
-
 #define THREAD_CALLBACK(name) static DWORD WINAPI name( LPVOID lpParam )
+#define THREAD_CALLBACK_PARAM(name, param) static DWORD WINAPI name( LPVOID param )
 
 #endif
 
