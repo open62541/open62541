@@ -82,7 +82,10 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     UA_String nameString;
     nameString.length = strlen(name);
     nameString.data = (UA_Byte*)(uintptr_t)name;
-    return addNamespace(server, nameString);
+    UA_LOCK(server->serviceMutex);
+    UA_UInt16 retVal = addNamespace(server, nameString);
+    UA_UNLOCK(server->serviceMutex);
+    return retVal;
 }
 
 UA_ServerConfig*
@@ -97,6 +100,8 @@ UA_Server_getConfig(UA_Server *server)
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
+    UA_LOCK(server->serviceMutex);
+
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
@@ -104,8 +109,10 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
         if(!UA_String_equal(&server->namespaces[idx], &namespaceUri))
             continue;
         (*foundIndex) = idx;
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
+    UA_UNLOCK(server->serviceMutex);
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
