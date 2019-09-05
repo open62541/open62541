@@ -971,13 +971,13 @@ UA_Server_setMethodNode_callback(UA_Server *server,
  * @param propertyName The name of the property
  * @param value The value to be set for the event attribute
  * @return The StatusCode for setting the event attribute */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
                               const UA_Variant value);
 
 /* Directly point to the scalar value instead of a variant */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type);
@@ -989,7 +989,7 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
  * @param propertyName The name of the property
  * @param value Contains the property value after reading. Must not be NULL.
  * @return The StatusCode for setting the event attribute */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
@@ -1344,10 +1344,10 @@ UA_Server_updateCertificate(UA_Server *server,
  * Utility Functions
  * ----------------- */
 /* Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+UA_UInt16 UA_EXPORT UA_THREADSAFE UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /* Get namespace by name from the server. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
 

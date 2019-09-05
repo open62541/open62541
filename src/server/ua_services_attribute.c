@@ -615,14 +615,17 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     bp.relativePath.elements = &rpe;
 
     UA_StatusCode retval;
+    UA_LOCK(server->serviceMutex);
     UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_UNLOCK(server->serviceMutex);
         return retval;
     }
 
-    retval = UA_Server_readValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, value);
+    UA_UNLOCK(server->serviceMutex);
 
     UA_BrowsePathResult_deleteMembers(&bpr);
     return retval;
@@ -1668,6 +1671,16 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
 UA_StatusCode UA_EXPORT
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
+                              const UA_Variant value){
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retVal = writeObjectProperty(server, objectId, propertyName, value);
+    UA_UNLOCK(server->serviceMutex);
+    return retVal;
+}
+
+UA_StatusCode
+writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                              const UA_QualifiedName propertyName,
                               const UA_Variant value) {
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
@@ -1690,7 +1703,7 @@ UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
         return retval;
     }
 
-    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
 
     UA_BrowsePathResult_deleteMembers(&bpr);
     return retval;
@@ -1703,5 +1716,5 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, (void*)(uintptr_t)value, type);
-    return UA_Server_writeObjectProperty(server, objectId, propertyName, var);
+    return writeObjectProperty(server, objectId, propertyName, var);
 }
