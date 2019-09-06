@@ -170,14 +170,18 @@ cleanup:
 void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+    UA_LOCK(server->serviceMutex);
     UA_SessionManager_deleteMembers(&server->sessionManager);
+    UA_UNLOCK(server->serviceMutex);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
         LIST_REMOVE(mon, listEntry);
+        UA_LOCK(server->serviceMutex);
         UA_MonitoredItem_delete(server, mon);
+        UA_UNLOCK(server->serviceMutex);
     }
 #endif
 
@@ -189,13 +193,10 @@ void UA_Server_delete(UA_Server *server) {
     UA_DiscoveryManager_deleteMembers(&server->discoveryManager, server);
 #endif
 
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_DESTROY(server->networkMutex)
-    UA_LOCK_DESTROY(server->serviceMutex)
-#endif
-
     /* Clean up the Admin Session */
+    UA_LOCK(server->serviceMutex);
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
+    UA_UNLOCK(server->serviceMutex);
 
     /* Clean up the work queue */
     UA_WorkQueue_cleanup(&server->workQueue);
@@ -209,6 +210,11 @@ void UA_Server_delete(UA_Server *server) {
     /* Clean up the config */
     UA_ServerConfig_clean(&server->config);
 
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_DESTROY(server->networkMutex)
+    UA_LOCK_DESTROY(server->serviceMutex)
+#endif
+
     /* Delete the server itself */
     UA_free(server);
 }
@@ -216,12 +222,14 @@ void UA_Server_delete(UA_Server *server) {
 /* Recurring cleanup. Removing unused and timed-out channels and sessions */
 static void
 UA_Server_cleanup(UA_Server *server, void *_) {
+    UA_LOCK(server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
+    UA_UNLOCK(server->serviceMutex);
 }
 
 /********************/
@@ -409,7 +417,9 @@ UA_Server_updateCertificate(UA_Server *server,
         LIST_FOREACH(current, &sm->sessions, pointers) {
             if (UA_ByteString_equal(oldCertificate,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
+                UA_LOCK(server->serviceMutex);
                 UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken);
+                UA_UNLOCK(server->serviceMutex);
             }
         }
 

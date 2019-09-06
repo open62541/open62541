@@ -24,13 +24,17 @@ UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server) {
 /* Delayed callback to free the session memory */
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
+    UA_LOCK(server->serviceMutex);
     UA_Session_deleteMembersCleanup(&entry->session, server);
+    UA_UNLOCK(server->serviceMutex);
 }
 
 static void
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     UA_Server *server = sm->server;
     UA_Session *session = &sentry->session;
+
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Remove the Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -47,9 +51,12 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
 #endif
 
     /* Callback into userland access control */
-    if(server->config.accessControl.closeSession)
+    if(server->config.accessControl.closeSession) {
+        UA_UNLOCK(server->serviceMutex);
         server->config.accessControl.closeSession(server, &server->config.accessControl,
                                                   &session->sessionId, session->sessionHandle);
+        UA_LOCK(server->serviceMutex);
+    }
 
     /* Detach the Session from the SecureChannel */
     UA_Session_detachFromSecureChannel(session);
@@ -71,6 +78,7 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
 }
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
+    UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &sm->sessions, pointers, temp) {
         removeSession(sm, current);
@@ -80,6 +88,7 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
 void
 UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
                                   UA_DateTime nowMonotonic) {
+    UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sm->sessions, pointers, temp) {
         /* Session has timed out? */
@@ -93,6 +102,8 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
 
 UA_Session *
 UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *token) {
+    UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
+
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         /* Token does not match */
@@ -124,6 +135,8 @@ UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *toke
 
 UA_Session *
 UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *sessionId) {
+    UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
+
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         /* Token does not match */
@@ -155,6 +168,8 @@ UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *session
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel,
                                 const UA_CreateSessionRequest *request, UA_Session **session) {
+    UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
+
     if(sm->currentSessionCount >= sm->server->config.maxSessions)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
@@ -181,6 +196,8 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
 
 UA_StatusCode
 UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token) {
+    UA_LOCK_ASSERT(sm->server->serviceMutex, 1);
+
     session_list_entry *current;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.header.authenticationToken, token))
