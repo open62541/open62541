@@ -547,13 +547,17 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
                    void *objectContext, size_t inputSize,
                    const UA_Variant *input, size_t outputSize,
                    UA_Variant *output) {
+    UA_LOCK(server->serviceMutex);
     UA_Session *session = UA_SessionManager_getSessionById(&server->sessionManager, sessionId);
+    UA_UNLOCK(server->serviceMutex);
     if(!session)
         return UA_STATUSCODE_BADINTERNALERROR;
     if (inputSize == 0 || !input[0].data)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
+    UA_LOCK(server->serviceMutex);
     UA_Subscription* subscription = UA_Session_getSubscriptionById(session, subscriptionId);
+    UA_UNLOCK(server->serviceMutex);
     if(!subscription)
     {
         if(LIST_EMPTY(&session->serverSubscriptions))

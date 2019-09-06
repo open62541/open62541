@@ -87,6 +87,8 @@ void UA_Session_addSubscription(UA_Server *server, UA_Session *session, UA_Subsc
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
                               UA_UInt32 subscriptionId) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;

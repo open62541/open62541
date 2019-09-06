@@ -192,6 +192,8 @@ UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
 
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 

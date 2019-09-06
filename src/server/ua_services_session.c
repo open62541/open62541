@@ -59,6 +59,8 @@ void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                       const UA_CreateSessionRequest *request,
                       UA_CreateSessionResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     if(!channel) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -322,6 +324,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(session->validTill < UA_DateTime_nowMonotonic()) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,

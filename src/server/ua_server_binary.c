@@ -441,9 +441,11 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                   const UA_DataType *responseType, UA_Boolean sessionRequired) {
     /* CreateSession doesn't need a session */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
+        UA_LOCK(server->serviceMutex);
         Service_CreateSession(server, channel,
                               (const UA_CreateSessionRequest *)requestHeader,
                               (UA_CreateSessionResponse *)responseHeader);
+        UA_UNLOCK(server->serviceMutex);
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         /* Store the authentication token and session ID so we can help fuzzing
          * by setting these values in the next request automatically */
@@ -457,9 +459,12 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     /* Find the matching session */
     UA_Session *session = (UA_Session*)
         UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
-    if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken))
+    if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken)) {
+        UA_LOCK(server->serviceMutex);
         session = UA_SessionManager_getSessionByToken(&server->sessionManager,
                                                       &requestHeader->authenticationToken);
+        UA_UNLOCK(server->serviceMutex)
+    }
 
     if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
         if(!session) {
@@ -469,9 +474,11 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
             return sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         }
+        UA_LOCK(server->serviceMutex);
         Service_ActivateSession(server, channel, session,
                                 (const UA_ActivateSessionRequest*)requestHeader,
                                 (UA_ActivateSessionResponse*)responseHeader);
+        UA_UNLOCK(server->serviceMutex);
         return sendResponse(channel, requestId, requestHeader->requestHandle,
                             responseHeader, responseType);
     }
@@ -512,8 +519,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                "Service %i refused on a non-activated session",
                                requestType->binaryEncodingId);
 #endif
+        UA_LOCK(server->serviceMutex);
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken);
+        UA_UNLOCK(server->serviceMutex);
         return sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                            requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
@@ -533,7 +542,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
+        UA_LOCK(server->serviceMutex);
         Service_Publish(server, session, (const UA_PublishRequest*)requestHeader, requestId);
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
 #endif
