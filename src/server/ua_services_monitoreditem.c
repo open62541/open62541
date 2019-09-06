@@ -248,7 +248,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     /* Register MonitoredItem in userland */
     if(server->config.monitoredItemRegisterCallback) {
         void *targetContext = NULL;
-        UA_Server_getNodeContext(server, request->itemToMonitor.nodeId, &targetContext);
+        getNodeContext(server, request->itemToMonitor.nodeId, &targetContext);
         UA_UNLOCK(server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server, &session->sessionId,
                                                      session->sessionHandle,

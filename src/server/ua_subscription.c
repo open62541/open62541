@@ -563,8 +563,8 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval =
-        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)publishCallback,
-                                      sub, (UA_UInt32)sub->publishingInterval, &sub->publishCallbackId);
+        addRepeatedCallback(server, (UA_ServerCallback)publishCallback,
+                            sub, (UA_UInt32)sub->publishingInterval, &sub->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -580,7 +580,7 @@ Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) 
     if(!sub->publishCallbackIsRegistered)
         return;
 
-    UA_Server_removeRepeatedCallback(server, sub->publishCallbackId);
+    removeCallback(server, sub->publishCallbackId);
     sub->publishCallbackIsRegistered = false;
 }
 

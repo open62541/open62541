@@ -119,9 +119,12 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
+    UA_LOCK(server->serviceMutex);
     const UA_Node *parent = UA_Nodestore_getNode(server->nsCtx, &parentNodeId);
-    if(!parent)
+    if(!parent) {
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADNODEIDINVALID;
+    }
 
     /* TODO: We need to do an ugly copy of the references array since users may
      * delete references from within the callback. In single-threaded mode this
@@ -133,6 +136,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_Node *parentCopy = UA_Node_copy_alloc(parent);
     if(!parentCopy) {
         UA_Nodestore_releaseNode(server->nsCtx, parent);
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
@@ -140,8 +144,10 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     for(size_t i = parentCopy->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
         for(size_t j = 0; j<ref->targetIdsSize; j++) {
+            UA_UNLOCK(server->serviceMutex);
             retval = callback(ref->targetIds[j].nodeId, ref->isInverse,
                               ref->referenceTypeId, handle);
+            UA_LOCK(server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
         }
@@ -152,6 +158,7 @@ cleanup:
     UA_free(parentCopy);
 
     UA_Nodestore_releaseNode(server->nsCtx, parent);
+    UA_UNLOCK(server->serviceMutex);
     return retval;
 }
 
@@ -328,30 +335,59 @@ setServerShutdown(UA_Server *server) {
 UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    return UA_Timer_addTimedCallback(&server->timer,
-                                     (UA_ApplicationCallback)callback,
-                                     server, data, date, callbackId);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = UA_Timer_addTimedCallback(&server->timer,
+                                                     (UA_ApplicationCallback)callback,
+                                                      server, data, date, callbackId);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+UA_StatusCode
+addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                              void *data, UA_Double interval_ms,
+                              UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback(&server->timer,
+                                        (UA_ApplicationCallback)callback,
+                                         server, data, interval_ms, callbackId);
 }
 
 UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&server->timer,
-                                        (UA_ApplicationCallback)callback,
-                                        server, data, interval_ms, callbackId);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = addRepeatedCallback(server, callback, data, interval_ms, callbackId);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 UA_StatusCode
-UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
     return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId,
                                                    interval_ms);
 }
 
+UA_StatusCode
+UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                                         UA_Double interval_ms) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = changeRepeatedCallbackInterval(server, callbackId, interval_ms);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+void
+removeCallback(UA_Server *server, UA_UInt64 callbackId) {
+    UA_Timer_removeCallback(&server->timer, callbackId);
+}
+
 void
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_Timer_removeCallback(&server->timer, callbackId);
+    UA_LOCK(server->serviceMutex);
+    removeCallback(server, callbackId);
+    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode UA_EXPORT

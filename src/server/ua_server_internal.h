@@ -263,6 +263,26 @@ UA_StatusCode
 writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                     const UA_QualifiedName propertyName, const UA_Variant value);
 
+UA_StatusCode
+getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
+
+void
+removeCallback(UA_Server *server, UA_UInt64 callbackId);
+
+UA_StatusCode
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId, UA_Double interval_ms);
+
+UA_StatusCode
+addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                    void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+
+#ifdef UA_ENABLE_DISCOVERY
+UA_StatusCode
+register_server_with_discovery_server(UA_Server *server,
+                                      void *client,
+                                      const UA_Boolean isUnregister,
+                                      const char* semaphoreFilePath);
+#endif
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
