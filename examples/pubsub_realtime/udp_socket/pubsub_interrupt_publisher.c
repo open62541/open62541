@@ -1,12 +1,13 @@
-/**
-*******************************************************************************
+/*********************************************************************************
 
 \file   pubsub_interrupt_publisher.c
 
-\brief  Interrupt based publisher(Real-time OPC UA Pub/Sub)
+\brief  Real-time OPC UA Pub/Sub
 
-This file contains the main implementation of the interrupt based pulisher,
-thread based publisher and thread based subscriber
+This file contains the main implementation of the standalone interrupt based
+publisher, standalone thread based publisher and standalone subscriber. For
+benchmarking the application data round trip time, the counter data loopback
+logic is added.
 
 \ingroup interrupt based publisher
 *******************************************************************************/
@@ -51,33 +52,63 @@ thread based publisher and thread based subscriber
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/log_stdout.h>
 
+/* Note: This module supports two types of publisher, i.e. thread based publisher
+ * and interrupt/event based publisher; and one subscriber, i.e. thread based subscriber.
+ * Based on the node requirement, a subscriber or publisher can be enabled in the module
+ * using the macros provided below. Note that, only one type of publisher can be started
+ * for any instance.
+ * To run, uncomment: SUBSCRIBER and PUB_SYSTEM_INTERRUPT or PUBLISHER
+ */
+
 /* To run thread based publisher
  * uncomment: PUBLISHER
- * comment:SUBSCRIBER, PUB_SYSTEM_INTERRUPT
+ * comment: PUB_SYSTEM_INTERRUPT
  */
-//#define             PUBLISHER
+#define             PUBLISHER
 
 /* To run thread based standalone subscriber
  * uncomment: SUBSCRIBER
- * comment: PUBLISHER, PUB_SYSTEM_INTERRUPT
  */
-//#define             SUBSCRIBER
+#define             SUBSCRIBER
 
-/* To run interrupt based standalone publisher
+/* To run interrupt/event based standalone publisher
  * uncomment: PUB_SYSTEM_INTERRUPT
- * comment: PUBLISHER, SUBSCRIBER
+ * comment: PUBLISHER
  */
-#define             PUB_SYSTEM_INTERRUPT
+//#define            PUB_SYSTEM_INTERRUPT
 
-/* Note: To run publisher/interrupt_publisher and subscriber
- * uncomment: SUBSCRIBER, PUB_SYSTEM_INTERRUPT/PUBLISHER
- * comment: PUB_SYSTEM_INTERRUPT/PUBLISHER
- * Only one publisher can be started
+/* To calculate round trip time enable LOOPBACK_T1
+ * on PC1 and LOOPBACK_T4 on PC2
+ * Refer the above architecture 
  */
+
+/* Loopback_T4 subscribes(T4) to the counter data and
+ * loops back i.e publishes the same data from Publisher(T5).
+ * To run loop back in T4,
+ * uncomment: SUBSCRIBER, LOOPBACK_T4
+ * uncomment: PUBLISHER or PUB_SYSTEM_INTERRUPT
+ */
+//#define              LOOPBACK_T4
+
+/* Loopback_T1 subscribes(T8) to the published data from
+ * T5 and stores the counter data with timestamp in
+ * a csv file.
+ * To enable,
+ * uncomment: SUBSCRIBER, LOOPBACK_T1
+ * uncomment: PUBLISHER or PUB_SYSTEM_INTERRUPT
+ */
+//#define              LOOPBACK_T1
+
 #if defined(PUBLISHER) && defined(PUB_SYSTEM_INTERRUPT)
 	#error "Cannot enable both interrupt based publisher and thread based publisher.\
 	        Enable any one type of publisher"
 #endif
+
+#if defined(LOOPBACK_T1) && defined(LOOPBACK_T4)
+	#error "Cannot enable both loopbacks on the same node.\
+	        Enable any one."
+#endif
+
 /* Publish interval in milliseconds- Now @100us */
 #define             PUB_INTERVAL                    0.1
 #define             FIVE_MILLI_SECOND               5
@@ -99,7 +130,7 @@ thread based publisher and thread based subscriber
 #define             FAILURE_EXIT                    -1
 #define             CLOCKID                         CLOCK_TAI
 #define             SIG                             SIGRTMAX
-#define             LEADTIME                        1000000
+#define             LEADTIME                        150000
 
 /* This is a hardcoded publisher/subscriber IP address. If the IP address need
  * to be changed, change it in the below line.
@@ -112,7 +143,7 @@ thread based publisher and thread based subscriber
  */
 #define             PUBSUB_IP_ADDRESS              "192.168.1.11"
 #if defined(PUBLISHER) || defined(PUB_SYSTEM_INTERRUPT)
-#define             PUBLISHER_MULTICAST_ADDRESS    "opc.udp://224.0.0.32:4840/"
+#define             PUBLISHER_MULTICAST_ADDRESS    "opc.udp://224.0.0.42:4840/"
 #endif
 #if defined(SUBSCRIBER)
 #define             SUBSCRIBER_MULTICAST_ADDRESS   "opc.udp://224.0.0.32:4840/"
@@ -139,6 +170,11 @@ static void addServerNodes(UA_Server* server);
 
 /* For deleting the nodes created */
 static void removeServerNodes(UA_Server *server);
+
+#if defined(LOOPBACK_T4)
+/* To lock the thread */
+pthread_mutex_t              lock;
+#endif
 
 #if defined(PUBLISHER)
 
@@ -172,7 +208,12 @@ struct sigevent              pubEvent;
 
 /* File to store the data and timestamps for different traffic */
 FILE*                        fpPublisher;
+
+#if defined(LOOPBACK_T4)
+char*                        filePublishedData      = "publisher_T5.csv";
+#else
 char*                        filePublishedData      = "publisher_T1.csv";
+#endif
 
 /* Array to store published counter data */
 UA_UInt64                    publishCounterValue[MAX_MEASUREMENTS];
@@ -223,7 +264,12 @@ UA_NodeId                    connectionIdentSubscriber;
 
 /* File to store the data and timestamps for different traffic */
 FILE*                        fpSubscriber;
+
+#if defined(LOOPBACK_T4)
+char*                        fileSubscribedData     = "subscriber_T4.csv";
+#else
 char*                        fileSubscribedData     = "subscriber_T8.csv";
+#endif
 
 /* Thread for subscriber */
 pthread_t                    subThreadID;
@@ -251,12 +297,15 @@ void                         subscribe(void);
 /**
 \brief  Signal handler ctrl+c
 
-The function obtains the SoC time information.
+This function closes the application and destroys the mutex objects gracefully.
 */
 //------------------------------------------------------------------------------
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = UA_FALSE;
+#if defined(LOOPBACK_T4)
+    pthread_mutex_destroy(&lock);
+#endif
 }
 
 //------------------------------------------------------------------------------
@@ -267,6 +316,10 @@ The function creates a callback that triggers the collection and publish of
 NetworkMessages and the contained DataSetMessages
 
 \param[in]     pubServer          Server instance
+\param[in]     pubCallback        Callback function
+\param[in]     data               Counter data to be published
+\param[in]     interval_ms        Writer group interval
+\param[in]     callbackId         Callback identifier
 
 \return The function returns a status code
 */
@@ -288,7 +341,8 @@ UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callba
 
 The function removes the callback
 
-\param[in]     pubCallback          Callback
+\param[in]     callbackId         Callback identifier
+\param[in]     server             Server instance
 
 \return The function returns a status code
 */
@@ -334,7 +388,15 @@ static void handler(int sig, siginfo_t *si, void *uc) {
         updateMeasurementsPublisher(dataModificationTime, pubCounterData);
     }
 
+#if defined(LOOPBACK_T4)
+    /* Lock the code section */
+    pthread_mutex_lock(&lock);
+#endif
     pubCallback(pubServer, pubData);
+#if defined(LOOPBACK_T4)
+    /* Lock the code section */
+    pthread_mutex_unlock(&lock);
+#endif
     if(si->si_value.sival_ptr != &pubEventTimer) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "stray signal");
         return;
@@ -344,7 +406,7 @@ static void handler(int sig, siginfo_t *si, void *uc) {
 
 //------------------------------------------------------------------------------
 /**
-\brief  Custom callback for cyclic repitition(Interrupt based publisher)
+\brief  Custom callback for cyclic repetition(Interrupt based publisher)
 
 The function creates a callback that triggers the collection and publish of
 NetworkMessages and the contained DataSetMessages
@@ -352,7 +414,8 @@ NetworkMessages and the contained DataSetMessages
 \param[in]     server          Server instance
 \param[in]     data            Publisher data
 \param[in]     callback        callback function
-\param[in]     interval_ms     Publisher interval
+\param[in]     callbackId      Callback identifier
+\param[in]     interval_ms     Writer group interval
 
 \return The function returns a status code
 */
@@ -417,6 +480,7 @@ publish of NetworkMessages and the contained DataSetMessages
 
 \param[in]     server          Server instance
 \param[in]     interval_ms     Publisher interval
+\param[in]     callbackId      Callback identifier
 
 \return The function returns a status code
 */
@@ -449,6 +513,7 @@ UA_PubSubManager_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 cal
 The function removes the callback
 
 \param[in]     pubCallback          Callback
+\param[in]     callbackId           Callback identifier
 */
 //------------------------------------------------------------------------------
 void
@@ -654,7 +719,15 @@ void* publisherETF(void *arg) {
         UA_Variant_setScalar(&pubCounter, &pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
         UA_NodeId currentNodeId = UA_NODEID_STRING(1, "PublisherCounter");
         UA_Server_writeValue(pubServer, currentNodeId, pubCounter);
+        #if defined(LOOPBACK_T4)
+        /* Lock the code section */
+        pthread_mutex_lock(&lock);
+        #endif
         pubCallback(pubServer, pubData);
+        #if defined(LOOPBACK_T4)
+        /* Unlock the code section */
+        pthread_mutex_unlock(&lock);
+        #endif
         if(measurementsPublisher < MAX_MEASUREMENTS) {
             updateMeasurementsPublisher(dataModificationTime, pubCounterData);
         }
@@ -773,8 +846,25 @@ void subscribe(void) {
                         "Message content is not of type UInt64 ");
         }
     }
-    UA_UInt64 value = *(UA_UInt64 *)dsm->data.keyFrameData.dataSetFields[1].value.data;
+
     clock_gettime(CLOCKID, &dataReceiveTime);
+#if !defined(LOOPBACK_T1) && !defined(LOOPBACK_T4) && defined(SUBSCRIBER) 
+    UA_UInt64 value = *(UA_UInt64 *)dsm->data.keyFrameData.dataSetFields[1].value.data;
+#endif
+
+#if defined(LOOPBACK_T4)
+    UA_UInt64 value = *(UA_UInt64 *)dsm->data.keyFrameData.dataSetFields[1].value.data;
+    UA_Variant_setScalar(&subCounter, &value, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_NodeId currentNodeId1 = UA_NODEID_STRING(1, "SubscriberCounter");
+    /* Lock the code section */
+    pthread_mutex_lock(&lock);
+    UA_Server_writeValue(pubServer, currentNodeId1, subCounter);
+    pthread_mutex_unlock(&lock);
+    /* Unlock the code section */
+#elif defined(LOOPBACK_T1)
+    UA_UInt64 value = *(UA_UInt64 *)dsm->data.keyFrameData.dataSetFields[0].value.data;
+#endif
+
     if (value > 0 && (measurementsSubscriber < MAX_MEASUREMENTS)) {
         updateMeasurementsSubscriber(dataReceiveTime, value);
     }
@@ -854,7 +944,6 @@ core affinity
 */
 //------------------------------------------------------------------------------
 static int setSelfPrio(void) {
-
     /* Core affinity set for publisher */
     cpu_set_t cpusetPub;
     /* Return the ID for publisher thread */
@@ -937,6 +1026,13 @@ int main(void) {
 #else
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
+#endif
+
+#if defined(LOOPBACK_T4)
+    if(pthread_mutex_init(&lock, NULL) != 0) {
+        printf("\n Mutex initialization has failed\n");
+        return 1;
+    }
 #endif
 
 #if defined(PUBLISHER) || defined(SUBSCRIBER) || defined(PUB_SYSTEM_INTERRUPT)
