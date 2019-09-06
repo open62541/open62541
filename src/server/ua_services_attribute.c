@@ -540,12 +540,15 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
 UA_DataValue
 readAttribute(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     return UA_Server_readWithSession(server, &server->adminSession, item, timestamps);
 }
 
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
                                 const UA_AttributeId attributeId, void *v) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Call the read service */
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
@@ -1482,6 +1485,7 @@ writeWithSession(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 writeAttribute(UA_Server *server, const UA_WriteValue *value) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &value->nodeId,
                               (UA_EditNodeCallback)copyAttributeIntoNode,
                                /* casting away const qualifier because callback uses const anyway */
@@ -1501,6 +1505,7 @@ writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
                   const UA_DataType *attr_type,
                   const void *attr) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = *nodeId;
@@ -1533,6 +1538,8 @@ void
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
                     UA_HistoryReadResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
@@ -1614,6 +1621,8 @@ void
 Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                     const UA_HistoryUpdateRequest *request,
                     UA_HistoryUpdateResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     response->resultsSize = request->historyUpdateDetailsSize;
     response->results = (UA_HistoryUpdateResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYUPDATERESULT]);
     if (!response->results) {
@@ -1682,6 +1691,7 @@ UA_StatusCode
 writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
                               const UA_Variant value) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);

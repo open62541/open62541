@@ -1321,6 +1321,8 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass,
         const UA_NodeAttributes *attr,
         const UA_DataType *attributeType,
         void *nodeContext, UA_NodeId *outNewNodeId) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Create the AddNodesItem */
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
@@ -1668,6 +1670,7 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
 UA_StatusCode
 deleteNode(UA_Server *server, const UA_NodeId nodeId,
                      UA_Boolean deleteReferences) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_DeleteNodesItem item;
     item.deleteTargetReferences = deleteReferences;
     item.nodeId = nodeId;
@@ -1983,6 +1986,7 @@ setDataSource(UA_Server *server, UA_Session *session,
 UA_StatusCode
 setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &nodeId,
                               (UA_EditNodeCallback)setDataSource,
                               /* casting away const because callback casts it back anyway */
@@ -2197,6 +2201,7 @@ UA_StatusCode
 setMethodNode_callback(UA_Server *server,
                                  const UA_NodeId methodNodeId,
                                  UA_MethodCallback methodCallback) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &methodNodeId,
                                               (UA_EditNodeCallback)editMethodCallback,
                                               (void*)(uintptr_t)methodCallback);

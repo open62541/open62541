@@ -566,6 +566,7 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                          "Subscription %u | Register subscription "
                          "publishing callback", sub->subscriptionId);
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(sub->publishCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
