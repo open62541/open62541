@@ -307,7 +307,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     if(!sub) {
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
         void *nodeContext = NULL;
-        UA_Server_getNodeContext(server, mon->monitoredNodeId, &nodeContext);
+        getNodeContext(server, mon->monitoredNodeId, &nodeContext);
         UA_UNLOCK(server->serviceMutex);
         localMon->callback.dataChangeCallback(server, mon->monitoredItemId,
                                               localMon->context,

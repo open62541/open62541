@@ -255,8 +255,10 @@ void
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
+    UA_LOCK(server->serviceMutex);
     server->discoveryManager.serverOnNetworkCallback = cb;
     server->discoveryManager.serverOnNetworkCallbackData = data;
+    UA_UNLOCK(server->serviceMutex);
 }
 
 static void

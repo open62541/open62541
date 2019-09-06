@@ -33,6 +33,15 @@
 UA_StatusCode
 UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void **nodeContext) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = getNodeContext(server, nodeId, nodeContext);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+UA_StatusCode
+getNodeContext(UA_Server *server, UA_NodeId nodeId,
+                         void **nodeContext) {
     const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -66,8 +75,11 @@ editNodeContext(UA_Server *server, UA_Session* session,
 UA_StatusCode
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext) {
-    return UA_Server_editNode(server, &server->adminSession, &nodeId,
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
                               (UA_EditNodeCallback)editNodeContext, nodeContext);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 /**********************/
@@ -1467,20 +1479,26 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
                 lifecycle = &((const UA_ObjectTypeNode*)type)->lifecycle;
             else
                 lifecycle = &((const UA_VariableTypeNode*)type)->lifecycle;
-            if(lifecycle->destructor)
+            if(lifecycle->destructor) {
+                UA_UNLOCK(server->serviceMutex);
                 lifecycle->destructor(server,
                                       &session->sessionId, session->sessionHandle,
                                       &type->nodeId, type->context,
                                       &node->nodeId, &context);
+                UA_LOCK(server->serviceMutex);
+            }
             UA_Nodestore_releaseNode(server->nsCtx, type);
         }
     }
 
     /* Call the global destructor */
-    if(server->config.nodeLifecycle.destructor)
+    if(server->config.nodeLifecycle.destructor) {
+        UA_UNLOCK(server->serviceMutex);
         server->config.nodeLifecycle.destructor(server, &session->sessionId,
                                                 session->sessionHandle,
                                                 &node->nodeId, context);
+        UA_LOCK(server->serviceMutex);
+    }
 
     /* Set the constructed flag to false */
     UA_Server_editNode(server, &server->adminSession, &node->nodeId,
@@ -2221,7 +2239,10 @@ setNodeTypeLifecycle(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle) {
-    return UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              (UA_EditNodeCallback)setNodeTypeLifecycle,
-                              &lifecycle);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                             (UA_EditNodeCallback)setNodeTypeLifecycle,
+                                              &lifecycle);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
