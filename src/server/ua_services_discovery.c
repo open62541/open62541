@@ -309,6 +309,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                        UA_StatusCode **responseConfigurationResults,
                        size_t *responseDiagnosticInfosSize,
                        UA_DiagnosticInfo *responseDiagnosticInfos) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     /* Find the server from the request in the registered list */
     registeredServer_list_entry* current;
     registeredServer_list_entry *registeredServer_entry = NULL;

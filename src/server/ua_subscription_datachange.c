@@ -330,6 +330,8 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
 
 void
 monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_Subscription *sub = monitoredItem->subscription;
     UA_Session *session = &server->adminSession;
     if(sub)

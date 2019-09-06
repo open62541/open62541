@@ -219,8 +219,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Release the output arguments node */
     UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)outputArguments);
 
-    UA_UNLOCK(server->serviceMutex);
     /* Call the method */
+    UA_UNLOCK(server->serviceMutex);
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
                                         &method->nodeId, method->context,
                                         &object->nodeId, object->context,
