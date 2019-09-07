@@ -70,6 +70,12 @@ On most systems, open62541 requires the C standard library only. For dependencie
 - Default Plugins: The default plugins use the POSIX interfaces for networking and accessing the system clock. Ports to different (embedded) architectures are achieved by customizing the plugins.
 - Building and Code Generation: The build environment is generated via CMake. Some code is auto-generated from XML definitions that are part of the OPC UA standard. The code generation scripts run with both Python 2 and 3.
 
+**Note:**
+Specific optional features are dependent on third-party libraries. These are all listed under the `deps/` folder.
+Depending on the selected feature set, some of these libraries will be included in the resulting library.
+
+More information on the third-party libraries can be found in the corresponding [deps/README.md](deps/README.md)
+
 ### Code Quality
 
 We emphasize code quality. The following quality metrics are continuously checked and are ensured to hold before an official release is made:
