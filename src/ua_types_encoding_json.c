@@ -2616,12 +2616,12 @@ DECODE_JSON(Variant) {
     if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    size_t size = (size_t)(parseCtx->tokenArray[searchResultType].end - parseCtx->tokenArray[searchResultType].start);
+    size_t size = (size_t)(parseCtx->tokenArray[searchResultType].end -
+                           parseCtx->tokenArray[searchResultType].start);
 
     /* check if size is zero or the type is not a number */
-    if(size < 1 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE) {
+    if(size < 1 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
     
     /*Parse the type*/
     UA_UInt64 idTypeDecoded = 0;
@@ -2629,61 +2629,50 @@ DECODE_JSON(Variant) {
     status typeDecodeStatus = atoiUnsigned(idTypeEncoded, size, &idTypeDecoded);
     
     /* value is not a valid number */
-    if(typeDecodeStatus != UA_STATUSCODE_GOOD) {
+    if(typeDecodeStatus != UA_STATUSCODE_GOOD)
         return typeDecodeStatus;
-    }
 
     /*Set the type, Get the Type by nodeID!*/
     UA_NodeId typeNodeId = UA_NODEID_NUMERIC(0, (UA_UInt32)idTypeDecoded);
     const UA_DataType *bodyType = UA_findDataType(&typeNodeId);
-    if(bodyType == NULL) {
+    if(!bodyType)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
     
     /*Set the type*/
     dst->type = bodyType;
     
-    /* LookAhead BODY */
-    /* Does the variant contain an array? */
-    UA_Boolean isArray = false;
-    UA_Boolean isBodyNull = false;
-    
     /* Search for body */
     size_t searchResultBody = 0;
     ret = lookAheadForKey(UA_JSONKEY_BODY, ctx, parseCtx, &searchResultBody);
-    if(ret == UA_STATUSCODE_GOOD) { /* body found */
-        /* get body token */
-        jsmntok_t bodyToken = parseCtx->tokenArray[searchResultBody];
-        
-        /*BODY is null?*/
-        if(isJsonTokenNull(ctx, &bodyToken)) {
-            dst->data = NULL;
-            isBodyNull = true;
-        }
-        
-        if(bodyToken.type == JSMN_ARRAY) {
-            isArray = true;
-            
-            size_t arraySize = 0;
-            arraySize = (size_t)parseCtx->tokenArray[searchResultBody].size;
-            dst->arrayLength = arraySize;
-        }
-    } else {
+    if(ret != UA_STATUSCODE_GOOD) {
         /*TODO: no body? set value NULL?*/
         return UA_STATUSCODE_BADDECODINGERROR;
     }
-    
-    /* LookAhead DIMENSION */
-    UA_Boolean hasDimension = false;
+
+    /* get body token */
+    jsmntok_t bodyToken = parseCtx->tokenArray[searchResultBody];
+
+    /*BODY is null?*/
+    UA_Boolean isBodyNull = false;
+    if(isJsonTokenNull(ctx, &bodyToken)) {
+        dst->data = NULL;
+        isBodyNull = true;
+    }
+
+    /* value is an array? */
+    UA_Boolean isArray = false;
+    if(bodyToken.type == JSMN_ARRAY) {
+        isArray = true;
+        dst->arrayLength = (size_t)parseCtx->tokenArray[searchResultBody].size;
+    }
 
     /* Has the variant dimension? */
+    UA_Boolean hasDimension = false;
     size_t searchResultDim = 0;
     ret = lookAheadForKey(UA_JSONKEY_DIMENSION, ctx, parseCtx, &searchResultDim);
     if(ret == UA_STATUSCODE_GOOD) {
         hasDimension = true;
-        size_t dimensionSize = 0;
-        dimensionSize = (size_t)parseCtx->tokenArray[searchResultDim].size;
-        dst->arrayDimensionsSize = dimensionSize;
+        dst->arrayDimensionsSize = (size_t)parseCtx->tokenArray[searchResultDim].size;
     }
     
     /* no array but has dimension. error? */
@@ -2700,36 +2689,41 @@ DECODE_JSON(Variant) {
     if(bodyType->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
         return UA_STATUSCODE_BADDECODINGERROR;
     
+    /* Decode an array */
     if(isArray) {
         DecodeEntry entries[3] = {
             {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
             {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature) Array_decodeJson, false, NULL},
             {UA_JSONKEY_DIMENSION, &dst->arrayDimensions,
              (decodeJsonSignature) VariantDimension_decodeJson, false, NULL}};
-
         if(!hasDimension) {
             ret = decodeFields(ctx, parseCtx, entries, 2, bodyType); /*use first 2 fields*/
         } else {
             ret = decodeFields(ctx, parseCtx, entries, 3, bodyType); /*use all fields*/
         }      
-    } else if(bodyType->typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
-        /* Allocate Memory for Body */
-        if(!isBodyNull) {
-            dst->data = UA_new(bodyType);
-            if(!dst->data)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        
-        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, NULL}};
-        ret = decodeFields(ctx, parseCtx, entries, 2, bodyType);
-    } else { /* extensionObject */
-        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, dst,
-             (decodeJsonSignature) Variant_decodeJsonUnwrapExtensionObject, false, NULL}};
-        ret = decodeFields(ctx, parseCtx, entries, 2, bodyType);
+        return ret;
     }
-    return ret;
+
+    /* Decode a value wrapped in an ExtensionObject */
+    if(bodyType->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
+        DecodeEntry entries[2] =
+            {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+             {UA_JSONKEY_BODY, dst,
+              (decodeJsonSignature)Variant_decodeJsonUnwrapExtensionObject, false, NULL}};
+        return decodeFields(ctx, parseCtx, entries, 2, bodyType);
+    }
+
+    /* Allocate Memory for Body */
+    if(!isBodyNull) {
+        dst->data = UA_new(bodyType);
+        if(!dst->data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    DecodeEntry entries[2] =
+        {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+         {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, NULL}};
+    return decodeFields(ctx, parseCtx, entries, 2, bodyType);
 }
 
 DECODE_JSON(DataValue) {
