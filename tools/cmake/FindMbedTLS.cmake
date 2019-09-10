@@ -19,7 +19,14 @@ else()
     find_library(MBEDCRYPTO_LIBRARY mbedcrypto HINTS ${MBEDTLS_FOLDER_LIBRARY})
 endif()
 
-set(MBEDTLS_LIBRARIES "${MBEDTLS_LIBRARY}" "${MBEDX509_LIBRARY}" "${MBEDCRYPTO_LIBRARY}")
+add_library(mbedtls UNKNOWN IMPORTED)
+set_property(TARGET mbedtls PROPERTY IMPORTED_LOCATION "${MBEDTLS_LIBRARY}")
+add_library(mbedx509 UNKNOWN IMPORTED)
+set_property(TARGET mbedx509 PROPERTY IMPORTED_LOCATION "${MBEDX509_LIBRARY}")
+add_library(mbedcrypto UNKNOWN IMPORTED)
+set_property(TARGET mbedcrypto PROPERTY IMPORTED_LOCATION "${MBEDCRYPTO_LIBRARY}")
+
+set(MBEDTLS_LIBRARIES mbedtls mbedx509 mbedcrypto)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(MBEDTLS DEFAULT_MSG
