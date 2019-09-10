@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Lukas Meling)
+ * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
 /**
@@ -15,6 +16,13 @@
 
 #include "mqtt/ua_mqtt_adapter.h"
 #include "open62541/plugin/log_stdout.h"
+#include "mqtt-c/mqtt.h"
+
+/* Null terminate the buffer */
+#define NULL_TERMINATING_BUFFER '\0'
+
+/* Max size of buffer */
+#define UA_MAX_STACKBUF 512
 
 static UA_StatusCode
 UA_uaQos_toMqttQos(UA_BrokerTransportQualityOfService uaQos, UA_Byte *qos){
@@ -238,6 +246,13 @@ UA_PubSubChannelMQTT_close(UA_PubSubChannel *channel) {
         return UA_STATUSCODE_GOOD;
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Closing PubSubChannel.");
+    struct mqtt_client* client = (struct mqtt_client*)channelDataMQTT->mqttClient;
+
+    /* Clear the receive buffer at the end of the session */
+    UA_ByteString_deleteMembers(&client->rm.buffer);
+
+    /* Flush the flag if the sync is called after close */
+    client->rm.flag = MQTT_RECEIVE_MESSAGE_FLUSH_ENABLE;
     disconnectMqtt(channelDataMQTT);
     UA_free(channelDataMQTT);
     UA_free(channel);
@@ -271,6 +286,50 @@ UA_PubSubChannelMQTT_yield(UA_PubSubChannel *channel, UA_UInt16 timeout){
 }
 
 /**
+ * Receive a message. The regist function should be called before.
+ *
+ * @param timeout in msec
+ * @param Buffer to recieve messages
+ *
+ * @return UA_STATUSCODE_GOOD if success
+ */
+static UA_StatusCode
+UA_PubSubChannelMQTT_receive(UA_PubSubChannel *channel, UA_ByteString *buffer, UA_ExtensionObject *transportSettigns, UA_UInt32 timeout){
+    if(channel->state == UA_PUBSUB_CHANNEL_ERROR){
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection receive failed. Invalid state.");
+        return UA_STATUSCODE_BADNOTCONNECTED;
+    }
+    else {
+        /* TODO: To resolve null termination of buffer data before copying  */
+        *buffer->data = NULL_TERMINATING_BUFFER;
+        UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
+        struct mqtt_client* client = (struct mqtt_client*)channelDataMQTT->mqttClient;
+        if(client == NULL)
+            return UA_STATUSCODE_BADNOTCONNECTED;
+
+        /* TODO: User can set the receive interval to synchronise receive with yield operation w.r.t publishing interval */
+        client->receiveInterval = 0;
+        if(client->rm.state == MQTT_RECEIVE_UNPROCESSED) {
+
+            /* message has not processed, hence copy the payload into buffer and clear the buffer */
+            buffer->length = client->rm.buffer.length;
+            memset(buffer->data, NULL_TERMINATING_BUFFER, UA_MAX_STACKBUF);
+            memcpy(buffer->data, client->rm.buffer.data, client->rm.buffer.length);
+        }
+
+        if (*buffer->data == NULL_TERMINATING_BUFFER) {
+            buffer->length = 0;
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        else {
+            /* Set the flag to processed after the buffer is copied successfully */
+            client->rm.state = MQTT_RECEIVE_PROCESSED;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+}
+
+/**
  * Generate a new MQTT channel. Based on the given configuration. Uses yield and no recv call.
  *
  * @param connectionConfig connection configuration
@@ -286,7 +345,8 @@ TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelMQTT_send;
         pubSubChannel->close = UA_PubSubChannelMQTT_close;
         pubSubChannel->yield = UA_PubSubChannelMQTT_yield;
-        
+        pubSubChannel->receive = UA_PubSubChannelMQTT_receive;
+
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;

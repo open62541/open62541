@@ -2,6 +2,7 @@
 MIT License
 
 Copyright (c) 2018 Liam Bindle
+Copyright (c) 2019 Kalycito Infotech Private Limited
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +31,8 @@ SOFTWARE.
  * @cond Doxygen_Suppress
  */
 #include "mqtt.h"
+#include "open62541/types_generated_handling.h"
+
 enum MQTTErrors mqtt_sync(struct mqtt_client *client) {
     /* Recover from any errors */
     MQTT_PAL_MUTEX_LOCK(&client->mutex);
@@ -606,7 +609,7 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
         }
 
         /* attempt to parse */
-        consumed = mqtt_unpack_response(&response, client->recv_buffer.mem_start, (size_t)(client->recv_buffer.curr - client->recv_buffer.mem_start));
+        consumed = mqtt_unpack_response(&response, &client->rm, client->recv_buffer.mem_start, (size_t)(client->recv_buffer.curr - client->recv_buffer.mem_start));
 
         if (consumed < 0) {
             client->error = (enum MQTTErrors)consumed;
@@ -1262,13 +1265,12 @@ ssize_t mqtt_pack_publish_request(uint8_t *buf, size_t bufsz,
     return buf - start;
 }
 
-ssize_t mqtt_unpack_publish_response(struct mqtt_response *mqtt_response, const uint8_t *buf)
-{    
+ssize_t mqtt_unpack_publish_response(struct mqtt_response *mqtt_response, struct mqtt_receive_message* receive_message, const uint8_t *buf) {
     //const uint8_t const *start = buf;
     const uint8_t *start = buf;
     struct mqtt_fixed_header *fixed_header;
     struct mqtt_response_publish *response;
-    
+
     fixed_header = &(mqtt_response->fixed_header);
     response = &(mqtt_response->decoded.publish);
 
@@ -1301,7 +1303,30 @@ ssize_t mqtt_unpack_publish_response(struct mqtt_response *mqtt_response, const 
         response->application_message_size = fixed_header->remaining_length - response->topic_name_size - 4;
     }
     buf += response->application_message_size;
-    
+
+    /* Free the buffer before allocation */
+    if(receive_message->buffer.length != 0) {
+       UA_ByteString_deleteMembers(&receive_message->buffer);
+    }
+
+    if(response->application_message_size > 0) {
+       /* Allocate buffer for payload data and payload length */
+       if(UA_ByteString_allocBuffer(&receive_message->buffer, response->application_message_size) != UA_STATUSCODE_GOOD) {
+          return MQTT_ERROR_NULLPTR;
+        }
+
+       /* Copy the payload into client's receive buffer */
+       memcpy(receive_message->buffer.data, response->application_message, receive_message->buffer.length);
+
+       /* Assign the state as unprocessed, i.e., the data has not been processed */
+       receive_message->state = MQTT_RECEIVE_UNPROCESSED;
+    }
+
+    /* Flush the flag if the sync is called after close */
+    if(receive_message->flag == MQTT_RECEIVE_MESSAGE_FLUSH_ENABLE) {
+        UA_ByteString_deleteMembers(&receive_message->buffer);
+    }
+
     /* return number of bytes consumed */
     return buf - start;
 }
@@ -1622,7 +1647,7 @@ struct mqtt_queued_message* mqtt_mq_find(struct mqtt_message_queue *mq, enum MQT
 
 
 /* RESPONSE UNPACKING */
-ssize_t mqtt_unpack_response(struct mqtt_response* response, const uint8_t *buf, size_t bufsz) {
+ssize_t mqtt_unpack_response(struct mqtt_response* response, struct mqtt_receive_message* receive_message, const uint8_t *buf, size_t bufsz) {
     const uint8_t *const start = buf;
     ssize_t rv = mqtt_unpack_fixed_header(response, buf, bufsz);
     if (rv <= 0) return rv;
@@ -1632,7 +1657,7 @@ ssize_t mqtt_unpack_response(struct mqtt_response* response, const uint8_t *buf,
             rv = mqtt_unpack_connack_response(response, buf);
             break;
         case MQTT_CONTROL_PUBLISH:
-            rv = mqtt_unpack_publish_response(response, buf);
+            rv = mqtt_unpack_publish_response(response, receive_message, buf);
             break;
         case MQTT_CONTROL_PUBACK:
             rv = mqtt_unpack_pubxxx_response(response, buf);
