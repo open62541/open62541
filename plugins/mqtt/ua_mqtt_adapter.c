@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Lukas Meling)
+ * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
 #include "ua_mqtt_adapter.h"
@@ -247,14 +248,23 @@ yieldMqtt(UA_PubSubChannelDataMQTT* channelData, UA_UInt16 timeout){
     if(connection == NULL){
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
-    
+
     if(connection->state != UA_CONNECTION_ESTABLISHED && connection->state != UA_CONNECTION_OPENING){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "PubSub MQTT: yield: Tcp Connection not established!");
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
-    
+
     struct mqtt_client* client = (struct mqtt_client*)channelData->mqttClient;
-    client->socketfd->timeout = timeout;
+
+    /* Assign receive interval as socket timeout value as per user choice */
+    if(client->receiveInterval > 0) {
+       client->socketfd->timeout = client->receiveInterval;
+    }
+
+    /* Default timeout value is assigned to socket */
+    else {
+       client->socketfd->timeout = timeout;
+    }
 
     enum MQTTErrors error = mqtt_sync(client);
     if(error == MQTT_OK){
