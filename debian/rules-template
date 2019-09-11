@@ -13,5 +13,3 @@ override_dh_auto_test:
 
 %:
 	dh $@ --buildsystem=cmake --parallel
-
-

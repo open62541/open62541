@@ -47,7 +47,7 @@ with open(changelog_file, 'r') as original: data = original.read()
 with open(changelog_file, 'w') as modified:
     new_entry = """open62541 ({version}) {distribution}; urgency=medium
 
-  * Full changelog is available here: 
+  * Full changelog is available here:
     https://github.com/open62541/open62541/blob/master/CHANGELOG
 
  -- open62541 Team <open62541-core@googlegroups.com>  {time}
