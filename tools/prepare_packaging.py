@@ -40,7 +40,7 @@ changelog_file = os.path.join(debian_path, "changelog")
 changelog_version = git_describe_version[1:] if git_describe_version[0] == 'v' else git_describe_version
 # replace all '-' with '~' in version
 changelog_version = changelog_version.replace('-', '~')
- 
+
 with open(changelog_file, 'r') as original: data = original.read()
 with open(changelog_file, 'w') as modified:
     new_entry = """open62541 ({version}) {distribution}; urgency=medium
