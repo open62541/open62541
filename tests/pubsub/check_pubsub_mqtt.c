@@ -17,6 +17,7 @@
 #define FIRST_SUBSCRIBER_TOPIC  "customTopic"
 #define SECOND_SUBSCRIBER_TOPIC "TopicCustom"
 #define BUFFER_STRING           "Hello! This is MQTT Testing"
+#define UA_MAX_STACKBUF         512 /* Max Buffer size */
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
@@ -80,7 +81,7 @@ START_TEST (RegisterUnregisterToATopic) {
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
     /* Register transport settings for Subscriber */
-    retVal = connection->channel->regist(connection->channel, &transportSettings, NULL);
+    retVal |= connection->channel->regist(connection->channel, &transportSettings, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Unregister subscriptions to the subscribed topic */
@@ -130,7 +131,7 @@ START_TEST (RegisterUnregisterRegisterToMultipleTopic) {
     transportSettings2.content.decoded.data = &brokerTransportSettings2;
 
     /* Register transport settings for customTopic*/
-    retVal = connection->channel->regist(connection->channel, &transportSettings1, NULL);
+    retVal |= connection->channel->regist(connection->channel, &transportSettings1, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Register transport settings for TopicCustom*/
@@ -167,7 +168,7 @@ START_TEST (SendNullMessageViaMqttConnection) {
     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
-    retVal = connection->channel->send(connection->channel, &transportSettings, NULL);
+    retVal |= connection->channel->send(connection->channel, &transportSettings, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
@@ -197,8 +198,75 @@ START_TEST (SendMessageViaMqttConnection) {
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
     /* Send the published data as NetworkMessage */
-    retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
+    retVal |= connection->channel->send(connection->channel, &transportSettings, &testBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    } END_TEST
+
+START_TEST (ReceiveMessageViaMqttConnection) {
+
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* Initialize a buffer to send data */
+    UA_ByteString sendBuffer;
+    sendBuffer = UA_BYTESTRING(BUFFER_STRING);
+
+    /* Initialize a buffer to receive data */
+    UA_ByteString receiveBuffer;
+    retVal |= UA_ByteString_allocBuffer(&receiveBuffer, UA_MAX_STACKBUF);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Assign brokerTransportSettings */
+    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+
+    /* Assign the Topic at which MQTT subscription should happen */
+    brokerTransportSettings.queueName = UA_STRING(FIRST_SUBSCRIBER_TOPIC);
+    brokerTransportSettings.resourceUri = UA_STRING_NULL;
+    brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
+
+    /* Choose the QOS Level for MQTT */
+    brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+
+    /* Encapsulate config in transportSettings */
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &brokerTransportSettings;
+
+    /* Register to the subscribing topic */
+    retVal |= connection->channel->regist(connection->channel, &transportSettings, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Send function */
+    retVal |= connection->channel->send(connection->channel, &transportSettings, &sendBuffer);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /*retVal is modified to UA_STATUSCODE_BADINTERNALERROR for processing the receive check */
+    retVal |= UA_STATUSCODE_BADINTERNALERROR;
+    /* To run the MQTT yield function until the data is received */
+    while (retVal == UA_STATUSCODE_BADINTERNALERROR)
+    {
+        UA_Server_run_iterate(server,true);
+        /* Receive function */
+        retVal = connection->channel->receive(connection->channel, &receiveBuffer, NULL, 300000);
+    }
+
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    /* Check to avoid processing null buffer if data is not received */
+    if (retVal == UA_STATUSCODE_GOOD)
+    {
+        /* Receive buffer length integrity check */
+        ck_assert_int_eq(receiveBuffer.length, sendBuffer.length);
+
+        /* Receive buffer data integrity check */
+        ck_assert_str_eq((char*)sendBuffer.data, (char*)receiveBuffer.data);
+    }
+    /* Unregister subscriptions to the subscribed topic before closing the subscription */
+    retVal |= connection->channel->unregist(connection->channel, &transportSettings);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    /* Free the receive buffer */
+    UA_ByteString_deleteMembers(&receiveBuffer);
     } END_TEST
 
 int main(void) {
@@ -212,10 +280,14 @@ int main(void) {
     tcase_add_test(tc_send_mqtt, SendNullMessageViaMqttConnection);
     tcase_add_test(tc_send_mqtt, SendMessageViaMqttConnection);
 
+    TCase *tc_receive_mqtt = tcase_create("Subscribe Mqtt Message");
+    tcase_add_checked_fixture(tc_receive_mqtt, setup, teardown);
+    tcase_add_test(tc_receive_mqtt, ReceiveMessageViaMqttConnection);
+
     Suite *s = suite_create("PubSub Mqtt");
     suite_add_tcase(s, tc_register_unregister_mqtt);
     suite_add_tcase(s, tc_send_mqtt);
-
+    suite_add_tcase(s, tc_receive_mqtt);
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);
