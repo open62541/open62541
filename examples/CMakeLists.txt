@@ -227,20 +227,14 @@ if(UA_ENABLE_PUBSUB)
             list(APPEND custom_pubsub_sources ${PROJECT_SOURCE_DIR}/../plugins/ua_pubsub_udp_custom_handling.c)
         endif()
 
-        add_executable(custom_interrupt_publisher pubsub_realtime/udp_socket/pubsub_interrupt_publisher.c)
-        target_link_libraries (custom_interrupt_publisher custom_pubsub)
+        add_executable(realtime_PubSub pubsub_realtime/udp_socket/realtime_PubSub.c)
+        target_link_libraries (realtime_PubSub custom_pubsub)
 
-        add_executable(custom_interrupt_loopback pubsub_realtime/udp_socket/pubsub_interrupt_loopback.c)
-        target_link_libraries (custom_interrupt_loopback custom_pubsub)
+        set_target_properties(realtime_PubSub PROPERTIES FOLDER "open62541/examples")
 
-        set_target_properties(custom_interrupt_publisher PROPERTIES FOLDER "open62541/examples")
-        set_target_properties(custom_interrupt_loopback PROPERTIES FOLDER "open62541/examples")
+        set_target_properties(realtime_PubSub PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-        set_target_properties(custom_interrupt_publisher PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-        set_target_properties(custom_interrupt_loopback PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-
-        target_link_libraries(custom_interrupt_publisher open62541 ${open62541_LIBRARIES} rt pthread mbedtls mbedx509 mbedcrypto) #original line with crypto
-        target_link_libraries(custom_interrupt_loopback open62541 ${open62541_LIBRARIES} rt pthread mbedtls mbedx509 mbedcrypto)
+        target_link_libraries(realtime_PubSub open62541 ${open62541_LIBRARIES} rt pthread mbedtls mbedx509 mbedcrypto) #original line with crypto
         add_library(custom_pubsub ${custom_pubsub_sources})
     endif()
 

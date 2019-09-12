@@ -1,6 +1,6 @@
 /*********************************************************************************
 
-\file   pubsub_interrupt_publisher.c
+\file   realtime_PubSub.c
 
 \brief  Real-time OPC UA Pub/Sub
 
