@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "conversion.h"
+#include <open62541/types_generated_handling.h>
 
 #include "check.h"
 
@@ -28,14 +29,24 @@ START_TEST(ExtractStringIds) {
  UA_NodeId id = extractNodeId("s=StringIdentifier");
  UA_NodeId expectedId = UA_NODEID_STRING(0, "StringIdentifier");
  ck_assert(UA_NodeId_equal(&expectedId, &id));
+ UA_NodeId_clear(&id);
  id = extractNodeId("ns=1456;s=StringIdentifier");
  expectedId = UA_NODEID_STRING(1456,"StringIdentifier");
  ck_assert(UA_NodeId_equal(&expectedId, &id));
+ UA_NodeId_clear(&id);
  id = extractNodeId("abc");
  ck_assert(UA_NodeId_equal(&UA_NODEID_NULL, &id));
 }
 END_TEST
 
+START_TEST(IsTrueTests)
+{
+    ck_assert(UA_TRUE == isTrue("true"));
+    ck_assert(UA_FALSE == isTrue("false"));
+    ck_assert(UA_FALSE == isTrue(NULL));
+    ck_assert(UA_FALSE == isTrue("TRUE"));
+}
+END_TEST
 
 
 static Suite *testSuite_Client(void) {
@@ -44,6 +55,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, NullNodeId);
     tcase_add_test(tc_server, ExtractNumericIds);
     tcase_add_test(tc_server, ExtractStringIds);
+    tcase_add_test(tc_server, IsTrueTests);
     suite_add_tcase(s, tc_server);
     return s;
 }
