@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
+ *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -22,6 +23,7 @@
 #include "ua_connection_internal.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
+#include "ua_asyncmethod_manager.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
 #include "ua_workqueue.h"
@@ -60,6 +62,28 @@ typedef enum {
     UA_SERVERLIFECYLE_RUNNING
 } UA_ServerLifecycle;
 
+#if UA_MULTITHREADING >= 100
+struct AsyncMethodQueueElement {
+        UA_CallMethodRequest m_Request;
+        UA_CallMethodResult	m_Response;
+        UA_DateTime	m_tDispatchTime;
+        UA_UInt32	m_nRequestId;
+        UA_NodeId	m_nSessionId;
+        UA_UInt32	m_nIndex;
+
+        SIMPLEQ_ENTRY(AsyncMethodQueueElement) next;
+    };
+	
+/* Internal Helper to transfer info */
+    struct AsyncMethodContextInternal {
+        UA_UInt32 nRequestId;
+        UA_NodeId nSessionId;
+        UA_UInt32 nIndex;
+        const UA_CallRequest* pRequest;
+        UA_SecureChannel* pChannel;
+    };
+#endif	
+	
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -75,6 +99,9 @@ struct UA_Server {
     /* Security */
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
+#if UA_MULTITHREADING >= 100
+    UA_AsyncMethodManager asyncMethodManager;
+#endif
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible
                               * access rights (Session Id: 1) */
@@ -114,10 +141,24 @@ struct UA_Server {
     UA_PubSubManager pubSubManager;
 #endif
 
+
 #if UA_MULTITHREADING >= 100
     UA_LOCK_TYPE(networkMutex)
     UA_LOCK_TYPE(serviceMutex)
-#endif
+
+	/* Async Method Handling */
+    UA_UInt32	nMQCurSize;		/* actual size of queue */
+    UA_UInt64	nCBIdIntegrity;	/* id of callback queue check callback  */
+    UA_UInt64	nCBIdResponse;	/* id of callback check for a response  */
+
+    UA_LOCK_TYPE(ua_request_queue_lock)
+    UA_LOCK_TYPE(ua_response_queue_lock)
+    UA_LOCK_TYPE(ua_pending_list_lock)
+
+    SIMPLEQ_HEAD(ua_method_request_queue, AsyncMethodQueueElement) ua_method_request_queue;    
+    SIMPLEQ_HEAD(ua_method_response_queue, AsyncMethodQueueElement) ua_method_response_queue;
+    SIMPLEQ_HEAD(ua_method_pending_list, AsyncMethodQueueElement) ua_method_pending_list;
+#endif /* UA_MULTITHREADING >= 100 */
 };
 
 /*****************/
@@ -190,6 +231,18 @@ UA_StatusCode
 writeWithSession(UA_Server *server, UA_Session *session,
                  const UA_WriteValue *value);
 
+#if UA_MULTITHREADING >= 100
+void
+UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
+                               const UA_NodeId* nSessionId, const UA_UInt32 nIndex,
+                               const UA_CallMethodResult* response);
+void 
+    UA_Server_CallMethodResponse(UA_Server *server, void* data);
+#endif
+
+UA_StatusCode
+sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
+             UA_ResponseHeader *responseHeader, const UA_DataType *responseType);
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
@@ -208,6 +261,15 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+UA_StatusCode
+UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
+                                        UA_ServiceOperation operationCallback,
+                                        void *context,
+                                        const size_t *requestOperations,
+                                        const UA_DataType *requestOperationsType,
+                                        size_t *responseOperations,
+                                        const UA_DataType *responseOperationsType)
+UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /******************************************/
 /* Internal function calls, without locks */
@@ -259,6 +321,30 @@ UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath);
 
+UA_StatusCode
+writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                    const UA_QualifiedName propertyName, const UA_Variant value);
+
+UA_StatusCode
+getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
+
+void
+removeCallback(UA_Server *server, UA_UInt64 callbackId);
+
+UA_StatusCode
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId, UA_Double interval_ms);
+
+UA_StatusCode
+addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                    void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+
+#ifdef UA_ENABLE_DISCOVERY
+UA_StatusCode
+register_server_with_discovery_server(UA_Server *server,
+                                      void *client,
+                                      const UA_Boolean isUnregister,
+                                      const char* semaphoreFilePath);
+#endif
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/

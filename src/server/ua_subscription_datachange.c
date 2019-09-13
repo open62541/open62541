@@ -307,7 +307,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     if(!sub) {
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
         void *nodeContext = NULL;
-        UA_Server_getNodeContext(server, mon->monitoredNodeId, &nodeContext);
+        getNodeContext(server, mon->monitoredNodeId, &nodeContext);
         UA_UNLOCK(server->serviceMutex);
         localMon->callback.dataChangeCallback(server, mon->monitoredItemId,
                                               localMon->context,
@@ -330,6 +330,8 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredIt
 
 void
 monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_Subscription *sub = monitoredItem->subscription;
     UA_Session *session = &server->adminSession;
     if(sub)

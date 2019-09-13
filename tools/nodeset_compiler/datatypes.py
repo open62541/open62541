@@ -186,7 +186,7 @@ class Value(object):
                 if alias is not None:
                     if xmlvalue is not None and not xmlvalue.localName == alias and not xmlvalue.localName == enc[0]:
                         logger.error(str(parent.id) + ": Expected XML element with tag " + alias + " but found " + xmlvalue.localName + " instead")
-                        return None
+                        return ExtensionObject()
                     else:
                         t = self.getTypeByString(enc[0], enc)
                         t.alias = alias
@@ -237,20 +237,20 @@ class Value(object):
             #        OPCUA Namespace 0 nodeset.
             #        Consider moving this ExtensionObject specific parsing into the
             #        builtin type and only determining the multipart type at this stage.
+            extobj = ExtensionObject()
             if not xmlvalue.localName == "ExtensionObject":
                 logger.error(str(parent.id) + ": Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.localName + " instead.")
-                return None
+                return extobj
 
-            extobj = ExtensionObject()
             extobj.encodingRule = enc
             etype = xmlvalue.getElementsByTagName("TypeId")
             if len(etype) == 0:
                 logger.error(str(parent.id) + ": Did not find <TypeId> for ExtensionObject")
-                return None
+                return extobj
             etype = etype[0].getElementsByTagName("Identifier")
             if len(etype) == 0:
                 logger.error(str(parent.id) + ": Did not find <Identifier> for ExtensionObject")
-                return None
+                return extobj
 
             etype = NodeId(etype[0].firstChild.data.strip(' \t\n\r'))
             extobj.typeId = etype
@@ -258,35 +258,39 @@ class Value(object):
             ebody = xmlvalue.getElementsByTagName("Body")
             if len(ebody) == 0:
                 logger.error(str(parent.id) + ": Did not find <Body> for ExtensionObject")
-                return None
+                return extobj
             ebody = ebody[0]
 
-            # Body must contain an Object of type 'DataType' as defined in Variable
-            ebodypart = ebody.firstChild
-            if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
-                ebodypart = getNextElementNode(ebodypart)
-            if ebodypart is None:
-                logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
-                return None
+            try:
+                # Body must contain an Object of type 'DataType' as defined in Variable
+                ebodypart = ebody.firstChild
+                if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
+                    ebodypart = getNextElementNode(ebodypart)
+                if ebodypart is None:
+                    logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
+                    return extobj
 
-            if not ebodypart.localName == "OptionSet" and not ebodypart.localName == parentDataTypeNode.browseName.name:
-                logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
-                             str(ebodypart.localName) + " instead.")
-                return None
-            extobj.alias = ebodypart.localName
+                if not ebodypart.localName == "OptionSet" and not ebodypart.localName == parentDataTypeNode.browseName.name:
+                    logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
+                                 str(ebodypart.localName) + " instead.")
+                    return extobj
+                extobj.alias = ebodypart.localName
 
-            ebodypart = ebodypart.firstChild
-            if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
-                ebodypart = getNextElementNode(ebodypart)
-            if ebodypart is None:
-                logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
-                return None
+                ebodypart = ebodypart.firstChild
+                if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
+                    ebodypart = getNextElementNode(ebodypart)
+                if ebodypart is None:
+                    logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
+                    return extobj
 
-            extobj.value = []
-            for e in enc:
-                extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent,
-                                                                 alias=None, encodingPart=e))
-                ebodypart = getNextElementNode(ebodypart)
+                extobj.value = []
+                for e in enc:
+                    extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent,
+                                                                     alias=None, encodingPart=e))
+                    ebodypart = getNextElementNode(ebodypart)
+            except Exception:
+                logger.error(str(parent.id) + ": Could not parse <Body> for ExtensionObject")
+
             return extobj
 
     def __str__(self):

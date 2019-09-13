@@ -26,6 +26,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,
                          const UA_MonitoringParameters *params,
                          const UA_DataType* dataType) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
@@ -248,7 +250,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     /* Register MonitoredItem in userland */
     if(server->config.monitoredItemRegisterCallback) {
         void *targetContext = NULL;
-        UA_Server_getNodeContext(server, request->itemToMonitor.nodeId, &targetContext);
+        getNodeContext(server, request->itemToMonitor.nodeId, &targetContext);
         UA_UNLOCK(server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server, &session->sessionId,
                                                      session->sessionHandle,
@@ -305,8 +307,6 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
 
     /* Reset the subscription lifetime */
     cmc.sub->currentLifetimeCount = 0;
-
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_CreateMonitoredItem, &cmc,
@@ -396,8 +396,6 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     }
 
     sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
-
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -509,8 +507,6 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
-
     smc.sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
 
     smc.monitoringMode = request->monitoringMode;
@@ -547,8 +543,6 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-
-    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Reset the subscription lifetime */
     sub->currentLifetimeCount = 0;

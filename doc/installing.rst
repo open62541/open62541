@@ -61,6 +61,23 @@ A full list of enabled features during build time is stored in the CMake Variabl
 Prebuilt packages
 -----------------
 
+Pack branches
+^^^^^^^^^^^^^
+
+Github allows you to download a specific branch as .zip package. Just using this .zip package for open62541 will likely fail:
+
+ * CMake uses ``git describe --tags`` to automatically detect the version string. The .zip package does not include any git information
+ * Specific options during the build stack require additional git submodules which are not inlined in the .zip
+
+Therefore we provide packaging branches. They have the prefix `pack/` and are automatically updated to match the referenced branch.
+
+Here are some examples:
+
+ * `pack/master.zip <https://github.com/open62541/open62541/archive/pack/master.zip>`_
+ * `pack/1.0.zip <https://github.com/open62541/open62541/archive/pack/1.0.zip>`_
+
+These pack branches have inlined submodules and the version string is hardcoded. If you need to build from source but do not want to use git,
+use these specific pack versions.
 
 Prebuild binaries
 ^^^^^^^^^^^^^^^^^
@@ -87,3 +104,9 @@ Install them with:
     sudo add-apt-repository ppa:open62541-team/ppa
     sudo apt-get update
     sudo apt-get install libopen62541-dev
+
+Arch packages are available in the AUR
+
+ * Stable Builds: https://aur.archlinux.org/packages/open62541/
+ * Unstable Builds (current master): https://aur.archlinux.org/packages/open62541-git/
+ * In order to add custom build options (:ref:`build_options`), you can set the environment variable ``OPEN62541_CMAKE_FLAGS``

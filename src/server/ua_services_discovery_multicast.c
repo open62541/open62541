@@ -154,6 +154,8 @@ filterServerRecord(size_t serverCapabilityFilterSize, UA_String *serverCapabilit
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     if (!server->config.discovery.mdnsEnable) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return;
@@ -255,8 +257,10 @@ void
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
+    UA_LOCK(server->serviceMutex);
     server->discoveryManager.serverOnNetworkCallback = cb;
     server->discoveryManager.serverOnNetworkCallbackData = data;
+    UA_UNLOCK(server->serviceMutex);
 }
 
 static void

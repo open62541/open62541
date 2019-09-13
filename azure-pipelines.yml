@@ -57,7 +57,8 @@ jobs:
     displayName: Install Requirements
   - powershell: ./tools/azure-devops/build.ps1
     displayName: "Build: $(CC_NAME)"
-    errorActionPreference: continue # Nodeset Compiler prints to stderror
+    errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code
+
 
   - task: PublishBuildArtifacts@1
     inputs:
@@ -87,7 +88,7 @@ jobs:
     displayName: Install Requirements
   - powershell: ./tools/azure-devops/build.ps1
     displayName: "Build: $(CC_NAME)"
-    errorActionPreference: continue # Nodeset Compiler prints to stderror
+    errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code
 
   - task: PublishBuildArtifacts@1
     inputs:

@@ -198,6 +198,7 @@ Detailed SDK Features
         - 0: Multithreading support disabled.
         - 100: Functions marked with the UA_THREADSAFE-macro are protected with a lock-based enhancement using mutexes.
         Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
+        Furthermore, this level supports the feature of adding async methods to objects.
         - 200: Work is distributed to a number of worker threads. Those worker threads are created within the SDK.
 
 **UA_ENABLE_IMMUTABLE_NODES**

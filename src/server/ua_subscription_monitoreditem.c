@@ -192,6 +192,8 @@ UA_MonitoredItem_init(UA_MonitoredItem *mon, UA_Subscription *sub) {
 
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
@@ -231,13 +233,15 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
         /* Get the node context */
         void *targetContext = NULL;
-        UA_Server_getNodeContext(server, monitoredItem->monitoredNodeId, &targetContext);
+        getNodeContext(server, monitoredItem->monitoredNodeId, &targetContext);
 
         /* Deregister */
+        UA_UNLOCK(server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server, &session->sessionId,
                                                      session->sessionHandle,
                                                      &monitoredItem->monitoredNodeId,
                                                      targetContext, monitoredItem->attributeId, true);
+        UA_LOCK(server->serviceMutex);
     }
 
     /* Remove the monitored item */
@@ -344,6 +348,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
 UA_StatusCode
 UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     if(mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
 
@@ -352,8 +357,8 @@ UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval =
-        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_sampleCallback,
-                                      mon, mon->samplingInterval, &mon->sampleCallbackId);
+        addRepeatedCallback(server, (UA_ServerCallback)UA_MonitoredItem_sampleCallback,
+                            mon, mon->samplingInterval, &mon->sampleCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
         mon->sampleCallbackIsRegistered = true;
     return retval;
@@ -361,9 +366,10 @@ UA_MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon
 
 void
 UA_MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     if(!mon->sampleCallbackIsRegistered)
         return;
-    UA_Server_removeRepeatedCallback(server, mon->sampleCallbackId);
+    removeCallback(server, mon->sampleCallbackId);
     mon->sampleCallbackIsRegistered = false;
 }
 

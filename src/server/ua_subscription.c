@@ -43,6 +43,8 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionId) {
 
 void
 UA_Subscription_deleteMembers(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     Subscription_unregisterPublishCallback(server, sub);
 
     /* Delete monitored Items */
@@ -88,6 +90,8 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemId) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Find the MonitoredItem */
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
@@ -345,11 +349,15 @@ UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
 static void
 publishCallback(UA_Server *server, UA_Subscription *sub) {
     sub->readyNotifications = sub->notificationQueueSize;
+    UA_LOCK(server->serviceMutex);
     UA_Subscription_publish(server, sub);
+    UA_UNLOCK(server->serviceMutex);
 }
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session, "Subscription %u | "
                          "Publish Callback", sub->subscriptionId);
     /* Dequeue a response */
@@ -558,13 +566,14 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                          "Subscription %u | Register subscription "
                          "publishing callback", sub->subscriptionId);
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(sub->publishCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
 
     UA_StatusCode retval =
-        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)publishCallback,
-                                      sub, (UA_UInt32)sub->publishingInterval, &sub->publishCallbackId);
+        addRepeatedCallback(server, (UA_ServerCallback)publishCallback,
+                            sub, (UA_UInt32)sub->publishingInterval, &sub->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -580,7 +589,7 @@ Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) 
     if(!sub->publishCallbackIsRegistered)
         return;
 
-    UA_Server_removeRepeatedCallback(server, sub->publishCallbackId);
+    removeCallback(server, sub->publishCallbackId);
     sub->publishCallbackIsRegistered = false;
 }
 

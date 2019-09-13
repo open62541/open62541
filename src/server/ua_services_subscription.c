@@ -27,6 +27,8 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_UInt32 requestedLifetimeCount,
                         UA_UInt32 requestedMaxKeepAliveCount,
                         UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* deregister the callback if required */
     Subscription_unregisterPublishCallback(server, subscription);
 
@@ -136,9 +138,10 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 }
 
 static void
-Operation_SetPublishingMode(UA_Server *Server, UA_Session *session,
+Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
                             const UA_Boolean *publishingEnabled, const UA_UInt32 *subscriptionId,
                             UA_StatusCode *result) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
     if(!sub) {
         *result = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -181,6 +184,7 @@ void
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing PublishRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {

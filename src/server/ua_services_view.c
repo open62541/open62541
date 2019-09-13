@@ -1033,6 +1033,8 @@ static void
 Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
                                        const UA_UInt32 *nodeClassMask, const UA_BrowsePath *path,
                                        UA_BrowsePathResult *result) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     if(path->relativePath.elementsSize <= 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -1114,6 +1116,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server,
                                        const UA_BrowsePath *browsePath) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
     UA_UInt32 nodeClassMask = 0; /* All node classes */
@@ -1158,6 +1161,8 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Construct the BrowsePath */
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);

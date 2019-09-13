@@ -2,6 +2,7 @@
 
 export DH_VERBOSE = 1
 
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
 export DEB_BUILD_OPTIONS=parallel=4
 
 override_dh_auto_configure:
@@ -9,9 +10,6 @@ override_dh_auto_configure:
 
 override_dh_auto_test:
 	dh_auto_test -- ARGS+=--output-on-failure
-
-override_dh_strip:
-	dh_strip --dbg-package=libopen62541-<soname>-dbg
 
 %:
 	dh $@ --buildsystem=cmake --parallel
