@@ -15,7 +15,6 @@
 #define MAX_BIDIRECTIONAL_REFS 50
 #define BIDIRECTIONAL_REF_COUNT 8
 #define MAX_REFCOUNTEDCHARS 10000000
-#define NODECLASS_COUNT 7
 
 // UANode
 #define ATTRIBUTE_NODEID "NodeId"
@@ -247,7 +246,7 @@ extractAttributes(Nodeset *nodeset, const TNamespace *namespaces, UA_Node *node,
     switch(node->nodeClass) {
         case UA_NODECLASS_OBJECTTYPE:
             ((UA_ObjectTypeNode *)node)->isAbstract =
-                getAttributeValue(nodeset, &attrIsAbstract, attributes, attributeSize);
+                isTrue(getAttributeValue(nodeset, &attrIsAbstract, attributes, attributeSize));
             break;
         case UA_NODECLASS_OBJECT:
             ((UA_ObjectNode *)node)->eventNotifier = isTrue(getAttributeValue(

@@ -4,6 +4,10 @@
 
 static inline UA_Boolean
 isNodeId(const char *s) {
+    if(!s)
+    {
+        return UA_FALSE;
+    }
     if(!strncmp(s, "ns=", 3) || !strncmp(s, "i=", 2) || !strncmp(s, "s=", 2) || !strncmp(s, "g=",2) || !strncmp(s, "b=",2)) {
         return UA_TRUE;
     }
@@ -24,6 +28,10 @@ isTrue(const char *s) {
 // todo: handle guid, bytestring
 static inline UA_NodeId
 extractNodeId(const char *s) {
+    if(!s)
+    {
+        return UA_NODEID_NULL;
+    }
     char *idxSemi = strchr(s, ';');
     // namespaceindex zero?
     if(idxSemi == NULL) {
