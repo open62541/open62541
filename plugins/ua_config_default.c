@@ -651,6 +651,15 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 /* Default Client Settings */
 /***************************/
 
+UA_Client * UA_Client_new() {
+    UA_ClientConfig config;
+    memset(&config, 0, sizeof(UA_ClientConfig));
+    config.logger.log = UA_Log_Stdout_log;
+    config.logger.context = NULL;
+    config.logger.clear = UA_Log_Stdout_clear;
+    return UA_Client_newWithConfig(&config);
+}
+
 static UA_INLINE void
 UA_ClientConnectionTCP_poll_callback(UA_Client *client, void *data) {
     UA_ClientConnectionTCP_poll(client, data);
