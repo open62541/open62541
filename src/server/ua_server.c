@@ -322,22 +322,13 @@ UA_Server_init(UA_Server *server) {
 }
 
 UA_Server *
-UA_Server_new() {
-    /* Allocate the server */
-    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
-        return NULL;
-    return UA_Server_init(server);
-}
-
-
-UA_Server *
 UA_Server_newWithConfig(const UA_ServerConfig *config) {
+    if(!config)
+        return NULL;
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
-    if(config)
-        server->config = *config;
+    server->config = *config;
     return UA_Server_init(server);
 }
 

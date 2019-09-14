@@ -37,6 +37,14 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
+UA_Server *
+UA_Server_new() {
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+    config.logger = UA_Log_Stdout_;
+    return UA_Server_newWithConfig(&config);
+}
+
 /*******************************/
 /* Default Connection Settings */
 /*******************************/

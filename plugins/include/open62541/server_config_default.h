@@ -14,6 +14,10 @@
 
 _UA_BEGIN_DECLS
 
+/* Create a new server with default plugins for logging etc. used during
+ * initialization. No network layer and SecurityPolicies are set so far. */
+UA_Server UA_EXPORT * UA_Server_new(void);
+
 /**********************/
 /* Default Connection */
 /**********************/
