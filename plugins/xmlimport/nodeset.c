@@ -52,6 +52,7 @@ const NodeAttribute attrIsAbstract = {ATTRIBUTE_ISABSTRACT, "false", false};
 const NodeAttribute attrIsForward = {ATTRIBUTE_ISFORWARD, "true", false};
 const NodeAttribute attrReferenceType = {ATTRIBUTE_REFERENCETYPE, NULL, true};
 const NodeAttribute attrAlias = {ATTRIBUTE_ALIAS, NULL, false};
+const NodeAttribute attrExecutable = {"Executable", "true", false};
 
 struct Alias {
     char *name;
@@ -298,9 +299,8 @@ extractAttributes(Nodeset *nodeset, const TNamespace *namespaces, UA_Node *node,
                 getAttributeValue(nodeset, &attrIsAbstract, attributes, attributeSize));
             break;
         case UA_NODECLASS_METHOD:
-            //((UA_MethodNode *)node)->executable =
-            //    isTrue(extractNodedId(namespaces, getAttributeValue(&attrParentNodeId,
-            //    attributes, attributeSize));
+            ((UA_MethodNode *)node)->executable = isTrue(
+                getAttributeValue(nodeset, &attrExecutable, attributes, attributeSize));
             break;
         case UA_NODECLASS_REFERENCETYPE:
             break;
