@@ -400,8 +400,8 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
             continue;
         if(refs->isInverse)
             continue;
-        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-            if(UA_NodeId_equal(&mandatoryId, &refs->targetIds[j].nodeId)) {
+        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
+            if(UA_NodeId_equal(&mandatoryId, &refs->refTargets[j].target.nodeId)) {
                 UA_Nodestore_releaseNode(server->nsCtx, child);
                 return true;
             }
@@ -1366,8 +1366,8 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
         UA_NodeReferenceKind *refs = &node->references[i];
         item.isForward = refs->isInverse;
         item.referenceTypeId = refs->referenceTypeId;
-        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-            item.sourceNodeId = refs->targetIds[j].nodeId;
+        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
+            item.sourceNodeId = refs->refTargets[j].target.nodeId;
             Operation_deleteReference(server, session, NULL, &item, &dummy);
         }
     }
@@ -1398,7 +1398,7 @@ multipleHierarchies(size_t hierarchicalRefsSize, UA_ExpandedNodeId *hierarchical
         if(!hierarchical)
             continue;
 
-        incomingRefs += k->targetIdsSize;
+        incomingRefs += k->refTargetsSize;
         if(incomingRefs > 1)
             return true;
     }

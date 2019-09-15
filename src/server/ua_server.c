@@ -132,8 +132,8 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = parentCopy->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
-        for(size_t j = 0; j<ref->targetIdsSize; j++) {
-            retval = callback(ref->targetIds[j].nodeId, ref->isInverse,
+        for(size_t j = 0; j<ref->refTargetsSize; j++) {
+            retval = callback(ref->refTargets[j].target.nodeId, ref->isInverse,
                               ref->referenceTypeId, handle);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
