@@ -1567,6 +1567,18 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
 /* decode without moving the token index */
 #define DECODE_DIRECT_JSON(DST, TYPE) TYPE##_decodeJson((UA_##TYPE*)DST, NULL, ctx, parseCtx, false)
 
+/* If parseCtx->index points to the beginning of an object, move the index to
+ * the next token after this object. Attention! The index can be moved after the
+ * last parsed token. So the array length has to be checked afterwards. */
+static void
+skipObject(ParseCtx *parseCtx) {
+    int end = parseCtx->tokenArray[parseCtx->index].end;
+    do {
+        parseCtx->index++;
+    } while(parseCtx->index < parseCtx->tokenCount &&
+            parseCtx->tokenArray[parseCtx->index].start < end);
+}
+
 static status
 Array_decodeJson(void *dst, const UA_DataType *type, CtxJson *ctx, 
         ParseCtx *parseCtx, UA_Boolean moveToken);
@@ -1585,14 +1597,6 @@ getJsmnType(const ParseCtx *parseCtx) {
     if(parseCtx->index >= parseCtx->tokenCount)
         return JSMN_UNDEFINED;
     return parseCtx->tokenArray[parseCtx->index].type;
-}
-
-static UA_Boolean
-isJsonTokenNull(const CtxJson *ctx, jsmntok_t *token) {
-    if(token->type != JSMN_PRIMITIVE)
-        return false;
-    char* elem = (char*)(ctx->pos + token->start);
-    return (elem[0] == 'n' && elem[1] == 'u' && elem[2] == 'l' && elem[3] == 'l');
 }
 
 UA_Boolean
@@ -2613,77 +2617,59 @@ DECODE_JSON(Variant) {
     /* First search for the variant type in the json object. */
     size_t searchResultType = 0;
     status ret = lookAheadForKey(UA_JSONKEY_TYPE, ctx, parseCtx, &searchResultType);
-    if(ret != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADDECODINGERROR;
+    if(ret != UA_STATUSCODE_GOOD) {
+        skipObject(parseCtx);
+        return UA_STATUSCODE_GOOD;
+    }
 
-    size_t size = (size_t)(parseCtx->tokenArray[searchResultType].end - parseCtx->tokenArray[searchResultType].start);
+    size_t size = (size_t)(parseCtx->tokenArray[searchResultType].end -
+                           parseCtx->tokenArray[searchResultType].start);
 
     /* check if size is zero or the type is not a number */
-    if(size < 1 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE) {
+    if(size < 1 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
     
-    /*Parse the type*/
+    /* Parse the type */
     UA_UInt64 idTypeDecoded = 0;
     char *idTypeEncoded = (char*)(ctx->pos + parseCtx->tokenArray[searchResultType].start);
     status typeDecodeStatus = atoiUnsigned(idTypeEncoded, size, &idTypeDecoded);
-    
-    /* value is not a valid number */
-    if(typeDecodeStatus != UA_STATUSCODE_GOOD) {
+    if(typeDecodeStatus != UA_STATUSCODE_GOOD)
         return typeDecodeStatus;
+
+    /* A NULL Variant */
+    if(idTypeDecoded == 0) {
+        skipObject(parseCtx);
+        return UA_STATUSCODE_GOOD;
     }
 
-    /*Set the type, Get the Type by nodeID!*/
+    /* Set the type */
     UA_NodeId typeNodeId = UA_NODEID_NUMERIC(0, (UA_UInt32)idTypeDecoded);
-    const UA_DataType *bodyType = UA_findDataType(&typeNodeId);
-    if(bodyType == NULL) {
+    dst->type = UA_findDataType(&typeNodeId);
+    if(!dst->type)
         return UA_STATUSCODE_BADDECODINGERROR;
-    }
-    
-    /*Set the type*/
-    dst->type = bodyType;
-    
-    /* LookAhead BODY */
-    /* Does the variant contain an array? */
-    UA_Boolean isArray = false;
-    UA_Boolean isBodyNull = false;
     
     /* Search for body */
     size_t searchResultBody = 0;
     ret = lookAheadForKey(UA_JSONKEY_BODY, ctx, parseCtx, &searchResultBody);
-    if(ret == UA_STATUSCODE_GOOD) { /* body found */
-        /* get body token */
-        jsmntok_t bodyToken = parseCtx->tokenArray[searchResultBody];
-        
-        /*BODY is null?*/
-        if(isJsonTokenNull(ctx, &bodyToken)) {
-            dst->data = NULL;
-            isBodyNull = true;
-        }
-        
-        if(bodyToken.type == JSMN_ARRAY) {
-            isArray = true;
-            
-            size_t arraySize = 0;
-            arraySize = (size_t)parseCtx->tokenArray[searchResultBody].size;
-            dst->arrayLength = arraySize;
-        }
-    } else {
+    if(ret != UA_STATUSCODE_GOOD) {
         /*TODO: no body? set value NULL?*/
         return UA_STATUSCODE_BADDECODINGERROR;
     }
-    
-    /* LookAhead DIMENSION */
-    UA_Boolean hasDimension = false;
+
+    /* value is an array? */
+    UA_Boolean isArray = false;
+    if(parseCtx->tokenArray[searchResultBody].type == JSMN_ARRAY) {
+        isArray = true;
+        dst->arrayLength = (size_t)parseCtx->tokenArray[searchResultBody].size;
+    }
 
     /* Has the variant dimension? */
+    UA_Boolean hasDimension = false;
     size_t searchResultDim = 0;
     ret = lookAheadForKey(UA_JSONKEY_DIMENSION, ctx, parseCtx, &searchResultDim);
     if(ret == UA_STATUSCODE_GOOD) {
         hasDimension = true;
-        size_t dimensionSize = 0;
-        dimensionSize = (size_t)parseCtx->tokenArray[searchResultDim].size;
-        dst->arrayDimensionsSize = dimensionSize;
+        dst->arrayDimensionsSize = (size_t)parseCtx->tokenArray[searchResultDim].size;
     }
     
     /* no array but has dimension. error? */
@@ -2691,45 +2677,47 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_BADDECODINGERROR;
     
     /* Get the datatype of the content. The type must be a builtin data type.
-    * All not-builtin types are wrapped in an ExtensionObject. */
-    if(bodyType->typeKind > UA_TYPES_DIAGNOSTICINFO)
+     * All not-builtin types are wrapped in an ExtensionObject. */
+    if(dst->type->typeKind > UA_TYPES_DIAGNOSTICINFO)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* A variant cannot contain a variant. But it can contain an array of
-        * variants */
-    if(bodyType->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
+     * variants */
+    if(dst->type->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
         return UA_STATUSCODE_BADDECODINGERROR;
     
+    /* Decode an array */
     if(isArray) {
         DecodeEntry entries[3] = {
             {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
             {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature) Array_decodeJson, false, NULL},
             {UA_JSONKEY_DIMENSION, &dst->arrayDimensions,
              (decodeJsonSignature) VariantDimension_decodeJson, false, NULL}};
-
         if(!hasDimension) {
-            ret = decodeFields(ctx, parseCtx, entries, 2, bodyType); /*use first 2 fields*/
+            ret = decodeFields(ctx, parseCtx, entries, 2, dst->type); /*use first 2 fields*/
         } else {
-            ret = decodeFields(ctx, parseCtx, entries, 3, bodyType); /*use all fields*/
+            ret = decodeFields(ctx, parseCtx, entries, 3, dst->type); /*use all fields*/
         }      
-    } else if(bodyType->typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
-        /* Allocate Memory for Body */
-        if(!isBodyNull) {
-            dst->data = UA_new(bodyType);
-            if(!dst->data)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        
-        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, NULL}};
-        ret = decodeFields(ctx, parseCtx, entries, 2, bodyType);
-    } else { /* extensionObject */
-        DecodeEntry entries[2] = {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, dst,
-             (decodeJsonSignature) Variant_decodeJsonUnwrapExtensionObject, false, NULL}};
-        ret = decodeFields(ctx, parseCtx, entries, 2, bodyType);
+        return ret;
     }
-    return ret;
+
+    /* Decode a value wrapped in an ExtensionObject */
+    if(dst->type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
+        DecodeEntry entries[2] =
+            {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+             {UA_JSONKEY_BODY, dst,
+              (decodeJsonSignature)Variant_decodeJsonUnwrapExtensionObject, false, NULL}};
+        return decodeFields(ctx, parseCtx, entries, 2, dst->type);
+    }
+
+    /* Allocate Memory for Body */
+    dst->data = UA_new(dst->type);
+    if(!dst->data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    DecodeEntry entries[2] =
+        {{UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
+         {UA_JSONKEY_BODY, dst->data, (decodeJsonSignature) decodeJsonInternal, false, NULL}};
+    return decodeFields(ctx, parseCtx, entries, 2, dst->type);
 }
 
 DECODE_JSON(DataValue) {

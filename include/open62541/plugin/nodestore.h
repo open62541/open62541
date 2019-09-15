@@ -18,6 +18,7 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/server.h>
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -65,12 +66,24 @@ struct UA_MonitoredItem;
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
+/* Ordered tree structure for fast member check */
+typedef struct UA_ReferenceTarget {
+    ZIP_ENTRY(UA_ReferenceTarget) zipfields;
+    UA_UInt32 targetHash; /* Hash of the target nodeid */
+    UA_ExpandedNodeId target;
+} UA_ReferenceTarget;
+
+ZIP_HEAD(UA_ReferenceTargetHead, UA_ReferenceTarget);
+typedef struct UA_ReferenceTargetHead UA_ReferenceTargetHead;
+ZIP_PROTTYPE(UA_ReferenceTargetHead, UA_ReferenceTarget, UA_ReferenceTarget)
+
 /* List of reference targets with the same reference type and direction */
 typedef struct {
     UA_NodeId referenceTypeId;
     UA_Boolean isInverse;
-    size_t targetIdsSize;
-    UA_ExpandedNodeId *targetIds;
+    size_t refTargetsSize;
+    UA_ReferenceTarget *refTargets;
+    UA_ReferenceTargetHead refTargetsTree;
 } UA_NodeReferenceKind;
 
 #define UA_NODE_BASEATTRIBUTES                  \
