@@ -30,9 +30,9 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
         if(!UA_NodeId_equal(&hasProperty, &rk->referenceTypeId))
             continue;
 
-        for(size_t j = 0; j < rk->targetIdsSize; ++j) {
+        for(size_t j = 0; j < rk->refTargetsSize; ++j) {
             const UA_Node *refTarget =
-                UA_Nodestore_getNode(server->nsCtx, &rk->targetIds[j].nodeId);
+                UA_Nodestore_getNode(server->nsCtx, &rk->refTargets[j].target.nodeId);
             if(!refTarget)
                 continue;
             if(refTarget->nodeClass == UA_NODECLASS_VARIABLE &&
@@ -147,8 +147,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         if(!isNodeInTree(server->nsCtx, &rk->referenceTypeId,
                          &hasComponentNodeId, &hasSubTypeNodeId, 1))
             continue;
-        for(size_t j = 0; j < rk->targetIdsSize; ++j) {
-            if(UA_NodeId_equal(&rk->targetIds[j].nodeId, &request->methodId)) {
+        for(size_t j = 0; j < rk->refTargetsSize; ++j) {
+            if(UA_NodeId_equal(&rk->refTargets[j].target.nodeId, &request->methodId)) {
                 found = true;
                 break;
             }

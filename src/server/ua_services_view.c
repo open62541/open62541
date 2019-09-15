@@ -176,8 +176,8 @@ addRelevantReferences(UA_Server *server, RefTree *rt, const UA_NodeId *nodeId,
         if(!relevantReference(&rk->referenceTypeId, refTypesSize, refTypes))
             continue;
 
-        for(size_t k = 0; k < rk->targetIdsSize; k++) {
-            retval = RefTree_add(rt ,&rk->targetIds[k]);
+        for(size_t k = 0; k < rk->refTargetsSize; k++) {
+            retval = RefTree_add(rt, &rk->refTargets[k].target);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
         }
@@ -468,13 +468,14 @@ browseReferences(UA_Server *server, const UA_Node *node,
             continue;
 
         /* Loop over the targets */
-        for(; targetIndex < rk->targetIdsSize; ++targetIndex) {
+        for(; targetIndex < rk->refTargetsSize; ++targetIndex) {
             target = NULL;
 
             /* Get the node if it is not a remote reference */
-            if(rk->targetIds[targetIndex].serverIndex == 0 &&
-               rk->targetIds[targetIndex].namespaceUri.data == NULL) {
-                target = UA_Nodestore_getNode(server->nsCtx, &rk->targetIds[targetIndex].nodeId);
+            if(rk->refTargets[targetIndex].target.serverIndex == 0 &&
+               rk->refTargets[targetIndex].target.namespaceUri.data == NULL) {
+                target = UA_Nodestore_getNode(server->nsCtx,
+                                              &rk->refTargets[targetIndex].target.nodeId);
 
                 /* Test if the node class matches */
                 if(target && !matchClassMask(target, bd->nodeClassMask)) {
@@ -495,7 +496,7 @@ browseReferences(UA_Server *server, const UA_Node *node,
 
             /* Copy the node description. Target is on top of the stack */
             retval = addReferenceDescription(server, rr, rk, bd->resultMask,
-                                             &rk->targetIds[targetIndex], target);
+                                             &rk->refTargets[targetIndex].target, target);
             UA_Nodestore_releaseNode(server->nsCtx, target);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
@@ -803,8 +804,8 @@ walkBrowsePathElementReferenceTargets(UA_BrowsePathResult *result, size_t *targe
                                       UA_NodeId **next, size_t *nextSize, size_t *nextCount,
                                       UA_UInt32 elemDepth, const UA_NodeReferenceKind *rk) {
     /* Loop over the targets */
-    for(size_t i = 0; i < rk->targetIdsSize; i++) {
-        UA_ExpandedNodeId *targetId = &rk->targetIds[i];
+    for(size_t i = 0; i < rk->refTargetsSize; i++) {
+        UA_ExpandedNodeId *targetId = &rk->refTargets[i].target;
 
         /* Does the reference point to an external server? Then add to the
          * targets with the right path depth. */
