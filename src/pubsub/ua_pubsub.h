@@ -188,6 +188,9 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server* server, UA_NodeId* parentN
 UA_StatusCode addMqttSubscription(UA_Server *server, UA_PubSubConnection *connection, char *topic, char* resourceUri,
                                   char* authenticationProfileUri,char *metaDataQueueName,
                                   UA_BrokerTransportQualityOfService requestedDeliveryGuarantee);
+
+/* Remove mqtt Subscription settings for Subscriber */
+UA_StatusCode removeMqttSubscription(UA_PubSubConnection *connection, char *topic, char *metaDataQueueName);
 #endif
 
 

@@ -158,7 +158,8 @@ UA_PubSubChannelMQTT_regist(UA_PubSubChannel *channel, UA_ExtensionObject *trans
     channelDataMQTT->callback = callback;
     
     if(transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED
-            && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE){
+        && ((transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE)
+        || (transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE))){
         UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
                 (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
 
@@ -185,7 +186,8 @@ UA_PubSubChannelMQTT_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tra
 
     UA_PubSubChannelDataMQTT * channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     if(transportSettings != NULL && transportSettings->encoding == UA_EXTENSIONOBJECT_DECODED
-            && transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE){
+        && ((transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE)
+        ||(transportSettings->content.decoded.type->typeIndex == UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE))){
         UA_BrokerWriterGroupTransportDataType *brokerTransportSettings =
                 (UA_BrokerWriterGroupTransportDataType*)transportSettings->content.decoded.data;
 

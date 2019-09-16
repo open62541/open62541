@@ -2186,7 +2186,8 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
 }
 
 /* Add mqtt Subscription settings for Subscriber
- * ToDo: Implement multiple DataSetReaders */
+ * ToDo: Implement multiple DataSetReaders
+ * ToDo: Add  metaDataQueueName support in the Add subscription */
 #ifdef UA_ENABLE_PUBSUB_MQTT
 UA_StatusCode addMqttSubscription(UA_Server *server, UA_PubSubConnection *connection, char *topic, char* resourceUri,
                                   char* authenticationProfileUri, char *metaDataQueueName,
@@ -2209,8 +2210,7 @@ UA_StatusCode addMqttSubscription(UA_Server *server, UA_PubSubConnection *connec
      UA_ExtensionObject transportSettings;
      memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
      transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-     /* ToDo: Pass UA_BrokerDataSetReaderTransportDataType as transportSettings */
-     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+     transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE];
      transportSettings.content.decoded.data = &brokerTransportSettings;
 
      /* Register transport settings for Subscriber */
@@ -2220,6 +2220,33 @@ UA_StatusCode addMqttSubscription(UA_Server *server, UA_PubSubConnection *connec
      }else{
          return UA_STATUSCODE_BADNOSUBSCRIPTION;
      }
+}
+
+/* Remove MQTT Subscription settings for Subscriber */
+UA_StatusCode removeMqttSubscription(UA_PubSubConnection *connection, char *topic, char *metaDataQueueName) {
+
+    /* Unregister to existing subscriptions on the broker */
+    UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
+    /* Remove subscription specified in brokerTransportSettings->queueName, i.e. based on topic */
+    brokerTransportSettings.queueName = UA_STRING(topic);
+    /* TODO: Handle subscription and Unsubscription with metaDataQueueName*/
+    brokerTransportSettings.metaDataQueueName = UA_STRING(metaDataQueueName);
+    /* Encapsulate config in transportSettings */
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &brokerTransportSettings;
+
+    /* To unregister susbcriptions to a topic, pass the channel configuration and broker transportSettings */
+    UA_StatusCode retval = connection->channel->unregist(connection->channel, &transportSettings);
+    if (retval == UA_STATUSCODE_GOOD) {
+        return UA_STATUSCODE_GOOD;
+    }
+    else{
+        return UA_STATUSCODE_BADNOSUBSCRIPTION;
+    }
 }
 #endif
 #endif /* UA_ENABLE_PUBSUB */
