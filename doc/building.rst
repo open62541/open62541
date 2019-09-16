@@ -292,3 +292,5 @@ The RAM requirements of a server are mostly due to the following settings:
 - The size of the information model
 - The number of connected clients
 - The configured maximum message size that is preallocated
+
+.. include:: building_arch.rst
