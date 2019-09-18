@@ -38,12 +38,15 @@ changelog_file = os.path.join(debian_path, "changelog")
 
 # remove leading 'v'
 changelog_version = git_describe_version[1:] if git_describe_version[0] == 'v' else git_describe_version
+# replace all '-' with '~' in version
+changelog_version = changelog_version.replace('-', '~')
 
 with open(changelog_file, 'r') as original: data = original.read()
 with open(changelog_file, 'w') as modified:
     new_entry = """open62541 ({version}) {distribution}; urgency=medium
 
-  * Full changelog is available here: https://github.com/open62541/open62541/blob/master/CHANGELOG
+  * Full changelog is available here: 
+    https://github.com/open62541/open62541/blob/master/CHANGELOG
 
  -- open62541 Team <open62541-core@googlegroups.com>  {time}
 """.format(version=changelog_version, time=formatdate(), distribution = debian_distribution)

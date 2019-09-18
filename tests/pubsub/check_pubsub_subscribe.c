@@ -471,9 +471,9 @@ START_TEST(AddTargetVariableWithValidConfiguration) {
         UA_DataSetMetaDataType *pMetaData = &dataSetReaderConfig.dataSetMetaData;
         UA_DataSetMetaDataType_init (pMetaData);
         pMetaData->name = UA_STRING ("DataSet Test");
-        /* Static definition of number of fields size to 4 to create four different
-         * targetVariables of distinct datatype */
-        pMetaData->fieldsSize = 1;
+        /* Static definition of number of fields size to 2 to create targetVariables
+         * with DateTime and ByteString datatype */
+        pMetaData->fieldsSize = 2;
         pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                              &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
@@ -483,6 +483,13 @@ START_TEST(AddTargetVariableWithValidConfiguration) {
                         &pMetaData->fields[0].dataType);
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].valueRank = -1; /* scalar */
+
+        /* ByteString DataType */
+        UA_FieldMetaData_init (&pMetaData->fields[1]);
+        UA_NodeId_copy (&UA_TYPES[UA_TYPES_BYTESTRING].typeId,
+                        &pMetaData->fields[1].dataType);
+        pMetaData->fields[1].builtInType = UA_NS0ID_BYTESTRING;
+        pMetaData->fields[1].valueRank = -1; /* scalar */
 
         retVal |= UA_Server_addDataSetReader(server, localreaderGroupIdentifier, &dataSetReaderConfig, &localDataSetreaderIdentifier);
 
@@ -494,8 +501,8 @@ START_TEST(AddTargetVariableWithValidConfiguration) {
                                  folderBrowseName, UA_NODEID_NUMERIC (0,
                                  UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
         retVal |=  UA_Server_DataSetReader_addTargetVariables(server, &folderId, localDataSetreaderIdentifier, UA_PUBSUB_SDS_TARGET);
-        UA_free(pMetaData->fields);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_free(pMetaData->fields);
     } END_TEST
 
 START_TEST(SinglePublishSubscribeDateTime) {

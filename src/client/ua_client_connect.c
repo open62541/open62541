@@ -200,6 +200,14 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     if(conn->state != UA_CONNECTION_ESTABLISHED)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
+    /* Generate clientNonce. */
+    UA_StatusCode retval = UA_SecureChannel_generateLocalNonce(&client->channel);
+    if(retval != UA_STATUSCODE_GOOD) {
+      UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        "Generating a local nonce failed");
+      return retval;
+    }
+
     /* Prepare the OpenSecureChannelRequest */
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
@@ -223,9 +231,8 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
 
     /* Send the OPN message */
     UA_UInt32 requestId = ++client->requestId;
-    UA_StatusCode retval =
-        UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId, &opnSecRq,
-                                                  &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
+    retval = UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId, &opnSecRq,
+                                                       &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Sending OPN message failed with error %s", UA_StatusCode_name(retval));
@@ -847,12 +854,6 @@ UA_Client_connectTCPSecureChannel(UA_Client *client, const UA_String endpointUrl
     setClientState(client, UA_CLIENTSTATE_CONNECTED);
 
     /* Open a SecureChannel. */
-    retval = UA_SecureChannel_generateLocalNonce(&client->channel);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Generating a local nonce failed");
-        goto cleanup;
-    }
     client->channel.connection = &client->connection;
     retval = openSecureChannel(client, false);
     if(retval != UA_STATUSCODE_GOOD) {

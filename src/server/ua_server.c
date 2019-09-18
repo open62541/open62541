@@ -19,6 +19,10 @@
 
 #include "ua_server_internal.h"
 
+#if UA_MULTITHREADING >= 100
+#include "server/ua_server_methodqueue.h"
+#endif
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
 #endif
@@ -82,7 +86,10 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     UA_String nameString;
     nameString.length = strlen(name);
     nameString.data = (UA_Byte*)(uintptr_t)name;
-    return addNamespace(server, nameString);
+    UA_LOCK(server->serviceMutex);
+    UA_UInt16 retVal = addNamespace(server, nameString);
+    UA_UNLOCK(server->serviceMutex);
+    return retVal;
 }
 
 UA_ServerConfig*
@@ -97,6 +104,8 @@ UA_Server_getConfig(UA_Server *server)
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex) {
+    UA_LOCK(server->serviceMutex);
+
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
@@ -104,17 +113,22 @@ UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
         if(!UA_String_equal(&server->namespaces[idx], &namespaceUri))
             continue;
         (*foundIndex) = idx;
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_GOOD;
     }
+    UA_UNLOCK(server->serviceMutex);
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
+    UA_LOCK(server->serviceMutex);
     const UA_Node *parent = UA_Nodestore_getNode(server->nsCtx, &parentNodeId);
-    if(!parent)
+    if(!parent) {
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADNODEIDINVALID;
+    }
 
     /* TODO: We need to do an ugly copy of the references array since users may
      * delete references from within the callback. In single-threaded mode this
@@ -126,15 +140,18 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_Node *parentCopy = UA_Node_copy_alloc(parent);
     if(!parentCopy) {
         UA_Nodestore_releaseNode(server->nsCtx, parent);
+        UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = parentCopy->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
-        for(size_t j = 0; j<ref->targetIdsSize; j++) {
-            retval = callback(ref->targetIds[j].nodeId, ref->isInverse,
+        for(size_t j = 0; j<ref->refTargetsSize; j++) {
+            UA_UNLOCK(server->serviceMutex);
+            retval = callback(ref->refTargets[j].target.nodeId, ref->isInverse,
                               ref->referenceTypeId, handle);
+            UA_LOCK(server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
         }
@@ -145,6 +162,7 @@ cleanup:
     UA_free(parentCopy);
 
     UA_Nodestore_releaseNode(server->nsCtx, parent);
+    UA_UNLOCK(server->serviceMutex);
     return retval;
 }
 
@@ -156,14 +174,18 @@ cleanup:
 void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
+    UA_LOCK(server->serviceMutex);
     UA_SessionManager_deleteMembers(&server->sessionManager);
+    UA_UNLOCK(server->serviceMutex);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
         LIST_REMOVE(mon, listEntry);
+        UA_LOCK(server->serviceMutex);
         UA_MonitoredItem_delete(server, mon);
+        UA_UNLOCK(server->serviceMutex);
     }
 #endif
 
@@ -176,12 +198,15 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_LOCK_RELEASE(server->networkMutex)
-    UA_LOCK_RELEASE(server->serviceMutex)
+    UA_Server_removeCallback(server, server->nCBIdResponse);
+    UA_Server_MethodQueues_delete(server);
+    UA_AsyncMethodManager_deleteMembers(&server->asyncMethodManager);
 #endif
 
     /* Clean up the Admin Session */
+    UA_LOCK(server->serviceMutex);
     UA_Session_deleteMembersCleanup(&server->adminSession, server);
+    UA_UNLOCK(server->serviceMutex);
 
     /* Clean up the work queue */
     UA_WorkQueue_cleanup(&server->workQueue);
@@ -195,6 +220,11 @@ void UA_Server_delete(UA_Server *server) {
     /* Clean up the config */
     UA_ServerConfig_clean(&server->config);
 
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_DESTROY(server->networkMutex)
+    UA_LOCK_DESTROY(server->serviceMutex)
+#endif
+
     /* Delete the server itself */
     UA_free(server);
 }
@@ -202,12 +232,14 @@ void UA_Server_delete(UA_Server *server) {
 /* Recurring cleanup. Removing unused and timed-out channels and sessions */
 static void
 UA_Server_cleanup(UA_Server *server, void *_) {
+    UA_LOCK(server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
 #ifdef UA_ENABLE_DISCOVERY
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
+    UA_UNLOCK(server->serviceMutex);
 }
 
 /********************/
@@ -256,6 +288,14 @@ UA_Server_init(UA_Server *server) {
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
 
+#if UA_MULTITHREADING >= 100
+    UA_AsyncMethodManager_init(&server->asyncMethodManager, server);
+    UA_Server_MethodQueues_init(server);
+    /* Add a regular callback for for checking responmses using a 50ms interval. */
+    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_CallMethodResponse, NULL,
+                                  50.0, &server->nCBIdResponse);
+#endif
+
     /* Add a regular callback for cleanup and maintenance. With a 10s interval. */
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_cleanup, NULL,
                                   10000.0, NULL);
@@ -282,22 +322,13 @@ UA_Server_init(UA_Server *server) {
 }
 
 UA_Server *
-UA_Server_new() {
-    /* Allocate the server */
-    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
-        return NULL;
-    return UA_Server_init(server);
-}
-
-
-UA_Server *
 UA_Server_newWithConfig(const UA_ServerConfig *config) {
+    if(!config)
+        return NULL;
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
-    if(config)
-        server->config = *config;
+    server->config = *config;
     return UA_Server_init(server);
 }
 
@@ -321,30 +352,59 @@ setServerShutdown(UA_Server *server) {
 UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    return UA_Timer_addTimedCallback(&server->timer,
-                                     (UA_ApplicationCallback)callback,
-                                     server, data, date, callbackId);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = UA_Timer_addTimedCallback(&server->timer,
+                                                     (UA_ApplicationCallback)callback,
+                                                      server, data, date, callbackId);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+UA_StatusCode
+addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                              void *data, UA_Double interval_ms,
+                              UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback(&server->timer,
+                                        (UA_ApplicationCallback)callback,
+                                         server, data, interval_ms, callbackId);
 }
 
 UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
-    return UA_Timer_addRepeatedCallback(&server->timer,
-                                        (UA_ApplicationCallback)callback,
-                                        server, data, interval_ms, callbackId);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = addRepeatedCallback(server, callback, data, interval_ms, callbackId);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 UA_StatusCode
-UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
     return UA_Timer_changeRepeatedCallbackInterval(&server->timer, callbackId,
                                                    interval_ms);
 }
 
+UA_StatusCode
+UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                                         UA_Double interval_ms) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = changeRepeatedCallbackInterval(server, callbackId, interval_ms);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+void
+removeCallback(UA_Server *server, UA_UInt64 callbackId) {
+    UA_Timer_removeCallback(&server->timer, callbackId);
+}
+
 void
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_Timer_removeCallback(&server->timer, callbackId);
+    UA_LOCK(server->serviceMutex);
+    removeCallback(server, callbackId);
+    UA_UNLOCK(server->serviceMutex);
 }
 
 UA_StatusCode UA_EXPORT
@@ -366,7 +426,9 @@ UA_Server_updateCertificate(UA_Server *server,
         LIST_FOREACH(current, &sm->sessions, pointers) {
             if (UA_ByteString_equal(oldCertificate,
                                     &current->session.header.channel->securityPolicy->localCertificate)) {
+                UA_LOCK(server->serviceMutex);
                 UA_SessionManager_removeSession(sm, &current->session.header.authenticationToken);
+                UA_UNLOCK(server->serviceMutex);
             }
         }
 
@@ -440,6 +502,73 @@ verifyServerApplicationURI(const UA_Server *server) {
 }
 #endif
 
+#if UA_MULTITHREADING >= 100
+
+void
+UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
+                               const UA_NodeId *nSessionId, const UA_UInt32 nIndex,
+                               const UA_CallMethodResult *response) {
+    /* Grab the open Request, so we can continue to construct the response */
+    asyncmethod_list_entry *data =
+        UA_AsyncMethodManager_getById(&server->asyncMethodManager, nRequestId, nSessionId);
+    if(!data) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "UA_Server_InsertMethodResponse: can not find UA_CallRequest/UA_CallResponse "
+                       "for Req# %u", nRequestId);
+        return;
+    }
+
+    /* Add UA_CallMethodResult to UA_CallResponse */
+    UA_CallResponse* pResponse = &data->response;
+    UA_CallMethodResult_copy(response, pResponse->results + nIndex);
+
+    /* Reduce the number of open results. Are we done yet with all requests? */
+    data->nCountdown -= 1;
+    if(data->nCountdown > 0)
+        return;
+    
+    /* Get the session */
+    UA_LOCK(server->serviceMutex);
+    UA_Session* session = UA_SessionManager_getSessionById(&server->sessionManager, data->sessionId);
+    UA_UNLOCK(server->serviceMutex);
+    if(!session) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_Server_InsertMethodResponse: Session is gone");
+        UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+        return;
+    }
+
+    /* Check the channel */
+    UA_SecureChannel* channel = session->header.channel;
+    if(!channel) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_Server_InsertMethodResponse: Channel is gone");
+        UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+        return;
+    }
+
+    /* Okay, here we go, send the UA_CallResponse */
+    sendResponse(channel, data->requestId, data->requestHandle,
+                 (UA_ResponseHeader*)&data->response.responseHeader, data->responseType);
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "UA_Server_SendResponse: Response for Req# %u sent", data->requestId);
+    /* Remove this job from the UA_AsyncMethodManager */
+    UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+}
+
+void
+UA_Server_CallMethodResponse(UA_Server *server, void* data) {
+    /* Server fetches Result from queue */
+    struct AsyncMethodQueueElement* pResponseServer = NULL;
+    while(UA_Server_GetAsyncMethodResult(server, &pResponseServer)) {
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "UA_Server_CallMethodResponse: Got Response: OKAY");
+        UA_Server_InsertMethodResponse(server, pResponseServer->m_nRequestId, &pResponseServer->m_nSessionId,
+                                       pResponseServer->m_nIndex, &pResponseServer->m_Response);
+        UA_Server_DeleteMethodQueueElement(server, pResponseServer);
+    }
+}
+
+#endif
+
 /********************/
 /* Main Server Loop */
 /********************/
@@ -498,6 +627,22 @@ UA_Server_run_startup(UA_Server *server) {
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         result |= nl->start(nl, &server->config.customHostname);
+    }
+
+    /* Update the application description to match the previously added discovery urls.
+     * We can only do this after the network layer is started since it inits the discovery url */
+    if (server->config.applicationDescription.discoveryUrlsSize != 0) {
+        UA_Array_delete(server->config.applicationDescription.discoveryUrls, server->config.applicationDescription.discoveryUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+        server->config.applicationDescription.discoveryUrlsSize = 0;
+    }
+    server->config.applicationDescription.discoveryUrls = (UA_String *) UA_Array_new(server->config.networkLayersSize, &UA_TYPES[UA_TYPES_STRING]);
+    if (!server->config.applicationDescription.discoveryUrls) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    server->config.applicationDescription.discoveryUrlsSize = server->config.networkLayersSize;
+    for (size_t i=0; i< server->config.applicationDescription.discoveryUrlsSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        UA_String_copy(&nl->discoveryUrl, &server->config.applicationDescription.discoveryUrls[i]);
     }
 
     /* Spin up the worker threads */

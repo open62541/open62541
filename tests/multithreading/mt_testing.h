@@ -3,9 +3,6 @@
 
 #include <open62541/server_config_default.h>
 
-#define THREAD_CALLBACK_PARAM(name, param) static void * name(void *param)
-#define THREAD_CREATE_PARAM(handle, callback, param) pthread_create(&(handle), NULL, callback, (void*) &(param))
-
 typedef struct {
     void (*func)(void *param); //function to execute
     size_t counter; //index of the iteration
@@ -56,7 +53,7 @@ THREAD_CALLBACK_PARAM(workerLoop, val) {
         tmp.counter = i;
         tmp.func(&tmp);
     }
-    return NULL;
+    return 0;
 }
 
 THREAD_CALLBACK_PARAM(clientLoop, val) {
@@ -72,7 +69,7 @@ THREAD_CALLBACK_PARAM(clientLoop, val) {
     }
     UA_Client_disconnect(tc.clients[tmp.index]);
     UA_Client_delete(tc.clients[tmp.index]);
-    return NULL;
+    return 0;
 }
 
 static UA_INLINE void

@@ -48,9 +48,17 @@ _UA_BEGIN_DECLS
  * Client Lifecycle
  * ---------------- */
 
-/* Create a new client */
+/* The method UA_Client_new is defined in client_config_default.h. So default
+ * plugins outside of the core library (for logging, etc) are already available
+ * during the initialization.
+ *
+ * UA_Client UA_EXPORT * UA_Client_new(void);
+ */
+
+/* Creates a new client. Moves the config into the client with a shallow copy.
+ * The config content is cleared together with the client. */
 UA_Client UA_EXPORT *
-UA_Client_new(void);
+UA_Client_newWithConfig(const UA_ClientConfig *config);
 
 /* Get the client connection status */
 UA_ClientState UA_EXPORT

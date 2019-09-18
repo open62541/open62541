@@ -21,10 +21,10 @@
 #define UA_LOCK_TYPE(mutexName)
 #define UA_LOCK_TYPE_POINTER(mutexName)
 #define UA_LOCK_INIT(mutexName)
-#define UA_LOCK_RELEASE(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
 #define UA_LOCK(mutexName)
 #define UA_UNLOCK(mutexName)
-#define UA_LOCK_SWITCH(currentMutex, newMutex)
+#define UA_LOCK_ASSERT(mutexName, num)
 #endif
 
 #include <open62541/architecture_functions.h>

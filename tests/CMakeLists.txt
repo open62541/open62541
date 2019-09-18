@@ -221,6 +221,10 @@ if (UA_MULTITHREADING EQUAL 100)
     add_executable(check_mt_addDeleteObject multithreading/check_mt_addDeleteObject.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_mt_addDeleteObject ${LIBS})
     add_test_valgrind(mt_addDeleteObject ${TESTS_BINARY_DIR}/check_mt_addDeleteObject)
+
+    add_executable(check_server_asyncop server/check_server_asyncop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_asyncop ${LIBS})
+    add_test_valgrind(server_asyncop ${TESTS_BINARY_DIR}/check_server_asyncop)
 endif()
 
 add_executable(check_services_call server/check_services_call.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -325,10 +329,20 @@ add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_O
 target_link_libraries(check_server_readspeed ${LIBS})
 add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
 
+add_executable(check_server_speed_addnodes server/check_server_speed_addnodes.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_server_speed_addnodes ${LIBS})
+add_test_valgrind(server_speed_addnodes ${TESTS_BINARY_DIR}/check_server_speed_addnodes)
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_executable(check_server_monitoringspeed server/check_server_monitoringspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_monitoringspeed ${LIBS})
     add_test_valgrind(server_monitoringspeed ${TESTS_BINARY_DIR}/check_server_monitoringspeed)
+endif()
+
+if(UA_ENABLE_ASYNCOPERATIONS)
+    add_executable(check_server_asyncop server/check_server_asyncop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_asyncop ${LIBS})
+    add_test_valgrind(server_asyncop ${TESTS_BINARY_DIR}/check_server_asyncop)
 endif()
 
 # Test Client

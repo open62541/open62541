@@ -71,7 +71,6 @@ void server_deleteObject(void* value){
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     do {
         ret = UA_Server_deleteNode(tc.server, UA_NODEID_STRING(1, string_buf), true);
-        sleep(1); //for valgrind
     } while (ret != UA_STATUSCODE_GOOD);
 }
 

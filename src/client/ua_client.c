@@ -31,7 +31,6 @@
 
 static void
 UA_Client_init(UA_Client* client) {
-    memset(client, 0, sizeof(UA_Client));
     UA_SecureChannel_init(&client->channel);
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->state);
@@ -42,11 +41,15 @@ UA_Client_init(UA_Client* client) {
     UA_WorkQueue_init(&client->workQueue);
 }
 
-UA_Client *
-UA_Client_new() {
+UA_Client UA_EXPORT *
+UA_Client_newWithConfig(const UA_ClientConfig *config) {
+    if(!config)
+        return NULL;
     UA_Client *client = (UA_Client*)UA_malloc(sizeof(UA_Client));
     if(!client)
         return NULL;
+    memset(client, 0, sizeof(UA_Client));
+    client->config = *config;
     UA_Client_init(client);
     return client;
 }
@@ -98,8 +101,6 @@ UA_Client_deleteMembers(UA_Client *client) {
 
     /* Clean up the work queue */
     UA_WorkQueue_cleanup(&client->workQueue);
-
-    UA_ClientConfig_deleteMembers(&client->config);
 }
 
 void
@@ -111,6 +112,7 @@ UA_Client_reset(UA_Client* client) {
 void
 UA_Client_delete(UA_Client* client) {
     UA_Client_deleteMembers(client);
+    UA_ClientConfig_deleteMembers(&client->config);
     UA_free(client);
 }
 
@@ -525,8 +527,8 @@ UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
                            UA_UInt32 *requestId) {
     if (UA_Client_getState(client) < UA_CLIENTSTATE_SECURECHANNEL) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Cient must be connected to send high-level requests");
-        return UA_STATUSCODE_GOOD;
+				"Client must be connected to send high-level requests");
+		return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
     return __UA_Client_AsyncService(client, request, requestType, callback,
                                     responseType, userdata, requestId);
