@@ -365,8 +365,9 @@ Nodeset_newReference(Nodeset *nodeset, UA_Node *node, int attributeSize,
     UA_NodeReferenceKind *newRef = refs + node->referencesSize - 1;
     newRef->referenceTypeId = refTypeId;
     newRef->isInverse = !isForward;
-    newRef->targetIdsSize = 0;
-    newRef->targetIds = NULL;
+    newRef->refTargetsSize = 0;
+    newRef->refTargets = NULL;
+    ZIP_INIT(&newRef->refTargetsTree);
     return newRef;
 }
 
@@ -392,12 +393,12 @@ addReference(void *ref, void *userData) {
        the nodeset
     */
     if(isBidirectionalReference(ns, &tref->ref->referenceTypeId)) {
-        for(size_t cnt = 0; cnt < tref->ref->targetIdsSize; cnt++) {
+        for(size_t cnt = 0; cnt < tref->ref->refTargetsSize; cnt++) {
             UA_ExpandedNodeId eId;
             eId.namespaceUri = UA_STRING_NULL;
             eId.nodeId = *tref->src;
             eId.serverIndex = 0;
-            UA_Server_addReference(ns->server, tref->ref->targetIds[cnt].nodeId,
+            UA_Server_addReference(ns->server, tref->ref->refTargets[cnt].target.nodeId,
                                    tref->ref->referenceTypeId, eId, tref->ref->isInverse);
         }
     }
@@ -407,7 +408,7 @@ static void
 cleanupRefs(void *ref, void *userData) {
     TRef *tref = (TRef *)ref;
     UA_NodeId_delete(tref->src);
-    UA_free(tref->ref->targetIds);
+    UA_free(tref->ref->refTargets);
     UA_free(tref->ref);
 }
 
@@ -496,10 +497,10 @@ Nodeset_newNodeFinish(Nodeset *nodeset, UA_Node *node) {
         UA_NodeReferenceKind *copyRef =
             (UA_NodeReferenceKind *)UA_malloc(sizeof(UA_NodeReferenceKind));
         memcpy(copyRef, &node->references[cnt], sizeof(UA_NodeReferenceKind));
-        copyRef->targetIds = (UA_ExpandedNodeId *)UA_malloc(
-            sizeof(UA_ExpandedNodeId) * node->references[cnt].targetIdsSize);
-        memcpy(copyRef->targetIds, node->references[cnt].targetIds,
-               sizeof(UA_ExpandedNodeId) * node->references[cnt].targetIdsSize);
+        copyRef->refTargets = (UA_ReferenceTarget *)UA_malloc(
+            sizeof(UA_ReferenceTarget) * node->references[cnt].refTargetsSize);
+        memcpy(copyRef->refTargets, node->references[cnt].refTargets,
+               sizeof(UA_ReferenceTarget) * node->references[cnt].refTargetsSize);
         UA_NodeId_copy(&node->references[cnt].referenceTypeId, &copyRef->referenceTypeId);
         ref->ref = copyRef;
         ref->src = UA_NodeId_new();
@@ -509,17 +510,57 @@ Nodeset_newNodeFinish(Nodeset *nodeset, UA_Node *node) {
     UA_Nodestore_insertNode(UA_Server_getNsCtx(nodeset->server), node, NULL);
 }
 
+//copied from ua_nodes
+static UA_StatusCode
+addReferenceTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target,
+                   UA_UInt32 targetHash) {
+    UA_ReferenceTarget *targets = (UA_ReferenceTarget *)UA_realloc(
+        refs->refTargets, (refs->refTargetsSize + 1) * sizeof(UA_ReferenceTarget));
+    if(!targets)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Repair the pointers in the tree for the realloced array */
+    uintptr_t arraydiff = (uintptr_t)targets - (uintptr_t)refs->refTargets;
+    if(arraydiff != 0) {
+        for(size_t i = 0; i < refs->refTargetsSize; i++) {
+            if(targets[i].zipfields.zip_left)
+                *(uintptr_t *)&targets[i].zipfields.zip_left += arraydiff;
+            if(targets[i].zipfields.zip_right)
+                *(uintptr_t *)&targets[i].zipfields.zip_right += arraydiff;
+        }
+    }
+
+    if(refs->refTargetsTree.zip_root)
+        *(uintptr_t *)&refs->refTargetsTree.zip_root += arraydiff;
+    refs->refTargets = targets;
+
+    UA_ReferenceTarget *entry = &refs->refTargets[refs->refTargetsSize];
+    UA_StatusCode retval = UA_ExpandedNodeId_copy(target, &entry->target);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(refs->refTargetsSize == 0) {
+            /* We had zero references before (realloc was a malloc) */
+            UA_free(refs->refTargets);
+            refs->refTargets = NULL;
+        }
+        return retval;
+    }
+
+    entry->targetHash = targetHash;
+    ZIP_INSERT(UA_ReferenceTargetHead, &refs->refTargetsTree, entry,
+               ZIP_FFS32(UA_UInt32_random()));
+    refs->refTargetsSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
 void
 Nodeset_newReferenceFinish(Nodeset *nodeset, UA_NodeReferenceKind *ref, char *targetId) {
-    UA_ExpandedNodeId *targets = (UA_ExpandedNodeId *)UA_realloc(
-        ref->targetIds, sizeof(UA_ExpandedNodeId) * (ref->targetIdsSize + 1));
 
-    ref->targetIds = targets;
-    ref->targetIds[ref->targetIdsSize].nodeId =
-        translateNodeId(nodeset->namespaceTable->ns, extractNodeId(targetId));
-    ref->targetIds[ref->targetIdsSize].namespaceUri = UA_STRING_NULL;
-    ref->targetIds[ref->targetIdsSize].serverIndex = 0;
-    ref->targetIdsSize++;
+    UA_ExpandedNodeId eid;
+    eid.nodeId = translateNodeId(nodeset->namespaceTable->ns, extractNodeId(targetId));
+    eid.serverIndex = 0;
+    eid.namespaceUri = UA_STRING_NULL;
+    UA_UInt32 targetHash = UA_ExpandedNodeId_hash(&eid);
+    addReferenceTarget(ref, &eid, targetHash);
 }
 
 void
