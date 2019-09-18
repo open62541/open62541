@@ -314,8 +314,10 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 void
 monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+#endif
 
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,

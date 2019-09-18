@@ -105,13 +105,13 @@ The following is the list of supported scopes:
 - **arch**: Changes to specific architecture code in `root/arch`
 - **client**: Changes only affecting client code
 - **core**: Core functionality used by the client and server
-- **encrypt**: Encryption changes
-- **example**: Example code changes
-- **multithread**: Changes specifically for multithreading
+- **ex**: Example code changes
+- **mt**: Changes specifically for multithreading
 - **nc**: Nodeset compiler
 - **pack**: Packaging setting changes
-- **plugis**: Change to any (optional) plugin
+- **plugin**: Change to any (optional) plugin
 - **pubsub**: Changes to the pubsub code
+- **sec**: Changes to security, encryption, etc.
 - **server**: Changes only affecting server code
 
 ### Subject

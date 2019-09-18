@@ -57,7 +57,7 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
             continue;
 
         /* Match the targets or recurse */
-        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
+        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
             /* Check if we already have seen the referenced node and skip to
              * avoid endless recursion. Do this only at every 5th depth to save
              * effort. Circular dependencies are rare and forbidden for most
@@ -66,7 +66,7 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
                 struct ref_history *last = visitedRefs;
                 UA_Boolean skip = false;
                 while(!skip && last) {
-                    if(UA_NodeId_equal(last->id, &refs->targetIds[j].nodeId))
+                    if(UA_NodeId_equal(last->id, &refs->refTargets[j].target.nodeId))
                         skip = true;
                     last = last->parent;
                 }
@@ -75,13 +75,13 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
             }
 
             /* Stack-allocate the visitedRefs structure for the next depth */
-            struct ref_history nextVisitedRefs = {visitedRefs, &refs->targetIds[j].nodeId,
+            struct ref_history nextVisitedRefs = {visitedRefs, &refs->refTargets[j].target.nodeId,
                                                   (UA_UInt16)(visitedRefs->depth+1)};
 
             /* Recurse */
             UA_Boolean foundRecursive =
-                isNodeInTreeNoCircular(nsCtx, &refs->targetIds[j].nodeId, nodeToFind, &nextVisitedRefs,
-                                       referenceTypeIds, referenceTypeIdsSize);
+                isNodeInTreeNoCircular(nsCtx, &refs->refTargets[j].target.nodeId, nodeToFind,
+                                       &nextVisitedRefs, referenceTypeIds, referenceTypeIdsSize);
             if(foundRecursive) {
                 UA_Nodestore_releaseNode(nsCtx, node);
                 return true;
@@ -136,8 +136,8 @@ getNodeType(UA_Server *server, const UA_Node *node) {
             continue;
         if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef))
             continue;
-        UA_assert(node->references[i].targetIdsSize > 0);
-        const UA_NodeId *targetId = &node->references[i].targetIds[0].nodeId;
+        UA_assert(node->references[i].refTargetsSize> 0);
+        const UA_NodeId *targetId = &node->references[i].refTargets[0].target.nodeId;
         const UA_Node *type = UA_Nodestore_getNode(server->nsCtx, targetId);
         if(!type)
             continue;

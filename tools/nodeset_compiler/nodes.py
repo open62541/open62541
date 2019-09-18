@@ -253,6 +253,8 @@ class VariableNode(Node):
                 self.dataType = RefOrAlias(av)
             elif  at == "ArrayDimensions":
                 self.arrayDimensions = av.split(",")
+            elif at == "Historizing":
+                self.historizing = "false" not in av.lower()
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:

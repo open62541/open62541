@@ -147,9 +147,9 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = parentCopy->referencesSize; i > 0; --i) {
         UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
-        for(size_t j = 0; j<ref->targetIdsSize; j++) {
+        for(size_t j = 0; j<ref->refTargetsSize; j++) {
             UA_UNLOCK(server->serviceMutex);
-            retval = callback(ref->targetIds[j].nodeId, ref->isInverse,
+            retval = callback(ref->refTargets[j].target.nodeId, ref->isInverse,
                               ref->referenceTypeId, handle);
             UA_LOCK(server->serviceMutex);
             if(retval != UA_STATUSCODE_GOOD)
@@ -321,28 +321,18 @@ UA_Server_init(UA_Server *server) {
     return NULL;
 }
 
-UA_Server *
-UA_Server_new() {
-    /* Allocate the server */
+UA_Server* UA_Server_newWithConfig(const UA_ServerConfig *config) {
+    if(!config)
+        return NULL;
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
+    server->config = *config;
     return UA_Server_init(server);
 }
 
-void* UA_Server_getNsCtx(UA_Server* server)
-{
+void* UA_Server_getNsCtx(UA_Server *server) {
     return server->nsCtx;
-}
-
-UA_Server *
-UA_Server_newWithConfig(const UA_ServerConfig *config) {
-    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
-        return NULL;
-    if(config)
-        server->config = *config;
-    return UA_Server_init(server);
 }
 
 /* Returns if the server should be shut down immediately */

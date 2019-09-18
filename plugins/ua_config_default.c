@@ -37,6 +37,14 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
+UA_Server *
+UA_Server_new() {
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+    config.logger = UA_Log_Stdout_;
+    return UA_Server_newWithConfig(&config);
+}
+
 /*******************************/
 /* Default Connection Settings */
 /*******************************/
@@ -642,6 +650,15 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
 /***************************/
 /* Default Client Settings */
 /***************************/
+
+UA_Client * UA_Client_new() {
+    UA_ClientConfig config;
+    memset(&config, 0, sizeof(UA_ClientConfig));
+    config.logger.log = UA_Log_Stdout_log;
+    config.logger.context = NULL;
+    config.logger.clear = UA_Log_Stdout_clear;
+    return UA_Client_newWithConfig(&config);
+}
 
 static UA_INLINE void
 UA_ClientConnectionTCP_poll_callback(UA_Client *client, void *data) {
