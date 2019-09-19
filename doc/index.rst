@@ -10,12 +10,16 @@ library is platform independent. All platform-specific functionality is
 implemented via exchangeable plugins. Plugin implementations are provided for
 the major operating systems.
 
-open62541 is licensed under the Mozilla Public License v2.0. So the *open62541
-library can be used in projects that are not open source*. Only changes to the
-open62541 library itself need to published under the same license. The plugins,
-as well as the server and client examples are in the public domain (CC0
-license). They can be reused under any license and changes do not have to be
-published.
+open62541 is licensed under the Mozilla Public License v2.0 (MPLv2). This allows
+the open62541 library to be combined and distributed with any proprietary
+software. Only changes to the open62541 library itself need to be licensed under
+the MPLv2 when copied and distributed. The plugins, as well as the server and
+client examples are in the public domain (CC0 license). They can be reused under
+any license and changes do not have to be published.
+
+The open62541 server SDK is certified by the OPC Foundation. See
+https://open62541.org/certified-sdk for the details. During development, the
+Conformance Testing Tools (CTT) of the OPC Foundation are regularly applied.
 
 OPC Unified Architecture
 ------------------------
