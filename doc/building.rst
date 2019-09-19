@@ -178,7 +178,7 @@ Detailed SDK Features
    Enable dynamic addition and removal of nodes at runtime
 
 **UA_ENABLE_AMALGAMATION**
-   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not receommended for installation.
+   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not recommended for installation.
 
 **UA_ENABLE_MULTITHREADING (EXPERIMENTAL)**
    Enable multi-threading support. Work is distributed to a number of worker threads.
