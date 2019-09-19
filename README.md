@@ -2,7 +2,7 @@
 
 open62541 (<http://open62541.org>) is an open source and free implementation of OPC UA (OPC Unified Architecture) written in the common subset of the C99 and C++98 languages. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. open62541 library is platform independent. All platform-specific functionality is implemented via exchangeable plugins. Plugin implementations are provided for the major operating systems.
 
-open62541 is licensed under the Mozilla Public License v2.0. So the *open62541 library can be used in projects that are not open source*. Only changes to the open62541 library itself need to published under the same license. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
+open62541 is licensed under the Mozilla Public License v2.0 (MPLv2). This allows the open62541 library to be combined and distributed with any proprietary software. Only changes to the open62541 library itself need to be licensed under the MPLv2 when copied and distributed. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
 
 The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
@@ -54,7 +54,8 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
   - UADP Binary protocol with UDP-multicast or Ethernet communication
   - PubSub JSON encoding
 
-open62541 is currently self-certifying. That is, the Conformance Testing Tools (CTT) of the OPC Foundation are regularly applied. But the SDK has not started an official certification so far.
+The open62541 server SDK is certified by the OPC Foundation. The certified feature set of open62541 v1.0 includes the 'Micro Embedded Device Server' Profile with additional support for subscriptions, method calls and security (encryption). In addition to the certified features, open62541 version 1.0 also supports OPC UA publisher/subscriber communication.
+See https://open62541.org/certified-sdk for more details. During development, the Conformance Testing Tools (CTT) of the OPC Foundation are regularly applied.
 The CTT configuration and results are tracked at https://github.com/open62541/open62541-ctt. The OPC UA profiles under regular test in the CTT are currently:
 
 - Micro Embedded Device Server
