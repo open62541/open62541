@@ -17,6 +17,7 @@ Build Status:
 
 Code Quality:
 
+[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/68ad08e897624c77a64fc2be66ca7b50)](https://www.codacy.com/app/open62541/open62541?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=open62541/open62541&amp;utm_campaign=Badge_Grade)
 [![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
