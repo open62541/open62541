@@ -696,6 +696,15 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         nl->listen(nl, server, timeout);
     }
 
+#if defined(UA_ENABLE_PUBSUB_MQTT)
+    /* Listen on the pubsublayer, but only if the yield function is set */
+    for(size_t i = 0; i < server->pubSubManager.connectionsSize; ++i) {
+        UA_PubSubConnection *ps = &server->pubSubManager.connections[i];
+            if(ps && ps->channel->yield){
+                ps->channel->yield(ps->channel, timeout);
+        }
+    }
+#endif
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && (UA_MULTITHREADING < 200)
     if(server->config.discovery.mdnsEnable) {
         // TODO multicastNextRepeat does not consider new input data (requests)

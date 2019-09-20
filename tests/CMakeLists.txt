@@ -32,6 +32,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src/server")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
 include_directories("${PROJECT_BINARY_DIR}")
+include_directories("${PROJECT_BINARY_DIR}/../plugins")
 
 if(UA_ENABLE_ENCRYPTION)
     # mbedtls includes
@@ -321,6 +322,17 @@ if(UA_ENABLE_PUBSUB)
             target_link_libraries(check_pubsub_informationmodel_methods ${LIBS})
             add_test(check_pubsub_informationmodel_methods ${TESTS_BINARY_DIR}/check_pubsub_informationmodel_methods)
 
+        endif()
+    endif()
+    if(UA_ENABLE_PUBSUB_MQTT)
+        if(NOT WIN32)
+            add_executable(check_pubsub_connection_mqtt pubsub/check_pubsub_connection_mqtt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+            target_link_libraries(check_pubsub_connection_mqtt ${LIBS})
+            add_test_valgrind(pubsub_connection_mqtt ${TESTS_BINARY_DIR}/check_pubsub_connection_mqtt)
+
+            add_executable(check_pubsub_mqtt pubsub/check_pubsub_mqtt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+            target_link_libraries(check_pubsub_mqtt ${LIBS})
+            add_test_valgrind(pubsub_mqtt ${TESTS_BINARY_DIR}/check_pubsub_mqtt)
         endif()
     endif()
 endif()

@@ -428,6 +428,7 @@ cmake \
     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
     -DUA_ENABLE_SUBSCRIPTIONS=ON \
     -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+    -DUA_ENABLE_PUBSUB_MQTT=ON \
     -DUA_ENABLE_UNIT_TESTS_MEMCHECK=OFF \
     -DUA_NAMESPACE_ZERO=FULL ..
 make -j && make test ARGS="-V"
@@ -480,6 +481,16 @@ if [ "$CC" != "tcc" ]; then
     echo -en 'travis_fold:end:script.build.unit_test_ns0_minimal\\r'
 
     echo -e "\r\n== Unit tests (reduced NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_reduced\\r'
+    mkdir -p build && cd build
+    cmake \
+        -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
+        -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_MQTT=ON ..
+    make -j
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.mqtt\\r'
+
+    echo -e "\r\n== Unit tests (full NS0) ==" && echo -en 'travis_fold:start:script.build.unit_test_ns0_full\\r'
     mkdir -p build && cd build
     cmake \
         -DCMAKE_BUILD_TYPE=Debug \
