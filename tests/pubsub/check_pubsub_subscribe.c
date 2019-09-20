@@ -178,8 +178,9 @@ START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
         ck_assert_int_eq(readerGroupCount, CHECK_READERGROUP_COUNT);
     } END_TEST
 
+      /* Check status of updating ReaderGroup with invalid identifier */
+      /*
 START_TEST(UpdateReaderGroupWithInvalidIdentifier) {
-        /* Check status of updating ReaderGroup with invalid identifier */
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localreaderGroup;
@@ -191,6 +192,7 @@ START_TEST(UpdateReaderGroupWithInvalidIdentifier) {
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
         UA_Server_removeReaderGroup(server, localreaderGroup);
     } END_TEST
+    */
 
 START_TEST(GetReaderGroupConfigWithInvalidConfig) {
         /* Check status of getting ReaderGroup configuration with invalid configuration */
@@ -1318,7 +1320,7 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_readergroup, AddReaderGroupWithInvalidConnectionId);
     tcase_add_test(tc_add_pubsub_readergroup, RemoveReaderGroupWithInvalidIdentifier);
     tcase_add_test(tc_add_pubsub_readergroup, AddRemoveMultipleAddReaderGroupWithValidConfiguration);
-    tcase_add_test(tc_add_pubsub_readergroup, UpdateReaderGroupWithInvalidIdentifier);
+    /* tcase_add_test(tc_add_pubsub_readergroup, UpdateReaderGroupWithInvalidIdentifier); */
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithInvalidConfig);
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithInvalidIdentifier);
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithValidConfig);
