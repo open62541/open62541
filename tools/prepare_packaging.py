@@ -29,9 +29,11 @@ version_patch = m.group(3).replace(".", "") if m.group(3) is not None else "0"
 version_label = m.group(4) if m.group(4) is not None else ""
 #print("major {} minor {} patch {} label {}".format(version_major, version_minor, version_patch, version_label))
 
-debian_distribution = "unstable"
-if version_label is not "":
-    debian_distribution = "UNRELEASED"
+# We can not use unstable for now, because dpkg-buildpackage wants to sign them
+# It will fail with gpg: skipped "open62541 Team <open62541-core@googlegroups.com>": No secret key
+#debian_distribution = "unstable"
+#if version_label is not "":
+debian_distribution = "UNRELEASED"
 
 debian_path = os.path.join(dirpath, "debian")
 changelog_file = os.path.join(debian_path, "changelog")
