@@ -1374,22 +1374,72 @@ UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
 #endif // UA_ENABLE_HISTORIZING
 
 /**
-* .. _async_methods:
-*
-* Async Methods
-* -------------
-* Sample on working with async method calls
-* Check client_method_async and tutorial_server_method_async for working samples.
-*
-* Minimal Server:
-*
-* - Create a method node
-* - mark as async: ``UA_Server_MethodNodeAsync``
-* - set callback to be notified: ``config->asyncOperationNotifyCallback = ...``
-* - fetch MethodCall: ``UA_Server_GetNextAsyncMethod``
-* - execute Method: e.g. UA_Server_call(UA_Server*, UA_CallMethodRequest*)
-* - pass back the result: ``UA_Server_SetAsyncMethodResult``
-* - free memory used: free UA_CallMethodResult */
+ * .. _multithreading:
+ *
+ * Multithreading
+ * --------------
+ *
+ * open62541 supports different levels of multithreading which can be specified by the build option UA_MULTITHREADING.
+ *
+ * Level ``100``: Synchronous API
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ *
+ * This level supports the scenario of using the open62541 SDK in a multithreaded application.
+ * All SDK functions which are marked with the UA_THREADSAFE-macro can be accessed by several threads at the same time.
+ * Currently, only win32 and posix are supported architectures.
+ *
+ * Concept and guidelines:
+ * ^^^^^^^^^^^^^^^^^^^^^^^
+ *
+ * Each open62541-server offers multiple locks which are used to avoid race conditions.
+ * Targeting the posix architecture, these locks are realized by Mutexes.
+ * For the win32 architecture critical section objects are used. These locks are defined inside the UA_Server-struct.
+ * The most important lock used by the stack to ensure the synchronous API functionality is the *serviceMutex*.
+ * Each time the user is calling an API function offered by the open62541 library (with the UA_THREADSAFE-macro),
+ * the stack is requesting a lock for the *serviceMutex*. If the servieMutex is already locked by another thread,
+ * the thread waits for the lock to become available.
+ *
+ * If a service call is requested by a client via the network layer,
+ * the open62541 stack will request the *serviceMutex* before the service call will be executed as well.
+ *
+ * The server SDK is supporting callbacks to user-defined code (e.g MethodNode callbacks).
+ * Before the open62541 stack is calling the user-defined code, the stack will release/unlock the *serviceMutex*.
+ * Hence, another thread (or a client) can access the server SDK functionality while the user-defined code is processed.
+ * After the execution of the user-defined callback is finished, the open62541 stack will request the *serviceMutex* again.
+ *
+ * Recursive/re-entrant locks are enabling one thread to lock a mutex or critical section object multiple times.
+ * The owning thread must then unlock/release the lock the same number of times avoiding deadlocks or undefined behaviour.
+ * To reduce the complexity of the open62541 stack which is caused by multiple threads accessing the server SDK,
+ * several clients requesting services and the execution of user-defined code via callbacks,
+ * the open62541 SDK is avoiding the usage of recursive/re-entrant locks.
+ *
+ * Outline for maintainers and developers:
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ * - Avoid the usage of recursive/re-entrant locks.
+ * - Unlock/Release lock before the execution of user-defined code via callbacks starts.
+ * - Use the UA_LOCK_ASSERT-macro to ensure that the current thread is owning the lock
+ *
+ * Level ``200``: Parallel execution of different Tasks
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ *
+ * Work is distributed to a number of worker threads. These worker threads are created within the SDK. This feature is still in development.
+ *
+ * .. _async_methods:
+ *
+ * Async Methods
+ * -------------
+ * Sample on working with async method calls
+ * Check client_method_async and tutorial_server_method_async for working samples.
+ *
+ * Minimal Server:
+ *
+ * - Create a method node
+ * - mark as async: ``UA_Server_MethodNodeAsync``
+ * - set callback to be notified: ``config->asyncOperationNotifyCallback = ...``
+ * - fetch MethodCall: ``UA_Server_GetNextAsyncMethod``
+ * - execute Method: e.g. UA_Server_call(UA_Server*, UA_CallMethodRequest*)
+ * - pass back the result: ``UA_Server_SetAsyncMethodResult``
+ * - free memory used: free UA_CallMethodResult */
 
 #if UA_MULTITHREADING >= 100
 
