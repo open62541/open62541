@@ -54,14 +54,26 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
   - UADP Binary protocol with UDP-multicast or Ethernet communication
   - PubSub JSON encoding
 
-The open62541 server SDK is certified by the OPC Foundation. The certified feature set of open62541 v1.0 includes the 'Micro Embedded Device Server' Profile with additional support for subscriptions, method calls and security (encryption). In addition to the certified features, open62541 version 1.0 also supports OPC UA publisher/subscriber communication.
-See https://open62541.org/certified-sdk for more details. During development, the Conformance Testing Tools (CTT) of the OPC Foundation are regularly applied.
+### Official Certification
+
+The sample server (server_ctt) built using open62541 v1.0 is in conformance with the 'Micro Embedded Device Server' Profile of OPC Foundation supporting OPC UA client/server communication, subscriptions, method calls and security (encryption) with the security policies 'Basic128Rsa15', 'Basic256' and 'Basic256Sha256' and the facets 'method server' and 'node management'. See https://open62541.org/certified-sdk for more details.
+
+PubSub (UADP) is implemented in open62541. But the feature cannot be certified at this point in time (Sep-2019) due to the lack of official test cases and testing tools.
+
+During development, the Conformance Testing Tools (CTT) of the OPC Foundation are regularly applied.
 The CTT configuration and results are tracked at https://github.com/open62541/open62541-ctt. The OPC UA profiles under regular test in the CTT are currently:
 
 - Micro Embedded Device Server
 - Method Server Facet
+- Node Management Facet
+- Security Policies
+  - Basic128Rsa15
+  - Basic256
+  - Basic256Sha256
+- User Tokens
+  - Anonymous Facet
+  - User Name Password Server Facet
 
-The goal for the upcoming 0.4 release is to support the *Embedded UA Server* profile in the CTT.
 See the page on [open62541 Features](FEATURES.md) for an in-depth look at the support for the conformance units that make up the OPC UA profiles.
   
 ### Dependencies
