@@ -198,7 +198,11 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
                    pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
                     UA_DataSetReader* processReader = checkReaderIdentifier(server, pMsg, tmpReader);
-                    return processReader;
+                    /* Check whether DatasetReader is NULL */
+                    if(!processReader)
+                        break;
+                    else
+                        return processReader;
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT16:
@@ -206,7 +210,11 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
                    pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*) tmpReader->config.publisherId.data) {
                     UA_DataSetReader* processReader = checkReaderIdentifier(server, pMsg, tmpReader);
-                    return processReader;
+                    /* Check whether DatasetReader is NULL */
+                    if(!processReader)
+                        break;
+                    else
+                        return processReader;
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT32:
@@ -214,7 +222,11 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
                    pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
                     UA_DataSetReader* processReader = checkReaderIdentifier(server, pMsg, tmpReader);
-                    return processReader;
+                    /* Check whether DatasetReader is NULL */
+                    if(!processReader)
+                        break;
+                    else
+                        return processReader;
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT64:
@@ -222,7 +234,11 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
                    pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
                     UA_DataSetReader* processReader = checkReaderIdentifier(server, pMsg, tmpReader);
-                    return processReader;
+                    /* Check whether DatasetReader is NULL */
+                    if(!processReader)
+                        break;
+                    else
+                        return processReader;
                 }
                 break;
             case UA_PUBLISHERDATATYPE_STRING:
@@ -230,7 +246,11 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
                    UA_String_equal(&pMsg->publisherId.publisherIdString, (UA_String*)tmpReader->config.publisherId.data)) {
                     UA_DataSetReader* processReader = checkReaderIdentifier(server, pMsg, tmpReader);
-                    return processReader;
+                    /* Check whether DatasetReader is NULL */
+                    if(!processReader)
+                        break;
+                    else
+                        return processReader;
                 }
                 break;
             default:
