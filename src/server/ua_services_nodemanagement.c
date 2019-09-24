@@ -258,6 +258,49 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     return retval;
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+/* A model change event is created when
+ *
+ * TODO: Also create the event when a node type changes.
+ *
+ * TODO: Model Change events have to be used together with the Node Version
+ * property (Part 3, 9.32.2).
+ */
+static void
+createModelChangeEvent(UA_Server *server) {
+    UA_NodeId outId;
+    UA_StatusCode retval = UA_Server_createEvent(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE), &outId);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Failed to create Model Change Event with StatusCode %s",
+                       UA_StatusCode_name(retval));
+        return;
+    }
+
+    /* Set the Event Attributes */
+    /* Setting the Time is required or else the event will not show up in UAExpert! */
+    UA_DateTime eventTime = UA_DateTime_now();
+    UA_Server_writeObjectProperty_scalar(server, outId, UA_QUALIFIEDNAME(0, "Time"),
+                                         &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
+
+    UA_UInt16 eventSeverity = 100;
+    UA_Server_writeObjectProperty_scalar(server, outId, UA_QUALIFIEDNAME(0, "Severity"),
+                                         &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_LocalizedText eventMessage = UA_LOCALIZEDTEXT("en-US", "A model change has occurred.");
+    UA_Server_writeObjectProperty_scalar(server, outId, UA_QUALIFIEDNAME(0, "Message"),
+                                         &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+
+    UA_String eventSourceName = UA_STRING("Server");
+    UA_Server_writeObjectProperty_scalar(server, outId, UA_QUALIFIEDNAME(0, "SourceName"),
+                                         &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_Server_triggerEvent(server, outId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+}
+
+#endif
+
 /********************/
 /* Instantiate Node */
 /********************/
@@ -1283,6 +1326,20 @@ AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
         recursiveDeleteNode(server, session, 0, NULL, node, true);
     }
     UA_Nodestore_releaseNode(server->nsCtx, node);
+
+    /* Trigger a ModelChange event if the node is in the normal node hierarchy
+     * (not for event instances...) */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    const UA_NodeId rootNode = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+    const UA_NodeId hierarch = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_NodeId *hierarchRefs = NULL;
+    size_t hierarchRefsSize = 0;
+    referenceSubtypes(server, &hierarch, &hierarchRefsSize, &hierarchRefs);
+    if(!server->bootstrapNS0 &&
+       isNodeInTree(server->nsCtx, nodeId, &rootNode, hierarchRefs, hierarchRefsSize))
+        createModelChangeEvent(server);
+#endif
+
     return retval;
 }
 
@@ -1647,6 +1704,10 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     UA_Array_delete(hierarchicalRefs, hierarchicalRefsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     
     UA_Nodestore_releaseNode(server->nsCtx, node);
+
+/* #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+/*     createModelChangeEvent(server); */
+/* #endif */
 }
 
 void Service_DeleteNodes(UA_Server *server, UA_Session *session,
@@ -1773,6 +1834,11 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
      * if BOTH directions already existed */
     if(firstExisted && secondExisted)
         *retval = UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
+
+/* #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+/*     if(*retval == UA_STATUSCODE_GOOD) */
+/*         createModelChangeEvent(server); */
+/* #endif */
 }
 
 void Service_AddReferences(UA_Server *server, UA_Session *session,
@@ -1855,6 +1921,11 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
     *retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
                                  (UA_EditNodeCallback)deleteOneWayReference,
                                  &secondItem);
+
+/* #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+/*     if(*retval == UA_STATUSCODE_GOOD) */
+/*         createModelChangeEvent(server); */
+/* #endif */
 }
 
 void
