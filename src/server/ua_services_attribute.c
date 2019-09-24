@@ -1726,5 +1726,8 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, (void*)(uintptr_t)value, type);
-    return writeObjectProperty(server, objectId, propertyName, var);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = writeObjectProperty(server, objectId, propertyName, var);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
