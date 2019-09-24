@@ -355,6 +355,22 @@ UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds, UA_DataSetMetaDataType *metaData){
+    if(!metaData)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_PublishedDataSet *currentPublishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
+    if(!currentPublishedDataSet) 
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_DataSetMetaDataType tmpDataSetMetaData;
+    if(UA_DataSetMetaDataType_copy(&currentPublishedDataSet->dataSetMetaData, &tmpDataSetMetaData) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    *metaData = tmpDataSetMetaData;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier){
     for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; i++){
@@ -391,12 +407,90 @@ void
 UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataSet){
     UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
     //delete PDS
-    UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
     UA_DataSetField *field, *tmpField;
     TAILQ_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
         UA_Server_removeDataSetField(server, field->identifier);
     }
+    UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
     UA_NodeId_clear(&publishedDataSet->identifier);
+}
+
+static UA_StatusCode
+generateFieldMetaData(UA_Server *server, UA_DataSetField *field, UA_FieldMetaData *fieldMetaData){
+    switch (field->config.dataSetFieldType){
+        case UA_PUBSUB_DATASETFIELD_VARIABLE:
+            if(UA_String_copy(&field->config.field.variable.fieldNameAlias, &fieldMetaData->name) != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADINTERNALERROR;
+            fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            fieldMetaData->dataSetFieldId = UA_GUID_NULL;
+
+            //ToDo after freeze PR, the value source must be checked (other behavior for static value source)
+            if(field->config.field.variable.staticValueSourceEnabled){
+                fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(
+                        field->config.field.variable.staticValueSource.value.arrayDimensionsSize, sizeof(UA_UInt32));
+                if(fieldMetaData->arrayDimensions == NULL)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                memcpy(fieldMetaData->arrayDimensions, field->config.field.variable.staticValueSource.value.arrayDimensions,
+                        sizeof(UA_UInt32) *field->config.field.variable.staticValueSource.value.arrayDimensionsSize);
+                fieldMetaData->arrayDimensionsSize = field->config.field.variable.staticValueSource.value.arrayDimensionsSize;
+                if(UA_NodeId_copy(&field->config.field.variable.staticValueSource.value.type->typeId,
+                        &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
+                    if(fieldMetaData->arrayDimensions){
+                        UA_free(fieldMetaData->arrayDimensions);
+                        return UA_STATUSCODE_BADINTERNALERROR;
+                    }
+                }
+                fieldMetaData->properties = NULL;
+                fieldMetaData->propertiesSize = 0;
+                //TODO collect value rank for the static field source
+                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+                return UA_STATUSCODE_GOOD;
+            }
+            UA_Variant value;
+            UA_Variant_init(&value);
+            if(UA_Server_readArrayDimensions(server, field->config.field.variable.publishParameters.publishedVariable,
+                                             &value) != UA_STATUSCODE_GOOD){
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub meta data generation. Reading ArrayDimension failed.");
+            } else {
+                fieldMetaData->arrayDimensions = (UA_UInt32 *) UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
+                if(fieldMetaData->arrayDimensions == NULL)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions, sizeof(UA_UInt32)*value.arrayDimensionsSize);
+                fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
+            }
+            if(UA_Server_readDataType(server, field->config.field.variable.publishParameters.publishedVariable,
+                                      &fieldMetaData->dataType) != UA_STATUSCODE_GOOD){
+                if(fieldMetaData->arrayDimensions){
+                    UA_free(fieldMetaData->arrayDimensions);
+                    return UA_STATUSCODE_BADINTERNALERROR;
+                }
+            }
+            fieldMetaData->properties = NULL;
+            fieldMetaData->propertiesSize = 0;
+            UA_Int32 valueRank;
+            if(UA_Server_readValueRank(server, field->config.field.variable.publishParameters.publishedVariable,
+                                       &valueRank) != UA_STATUSCODE_GOOD){
+                if(fieldMetaData->arrayDimensions){
+                    UA_free(fieldMetaData->arrayDimensions);
+                    return UA_STATUSCODE_BADINTERNALERROR;
+                }
+            }
+            fieldMetaData->valueRank = valueRank;
+            if(field->config.field.variable.promotedField){
+                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
+            } else {
+                fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+            }
+            //TODO collect the following fields
+            //fieldMetaData.builtInType
+            //fieldMetaData.maxStringLength
+            return UA_STATUSCODE_GOOD;
+        case UA_PUBSUB_DATASETFIELD_EVENT:
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        default:
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
 }
 
 UA_DataSetFieldResult
@@ -452,6 +546,23 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     if(newField->config.field.variable.promotedField)
         currentDataSet->promotedFieldsCount++;
     currentDataSet->fieldSize++;
+
+    //generate fieldMetadata within the DataSetMetaData
+    currentDataSet->dataSetMetaData.fieldsSize++;
+    UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *) UA_realloc(currentDataSet->dataSetMetaData.fields, currentDataSet->dataSetMetaData.fieldsSize *
+            sizeof(UA_FieldMetaData));
+    if(!fieldMetaData){
+        result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    currentDataSet->dataSetMetaData.fields = fieldMetaData;
+
+    UA_FieldMetaData_init(&fieldMetaData[currentDataSet->fieldSize-1]);
+    if(generateFieldMetaData(server, newField, &fieldMetaData[currentDataSet->fieldSize-1]) != UA_STATUSCODE_GOOD){
+        UA_Server_removeDataSetField(server, newField->identifier);
+        result.result =  UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
     result.result = retVal;
     result.configurationVersion.majorVersion = currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
     result.configurationVersion.minorVersion = currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
@@ -491,11 +602,49 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference();
 
+    currentField->fieldMetaData.arrayDimensions = NULL;
+    currentField->fieldMetaData.properties = NULL;
+    currentField->fieldMetaData.name = UA_STRING_NULL;
+    currentField->fieldMetaData.description.locale = UA_STRING_NULL;
+    currentField->fieldMetaData.description.text = UA_STRING_NULL;
     UA_DataSetField_clear(currentField);
     TAILQ_REMOVE(&parentPublishedDataSet->fields, currentField, listEntry);
     UA_free(currentField);
 
     result.result = UA_STATUSCODE_GOOD;
+    //regenerate DataSetMetaData
+    parentPublishedDataSet->dataSetMetaData.fieldsSize--;
+    if(parentPublishedDataSet->dataSetMetaData.fieldsSize > 0){
+        for(size_t i = 0; i < parentPublishedDataSet->dataSetMetaData.fieldsSize+1; i++) {
+            UA_FieldMetaData_clear(&parentPublishedDataSet->dataSetMetaData.fields[i]);
+        }
+        UA_free(parentPublishedDataSet->dataSetMetaData.fields);
+        UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *) UA_calloc(parentPublishedDataSet->dataSetMetaData.fieldsSize,
+                                                                         sizeof(UA_FieldMetaData));
+
+        if(!fieldMetaData){
+            result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
+            return result;
+        }
+        UA_DataSetField *tmpDSF;
+        size_t counter = 0;
+        TAILQ_FOREACH(tmpDSF, &parentPublishedDataSet->fields, listEntry){
+            UA_FieldMetaData tmpFieldMetaData;
+            UA_FieldMetaData_init(&tmpFieldMetaData);
+            if(generateFieldMetaData(server, tmpDSF, &tmpFieldMetaData) != UA_STATUSCODE_GOOD){
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub MetaData generation failed!");
+                //TODO how to ensure consistency if the metadata regeneration fails
+                result.result = UA_STATUSCODE_BADINTERNALERROR;
+            }
+            fieldMetaData[counter++] = tmpFieldMetaData;
+        }
+        parentPublishedDataSet->dataSetMetaData.fields = fieldMetaData;
+    } else {
+        UA_FieldMetaData_delete(parentPublishedDataSet->dataSetMetaData.fields);
+        parentPublishedDataSet->dataSetMetaData.fields = NULL;
+    }
+
     result.configurationVersion.majorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.majorVersion;
     result.configurationVersion.minorVersion = parentPublishedDataSet->dataSetMetaData.configurationVersion.minorVersion;
     return result;
