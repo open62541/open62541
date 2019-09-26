@@ -311,7 +311,7 @@ processHEL(UA_Server *server, UA_Connection *connection,
 
     /* Build acknowledge response */
     UA_TcpAcknowledgeMessage ackMessage;
-    memcpy(&ackMessage, localConfig, sizeof(UA_TcpAcknowledgeMessage)); /* Same struct layout.. */
+    memcpy(&ackMessage, &connection->config, sizeof(UA_TcpAcknowledgeMessage)); /* Same struct layout.. */
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
