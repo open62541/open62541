@@ -1,12 +1,14 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <ua_server.h>
-#include <ua_log_stdout.h>
-#include <ua_config_default.h>
-#include "custom_datatype.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
 #include <signal.h>
+#include <stdlib.h>
+
+#include "custom_datatype.h"
 
 UA_Boolean running = true;
 
@@ -62,7 +64,10 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
     /* Make your custom datatype known to the stack */
     UA_DataType *types = (UA_DataType*)UA_malloc(sizeof(UA_DataType));
     UA_DataTypeMember *members = (UA_DataTypeMember*)UA_malloc(sizeof(UA_DataTypeMember) * 3);
@@ -77,14 +82,13 @@ int main(void) {
     UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
     config->customDataTypes = &customDataTypes;
 
-    UA_Server *server = UA_Server_new(config);
-
     add3PointDataType(server);
     add3DPointVariable(server);
 
     UA_Server_run(server, &running);
 
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return 0;
+    UA_free(members);
+    UA_free(types);
+    return EXIT_SUCCESS;
 }

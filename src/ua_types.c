@@ -14,13 +14,14 @@
  *    Copyright 2016 (c) Lorenz Haas
  */
 
-#include "ua_util_internal.h"
-#include "ua_types.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
+#include <open62541/types.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
 
-#include "pcg_basic.h"
+#include "ua_util_internal.h"
+
 #include "libc_time.h"
+#include "pcg_basic.h"
 
 /* Datatype Handling
  * -----------------
@@ -36,6 +37,13 @@ const UA_ByteString UA_BYTESTRING_NULL = {0, NULL};
 const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
 const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
+
+typedef UA_StatusCode (*UA_copySignature)(const void *src, void *dst,
+                                          const UA_DataType *type);
+typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
+
+extern const UA_copySignature copyJumpTable[UA_DATATYPEKINDS];
+extern const UA_clearSignature clearJumpTable[UA_DATATYPEKINDS];
 
 /* TODO: The standard-defined types are ordered. See if binary search is
  * more efficient. */
@@ -88,28 +96,31 @@ UA_UInt32_random(void) {
 /* Builtin Types */
 /*****************/
 
-static void clear_noInit(void *p, const UA_DataType *type);
-static UA_StatusCode copy_noInit(const void *src, void *dst, const UA_DataType *type);
-
 UA_String
-UA_String_fromChars(char const src[]) {
-    UA_String str;
-    str.length = strlen(src);
-    if(str.length > 0) {
-        str.data = (u8*)UA_malloc(str.length);
-        if(!str.data)
-            return UA_STRING_NULL;
-        memcpy(str.data, src, str.length);
+UA_String_fromChars(const char *src) {
+    UA_String s; s.length = 0; s.data = NULL;
+    if(!src)
+        return s;
+    s.length = strlen(src);
+    if(s.length > 0) {
+        s.data = (u8*)UA_malloc(s.length);
+        if(!s.data) {
+            s.length = 0;
+            return s;
+        }
+        memcpy(s.data, src, s.length);
     } else {
-        str.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
+        s.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
     }
-    return str;
+    return s;
 }
 
 UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
     if(s1->length != s2->length)
         return false;
+    if(s1->length == 0)
+        return true;
     i32 is = memcmp((char const*)s1->data,
                     (char const*)s2->data, s1->length);
     return (is == 0) ? true : false;
@@ -159,13 +170,19 @@ UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
-    dateTimeStruct.microSec = (u16)((t % 10000) / 10);
-    dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
+    if(t >= 0) {
+        dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
+        dateTimeStruct.microSec = (u16)((t % 10000) / 10);
+        dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
+    } else {
+        dateTimeStruct.nanoSec  = (u16)(((t % 10 + t) % 10) * 100);
+        dateTimeStruct.microSec = (u16)(((t % 10000 + t) % 10000) / 10);
+        dateTimeStruct.milliSec = (u16)(((t % 10000000 + t) % 10000000) / 10000);
+    }
 
     /* Calculating the unix time with #include <time.h> */
-    long long secSinceUnixEpoch = (long long)
-        ((t - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
+    long long secSinceUnixEpoch = (long long)(t / UA_DATETIME_SEC)
+        - (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC);
     struct mytm ts;
     memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
@@ -176,6 +193,27 @@ UA_DateTime_toStruct(UA_DateTime t) {
     dateTimeStruct.month  = (u16)(ts.tm_mon + 1);
     dateTimeStruct.year   = (u16)(ts.tm_year + 1900);
     return dateTimeStruct;
+}
+
+UA_DateTime
+UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
+    /* Seconds since the Unix epoch */
+    struct mytm tm;
+    memset(&tm, 0, sizeof(struct mytm));
+    tm.tm_year = ts.year - 1900;
+    tm.tm_mon = ts.month - 1;
+    tm.tm_mday = ts.day;
+    tm.tm_hour = ts.hour;
+    tm.tm_min = ts.min;
+    tm.tm_sec = ts.sec;
+    long long sec_epoch = __tm_to_secs(&tm);
+
+    UA_DateTime t = UA_DATETIME_UNIX_EPOCH;
+    t += sec_epoch * UA_DATETIME_SEC;
+    t += ts.milliSec * UA_DATETIME_MSEC;
+    t += ts.microSec * UA_DATETIME_USEC;
+    t += ts.nanoSec / 100;
+    return t;
 }
 
 /* Guid */
@@ -274,38 +312,73 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     return false;
 }
 
-UA_Boolean
-UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-    if(n1 == NULL || n2 == NULL)
-        return false;
-    if(n1->namespaceIndex != n2->namespaceIndex ||
-       n1->identifierType!=n2->identifierType)
-        return false;
+/* Absolute ordering for NodeIds */
+UA_Order
+UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
+    /* Compare namespaceIndex */
+    if(n1->namespaceIndex < n2->namespaceIndex)
+        return UA_ORDER_LESS;
+    if(n1->namespaceIndex > n2->namespaceIndex)
+        return UA_ORDER_MORE;
+
+    /* Compare identifierType */
+    if(n1->identifierType < n2->identifierType)
+        return UA_ORDER_LESS;
+    if(n1->identifierType > n2->identifierType)
+        return UA_ORDER_MORE;
+
+    /* Compare the identifier */
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        return (n1->identifier.numeric == n2->identifier.numeric);
-    case UA_NODEIDTYPE_STRING:
-        return UA_String_equal(&n1->identifier.string,
-                               &n2->identifier.string);
+        if(n1->identifier.numeric < n2->identifier.numeric)
+            return UA_ORDER_LESS;
+        if(n1->identifier.numeric > n2->identifier.numeric)
+            return UA_ORDER_MORE;
+        break;
     case UA_NODEIDTYPE_GUID:
-        return UA_Guid_equal(&n1->identifier.guid,
-                             &n2->identifier.guid);
-    case UA_NODEIDTYPE_BYTESTRING:
-        return UA_ByteString_equal(&n1->identifier.byteString,
-                                   &n2->identifier.byteString);
-    }
-    return false;
-}
+        if(n1->identifier.guid.data1 < n2->identifier.guid.data1) {
+            return UA_ORDER_LESS;
+        } else if(n1->identifier.guid.data1 > n2->identifier.guid.data1) {
+            return UA_ORDER_MORE;
+        } else if(n1->identifier.guid.data2 < n2->identifier.guid.data2) {
+            return UA_ORDER_LESS;
+        } else if(n1->identifier.guid.data2 > n2->identifier.guid.data2) {
+            return UA_ORDER_MORE;
+        } else if(n1->identifier.guid.data3 < n2->identifier.guid.data3) {
+            return UA_ORDER_LESS;
+        } else if(n1->identifier.guid.data3 > n2->identifier.guid.data3) {
+            return UA_ORDER_MORE;
+        } else {
+            int cmp = memcmp(n1->identifier.guid.data4, n2->identifier.guid.data4, 8);
 
-UA_Boolean
-UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1, const UA_ExpandedNodeId *n2) {
-    if(n1 == NULL || n2 == NULL)
-        return false;
-    if(n1->serverIndex != n2->serverIndex)
-        return false;
-    if(!UA_String_equal(&n1->namespaceUri, &n2->namespaceUri))
-        return false;
-    return UA_NodeId_equal(&n1->nodeId, &n2->nodeId);
+            if(cmp < 0) return UA_ORDER_LESS;
+            if(cmp > 0) return UA_ORDER_MORE;
+
+        }
+
+        break;
+    case UA_NODEIDTYPE_STRING:
+    case UA_NODEIDTYPE_BYTESTRING: {
+        size_t minLength = UA_MIN(n1->identifier.string.length, n2->identifier.string.length);
+        int cmp = strncmp((const char*)n1->identifier.string.data,
+                          (const char*)n2->identifier.string.data,
+                          minLength);
+        if(cmp < 0)
+            return UA_ORDER_LESS;
+        if(cmp > 0)
+            return UA_ORDER_MORE;
+
+        if(n1->identifier.string.length < n2->identifier.string.length)
+            return UA_ORDER_LESS;
+        if(n1->identifier.string.length > n2->identifier.string.length)
+            return UA_ORDER_MORE;
+        break;
+    }
+    default:
+        break;
+    }
+
+    return UA_ORDER_EQ;
 }
 
 /* FNV non-cryptographic hash function. See
@@ -349,6 +422,36 @@ ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
     retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
     dst->serverIndex = src->serverIndex;
     return retval;
+}
+
+UA_Order
+UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
+                        const UA_ExpandedNodeId *n2) {
+    if(n1->serverIndex > n2->serverIndex)
+        return UA_ORDER_MORE;
+    if(n1->serverIndex < n2->serverIndex)
+        return UA_ORDER_LESS;
+    if(n1->namespaceUri.length > 0) {
+        if(n1->namespaceUri.length > n2->namespaceUri.length)
+            return UA_ORDER_MORE;
+        if(n1->namespaceUri.length < n2->namespaceUri.length)
+            return UA_ORDER_LESS;
+        int cmp = strncmp((const char*)n1->namespaceUri.data,
+                          (const char*)n2->namespaceUri.data,
+                          n1->namespaceUri.length);
+        if(cmp < 0)
+            return UA_ORDER_LESS;
+        if(cmp > 0)
+            return UA_ORDER_MORE;
+    }
+    return UA_NodeId_order(&n1->nodeId, &n2->nodeId);
+}
+
+u32
+UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
+    u32 h = UA_NodeId_hash(&n->nodeId);
+    h = fnv32(h, (const UA_Byte*)&n->serverIndex, 4);
+    return fnv32(h, n->namespaceUri.data, n->namespaceUri.length);
 }
 
 /* ExtensionObject */
@@ -751,7 +854,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
     } else {
         for(size_t i = 0; i < block_count; ++i) {
             for(size_t j = 0; j < block; ++j) {
-                clear_noInit((void*)nextdst, v->type);
+                clearJumpTable[v->type->typeKind]((void*)nextdst, v->type);
                 retval |= UA_copy((void*)nextsrc, (void*)nextdst, v->type);
                 nextdst += elem_size;
                 nextsrc += elem_size;
@@ -885,53 +988,19 @@ copyGuid(const UA_Guid *src, UA_Guid *dst, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-typedef UA_StatusCode
-(*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
-
-static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (UA_copySignature)copyByte, // Boolean
-    (UA_copySignature)copyByte, // SByte
-    (UA_copySignature)copyByte, // Byte
-    (UA_copySignature)copy2Byte, // Int16
-    (UA_copySignature)copy2Byte, // UInt16
-    (UA_copySignature)copy4Byte, // Int32
-    (UA_copySignature)copy4Byte, // UInt32
-    (UA_copySignature)copy8Byte, // Int64
-    (UA_copySignature)copy8Byte, // UInt64
-    (UA_copySignature)copy4Byte, // Float
-    (UA_copySignature)copy8Byte, // Double
-    (UA_copySignature)String_copy,
-    (UA_copySignature)copy8Byte, // DateTime
-    (UA_copySignature)copyGuid, // Guid
-    (UA_copySignature)String_copy, // ByteString
-    (UA_copySignature)String_copy, // XmlElement
-    (UA_copySignature)NodeId_copy,
-    (UA_copySignature)ExpandedNodeId_copy,
-    (UA_copySignature)copy4Byte, // StatusCode
-    (UA_copySignature)QualifiedName_copy,
-    (UA_copySignature)LocalizedText_copy,
-    (UA_copySignature)ExtensionObject_copy,
-    (UA_copySignature)DataValue_copy,
-    (UA_copySignature)Variant_copy,
-    (UA_copySignature)DiagnosticInfo_copy,
-    (UA_copySignature)copy_noInit // all others
-};
-
 static UA_StatusCode
-copy_noInit(const void *src, void *dst, const UA_DataType *type) {
+copyStructure(const void *src, void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
-    u8 membersSize = type->membersSize;
-    for(size_t i = 0; i < membersSize; ++i) {
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    for(size_t i = 0; i < type->membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
-        const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
         if(!m->isArray) {
             ptrs += m->padding;
             ptrd += m->padding;
-            size_t fi = mt->builtin ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
-            retval |= copyJumpTable[fi]((const void*)ptrs, (void*)ptrd, mt);
+            retval |= copyJumpTable[mt->typeKind]((const void*)ptrs, (void*)ptrd, mt);
             ptrs += mt->memSize;
             ptrd += mt->memSize;
         } else {
@@ -953,61 +1022,64 @@ copy_noInit(const void *src, void *dst, const UA_DataType *type) {
     return retval;
 }
 
+static UA_StatusCode
+copyNotImplemented(const void *src, void *dst, const UA_DataType *type) {
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+}
+
+const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
+    (UA_copySignature)copyByte, /* Boolean */
+    (UA_copySignature)copyByte, /* SByte */
+    (UA_copySignature)copyByte, /* Byte */
+    (UA_copySignature)copy2Byte, /* Int16 */
+    (UA_copySignature)copy2Byte, /* UInt16 */
+    (UA_copySignature)copy4Byte, /* Int32 */
+    (UA_copySignature)copy4Byte, /* UInt32 */
+    (UA_copySignature)copy8Byte, /* Int64 */
+    (UA_copySignature)copy8Byte, /* UInt64 */
+    (UA_copySignature)copy4Byte, /* Float */
+    (UA_copySignature)copy8Byte, /* Double */
+    (UA_copySignature)String_copy,
+    (UA_copySignature)copy8Byte, /* DateTime */
+    (UA_copySignature)copyGuid, /* Guid */
+    (UA_copySignature)String_copy, /* ByteString */
+    (UA_copySignature)String_copy, /* XmlElement */
+    (UA_copySignature)NodeId_copy,
+    (UA_copySignature)ExpandedNodeId_copy,
+    (UA_copySignature)copy4Byte, /* StatusCode */
+    (UA_copySignature)QualifiedName_copy,
+    (UA_copySignature)LocalizedText_copy,
+    (UA_copySignature)ExtensionObject_copy,
+    (UA_copySignature)DataValue_copy,
+    (UA_copySignature)Variant_copy,
+    (UA_copySignature)DiagnosticInfo_copy,
+    (UA_copySignature)copyNotImplemented, /* Decimal */
+    (UA_copySignature)copy4Byte, /* Enumeration */
+    (UA_copySignature)copyStructure,
+    (UA_copySignature)copyNotImplemented, /* Structure with Optional Fields */
+    (UA_copySignature)copyNotImplemented, /* Union */
+    (UA_copySignature)copyNotImplemented /* BitfieldCluster*/
+};
+
 UA_StatusCode
 UA_copy(const void *src, void *dst, const UA_DataType *type) {
     memset(dst, 0, type->memSize); /* init */
-    UA_StatusCode retval = copy_noInit(src, dst, type);
+    UA_StatusCode retval = copyJumpTable[type->typeKind](src, dst, type);
     if(retval != UA_STATUSCODE_GOOD)
         UA_clear(dst, type);
     return retval;
 }
 
-static void nopClear(void *p, const UA_DataType *type) { }
-
-typedef void (*UA_clearSignature)(void *p, const UA_DataType *type);
-
-static const
-UA_clearSignature clearJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (UA_clearSignature)nopClear, // Boolean
-    (UA_clearSignature)nopClear, // SByte
-    (UA_clearSignature)nopClear, // Byte
-    (UA_clearSignature)nopClear, // Int16
-    (UA_clearSignature)nopClear, // UInt16
-    (UA_clearSignature)nopClear, // Int32
-    (UA_clearSignature)nopClear, // UInt32
-    (UA_clearSignature)nopClear, // Int64
-    (UA_clearSignature)nopClear, // UInt64
-    (UA_clearSignature)nopClear, // Float
-    (UA_clearSignature)nopClear, // Double
-    (UA_clearSignature)String_clear, // String
-    (UA_clearSignature)nopClear, // DateTime
-    (UA_clearSignature)nopClear, // Guid
-    (UA_clearSignature)String_clear, // ByteString
-    (UA_clearSignature)String_clear, // XmlElement
-    (UA_clearSignature)NodeId_clear,
-    (UA_clearSignature)ExpandedNodeId_clear,
-    (UA_clearSignature)nopClear, // StatusCode
-    (UA_clearSignature)QualifiedName_clear,
-    (UA_clearSignature)LocalizedText_clear,
-    (UA_clearSignature)ExtensionObject_clear,
-    (UA_clearSignature)DataValue_clear,
-    (UA_clearSignature)Variant_clear,
-    (UA_clearSignature)DiagnosticInfo_clear,
-    (UA_clearSignature)clear_noInit,
-};
-
 static void
-clear_noInit(void *p, const UA_DataType *type) {
+clearStructure(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
-    u8 membersSize = type->membersSize;
-    for(size_t i = 0; i < membersSize; ++i) {
-        const UA_DataTypeMember *m= &type->members[i];
-        const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
+    for(size_t i = 0; i < type->membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
         if(!m->isArray) {
             ptr += m->padding;
-            size_t fi = mt->builtin ? mt->typeIndex : UA_BUILTIN_TYPES_COUNT;
-            clearJumpTable[fi]((void*)ptr, mt);
+            clearJumpTable[mt->typeKind]((void*)ptr, mt);
             ptr += mt->memSize;
         } else {
             ptr += m->padding;
@@ -1019,15 +1091,52 @@ clear_noInit(void *p, const UA_DataType *type) {
     }
 }
 
+static void nopClear(void *p, const UA_DataType *type) { }
+
+const
+UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
+    (UA_clearSignature)nopClear, /* Boolean */
+    (UA_clearSignature)nopClear, /* SByte */
+    (UA_clearSignature)nopClear, /* Byte */
+    (UA_clearSignature)nopClear, /* Int16 */
+    (UA_clearSignature)nopClear, /* UInt16 */
+    (UA_clearSignature)nopClear, /* Int32 */
+    (UA_clearSignature)nopClear, /* UInt32 */
+    (UA_clearSignature)nopClear, /* Int64 */
+    (UA_clearSignature)nopClear, /* UInt64 */
+    (UA_clearSignature)nopClear, /* Float */
+    (UA_clearSignature)nopClear, /* Double */
+    (UA_clearSignature)String_clear, /* String */
+    (UA_clearSignature)nopClear, /* DateTime */
+    (UA_clearSignature)nopClear, /* Guid */
+    (UA_clearSignature)String_clear, /* ByteString */
+    (UA_clearSignature)String_clear, /* XmlElement */
+    (UA_clearSignature)NodeId_clear,
+    (UA_clearSignature)ExpandedNodeId_clear,
+    (UA_clearSignature)nopClear, /* StatusCode */
+    (UA_clearSignature)QualifiedName_clear,
+    (UA_clearSignature)LocalizedText_clear,
+    (UA_clearSignature)ExtensionObject_clear,
+    (UA_clearSignature)DataValue_clear,
+    (UA_clearSignature)Variant_clear,
+    (UA_clearSignature)DiagnosticInfo_clear,
+    (UA_clearSignature)nopClear, /* Decimal, not implemented */
+    (UA_clearSignature)nopClear, /* Enumeration */
+    (UA_clearSignature)clearStructure,
+    (UA_clearSignature)nopClear, /* Struct with Optional Fields, not implemented*/
+    (UA_clearSignature)nopClear, /* Union, not implemented*/
+    (UA_clearSignature)nopClear /* BitfieldCluster, not implemented*/
+};
+
 void
 UA_clear(void *p, const UA_DataType *type) {
-    clear_noInit(p, type);
+    clearJumpTable[type->typeKind](p, type);
     memset(p, 0, type->memSize); /* init */
 }
 
 void
 UA_delete(void *p, const UA_DataType *type) {
-    clear_noInit(p, type);
+    clearJumpTable[type->typeKind](p, type);
     UA_free(p);
 }
 

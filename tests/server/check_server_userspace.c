@@ -2,12 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
 
-#include "ua_types.h"
-#include "ua_config_default.h"
-#include "check.h"
+#include <check.h>
 
 #ifdef __clang__
 //required for ck_assert_ptr_eq and const casting
@@ -16,8 +14,8 @@
 #endif
 
 START_TEST(Server_addNamespace_ShallWork) {
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_UInt16 a = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 b = UA_Server_addNamespace(server, "http://nameOfNamespace");
@@ -28,13 +26,12 @@ START_TEST(Server_addNamespace_ShallWork) {
     ck_assert_uint_ne(a,c);
 
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 END_TEST
 
 START_TEST(Server_addNamespace_writeService) {
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_Variant namespaces;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -62,7 +59,6 @@ START_TEST(Server_addNamespace_writeService) {
 
     UA_Variant_deleteMembers(&namespaces);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 END_TEST
 
@@ -83,8 +79,8 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 
     int i;
 
-    for (i=0; i<NODE_ITER_DATA_SIZE; i++) {
-        if (UA_NodeId_equal(&childId, &objectsFolderChildren[i].id)) {
+    for(i=0; i<NODE_ITER_DATA_SIZE; i++) {
+        if(UA_NodeId_equal(&childId, &objectsFolderChildren[i].id)) {
             break;
         }
     }
@@ -101,9 +97,8 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 START_TEST(Server_forEachChildNodeCall) {
-
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* List all the children/references of the objects folder
      * The forEachChildNodeCall has to hit all of them */
@@ -123,7 +118,9 @@ START_TEST(Server_forEachChildNodeCall) {
     objectsFolderChildren[2].referenceTypeID = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
     objectsFolderChildren[2].hit = UA_FALSE;
 
-    UA_StatusCode retval = UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, &objectsFolderChildren);
+    UA_StatusCode retval =
+        UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                       nodeIter, &objectsFolderChildren);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Check if all nodes are hit */
@@ -132,8 +129,6 @@ START_TEST(Server_forEachChildNodeCall) {
     }
 
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-
 } END_TEST
 
 
@@ -141,14 +136,17 @@ START_TEST(Server_set_customHostname) {
     UA_String customHost = UA_STRING("fancy-host");
     UA_UInt16 port = 10042;
 
-    UA_ServerConfig *config = UA_ServerConfig_new_minimal(port, NULL);
-    UA_ServerConfig_set_customHostname(config, customHost);
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setMinimal(config, port, NULL);
+    UA_ServerConfig_setCustomHostname(config, customHost);
+
     UA_StatusCode retval = UA_Server_run_startup(server);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // TODO when we have more network layers, extend this
     ck_assert_uint_ge(config->networkLayersSize, 1);
+    ck_assert_uint_eq(config->applicationDescription.discoveryUrlsSize, config->networkLayersSize);
 
 
     for (size_t i=0; i<config->networkLayersSize; i++) {
@@ -156,14 +154,14 @@ START_TEST(Server_set_customHostname) {
         char discoveryUrl[256];
         int len = snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/", (int)customHost.length, customHost.data, port);
         ck_assert_int_eq(nl->discoveryUrl.length, len);
+        ck_assert_int_eq(config->applicationDescription.discoveryUrls[i].length, len);
         ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);
+        ck_assert(strncmp(discoveryUrl, (char*)config->applicationDescription.discoveryUrls[i].data, len)==0);
     }
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 END_TEST
-
 
 static Suite* testSuite_ServerUserspace(void) {
     Suite *s = suite_create("ServerUserspace");

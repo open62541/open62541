@@ -168,7 +168,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     if(UA_PublishedDataSetConfig_copy(publishedDataSetConfig, &tmpPublishedDataSetConfig) != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Configuration copy failed.");
-		result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+        result.addResult = UA_STATUSCODE_BADINTERNALERROR;
         return result;
     }
     //create new PDS and add to UA_PubSubManager
@@ -179,8 +179,8 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
         UA_PublishedDataSetConfig_deleteMembers(&tmpPublishedDataSetConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Out of Memory.");
-		result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return result;
+        result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
     }
     server->pubSubManager.publishedDataSets = newPubSubDataSetField;
     UA_PublishedDataSet *newPubSubDataSet = &server->pubSubManager.publishedDataSets[(server->pubSubManager.publishedDataSetsSize)];
@@ -202,11 +202,11 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
         UA_NodeId_copy(&newPubSubDataSet->identifier, pdsIdentifier);
     }
     server->pubSubManager.publishedDataSetsSize++;
-	result.addResult = UA_STATUSCODE_GOOD;
-	result.fieldAddResults = NULL;
-	result.fieldAddResultsSize = 0;
-	result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-	result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    result.addResult = UA_STATUSCODE_GOOD;
+    result.fieldAddResults = NULL;
+    result.fieldAddResultsSize = 0;
+    result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPublishedDataItemsRepresentation(server, newPubSubDataSet);
 #endif
@@ -222,18 +222,24 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
         if(UA_NodeId_equal(&server->pubSubManager.publishedDataSets[publishedDataSetIndex].identifier, &pds)){
             publishedDataSet = &server->pubSubManager.publishedDataSets[publishedDataSetIndex];
             break;
-        };
+        }
     }
     if(!publishedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    if(publishedDataSet->config.configurationFrozen){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     //search for referenced writers -> delete this writers. (Standard: writer must be connected with PDS)
     for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
         UA_WriterGroup *writerGroup;
         LIST_FOREACH(writerGroup, &server->pubSubManager.connections[i].writerGroups, listEntry){
             UA_DataSetWriter *currentWriter, *tmpWriterGroup;
             LIST_FOREACH_SAFE(currentWriter, &writerGroup->writers, listEntry, tmpWriterGroup){
-                if(UA_NodeId_equal(&currentWriter->identifier, &publishedDataSet->identifier)){
+                if(UA_NodeId_equal(&currentWriter->connectedDataSet, &publishedDataSet->identifier)){
                     UA_Server_removeDataSetWriter(server, currentWriter->identifier);
                 }
             }
@@ -282,8 +288,8 @@ UA_PubSubConfigurationVersionTimeDifference() {
 void
 UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId) {
     UA_NodeId newNodeId = UA_NODEID_NUMERIC(0, 0);
-    UA_Node *newNode = UA_Nodestore_new(server, UA_NODECLASS_OBJECT);
-    UA_Nodestore_insert(server, newNode, &newNodeId);
+    UA_Node *newNode = UA_Nodestore_newNode(server->nsCtx, UA_NODECLASS_OBJECT);
+    UA_Nodestore_insertNode(server->nsCtx, newNode, &newNodeId);
     UA_NodeId_copy(&newNodeId, nodeId);
 }
 
@@ -309,6 +315,11 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 /*      PubSub Jobs abstraction    */
 /***********************************/
 
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+
+/* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_INTERRUPT is enabled, a custom callback
+ * management must be linked to the application */
+
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                                      void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
@@ -326,5 +337,7 @@ void
 UA_PubSubManager_removeRepeatedPubSubCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_Timer_removeCallback(&server->timer, callbackId);
 }
+
+#endif /* UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING */
 
 #endif /* UA_ENABLE_PUBSUB */

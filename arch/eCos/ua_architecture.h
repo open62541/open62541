@@ -59,6 +59,7 @@
 #define UA_setsockopt setsockopt
 #define UA_freeaddrinfo freeaddrinfo
 #define UA_gethostname gethostname_ecos
+#define UA_getsockname getsockname
 #define UA_inet_pton(af,src,dst) inet_pton(af, src, (char*) dst)
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
@@ -82,7 +83,20 @@ int gethostname_ecos(char* name, size_t len);
     LOG; \
 }
 
-#include "ua_architecture_functions.h"
+#if UA_MULTITHREADING >= 100
+#error Multithreading unsupported
+#else
+#define UA_LOCK_TYPE_NAME
+#define UA_LOCK_TYPE(mutexName)
+#define UA_LOCK_TYPE_POINTER(mutexName)
+#define UA_LOCK_INIT(mutexName)
+#define UA_LOCK_DESTROY(mutexName)
+#define UA_LOCK(mutexName)
+#define UA_UNLOCK(mutexName)
+#define UA_LOCK_ASSERT(mutexName, num)
+#endif
+
+#include <open62541/architecture_functions.h>
 
 #endif /* PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_ */
 

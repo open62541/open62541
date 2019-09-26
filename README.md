@@ -2,7 +2,7 @@
 
 open62541 (<http://open62541.org>) is an open source and free implementation of OPC UA (OPC Unified Architecture) written in the common subset of the C99 and C++98 languages. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. open62541 library is platform independent. All platform-specific functionality is implemented via exchangeable plugins. Plugin implementations are provided for the major operating systems.
 
-open62541 is licensed under the Mozilla Public License v2.0. So the *open62541 library can be used in projects that are not open source*. Only changes to the open62541 library itself need to published under the same license. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
+open62541 is licensed under the Mozilla Public License v2.0 (MPLv2). This allows the open62541 library to be combined and distributed with any proprietary software. Only changes to the open62541 library itself need to be licensed under the MPLv2 when copied and distributed. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
 
 The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
@@ -11,10 +11,13 @@ The library is [available](https://github.com/open62541/open62541/releases) in s
 Build Status:
 
 [![Build Status](https://img.shields.io/travis/open62541/open62541/master.svg)](https://travis-ci.org/open62541/open62541)
+[![Build Status](https://dev.azure.com/open62541/open62541/_apis/build/status/open62541.open62541?branchName=master)](https://dev.azure.com/open62541/open62541/_build/latest?definitionId=1&branchName=master)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/open62541/open62541?branch=master&svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/master)
+[![Build Status](https://img.shields.io/docker/cloud/build/open62541/open62541)](https://cloud.docker.com/u/open62541/repository/docker/open62541/open62541)
 
 Code Quality:
 
+[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/68ad08e897624c77a64fc2be66ca7b50)](https://www.codacy.com/app/open62541/open62541?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=open62541/open62541&amp;utm_campaign=Badge_Grade)
 [![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
@@ -23,40 +26,56 @@ Code Quality:
 
 General Project Info:
 
-[![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
+[![Open Hub Project Status](https://www.openhub.net/p/open62541/widgets/project_thin_badge.gif)](https://www.openhub.net/p/open62541/)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
 
+### Features and Certification
 
-### Features
+open62541 implements the OPC UA binary protocol stack as well as a client and server SDK. The final server binaries can be well under 100kb, depending on the selected features and the size of the information model.
 
-For a complete list of features check: [open62541 Features](FEATURES.md)
-
-open62541 implements the OPC UA binary protocol stack as well as a client and server SDK. It currently supports the Micro Embedded Device Server Profile plus some additional features. The final server binaries can be well under 100kb, depending on the size of the information model.
 - Communication Stack
   - OPC UA binary protocol
-  - Chunking (splitting of large messages)
+  - OPC UA JSON encoding
+  - Secure communication with encrypted messages
   - Exchangeable network layer (plugin) for using custom networking APIs (e.g. on embedded targets)
-- Information model
-  - Support for all OPC UA node types (including method nodes)
+  - Support for generating data types from standard XML definitions
+- Server
+  - Support for all OPC UA node types
+  - Access control for individual nodes
+  - Support for generating server-side information models from standard XML definitions (nodesets)
   - Support for adding and removing nodes and references also at runtime.
   - Support for inheritance and instantiation of object- and variable-types (custom constructor/destructor, instantiation of child nodes)
-- Subscriptions
-  - Support for subscriptions/monitoreditems for data change notifications
-  - Very low resource consumption for each monitored value (event-based server architecture)
-- Code-Generation
-  - Support for generating data types from standard XML definitions
-  - Support for generating server-side information models (nodesets) from standard XML definitions
-  
-Features currently being implemented:
-- Target 0.3 release (to be released in the coming weeks):
-  - Secure communication with encrypted messages (Done)
-  - Access control for individual nodes (Done)
-  - Asynchronous service requests in the client (Done)
-- Target 0.4 release:
-  - Events (notifications emitted by objects, data change notifications are implemented), (Done)
-  - Event-loop (background tasks) in the client
-  - Publish/Subscribe based on UDP (Specification Part 14), WIP @ Fraunhofer IOSB
+  - Support for subscriptions/monitoreditems (data change notifications and events)
+- Client
+  - All OPC UA services supported
+  - Asynchronous service requests
+  - Background handling of subscriptions
+- Publish/Subscribe
+  - UADP Binary protocol with UDP-multicast or Ethernet communication
+  - PubSub JSON encoding
 
+### Official Certification
+
+The sample server (server_ctt) built using open62541 v1.0 is in conformance with the 'Micro Embedded Device Server' Profile of OPC Foundation supporting OPC UA client/server communication, subscriptions, method calls and security (encryption) with the security policies 'Basic128Rsa15', 'Basic256' and 'Basic256Sha256' and the facets 'method server' and 'node management'. See https://open62541.org/certified-sdk for more details.
+
+PubSub (UADP) is implemented in open62541. But the feature cannot be certified at this point in time (Sep-2019) due to the lack of official test cases and testing tools.
+
+During development, the Conformance Testing Tools (CTT) of the OPC Foundation are regularly applied.
+The CTT configuration and results are tracked at https://github.com/open62541/open62541-ctt. The OPC UA profiles under regular test in the CTT are currently:
+
+- Micro Embedded Device Server
+- Method Server Facet
+- Node Management Facet
+- Security Policies
+  - Basic128Rsa15
+  - Basic256
+  - Basic256Sha256
+- User Tokens
+  - Anonymous Facet
+  - User Name Password Server Facet
+
+See the page on [open62541 Features](FEATURES.md) for an in-depth look at the support for the conformance units that make up the OPC UA profiles.
+  
 ### Dependencies
 
 On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://open62541.org/doc/current/building.html) for details.
@@ -64,6 +83,12 @@ On most systems, open62541 requires the C standard library only. For dependencie
 - Core Library: The core library has no dependencies besides the C99 standard headers.
 - Default Plugins: The default plugins use the POSIX interfaces for networking and accessing the system clock. Ports to different (embedded) architectures are achieved by customizing the plugins.
 - Building and Code Generation: The build environment is generated via CMake. Some code is auto-generated from XML definitions that are part of the OPC UA standard. The code generation scripts run with both Python 2 and 3.
+
+**Note:**
+Specific optional features are dependent on third-party libraries. These are all listed under the `deps/` folder.
+Depending on the selected feature set, some of these libraries will be included in the resulting library.
+
+More information on the third-party libraries can be found in the corresponding [deps/README.md](deps/README.md)
 
 ### Code Quality
 
@@ -116,15 +141,50 @@ As an open source project, new contributors are encouraged to help improve open6
 - Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
 
+### Success Stories and Users of open62541
+
+A list of projects and companies using our open62541 stack can be found in our Wiki:
+
+https://github.com/open62541/open62541/wiki/References-to-open62541
+
+## Installation and code usage
+
+For every release, we provide some pre-packed release packages which you can directly use in your compile infrastructure.
+
+Have a look at the [release page](https://github.com/open62541/open62541/releases) and the corresponding attached assets.
+
+A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://open62541.org/doc/current/installing.html).
+
+You can not directly download a .zip package from the main branches using the Github UI, since then some of the submodules and version strings are missing.
+Therefore you have three options to install and use this stack:
+
+- **Recommended:** Use any of the prepared packages attached to every release or in the package repository of your distro (if available).  
+  Please check the install guide for more info.
+  
+- Download a .zip package of special `pack/` branches.  
+  These pack branches are up-to-date with the corresponding base branches, but already have the submodules in-place and the version string set correctly.  
+  Here are some direct download links for the current pack branches:  
+  - [pack/master.zip](https://github.com/open62541/open62541/archive/pack/master.zip)
+  - [pack/1.0.zip](https://github.com/open62541/open62541/archive/pack/1.0.zip)
+   
+- Clone this repository and initialize all the submodules using `git submodule update --init --recursive`. Then either use `make install` or setup your CMake project correspondingly.
+
 ## Examples
 
+A complete list of examples can be found in the [examples directory](https://github.com/open62541/open62541/tree/master/examples).
+
+To build the examples, we recommend to install the open62541 project as mentioned in previous section.
+
 ### Example Server Implementation
-Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
-Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> open62541.c -o server``` (under Windows you may need to add ``` -lws2_32``` 
+
+The following simple server example can be built using gcc, after you installed open62541 on your system.
+
+Using the GCC compiler, just run ```gcc -std=c99 -lopen62541 -DUA_ARCHITECTURE_POSIX <server.c> -o server``` (under Windows you may need to add ``` -lws2_32``` 
 and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
 #include <signal.h>
-#include "open62541.h"
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
 UA_Boolean running = true;
 void signalHandler(int sig) {
@@ -136,8 +196,8 @@ int main(int argc, char** argv)
     signal(SIGINT, signalHandler); /* catch ctrl-c */
 
     /* Create a server listening on port 4840 */
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* Add a variable node */
     /* 1) Define the node attributes */
@@ -159,8 +219,8 @@ int main(int argc, char** argv)
 
     /* Run the server loop */
     UA_StatusCode status = UA_Server_run(server, &running);
+
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
     return status;
 }
 ```
@@ -168,12 +228,14 @@ int main(int argc, char** argv)
 ### Example Client Implementation
 ```c
 #include <stdio.h>
-#include "open62541.h"
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 
 int main(int argc, char *argv[])
 {
     /* Create a client and connect */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(status != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

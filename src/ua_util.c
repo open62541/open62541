@@ -7,13 +7,15 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_util.h"
+#include <open62541/types_generated_handling.h>
+#include <open62541/util.h>
+
 #include "ua_util_internal.h"
-#include "ua_plugin_network.h"
+
 #include "base64.h"
 
 size_t
-UA_readNumberWithBase(u8 *buf, size_t buflen, u32 *number, u8 base) {
+UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
     UA_assert(number);
     u32 n = 0;
@@ -36,7 +38,7 @@ UA_readNumberWithBase(u8 *buf, size_t buflen, u32 *number, u8 base) {
 }
 
 size_t
-UA_readNumber(u8 *buf, size_t buflen, u32 *number)
+UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number)
 {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
@@ -47,9 +49,11 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-    } else if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
+    }
+    if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
 #ifdef UA_ENABLE_PUBSUB
-        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0) {
+        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0 &&
+                strncmp((char*)endpointUrl->data, "opc.mqtt://", 11) != 0) {
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         }
 #else
@@ -116,11 +120,12 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
 
 UA_StatusCode
 UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
-                            UA_UInt16 *vid, UA_Byte *prio) {
+                            UA_UInt16 *vid, UA_Byte *pcp) {
     /* Url must begin with "opc.eth://" */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADINTERNALERROR;
-    } else if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
+    }
+    if(strncmp((char*) endpointUrl->data, "opc.eth://", 10) != 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -169,7 +174,7 @@ UA_parseEndpointUrlEthernet(const UA_String *endpointUrl, UA_String *target,
     if(curr != endpointUrl->length) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    *prio = (UA_Byte) value;
+    *pcp = (UA_Byte) value;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -185,10 +190,9 @@ UA_StatusCode UA_ByteString_toBase64String(const UA_ByteString *byteString, UA_S
     if (byteString == str)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    int resSize = 0;
-    str->data = (UA_Byte*)UA_base64(byteString->data, (int)byteString->length, &resSize);
-    str->length = (size_t) resSize;
-    if (str->data == NULL)
+    str->data = (UA_Byte*)UA_base64(byteString->data,
+                                    byteString->length, &str->length);
+    if(str->data == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     return UA_STATUSCODE_GOOD;

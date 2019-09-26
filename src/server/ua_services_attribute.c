@@ -23,7 +23,7 @@
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_HISTORIZING
-#include "ua_plugin_historydatabase.h"
+#include <open62541/plugin/historydatabase.h>
 #endif
 
 /******************/
@@ -35,10 +35,13 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
                  const UA_Node *node) {
     if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
-    return node->writeMask &
-        server->config.accessControl.getUserRightsMask(server, &server->config.accessControl,
-                                                       &session->sessionId, session->sessionHandle,
-                                                       &node->nodeId, node->context);
+    UA_UInt32 retval = node->writeMask;
+    UA_UNLOCK(server->serviceMutex);
+    retval &= server->config.accessControl.getUserRightsMask(server, &server->config.accessControl,
+                                                             &session->sessionId, session->sessionHandle,
+                                                             &node->nodeId, node->context);
+    UA_LOCK(server->serviceMutex);
+    return retval;
 }
 
 static UA_Byte
@@ -54,10 +57,13 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
-    return node->accessLevel &
-        server->config.accessControl.getUserAccessLevel(server, &server->config.accessControl,
-                                                        &session->sessionId, session->sessionHandle,
-                                                        &node->nodeId, node->context);
+    UA_Byte retval = node->accessLevel;
+    UA_UNLOCK(server->serviceMutex);
+    retval &= server->config.accessControl.getUserAccessLevel(server, &server->config.accessControl,
+                                                    &session->sessionId, session->sessionHandle,
+                                                    &node->nodeId, node->context);
+    UA_LOCK(server->serviceMutex);
+    return retval;
 }
 
 static UA_Boolean
@@ -65,30 +71,18 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
     if(session == &server->adminSession)
         return true; /* the local admin user has all rights */
-    return node->executable &
-        server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
-                                                       &session->sessionId, session->sessionHandle,
-                                                       &node->nodeId, node->context);
+    UA_Boolean retval = node->executable;
+    UA_UNLOCK(server->serviceMutex);
+    retval &= server->config.accessControl.getUserExecutable(server, &server->config.accessControl,
+                                                             &session->sessionId, session->sessionHandle,
+                                                             &node->nodeId, node->context);
+    UA_LOCK(server->serviceMutex);
+    return retval;
 }
 
 /****************/
 /* Read Service */
 /****************/
-
-static UA_StatusCode
-readArrayDimensionsAttribute(const UA_VariableNode *vn, UA_DataValue *v) {
-    UA_Variant_setArray(&v->value, vn->arrayDimensions,
-                        vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
-    v->value.storageType = UA_VARIANT_DATA_NODELETE;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-setScalarNoDelete(UA_Variant *v, const void * UA_RESTRICT p,
-                  const UA_DataType *type) {
-    UA_Variant_setScalar(v, (void*)(uintptr_t)p, type);
-    v->storageType = UA_VARIANT_DATA_NODELETE;
-}
 
 static UA_StatusCode
 readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
@@ -110,29 +104,34 @@ readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
         return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
 
-    setScalarNoDelete(v, isAbstract, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    v->storageType = UA_VARIANT_DATA_NODELETE;
-    return UA_STATUSCODE_GOOD;
+    return UA_Variant_setScalarCopy(v, isAbstract, &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 static UA_StatusCode
 readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
+    /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
+        UA_UNLOCK(server->serviceMutex);
         vn->value.data.callback.onRead(server, &session->sessionId,
                                        session->sessionHandle, &vn->nodeId,
                                        vn->context, rangeptr, &vn->value.data.value);
-        const UA_Node *old = (const UA_Node *)vn;
-        /* Reopen the node to see the changes from onRead */
-        vn = (const UA_VariableNode*)UA_Nodestore_get(server, &vn->nodeId);
-        UA_Nodestore_release(server, old);
+        UA_LOCK(server->serviceMutex);
+        vn = (const UA_VariableNode*)UA_Nodestore_getNode(server->nsCtx, &vn->nodeId);
+        if(!vn)
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
+
+    /* Set the result */
     if(rangeptr)
         return UA_Variant_copyRange(&vn->value.data.value.value, &v->value, *rangeptr);
-    *v = vn->value.data.value;
-    v->value.storageType = UA_VARIANT_DATA_NODELETE;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_DataValue_copy(&vn->value.data.value, v);
+
+    /* Clean up */
+    if(vn->value.data.callback.onRead)
+        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node *)vn);
+    return retval;
 }
 
 static UA_StatusCode
@@ -144,8 +143,20 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-    return vn->value.dataSource.read(server, &session->sessionId, session->sessionHandle,
-                                     &vn->nodeId, vn->context, sourceTimeStamp, rangeptr, v);
+    UA_DataValue v2;
+    UA_DataValue_init(&v2);
+    UA_UNLOCK(server->serviceMutex);
+    UA_StatusCode retval = vn->value.dataSource.
+        read(server, &session->sessionId, session->sessionHandle,
+             &vn->nodeId, vn->context, sourceTimeStamp, rangeptr, &v2);
+    UA_LOCK(server->serviceMutex);
+    if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
+        retval = UA_DataValue_copy(&v2, v);
+        UA_DataValue_deleteMembers(&v2);
+    } else {
+        *v = v2;
+    }
+    return retval;
 }
 
 static UA_StatusCode
@@ -191,6 +202,55 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
         break;                                                  \
     }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+static const UA_DataType *
+findDataType(const UA_Node *node, const UA_DataTypeArray *customTypes) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_NodeId_equal(&UA_TYPES[i].typeId, &node->nodeId)) {
+            return &UA_TYPES[i];
+        }
+    }
+
+    // lookup custom type
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            if(UA_NodeId_equal(&customTypes->types[i].typeId, &node->nodeId))
+                return &customTypes->types[i];
+        }
+        customTypes = customTypes->next;
+    }
+    return NULL;
+}
+
+static UA_StatusCode
+getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
+    def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    def->defaultEncodingId =
+        UA_NODEID_NUMERIC(type->typeId.namespaceIndex, type->binaryEncodingId);
+    def->structureType = UA_STRUCTURETYPE_STRUCTURE;
+    def->fieldsSize = type->membersSize;
+    def->fields =
+        (UA_StructureField *)UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
+    if(!def->fields) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    const UA_DataType *typelists[2] = {UA_TYPES, &type[-type->typeIndex]};
+    for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
+        const UA_DataTypeMember *m = &type->members[cnt];
+        def->fields[cnt].valueRank = UA_TRUE == m->isArray ? 1 : -1;
+        def->fields[cnt].arrayDimensions = NULL;
+        def->fields[cnt].arrayDimensionsSize = 0;
+        def->fields[cnt].name =
+            UA_STRING((char *)(uintptr_t)m->memberName);
+        def->fields[cnt].description.locale = UA_STRING_NULL;
+        def->fields[cnt].description.text = UA_STRING_NULL;
+        def->fields[cnt].dataType = typelists[!m->namespaceZero][m->memberTypeIndex].typeId;
+        def->fields[cnt].maxStringLength = 0;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 /* Returns a datavalue that may point into the node via the
  * UA_VARIANT_DATA_NODELETE tag. Don't access the returned DataValue once the
  * node has been released! */
@@ -224,22 +284,22 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(id->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
-        setScalarNoDelete(&v->value, &node->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+        retval = UA_Variant_setScalarCopy(&v->value, &node->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
         break;
     case UA_ATTRIBUTEID_NODECLASS:
-        setScalarNoDelete(&v->value, &node->nodeClass, &UA_TYPES[UA_TYPES_NODECLASS]);
+        retval = UA_Variant_setScalarCopy(&v->value, &node->nodeClass, &UA_TYPES[UA_TYPES_NODECLASS]);
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
-        setScalarNoDelete(&v->value, &node->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        retval = UA_Variant_setScalarCopy(&v->value, &node->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
-        setScalarNoDelete(&v->value, &node->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Variant_setScalarCopy(&v->value, &node->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
-        setScalarNoDelete(&v->value, &node->description, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        retval = UA_Variant_setScalarCopy(&v->value, &node->description, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
-        setScalarNoDelete(&v->value, &node->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
+        retval = UA_Variant_setScalarCopy(&v->value, &node->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         break;
     case UA_ATTRIBUTEID_USERWRITEMASK: {
         UA_UInt32 userWriteMask = getUserWriteMask(server, session, node);
@@ -250,27 +310,27 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_SYMMETRIC:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
-        setScalarNoDelete(&v->value, &((const UA_ReferenceTypeNode*)node)->symmetric,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode*)node)->symmetric,
                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_INVERSENAME:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
-        setScalarNoDelete(&v->value, &((const UA_ReferenceTypeNode*)node)->inverseName,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ReferenceTypeNode*)node)->inverseName,
                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS(UA_NODECLASS_VIEW);
-        setScalarNoDelete(&v->value, &((const UA_ViewNode*)node)->containsNoLoops,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ViewNode*)node)->containsNoLoops,
                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_EVENTNOTIFIER:
         CHECK_NODECLASS(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         if(node->nodeClass == UA_NODECLASS_VIEW) {
-            setScalarNoDelete(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
+            retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
                               &UA_TYPES[UA_TYPES_BYTE]);
         }
         else{
-            setScalarNoDelete(&v->value, &((const UA_ObjectNode*)node)->eventNotifier,
+            retval = UA_Variant_setScalarCopy(&v->value, &((const UA_ObjectNode*)node)->eventNotifier,
                               &UA_TYPES[UA_TYPES_BYTE]);
         }
         break;
@@ -298,49 +358,73 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     }
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        setScalarNoDelete(&v->value, &((const UA_VariableTypeNode*)node)->dataType,
-                          &UA_TYPES[UA_TYPES_NODEID]);
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableTypeNode*)node)->dataType,
+                                          &UA_TYPES[UA_TYPES_NODEID]);
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        setScalarNoDelete(&v->value, &((const UA_VariableTypeNode*)node)->valueRank,
-                          &UA_TYPES[UA_TYPES_INT32]);
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableTypeNode*)node)->valueRank,
+                                          &UA_TYPES[UA_TYPES_INT32]);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = readArrayDimensionsAttribute((const UA_VariableNode*)node, v);
+        retval = UA_Variant_setArrayCopy(&v->value, ((const UA_VariableTypeNode*)node)->arrayDimensions,
+                                         ((const UA_VariableTypeNode*)node)->arrayDimensionsSize,
+                                         &UA_TYPES[UA_TYPES_UINT32]);
         break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        setScalarNoDelete(&v->value, &((const UA_VariableNode*)node)->accessLevel,
-                          &UA_TYPES[UA_TYPES_BYTE]);
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode*)node)->accessLevel,
+                                          &UA_TYPES[UA_TYPES_BYTE]);
         break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        UA_Byte userAccessLevel = getUserAccessLevel(server, session,
-                                                     (const UA_VariableNode*)node);
+        UA_Byte userAccessLevel = getUserAccessLevel(server, session, (const UA_VariableNode*)node);
         retval = UA_Variant_setScalarCopy(&v->value, &userAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
         break; }
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        setScalarNoDelete(&v->value, &((const UA_VariableNode*)node)->minimumSamplingInterval,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode*)node)->minimumSamplingInterval,
                           &UA_TYPES[UA_TYPES_DOUBLE]);
         break;
     case UA_ATTRIBUTEID_HISTORIZING:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        setScalarNoDelete(&v->value, &((const UA_VariableNode*)node)->historizing,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_VariableNode*)node)->historizing,
                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_EXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
-        setScalarNoDelete(&v->value, &((const UA_MethodNode*)node)->executable,
+        retval = UA_Variant_setScalarCopy(&v->value, &((const UA_MethodNode*)node)->executable,
                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_USEREXECUTABLE: {
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
-        UA_Boolean userExecutable = getUserExecutable(server, session,
-                                                      (const UA_MethodNode*)node);
+        UA_Boolean userExecutable = getUserExecutable(server, session, (const UA_MethodNode*)node);
         retval = UA_Variant_setScalarCopy(&v->value, &userExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break; }
+    case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
+        CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        const UA_DataType *type = findDataType(node, server->config.customDataTypes);
+        if(!type) {
+            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            break;
+        }
+
+        if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
+           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind) {
+            UA_StructureDefinition def;
+            retval = getStructureDefinition(type, &def);
+            if(UA_STATUSCODE_GOOD!=retval)
+                break;            
+            retval = UA_Variant_setScalarCopy(&v->value, &def,
+                                              &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+            UA_free(def.fields);
+            break;
+        }
+#endif
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break; }
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
@@ -362,6 +446,9 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
             v->serverTimestamp = UA_DateTime_now();
             v->hasServerTimestamp = true;
         }
+    } else {
+        /* In case the ServerTimestamp has been set manually */
+        v->hasServerTimestamp = false;
     }
 
     /* Handle source time stamp */
@@ -377,79 +464,54 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     }
 }
 
-static UA_StatusCode
-Operation_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
-               UA_TimestampsToReturn timestampsToReturn, const UA_ReadValueId *id) {
-    UA_DataValue dv;
-    UA_DataValue_init(&dv);
-
+static void
+Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
+               UA_ReadValueId *rvi, UA_DataValue *result) {
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_get(server, &id->nodeId);
+    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &rvi->nodeId);
 
     /* Perform the read operation */
     if(node) {
-        ReadWithNode(node, server, session, timestampsToReturn, id, &dv);
+        ReadWithNode(node, server, session, request->timestampsToReturn, rvi, result);
+        UA_Nodestore_releaseNode(server->nsCtx, node);
     } else {
-        dv.hasStatus = true;
-        dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        result->hasStatus = true;
+        result->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-
-    /* Encode (and send) the results */
-    UA_StatusCode retval = UA_MessageContext_encode(mc, &dv, &UA_TYPES[UA_TYPES_DATAVALUE]);
-
-    /* Free copied data and release the node */
-    UA_Variant_deleteMembers(&dv.value);
-    UA_Nodestore_release(server, node);
-    return retval;
 }
 
-UA_StatusCode Service_Read(UA_Server *server, UA_Session *session, UA_MessageContext *mc,
-                           const UA_ReadRequest *request, UA_ResponseHeader *responseHeader) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                         "Processing ReadRequest");
+void
+Service_Read(UA_Server *server, UA_Session *session,
+             const UA_ReadRequest *request, UA_ReadResponse *response) {
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ReadRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     /* Check if the timestampstoreturn is valid */
-    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER)
-        responseHeader->serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-
-    if(request->nodesToReadSize == 0)
-        responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
+    }
 
     /* Check if maxAge is valid */
-    if(request->maxAge < 0)
-        responseHeader->serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
+    if(request->maxAge < 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
+        return;
+    }
 
     /* Check if there are too many operations */
     if(server->config.maxNodesPerRead != 0 &&
-       request->nodesToReadSize > server->config.maxNodesPerRead)
-        responseHeader->serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-
-    /* Encode the response header */
-    UA_StatusCode retval =
-        UA_MessageContext_encode(mc, responseHeader, &UA_TYPES[UA_TYPES_RESPONSEHEADER]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Process nothing if we return an error code for the entire service */
-    UA_Int32 arraySize = (UA_Int32)request->nodesToReadSize;
-    if(responseHeader->serviceResult != UA_STATUSCODE_GOOD)
-        arraySize = 0;
-
-    /* Process all ReadValueIds */
-    retval = UA_MessageContext_encode(mc, &arraySize, &UA_TYPES[UA_TYPES_INT32]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    for(UA_Int32 i = 0; i < arraySize; i++) {
-        retval = Operation_Read(server, session, mc, request->timestampsToReturn,
-                                &request->nodesToRead[i]);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+       request->nodesToReadSize > server->config.maxNodesPerRead) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
     }
 
-    /* Don't return any DiagnosticInfo */
-    arraySize = -1;
-    return UA_MessageContext_encode(mc, &arraySize, &UA_TYPES[UA_TYPES_INT32]);
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Read,
+                                           request,
+                                           &request->nodesToReadSize, &UA_TYPES[UA_TYPES_READVALUEID],
+                                           &response->resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 
 UA_DataValue
@@ -460,7 +522,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     UA_DataValue_init(&dv);
 
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_get(server, &item->nodeId);
+    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &item->nodeId);
     if(!node) {
         dv.hasStatus = true;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -470,42 +532,29 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     /* Perform the read operation */
     ReadWithNode(node, server, session, timestampsToReturn, item, &dv);
 
-    /* Do we have to copy the result before releasing the node? */
-    if(dv.hasValue && dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
-        UA_DataValue dv2;
-        UA_StatusCode retval = UA_DataValue_copy(&dv, &dv2);
-        if(retval == UA_STATUSCODE_GOOD) {
-            dv = dv2;
-        } else {
-            UA_DataValue_init(&dv);
-            dv.hasStatus = true;
-            dv.status = retval;
-        }
-    }
-
     /* Release the node and return */
-    UA_Nodestore_release(server, node);
+    UA_Nodestore_releaseNode(server->nsCtx, node);
     return dv;
 }
 
-/* Exposes the Read service to local users */
 UA_DataValue
-UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
+readAttribute(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     return UA_Server_readWithSession(server, &server->adminSession, item, timestamps);
 }
 
-/* Used in inline functions exposing the Read service with more syntactic sugar
- * for individual attributes */
 UA_StatusCode
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
-                 const UA_AttributeId attributeId, void *v) {
+readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
+                                const UA_AttributeId attributeId, void *v) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     /* Call the read service */
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
     item.attributeId = attributeId;
-    UA_DataValue dv = UA_Server_read(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
+    UA_DataValue dv = readAttribute(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
 
     /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -530,6 +579,27 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
     return retval;
 }
 
+/* Exposes the Read service to local users */
+UA_DataValue
+UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
+               UA_TimestampsToReturn timestamps) {
+    UA_LOCK(server->serviceMutex);
+    UA_DataValue dv = readAttribute(server, item, timestamps);
+    UA_UNLOCK(server->serviceMutex);
+    return dv;
+}
+
+/* Used in inline functions exposing the Read service with more syntactic sugar
+ * for individual attributes */
+UA_StatusCode
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
+                 const UA_AttributeId attributeId, void *v) {
+   UA_LOCK(server->serviceMutex);
+   UA_StatusCode retval = readWithReadValue(server, nodeId, attributeId, v);
+   UA_UNLOCK(server->serviceMutex);
+   return retval;
+}
+
 UA_StatusCode
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
@@ -548,14 +618,17 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     bp.relativePath.elements = &rpe;
 
     UA_StatusCode retval;
-    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    UA_LOCK(server->serviceMutex);
+    UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_UNLOCK(server->serviceMutex);
         return retval;
     }
 
-    retval = UA_Server_readValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, value);
+    UA_UNLOCK(server->serviceMutex);
 
     UA_BrowsePathResult_deleteMembers(&bpr);
     return retval;
@@ -565,21 +638,12 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 /* Type Checking */
 /*****************/
 
-enum type_equivalence {
-    TYPE_EQUIVALENCE_NONE,
-    TYPE_EQUIVALENCE_ENUM,
-    TYPE_EQUIVALENCE_OPAQUE
-};
-
-static enum type_equivalence
+static UA_DataTypeKind
 typeEquivalence(const UA_DataType *t) {
-    if(t->membersSize != 1 || !t->members[0].namespaceZero)
-        return TYPE_EQUIVALENCE_NONE;
-    if(t->members[0].memberTypeIndex == UA_TYPES_INT32)
-        return TYPE_EQUIVALENCE_ENUM;
-    if(t->members[0].memberTypeIndex == UA_TYPES_BYTE && t->members[0].isArray)
-        return TYPE_EQUIVALENCE_OPAQUE;
-    return TYPE_EQUIVALENCE_NONE;
+    UA_DataTypeKind k = (UA_DataTypeKind)t->typeKind;
+    if(k == UA_DATATYPEKIND_ENUM)
+        return UA_DATATYPEKIND_INT32;
+    return k;
 }
 
 static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERATION}};
@@ -604,12 +668,12 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         return true;
 
     /* Is the value-type a subtype of the required type? */
-    if(isNodeInTree(&server->config.nodestore, dataType, constraintDataType, &subtypeId, 1))
+    if(isNodeInTree(server->nsCtx, dataType, constraintDataType, &subtypeId, 1))
         return true;
 
     /* Enum allows Int32 (only) */
     if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
-       isNodeInTree(&server->config.nodestore, constraintDataType, &enumNodeId, &subtypeId, 1))
+       isNodeInTree(server->nsCtx, constraintDataType, &enumNodeId, &subtypeId, 1))
         return true;
 
     /* More checks for the data type of real values (variants) */
@@ -621,7 +685,7 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         if(dataType->namespaceIndex == 0 &&
            dataType->identifierType == UA_NODEIDTYPE_NUMERIC &&
            dataType->identifier.numeric <= 25 &&
-           isNodeInTree(&server->config.nodestore, constraintDataType,
+           isNodeInTree(server->nsCtx, constraintDataType,
                         dataType, &subtypeId, 1))
             return true;
     }
@@ -836,9 +900,9 @@ adjustValue(UA_Server *server, UA_Variant *value,
 
     /* An enum was sent as an int32, or an opaque type as a bytestring. This
      * is detected with the typeIndex indicating the "true" datatype. */
-    enum type_equivalence te1 = typeEquivalence(targetDataType);
-    enum type_equivalence te2 = typeEquivalence(value->type);
-    if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
+    UA_DataTypeKind te1 = typeEquivalence(targetDataType);
+    UA_DataTypeKind te2 = typeEquivalence(value->type);
+    if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
         value->type = targetDataType;
         return;
     }
@@ -1122,22 +1186,31 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
         /* node is a UA_VariableNode*, but it may also point to a UA_VariableTypeNode */
         /* UA_VariableTypeNode doesn't have the historizing attribute */
         if(retval == UA_STATUSCODE_GOOD && node->nodeClass == UA_NODECLASS_VARIABLE &&
-                server->config.historyDatabase.setValue)
+                server->config.historyDatabase.setValue) {
+            UA_UNLOCK(server->serviceMutex);
             server->config.historyDatabase.setValue(server, server->config.historyDatabase.context,
                                                     &session->sessionId, session->sessionHandle,
                                                     &node->nodeId, node->historizing, &adjustedValue);
+            UA_LOCK(server->serviceMutex);
+        }
 #endif
         /* Callback after writing */
-        if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite)
+        if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite) {
+            UA_UNLOCK(server->serviceMutex)
             node->value.data.callback.onWrite(server, &session->sessionId,
                                               session->sessionHandle, &node->nodeId,
                                               node->context, rangeptr,
                                               &adjustedValue);
+            UA_LOCK(server->serviceMutex);
+
+        }
     } else {
         if(node->value.dataSource.write) {
+            UA_UNLOCK(server->serviceMutex);
             retval = node->value.dataSource.write(server, &session->sessionId,
                                                   session->sessionHandle, &node->nodeId,
                                                   node->context, rangeptr, &adjustedValue);
+            UA_LOCK(server->serviceMutex);
         } else {
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         }
@@ -1281,7 +1354,11 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
         CHECK_USERWRITEMASK(UA_WRITEMASK_EVENTNOTIFIER);
         CHECK_DATATYPE_SCALAR(BYTE);
-        ((UA_ViewNode*)node)->eventNotifier = *(const UA_Byte*)value;
+        if(node->nodeClass == UA_NODECLASS_VIEW) {
+            ((UA_ViewNode*)node)->eventNotifier = *(const UA_Byte*)value;
+        } else {
+            ((UA_ObjectNode*)node)->eventNotifier = *(const UA_Byte*)value;
+        }
         break;
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -1312,7 +1389,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         GET_NODETYPE
         retval = writeDataTypeAttribute(server, session, (UA_VariableNode*)node,
                                         type, (const UA_NodeId*)value);
-        UA_Nodestore_release(server, (const UA_Node*)type);
+        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -1321,7 +1398,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         GET_NODETYPE
         retval = writeValueRankAttribute(server, session, (UA_VariableNode*)node,
                                          type, *(const UA_Int32*)value);
-        UA_Nodestore_release(server, (const UA_Node*)type);
+        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -1331,7 +1408,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         retval = writeArrayDimensionsAttribute(server, session, (UA_VariableNode*)node,
                                                type, wvalue->value.value.arrayLength,
                                                (UA_UInt32 *)wvalue->value.value.data);
-        UA_Nodestore_release(server, (const UA_Node*)type);
+        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
@@ -1381,12 +1458,15 @@ Service_Write(UA_Server *server, UA_Session *session,
               UA_WriteResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                          "Processing WriteRequest");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxNodesPerWrite != 0 &&
        request->nodesToWriteSize > server->config.maxNodesPerWrite) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
+
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session, (UA_ServiceOperation)Operation_Write, NULL,
@@ -1395,7 +1475,7 @@ Service_Write(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
+writeWithSession(UA_Server *server, UA_Session *session,
                            const UA_WriteValue *value) {
     return UA_Server_editNode(server, session, &value->nodeId,
                               (UA_EditNodeCallback)copyAttributeIntoNode,
@@ -1404,19 +1484,28 @@ UA_Server_writeWithSession(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
+writeAttribute(UA_Server *server, const UA_WriteValue *value) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &value->nodeId,
                               (UA_EditNodeCallback)copyAttributeIntoNode,
-                              /* casting away const qualifier because callback uses const anyway */
+                               /* casting away const qualifier because callback uses const anyway */
                               (UA_WriteValue *)(uintptr_t)value);
 }
 
-/* Convenience function to be wrapped into inline functions */
 UA_StatusCode
-__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = writeAttribute(server, value);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
+}
+
+UA_StatusCode
+writeWithWriteValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
                   const UA_DataType *attr_type,
                   const void *attr) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = *nodeId;
@@ -1429,7 +1518,19 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     } else {
         wvalue.value.value = *(const UA_Variant*)attr;
     }
-    return UA_Server_write(server, &wvalue);
+    return writeAttribute(server, &wvalue);
+}
+
+/* Convenience function to be wrapped into inline functions */
+UA_StatusCode
+__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId,
+                  const UA_DataType *attr_type,
+                  const void *attr) {
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = writeWithWriteValue(server, nodeId, attributeId, attr_type, attr);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -1437,6 +1538,8 @@ void
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
                     UA_HistoryReadResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
@@ -1502,6 +1605,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         response->results[i].historyData.content.decoded.data = data;
         historyData[i] = data;
     }
+    UA_UNLOCK(server->serviceMutex);
     server->config.historyDatabase.readRaw(server, server->config.historyDatabase.context,
                                            &session->sessionId, session->sessionHandle,
                                            &request->requestHeader, details,
@@ -1509,14 +1613,85 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                                            request->releaseContinuationPoints,
                                            request->nodesToReadSize, request->nodesToRead,
                                            response, historyData);
+    UA_LOCK(server->serviceMutex);
     UA_free(historyData);
 }
+
+void
+Service_HistoryUpdate(UA_Server *server, UA_Session *session,
+                    const UA_HistoryUpdateRequest *request,
+                    UA_HistoryUpdateResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
+    response->resultsSize = request->historyUpdateDetailsSize;
+    response->results = (UA_HistoryUpdateResult*)UA_Array_new(response->resultsSize, &UA_TYPES[UA_TYPES_HISTORYUPDATERESULT]);
+    if (!response->results) {
+        response->resultsSize = 0;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    for (size_t i = 0; i < request->historyUpdateDetailsSize; ++i) {
+        UA_HistoryUpdateResult_init(&response->results[i]);
+        if(request->historyUpdateDetails[i].encoding != UA_EXTENSIONOBJECT_DECODED) {
+            response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            continue;
+        }
+        if (request->historyUpdateDetails[i].content.decoded.type
+                == &UA_TYPES[UA_TYPES_UPDATEDATADETAILS]) {
+            if (server->config.historyDatabase.updateData) {
+                UA_UNLOCK(server->serviceMutex);
+                server->config.historyDatabase.updateData(server,
+                                                          server->config.historyDatabase.context,
+                                                          &session->sessionId, session->sessionHandle,
+                                                          &request->requestHeader,
+                                                          (UA_UpdateDataDetails*)request->historyUpdateDetails[i].content.decoded.data,
+                                                          &response->results[i]);
+                UA_LOCK(server->serviceMutex);
+            } else {
+                response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            }
+            continue;
+        } else
+        if (request->historyUpdateDetails[i].content.decoded.type
+                == &UA_TYPES[UA_TYPES_DELETERAWMODIFIEDDETAILS]) {
+            if (server->config.historyDatabase.deleteRawModified) {
+                UA_UNLOCK(server->serviceMutex);
+                server->config.historyDatabase.deleteRawModified(server,
+                                                                 server->config.historyDatabase.context,
+                                                                 &session->sessionId, session->sessionHandle,
+                                                                 &request->requestHeader,
+                                                                 (UA_DeleteRawModifiedDetails*)request->historyUpdateDetails[i].content.decoded.data,
+                                                                 &response->results[i]);
+                UA_LOCK(server->serviceMutex);
+            } else {
+                response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            }
+            continue;
+        } else {
+            response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+            continue;
+        }
+    }
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+}
+
 #endif
 
 UA_StatusCode UA_EXPORT
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
+                              const UA_Variant value){
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retVal = writeObjectProperty(server, objectId, propertyName, value);
+    UA_UNLOCK(server->serviceMutex);
+    return retVal;
+}
+
+UA_StatusCode
+writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                              const UA_QualifiedName propertyName,
                               const UA_Variant value) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
@@ -1531,14 +1706,14 @@ UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
     bp.relativePath.elements = &rpe;
 
     UA_StatusCode retval;
-    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
+    UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
         UA_BrowsePathResult_deleteMembers(&bpr);
         return retval;
     }
 
-    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
 
     UA_BrowsePathResult_deleteMembers(&bpr);
     return retval;
@@ -1551,5 +1726,8 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, (void*)(uintptr_t)value, type);
-    return UA_Server_writeObjectProperty(server, objectId, propertyName, var);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = writeObjectProperty(server, objectId, propertyName, var);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }

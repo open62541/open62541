@@ -6,16 +6,19 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
+#include <open62541/client.h>
+
 #include "ua_server_internal.h"
-#include "ua_client.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
-static UA_StatusCode
+UA_StatusCode
 register_server_with_discovery_server(UA_Server *server,
-                                      UA_Client *client,
+                                      void *pClient,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
+    UA_Client *client = (UA_Client *) pClient;
+
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
@@ -60,19 +63,15 @@ register_server_with_discovery_server(UA_Server *server,
         request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
 
-    UA_MdnsDiscoveryConfiguration mdnsConfig;
-    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
-
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     request.discoveryConfigurationSize = 1;
     request.discoveryConfiguration = UA_ExtensionObject_new();
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
+    // Set to NODELETE so that we can just use a pointer to the mdns config
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
-    request.discoveryConfiguration[0].content.decoded.data = &mdnsConfig;
-
-    mdnsConfig.mdnsServerName = server->config.mdnsServerName;
-    mdnsConfig.serverCapabilities = server->config.serverCapabilities;
-    mdnsConfig.serverCapabilitiesSize = server->config.serverCapabilitiesSize;
+    request.discoveryConfiguration[0].content.decoded.data = &server->config.discovery.mdns;
+#endif
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;
@@ -81,7 +80,11 @@ register_server_with_discovery_server(UA_Server *server,
 
     UA_StatusCode serviceResult = response.responseHeader.serviceResult;
     UA_RegisterServer2Response_deleteMembers(&response);
-    UA_ExtensionObject_delete(request.discoveryConfiguration);
+    UA_Array_delete(request.discoveryConfiguration,
+                    request.discoveryConfigurationSize,
+                    &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    request.discoveryConfiguration = NULL;
+    request.discoveryConfigurationSize = 0;
 
     if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
        serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
@@ -115,14 +118,20 @@ register_server_with_discovery_server(UA_Server *server,
 UA_StatusCode
 UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, client,
-                                                 false, semaphoreFilePath);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = register_server_with_discovery_server(server, client,
+                                                                 false, semaphoreFilePath);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
-    return register_server_with_discovery_server(server, client,
-                                                 true, NULL);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = register_server_with_discovery_server(server, client,
+                                                                 true, NULL);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

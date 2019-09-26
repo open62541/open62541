@@ -14,7 +14,8 @@
 #ifndef UA_DISCOVERY_MANAGER_H_
 #define UA_DISCOVERY_MANAGER_H_
 
-#include "ua_server.h"
+#include <open62541/server.h>
+
 #include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
@@ -22,7 +23,7 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_DISCOVERY
 
 typedef struct registeredServer_list_entry {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_DelayedCallback delayedCleanup;
 #endif
     LIST_ENTRY(registeredServer_list_entry) pointers;
@@ -30,8 +31,17 @@ typedef struct registeredServer_list_entry {
     UA_DateTime lastSeen;
 } registeredServer_list_entry;
 
+struct PeriodicServerRegisterCallback {
+    UA_UInt64 id;
+    UA_Double this_interval;
+    UA_Double default_interval;
+    UA_Boolean registered;
+    struct UA_Client* client;
+    char* discovery_server_url;
+};
+
 typedef struct periodicServerRegisterCallback_entry {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_DelayedCallback delayedCleanup;
 #endif
     LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
@@ -52,7 +62,7 @@ typedef struct periodicServerRegisterCallback_entry {
  */
 
 typedef struct serverOnNetwork_list_entry {
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     UA_DelayedCallback delayedCleanup;
 #endif
     LIST_ENTRY(serverOnNetwork_list_entry) pointers;
@@ -96,7 +106,7 @@ typedef struct {
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void* serverOnNetworkCallbackData;
 
-#  ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     pthread_t mdnsThread;
     UA_Boolean mdnsRunning;
 #  endif
@@ -122,7 +132,7 @@ void mdns_record_received(const struct resource *r, void *data);
 
 void mdns_create_txt(UA_Server *server, const char *fullServiceDomain,
                      const char *path, const UA_String *capabilites,
-                     const size_t *capabilitiesSize,
+                     const size_t capabilitiesSize,
                      void (*conflict)(char *host, int type, void *arg));
 
 void mdns_set_address_record(UA_Server *server,
@@ -155,7 +165,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
                        const UA_String *hostname, UA_UInt16 port,
                        const UA_String *path, const UA_DiscoveryProtocol protocol,
                        UA_Boolean createTxt, const UA_String* capabilites,
-                       size_t *capabilitiesSize);
+                       const size_t capabilitiesSize);
 UA_StatusCode
 UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
                           const UA_String *hostname, UA_UInt16 port,

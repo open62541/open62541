@@ -14,8 +14,6 @@
 # undef BYTE_ORDER
 #endif
 
-#include <unistd.h> // read, write, close
-
 #define UA_sleep_ms(X) vTaskDelay(pdMS_TO_TICKS(X))
 
 #ifdef OPEN62541_FEERTOS_USE_OWN_MEM
@@ -30,7 +28,11 @@
 # define UA_realloc realloc
 #endif
 
-#define UA_access access
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
+# ifndef UA_fileExists
+#  define UA_fileExists(X) (0) //file managing is not part of freeRTOS. If the system provides it, please define it before
+# endif // UA_fileExists
+#endif
 
 // No log colors on freeRTOS
 // #define UA_ENABLE_LOG_COLORS

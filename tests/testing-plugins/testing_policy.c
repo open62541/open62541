@@ -4,13 +4,11 @@
 
 #ifndef __clang_analyzer__
 
-#include <ua_plugin_securitypolicy.h>
-#include "ua_types.h"
-#include "ua_plugin_securitypolicy.h"
-#include "ua_log_stdout.h"
-#include "ua_types_generated_handling.h"
 #include "testing_policy.h"
-#include "check.h"
+
+#include <open62541/plugin/log_stdout.h>
+
+#include <check.h>
 
 #define SET_CALLED(func) funcsCalled->func = true
 

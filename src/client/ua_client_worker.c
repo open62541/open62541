@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_util.h"
-#include "ua_client.h"
 #include "ua_client_internal.h"
 
 static void
@@ -116,9 +114,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
         retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
         if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
             retval = UA_STATUSCODE_GOOD;
-    }
-
-    else{
+    } else {
         UA_DateTime now = UA_DateTime_nowMonotonic();
         UA_Timer_process(&client->timer, now,
                          (UA_TimerExecutionCallback)clientExecuteRepeatedCallback, client);
@@ -142,7 +138,7 @@ UA_StatusCode UA_Client_run_iterate(UA_Client *client, UA_UInt16 timeout) {
 #endif
         asyncServiceTimeoutCheck(client);
 
-#ifndef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING < 200
         /* Process delayed callbacks when all callbacks and network events are
          * done */
         UA_WorkQueue_manuallyProcessDelayed(&client->workQueue);

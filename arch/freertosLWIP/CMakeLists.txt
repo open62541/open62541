@@ -10,6 +10,7 @@ if (${_index} GREATER -1 OR "${UA_ARCHITECTURE}" STREQUAL "freertosLWIP")
 
     if("${UA_ARCHITECTURE}" STREQUAL "freertosLWIP")
         ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+        ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../common)
         set(UA_ARCH_FREERTOS_USE_OWN_MEMORY_FUNCTIONS OFF CACHE BOOL "Enable free/malloc/etc from own implementation")
         if(UA_ARCH_FREERTOS_USE_OWN_MEMORY_FUNCTIONS)
           ua_architecture_add_definitions("-DOPEN62541_FEERTOS_USE_OWN_MEM")

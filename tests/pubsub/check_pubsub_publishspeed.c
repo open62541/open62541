@@ -5,32 +5,30 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <time.h>
-#include <stdio.h>
-#include <check.h>
+#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
+#include <open62541/types_generated_encoding_binary.h>
 
-#include "ua_server_pubsub.h"
-#include "src_generated/ua_types_generated_encoding_binary.h"
-#include "ua_types.h"
-#include "ua_pubsub.h"
-#include "ua_config_default.h"
-#include "ua_network_pubsub_udp.h"
 #include "ua_server_internal.h"
 
+#include <check.h>
+#include <stdio.h>
+#include <time.h>
+
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *) UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(!config->pubsubTransportLayers) {
-        UA_ServerConfig_delete(config);
-    }
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
+    config->pubsubTransportLayers = (UA_PubSubTransportLayer*)
+        UA_malloc(sizeof(UA_PubSubTransportLayer));
     config->pubsubTransportLayers[0] = UA_PubSubTransportLayerUDPMP();
     config->pubsubTransportLayersSize++;
-    server = UA_Server_new(config);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -47,6 +45,7 @@ static void setup(void) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -65,7 +64,6 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(PublishSpeedTest) {

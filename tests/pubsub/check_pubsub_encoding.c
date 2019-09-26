@@ -5,10 +5,11 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
  */
 
-#include "ua_types.h"
-#include "ua_client.h"
-#include "ua_util.h"
+#include <open62541/client.h>
+#include <open62541/types.h>
+
 #include "ua_pubsub_networkmessage.h"
+
 #include "check.h"
 
 START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
@@ -1364,7 +1365,7 @@ int main(void) {
     TCase *tc_ende2 = tcase_create("encode_decode2DS");
     tcase_add_test(tc_ende2, UA_PubSub_EnDecode_ShallWorkOn2DSVariant);
     
-    Suite *s = suite_create("PubSub NetworkMessage");	
+    Suite *s = suite_create("PubSub NetworkMessage");   
     suite_add_tcase(s, tc_encode);
     suite_add_tcase(s, tc_decode);
     suite_add_tcase(s, tc_ende1);

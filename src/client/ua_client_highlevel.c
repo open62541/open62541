@@ -11,11 +11,10 @@
  *    Copyright 2018 (c) Peter Rustler, basyskom GmbH
  */
 
-#include "ua_client.h"
+#include <open62541/client_highlevel.h>
+#include <open62541/client_highlevel_async.h>
+
 #include "ua_client_internal.h"
-#include "ua_client_highlevel.h"
-#include "ua_client_highlevel_async.h"
-#include "ua_util.h"
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
@@ -499,8 +498,8 @@ __UA_Client_HistoryRead_service(UA_Client *client, const UA_NodeId *nodeId,
                                    void *callbackContext) {
 
     UA_ByteString continuationPoint = UA_BYTESTRING_NULL;
-    UA_Boolean continuationAvail = UA_FALSE;
-    UA_Boolean fetchMore = UA_FALSE;
+    UA_Boolean continuationAvail = false;
+    UA_Boolean fetchMore = false;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     do {
@@ -608,7 +607,7 @@ UA_Client_HistoryRead_raw(UA_Client *client, const UA_NodeId *nodeId,
                              UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
 
     return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
-                                                     numValuesPerNode, UA_FALSE, timestampsToReturn, callbackContext);
+                                                     numValuesPerNode, false, timestampsToReturn, callbackContext);
 }
 
 #ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
@@ -620,9 +619,136 @@ UA_Client_HistoryRead_modified(UA_Client *client, const UA_NodeId *nodeId,
                                   UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
 
     return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
-                                                     maxItems, UA_TRUE, timestampsToReturn, callbackContext);
+                                                     maxItems, true, timestampsToReturn, callbackContext);
 }
 #endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
+
+static UA_HistoryUpdateResponse
+__UA_Client_HistoryUpdate(UA_Client *client,
+                          void *details,
+                          size_t typeId)
+{
+    UA_HistoryUpdateRequest request;
+    UA_HistoryUpdateRequest_init(&request);
+
+    UA_ExtensionObject extension;
+    UA_ExtensionObject_init(&extension);
+    request.historyUpdateDetailsSize = 1;
+    request.historyUpdateDetails = &extension;
+
+    extension.encoding = UA_EXTENSIONOBJECT_DECODED;
+    extension.content.decoded.type = &UA_TYPES[typeId];
+    extension.content.decoded.data = details;
+
+    UA_HistoryUpdateResponse response;
+    response = UA_Client_Service_historyUpdate(client, request);
+    //UA_HistoryUpdateRequest_deleteMembers(&request);
+    return response;
+}
+
+static UA_StatusCode
+__UA_Client_HistoryUpdate_updateData(UA_Client *client,
+                          const UA_NodeId *nodeId,
+                          UA_PerformUpdateType type,
+                          UA_DataValue *value)
+{
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_UpdateDataDetails details;
+    UA_UpdateDataDetails_init(&details);
+
+    details.performInsertReplace = type;
+    details.updateValuesSize = 1;
+    details.updateValues = value;
+    UA_NodeId_copy(nodeId, &details.nodeId);
+
+    UA_HistoryUpdateResponse response;
+    response = __UA_Client_HistoryUpdate(client, &details, UA_TYPES_UPDATEDATADETAILS);
+    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        ret = response.responseHeader.serviceResult;
+        goto cleanup;
+    }
+    if (response.resultsSize != 1 || response.results[0].operationResultsSize != 1) {
+        ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        goto cleanup;
+    }
+    if (response.results[0].statusCode != UA_STATUSCODE_GOOD) {
+        ret = response.results[0].statusCode;
+        goto cleanup;
+    }
+    ret = response.results[0].operationResults[0];
+cleanup:
+    UA_HistoryUpdateResponse_deleteMembers(&response);
+    UA_NodeId_deleteMembers(&details.nodeId);
+    return ret;
+}
+
+UA_StatusCode
+UA_Client_HistoryUpdate_insert(UA_Client *client,
+                               const UA_NodeId *nodeId,
+                               UA_DataValue *value)
+{
+    return __UA_Client_HistoryUpdate_updateData(client,
+                                                nodeId,
+                                                UA_PERFORMUPDATETYPE_INSERT,
+                                                value);
+}
+
+UA_StatusCode
+UA_Client_HistoryUpdate_replace(UA_Client *client,
+                                const UA_NodeId *nodeId,
+                                UA_DataValue *value)
+{
+    return __UA_Client_HistoryUpdate_updateData(client,
+                                                nodeId,
+                                                UA_PERFORMUPDATETYPE_REPLACE,
+                                                value);
+}
+
+UA_StatusCode
+UA_Client_HistoryUpdate_update(UA_Client *client,
+                               const UA_NodeId *nodeId,
+                               UA_DataValue *value)
+{
+    return __UA_Client_HistoryUpdate_updateData(client,
+                                                nodeId,
+                                                UA_PERFORMUPDATETYPE_UPDATE,
+                                                value);
+}
+
+UA_StatusCode
+UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
+                                  const UA_NodeId *nodeId,
+                                  UA_DateTime startTimestamp,
+                                  UA_DateTime endTimestamp)
+{
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    UA_DeleteRawModifiedDetails details;
+    UA_DeleteRawModifiedDetails_init(&details);
+
+    details.isDeleteModified = false;
+    details.startTime = startTimestamp;
+    details.endTime = endTimestamp;
+    UA_NodeId_copy(nodeId, &details.nodeId);
+
+    UA_HistoryUpdateResponse response;
+    response = __UA_Client_HistoryUpdate(client, &details, UA_TYPES_DELETERAWMODIFIEDDETAILS);
+    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        ret = response.responseHeader.serviceResult;
+        goto cleanup;
+    }
+    if (response.resultsSize != 1) {
+        ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        goto cleanup;
+    }
+
+    ret = response.results[0].statusCode;
+
+cleanup:
+    UA_HistoryUpdateResponse_deleteMembers(&response);
+    UA_NodeId_deleteMembers(&details.nodeId);
+    return ret;
+}
 #endif // UA_ENABLE_HISTORIZING
 
 /* Async Functions */

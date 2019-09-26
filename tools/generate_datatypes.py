@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from __future__ import print_function
@@ -15,10 +15,13 @@ import xml.etree.ElementTree as etree
 import itertools
 import argparse
 import csv
-from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
+import json
+from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
 types = OrderedDict() # contains types that were already parsed
+types_imported = OrderedDict() # contains types that were already parsed and marked as imported types (do not write to source code)
 typedescriptions = {} # contains type nodeids
+user_opaque_type_mapping = {} # contains user defined opaque type mapping
 
 excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
                   "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
@@ -33,6 +36,9 @@ builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32
                  "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode",
                  "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
                  "Variant", "DiagnosticInfo"]
+
+# If set to False, every defined datatype must have a corresponding ID entry in the csv file
+isInternalTypes = False
 
 # Some types can be memcpy'd off the binary stream. That's especially important
 # for arrays. But we need to check if they contain padding and whether the
@@ -50,18 +56,18 @@ builtin_overlayable = {"Boolean": "true",
                        "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
                        "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER",
                        "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
-                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " + \
-                       "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
-                       "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " + \
+                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && " +
+                       "offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " +
+                       "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " +
                        "offsetof(UA_Guid, data4) == (2*sizeof(UA_UInt32)))"}
 
-whitelistFuncAttrWarnUnusedResult = [  ] # for instances [ "String", "ByteString", "LocalizedText" ]
+whitelistFuncAttrWarnUnusedResult = []  # for instances [ "String", "ByteString", "LocalizedText" ]
 
 # Type aliases
 type_aliases = { "CharArray" : "String" }
 def getTypeName(xmlTypeName):
-   typeName = xmlTypeName[xmlTypeName.find(":")+1:]
-   return type_aliases.get(typeName, typeName)
+    typeName = xmlTypeName[xmlTypeName.find(":")+1:]
+    return type_aliases.get(typeName, typeName)
 
 # Escape C strings:
 def makeCLiteral(value):
@@ -70,6 +76,12 @@ def makeCLiteral(value):
 # Strip invalid characters to create valid C identifiers (variable names etc):
 def makeCIdentifier(value):
     return re.sub(r'[^\w]', '', value)
+
+def get_base_type_for_opaque(name):
+    if name in user_opaque_type_mapping:
+        return user_opaque_type_mapping[name]
+    else:
+        return get_base_type_for_opaque_ns0(name)
 
 ################
 # Type Classes #
@@ -82,7 +94,7 @@ class StructMember(object):
         self.isArray = isArray
 
 def getNodeidTypeAndId(nodeId):
-    if not '=' in nodeId:
+    if '=' not in nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId)
     if nodeId.startswith("i="):
         return "UA_NODEIDTYPE_NUMERIC, {{{0}}}".format(nodeId[2:])
@@ -96,20 +108,16 @@ class Type(object):
         self.name = None
         if xml is not None:
             self.name = xml.get("Name")
-            self.typeIndex = makeCIdentifier(outname.upper() + "_" + self.name.upper())
+            self.typeIndex = "UA_" + makeCIdentifier(outname.upper() + "_" + self.name.upper())
         else:
             self.typeIndex = makeCIdentifier(outname.upper())
-
         self.ns0 = ("true" if namespace == 0 else "false")
         self.outname = outname
+        self.kind = None
         self.description = ""
         self.pointerfree = "false"
         self.overlayable = "false"
-        if self.name in builtin_types:
-            self.builtin = "true"
-        else:
-            self.builtin = "false"
-        self.members = [StructMember("", self, False)] # Returns one member: itself. Overwritten by some types.
+        self.members = []
         if xml is not None:
             for child in xml:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
@@ -125,22 +133,25 @@ class Type(object):
             # xmlEncodingId = description.xmlEncodingId
             binaryEncodingId = description.binaryEncodingId
         else:
-            typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
+            if not isInternalTypes:
+                raise RuntimeError("NodeId for " + self.name + " not found in .csv file")
+            else:
+                typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
         idName = makeCIdentifier(self.name)
         return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
             "    " + typeid + ", /* .typeId */\n" + \
             "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
             "    " + self.typeIndex + ", /* .typeIndex */\n" + \
-            "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
-            "    " + self.builtin + ", /* .builtin */\n" + \
+            "    " + self.kind + ", /* .typeKind */\n" + \
             "    " + self.pointerfree + ", /* .pointerFree */\n" + \
             "    " + self.overlayable + ", /* .overlayable */\n" + \
+            "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
             "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
             "    %s_members" % idName + " /* .members */\n}"
 
     def members_c(self):
         idName = makeCIdentifier(self.name)
-        if len(self.members)==0:
+        if len(self.members) == 0:
             return "#define %s_members NULL" % (idName)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(self.members))
         before = None
@@ -151,7 +162,7 @@ class Type(object):
             if len(memberName) > 0:
                 memberNameCapital = memberName[0].upper() + memberName[1:]
             m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % memberNameCapital
-            m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), makeCIdentifier(member.memberType.name.upper()))
+            m += "    UA_%s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), makeCIdentifier(member.memberType.name.upper()))
             m += "    "
             if not before:
                 m += "0,"
@@ -175,7 +186,7 @@ class Type(object):
         return members + "};"
 
     def datatype_ptr(self):
-        return "&" + self.outname.upper() + "[" + makeCIdentifier(self.outname.upper() + "_" + self.name.upper()) + "]"
+        return "&UA_" + self.outname.upper() + "[UA_" + makeCIdentifier(self.outname.upper() + "_" + self.name.upper()) + "]"
 
     def functions_c(self):
         idName = makeCIdentifier(self.name)
@@ -190,7 +201,7 @@ class Type(object):
                 if idName == entry:
                     funcs += "UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT "
                     break
-            
+
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (idName, idName, idName, self.datatype_ptr())
             funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (idName, idName, self.datatype_ptr())
             funcs += "static UA_INLINE void\nUA_%s_clear(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (idName, idName, self.datatype_ptr())
@@ -210,7 +221,8 @@ class BuiltinType(Type):
         self.name = name
         self.ns0 = "true"
         self.typeIndex = makeCIdentifier("UA_TYPES_" + self.name.upper())
-        self.outname = "ua_types"
+        self.outname = "types"
+        self.kind = "UA_DATATYPEKIND_" + self.name.upper()
         self.description = ""
         self.pointerfree = "false"
         if self.name in builtin_overlayable.keys():
@@ -218,16 +230,15 @@ class BuiltinType(Type):
         self.overlayable = "false"
         if name in builtin_overlayable:
             self.overlayable = builtin_overlayable[name]
-        self.builtin = "true"
-        self.members = [StructMember("", self, False)] # builtin types contain only one member: themselves (drops into the jumptable during processing)
+        self.members = []
 
 class EnumerationType(Type):
     def __init__(self, outname, xml, namespace):
         Type.__init__(self, outname, xml, namespace)
         self.pointerfree = "true"
         self.overlayable = "UA_BINARY_OVERLAYABLE_INTEGER"
-        self.members = [StructMember("", types["Int32"], False)] # encoded as uint32
-        self.builtin = "true"
+        self.members = []
+        self.kind = "UA_DATATYPEKIND_ENUM"
         self.typeIndex = "UA_TYPES_INT32"
         self.elements = OrderedDict()
         for child in xml:
@@ -247,8 +258,9 @@ class EnumerationType(Type):
 class OpaqueType(Type):
     def __init__(self, outname, xml, namespace, baseType):
         Type.__init__(self, outname, xml, namespace)
+        self.kind = "UA_DATATYPEKIND_" + baseType.upper()
         self.baseType = baseType
-        self.members = [StructMember("", types[baseType], False)] # encoded as string
+        self.members = []
 
     def typedef_h(self):
         return "typedef UA_" + self.baseType + " UA_%s;" % self.name
@@ -275,6 +287,7 @@ class StructType(Type):
 
         self.pointerfree = "true"
         self.overlayable = "true"
+        self.kind = "UA_DATATYPEKIND_STRUCTURE"
         before = None
         for m in self.members:
             if m.isArray or m.memberType.pointerfree != "true":
@@ -305,7 +318,7 @@ class StructType(Type):
 # Parse Typedefinitions #
 #########################
 
-def parseTypeDefinitions(outname, xmlDescription, namespace):
+def parseTypeDefinitions(outname, xmlDescription, namespace, addToTypes=None):
     def typeReady(element):
         "Are all member types defined?"
         for child in element:
@@ -327,8 +340,6 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
 
     def skipType(name):
         if name in excluded_types:
-            return True
-        if "Test" in name: # skip all test types
             return True
         if re.search("NodeId$", name) != None:
             return True
@@ -354,15 +365,20 @@ def parseTypeDefinitions(outname, xmlDescription, namespace):
             if not typeReady(typeXml):
                 continue
             if name in builtin_types:
-                types[name] = BuiltinType(name)
+                newType = BuiltinType(name)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-                types[name] = EnumerationType(outname, typeXml, namespace)
+                newType = EnumerationType(outname, typeXml, namespace)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                types[name] = OpaqueType(outname, typeXml, namespace, get_base_type_for_opaque(name)['name'])
+                newType = OpaqueType(outname, typeXml, namespace, get_base_type_for_opaque(name)['name'])
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
-                types[name] = StructType(outname, typeXml, namespace)
+                newType = StructType(outname, typeXml, namespace)
             else:
                 raise Exception("Type not known")
+
+            types[name] = newType
+            if addToTypes is not None:
+                addToTypes[name] = newType
+
             del snippets[name]
 
 ##########################
@@ -383,7 +399,7 @@ def parseTypeDescriptions(f, namespaceid):
     csvreader = csv.reader(f, delimiter=',')
     delay_init = []
 
-    for index, row in enumerate(csvreader):
+    for row in csvreader:
         if len(row) < 3:
             continue
         if row[2] == "Object":
@@ -461,6 +477,19 @@ parser.add_argument('--no-builtin',
                     dest="no_builtin",
                     help='Do not generate builtin types')
 
+parser.add_argument('--opaque-map',
+                    metavar="<opaqueTypeMap>",
+                    type=argparse.FileType('r'),
+                    dest="opaque_map",
+                    action='append',
+                    default=[],
+                    help='JSON file with opaque type mapping: { \'typename\': { \'ns\': 0,  \'id\': 7, \'name\': \'UInt32\' }, ... }')
+
+parser.add_argument('--internal',
+                    action='store_true',
+                    dest="internal",
+                    help='Given bsd are internal types which do not have any .csv file')
+
 parser.add_argument('-t', '--type-bsd',
                     metavar="<typeBsds>",
                     type=argparse.FileType('r'),
@@ -468,6 +497,14 @@ parser.add_argument('-t', '--type-bsd',
                     action='append',
                     default=[],
                     help='bsd file with type definitions')
+
+parser.add_argument('-i', '--import',
+                    metavar="<importBsds>",
+                    type=str,
+                    dest="import_bsd",
+                    action='append',
+                    default=[],
+                    help='combination of TYPE_ARRAY#filepath.bsd with type definitions which should be loaded but not exported/generated')
 
 parser.add_argument('outfile',
                     metavar='<outputFile>',
@@ -477,6 +514,7 @@ args = parser.parse_args()
 outname = args.outfile.split("/")[-1]
 inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
 
+isInternalTypes = args.internal
 
 ################
 # Create Types #
@@ -484,6 +522,16 @@ inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
 
 for builtin in builtin_types:
     types[builtin] = BuiltinType(builtin)
+
+for f in args.opaque_map:
+    user_opaque_type_mapping.update(json.load(f))
+
+for i in args.import_bsd:
+    (outname_import, file_import) = i.split("#")
+    outname_import = outname_import.lower()
+    if outname_import.startswith("ua_"):
+        outname_import = outname_import[3:]
+    parseTypeDefinitions(outname_import, file_import, args.namespace, addToTypes=types_imported)
 
 for f in args.type_bsd:
     parseTypeDefinitions(outname, f, args.namespace)
@@ -504,9 +552,9 @@ if len(selected_types) == 0:
 # Write out the Definitions #
 #############################
 
-fh = open(args.outfile + "_generated.h",'w')
-ff = open(args.outfile + "_generated_handling.h",'w')
-fe = open(args.outfile + "_generated_encoding_binary.h",'w')
+fh = open(args.outfile + "_generated.h", 'w')
+ff = open(args.outfile + "_generated_handling.h", 'w')
+fe = open(args.outfile + "_generated_encoding_binary.h", 'w')
 fc = open(args.outfile + "_generated.c",'w')
 def printh(string):
     print(string, end='\n', file=fh)
@@ -527,6 +575,7 @@ def iter_types(v):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
+    l = list(filter(lambda t: t.name not in types_imported, l))
     return l
 
 ################
@@ -543,8 +592,8 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #ifdef UA_ENABLE_AMALGAMATION
 #include "open62541.h"
 #else
-#include "ua_types.h"
-''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+#include <open62541/types.h>
+''' + ('#include <open62541/types_generated.h>\n' if outname != "types" else '') + '''
 #endif
 
 _UA_BEGIN_DECLS
@@ -557,11 +606,10 @@ printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
-printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
+printh("#define UA_" + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
+printh("extern UA_EXPORT const UA_DataType UA_" + outname.upper() + "[UA_" + outname.upper() + "_COUNT];")
 
-i = 0
-for t in filtered_types:
+for i, t in enumerate(filtered_types):
     printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
@@ -570,8 +618,7 @@ for t in filtered_types:
         printh(" * " + t.description + " */")
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
-    printh("#define " + makeCIdentifier(outname.upper() + "_" + t.name.upper()) + " " + str(i))
-    i += 1
+    printh("#define UA_" + makeCIdentifier(outname.upper() + "_" + t.name.upper()) + " " + str(i))
 
 printh('''
 
@@ -629,9 +676,8 @@ for t in filtered_types:
     printc("/* " + t.name + " */")
     printc(t.members_c())
 
-printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
+printc("const UA_DataType UA_%s[UA_%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in filtered_types:
-#    printc("")
     printc("/* " + t.name + " */")
     printc(t.datatype_c() + ",")
 printc("};\n")

@@ -2,22 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/types.h>
+#include <open62541/util.h>
+#include <open62541/plugin/nodestore.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include "ua_types.h"
-#include "ua_plugin_nodestore.h"
-#include "ua_nodestore_default.h"
-#include "ua_util.h"
-#include "ziptree.h"
 #include "check.h"
+#include "ziptree.h"
 
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 #include <pthread.h>
 #endif
 
@@ -42,15 +42,15 @@ static void checkAllReleased(void *context, const UA_Node* node) {
     ck_assert_int_eq(entry->refCount, 0); /* The count is increased when the visited node is checked out */
 }
 
-UA_Nodestore ns;
+void *nsCtx;
 
 static void setup(void) {
-    UA_Nodestore_default_new(&ns);
+    UA_Nodestore_new(&nsCtx);
 }
 
 static void teardown(void) {
-    ns.iterate(ns.context, NULL, checkAllReleased);
-    ns.deleteNodestore(ns.context);
+    UA_Nodestore_iterate(nsCtx, checkAllReleased, NULL);
+    UA_Nodestore_delete(nsCtx);
 }
 
 static int zeroCnt = 0;
@@ -61,7 +61,7 @@ static void checkZeroVisitor(void *context, const UA_Node* node) {
 }
 
 static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
-    UA_Node *p = ns.newNode(ns.context, UA_NODECLASS_VARIABLE);
+    UA_Node *p = UA_Nodestore_newNode(nsCtx, UA_NODECLASS_VARIABLE);
     p->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
     p->nodeId.namespaceIndex = nsid;
     p->nodeId.identifier.numeric = id;
@@ -71,91 +71,91 @@ static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
 
 START_TEST(replaceExistingNode) {
     UA_Node* n1 = createNode(0,2253);
-    ns.insertNode(ns.context, n1, NULL);
+    UA_Nodestore_insertNode(nsCtx, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0, 2253);
     UA_Node* n2;
-    ns.getNodeCopy(ns.context, &in1, &n2);
-    UA_StatusCode retval = ns.replaceNode(ns.context, n2);
+    UA_Nodestore_getNodeCopy(nsCtx, &in1, &n2);
+    UA_StatusCode retval = UA_Nodestore_replaceNode(nsCtx, n2);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(replaceOldNode) {
     UA_Node* n1 = createNode(0,2253);
-    ns.insertNode(ns.context, n1, NULL);
+    UA_Nodestore_insertNode(nsCtx, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
     UA_Node* n2;
     UA_Node* n3;
-    ns.getNodeCopy(ns.context, &in1, &n2);
-    ns.getNodeCopy(ns.context, &in1, &n3);
+    UA_Nodestore_getNodeCopy(nsCtx, &in1, &n2);
+    UA_Nodestore_getNodeCopy(nsCtx, &in1, &n3);
 
     /* shall succeed */
-    UA_StatusCode retval = ns.replaceNode(ns.context, n2);
+    UA_StatusCode retval = UA_Nodestore_replaceNode(nsCtx, n2);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* shall fail */
-    retval = ns.replaceNode(ns.context, n3);
+    retval = UA_Nodestore_replaceNode(nsCtx, n3);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     UA_Node* n1 = createNode(0,2253);
-    ns.insertNode(ns.context, n1, NULL);
+    UA_Nodestore_insertNode(nsCtx, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
-    const UA_Node* nr = ns.getNode(ns.context, &in1);
+    const UA_Node* nr = UA_Nodestore_getNode(nsCtx, &in1);
     ck_assert_int_eq((uintptr_t)n1, (uintptr_t)nr);
-    ns.releaseNode(ns.context, nr);
+    UA_Nodestore_releaseNode(nsCtx, nr);
 }
 END_TEST
 
 START_TEST(failToFindNodeInOtherUA_NodeStore) {
     UA_Node* n1 = createNode(0,2255);
-    ns.insertNode(ns.context, n1, NULL);
+    UA_Nodestore_insertNode(nsCtx, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(1, 2255);
-    const UA_Node* nr = ns.getNode(ns.context, &in1);
+    const UA_Node* nr = UA_Nodestore_getNode(nsCtx, &in1);
     ck_assert_int_eq((uintptr_t)nr, 0);
 }
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     UA_Node* n1 = createNode(0,2253);
-    ns.insertNode(ns.context, n1, NULL);
+    UA_Nodestore_insertNode(nsCtx, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
-    ns.insertNode(ns.context, n2, NULL);
+    UA_Nodestore_insertNode(nsCtx, n2, NULL);
     UA_Node* n3 = createNode(0,2257);
-    ns.insertNode(ns.context, n3, NULL);
+    UA_Nodestore_insertNode(nsCtx, n3, NULL);
     UA_Node* n4 = createNode(0,2200);
-    ns.insertNode(ns.context, n4, NULL);
+    UA_Nodestore_insertNode(nsCtx, n4, NULL);
     UA_Node* n5 = createNode(0,1);
-    ns.insertNode(ns.context, n5, NULL);
+    UA_Nodestore_insertNode(nsCtx, n5, NULL);
     UA_Node* n6 = createNode(0,12);
-    ns.insertNode(ns.context, n6, NULL);
+    UA_Nodestore_insertNode(nsCtx, n6, NULL);
 
     UA_NodeId in3 = UA_NODEID_NUMERIC(0, 2257);
-    const UA_Node* nr = ns.getNode(ns.context, &in3);
+    const UA_Node* nr = UA_Nodestore_getNode(nsCtx, &in3);
     ck_assert_int_eq((uintptr_t)nr, (uintptr_t)n3);
-    ns.releaseNode(ns.context, nr);
+    UA_Nodestore_releaseNode(nsCtx, nr);
 }
 END_TEST
 
 START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
     UA_Node* n1 = createNode(0,2253);
-    ns.insertNode(ns.context, n1, NULL);
+    UA_Nodestore_insertNode(nsCtx, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
-    ns.insertNode(ns.context, n2, NULL);
+    UA_Nodestore_insertNode(nsCtx, n2, NULL);
     UA_Node* n3 = createNode(0,2257);
-    ns.insertNode(ns.context, n3, NULL);
+    UA_Nodestore_insertNode(nsCtx, n3, NULL);
     UA_Node* n4 = createNode(0,2200);
-    ns.insertNode(ns.context, n4, NULL);
+    UA_Nodestore_insertNode(nsCtx, n4, NULL);
     UA_Node* n5 = createNode(0,1);
-    ns.insertNode(ns.context, n5, NULL);
+    UA_Nodestore_insertNode(nsCtx, n5, NULL);
     UA_Node* n6 = createNode(0,12);
-    ns.insertNode(ns.context, n6, NULL);
+    UA_Nodestore_insertNode(nsCtx, n6, NULL);
 
     zeroCnt = 0;
     visitCnt = 0;
-    ns.iterate(ns.context, NULL, checkZeroVisitor);
+    UA_Nodestore_iterate(nsCtx, checkZeroVisitor, NULL);
     ck_assert_int_eq(zeroCnt, 0);
     ck_assert_int_eq(visitCnt, 6);
 }
@@ -164,26 +164,26 @@ END_TEST
 START_TEST(findNodeInExpandedNamespace) {
     for(UA_UInt32 i = 0; i < 200; i++) {
         UA_Node* n = createNode(0,i);
-        ns.insertNode(ns.context, n, NULL);
+        UA_Nodestore_insertNode(nsCtx, n, NULL);
     }
     // when
     UA_Node *n2 = createNode(0,25);
-    const UA_Node* nr = ns.getNode(ns.context, &n2->nodeId);
+    const UA_Node* nr = UA_Nodestore_getNode(nsCtx, &n2->nodeId);
     ck_assert_int_eq(nr->nodeId.identifier.numeric, n2->nodeId.identifier.numeric);
-    ns.releaseNode(ns.context, nr);
-    ns.deleteNode(ns.context, n2);
+    UA_Nodestore_releaseNode(nsCtx, nr);
+    UA_Nodestore_deleteNode(nsCtx, n2);
 }
 END_TEST
 
 START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
     for(UA_UInt32 i = 0; i < 200; i++) {
         UA_Node* n = createNode(0,i+1);
-        ns.insertNode(ns.context, n, NULL);
+        UA_Nodestore_insertNode(nsCtx, n, NULL);
     }
     // when
     zeroCnt = 0;
     visitCnt = 0;
-    ns.iterate(ns.context, NULL, checkZeroVisitor);
+    UA_Nodestore_iterate(nsCtx, checkZeroVisitor, NULL);
     // then
     ck_assert_int_eq(zeroCnt, 0);
     ck_assert_int_eq(visitCnt, 200);
@@ -192,18 +192,18 @@ END_TEST
 
 START_TEST(failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries) {
     UA_Node* n1 = createNode(0,2253);
-    ns.insertNode(ns.context, n1, NULL);
+    UA_Nodestore_insertNode(nsCtx, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
-    ns.insertNode(ns.context, n2, NULL);
+    UA_Nodestore_insertNode(nsCtx, n2, NULL);
     UA_Node* n3 = createNode(0,2257);
-    ns.insertNode(ns.context, n3, NULL);
+    UA_Nodestore_insertNode(nsCtx, n3, NULL);
     UA_Node* n4 = createNode(0,2200);
-    ns.insertNode(ns.context, n4, NULL);
+    UA_Nodestore_insertNode(nsCtx, n4, NULL);
     UA_Node* n5 = createNode(0,1);
-    ns.insertNode(ns.context, n5, NULL);
+    UA_Nodestore_insertNode(nsCtx, n5, NULL);
 
     UA_NodeId id = UA_NODEID_NUMERIC(0, 12);
-    const UA_Node* nr = ns.getNode(ns.context, &id);
+    const UA_Node* nr = UA_Nodestore_getNode(nsCtx, &id);
     ck_assert_int_eq((uintptr_t)nr, 0);
 }
 END_TEST
@@ -212,7 +212,7 @@ END_TEST
 /* Performance Profiling Test Cases */
 /************************************/
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 struct UA_NodeStoreProfileTest {
     UA_Int32 min_val;
     UA_Int32 max_val;
@@ -227,8 +227,8 @@ static void *profileGetThread(void *arg) {
     for(UA_Int32 x = 0; x<test->rounds; x++) {
         for(UA_Int32 i=test->min_val; i<max_val; i++) {
             id.identifier.numeric = i+1;
-            const UA_Node *n = ns.getNode(ns.context, &id);
-            ns.releaseNode(ns.context, n);
+            const UA_Node *n = UA_Nodestore_getNode(nsCtx, &id);
+            UA_Nodestore_releaseNode(nsCtx, n);
         }
     }
     return NULL;
@@ -243,10 +243,10 @@ START_TEST(profileGetDelete) {
 
     for(UA_UInt32 i = 0; i < N; i++) {
         UA_Node *n = createNode(0,i+1);
-        ns.insertNode(ns.context, n, NULL);
+        UA_Nodestore_insertNode(nsCtx, n, NULL);
     }
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
 #define THREADS 4
     pthread_t t[THREADS];
     struct UA_NodeStoreProfileTest p[THREADS];
@@ -262,8 +262,8 @@ START_TEST(profileGetDelete) {
     UA_NodeId id = UA_NODEID_NULL;
     for(size_t i = 0; i < N; i++) {
         id.identifier.numeric = (UA_UInt32)i+1;
-        const UA_Node *node = ns.getNode(ns.context, &id);
-        ns.releaseNode(ns.context, node);
+        const UA_Node *node = UA_Nodestore_getNode(nsCtx, &id);
+        UA_Nodestore_releaseNode(nsCtx, node);
     }
     end = clock();
     printf("Time for single-threaded %d create/get/delete in a namespace: %fs.\n", N,

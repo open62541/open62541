@@ -5,11 +5,12 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
-#include <stdio.h>
-#include "ua_log_stdout.h"
-#include "ua_types.h"
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/types.h>
 
-#ifdef UA_ENABLE_MULTITHREADING
+#include <stdio.h>
+
+#if UA_MULTITHREADING >= 200
 #include <pthread.h>
 static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
@@ -52,7 +53,7 @@ UA_Log_Stdout_log(void *_, UA_LogLevel level, UA_LogCategory category,
     UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
     UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     pthread_mutex_lock(&printf_mutex);
 #endif
 
@@ -63,7 +64,7 @@ UA_Log_Stdout_log(void *_, UA_LogLevel level, UA_LogCategory category,
     printf("\n");
     fflush(stdout);
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if UA_MULTITHREADING >= 200
     pthread_mutex_unlock(&printf_mutex);
 #endif
 }

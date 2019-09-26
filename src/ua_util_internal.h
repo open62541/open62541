@@ -15,7 +15,8 @@
 #define UA_UTIL_H_
 
 #define UA_INTERNAL
-#include "ua_types.h"
+#include <open62541/types.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 
@@ -39,22 +40,6 @@ typedef UA_StatusCode status;
 
 /* Utility Functions
  * ----------------- */
-
-/* Convert given byte string to a positive number. Returns the number of valid
- * digits. Stops if a non-digit char is found and returns the number of digits
- * up to that point. */
-size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
-
-/* Same as UA_ReadNumber but with a base parameter */
-size_t UA_readNumberWithBase(u8 *buf, size_t buflen, u32 *number, u8 base);
-
-#ifndef UA_MIN
-#define UA_MIN(A,B) (A > B ? B : A)
-#endif
-
-#ifndef UA_MAX
-#define UA_MAX(A,B) (A > B ? A : B)
-#endif
 
 #ifdef UA_DEBUG_DUMP_PKGS
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);

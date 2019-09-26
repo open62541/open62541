@@ -10,11 +10,12 @@
  *
  * This example is very similar to the tutorial_client_firststeps.c. */
 
-#include <ua_config_default.h>
-#include <ua_client_subscriptions.h>
-#include <ua_log_stdout.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_subscriptions.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 
@@ -108,12 +109,13 @@ int
 main(void) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ClientConfig config = UA_ClientConfig_default;
-    /* Set stateCallback */
-    config.stateCallback = stateCallback;
-    config.subscriptionInactivityCallback = subscriptionInactivityCallback;
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
 
-    UA_Client *client = UA_Client_new(config);
+    /* Set stateCallback */
+    cc->stateCallback = stateCallback;
+    cc->subscriptionInactivityCallback = subscriptionInactivityCallback;
 
     /* Endless loop runAsync */
     while(running) {
@@ -135,5 +137,5 @@ main(void) {
 
     /* Clean up */
     UA_Client_delete(client); /* Disconnects the client internally */
-    return UA_STATUSCODE_GOOD;
+    return EXIT_SUCCESS;
 }

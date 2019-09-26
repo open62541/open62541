@@ -2,23 +2,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stdio.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel_async.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+
+#include "client/ua_client_internal.h"
+
+#include <check.h>
 #include <stdlib.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_client.h"
-#include "client/ua_client_internal.h"
-#include "ua_client_highlevel_async.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
-#include "check.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
@@ -30,16 +29,16 @@ THREAD_CALLBACK(serverloop) {
 }
 
 static void
-onConnect (UA_Client *Client, void *connected, UA_UInt32 requestId,
-           void *response) {
+onConnect(UA_Client *Client, void *connected,
+          UA_UInt32 requestId, void *response) {
     if (UA_Client_getState (Client) == UA_CLIENTSTATE_SESSION)
         *(UA_Boolean *)connected = true;
 }
 
 static void setup(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
     /* Waiting server is up */
@@ -51,7 +50,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void
@@ -63,10 +61,10 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
 
 START_TEST(Client_connect_async){
     UA_StatusCode retval;
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-                            &connected);
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
     /*Windows needs time to response*/
     UA_sleep_ms(100);
     UA_UInt32 reqId = 0;
@@ -80,7 +78,7 @@ START_TEST(Client_connect_async){
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     /* Connected gets updated when client is connected */
 
-    do{
+    do {
         if(connected) {
             /* If not connected requests are not sent */
             UA_Client_sendAsyncBrowseRequest (client, &bReq, asyncBrowseCallback,
@@ -105,11 +103,12 @@ START_TEST(Client_connect_async){
 END_TEST
 
 START_TEST(Client_no_connection) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_Boolean connected = false;
-    UA_StatusCode retval = UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-            &connected);
+    UA_StatusCode retval =
+        UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_recv = client->connection.recv;
@@ -124,10 +123,10 @@ START_TEST(Client_no_connection) {
 END_TEST
 
 START_TEST(Client_without_run_iterate) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_Boolean connected = false;
-    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
-                            &connected);
+    UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect, &connected);
     UA_Client_delete(client);
 }
 END_TEST

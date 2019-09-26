@@ -1,13 +1,11 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_types.h"
-#include "ua_securitypolicies.h"
-#include "ua_types_generated_handling.h"
+#include <open62541/plugin/securitypolicy_default.h>
 
 static UA_StatusCode
 verify_none(const UA_SecurityPolicy *securityPolicy,
@@ -71,6 +69,9 @@ static UA_StatusCode
 generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) {
     if(securityPolicy == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(out->length == 0)
+        return UA_STATUSCODE_GOOD;
 
     /* Fill blocks of four byte */
     size_t i = 0;

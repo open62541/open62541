@@ -17,7 +17,7 @@ def makeCIdentifier(value):
 
 # Escape C strings:
 def makeCLiteral(value):
-    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\\\').replace('\n', r'\\n').replace('\r', r''))
+    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\\n').replace('\r', r''))
 
 def splitStringLiterals(value, splitLength=500):
     """
@@ -44,19 +44,29 @@ def generateXmlElementCode(value, alloc=False):
     value = makeCLiteral(value)
     return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
 
-def generateByteStringCode(value, valueName, global_var_code):
-    asciiarray = [ord(c) for c in value.strip()]
+def generateByteStringCode(value, valueName, global_var_code, isPointer):
+    if isinstance(value, str):
+        # PY3 returns a byte array for b64decode, while PY2 returns a string.
+        # Therefore convert it to bytes
+        asciiarray = bytearray()
+        asciiarray.extend(value)
+        asciiarray = list(asciiarray)
+    else:
+        asciiarray = list(value)
+
     asciiarraystr = str(asciiarray).rstrip(']').lstrip('[')
-    global_var_code.append("static const UA_Byte {instance}_byteArray[{len}] = {{{data}}};".format(
-        len=len(asciiarray), data=asciiarraystr, instance=valueName
+    cleanValueName = re.sub(r"->", "__", re.sub(r"\.", "_", valueName))
+    global_var_code.append("static const UA_Byte {cleanValueName}_byteArray[{len}] = {{{data}}};".format(
+        len=len(asciiarray), data=asciiarraystr, cleanValueName=cleanValueName
     ))
     # Cast away const with '(UA_Byte *)(void*)(uintptr_t)' since we know that UA_Server_addNode_begin will copy the content
-    return "{instance}->length = {len};\n{instance}->data = (UA_Byte *)(void*)(uintptr_t){instance}_byteArray;"\
-                                                .format(len=len(asciiarray), instance=valueName)
+    return "{instance}{accessor}length = {len};\n{instance}{accessor}data = (UA_Byte *)(void*)(uintptr_t){cleanValueName}_byteArray;"\
+                                                .format(len=len(asciiarray), instance=valueName, cleanValueName=cleanValueName,
+                                                        accessor='->' if isPointer else '.')
 
 def generateLocalizedTextCode(value, alloc=False):
     vt = makeCLiteral(value.text)
-    return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", value.locale,
+    return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale,
                                                    splitStringLiterals(vt))
 
 def generateQualifiedNameCode(value, alloc=False,):
@@ -97,7 +107,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
     elif type(node) == ByteString:
         # replace whitespaces between tags and remove newlines
         return prepend + "UA_BYTESTRING_NULL;" if not node.value else generateByteStringCode(
-            re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", "", node.value)), valueName, global_var_code)
+            node.value, valueName, global_var_code, isPointer=asIndirect)
         # the replacements done here is just for the array form can be workable in C code. It doesn't couses any problem
         # because the core data used here is already in byte form. So, there is no way we disturb it.
     elif type(node) == LocalizedText:

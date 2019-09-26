@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
+export DEB_BUILD_OPTIONS=parallel=4
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_AMALGAMATION=OFF -DUA_PACK_DEBIAN=ON
+
+override_dh_auto_test:
+	dh_auto_test -- ARGS+=--output-on-failure
+
+%:
+	dh $@ --buildsystem=cmake --parallel

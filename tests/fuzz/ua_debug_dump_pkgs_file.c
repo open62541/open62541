@@ -12,14 +12,15 @@
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
 
+#include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/types.h>
+#include <open62541/types_generated_encoding_binary.h>
+
+#include "server/ua_server_internal.h"
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <ua_types.h>
-#include <server/ua_server_internal.h>
 #include <unistd.h>
-
-#include "ua_transport_generated_encoding_binary.h"
-#include "ua_types_generated_encoding_binary.h"
 
 // This number is added to the end of every corpus data as 4 bytes.
 // It allows to generate valid corpus and then the fuzzer will use
@@ -171,15 +172,15 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
     }
 
     char fileName[250];
-    snprintf(fileName, 255, "%s/%05d_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
+    snprintf(fileName, sizeof(fileName), "%s/%05u_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
              dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);
 
-    char dumpOutputFile[255];
+    char dumpOutputFile[266];
     snprintf(dumpOutputFile, 255, "%s.bin", fileName);
     // check if file exists and if yes create a counting filename to avoid overwriting
     unsigned cnt = 1;
     while ( access( dumpOutputFile, F_OK ) != -1 ) {
-        snprintf(dumpOutputFile, 255, "%s_%d.bin", fileName, cnt);
+        snprintf(dumpOutputFile, 266, "%s_%u.bin", fileName, cnt);
         cnt++;
     }
 

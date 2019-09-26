@@ -107,12 +107,12 @@ RegisterNodesRequest
 RegisterNodesResponse
 UnregisterNodesRequest
 UnregisterNodesResponse
-ServerState
-ServerStatusDataType
-BuildInfo
 Duration
 UtcTime
 LocaleId
-RedundancySupport
-ServerDiagnosticsSummaryDataType
 EnumValueType
+BuildInfo
+ServerStatusDataType
+ServerState
+ServerDiagnosticsSummaryDataType
+RedundancySupport

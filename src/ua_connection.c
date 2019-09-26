@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2016-2017 (c) Florian Palm
@@ -8,15 +8,17 @@
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
  */
 
-#include "ua_util_internal.h"
+#include <open62541/transport_generated_encoding_binary.h>
+#include <open62541/types_generated_encoding_binary.h>
+#include <open62541/types_generated_handling.h>
+
 #include "ua_connection_internal.h"
-#include "ua_types_encoding_binary.h"
-#include "ua_types_generated_encoding_binary.h"
-#include "ua_types_generated_handling.h"
-#include "ua_transport_generated_encoding_binary.h"
 #include "ua_securechannel.h"
+#include "ua_types_encoding_binary.h"
+#include "ua_util_internal.h"
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteChunk);
@@ -53,12 +55,13 @@ UA_Connection_processHELACK(UA_Connection *connection,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Hides somme errors before sending them to a client according to the
+/* Hides some errors before sending them to a client according to the
  * standard. */
 static void
 hideErrors(UA_TcpErrorMessage *const error) {
     switch(error->error) {
     case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
+    case UA_STATUSCODE_BADCERTIFICATEREVOKED:
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;
@@ -95,6 +98,7 @@ UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
 static UA_StatusCode
 bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos,
                       const UA_Byte *end) {
+    UA_assert(connection->incompleteChunk.length == 0);
     UA_assert(pos < end);
     size_t length = (uintptr_t)end - (uintptr_t)pos;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&connection->incompleteChunk, length);
@@ -160,24 +164,44 @@ UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
                             UA_Connection_processChunk processCallback,
                             const UA_ByteString *packet) {
-    /* The connection has already prepended any incomplete chunk during recv */
+    const UA_Byte *pos = packet->data;
+    const UA_Byte *end = &packet->data[packet->length];
+    UA_ByteString appended = connection->incompleteChunk;
+
+    /* Prepend the incomplete last chunk. This is usually done in the
+     * networklayer. But we test for a buffered incomplete chunk here again to
+     * work around "lazy" network layers. */
+    if(appended.length > 0) {
+        connection->incompleteChunk = UA_BYTESTRING_NULL;
+        UA_Byte *t = (UA_Byte*)UA_realloc(appended.data, appended.length + packet->length);
+        if(!t) {
+            UA_ByteString_deleteMembers(&appended);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        memcpy(&t[appended.length], pos, packet->length);
+        appended.data = t;
+        appended.length += packet->length;
+        pos = t;
+        end = &t[appended.length];
+    }
+
     UA_assert(connection->incompleteChunk.length == 0);
 
     /* Loop over the received chunks. pos is increased with each chunk. */
-    const UA_Byte *pos = packet->data;
-    const UA_Byte *end = &packet->data[packet->length];
     UA_Boolean done = false;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     while(!done) {
         retval = processChunk(connection, application, processCallback, &pos, end, &done);
         /* If an irrecoverable error happens: do not buffer incomplete chunk */
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            goto cleanup;
     }
 
     if(end > pos)
         retval = bufferIncompleteChunk(connection, pos, end);
 
+ cleanup:
+    UA_ByteString_deleteMembers(&appended);
     return retval;
 }
 

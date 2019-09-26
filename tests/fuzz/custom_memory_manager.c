@@ -41,14 +41,14 @@ struct UA_mm_entry *address_map_last = NULL;
 
 void UA_memoryManager_setLimit(unsigned long long newLimit) {
     memoryLimit = newLimit;
-    printf("MemoryManager: Setting memory limit to %lld\n", newLimit);
+    //printf("MemoryManager: Setting memory limit to %lld\n", newLimit);
 }
 
 int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
     if (size <4)
         return 0;
     // just cast the last 4 bytes to uint32
-    const uint32_t *newLimit = (const void*)&(data[size-4]);
+    const uint32_t *newLimit = (const uint32_t*)(uintptr_t)&(data[size-4]);
     UA_memoryManager_setLimit(*newLimit);
     return 1;
 }
@@ -63,14 +63,14 @@ int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
 static int addToMap(size_t size, void *addr) {
     struct UA_mm_entry *newEntry = (struct UA_mm_entry*)malloc(sizeof(struct UA_mm_entry));
     if (!newEntry) {
-        printf("MemoryManager: Could not allocate memory");
+        //printf("MemoryManager: Could not allocate memory");
         return 0;
     }
     newEntry->size = size;
     newEntry->address = addr;
     newEntry->next = NULL;
-    newEntry->prev = address_map_last;
     pthread_mutex_lock(&mutex);
+    newEntry->prev = address_map_last;
     if (address_map_last)
         address_map_last->next = newEntry;
     address_map_last = newEntry;

@@ -48,7 +48,7 @@ To port to a new architecture you should follow these steps:
     # ---- End of the CMakeLists.txt template -----
     # ---------------------------------------------------
     ```
-5. Create a ua_clock.c file that implements the following functions defined in ua_types.h:
+5. Create a ua_clock.c file that implements the following functions defined in open62541/types.h:
 
    * UA_DateTime UA_DateTime_now(void);
    
@@ -114,7 +114,7 @@ To port to a new architecture you should follow these steps:
     * Do the same for UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) for errors related to getaddrinfo
     */
     
-    #include "ua_architecture_functions.h"
+    #include <open62541/architecture_functions.h>
     
     #endif /* PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ */
     

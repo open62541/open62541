@@ -3,15 +3,16 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #define _XOPEN_SOURCE 500
-#include <stdlib.h>
-#include <stdio.h>
+#include <open62541/server.h>
+#include <open62541/types_generated.h>
+#include <open62541/types_generated_handling.h>
+#include <open62541/util.h>
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_util.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "check.h"
 
 /* Define types to a dummy value if they are not available (e.g. not built with
@@ -164,6 +165,12 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
 #endif
         _i == UA_TYPES_FILTEROPERAND ||
         _i == UA_TYPES_UNION ||
+#ifdef UA_TYPES_FRAME
+        _i == UA_TYPES_FRAME ||
+        _i == UA_TYPES_ORIENTATION ||
+        _i == UA_TYPES_VECTOR ||
+        _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
         _i == UA_TYPES_HISTORYREADDETAILS ||
         _i == UA_TYPES_NOTIFICATIONDATA ||
         _i == UA_TYPES_MONITORINGFILTER ||
@@ -288,6 +295,12 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
        _i == UA_TYPES_DISCOVERYCONFIGURATION ||
 #endif
        _i == UA_TYPES_UNION ||
+#ifdef UA_TYPES_FRAME
+       _i == UA_TYPES_FRAME ||
+       _i == UA_TYPES_ORIENTATION ||
+       _i == UA_TYPES_VECTOR ||
+       _i == UA_TYPES_CARTESIANCOORDINATES ||
+#endif
        _i == UA_TYPES_HISTORYREADDETAILS ||
        _i == UA_TYPES_NOTIFICATIONDATA ||
        _i == UA_TYPES_MONITORINGFILTER ||

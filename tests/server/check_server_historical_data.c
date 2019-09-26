@@ -5,32 +5,32 @@
  *    Copyright 2018 (c) basysKom GmbH <opensource@basyskom.com> (Author: Peter Rustler)
  */
 
-#include "ua_types.h"
-#include "ua_server.h"
-#include "server/ua_server_internal.h"
-#include "ua_client.h"
-#include "client/ua_client_internal.h"
-#include "ua_client_highlevel.h"
-#include "ua_config_default.h"
-#include "ua_network_tcp.h"
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/plugin/historydata/history_data_backend.h>
+#include <open62541/plugin/historydata/history_data_backend_memory.h>
+#include <open62541/plugin/historydata/history_data_gathering_default.h>
+#include <open62541/plugin/historydata/history_database_default.h>
+#include <open62541/plugin/historydatabase.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
 
-#include "check.h"
+#include "client/ua_client_internal.h"
+#include "server/ua_server_internal.h"
+
+#include <check.h>
+
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
-#include "ua_plugin_historydatabase.h"
-#include "ua_historydatabase_default.h"
-#include "ua_plugin_history_data_gathering.h"
-#include "ua_historydatabackend_memory.h"
-#include "ua_historydatagathering_default.h"
 #ifdef UA_ENABLE_HISTORIZING
 #include "historical_read_test_data.h"
+#include "randomindextest_backend.h"
 #endif
 #include <stddef.h>
 
-
 static UA_Server *server;
-static UA_ServerConfig *config;
 #ifdef UA_ENABLE_HISTORIZING
 static UA_HistoryDataGathering *gathering;
 #endif
@@ -42,6 +42,8 @@ static UA_Client *client;
 static UA_NodeId parentNodeId;
 static UA_NodeId parentReferenceNodeId;
 static UA_NodeId outNodeId;
+
+static UA_DateTime *testDataSorted;
 
 static void serverMutexLock(void) {
     if (!(MUTEX_LOCK(serverMutex))) {
@@ -57,8 +59,7 @@ static void serverMutexUnlock(void) {
     }
 }
 
-THREAD_CALLBACK(serverloop)
-{
+THREAD_CALLBACK(serverloop) {
     while(running) {
         serverMutexLock();
         UA_Server_run_iterate(server, false);
@@ -67,27 +68,30 @@ THREAD_CALLBACK(serverloop)
     return 0;
 }
 
-static void
-setup(void)
-{
+static void setup(void) {
     if (!(MUTEX_INIT(serverMutex))) {
         fprintf(stderr, "Server mutex was not created correctly.\n");
         exit(1);
     }
     running = true;
-    config = UA_ServerConfig_new_default();
+
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
 #ifdef UA_ENABLE_HISTORIZING
     gathering = (UA_HistoryDataGathering*)UA_calloc(1, sizeof(UA_HistoryDataGathering));
     *gathering = UA_HistoryDataGathering_Default(1);
     config->historyDatabase = UA_HistoryDatabase_default(*gathering);
 #endif
-    server = UA_Server_new(config);
+
     UA_StatusCode retval = UA_Server_run_startup(server);
-    if (retval != UA_STATUSCODE_GOOD)
-    {
+    if(retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Error while calling Server_run_startup. %s\n", UA_StatusCode_name(retval));
+        UA_Server_delete(server);
         exit(1);
     }
+
     THREAD_CREATE(server_thread, serverloop);
     /* Define the attribute of the uint32 variable node */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -96,7 +100,7 @@ setup(void)
     attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
     attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
     attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
-    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD | UA_ACCESSLEVELMASK_HISTORYWRITE;
     attr.historizing = true;
 
     /* Add the variable node to the information model */
@@ -105,26 +109,23 @@ setup(void)
     parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId_init(&outNodeId);
-    retval = UA_Server_addVariableNode(server,
-                                                uint32NodeId,
-                                                parentNodeId,
-                                                parentReferenceNodeId,
-                                                uint32Name,
-                                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                                attr,
-                                                NULL,
-                                                &outNodeId);
-    if (retval != UA_STATUSCODE_GOOD)
-    {
+    retval = UA_Server_addVariableNode(server, uint32NodeId, parentNodeId,
+                                       parentReferenceNodeId, uint32Name,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       attr, NULL, &outNodeId);
+    if (retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Error adding variable node. %s\n", UA_StatusCode_name(retval));
+        UA_Server_delete(server);
         exit(1);
     }
 
-    client = UA_Client_new(UA_ClientConfig_default);
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if (retval != UA_STATUSCODE_GOOD)
-    {
+    if (retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s\n", UA_StatusCode_name(retval));
+        UA_Client_delete(client);
+        UA_Server_delete(server);
         exit(1);
     }
 
@@ -132,9 +133,7 @@ setup(void)
     client->connection.recv = UA_Client_recvTesting;
 }
 
-static void
-teardown(void)
-{
+static void teardown(void) {
     /* cleanup */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -145,7 +144,6 @@ teardown(void)
     UA_NodeId_deleteMembers(&outNodeId);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 #ifdef UA_ENABLE_HISTORIZING
     UA_free(gathering);
 #endif
@@ -166,6 +164,26 @@ setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value)
     UA_Variant variant;
     UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_UINT32]);
     return UA_Client_writeValueAttribute(thisClient, node, &variant);
+}
+
+static UA_DateTime* sortDateTimes(UA_DateTime *data) {
+    size_t count = 0;
+    while(data[count++]);
+    UA_DateTime* ret;
+    if (UA_Array_copy(data, count, (void**)&ret, &UA_TYPES[UA_TYPES_DATETIME]) != UA_STATUSCODE_GOOD)
+        return NULL;
+    --count;
+    // sort it
+    for (size_t i = 1; i < count; i++) {
+       for (size_t j = 0; j < count - i; j++) {
+           if (ret[j] > ret[j+1]) {
+               UA_DateTime tmp = ret[j];
+               ret[j] = ret[j+1];
+               ret[j+1] = tmp;
+           }
+       }
+    }
+    return ret;
 }
 
 static void
@@ -287,7 +305,9 @@ requestHistory(UA_DateTime start,
     request.nodesToReadSize = 1;
     request.nodesToRead = valueId;
 
+    UA_LOCK(server->serviceMutex);
     Service_HistoryRead(server, &server->adminSession, &request, response);
+    UA_UNLOCK(server->serviceMutex);
     UA_HistoryReadRequest_deleteMembers(&request);
 }
 
@@ -451,6 +471,286 @@ testHistoricalDataBackend(size_t maxResponseSize)
     }
     return retval;
 }
+
+void
+Service_HistoryUpdate(UA_Server *server, UA_Session *session,
+                      const UA_HistoryUpdateRequest *request,
+                      UA_HistoryUpdateResponse *response);
+
+static UA_StatusCode
+deleteHistory(UA_DateTime start,
+              UA_DateTime end)
+{
+    UA_DeleteRawModifiedDetails *details = UA_DeleteRawModifiedDetails_new();
+    details->startTime = start;
+    details->endTime = end;
+    details->isDeleteModified = false;
+    UA_NodeId_copy(&outNodeId, &details->nodeId);
+
+    UA_HistoryUpdateRequest request;
+    UA_HistoryUpdateRequest_init(&request);
+    request.historyUpdateDetailsSize = 1;
+    request.historyUpdateDetails = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(request.historyUpdateDetails);
+
+    request.historyUpdateDetails[0].encoding = UA_EXTENSIONOBJECT_DECODED;
+    request.historyUpdateDetails[0].content.decoded.type = &UA_TYPES[UA_TYPES_DELETERAWMODIFIEDDETAILS];
+    request.historyUpdateDetails[0].content.decoded.data = details;
+
+    UA_HistoryUpdateResponse response;
+    UA_HistoryUpdateResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
+    Service_HistoryUpdate(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
+    UA_HistoryUpdateRequest_deleteMembers(&request);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        ret = response.responseHeader.serviceResult;
+    else if (response.resultsSize != 1)
+        ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    else if (response.results[0].statusCode != UA_STATUSCODE_GOOD)
+        ret = response.results[0].statusCode;
+    else if (response.results[0].operationResultsSize != 0)
+        ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    UA_HistoryUpdateResponse_deleteMembers(&response);
+    return ret;
+}
+
+static UA_StatusCode
+updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData, UA_StatusCode ** operationResults, size_t *operationResultsSize)
+{
+    UA_UpdateDataDetails *details = UA_UpdateDataDetails_new();
+    details->performInsertReplace = updateType;
+    UA_NodeId_copy(&outNodeId, &details->nodeId);
+    int updateDataSize = -1;
+    while(updateData[++updateDataSize]);
+    fprintf(stderr, "updateHistory for %d values.\n", updateDataSize);
+    details->updateValuesSize = (size_t)updateDataSize;
+    details->updateValues = (UA_DataValue*)UA_Array_new(details->updateValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    for (size_t i = 0; i < details->updateValuesSize; ++i) {
+        UA_DataValue_init(&details->updateValues[i]);
+        details->updateValues[i].hasValue = true;
+        UA_Int64 d = updateType;
+        UA_Variant_setScalarCopy(&details->updateValues[i].value, &d, &UA_TYPES[UA_TYPES_INT64]);
+        details->updateValues[i].hasSourceTimestamp = true;
+        details->updateValues[i].sourceTimestamp = updateData[i];
+        details->updateValues[i].hasServerTimestamp = true;
+        details->updateValues[i].serverTimestamp = updateData[i];
+        details->updateValues[i].hasStatus = true;
+        details->updateValues[i].status = UA_STATUSCODE_GOOD;
+    }
+
+    UA_HistoryUpdateRequest request;
+    UA_HistoryUpdateRequest_init(&request);
+    request.historyUpdateDetailsSize = 1;
+    request.historyUpdateDetails = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(request.historyUpdateDetails);
+
+    request.historyUpdateDetails[0].encoding = UA_EXTENSIONOBJECT_DECODED;
+    request.historyUpdateDetails[0].content.decoded.type = &UA_TYPES[UA_TYPES_UPDATEDATADETAILS];
+    request.historyUpdateDetails[0].content.decoded.data = details;
+
+    UA_HistoryUpdateResponse response;
+    UA_HistoryUpdateResponse_init(&response);
+    UA_LOCK(server->serviceMutex);
+    Service_HistoryUpdate(server, &server->adminSession, &request, &response);
+    UA_UNLOCK(server->serviceMutex);
+    UA_HistoryUpdateRequest_deleteMembers(&request);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        ret = response.responseHeader.serviceResult;
+    else if (response.resultsSize != 1)
+        ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    else if (response.results[0].statusCode != UA_STATUSCODE_GOOD)
+        ret = response.results[0].statusCode;
+    else if (response.results[0].operationResultsSize != (size_t)updateDataSize)
+        ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    else {
+        if (operationResults) {
+            *operationResultsSize = response.results[0].operationResultsSize;
+            ret = UA_Array_copy(response.results[0].operationResults, *operationResultsSize, (void**)operationResults, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        } else {
+            for (size_t i = 0; i < response.results[0].operationResultsSize; ++i) {
+                if (response.results[0].operationResults[i] != UA_STATUSCODE_GOOD) {
+                    ret = response.results[0].operationResults[i];
+                    break;
+                }
+            }
+        }
+    }
+    UA_HistoryUpdateResponse_deleteMembers(&response);
+    return ret;
+}
+
+static void
+testResult(UA_DateTime *resultData, UA_HistoryData * historyData) {
+
+    // request
+    UA_HistoryReadResponse localResponse;
+    UA_HistoryReadResponse_init(&localResponse);
+    requestHistory(TIMESTAMP_FIRST, TIMESTAMP_LAST, &localResponse, 0, false, NULL);
+
+    // test the response
+    ck_assert_str_eq(UA_StatusCode_name(localResponse.responseHeader.serviceResult), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    ck_assert_uint_eq(localResponse.resultsSize, 1);
+    ck_assert_str_eq(UA_StatusCode_name(localResponse.results[0].statusCode), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    ck_assert_uint_eq(localResponse.results[0].historyData.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(localResponse.results[0].historyData.content.decoded.type == &UA_TYPES[UA_TYPES_HISTORYDATA]);
+    UA_HistoryData * data = (UA_HistoryData *)localResponse.results[0].historyData.content.decoded.data;
+    if (historyData)
+        UA_HistoryData_copy(data, historyData);
+    for (size_t j = 0; j < data->dataValuesSize; ++j) {
+        ck_assert(resultData[j] != 0);
+        ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
+        ck_assert_uint_eq(data->dataValues[j].sourceTimestamp, resultData[j]);
+    }
+    UA_HistoryReadResponse_deleteMembers(&localResponse);
+}
+
+START_TEST(Server_HistorizingUpdateDelete)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 1000;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    serverMutexLock();
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
+    ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    // fill backend
+    ck_assert_uint_eq(fillHistoricalDataBackend(backend), true);
+
+    // delete some values
+    ck_assert_str_eq(UA_StatusCode_name(deleteHistory(DELETE_START_TIME, DELETE_STOP_TIME)),
+                     UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    testResult(testDataAfterDelete, NULL);
+
+    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+}
+END_TEST
+
+START_TEST(Server_HistorizingUpdateInsert)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 1000;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    serverMutexLock();
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
+    ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    // fill backend with insert
+    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_INSERT, testData, NULL, NULL))
+                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    UA_HistoryData data;
+    UA_HistoryData_init(&data);
+
+    testResult(testDataSorted, &data);
+
+    for (size_t i = 0; i < data.dataValuesSize; ++i) {
+        ck_assert_uint_eq(data.dataValues[i].hasValue, true);
+        ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
+        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_INSERT);
+    }
+
+    UA_HistoryData_deleteMembers(&data);
+    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+}
+END_TEST
+
+START_TEST(Server_HistorizingUpdateReplace)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 1000;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    serverMutexLock();
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
+    ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    // fill backend with insert
+    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_INSERT, testData, NULL, NULL))
+                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    // replace all
+    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_REPLACE, testData, NULL, NULL))
+                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    UA_HistoryData data;
+    UA_HistoryData_init(&data);
+
+    testResult(testDataSorted, &data);
+
+    for (size_t i = 0; i < data.dataValuesSize; ++i) {
+        ck_assert_uint_eq(data.dataValues[i].hasValue, true);
+        ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
+        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_REPLACE);
+    }
+
+    UA_HistoryData_deleteMembers(&data);
+    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+}
+END_TEST
+
+START_TEST(Server_HistorizingUpdateUpdate)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_Memory(1, 1);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 1000;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    serverMutexLock();
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
+    ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    // fill backend with insert
+    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_INSERT, testData, NULL, NULL))
+                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    testResult(testDataSorted, NULL);
+
+    // delete some values
+    ck_assert_str_eq(UA_StatusCode_name(deleteHistory(DELETE_START_TIME, DELETE_STOP_TIME)),
+                     UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    testResult(testDataAfterDelete, NULL);
+
+    // update all and insert some
+    UA_StatusCode *result;
+    size_t resultSize = 0;
+    ck_assert_str_eq(UA_StatusCode_name(updateHistory(UA_PERFORMUPDATETYPE_UPDATE, testDataSorted, &result, &resultSize))
+                                        , UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    for (size_t i = 0; i < resultSize; ++i) {
+        ck_assert_str_eq(UA_StatusCode_name(result[i]), UA_StatusCode_name(testDataUpdateResult[i]));
+    }
+    UA_Array_delete(result, resultSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+    UA_HistoryData data;
+    UA_HistoryData_init(&data);
+
+    testResult(testDataSorted, &data);
+
+    for (size_t i = 0; i < data.dataValuesSize; ++i) {
+        ck_assert_uint_eq(data.dataValues[i].hasValue, true);
+        ck_assert(data.dataValues[i].value.type == &UA_TYPES[UA_TYPES_INT64]);
+        ck_assert_uint_eq(*((UA_Int64*)data.dataValues[i].value.data), UA_PERFORMUPDATETYPE_UPDATE);
+    }
+
+    UA_HistoryData_deleteMembers(&data);
+    UA_HistoryDataBackend_Memory_deleteMembers(&setting.historizingBackend);
+}
+END_TEST
 
 START_TEST(Server_HistorizingStrategyUser)
 {
@@ -683,6 +983,36 @@ START_TEST(Server_HistorizingBackendMemory)
 }
 END_TEST
 
+START_TEST(Server_HistorizingRandomIndexBackend)
+{
+    UA_HistoryDataBackend backend = UA_HistoryDataBackend_randomindextest(testData);
+    UA_HistorizingNodeIdSettings setting;
+    setting.historizingBackend = backend;
+    setting.maxHistoryDataResponseSize = 1000;
+    setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_USER;
+    serverMutexLock();
+    UA_StatusCode ret = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
+    serverMutexUnlock();
+    ck_assert_str_eq(UA_StatusCode_name(ret), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+
+    // read all in one
+    UA_UInt32 retval = testHistoricalDataBackend(100);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+
+    // read continuous one at one request
+    retval = testHistoricalDataBackend(1);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+
+    // read continuous two at one request
+    retval = testHistoricalDataBackend(2);
+    fprintf(stderr, "%d tests failed.\n", retval);
+    ck_assert_uint_eq(retval, 0);
+    UA_HistoryDataBackend_randomindextest_deleteMembers(&backend);
+}
+END_TEST
+
 #endif /*UA_ENABLE_HISTORIZING*/
 
 static Suite* testSuite_Client(void)
@@ -695,6 +1025,11 @@ static Suite* testSuite_Client(void)
     tcase_add_test(tc_server, Server_HistorizingStrategyUser);
     tcase_add_test(tc_server, Server_HistorizingStrategyValueSet);
     tcase_add_test(tc_server, Server_HistorizingBackendMemory);
+    tcase_add_test(tc_server, Server_HistorizingRandomIndexBackend);
+    tcase_add_test(tc_server, Server_HistorizingUpdateDelete);
+    tcase_add_test(tc_server, Server_HistorizingUpdateInsert);
+    tcase_add_test(tc_server, Server_HistorizingUpdateReplace);
+    tcase_add_test(tc_server, Server_HistorizingUpdateUpdate);
 #endif /* UA_ENABLE_HISTORIZING */
     suite_add_tcase(s, tc_server);
 
@@ -703,11 +1038,17 @@ static Suite* testSuite_Client(void)
 
 int main(void)
 {
+#ifdef UA_ENABLE_HISTORIZING
+    testDataSorted = sortDateTimes(testData);
+#endif /* UA_ENABLE_HISTORIZING */
     Suite *s = testSuite_Client();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
+#ifdef UA_ENABLE_HISTORIZING
+    UA_free(testDataSorted);
+#endif /* UA_ENABLE_HISTORIZING */
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

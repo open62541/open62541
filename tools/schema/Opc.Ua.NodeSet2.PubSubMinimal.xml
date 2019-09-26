@@ -1,7 +1,36 @@
-<?xml version="1.0" encoding="utf-8"?>
-<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2016-12-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2018 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2019-01-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
   <Models>
-    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2016-12-31T00:00:00Z" />
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2019-01-31T00:00:00Z" />
   </Models>
   <UAObjectType NodeId="i=15906" BrowseName="PubSubKeyServiceType">
     <DisplayName>PubSubKeyServiceType</DisplayName>
@@ -1239,17 +1268,82 @@
       <Reference ReferenceType="HasProperty">i=17739</Reference> <!--Priority-->
       <Reference ReferenceType="HasProperty">i=17740</Reference> <!--LocaleIds-->
       <Reference ReferenceType="i=15296">i=17743</Reference> <!--DataSetWriterName-->
+      <Reference ReferenceType="HasComponent">i=17969</Reference> <!--AddDataSetWriter-->
 
 
       <!--
             <Reference ReferenceType="HasComponent">i=17741</Reference> TransportSettings
             <Reference ReferenceType="HasComponent">i=17742</Reference> MessageSettings
             <Reference ReferenceType="HasComponent">i=17812</Reference> Diagnostics
-            <Reference ReferenceType="HasComponent">i=17969</Reference> AddDataSetWriter
             <Reference ReferenceType="HasComponent">i=17992</Reference> RemoveDataSetWriter-->
       <Reference ReferenceType="HasSubtype" IsForward="false">i=14232</Reference>  <!--PubSubGroupType-->
     </References>
   </UAObjectType>
+  <UAMethod NodeId="i=17969" BrowseName="AddDataSetWriter" ParentNodeId="i=17725">
+    <DisplayName>AddDataSetWriter</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty">i=17976</Reference>
+      <Reference ReferenceType="HasProperty">i=17987</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=17725</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=17976" BrowseName="InputArguments" ParentNodeId="i=17969" DataType="i=296" ValueRank="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=17969</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>Configuration</Name>
+              <DataType>
+                <Identifier>i=15597</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+              <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="i=17987" BrowseName="OutputArguments" ParentNodeId="i=17969" DataType="i=296" ValueRank="1">
+    <DisplayName>OutputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=17969</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>DataSetWriterNodeId</Name>
+              <DataType>
+                <Identifier>i=17</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+              <Description p5:nil="true" xmlns:p5="http://www.w3.org/2001/XMLSchema-instance" />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
   <UAVariable NodeId="i=17736" BrowseName="WriterGroupId" ParentNodeId="i=17725" DataType="UInt16">
     <DisplayName>WriterGroupId</DisplayName>
     <References>
@@ -1445,7 +1539,7 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=14643</Reference>
     </References>
   </UAMethod>
-  <UAVariableType NodeId="i=16309" BrowseName="SelectionListType" DataType="i=862" ValueRank="-2">
+  <UAVariableType NodeId="i=16309" BrowseName="SelectionListType" ValueRank="-2">
     <DisplayName>SelectionListType</DisplayName>
     <References>
       <Reference ReferenceType="HasProperty">i=17632</Reference>
@@ -1566,6 +1660,12 @@
     </References>
     <InverseName>IsWriterInGroup</InverseName>
   </UAReferenceType>
+  <UAObjectType NodeId="i=17998" BrowseName="WriterGroupMessageType" IsAbstract="true">
+    <DisplayName>WriterGroupMessageType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
   <UAMethod NodeId="i=16598" BrowseName="AddConnection" ParentNodeId="i=14416">
     <DisplayName>AddConnection</DisplayName>
     <References>
@@ -1794,4 +1894,31 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=17292</Reference>
     </References>
   </UAVariable>
+  <UAObjectType NodeId="i=21105" BrowseName="UadpWriterGroupMessageType">
+    <DisplayName>UadpWriterGroupMessageType</DisplayName>
+    <References>
+      <!-- <Reference ReferenceType="HasProperty">i=21106</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21107</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21108</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21109</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21110</Reference> -->
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=17998</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=21096" BrowseName="DataSetWriterMessageType" IsAbstract="true">
+    <DisplayName>DataSetWriterMessageType</DisplayName>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAObjectType NodeId="i=21111" BrowseName="UadpDataSetWriterMessageType">
+    <DisplayName>UadpDataSetWriterMessageType</DisplayName>
+    <References>
+      <!-- <Reference ReferenceType="HasProperty">i=21112</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21113</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21114</Reference> -->
+      <!-- <Reference ReferenceType="HasProperty">i=21115</Reference> -->
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=21096</Reference>
+    </References>
+  </UAObjectType>
 </UANodeSet>

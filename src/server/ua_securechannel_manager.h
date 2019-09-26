@@ -11,11 +11,12 @@
 #ifndef UA_CHANNEL_MANAGER_H_
 #define UA_CHANNEL_MANAGER_H_
 
-#include "ua_util_internal.h"
-#include "ua_server.h"
-#include "ua_workqueue.h"
-#include "ua_securechannel.h"
+#include <open62541/server.h>
+
 #include "open62541_queue.h"
+#include "ua_securechannel.h"
+#include "ua_util_internal.h"
+#include "ua_workqueue.h"
 
 _UA_BEGIN_DECLS
 

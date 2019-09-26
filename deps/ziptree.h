@@ -186,11 +186,11 @@ __##name##_ZIP_FIND(struct type *root, const keytype *key) {            \
     enum ZIP_CMP eq = (cmp)(key, &(root)->keyfield);                    \
     if(eq == ZIP_CMP_EQ) {                                              \
         return root;                                                    \
-    } else if(eq == ZIP_CMP_LESS) {                                     \
-        return __##name##_ZIP_FIND(ZIP_LEFT(root, field), key);         \
-    } else {                                                            \
-        return __##name##_ZIP_FIND(ZIP_RIGHT(root, field), key);        \
     }                                                                   \
+    if(eq == ZIP_CMP_LESS) {                                            \
+        return __##name##_ZIP_FIND(ZIP_LEFT(root, field), key);         \
+    }                                                                   \
+    return __##name##_ZIP_FIND(ZIP_RIGHT(root, field), key);            \
 }                                                                       \
                                                                         \
 struct type *                                                           \

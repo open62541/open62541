@@ -7,7 +7,6 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_util.h"
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
@@ -107,7 +106,7 @@ mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record, const char *
 
 /* see http://stackoverflow.com/a/10838854/869402 */
 static IP_ADAPTER_ADDRESSES *
-getInterfaces(UA_Server *server) {
+getInterfaces(const UA_Server *server) {
     IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
 
     /* Start with a 16 KB buffer and resize if needed - multiple attempts in
@@ -152,12 +151,32 @@ getInterfaces(UA_Server *server) {
 #endif /* _WIN32 */
 
 static UA_Boolean
-mdns_is_self_announce(UA_Server *server, struct serverOnNetwork_list_entry *entry) {
+mdns_is_self_announce(const UA_Server *server, const struct serverOnNetwork_list_entry *entry) {
     for (size_t i=0; i<server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         if(UA_String_equal(&entry->serverOnNetwork.discoveryUrl,
                            &nl->discoveryUrl))
             return true;
+        // check discoveryUrl ignoring tailing slash
+        if (((
+                nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
+                nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/'
+              ) || (
+                entry->serverOnNetwork.discoveryUrl.length == nl->discoveryUrl.length +1 &&
+                entry->serverOnNetwork.discoveryUrl.data[entry->serverOnNetwork.discoveryUrl.length-1] == '/'
+              )
+            ) &&
+            memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data,
+                    UA_MIN(nl->discoveryUrl.length, entry->serverOnNetwork.discoveryUrl.length)) == 0
+        ) {
+            return true;
+        }
+        if (nl->discoveryUrl.length == entry->serverOnNetwork.discoveryUrl.length +1 &&
+            nl->discoveryUrl.data[nl->discoveryUrl.length-1] == '/' &&
+            memcmp(nl->discoveryUrl.data, entry->serverOnNetwork.discoveryUrl.data, nl->discoveryUrl.length-1) == 0
+                ) {
+            return true;
+        }
     }
 
     /* The discovery URL may also just contain the IP address, but in our
@@ -312,13 +331,13 @@ mdns_record_remove(UA_Server *server, const char *record,
     if(entry->pathTmp)
         UA_free(entry->pathTmp);
 
-#ifndef UA_ENABLE_MULTITHREADING
-    dm->serverOnNetworkSize--;
-    UA_free(entry);
-#else
+#if UA_MULTITHREADING >= 200
     UA_atomic_subSize(&dm->serverOnNetworkSize, 1);
     entry->delayedCleanup.callback = NULL; /* Only free the structure */
     UA_WorkQueue_enqueueDelayed(&server->workQueue, &entry->delayedCleanup);
+#else
+    dm->serverOnNetworkSize--;
+    UA_free(entry);
 #endif
 }
 
@@ -469,8 +488,16 @@ mdns_record_received(const struct resource *r, void *data) {
     entry->lastSeen = UA_DateTime_nowMonotonic();
 
     /* TXT and SRV are already set */
-    if(entry->txtSet && entry->srvSet)
+    if(entry->txtSet && entry->srvSet) {
+        // call callback for every mdns package we received.
+        // This will also call the callback multiple times
+        if (server->discoveryManager.serverOnNetworkCallback &&
+            !mdns_is_self_announce(server, entry))
+            server->discoveryManager.
+                serverOnNetworkCallback(&entry->serverOnNetwork, true, entry->txtSet,
+                                        server->discoveryManager.serverOnNetworkCallbackData);
         return;
+    }
 
     /* Add the resources */
     if(r->type == QTYPE_TXT && !entry->txtSet)
@@ -488,7 +515,7 @@ mdns_record_received(const struct resource *r, void *data) {
 
 void
 mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *path,
-                const UA_String *capabilites, const size_t *capabilitiesSize,
+                const UA_String *capabilites, const size_t capabilitiesSize,
                 void (*conflict)(char *host, int type, void *arg)) {
     mdns_record_t *r = mdnsd_unique(server->discoveryManager.mdnsDaemon, fullServiceDomain,
                                     QTYPE_TXT, 600, conflict, server);
@@ -519,7 +546,7 @@ mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *pa
 
     /* calculate max string length: */
     size_t capsLen = 0;
-    for(size_t i = 0; i < *capabilitiesSize; i++) {
+    for(size_t i = 0; i < capabilitiesSize; i++) {
         /* add comma or last \0 */
         capsLen += capabilites[i].length + 1;
     }
@@ -530,7 +557,7 @@ mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *pa
         /* todo: malloc may fail: return a statuscode */
         caps = (char*)UA_malloc(sizeof(char) * capsLen);
         size_t idx = 0;
-        for(size_t i = 0; i < *capabilitiesSize; i++) {
+        for(size_t i = 0; i < capabilitiesSize; i++) {
             memcpy(caps + idx, (const char *) capabilites[i].data, capabilites[i].length);
             idx += capabilites[i].length + 1;
             caps[idx - 1] = ',';

@@ -2,34 +2,33 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
+
 #include "check.h"
 #include "testing_clock.h"
-#include "tests/ua_namespace_tests_testnodeset.h"
-#include "ua_config_default.h"
-#include "ua_server.h"
-#include "ua_types.h"
+#include "tests/namespace_tests_testnodeset_generated.h"
 #include "unistd.h"
 
 UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
-
-UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTNODESET_COUNT, UA_TYPES_TESTNODESET};
+UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET};
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
     config->customDataTypes = &customTypesArray;
-    server = UA_Server_new(config);
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 START_TEST(Server_addTestNodeset) {
-    UA_StatusCode retval = ua_namespace_tests_testnodeset(server);
+    UA_StatusCode retval = namespace_tests_testnodeset_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
@@ -46,10 +45,7 @@ START_TEST(checkScalarValues) {
     UA_Variant_clear(&out);
     // Point_scalar_noInit
     UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10005), &out);
-    p = (UA_Point *)out.data;
-    ck_assert(UA_Variant_isScalar(&out));
-    ck_assert(p->x == (UA_Double)0.0);
-    ck_assert(p->y == (UA_Double)0.0);
+    ck_assert(out.data == NULL);
     UA_Variant_clear(&out);
 }
 END_TEST
@@ -67,6 +63,7 @@ START_TEST(check1dimValues) {
     UA_Point *p = (UA_Point *)out.data;
     ck_assert(!UA_Variant_isScalar(&out));
     ck_assert(out.arrayLength == 4);
+    ck_assert(out.arrayDimensionsSize == 0);    // For 1 dimension arrays, initializing arrayDimensionsSize may confuse some OPC clients.
     ck_assert(p[0].x == (UA_Double)1.0);
     ck_assert(p[3].y == (UA_Double)8.0);
     UA_Variant_clear(&out);

@@ -4,14 +4,14 @@
 /* This example is just to see how fast we can monitor value changes. The server does
    not open a TCP port. */
 
-#include <time.h>
-#include <stdio.h>
-#include <check.h>
+#include <open62541/server_config_default.h>
 
-#include "ua_server.h"
-#include "ua_server_internal.h"
-#include "ua_config_default.h"
 #include "server/ua_subscription.h"
+#include "ua_server_internal.h"
+
+#include <check.h>
+#include <stdio.h>
+#include <time.h>
 
 #include "testing_networklayers.h"
 #include "testing_policy.h"
@@ -21,13 +21,11 @@ static UA_SecurityPolicy dummyPolicy;
 static UA_Connection testingConnection;
 static funcs_called funcsCalled;
 static key_sizes keySizes;
-
-static UA_ServerConfig *config;
 static UA_Server *server;
 
 static void setup(void) {
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
     UA_SecureChannel_init(&testChannel);
@@ -45,7 +43,6 @@ static void teardown(void) {
     testingConnection.close(&testingConnection);
 
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static size_t callbackCount = 0;

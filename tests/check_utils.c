@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/client.h>
+
+#include "ua_util_internal.h"
+
 #include <stdlib.h>
 
-#include "ua_types.h"
-#include "ua_client.h"
-#include "ua_util.h"
-#include "ua_util_internal.h"
 #include "check.h"
 
 START_TEST(EndpointUrl_split) {
@@ -65,6 +65,10 @@ START_TEST(EndpointUrl_split) {
     ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 1234);
     ck_assert(UA_String_equal(&path, &expectedPath));
+
+    // invalid IPv6: missing ]
+    endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
 
     // empty hostname
     endPointUrl = UA_STRING("opc.tcp://:");
@@ -133,6 +137,11 @@ START_TEST(EndpointUrl_ethernet) {
     ck_assert_uint_eq(vid, 0);
     ck_assert_uint_eq(pcp, 0);
 
+    // long enough, but malformed
+    endPointUrl = UA_STRING("opc.eth.//target:");
+    ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
+                      UA_STATUSCODE_BADINTERNALERROR);
+
     // valid without vid and pcp but leading ':'
     endPointUrl = UA_STRING("opc.eth://target:");
     ck_assert_uint_eq(UA_parseEndpointUrlEthernet(&endPointUrl, &target, &vid, &pcp),
@@ -200,6 +209,9 @@ START_TEST(readNumberWithBase) {
     ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"f", 1, &result, 16), 1);
     ck_assert_uint_eq(result, 15);
 
+    ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"F", 1, &result, 16), 1);
+    ck_assert_uint_eq(result, 15);
+
     ck_assert_uint_eq(UA_readNumberWithBase((UA_Byte*)"1x", 2, &result, 16), 1);
     ck_assert_uint_eq(result, 1);
 
@@ -244,6 +256,11 @@ static void assertNodeIdString(const UA_String *gotStr, const char* expectedStr)
     ck_assert_str_eq(gotChars, expectedStr);
     UA_free(gotChars);
 }
+
+START_TEST(idToStringNull) {
+    UA_String str = UA_STRING_NULL;
+    ck_assert_int_eq(UA_NodeId_toString(NULL, &str), UA_STATUSCODE_GOOD);
+} END_TEST
 
 START_TEST(idToStringNumeric) {
     UA_NodeId n;
@@ -376,6 +393,137 @@ START_TEST(idToStringByte) {
 } END_TEST
 
 
+START_TEST(idOrderNs) {
+    UA_NodeId id_ns1 = UA_NODEID_NUMERIC(1, 12345);
+    UA_NodeId id_ns3 = UA_NODEID_NUMERIC(3, 12345);
+
+    ck_assert(UA_NodeId_order(&id_ns1, &id_ns1) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_ns1, &id_ns3) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_ns3, &id_ns1) == UA_ORDER_MORE);
+} END_TEST
+
+START_TEST(idOrderIdentifier) {
+    UA_NodeId id_num = UA_NODEID_NUMERIC(1, 12345);
+    UA_NodeId id_str = UA_NODEID_STRING(1, "asdf");
+
+    ck_assert(UA_NodeId_order(&id_num, &id_num) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_num, &id_str) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_str, &id_num) == UA_ORDER_MORE);
+} END_TEST
+
+START_TEST(idOrderNumeric) {
+    UA_NodeId id_num_12345 = UA_NODEID_NUMERIC(1, 12345);
+    UA_NodeId id_num_23456 = UA_NODEID_NUMERIC(1, 23456);
+
+    ck_assert(UA_NodeId_order(&id_num_12345, &id_num_12345) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_num_12345, &id_num_23456) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_num_23456, &id_num_12345) == UA_ORDER_MORE);
+} END_TEST
+
+START_TEST(idOrderGuid) {
+
+    // See also https://github.com/open62541/open62541/pull/2904#issuecomment-514111395
+
+    // 00000000-FFFF-FFFF-FFFFFFFFFFFF,
+    UA_Guid guid1 = {
+            0,
+            0xffff,
+            0xffff,
+            { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }
+    };
+    // 00000001-0000-0000-000000000000
+    UA_Guid guid2 = {
+            0x1,
+            0,
+            0,
+            { 0, 0, 0, 0, 0, 0, 0, 0 }
+    };
+    // 00000000-0000-FFFF-FFFFFFFFFFFF
+    UA_Guid guid3 = {
+            0,
+            0,
+            0xffff,
+            { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }
+    };
+    // 00000000-0001-0000-000000000000
+    UA_Guid guid4 = {
+            0,
+            0x1,
+            0,
+            { 0, 0, 0, 0, 0, 0, 0, 0 }
+    };
+    // 00000000-0000-0000-FFFFFFFFFFFF
+    UA_Guid guid5 = {
+            0,
+            0,
+            0,
+            { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff }
+    };
+    // 00000000-0000-0001-000000000000
+    UA_Guid guid6 = {
+            0,
+            0,
+            0x1,
+            { 0, 0, 0, 0, 0, 0, 0, 0 }
+    };
+    // 00000000-0000-0000-000000000000
+    UA_Guid guid7 = {
+            0,
+            0,
+            0,
+            { 0, 0, 0, 0, 0, 0, 0, 0 }
+    };
+    // 00000000-0000-0000-000000000001
+    UA_Guid guid8 = {
+            0,
+            0,
+            0,
+            { 0, 0, 0, 0, 0, 0, 0, 0x1 }
+    };
+
+
+    UA_NodeId id_guid_1 = UA_NODEID_GUID(1, guid1);
+    UA_NodeId id_guid_2 = UA_NODEID_GUID(1, guid2);
+    ck_assert(UA_NodeId_order(&id_guid_1, &id_guid_1) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_guid_1, &id_guid_2) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_guid_2, &id_guid_1) == UA_ORDER_MORE);
+
+    UA_NodeId id_guid_3 = UA_NODEID_GUID(1, guid3);
+    UA_NodeId id_guid_4 = UA_NODEID_GUID(1, guid4);
+    ck_assert(UA_NodeId_order(&id_guid_3, &id_guid_3) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_guid_3, &id_guid_4) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_guid_4, &id_guid_3) == UA_ORDER_MORE);
+
+    UA_NodeId id_guid_5 = UA_NODEID_GUID(1, guid5);
+    UA_NodeId id_guid_6 = UA_NODEID_GUID(1, guid6);
+    ck_assert(UA_NodeId_order(&id_guid_5, &id_guid_5) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_guid_5, &id_guid_2) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_guid_6, &id_guid_5) == UA_ORDER_MORE);
+
+    UA_NodeId id_guid_7 = UA_NODEID_GUID(1, guid7);
+    UA_NodeId id_guid_8 = UA_NODEID_GUID(1, guid8);
+    ck_assert(UA_NodeId_order(&id_guid_7, &id_guid_7) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_guid_7, &id_guid_8) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_guid_8, &id_guid_7) == UA_ORDER_MORE);
+
+} END_TEST
+
+START_TEST(idOrderString) {
+    UA_NodeId id_str_a = UA_NODEID_STRING(1, "aaaaa");
+    UA_NodeId id_str_b = UA_NODEID_STRING(1, "baa");
+
+    ck_assert(UA_NodeId_order(&id_str_a, &id_str_a) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_str_a, &id_str_b) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_str_b, &id_str_a) == UA_ORDER_MORE);
+
+    UA_NodeId id_str_c = UA_NODEID_STRING(1, "cddd");
+    UA_NodeId id_str_d = UA_NODEID_STRING(1, "dddd");
+
+    ck_assert(UA_NodeId_order(&id_str_c, &id_str_c) == UA_ORDER_EQ);
+    ck_assert(UA_NodeId_order(&id_str_c, &id_str_d) == UA_ORDER_LESS);
+    ck_assert(UA_NodeId_order(&id_str_d, &id_str_c) == UA_ORDER_MORE);
+} END_TEST
+
 
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
@@ -393,11 +541,20 @@ static Suite* testSuite_Utils(void) {
 
 
     TCase *tc1 = tcase_create("test nodeid string");
+    tcase_add_test(tc1, idToStringNull);
     tcase_add_test(tc1, idToStringNumeric);
     tcase_add_test(tc1, idToStringString);
     tcase_add_test(tc1, idToStringGuid);
     tcase_add_test(tc1, idToStringByte);
     suite_add_tcase(s, tc1);
+
+    TCase *tc2 = tcase_create("test nodeid order");
+    tcase_add_test(tc1, idOrderNs);
+    tcase_add_test(tc1, idOrderIdentifier);
+    tcase_add_test(tc1, idOrderNumeric);
+    tcase_add_test(tc1, idOrderGuid);
+    tcase_add_test(tc1, idOrderString);
+    suite_add_tcase(s, tc2);
 
     return s;
 }

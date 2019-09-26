@@ -5,11 +5,7 @@
 #ifndef TESTING_CLOCK_H_
 #define TESTING_CLOCK_H_
 
-#include "ua_types.h"
-
-/**
- * Simulate the system clock
- * ------------------------- */
+#include <open62541/types.h>
 
 /* The testing clock is used for reproducible unit tests that require precise
  * timings. It implements the following functions from ua_types.h. They return a

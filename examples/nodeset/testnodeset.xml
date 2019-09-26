@@ -496,17 +496,36 @@
             <Field DataType="Double" Name="x"/>
             <Field DataType="Double" Name="y"/>
             <Field DataType="Double" Name="z"/>
-            <Field DataType="UInt32" Name="array1Size"/>
+            <Field DataType="Int32" Name="array1Size"/>
             <Field DataType="Double" ValueRank="1" Name="array1"/>
         </Definition>
     </UADataType>
+    <UADataType NodeId="ns=1;i=3004" BrowseName="1:PointWithPointArray">
+        <DisplayName>PointWithPointArray</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+        </References>
+        <Definition Name="1:PointWithPointArray">
+            <Field DataType="Double" Name="x"/>
+            <Field DataType="Double" Name="y"/>
+            <Field DataType="Double" Name="z"/>
+            <Field DataType="Int32" Name="array1Size"/>
+            <Field DataType="Double" ValueRank="1" Name="array1"/>
+        </Definition>
+    </UADataType>
+    <UAVariable DataType="ns=1;i=3004" NodeId="ns=1;i=6010" BrowseName="1:PointWithPointArray_scalar_noInit" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>PointWithArray_scalar_noInit</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
+        </References>        
+    </UAVariable>
     <UAVariable DataType="ns=1;i=3003" NodeId="ns=1;i=6008" BrowseName="1:PointWithArray_scalar_noInit" UserAccessLevel="3" AccessLevel="3">
         <DisplayName>PointWithArray_scalar_noInit</DisplayName>
         <References>
             <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
             <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
         </References>
-        <!-->
         <Value>
             <uax:ExtensionObject>
                 <uax:TypeId>
@@ -517,12 +536,15 @@
                         <x>1.1</x>
                         <y>2.2</y>
                         <z>3.3</z>
-                        <array1Size>1</array1Size>
-                        <array1><Double>1.1</Double></array1>
+                        <array1Size>2</array1Size>
+                        <array1>                        
+                            <Double>11.1</Double>
+                            <Double>12.1</Double>
+                        </array1>
                     </PointWithArray>
                 </uax:Body>
             </uax:ExtensionObject>
-        </Value>-->
+        </Value>
     </UAVariable>
     <UAVariable DataType="ns=1;i=10008" NodeId="ns=1;i=6009" BrowseName="1:NestedPoint_scalar_noInit" UserAccessLevel="3" AccessLevel="3">
         <DisplayName>NestedPoint_scalar_noInit</DisplayName>
@@ -530,22 +552,5 @@
             <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
             <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5001</Reference>
         </References>
-        <!-->
-        <Value>
-            <uax:ExtensionObject>
-                <uax:TypeId>
-                    <uax:Identifier>ns=1;i=3003</uax:Identifier>
-                </uax:TypeId>
-                <uax:Body>
-                    <PointWithArray xmlns="http://yourorganisation.org/exported2/Types.xsd">
-                        <x>1.1</x>
-                        <y>2.2</y>
-                        <z>3.3</z>
-                        <array1Size>1</array1Size>
-                        <array1><Double>1.1</Double></array1>
-                    </PointWithArray>
-                </uax:Body>
-            </uax:ExtensionObject>
-        </Value>-->
     </UAVariable>
 </UANodeSet>

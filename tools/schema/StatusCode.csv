@@ -78,7 +78,7 @@ BadFilterNotAllowed,0x80450000,A monitoring filter cannot be used in combination
 BadStructureMissing,0x80460000,A mandatory structured parameter was missing or null.
 BadEventFilterInvalid,0x80470000,The event filter is not valid.
 BadContentFilterInvalid,0x80480000,The content filter is not valid.
-BadFilterOperatorInvalid,0x80C10000,An unregognized operator was provided in a filter.
+BadFilterOperatorInvalid,0x80C10000,An unrecognized operator was provided in a filter.
 BadFilterOperatorUnsupported,0x80C20000,A valid operator was provided, but the server does not provide support for this filter operator.
 BadFilterOperandCountMismatch,0x80C30000,The number of operands provided for the filter operator was less then expected for the operand provided.
 BadFilterOperandInvalid,0x80490000,The operand used in a content filter is not valid.
@@ -86,7 +86,7 @@ BadFilterElementInvalid,0x80C40000,The referenced element is not a valid element
 BadFilterLiteralInvalid,0x80C50000,The referenced literal is not a valid value.
 BadContinuationPointInvalid,0x804A0000,The continuation point provide is longer valid.
 BadNoContinuationPoints,0x804B0000,The operation could not be processed because all continuation points have been allocated.
-BadReferenceTypeIdInvalid,0x804C0000,The operation could not be processed because all continuation points have been allocated.
+BadReferenceTypeIdInvalid,0x804C0000,The reference type id does not refer to a valid reference type node.
 BadBrowseDirectionInvalid,0x804D0000,The browse direction is not valid.
 BadNodeNotInView,0x804E0000,The node is not part of the view.
 BadNumericOverflow,0x81120000,The number was not accepted because of a numeric overflow.
@@ -141,7 +141,7 @@ BadTypeMismatch,0x80740000,The value supplied for the attribute is not of the sa
 BadMethodInvalid,0x80750000,The method id does not refer to a method for the specified object.
 BadArgumentsMissing,0x80760000,The client did not specify all of the input arguments for the method.
 BadNotExecutable,0x81110000,The executable attribute does not allow the execution of the method.
-BadTooManySubscriptions,0x80770000,The server has reached its  maximum number of subscriptions.
+BadTooManySubscriptions,0x80770000,The server has reached its maximum number of subscriptions.
 BadTooManyPublishRequests,0x80780000,The server has reached the maximum number of queued publish requests.
 BadNoSubscription,0x80790000,There is no subscription available for this session.
 BadSequenceNumberUnknown,0x807A0000,The sequence number is unknown to the server.
@@ -206,7 +206,7 @@ BadAggregateListMismatch,0x80D40000,The requested number of Aggregates does not 
 BadAggregateNotSupported,0x80D50000,The requested Aggregate is not support by the server.
 BadAggregateInvalidInputs,0x80D60000,The aggregate value could not be derived due to invalid data inputs.
 BadAggregateConfigurationRejected,0x80DA0000,The aggregate configuration is not valid for specified node.
-GoodDataIgnored,0x00D90000,The request pecifies fields which are not valid for the EventType or cannot be saved by the historian.
+GoodDataIgnored,0x00D90000,The request specifies fields which are not valid for the EventType or cannot be saved by the historian.
 BadRequestNotAllowed,0x80E40000,The request was rejected by the server because it did not meet the criteria set by the server.
 BadRequestNotComplete,0x81130000,The request has not been processed by the server yet.
 GoodEdited,0x00DC0000,The value does not come from the real source and has been edited by the server.

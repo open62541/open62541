@@ -14,23 +14,25 @@
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
-#include <ua_types.h>
-#include <sys/stat.h>
+#include <open62541/client_config_default.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_subscriptions.h>
+#include <open62541/server_config_default.h>
+#include <open62541/types.h>
+
+#include "client/ua_client_internal.h"
 #include <server/ua_server_internal.h>
+
 #include <dirent.h>
 #include <fcntl.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
-#include <ua_client_highlevel.h>
-#include <ua_client_subscriptions.h>
-#include <client/ua_client_internal.h>
 
-#include "ua_config_default.h"
+#include <sys/stat.h>
 
 UA_Server *server;
-UA_ServerConfig *config;
 UA_Boolean running;
 pthread_t server_thread;
 
@@ -42,8 +44,14 @@ static void * serverloop(void *_) {
 
 static void start_server(void) {
     running = true;
-    config = UA_ServerConfig_new_default();
-    server = UA_Server_new(config);
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefault(config);
+
+    config->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
+    config->discovery.mdnsEnable = true;
+    config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
 }
@@ -53,7 +61,6 @@ static void teardown_server(void) {
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
 }
 
 static void emptyCorpusDir(void) {
@@ -186,19 +193,13 @@ registerServer2Request(UA_Client *client) {
 
     initUaRegisterServer(&request.server);
 
-    UA_MdnsDiscoveryConfiguration mdnsConfig;
-    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
-
     request.discoveryConfigurationSize = 1;
     request.discoveryConfiguration = UA_ExtensionObject_new();
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
+    // Set to NODELETE so that we can just use a pointer to the mdns config
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
-    request.discoveryConfiguration[0].content.decoded.data = &mdnsConfig;
-
-    mdnsConfig.mdnsServerName = server->config.mdnsServerName;
-    mdnsConfig.serverCapabilities = server->config.serverCapabilities;
-    mdnsConfig.serverCapabilitiesSize = server->config.serverCapabilitiesSize;
+    request.discoveryConfiguration[0].content.decoded.data = &server->config.discovery.mdns;
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;
@@ -564,7 +565,9 @@ int main(void) {
     emptyCorpusDir();
     start_server();
 
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
     // this will also call getEndpointsRequest
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval == UA_STATUSCODE_GOOD)
@@ -574,7 +577,8 @@ int main(void) {
 
     if(retval == UA_STATUSCODE_GOOD) {
         // now also connect with user/pass so that fuzzer also knows how to do that
-        client = UA_Client_new(UA_ClientConfig_default);
+        client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
         retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user", "password");
         retval = retval == UA_STATUSCODE_BADUSERACCESSDENIED ? UA_STATUSCODE_GOOD : retval;
         UA_Client_disconnect(client);

@@ -1,0 +1,58 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/POWERLINK/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/POWERLINK/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="ErrorRegisterBits">
+        <opc:Documentation>Represents the values of the POWERLINK ErrorRegister </opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PowerlinkAttribute">
+        <opc:Documentation>Represents the POWERLINK entry attributes</opc:Documentation>
+        <opc:Field TypeName="opc:ByteString" Name="Value"/>
+        <opc:Field TypeName="opc:ByteString" Name="ValidBits"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PowerlinkErrorEntryDataType">
+        <opc:Documentation>Represents the entries of the POWERLINK Object ERR_History_ADOM (Object 1003h, SubIndex 1..254)</opc:Documentation>
+        <opc:Field TypeName="opc:UInt16" Name="entryType"/>
+        <opc:Field TypeName="opc:UInt16" Name="errorCode"/>
+        <opc:Field TypeName="opc:UInt64" Name="timeStamp"/>
+        <opc:Field TypeName="opc:UInt64" Name="additionalInformation"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PowerlinkIpAddressDataType">
+        <opc:Documentation>Structure DataType PowerlinkIpAddressDataType to represent POWERLINK Objects of the POWERLINK data type IP_ADDRESS</opc:Documentation>
+        <opc:Field TypeName="opc:Byte" Name="b1"/>
+        <opc:Field TypeName="opc:Byte" Name="b2"/>
+        <opc:Field TypeName="opc:Byte" Name="b3"/>
+        <opc:Field TypeName="opc:Byte" Name="b4"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="PowerlinkPDOMappingEntryDataType">
+        <opc:Documentation>Structure DataType PowerlinkPDOMappingEntryDataType to represent the entries of POWERLINK Objects like PDO_RxCommParam_00h_REC</opc:Documentation>
+        <opc:Field TypeName="opc:UInt16" Name="length"/>
+        <opc:Field TypeName="opc:UInt16" Name="offset"/>
+        <opc:Field TypeName="opc:Byte" Name="reserved"/>
+        <opc:Field TypeName="opc:Byte" Name="subIndex"/>
+        <opc:Field TypeName="opc:UInt16" Name="index"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="PowerlinkNMTResetCmdEnumeration">
+        <opc:Documentation>This DataType is an Enumeration that represents the NMT reset commands for POWERLINK</opc:Documentation>
+        <opc:EnumeratedValue Name="NMTResetNode" Value="40"/>
+        <opc:EnumeratedValue Name="NMTResetCommunication" Value="41"/>
+        <opc:EnumeratedValue Name="NMTResetConfiguration" Value="42"/>
+        <opc:EnumeratedValue Name="NMTSwReset" Value="43"/>
+        <opc:EnumeratedValue Name="NMTInvalidService" Value="255"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="PowerlinkNMTStateEnumeration">
+        <opc:Documentation>This DataType is an enumeration that represents the NMT State</opc:Documentation>
+        <opc:EnumeratedValue Name="NMT_GS_OFF " Value="0"/>
+        <opc:EnumeratedValue Name="NMT_GS_INITIALISING" Value="25"/>
+        <opc:EnumeratedValue Name="NMT_GS_RESET_APPLICATION" Value="41"/>
+        <opc:EnumeratedValue Name="NMT_GS_RESET_COMMUNICATION" Value="57"/>
+        <opc:EnumeratedValue Name="NMT_GS_RESET_CONFIGURATION" Value="121"/>
+        <opc:EnumeratedValue Name="NMT_XS_NOT_ACTIVE" Value="28"/>
+        <opc:EnumeratedValue Name="NMT_XS_PRE_OPERATIONAL_1" Value="29"/>
+        <opc:EnumeratedValue Name="NMT_XS_PRE_OPERATIONAL_2" Value="93"/>
+        <opc:EnumeratedValue Name="NMT_XS_READY_TO_OPERATE" Value="109"/>
+        <opc:EnumeratedValue Name="NMT_XS_OPERATIONAL" Value="253"/>
+        <opc:EnumeratedValue Name="NMT_CS_STOPPED" Value="77"/>
+        <opc:EnumeratedValue Name="NMT_XS_BASIC_ETHERNET" Value="30"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>
