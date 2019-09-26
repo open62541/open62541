@@ -332,7 +332,7 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
         UA_PubSubManager_removeRepeatedPubSubCallback(server, readerGroup->subscribeCallbackId);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    /* To Do:RemoveGroupRepresentation(server, &readerGroup->identifier) */
+    removeReaderGroupRepresentation(server, readerGroup);
 #endif
 
     /* UA_Server_ReaderGroup_clear also removes itself from the list */
