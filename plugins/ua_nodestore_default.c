@@ -107,7 +107,7 @@ newEntry(UA_NodeClass nodeClass) {
 
 static void
 deleteEntry(NodeEntry *entry) {
-    UA_Node_deleteMembers((UA_Node*)&entry->nodeId);
+    UA_Node_clear((UA_Node*)&entry->nodeId);
     UA_free(entry);
 }
 

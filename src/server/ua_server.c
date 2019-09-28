@@ -158,7 +158,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     }
 
 cleanup:
-    UA_Node_deleteMembers(parentCopy);
+    UA_Node_clear(parentCopy);
     UA_free(parentCopy);
 
     UA_Nodestore_releaseNode(server->nsCtx, parent);
