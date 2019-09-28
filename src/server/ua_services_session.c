@@ -51,7 +51,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
         sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
 
     /* Clean up */
-    UA_ByteString_deleteMembers(&dataToSign);
+    UA_ByteString_clear(&dataToSign);
     return retval;
 }
 
@@ -153,7 +153,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Mirror back the endpointUrl */
     for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
-        UA_String_deleteMembers(&response->serverEndpoints[i].endpointUrl);
+        UA_String_clear(&response->serverEndpoints[i].endpointUrl);
         response->responseHeader.serviceResult |=
             UA_String_copy(&request->endpointUrl,
                            &response->serverEndpoints[i].endpointUrl);
@@ -244,7 +244,7 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
 
     retval = securityPolicy->certificateSigningAlgorithm.verify(securityPolicy, channel->channelContext, &dataToVerify,
                                                                 &request->clientSignature.signature);
-    UA_ByteString_deleteMembers(&dataToVerify);
+    UA_ByteString_clear(&dataToVerify);
     return retval;
 }
 
@@ -301,7 +301,7 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
     retval = UA_STATUSCODE_GOOD;
 
  cleanup:
-    UA_ByteString_deleteMembers(&decryptedTokenSecret);
+    UA_ByteString_clear(&decryptedTokenSecret);
     return retval;
 }
 #endif

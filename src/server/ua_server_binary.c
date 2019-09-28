@@ -75,7 +75,7 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
         return retval;
     retval = sendServiceFaultWithRequest(channel, &requestHeader, responseType,
                                          requestId, error);
-    UA_RequestHeader_deleteMembers(&requestHeader);
+    UA_RequestHeader_clear(&requestHeader);
     return retval;
 }
 
@@ -287,7 +287,7 @@ processHEL(UA_Server *server, UA_Connection *connection,
         return retval;
 
     /* Currently not checked */
-    UA_String_deleteMembers(&helloMessage.endpointUrl);
+    UA_String_clear(&helloMessage.endpointUrl);
 
     /* TODO: Use the config of the exact NetworkLayer */
     if(server->config.networkLayersSize == 0)
@@ -353,7 +353,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_NodeId_deleteMembers(&requestType);
+        UA_NodeId_clear(&requestType);
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not decode the NodeId. Closing the connection");
         UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
@@ -364,20 +364,20 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     /* Error occurred */
     if(retval != UA_STATUSCODE_GOOD ||
        requestType.identifier.numeric != UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId) {
-        UA_NodeId_deleteMembers(&requestType);
-        UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
+        UA_NodeId_clear(&requestType);
+        UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not decode the OPN message. Closing the connection.");
         UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
         return retval;
     }
-    UA_NodeId_deleteMembers(&requestType);
+    UA_NodeId_clear(&requestType);
 
     /* Call the service */
     UA_OpenSecureChannelResponse openScResponse;
     UA_OpenSecureChannelResponse_init(&openScResponse);
     Service_OpenSecureChannel(server, channel, &openSecureChannelRequest, &openScResponse);
-    UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
+    UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
     if(openScResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "Could not open a SecureChannel. "
                             "Closing the connection.");
@@ -389,7 +389,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     /* Send the response */
     retval = UA_SecureChannel_sendAsymmetricOPNMessage(channel, requestId, &openScResponse,
                                                        &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
-    UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
+    UA_OpenSecureChannelResponse_clear(&openScResponse);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
                             "Could not send the OPN answer with error code %s",
@@ -588,7 +588,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         return retval;
     if(requestTypeId.namespaceIndex != 0 ||
        requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
-        UA_NodeId_deleteMembers(&requestTypeId); /* leads to badserviceunsupported */
+        UA_NodeId_clear(&requestTypeId); /* leads to badserviceunsupported */
 
     size_t requestPos = offset; /* Store the offset (for sendServiceFault) */
 
@@ -633,7 +633,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
                 retval = sendServiceFaultWithRequest(channel, requestHeader, responseType,
                                                      requestId, UA_STATUSCODE_BADINVALIDTIMESTAMP);
-                UA_deleteMembers(request, requestType);
+                UA_clear(request, requestType);
                 return retval;
             }
         }
@@ -642,7 +642,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     /* Set the authenticationToken from the create session request to help
      * fuzzing cover more lines */
-    UA_NodeId_deleteMembers(&requestHeader->authenticationToken);
+    UA_NodeId_clear(&requestHeader->authenticationToken);
     if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
 #endif
@@ -657,8 +657,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                responseHeader, responseType, sessionRequired);
 
     /* Clean up */
-    UA_deleteMembers(request, requestType);
-    UA_deleteMembers(responseHeader, responseType);
+    UA_clear(request, requestType);
+    UA_clear(responseHeader, responseType);
     return retval;
 }
 
@@ -770,7 +770,7 @@ processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
             break;
 
         retval = createSecureChannel(server, connection, &asymHeader);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
