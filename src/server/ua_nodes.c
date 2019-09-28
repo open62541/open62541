@@ -31,12 +31,12 @@ cmpRefTarget(const void *a, const void *b) {
 ZIP_IMPL(UA_ReferenceTargetHead, UA_ReferenceTarget, zipfields,
          UA_ReferenceTarget, zipfields, cmpRefTarget)
 
-void UA_Node_deleteMembers(UA_Node *node) {
+void UA_Node_clear(UA_Node *node) {
     /* Delete standard content */
-    UA_NodeId_deleteMembers(&node->nodeId);
-    UA_QualifiedName_deleteMembers(&node->browseName);
-    UA_LocalizedText_deleteMembers(&node->displayName);
-    UA_LocalizedText_deleteMembers(&node->description);
+    UA_NodeId_clear(&node->nodeId);
+    UA_QualifiedName_clear(&node->browseName);
+    UA_LocalizedText_clear(&node->displayName);
+    UA_LocalizedText_clear(&node->description);
 
     /* Delete references */
     UA_Node_deleteReferences(node);
@@ -52,18 +52,18 @@ void UA_Node_deleteMembers(UA_Node *node) {
     case UA_NODECLASS_VARIABLE:
     case UA_NODECLASS_VARIABLETYPE: {
         UA_VariableNode *p = (UA_VariableNode*)node;
-        UA_NodeId_deleteMembers(&p->dataType);
+        UA_NodeId_clear(&p->dataType);
         UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize,
                         &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
         if(p->valueSource == UA_VALUESOURCE_DATA)
-            UA_DataValue_deleteMembers(&p->value.data.value);
+            UA_DataValue_clear(&p->value.data.value);
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
         UA_ReferenceTypeNode *p = (UA_ReferenceTypeNode*)node;
-        UA_LocalizedText_deleteMembers(&p->inverseName);
+        UA_LocalizedText_clear(&p->inverseName);
         break;
     }
     case UA_NODECLASS_DATATYPE:
@@ -174,7 +174,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dst->context = src->context;
     dst->constructed = src->constructed;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Node_deleteMembers(dst);
+        UA_Node_clear(dst);
         return retval;
     }
 
@@ -184,7 +184,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
         dst->references = (UA_NodeReferenceKind*)
             UA_calloc(src->referencesSize, sizeof(UA_NodeReferenceKind));
         if(!dst->references) {
-            UA_Node_deleteMembers(dst);
+            UA_Node_clear(dst);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dst->referencesSize = src->referencesSize;
@@ -200,7 +200,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
             drefs->refTargets = (UA_ReferenceTarget*)
                 UA_malloc(srefs->refTargetsSize* sizeof(UA_ReferenceTarget));
             if(!drefs->refTargets) {
-                UA_NodeId_deleteMembers(&drefs->referenceTypeId);
+                UA_NodeId_clear(&drefs->referenceTypeId);
                 break;
             }
             uintptr_t arraydiff = (uintptr_t)drefs->refTargets - (uintptr_t)srefs->refTargets;
@@ -227,7 +227,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
         }
 
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Node_deleteMembers(dst);
+            UA_Node_clear(dst);
             return retval;
         }
     }
@@ -263,7 +263,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     }
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Node_deleteMembers(dst);
+        UA_Node_clear(dst);
 
     return retval;
 }
@@ -484,7 +484,7 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes,
     if(retval == UA_STATUSCODE_GOOD)
         retval = copyStandardAttributes(node, (const UA_NodeAttributes*)attributes);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Node_deleteMembers(node);
+        UA_Node_clear(node);
     return retval;
 }
 
@@ -550,7 +550,7 @@ addReferenceKind(UA_Node *node, const UA_AddReferencesItem *item) {
     retval |= addReferenceTarget(newRef, &item->targetNodeId, targetHash);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_NodeId_deleteMembers(&newRef->referenceTypeId);
+        UA_NodeId_clear(&newRef->referenceTypeId);
         if(node->referencesSize == 0) {
             UA_free(node->references);
             node->references = NULL;
@@ -605,7 +605,7 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
 
             /* Ok, delete the reference */
             ZIP_REMOVE(UA_ReferenceTargetHead, &refs->refTargetsTree, target);
-            UA_ExpandedNodeId_deleteMembers(&target->target);
+            UA_ExpandedNodeId_clear(&target->target);
             refs->refTargetsSize--;
 
             /* One matching target remaining */
@@ -624,7 +624,7 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
 
             /* No target for the ReferenceType remaining. Remove entry. */
             UA_free(refs->refTargets);
-            UA_NodeId_deleteMembers(&refs->referenceTypeId);
+            UA_NodeId_clear(&refs->referenceTypeId);
             node->referencesSize--;
             if(node->referencesSize > 0) {
                 if(i-1 != node->referencesSize) {
@@ -667,9 +667,9 @@ UA_Node_deleteReferencesSubset(UA_Node *node, size_t referencesSkipSize,
 
         /* Remove references */
         for(size_t j = 0; j < refs->refTargetsSize; j++)
-            UA_ExpandedNodeId_deleteMembers(&refs->refTargets[j].target);
+            UA_ExpandedNodeId_clear(&refs->refTargets[j].target);
         UA_free(refs->refTargets);
-        UA_NodeId_deleteMembers(&refs->referenceTypeId);
+        UA_NodeId_clear(&refs->referenceTypeId);
         node->referencesSize--;
 
         /* Move last references-kind entry to this position */
