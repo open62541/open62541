@@ -84,7 +84,7 @@ RefTree_init(RefTree *rt) {
 static void
 RefTree_clear(RefTree *rt) {
     for(size_t i = 0; i < rt->size; i++)
-        UA_ExpandedNodeId_deleteMembers(&rt->targets[i]);
+        UA_ExpandedNodeId_clear(&rt->targets[i]);
     UA_free(rt->targets);
 }
 
@@ -378,8 +378,8 @@ struct ContinuationPoint {
 
 ContinuationPoint *
 ContinuationPoint_clear(ContinuationPoint *cp) {
-    UA_ByteString_deleteMembers(&cp->identifier);
-    UA_BrowseDescription_deleteMembers(&cp->browseDescription);
+    UA_ByteString_clear(&cp->identifier);
+    UA_BrowseDescription_clear(&cp->browseDescription);
     UA_Array_delete(cp->relevantReferences, cp->relevantReferencesSize,
                     &UA_TYPES[UA_TYPES_NODEID]);
     return cp->next;
@@ -408,7 +408,7 @@ addReferenceDescription(UA_Server *server, RefResult *rr, const UA_NodeReference
 
     /* Remote references (ExpandedNodeId) are not further looked up here */
     if(!curr) {
-        UA_ReferenceDescription_deleteMembers(descr);
+        UA_ReferenceDescription_clear(descr);
         return retval;
     }
     
@@ -433,7 +433,7 @@ addReferenceDescription(UA_Server *server, RefResult *rr, const UA_NodeReference
     if(retval == UA_STATUSCODE_GOOD)
         rr->size++; /* Increase the counter */
     else
-        UA_ReferenceDescription_deleteMembers(descr);
+        UA_ReferenceDescription_clear(descr);
     return retval;
 }
 
@@ -697,7 +697,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         ContinuationPoint_clear(cp2);
         UA_free(cp2);
     }
-    UA_BrowseResult_deleteMembers(result);
+    UA_BrowseResult_clear(result);
     result->statusCode = retval;
 }
 
@@ -773,7 +773,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
         /* Return the cp identifier */
         UA_StatusCode retval = UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_BrowseResult_deleteMembers(result);
+            UA_BrowseResult_clear(result);
             result->statusCode = retval;
         }
     }
@@ -936,7 +936,7 @@ addBrowsePathTargets(UA_Server *server, UA_Session *session, UA_UInt32 nodeClass
     for(size_t i = 0; i < currentCount; i++) {
         const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &current[i]);
         if(!node) {
-            UA_NodeId_deleteMembers(&current[i]);
+            UA_NodeId_clear(&current[i]);
             continue;
         }
 
@@ -952,7 +952,7 @@ addBrowsePathTargets(UA_Server *server, UA_Session *session, UA_UInt32 nodeClass
         UA_Nodestore_releaseNode(server->nsCtx, node);
 
         if(skip) {
-            UA_NodeId_deleteMembers(&current[i]);
+            UA_NodeId_clear(&current[i]);
             continue;
         }
 
@@ -984,7 +984,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
 
         /* Clean members of current */
         for(size_t j = 0; j < *currentCount; j++)
-            UA_NodeId_deleteMembers(&(*current)[j]);
+            UA_NodeId_clear(&(*current)[j]);
         *currentCount = 0;
 
         /* When no targets are left or an error occurred. None of next's
@@ -1018,7 +1018,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
         if(!newTargets) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             for(size_t i = 0; i < *currentCount; ++i)
-                UA_NodeId_deleteMembers(&(*current)[i]);
+                UA_NodeId_clear(&(*current)[i]);
             *currentCount = 0;
             return;
         }
@@ -1107,7 +1107,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
     UA_free(next);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         for(size_t i = 0; i < result->targetsSize; ++i)
-            UA_BrowsePathTarget_deleteMembers(&result->targets[i]);
+            UA_BrowsePathTarget_clear(&result->targets[i]);
         UA_free(result->targets);
         result->targets = NULL;
         result->targetsSize = 0;

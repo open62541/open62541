@@ -75,7 +75,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
         UA_Variant_setScalarCopy(overflowNotification->data.event.fields.eventFields,
                                  &simpleOverflowEventType, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_EventFieldList_deleteMembers(&overflowNotification->data.event.fields);
+        UA_EventFieldList_clear(&overflowNotification->data.event.fields);
         UA_free(overflowNotification);
         return retval;
     }
@@ -168,13 +168,13 @@ UA_Notification_delete(UA_Notification *n) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_MonitoredItem *mon = n->mon;
     if(mon->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        UA_EventFieldList_deleteMembers(&n->data.event.fields);
+        UA_EventFieldList_clear(&n->data.event.fields);
         /* EventFilterResult currently isn't being used
          * UA_EventFilterResult_delete(notification->data.event->result); */
     } else
 #endif
     {
-        UA_DataValue_deleteMembers(&n->data.value);
+        UA_DataValue_clear(&n->data.value);
     }
     UA_free(n);
 }
@@ -247,10 +247,10 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     /* Remove the monitored item */
     if(monitoredItem->listEntry.le_prev != NULL)
         LIST_REMOVE(monitoredItem, listEntry);
-    UA_String_deleteMembers(&monitoredItem->indexRange);
-    UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
-    UA_Variant_deleteMembers(&monitoredItem->lastValue);
-    UA_NodeId_deleteMembers(&monitoredItem->monitoredNodeId);
+    UA_String_clear(&monitoredItem->indexRange);
+    UA_ByteString_clear(&monitoredItem->lastSampledValue);
+    UA_Variant_clear(&monitoredItem->lastValue);
+    UA_NodeId_clear(&monitoredItem->monitoredNodeId);
 
     /* No actual callback, just remove the structure */
     monitoredItem->delayedFreePointers.callback = NULL;

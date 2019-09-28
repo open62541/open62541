@@ -114,7 +114,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
             UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
             UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
             if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-                  UA_BrowsePathResult_deleteMembers(&bpr);
+                  UA_BrowsePathResult_clear(&bpr);
                   return UA_STATUSCODE_GOOD;
             }
 
@@ -172,7 +172,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
     }
     if(retval != UA_STATUSCODE_GOOD) {
         if(valueEncoding.data != stackValueEncoding)
-            UA_ByteString_deleteMembers(&valueEncoding);
+            UA_ByteString_clear(&valueEncoding);
         return retval;
     }
 
@@ -184,7 +184,7 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
     /* No change */
     if(!(*changed)) {
         if(valueEncoding.data != stackValueEncoding)
-            UA_ByteString_deleteMembers(&valueEncoding);
+            UA_ByteString_clear(&valueEncoding);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -253,7 +253,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
         /* Allocate a new notification */
         UA_Notification *newNotification = (UA_Notification *)UA_malloc(sizeof(UA_Notification));
         if(!newNotification) {
-            UA_ByteString_deleteMembers(&binValueEncoding);
+            UA_ByteString_clear(&binValueEncoding);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
@@ -263,7 +263,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
         } else { /* => (value->value.storageType == UA_VARIANT_DATA_NODELETE) */
             retval = UA_DataValue_copy(value, &newNotification->data.value);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_ByteString_deleteMembers(&binValueEncoding);
+                UA_ByteString_clear(&binValueEncoding);
                 UA_free(newNotification);
                 return retval;
             }
@@ -280,7 +280,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
     }
 
     /* Store the encoding for comparison */
-    UA_ByteString_deleteMembers(&mon->lastSampledValue);
+    UA_ByteString_clear(&mon->lastSampledValue);
     mon->lastSampledValue = binValueEncoding;
 
     /* Store the value for filter comparison (we don't want to decode
@@ -293,10 +293,10 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
        (mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUS ||
         mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
         mon->filter.dataChangeFilter.trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP)) {
-        UA_Variant_deleteMembers(&mon->lastValue);
+        UA_Variant_clear(&mon->lastValue);
         UA_Variant_copy(&value->value, &mon->lastValue);
 #ifdef UA_ENABLE_DA
-        UA_StatusCode_deleteMembers(&mon->lastStatus);
+        UA_StatusCode_clear(&mon->lastStatus);
         UA_StatusCode_copy(&value->status, &mon->lastStatus);
 #endif
     }
@@ -373,7 +373,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
 
     /* Delete the sample if it was not moved to the notification. */
     if(!movedValue)
-        UA_DataValue_deleteMembers(&value); /* Does nothing for UA_VARIANT_DATA_NODELETE */
+        UA_DataValue_clear(&value); /* Does nothing for UA_VARIANT_DATA_NODELETE */
     if(node)
         UA_Nodestore_releaseNode(server->nsCtx, node);
 }

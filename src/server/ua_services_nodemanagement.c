@@ -23,7 +23,7 @@
     UA_String nodeIdStr = UA_STRING_NULL;   \
     UA_NodeId_toString(NODEID, &nodeIdStr); \
     LOG;                                    \
-    UA_String_deleteMembers(&nodeIdStr);    \
+    UA_String_clear(&nodeIdStr);            \
 }
 
 /*********************/
@@ -202,7 +202,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                               "AddNodes: The value of %.*s is incompatible with "
                               "the datatype of the VariableType",
                               (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
@@ -212,7 +212,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                            "AddNodes: The value rank of %.*s is incomatible "
                            "with its array dimensions", (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
@@ -222,7 +222,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                            "AddNodes: The value rank of %.*s is incomatible "
                            "with the value rank of the VariableType",
                            (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
@@ -233,7 +233,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                            "AddNodes: The array dimensions of %.*s are "
                            "incomatible with the array dimensions of the VariableType",
                            (int)nodeIdStr.length, nodeIdStr.data));
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
@@ -247,7 +247,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
             retval = writeWithWriteValue(server, &node->nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value.value);
         }
 
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_NODEID_WRAP(&node->nodeId, UA_LOG_INFO_SESSION(&server->config.logger, session,
                                "AddNodes: The value of of %.*s is incomatible with the "
@@ -289,7 +289,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
 
     if(orig.value.type) {
         /* A value is present */
-        UA_DataValue_deleteMembers(&orig);
+        UA_DataValue_clear(&orig);
     } else {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "AddNodes: No value given; Copy the value "
@@ -303,7 +303,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
             retval = writeWithSession(server, session, &v);
             modified = true;
         }
-        UA_DataValue_deleteMembers(&v.value);
+        UA_DataValue_clear(&v.value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -390,7 +390,7 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
         }
     }
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
     return retval;
 }
 
@@ -453,7 +453,7 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
            rd->nodeClass == UA_NODECLASS_OBJECT)
             retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
-        UA_NodeId_deleteMembers(&existingChild);
+        UA_NodeId_clear(&existingChild);
         return retval;
     }
 
@@ -503,7 +503,7 @@ copyChild(UA_Server *server, UA_Session *session, const UA_NodeId *destinationNo
         node->constructed = false;
 
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
-        UA_NodeId_deleteMembers(&node->nodeId);
+        UA_NodeId_clear(&node->nodeId);
         node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
 
         if (server->config.nodeLifecycle.generateChildNodeId) {
@@ -583,7 +583,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
             return retval;
     }
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
     return retval;
 }
 
@@ -958,7 +958,7 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
         deleteNode(server, *outNewNodeId, true);
 
     if(outNewNodeId == &newId)
-        UA_NodeId_deleteMembers(&newId);
+        UA_NodeId_clear(&newId);
     return retval;
 }
 
@@ -1043,7 +1043,7 @@ findDefaultInstanceBrowseNameNode(UA_Server *server,
         bpr.targetsSize > 0) {
         retval = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, foundId);
     }
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return retval;
 }
 
@@ -1146,7 +1146,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
             break;
     }
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     /* If a child could not be constructed or the node is already constructed */
     if(retval != UA_STATUSCODE_GOOD)
@@ -1300,7 +1300,7 @@ Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
 
     /* If finishing failed, the node was deleted */
     if(result->statusCode != UA_STATUSCODE_GOOD)
-        UA_NodeId_deleteMembers(&result->addedNodeId);
+        UA_NodeId_clear(&result->addedNodeId);
 }
 
 void
@@ -1355,7 +1355,7 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass,
     if(outNewNodeId)
         *outNewNodeId = result.addedNodeId;
     else
-        UA_NodeId_deleteMembers(&result.addedNodeId);
+        UA_NodeId_clear(&result.addedNodeId);
     return result.statusCode;
 }
 
@@ -1546,7 +1546,7 @@ recursiveDeconstructNode(UA_Server *server, UA_Session *session,
         UA_Nodestore_releaseNode(server->nsCtx, child);
     }
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 }
 
 static void
@@ -1585,7 +1585,7 @@ recursiveDeleteNode(UA_Server *server, UA_Session *session,
         UA_Nodestore_releaseNode(server->nsCtx, child);
     }
 
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     if(removeTargetRefs)
         removeIncomingReferences(server, session, node);
@@ -1978,7 +1978,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
  cleanup:
     UA_UNLOCK(server->serviceMutex);
     if(outNewNodeId == &newNodeId)
-        UA_NodeId_deleteMembers(&newNodeId);
+        UA_NodeId_clear(&newNodeId);
 
     return retval;
 }
@@ -1989,7 +1989,7 @@ setDataSource(UA_Server *server, UA_Session *session,
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     if(node->valueSource == UA_VALUESOURCE_DATA)
-        UA_DataValue_deleteMembers(&node->value.data.value);
+        UA_DataValue_clear(&node->value.data.value);
     node->value.dataSource = *dataSource;
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     return UA_STATUSCODE_GOOD;
@@ -2049,7 +2049,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId, UA_M
     UA_StatusCode retval = br.statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, nodeId, true);
-        UA_BrowseResult_deleteMembers(&br);
+        UA_BrowseResult_clear(&br);
         return retval;
     }
 
@@ -2125,14 +2125,14 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId, UA_M
     if(outputArgumentsOutNewNodeId != NULL) {
         UA_NodeId_copy(&outputArgsId, outputArgumentsOutNewNodeId);
     }
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
     return retval;
 
 error:
     deleteNode(server, nodeId, true);
     deleteNode(server, inputArgsId, true);
     deleteNode(server, outputArgsId, true);
-    UA_BrowseResult_deleteMembers(&br);
+    UA_BrowseResult_clear(&br);
 
     return retval;
 }
@@ -2195,7 +2195,7 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                               outputArgumentsOutNewNodeId);
     UA_UNLOCK(server->serviceMutex);
     if(outNewNodeId == &newId)
-        UA_NodeId_deleteMembers(&newId);
+        UA_NodeId_clear(&newId);
     return retval;
 }
 

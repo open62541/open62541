@@ -79,7 +79,7 @@ register_server_with_discovery_server(UA_Server *server,
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
     UA_StatusCode serviceResult = response.responseHeader.serviceResult;
-    UA_RegisterServer2Response_deleteMembers(&response);
+    UA_RegisterServer2Response_clear(&response);
     UA_Array_delete(request.discoveryConfiguration,
                     request.discoveryConfigurationSize,
                     &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
@@ -103,7 +103,7 @@ register_server_with_discovery_server(UA_Server *server,
                             &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
         serviceResult = response_fallback.responseHeader.serviceResult;
-        UA_RegisterServerResponse_deleteMembers(&response_fallback);
+        UA_RegisterServerResponse_clear(&response_fallback);
     }
 
     if(serviceResult != UA_STATUSCODE_GOOD) {
