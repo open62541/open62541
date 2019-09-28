@@ -283,14 +283,15 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
             UA_CallMethodResult_clear(result);
             result->statusCode = res;
             UA_Server_InsertMethodResponse(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, result);
-            UA_CallMethodResult_deleteMembers(result);
+            UA_CallMethodResult_clear(result);
         }
     }
     else {
         /* Sync execution case, continue with method and object as context */
         callWithMethodAndObject(server, session, request, result, method, object);
-        UA_Server_InsertMethodResponse(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, result);
-        UA_CallMethodResult_deleteMembers(result);
+        UA_Server_InsertMethodResponse(server, pContext->nRequestId,
+                                       &pContext->nSessionId, pContext->nIndex, result);
+        UA_CallMethodResult_clear(result);
     }
 
     /* Release the method and object node */
