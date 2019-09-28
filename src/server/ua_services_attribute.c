@@ -152,7 +152,7 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
     UA_LOCK(server->serviceMutex);
     if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
         retval = UA_DataValue_copy(&v2, v);
-        UA_DataValue_deleteMembers(&v2);
+        UA_DataValue_clear(&v2);
     } else {
         *v = v2;
     }
@@ -563,7 +563,7 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
     else if(!dv.hasValue)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_DataValue_deleteMembers(&dv);
+        UA_DataValue_clear(&dv);
         return retval;
     }
 
@@ -622,7 +622,7 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         UA_UNLOCK(server->serviceMutex);
         return retval;
     }
@@ -630,7 +630,7 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, value);
     UA_UNLOCK(server->serviceMutex);
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return retval;
 }
 
@@ -952,7 +952,7 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
     if(value.hasValue) {
         if(!compatibleValueArrayDimensions(&value.value, arrayDimensionsSize, arrayDimensions))
             retval = UA_STATUSCODE_BADTYPEMISMATCH;
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Array dimensions in the current value do not match");
@@ -1011,7 +1011,7 @@ writeValueRankAttribute(UA_Server *server, UA_Session *session,
         }
         if(!UA_Variant_isScalar(&value.value))
             arrayDims = 1;
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
     }
     if(!compatibleValueRankArrayDimensions(server, session, valueRank, arrayDims))
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -1049,7 +1049,7 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &value.value, NULL))
             retval = UA_STATUSCODE_BADTYPEMISMATCH;
-        UA_DataValue_deleteMembers(&value);
+        UA_DataValue_clear(&value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "The current value does not match the new data type");
@@ -1064,7 +1064,7 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
         node->dataType = dtCopy;
         return retval;
     }
-    UA_NodeId_deleteMembers(&dtCopy);
+    UA_NodeId_clear(&dtCopy);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1074,7 +1074,7 @@ writeValueAttributeWithoutRange(UA_VariableNode *node, const UA_DataValue *value
     UA_StatusCode retval = UA_DataValue_copy(value, &new_value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    UA_DataValue_deleteMembers(&node->value.data.value);
+    UA_DataValue_clear(&node->value.data.value);
     node->value.data.value = new_value;
     return UA_STATUSCODE_GOOD;
 }
@@ -1305,19 +1305,19 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_BROWSENAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_BROWSENAME);
         CHECK_DATATYPE_SCALAR(QUALIFIEDNAME);
-        UA_QualifiedName_deleteMembers(&node->browseName);
+        UA_QualifiedName_clear(&node->browseName);
         UA_QualifiedName_copy((const UA_QualifiedName *)value, &node->browseName);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        UA_LocalizedText_deleteMembers(&node->displayName);
+        UA_LocalizedText_clear(&node->displayName);
         UA_LocalizedText_copy((const UA_LocalizedText *)value, &node->displayName);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DESCRIPTION);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        UA_LocalizedText_deleteMembers(&node->description);
+        UA_LocalizedText_clear(&node->description);
         UA_LocalizedText_copy((const UA_LocalizedText *)value, &node->description);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
@@ -1340,7 +1340,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_INVERSENAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        UA_LocalizedText_deleteMembers(&((UA_ReferenceTypeNode*)node)->inverseName);
+        UA_LocalizedText_clear(&((UA_ReferenceTypeNode*)node)->inverseName);
         UA_LocalizedText_copy((const UA_LocalizedText *)value,
                               &((UA_ReferenceTypeNode*)node)->inverseName);
         break;
@@ -1709,13 +1709,14 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
     UA_BrowsePathResult bpr = translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
 
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
+                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return retval;
 }
 
