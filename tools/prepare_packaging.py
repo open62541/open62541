@@ -8,6 +8,7 @@ import subprocess
 import os
 import re
 from email.utils import formatdate
+import datetime
 
 
 dirpath = os.path.join(os.path.dirname(os.path.realpath(__file__)),"..")
@@ -42,6 +43,10 @@ changelog_file = os.path.join(debian_path, "changelog")
 changelog_version = git_describe_version[1:] if git_describe_version[0] == 'v' else git_describe_version
 # replace all '-' with '~' in version
 changelog_version = changelog_version.replace('-', '~')
+
+# prefix the version string with the current ISO datetime to ensure correct version ordering.
+# See https://github.com/open62541/open62541/issues/3140
+changelog_version = datetime.datetime.utcnow().replace(microsecond=0).isoformat().replace('-', '').replace(':', '') + '~' + changelog_version
 
 with open(changelog_file, 'r') as original: data = original.read()
 with open(changelog_file, 'w') as modified:
