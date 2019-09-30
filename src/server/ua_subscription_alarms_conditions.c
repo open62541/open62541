@@ -229,7 +229,8 @@ callConditionTwoStateVariableCallback(UA_Server *server,
             else {
                 UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
                 LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
-                    if(UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, condition))
+                    if(conditionBranchEntryTmp->conditionBranchId != NULL &&
+                       UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, condition))
                         return getonditionTwoStateVariableCallback(server, conditionBranchEntryTmp->conditionBranchId,
                                                                  conditionEntryTmp, removeBranch, callbackType);
                 }
