@@ -224,14 +224,14 @@ callConditionTwoStateVariableCallback(UA_Server *server,
         UA_Condition_nodeListElement *conditionEntryTmp;
         LIST_FOREACH(conditionEntryTmp, &conditionSourceEntryTmp->conditionHead, listEntry) {
             if(UA_NodeId_equal(&conditionEntryTmp->conditionId, condition)) {
-                return getonditionTwoStateVariableCallback(server, condition, conditionEntryTmp, removeBranch, callbackType);
+                return getConditionTwoStateVariableCallback(server, condition, conditionEntryTmp, removeBranch, callbackType);
             }
             else {
                 UA_ConditionBranch_nodeListElement *conditionBranchEntryTmp;
                 LIST_FOREACH(conditionBranchEntryTmp, &conditionEntryTmp->conditionBranchHead, listEntry) {
                     if(conditionBranchEntryTmp->conditionBranchId != NULL &&
                        UA_NodeId_equal(conditionBranchEntryTmp->conditionBranchId, condition))
-                        return getonditionTwoStateVariableCallback(server, conditionBranchEntryTmp->conditionBranchId,
+                        return getConditionTwoStateVariableCallback(server, conditionBranchEntryTmp->conditionBranchId,
                                                                  conditionEntryTmp, removeBranch, callbackType);
                 }
             }
@@ -254,7 +254,7 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
             if((UA_NodeId_equal(&fieldNode->references[i].referenceTypeId, &hasPropertyType) ||
                UA_NodeId_equal(&fieldNode->references[i].referenceTypeId, &hasComponentType)) &&
                (true == fieldNode->references[i].isInverse)) {
-                UA_StatusCode retval = UA_NodeId_copy(&fieldNode->references[i].targetIds->nodeId, parent);
+                UA_StatusCode retval = UA_NodeId_copy(&fieldNode->references[i].refTargets->target.nodeId, parent);
                 UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node *)fieldNode);
                 return retval;
             }
@@ -1656,7 +1656,7 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
         /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem in the subscription */
         UA_MonitoredItem *monitoredItem = UA_Subscription_getMonitoredItem(subscription, *((UA_UInt32 *)input[1].data));
-        if(subscription == NULL)
+        if(monitoredItem == NULL)
             return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         else {//TODO when there are a lot of monitoreditems (not only events)?
             retval = refreshLogic(server, &refreshStartNodId, &refreshEndNodId, monitoredItem);

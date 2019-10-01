@@ -163,7 +163,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) &&
        isNodeInTree(server, tEventType,
 					&conditionTypeId, &hasSubtypeId, 1)){
-        UA_BrowsePathResult_clear(&bpr);
+        UA_BrowsePathResult_deleteMembers(&bpr);
         UA_Variant_clear(&tOutVariant);
         return true;
     }
