@@ -229,6 +229,7 @@ endfunction()
 #   Options:
 #
 #   [INTERNAL]      Optional argument. If given, then the generated node set code will use internal headers.
+#   [GENERATE_IDS]  Optional argument. If given, then the generated code will include define directives for numeric node ids
 #
 #   Arguments taking one value:
 #
@@ -252,7 +253,7 @@ endfunction()
 #
 function(ua_generate_nodeset)
 
-    set(options INTERNAL )
+    set(options INTERNAL GENERATE_IDS)
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
@@ -311,6 +312,11 @@ function(ua_generate_nodeset)
         set(GEN_IGNORE "--ignore=${UA_GEN_NS_IGNORE}")
     endif()
 
+    set(GEN_IDS "")
+    if (UA_GEN_NS_GENERATE_IDS)
+        set(GEN_IDS "--generate-ids")
+    endif()
+
     set(TYPES_ARRAY_LIST "")
     foreach(f ${UA_GEN_NS_DEPENDS_TYPES})
         # Replace dash with underscore to make valid c literal
@@ -338,13 +344,17 @@ function(ua_generate_nodeset)
         file(MAKE_DIRECTORY ${UA_GEN_NS_OUTPUT_DIR})
     endif()
 
+    string(REPLACE "-" "_" UA_GEN_NS_NAME ${UA_GEN_NS_NAME})
+    string(TOUPPER "${UA_GEN_NS_NAME}" GEN_NAME_UPPER)
+
     add_custom_command(OUTPUT ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
                        ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h
                        PRE_BUILD
                        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                        ${GEN_INTERNAL_HEADERS}
                        ${GEN_NS0}
-                       ${GEN_BIN_SIZE}
+                       ${GEN_IDS}
+                       --ids-prefix=${GEN_NAME_UPPER}
                        ${GEN_IGNORE}
                        ${GEN_BLACKLIST}
                        ${TYPES_ARRAY_LIST}
@@ -375,9 +385,6 @@ function(ua_generate_nodeset)
     if(UA_FORCE_CPP)
         set_source_files_properties(${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c PROPERTIES LANGUAGE CXX)
     endif()
-
-    string(REPLACE "-" "_" UA_GEN_NS_NAME ${UA_GEN_NS_NAME})
-    string(TOUPPER "${UA_GEN_NS_NAME}" GEN_NAME_UPPER)
 
     set_property(GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_FILE_${UA_GEN_NS_NAME}" ${UA_GEN_NS_DEPENDS_NS} ${UA_GEN_NS_FILE})
     set_property(GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_TYPES_${UA_GEN_NS_NAME}" ${UA_GEN_NS_DEPENDS_TYPES} ${UA_GEN_NS_TYPES_ARRAY})
@@ -419,7 +426,7 @@ endfunction()
 #   NAME            Short name of the nodeset. E.g. 'di'
 #   FILE_NS         Path to the NodeSet2.xml file. Multiple values can be passed. These nodesets will be combined into one output.
 #
-#   [FILE_CSV]      Optional path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
+#   [FILE_CSV]      Optional path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'. If not given, the nodeid defines will automatically be generated
 #   [FILE_BSD]      Optional path to the .bsd file containing the type definitions, e.g. 'Opc.Ua.Di.Types.bsd'. Multiple files can be
 #                   passed which will all combined to one resulting code.
 #   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
@@ -552,6 +559,10 @@ function(ua_generate_nodeset_and_datatypes)
     if (${UA_GEN_INTERNAL})
         set(NODESET_INTERNAL "INTERNAL")
     endif()
+    set(NODESET_GENIDS "")
+    if("${UA_GEN_FILE_CSV}" STREQUAL "")
+        set(NODESET_GENIDS "GENERATE_IDS")
+    endif()
 
     ua_generate_nodeset(
         NAME "${UA_GEN_NAME}"
@@ -559,6 +570,7 @@ function(ua_generate_nodeset_and_datatypes)
         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
         BLACKLIST "${UA_GEN_BLACKLIST}"
         ${NODESET_INTERNAL}
+        ${NODESET_GENIDS}
         DEPENDS_TYPES ${TYPES_DEPENDS}
         DEPENDS_NS ${NODESET_DEPENDS}
         DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}

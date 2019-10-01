@@ -185,6 +185,27 @@ class Node(object):
             new_refs.add(ref)
         self.references = new_refs
 
+    def getTypeAsString(self):
+        if isinstance(self, ReferenceTypeNode):
+            return "ReferenceType"
+        elif isinstance(self, ObjectNode):
+            return "Object"
+        elif isinstance(self, VariableNode) and not isinstance(self, VariableTypeNode):
+            return "Variable"
+        elif isinstance(self, VariableTypeNode):
+            return "VariableType"
+        elif isinstance(self, MethodNode):
+            return "Method"
+        elif isinstance(self, ObjectTypeNode):
+            return "ObjectType"
+        elif isinstance(self, DataTypeNode):
+            return "DataType"
+        elif isinstance(self, ViewNode):
+            return "View"
+        else:
+            return "Unknown"
+
+
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
