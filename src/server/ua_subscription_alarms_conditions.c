@@ -172,7 +172,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
 }
 
 static UA_StatusCode
-getonditionTwoStateVariableCallback(UA_Server *server,
+getConditionTwoStateVariableCallback(UA_Server *server,
                                     const UA_NodeId *branch,
                                     UA_Condition_nodeListElement *conditionEntry,
                                     UA_Boolean *removeBranch,
