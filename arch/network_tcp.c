@@ -185,7 +185,7 @@ typedef struct {
 
 static void
 ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
-    UA_Connection_deleteMembers(connection);
+    UA_Connection_clear(connection);
     UA_free(connection);
 }
 

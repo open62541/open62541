@@ -94,7 +94,7 @@ freeConnection(UA_Connection *connection) {
     if(connection->handle) {
         UA_free(connection->handle);
     }
-    UA_Connection_deleteMembers(connection);
+    UA_Connection_clear(connection);
     UA_free(connection);
 }
 
