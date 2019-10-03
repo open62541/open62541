@@ -566,39 +566,31 @@ timerCallback(UA_Server *server, void *data) {
     if (ds1BoolToggleCount >= 3) {
         if (ds1BoolToggleVal) {
             ds1BoolToggleVal = false;
-        }
-        else {
+        } else {
             ds1BoolToggleVal = true;
         }
 
-        // neuen Wert schreiben
         UA_Variant_init(&tmpVari);
-
         UA_Variant_setScalar(&tmpVari, &ds1BoolToggleVal, &UA_TYPES[UA_TYPES_BOOLEAN]);
         UA_Server_writeValue(server, ds1BoolToggleId, tmpVari);
-        //UA_Variant_clear(&tmpVari);
         ds1BoolToggleCount = 0;
     }
 
     // Int32
     UA_Variant_init(&tmpVari);
     ds1Int32Val++;
-    if (ds1Int32Val > 10000) {
+    if(ds1Int32Val > 10000)
         ds1Int32Val = 0;
-    }
     UA_Variant_setScalar(&tmpVari, &ds1Int32Val, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_writeValue(server, ds1Int32Id, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // Int32Fast
     UA_Variant_init(&tmpVari);
     ds1Int32FastVal += 100;
-    if (ds1Int32FastVal > 10000) {
+    if(ds1Int32FastVal > 10000)
         ds1Int32FastVal = 0;
-    }
     UA_Variant_setScalar(&tmpVari, &ds1Int32FastVal, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_writeValue(server, ds1Int32FastId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // DateTime
     UA_Variant_init(&tmpVari);
@@ -608,107 +600,86 @@ timerCallback(UA_Server *server, void *data) {
 
     // DataSet 2
     UA_Server_writeValue(server, ds2DateTimeId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // BoolToggle
     if (ds2BoolToggleVal)
-    {
         ds2BoolToggleVal = false;
-    }
     else
-    {
         ds2BoolToggleVal = true;
-    }
 
-    // neuen Wert schreiben 
+    // Write new value
     UA_Variant_init(&tmpVari);
-
     UA_Variant_setScalar(&tmpVari, &ds2BoolToggleVal, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_writeValue(server, ds2BoolToggleId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // Byte
     UA_Variant_init(&tmpVari);
     ds2ByteVal++;
     UA_Variant_setScalar(&tmpVari, &ds2ByteVal, &UA_TYPES[UA_TYPES_BYTE]);
     UA_Server_writeValue(server, ds2ByteId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // Int16
     UA_Variant_init(&tmpVari);
     ds2Int16Val++;
     UA_Variant_setScalar(&tmpVari, &ds2Int16Val, &UA_TYPES[UA_TYPES_INT16]);
     UA_Server_writeValue(server, ds2Int16Id, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // Int32
     UA_Variant_init(&tmpVari);
     ds2Int32Val++;
     UA_Variant_setScalar(&tmpVari, &ds2Int32Val, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_writeValue(server, ds2Int32Id, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // Int64
     UA_Variant_init(&tmpVari);
     ds2Int64Val++;
     UA_Variant_setScalar(&tmpVari, &ds2Int64Val, &UA_TYPES[UA_TYPES_INT64]);
     UA_Server_writeValue(server, ds2Int64Id, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // SByte
     UA_Variant_init(&tmpVari);
     ds2SByteVal++;
     UA_Variant_setScalar(&tmpVari, &ds2SByteVal, &UA_TYPES[UA_TYPES_SBYTE]);
     UA_Server_writeValue(server, ds2SByteId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // UInt16
     UA_Variant_init(&tmpVari);
     ds2UInt16Val++;
     UA_Variant_setScalar(&tmpVari, &ds2UInt16Val, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_writeValue(server, ds2UInt16Id, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // UInt32
     UA_Variant_init(&tmpVari);
     ds2UInt32Val++;
     UA_Variant_setScalar(&tmpVari, &ds2UInt32Val, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_writeValue(server, ds2UInt32Id, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // UInt64
     UA_Variant_init(&tmpVari);
     ds2UInt64Val++;
     UA_Variant_setScalar(&tmpVari, &ds2UInt64Val, &UA_TYPES[UA_TYPES_UINT64]);
     UA_Server_writeValue(server, ds2UInt64Id, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // Float
     UA_Variant_init(&tmpVari);
     ds2FloatVal++;
     UA_Variant_setScalar(&tmpVari, &ds2FloatVal, &UA_TYPES[UA_TYPES_FLOAT]);
     UA_Server_writeValue(server, ds2FloatId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // Double
     UA_Variant_init(&tmpVari);
     ds2DoubleVal++;
     UA_Variant_setScalar(&tmpVari, &ds2DoubleVal, &UA_TYPES[UA_TYPES_DOUBLE]);
     UA_Server_writeValue(server, ds2DoubleId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // String 
     UA_Variant_init(&tmpVari);
     ds2StringIndex++;
-    if (ds2StringIndex >= ds2StringArrayLen)
-    {
+    if(ds2StringIndex >= ds2StringArrayLen)
         ds2StringIndex = 0;
-    }
 
     UA_Variant_setScalar(&tmpVari, &ds2StringArray[ds2StringIndex], &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_writeValue(server, ds2StringId, tmpVari);
-    //UA_Variant_deleteMembers(&tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // ByteString 
     UA_Variant_init(&tmpVari);
@@ -720,26 +691,21 @@ timerCallback(UA_Server *server, void *data) {
 
     UA_Variant_setScalar(&tmpVari, &bs, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_Server_writeValue(server, ds2ByteStringId, tmpVari);
-    UA_ByteString_deleteMembers(&bs);
-    //UA_Variant_clear(&tmpVari);
+    UA_ByteString_clear(&bs);
 
     // Guid 
     UA_Variant_init(&tmpVari);
     UA_Guid g = UA_Guid_random();
     UA_Variant_setScalar(&tmpVari, &g, &UA_TYPES[UA_TYPES_GUID]);
     UA_Server_writeValue(server, ds2GuidId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 
     // UInt32Array
-    for (size_t i = 0; i < 10; i++)
-    {
+    for(size_t i = 0; i < 10; i++)
         ds2UInt32ArrValue[i]++;
-    }
 
     UA_Variant_init(&tmpVari);
     UA_Variant_setArray(&tmpVari, ds2UInt32ArrValue, 10, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_writeValue(server, ds2UInt32ArrId, tmpVari);
-    //UA_Variant_clear(&tmpVari);
 }
 
 UA_Boolean running = true;
