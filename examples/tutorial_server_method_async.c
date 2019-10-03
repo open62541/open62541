@@ -187,7 +187,7 @@ THREAD_CALLBACK(ThreadWorker) {
             UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response,
                                               context);
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Call done: OKAY");
-            UA_CallMethodResult_deleteMembers(&response);
+            UA_CallMethodResult_clear(&response);
         } else {
             /* not a good style, but done for simplicity :-) */
             Sleep(5000);
