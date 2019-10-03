@@ -114,7 +114,7 @@ struct UA_Connection {
 
 /* Cleans up half-received messages, and so on. Called from connection->free. */
 void UA_EXPORT
-UA_Connection_deleteMembers(UA_Connection *connection);
+UA_Connection_clear(UA_Connection *connection);
 
 /**
  * Server Network Layer
