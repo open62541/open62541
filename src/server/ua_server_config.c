@@ -57,8 +57,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     /* Historical data */
 #ifdef UA_ENABLE_HISTORIZING
-    if(config->historyDatabase.deleteMembers)
-        config->historyDatabase.deleteMembers(&config->historyDatabase);
+    if(config->historyDatabase.clear)
+        config->historyDatabase.clear(&config->historyDatabase);
 #endif
 
     /* Logger */
