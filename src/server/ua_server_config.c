@@ -52,8 +52,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->certificateVerification.deleteMembers(&config->certificateVerification);
 
     /* Access Control */
-    if(config->accessControl.deleteMembers)
-        config->accessControl.deleteMembers(&config->accessControl);
+    if(config->accessControl.clear)
+        config->accessControl.clear(&config->accessControl);
 
     /* Historical data */
 #ifdef UA_ENABLE_HISTORIZING
