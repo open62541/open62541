@@ -293,7 +293,7 @@ START_TEST(ReadAddressAndCompareWithInternalValue){
         UA_Variant_deleteMembers(&value);
         ck_assert_int_eq(UA_Server_readValue(server, networkInterface, &value), UA_STATUSCODE_GOOD);
         ck_assert(UA_String_equal(((UA_String *) value.data), &networkAddressUrlDataType->networkInterface));
-        UA_PubSubConnectionConfig_deleteMembers(&connectionConfig);
+        UA_PubSubConnectionConfig_clear(&connectionConfig);
         UA_Variant_deleteMembers(&value);
     } END_TEST
 

@@ -145,7 +145,7 @@ START_TEST(GetWriterGroupConfigurationAndCompareValues){
         ck_assert_int_eq(UA_String_equal(&writerGroupConfig.name, &writerGroupConfigCopy.name), UA_TRUE);
         //todo remove == for floating point compare
         ck_assert(writerGroupConfig.publishingInterval == writerGroupConfig.publishingInterval);
-        UA_WriterGroupConfig_deleteMembers(&writerGroupConfigCopy);
+        UA_WriterGroupConfig_clear(&writerGroupConfigCopy);
     } END_TEST
 
 static void setupDataSetWriterTestEnvironment(void){
@@ -256,7 +256,7 @@ START_TEST(GetDataSetWriterConfigurationAndCompareValues){
         retVal |= UA_Server_getDataSetWriterConfig(server, localDataSetWriter, &dataSetWiterConfigCopy);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_int_eq(UA_String_equal(&dataSetWiterConfigCopy.name, &dataSetWiterConfigCopy.name), UA_TRUE);
-        UA_DataSetWriterConfig_deleteMembers(&dataSetWiterConfigCopy);
+        UA_DataSetWriterConfig_clear(&dataSetWiterConfigCopy);
     } END_TEST
 
 static void setupDataSetFieldTestEnvironment(void){
@@ -356,7 +356,7 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_int_eq(fieldConfig.dataSetFieldType, fieldConfigCopy.dataSetFieldType);
         ck_assert_int_eq(UA_String_equal(&fieldConfig.field.variable.fieldNameAlias, &fieldConfigCopy.field.variable.fieldNameAlias), UA_TRUE);
-        UA_DataSetFieldConfig_deleteMembers(&fieldConfigCopy);
+        UA_DataSetFieldConfig_clear(&fieldConfigCopy);
     } END_TEST
 
 

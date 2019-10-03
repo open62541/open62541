@@ -108,7 +108,7 @@ START_TEST(GetPDSConfigurationAndCompareValues){
     memset(&pdsConfigCopy, 0, sizeof(UA_PublishedDataSetConfig));
         UA_Server_getPublishedDataSetConfig(server, pdsIdentifier, &pdsConfigCopy);
     ck_assert_int_eq(UA_String_equal(&pdsConfig.name, &pdsConfigCopy.name), UA_TRUE);
-    UA_PublishedDataSetConfig_deleteMembers(&pdsConfigCopy);
+    UA_PublishedDataSetConfig_clear(&pdsConfigCopy);
 } END_TEST
 
 int main(void) {

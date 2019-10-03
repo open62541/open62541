@@ -53,7 +53,7 @@ UA_Server_addPubSubConnection(UA_Server *server,
         UA_realloc(server->pubSubManager.connections,
                    sizeof(UA_PubSubConnection) * (server->pubSubManager.connectionsSize + 1));
     if(!newConnectionsField) {
-        UA_PubSubConnectionConfig_deleteMembers(tmpConnectionConfig);
+        UA_PubSubConnectionConfig_clear(tmpConnectionConfig);
         UA_free(tmpConnectionConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Out of Memory.");
@@ -79,7 +79,7 @@ UA_Server_addPubSubConnection(UA_Server *server,
     /* Open the channel */
     newConnection->channel = tl->createPubSubChannel(newConnection->config);
     if(!newConnection->channel) {
-        UA_PubSubConnection_deleteMembers(server, newConnection);
+        UA_PubSubConnection_clear(server, newConnection);
         server->pubSubManager.connectionsSize--;
         /* Keep the realloced (longer) array if entries remain */
         if(server->pubSubManager.connectionsSize == 0) {
@@ -119,7 +119,7 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removePubSubConnectionRepresentation(server, currentConnection);
 #endif
-    UA_PubSubConnection_deleteMembers(server, currentConnection);
+    UA_PubSubConnection_clear(server, currentConnection);
     server->pubSubManager.connectionsSize--;
     //remove the connection from the pubSubManager, move the last connection
     //into the allocated memory of the deleted connection
@@ -176,7 +176,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
             UA_realloc(server->pubSubManager.publishedDataSets,
                        sizeof(UA_PublishedDataSet) * (server->pubSubManager.publishedDataSetsSize + 1));
     if(!newPubSubDataSetField) {
-        UA_PublishedDataSetConfig_deleteMembers(&tmpPublishedDataSetConfig);
+        UA_PublishedDataSetConfig_clear(&tmpPublishedDataSetConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Out of Memory.");
         result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -248,7 +248,7 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removePublishedDataSetRepresentation(server, publishedDataSet);
 #endif
-    UA_PublishedDataSet_deleteMembers(server, publishedDataSet);
+    UA_PublishedDataSet_clear(server, publishedDataSet);
     server->pubSubManager.publishedDataSetsSize--;
     //copy the last PDS to the removed PDS inside the allocated memory block
     if(server->pubSubManager.publishedDataSetsSize != publishedDataSetIndex){
