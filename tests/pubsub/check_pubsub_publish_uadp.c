@@ -130,7 +130,7 @@ START_TEST(CheckNMandDSMcalculation){
     for(size_t i = 10; i > 0; i--){
         ck_assert_int_eq(*(networkMessage.payloadHeader.dataSetPayloadHeader.dataSetWriterIds+(i-1)), 21-i);
     }
-    UA_NetworkMessage_deleteMembers(&networkMessage);
+    UA_NetworkMessage_clear(&networkMessage);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 200000;
@@ -142,8 +142,8 @@ START_TEST(CheckNMandDSMcalculation){
     receiveSingleMessage(buffer, connection, &networkMessage2);
     ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
     ck_assert_int_eq(networkMessage1.payloadHeader.dataSetPayloadHeader.count, 5);
-    UA_NetworkMessage_deleteMembers(&networkMessage1);
-    UA_NetworkMessage_deleteMembers(&networkMessage2);
+    UA_NetworkMessage_clear(&networkMessage1);
+    UA_NetworkMessage_clear(&networkMessage2);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 300000;
@@ -153,7 +153,7 @@ START_TEST(CheckNMandDSMcalculation){
     UA_NetworkMessage networkMessage3;
     receiveSingleMessage(buffer, connection, &networkMessage3);
     ck_assert_int_eq(networkMessage3.payloadHeader.dataSetPayloadHeader.count, 10);
-    UA_NetworkMessage_deleteMembers(&networkMessage3);
+    UA_NetworkMessage_clear(&networkMessage3);
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
     writerGroupConfig.publishingInterval = 400000;
@@ -164,7 +164,7 @@ START_TEST(CheckNMandDSMcalculation){
     for (int j = 0; j < 10; ++j) {
         receiveSingleMessage(buffer, connection, &(messageArray[j]));
         ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
-        UA_NetworkMessage_deleteMembers(&messageArray[j]);
+        UA_NetworkMessage_clear(&messageArray[j]);
     }
 
     //change publish interval triggers implicit one publish callback run | alternatively run UA_Server_iterate
@@ -176,7 +176,7 @@ START_TEST(CheckNMandDSMcalculation){
     for (int j = 0; j < 10; ++j) {
         receiveSingleMessage(buffer, connection, &(messageArray[j]));
         ck_assert_int_eq(messageArray[j].payloadHeader.dataSetPayloadHeader.count, 1);
-        UA_NetworkMessage_deleteMembers(&messageArray[j]);
+        UA_NetworkMessage_clear(&messageArray[j]);
     }
 
     } END_TEST

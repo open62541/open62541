@@ -196,7 +196,7 @@ typedef struct {
 } UA_PublishedDataSetConfig;
 
 void UA_EXPORT
-UA_PublishedDataSetConfig_deleteMembers(UA_PublishedDataSetConfig *pdsConfig);
+UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig);
 
 typedef struct {
     UA_StatusCode addResult;
@@ -255,7 +255,7 @@ typedef struct {
 } UA_DataSetFieldConfig;
 
 void UA_EXPORT
-UA_DataSetFieldConfig_deleteMembers(UA_DataSetFieldConfig *dataSetFieldConfig);
+UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig);
 
 typedef struct {
     UA_StatusCode result;
@@ -351,7 +351,7 @@ typedef struct {
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
-UA_WriterGroupConfig_deleteMembers(UA_WriterGroupConfig *writerGroupConfig);
+UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig);
 
 /* Add a new WriterGroup to an existing Connection */
 UA_StatusCode UA_EXPORT
@@ -409,7 +409,7 @@ typedef struct {
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT
-UA_DataSetWriterConfig_deleteMembers(UA_DataSetWriterConfig *pdsConfig);
+UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig);
 
 /* Add a new DataSetWriter to a existing WriterGroup. The DataSetWriter must be
  * coupled with a PublishedDataSet on creation.

@@ -199,7 +199,7 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                     writerGroupConfig.publishingInterval = *((UA_Duration *) data->value.data);
                     UA_Server_updateWriterGroupConfig(server, writerGroup->identifier, &writerGroupConfig);
                     UA_Variant_setScalar(&value, data->value.data, &UA_TYPES[UA_TYPES_DURATION]);
-                    UA_WriterGroupConfig_deleteMembers(&writerGroupConfig);
+                    UA_WriterGroupConfig_clear(&writerGroupConfig);
                     break;
                 default:
                     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,

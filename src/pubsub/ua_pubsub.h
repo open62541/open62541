@@ -48,7 +48,7 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src, UA_Publishe
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier);
 void
-UA_PublishedDataSet_deleteMembers(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
 
 /**********************************************/
 /*               Connection                   */
@@ -71,9 +71,9 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src, UA_PubSubCo
 UA_PubSubConnection *
 UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionIdentifier);
 void
-UA_PubSubConnectionConfig_deleteMembers(UA_PubSubConnectionConfig *connectionConfig);
+UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 void
-UA_PubSubConnection_deleteMembers(UA_Server *server, UA_PubSubConnection *connection);
+UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection);
 /* Register channel for given connectionIdentifier */
 UA_StatusCode
 UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier);
