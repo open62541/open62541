@@ -48,8 +48,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->endpointsSize = 0;
 
     /* Certificate Validation */
-    if(config->certificateVerification.deleteMembers)
-        config->certificateVerification.deleteMembers(&config->certificateVerification);
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
 
     /* Access Control */
     if(config->accessControl.clear)

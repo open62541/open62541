@@ -64,8 +64,8 @@ UA_ClientConfig_deleteMembers(UA_ClientConfig *config) {
     UA_EndpointDescription_deleteMembers(&config->endpoint);
     UA_UserTokenPolicy_deleteMembers(&config->userTokenPolicy);
 
-    if(config->certificateVerification.deleteMembers)
-        config->certificateVerification.deleteMembers(&config->certificateVerification);
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
 
     /* Delete the SecurityPolicies */
     if(config->securityPolicies == 0)
