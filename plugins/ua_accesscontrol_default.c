@@ -193,7 +193,7 @@ allowHistoryUpdateDeleteRawModified_default(UA_Server *server, UA_AccessControl 
 /* Create Delete Access Control Plugin */
 /***************************************/
 
-static void deleteMembers_default(UA_AccessControl *ac) {
+static void clear_default(UA_AccessControl *ac) {
     UA_Array_delete((void*)(uintptr_t)ac->userTokenPolicies,
                     ac->userTokenPoliciesSize,
                     &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
@@ -219,7 +219,7 @@ UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
     UA_AccessControl *ac = &config->accessControl;
-    ac->deleteMembers = deleteMembers_default;
+    ac->clear = clear_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;
     ac->getUserRightsMask = getUserRightsMask_default;
