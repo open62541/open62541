@@ -568,7 +568,7 @@ channelContext_compareCertificate_sp_basic256sha256(const Basic256Sha256_Channel
 }
 
 static void
-deleteMembers_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
+clear_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
@@ -639,7 +639,7 @@ updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPoli
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic256sha256(securityPolicy);
+        clear_sp_basic256sha256(securityPolicy);
     return retval;
 }
 
@@ -723,7 +723,7 @@ error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic256sha256(securityPolicy);
+        clear_sp_basic256sha256(securityPolicy);
     return retval;
 }
 
@@ -859,7 +859,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
         channelContext_compareCertificate_sp_basic256sha256;
 
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic256sha256;
-    policy->deleteMembers = deleteMembers_sp_basic256sha256;
+    policy->clear = clear_sp_basic256sha256;
 
     return policyContext_newContext_sp_basic256sha256(policy, localPrivateKey);
 }
