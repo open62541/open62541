@@ -184,7 +184,7 @@ struct UA_ServerNetworkLayer {
     void (*stop)(UA_ServerNetworkLayer *nl, UA_Server *server);
 
     /* Deletes the network layer context. Call only after stopping. */
-    void (*deleteMembers)(UA_ServerNetworkLayer *nl);
+    void (*clear)(UA_ServerNetworkLayer *nl);
 };
 
 /**

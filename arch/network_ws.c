@@ -282,7 +282,7 @@ ServerNetworkLayerWS_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
 }
 
 static void
-ServerNetworkLayerWS_deleteMembers(UA_ServerNetworkLayer *nl) {
+ServerNetworkLayerWS_clear(UA_ServerNetworkLayer *nl) {
     UA_free(nl->handle);
     UA_String_deleteMembers(&nl->discoveryUrl);
 }
@@ -291,7 +291,7 @@ UA_ServerNetworkLayer
 UA_ServerNetworkLayerWS(UA_ConnectionConfig config, UA_UInt16 port, UA_Logger *logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    nl.deleteMembers = ServerNetworkLayerWS_deleteMembers;
+    nl.clear = ServerNetworkLayerWS_clear;
     nl.localConnectionConfig = config;
     nl.start = ServerNetworkLayerWS_start;
     nl.listen = ServerNetworkLayerWS_listen;
