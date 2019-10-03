@@ -17,8 +17,6 @@
 #define UA_SESSION_LOCALNONCELENGTH 32
 #define MAX_DATA_SIZE 4096
 
-static void closeSession(UA_Client *client);
-static UA_StatusCode createSessionAsync(UA_Client *client);
 
 static UA_SecurityPolicy *
 getSecurityPolicy(UA_Client *client, UA_String policyUri) {
