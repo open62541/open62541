@@ -34,7 +34,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];
-        policy->deleteMembers(policy);
+        policy->clear(policy);
     }
     UA_free(config->securityPolicies);
     config->securityPolicies = NULL;

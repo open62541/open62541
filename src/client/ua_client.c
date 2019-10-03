@@ -71,7 +71,7 @@ UA_ClientConfig_deleteMembers(UA_ClientConfig *config) {
     if(config->securityPolicies == 0)
         return;
     for(size_t i = 0; i < config->securityPoliciesSize; i++)
-        config->securityPolicies[i].deleteMembers(&config->securityPolicies[i]);
+        config->securityPolicies[i].clear(&config->securityPolicies[i]);
     UA_free(config->securityPolicies);
     config->securityPolicies = 0;
 }

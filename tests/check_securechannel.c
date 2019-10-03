@@ -53,7 +53,7 @@ static void
 teardown_secureChannel(void) {
     UA_SecureChannel_close(&testChannel);
     UA_SecureChannel_deleteMembers(&testChannel);
-    dummyPolicy.deleteMembers(&dummyPolicy);
+    dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
 }
 
@@ -109,7 +109,7 @@ START_TEST(SecureChannel_initAndDelete) {
     UA_SecureChannel_deleteMembers(&channel);
     ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 
-    dummyPolicy.deleteMembers(&dummyPolicy);
+    dummyPolicy.clear(&dummyPolicy);
 }END_TEST
 
 START_TEST(SecureChannel_generateNewKeys) {

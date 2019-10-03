@@ -122,7 +122,7 @@ updateCertificateAndPrivateKey_none(UA_SecurityPolicy *policy,
 
 
 static void
-policy_deletemembers_none(UA_SecurityPolicy *policy) {
+policy_clear_none(UA_SecurityPolicy *policy) {
     UA_ByteString_deleteMembers(&policy->localCertificate);
 }
 
@@ -181,7 +181,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy,
     policy->channelModule.setRemoteSymIv = setContextValue_none;
     policy->channelModule.compareCertificate = compareCertificate_none;
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_none;
-    policy->deleteMembers = policy_deletemembers_none;
+    policy->clear = policy_clear_none;
 
     return UA_STATUSCODE_GOOD;
 }
