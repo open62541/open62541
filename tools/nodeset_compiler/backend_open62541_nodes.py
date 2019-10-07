@@ -256,7 +256,6 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
     codeCleanup = [""]
 
     logger.debug("Building extensionObject for " + str(parent.id))
-    logger.debug("Value    " + str(node.value))
     logger.debug("Encoding " + str(node.encodingRule))
 
     typeBrowseNode = makeCIdentifier(nodeset.getDataTypeNode(parent.dataType).browseName.name)
