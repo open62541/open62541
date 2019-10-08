@@ -4,12 +4,54 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright 2018 (c) Jose Cabral, fortiss GmbH
+  * Copyright (c) 2019-2020 Kalycito Infotech Private Limited
  */
-
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#if __STDC_VERSION__ >= 199901L
+#define _XOPEN_SOURCE 600
+#else
+#define _XOPEN_SOURCE 500
+#endif /* __STDC_VERSION__ */
+#endif
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/util.h>
 
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#include "time.h"
+#include <open62541/plugin/network.h>
+
+#include <linux/errqueue.h>
+#include <poll.h>
+#include <linux/types.h>
+
+#include "time.h"
+/* Modify the IP address, if UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled */
+#define  PUBSUB_IP_ADDRESS    "192.168.9.10"
+
+#ifndef       SOCKET_TRANSMISSION_TIME
+#define       SOCKET_TRANSMISSION_TIME         61
+#ifndef       SCM_TXTIME
+#define       SCM_TXTIME                       SOCKET_TRANSMISSION_TIME
+#endif
+#endif
+#define       TIMEOUT_REALTIME                     1
+#define       PRINT_ERROR(ERROR_INFO)          fprintf(stderr, ERROR_INFO "\n")
+
+struct socket_transmission_time {
+    clockid_t clockIdentity;
+    uint16_t flags;
+}txtimeSocket;
+
+enum transmission_time_flags {
+    SOF_TRANSMISSION_TIME_DEADLINE_MODE = (1 << 0),
+    SOF_TRANSMISSION_TIME_REPORT_ERRORS = (1 << 1),
+
+    SOF_TRANSMISSION_TIME_FLAGS_LAST = SOF_TRANSMISSION_TIME_REPORT_ERRORS,
+    SOF_TRANSMISSION_TIME_FLAGS_MASK = (SOF_TRANSMISSION_TIME_FLAGS_LAST - 1) |
+                 SOF_TRANSMISSION_TIME_FLAGS_LAST
+};
+#endif
 // UDP multicast network layer specific internal data
 typedef struct {
     int ai_family;                        //Protocol family for socket.  IPv4/IPv6
@@ -250,6 +292,23 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
                            "PubSub Connection creation problem. Interface selection failed.");
         };
     }
+
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+    clockid_t clockId = CLOCK_TAI;
+    static UA_Int32 soPriority = 3;
+    /* TTS - changes done for time triggered send usage  */
+    txtimeSocket.clockIdentity = clockId;
+    /* Flag to use deadline mode or receive error mode */
+    txtimeSocket.flags   = 0;
+    if (setsockopt(newChannel->sockfd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, &txtimeSocket, sizeof(txtimeSocket))) {
+        PRINT_ERROR("setsockopt SOCKET_TRANSMISSION_TIME failed");
+    }
+
+    if (setsockopt(newChannel->sockfd, SOL_SOCKET, SO_PRIORITY, &soPriority, sizeof(int))) {
+        perror("setsockopt SO_PRIORITY failed: %m");
+    }
+#endif
+
     UA_freeaddrinfo(requestResult);
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
     return newChannel;
@@ -278,7 +337,16 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
         }
         struct ip_mreq groupV4;
         memcpy(&groupV4.imr_multiaddr, &((const struct sockaddr_in *)connectionConfig->ai_addr)->sin_addr, sizeof(struct ip_mreq));
+        /* Comment the below line and use this line
+         * "groupV4.imr_interface.s_addr = inet_addr(PUBSUB_IP_ADDRESS);"
+         *  if UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled
+         */
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
         groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
+#endif
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+        groupV4.imr_interface.s_addr = inet_addr(PUBSUB_IP_ADDRESS);
+#endif
         //multihomed hosts can join several groups on different IF, INADDR_ANY -> kernel decides
 
         if(UA_setsockopt(channel->sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char *) &groupV4, sizeof(groupV4)) != 0) {
@@ -333,8 +401,11 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
  *
  * @return UA_STATUSCODE_GOOD if success
  */
+
 static UA_StatusCode
 UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns, const UA_ByteString *buf) {
+
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
     UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
     if(!(channel->state == UA_PUBSUB_CHANNEL_PUB || channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)){
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection sending failed. Invalid state.");
@@ -351,6 +422,12 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
         }
         nWritten += n;
     }
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+     txtimecalc_udp(channel, transportSettigns, buf);
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -367,7 +444,10 @@ UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
-
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+    /* For real time pubsub, the timeout is set to 1ms */
+    timeout = TIMEOUT_REALTIME;
+#endif
     if(timeout > 0) {
         fd_set fdset;
         FD_ZERO(&fdset);
