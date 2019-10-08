@@ -371,7 +371,10 @@ static UA_DataSetReader *
 getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_PubSubConnection *pConnection) {
     if(pConnection->readerGroupsSize == 1) {
         if(LIST_FIRST(&pConnection->readerGroups)->readersCount == 1) {
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "only 1 DataSetReader available. This one will be used.");
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+        /* Debug print is removed for real time subscription */
+        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "only 1 DataSetReader available. This one will be used.");
+#endif
             return LIST_FIRST(&LIST_FIRST(&pConnection->readerGroups)->readers);
         }
     }
@@ -2084,7 +2087,7 @@ UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_StatusCode retval =
             UA_PubSubManager_addRepeatedCallback(server,
-                                                 (UA_ServerCallback) UA_WriterGroup_publishCallback,
+                                                (UA_ServerCallback) UA_WriterGroup_publishCallback,
                                                  writerGroup, writerGroup->config.publishingInterval,
                                                  &writerGroup->publishCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
@@ -2106,8 +2109,12 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
     }
 
     connection->channel->receive(connection->channel, &buffer, NULL, 300000);
+
     if(buffer.length > 0) {
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+        /* Debug print is removed for real time subscription */
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
+#endif
         UA_NetworkMessage currentNetworkMessage;
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
         size_t currentPosition = 0;
@@ -2128,10 +2135,12 @@ UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGro
     if(connection != NULL) {
         retval = connection->channel->regist(connection->channel, NULL, NULL);
         if(retval == UA_STATUSCODE_GOOD) {
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
             retval = UA_PubSubManager_addRepeatedCallback(server,
-                    (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
-                    readerGroup, 5,
-                    &readerGroup->subscribeCallbackId);
+                                                         (UA_ServerCallback) UA_ReaderGroup_subscribeCallback,
+                                                         readerGroup, 5,
+                                                         &readerGroup->subscribeCallbackId);
+#endif
         }
         else {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "register channel failed: 0x%x!", retval);
