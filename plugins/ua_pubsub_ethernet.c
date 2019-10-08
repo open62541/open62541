@@ -4,12 +4,19 @@
  *
  *   Copyright 2018 (c) Kontron Europe GmbH (Author: Rudolf Hoyler)
  *   Copyright 2019 (c) Wind River Systems, Inc.
+ *   Copyright (c) 2019-2020 Kalycito Infotech Private Limited
  */
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#if __STDC_VERSION__ >= 199901L
+#define _XOPEN_SOURCE 600
+#else
+#define _XOPEN_SOURCE 500
+#endif /* __STDC_VERSION__ */
+#endif
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/util.h>
-
 #if defined(__vxworks) || defined(__VXWORKS__)
 #include <netpacket/packet.h>
 #include <netinet/if_ether.h>
@@ -19,9 +26,26 @@
 #include <netinet/ether.h>
 #endif
 
-#ifndef ETHERTYPE_UADP
-#define ETHERTYPE_UADP 0xb62c
+#include <open62541/plugin/pubsub_udp.h>
+#include <linux/types.h>
+#include <time.h>
+#include <linux/errqueue.h>
+#include <poll.h>
+
+#ifndef   ETHERTYPE_UADP
+#define   ETHERTYPE_UADP 0xb62c
 #endif
+
+#ifdef    UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#ifndef   SOCKET_TRANSMISSION_TIME
+#define   SOCKET_TRANSMISSION_TIME                        61
+#define   SCM_TRANSMISSION_TIME                           SOCKET_TRANSMISSION_TIME
+#endif
+#define   TIMEOUT_REALTIME                                1
+#define   pr_err(s)                                       fprintf(stderr, s "\n")
+
+#endif
+struct sockaddr_ll sll = { 0 };
 
 /* Ethernet network layer specific internal data */
 typedef struct {
@@ -32,6 +56,20 @@ typedef struct {
     UA_Byte targetAddress[ETH_ALEN];
 } UA_PubSubChannelDataEthernet;
 
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+struct socket_transmission_time {
+    clockid_t clockIdentity;
+    uint16_t flags;
+};
+
+enum transmission_time_flags {
+    SOF_TRANSMISSION_TIME_DEADLINE_MODE = (1 << 0),
+    SOF_TRANSMISSION_TIME_REPORT_ERRORS = (1 << 1),
+    SOF_TRANSMISSION_TIME_FLAGS_LAST = SOF_TRANSMISSION_TIME_REPORT_ERRORS,
+    SOF_TRANSMISSION_TIME_FLAGS_MASK = (SOF_TRANSMISSION_TIME_FLAGS_LAST - 1) |
+                 SOF_TRANSMISSION_TIME_FLAGS_LAST
+};
+#endif
 /*
  * OPC-UA specification Part 14:
  *
@@ -189,7 +227,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
 #endif
 
     /* bind the socket to interface and ethertype */
-    struct sockaddr_ll sll = { 0 };
+   // struct sockaddr_ll sll = { 0 };
     sll.sll_family = AF_PACKET;
     sll.sll_ifindex = channelDataEthernet->ifindex;
     sll.sll_protocol = htons(ETHERTYPE_UADP);
@@ -203,6 +241,21 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         return NULL;
     }
 
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+    static struct socket_transmission_time  sk_txtime;
+    clockid_t clkid = CLOCK_TAI;
+    /* TTS - changes done for time triggered send usage  */
+    sk_txtime.clockIdentity = clkid;
+    sk_txtime.flags = 0;//(use_deadline_mode | receive_errors);
+    if (setsockopt(sockFd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, &sk_txtime, sizeof(sk_txtime))) {
+        pr_err("setsockopt SOCKET_TRANSMISSION_TIME failed");
+    }
+
+    int priority = 3;
+    if (setsockopt(newChannel->sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(int))) {
+        perror("setsockopt SO_PRIORITY failed: %m");
+    }
+#endif
     newChannel->handle = channelDataEthernet;
     newChannel->state = UA_PUBSUB_CHANNEL_PUB;
 
@@ -293,6 +346,7 @@ static UA_StatusCode
 UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
                               UA_ExtensionObject *transportSettings,
                               const UA_ByteString *buf) {
+
     UA_PubSubChannelDataEthernet *channelDataEthernet =
         (UA_PubSubChannelDataEthernet *) channel->handle;
 
@@ -333,6 +387,11 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
     /* copy payload of ethernet message */
     memcpy(ptrCur, buf->data, buf->length);
 
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+    /* Function for real time pubsub - txtime calculation*/
+    txtimecalc_ethernet(channel, transportSettings,bufSend, (int)lenBuf ,sll);
+#endif
+#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
     ssize_t rc;
     rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
     if(rc  < 0) {
@@ -341,8 +400,8 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
         UA_free(bufSend);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+#endif
     UA_free(bufSend);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -370,7 +429,9 @@ UA_PubSubChannelEthernet_receive(UA_PubSubChannel *channel, UA_ByteString *messa
     msg.msg_iov = iov;
     msg.msg_iovlen = 2;
     msg.msg_controllen = 0;
-
+#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+    timeout = TIMEOUT_REALTIME;
+#endif
     /* Sleep in a select call if a timeout was set */
     if(timeout > 0) {
         fd_set fdset;
