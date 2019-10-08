@@ -110,7 +110,7 @@ UA_Server_createNS0_base(UA_Server *server) {
                          UA_NS0ID_HIERARCHICALREFERENCES, true, false, UA_NS0ID_REFERENCES);
 
     ret |= addReferenceTypeNode(server, "NonHierarchicalReferences", NULL,
-                         UA_NS0ID_NONHIERARCHICALREFERENCES, true, false, UA_NS0ID_REFERENCES);
+                         UA_NS0ID_NONHIERARCHICALREFERENCES, true, true, UA_NS0ID_REFERENCES);
 
     ret |= addReferenceTypeNode(server, "HasChild", NULL, UA_NS0ID_HASCHILD,
                          true, false, UA_NS0ID_HIERARCHICALREFERENCES);
@@ -478,7 +478,7 @@ writeNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
 
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
-    
+
     /* Test if the existing namespaces are unchanged */
     for(size_t i = 0; i < server->namespacesSize; ++i) {
         if(!UA_String_equal(&server->namespaces[i], &newNamespaces[i]))
@@ -562,14 +562,14 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     {
         if(LIST_EMPTY(&session->serverSubscriptions))
         {
-          UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]), 
+          UA_Variant_setArray(&output[0], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
                               0, &UA_TYPES[UA_TYPES_UINT32]);
-          UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]), 
+          UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
                               0, &UA_TYPES[UA_TYPES_UINT32]);
 
           return UA_STATUSCODE_BADNOMATCH;
         }
-        
+
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
