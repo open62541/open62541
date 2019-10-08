@@ -100,7 +100,7 @@ UA_Server_createNS0_base(UA_Server *server) {
 
     UA_ReferenceTypeAttributes aggregates_attr = UA_ReferenceTypeAttributes_default;
     aggregates_attr.displayName = UA_LOCALIZEDTEXT("", "Aggregates");
-    aggregates_attr.isAbstract = false;
+    aggregates_attr.isAbstract = true;
     aggregates_attr.symmetric = false;
     aggregates_attr.inverseName = UA_LOCALIZEDTEXT("", "AggregatedBy");
     ret |= addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_AGGREGATES, "Aggregates",
