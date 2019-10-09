@@ -159,7 +159,7 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
 }
 
 static UA_StatusCode
-checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetReader* dataSetReader, UA_DataSetReader *tmpReader) {
+checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetReader *reader) {
     if(!pMsg->groupHeaderEnabled &&
        !pMsg->groupHeader.writerGroupIdEnabled &&
        !pMsg->payloadHeaderEnabled) {
@@ -169,11 +169,10 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetRead
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    if((tmpReader->config.writerGroupId == pMsg->groupHeader.writerGroupId) &&
-       (tmpReader->config.dataSetWriterId == *pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)) {
+    if((reader->config.writerGroupId == pMsg->groupHeader.writerGroupId) &&
+       (reader->config.dataSetWriterId == *pMsg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds)) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "DataSetReader found. Process NetworkMessage");
-        *dataSetReader = *tmpReader;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -182,7 +181,7 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetRead
 
 static UA_StatusCode
 getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
-                        UA_DataSetReader* dataSetReader, UA_PubSubConnection *pConnection) {
+                        UA_DataSetReader **dataSetReader, UA_PubSubConnection *pConnection) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!pMsg->publisherIdEnabled) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -199,49 +198,45 @@ getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_BYTE &&
                    pMsg->publisherId.publisherIdByte == *(UA_Byte*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, dataSetReader, tmpReader);
-                    if (retval == UA_STATUSCODE_GOOD)
-                        return retval;
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT16:
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT16 &&
                    pMsg->publisherId.publisherIdUInt16 == *(UA_UInt16*) tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, dataSetReader, tmpReader);
-                    if (retval == UA_STATUSCODE_GOOD)
-                        return retval;
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT32:
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT32 &&
                    pMsg->publisherId.publisherIdUInt32 == *(UA_UInt32*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, dataSetReader, tmpReader);
-                    if (retval == UA_STATUSCODE_GOOD)
-                        return retval;
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_UINT64:
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_UINT64 &&
                    pMsg->publisherId.publisherIdUInt64 == *(UA_UInt64*)tmpReader->config.publisherId.data) {
-                    retval = checkReaderIdentifier(server, pMsg, dataSetReader, tmpReader);
-                    if (retval == UA_STATUSCODE_GOOD)
-                        return retval;
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
                 }
                 break;
             case UA_PUBLISHERDATATYPE_STRING:
                 if(tmpReader->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
                    pMsg->publisherIdType == UA_PUBLISHERDATATYPE_STRING &&
-                   UA_String_equal(&pMsg->publisherId.publisherIdString, (UA_String*)tmpReader->config.publisherId.data)) {
-                    retval = checkReaderIdentifier(server, pMsg, dataSetReader, tmpReader);
-                    if (retval == UA_STATUSCODE_GOOD)
-                        return retval;
+                   UA_String_equal(&pMsg->publisherId.publisherIdString,
+                                   (UA_String*)tmpReader->config.publisherId.data)) {
+                    retval = checkReaderIdentifier(server, pMsg, tmpReader);
                 }
                 break;
             default:
                 return UA_STATUSCODE_BADINTERNALERROR;
+            }
+
+            if(retval == UA_STATUSCODE_GOOD) {
+                *dataSetReader = tmpReader;
+                return UA_STATUSCODE_GOOD;
             }
         }
     }
@@ -686,8 +681,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
     /* To Do The condition pMsg->dataSetClassIdEnabled
      * Here some filtering is possible */
 
-    UA_DataSetReader dataSetReader;
-    memset(&dataSetReader, 0, sizeof(UA_DataSetReader));
+    UA_DataSetReader *dataSetReader;
     retval = getReaderFromIdentifier(server, pMsg, &dataSetReader, pConnection);
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
@@ -701,7 +695,7 @@ UA_Server_processNetworkMessage(UA_Server *server, UA_NetworkMessage *pMsg,
         anzDataSets = pMsg->payloadHeader.dataSetPayloadHeader.count;
     for(UA_Byte iterator = 0; iterator < anzDataSets; iterator++) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "Process Msg with DataSetReader!");
-        UA_Server_DataSetReader_process(server, &dataSetReader,
+        UA_Server_DataSetReader_process(server, dataSetReader,
                                         &pMsg->payload.dataSetPayload.dataSetMessages[iterator]);
     }
 
