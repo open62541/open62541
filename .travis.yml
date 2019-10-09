@@ -262,6 +262,8 @@ matrix:
     # clang-format code analysis
     - env:
         - CLANG_FORMAT=true
+    - env:
+        - SONAR=true
 
 cache:
   pip: true
