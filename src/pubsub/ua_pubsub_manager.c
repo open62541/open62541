@@ -298,6 +298,16 @@ UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId) {
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub cleanup was called.");
+
+    /* Stop and unfreeze all WriterGroups */
+    for(size_t i = 0; i < pubSubManager->connectionsSize; i++) {
+        UA_WriterGroup *writerGroup;
+        LIST_FOREACH(writerGroup, &pubSubManager->connections[i].writerGroups, listEntry) {
+            UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, writerGroup);
+            UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup->identifier);
+        }
+    }
+
     //free the currently configured transport layers
     UA_free(server->config.pubsubTransportLayers);
     server->config.pubsubTransportLayersSize = 0;
