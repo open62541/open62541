@@ -292,19 +292,17 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
 UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGroup){
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-
-    UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, wg);
-
-    return UA_STATUSCODE_GOOD;
+    if(!wg)
+        return UA_STATUSCODE_BADNOTFOUND;
+    return UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_OPERATIONAL, wg);
 }
 
 UA_StatusCode UA_EXPORT
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup){
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-
-    UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, wg);
-
-    return UA_STATUSCODE_GOOD;
+    if(!wg)
+        return UA_STATUSCODE_BADNOTFOUND;
+    return UA_WriterGroup_setPubSubState(server, UA_PUBSUBSTATE_DISABLED, wg);
 }
 
 /**********************************************/
