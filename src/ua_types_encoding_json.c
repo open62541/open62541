@@ -2622,8 +2622,8 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_GOOD;
     }
 
-    size_t size = (size_t)(parseCtx->tokenArray[searchResultType].end -
-                           parseCtx->tokenArray[searchResultType].start);
+    size_t size = ((size_t)parseCtx->tokenArray[searchResultType].end -
+                   (size_t)parseCtx->tokenArray[searchResultType].start);
 
     /* check if size is zero or the type is not a number */
     if(size < 1 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE)
@@ -2946,6 +2946,9 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
     if(encoding == 0 || typeOfBody != NULL) {
         /*This value is 0 if the body is Structure encoded as a JSON object (see 5.4.6).*/
         /* Found a valid type and it is structure encoded so it can be unwrapped */
+        if (typeOfBody == NULL)
+            return UA_STATUSCODE_BADDECODINGERROR;
+
         dst->type = typeOfBody;
 
         /* Allocate memory for type*/

@@ -69,12 +69,23 @@ UA_UInt16 itoaUnsigned(UA_UInt64 value, char* buffer, UA_Byte base) {
 /* adapted from http://www.techiedelight.com/implement-itoa-function-in-c/ to use UA_... types */
 UA_UInt16 itoaSigned(UA_Int64 value, char* buffer) {
     /* consider absolute value of number */
-    UA_UInt64 n = (UA_UInt64)value;
 
-    if(value < 0){
-        n = (UA_UInt64)-value;
+
+    UA_UInt64 n;
+
+    /* Special case for UA_INT64_MIN which can not simply be negated */
+    /* it will cause a signed integer overflow */
+    if (value == UA_INT64_MIN) {
+        n = (UA_UInt64)UA_INT64_MAX + 1;
     }
-    
+    else {
+        n = (UA_UInt64)value;
+
+        if(value < 0){
+            n = (UA_UInt64)-value;
+        }
+    }
+
     UA_UInt16 i = 0;
     while (n) {
         UA_UInt64 r = n % 10;
