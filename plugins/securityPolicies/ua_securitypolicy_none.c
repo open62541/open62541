@@ -76,14 +76,14 @@ generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) 
     /* Fill blocks of four byte */
     size_t i = 0;
     while(i + 3 < out->length) {
-        UA_UInt32 rand = UA_UInt32_random();
-        memcpy(&out->data[i], &rand, 4);
+        UA_UInt32 randNumber = UA_UInt32_random();
+        memcpy(&out->randNumber[i], &randNumber, 4);
         i = i+4;
     }
 
     /* Fill the remaining byte */
-    UA_UInt32 rand = UA_UInt32_random();
-    memcpy(&out->data[i], &rand, out->length % 4);
+    UA_UInt32 randNumber = UA_UInt32_random();
+    memcpy(&out->data[i], &randNumber, out->length % 4);
 
     return UA_STATUSCODE_GOOD;
 }
