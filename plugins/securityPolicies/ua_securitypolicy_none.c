@@ -77,7 +77,7 @@ generateNonce_none(const UA_SecurityPolicy *securityPolicy, UA_ByteString *out) 
     size_t i = 0;
     while(i + 3 < out->length) {
         UA_UInt32 randNumber = UA_UInt32_random();
-        memcpy(&out->randNumber[i], &randNumber, 4);
+        memcpy(&out->data[i], &randNumber, 4);
         i = i+4;
     }
 
