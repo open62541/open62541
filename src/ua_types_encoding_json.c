@@ -2946,6 +2946,9 @@ Variant_decodeJsonUnwrapExtensionObject(UA_Variant *dst, const UA_DataType *type
     if(encoding == 0 || typeOfBody != NULL) {
         /*This value is 0 if the body is Structure encoded as a JSON object (see 5.4.6).*/
         /* Found a valid type and it is structure encoded so it can be unwrapped */
+        if (typeOfBody == NULL)
+            return UA_STATUSCODE_BADDECODINGERROR;
+
         dst->type = typeOfBody;
 
         /* Allocate memory for type*/
