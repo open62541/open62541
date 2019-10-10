@@ -13,7 +13,8 @@
 UA_StatusCode
 UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
-    UA_assert(node->nodeClass == UA_NODECLASS_OBJECT);
+    if (node->nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ObjectNode *on = (UA_ObjectNode*)node;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
