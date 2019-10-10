@@ -2622,8 +2622,8 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_GOOD;
     }
 
-    size_t size = (size_t)(parseCtx->tokenArray[searchResultType].end -
-                           parseCtx->tokenArray[searchResultType].start);
+    size_t size = ((size_t)parseCtx->tokenArray[searchResultType].end -
+                   (size_t)parseCtx->tokenArray[searchResultType].start);
 
     /* check if size is zero or the type is not a number */
     if(size < 1 || parseCtx->tokenArray[searchResultType].type != JSMN_PRIMITIVE)
