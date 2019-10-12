@@ -448,6 +448,12 @@ typedef struct {
     UA_Int32 *keyServers;
 } UA_PubSubSecurityParameters;
 
+/* SubscribedDataSetDataType Definition */
+typedef enum {
+    UA_PUBSUB_SDS_TARGET,
+    UA_PUBSUB_SDS_MIRROR
+} UA_SubscribedDataSetEnumType;
+
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
@@ -459,6 +465,7 @@ typedef struct {
     UA_Double messageReceiveTimeout;
     UA_PubSubSecurityParameters securityParameters;
     UA_UadpDataSetReaderMessageDataType messageSettings;
+    UA_SubscribedDataSetEnumType subscribedDataSetType;
     UA_TargetVariablesDataType subscribedDataSetTarget;
 } UA_DataSetReaderConfig;
 
@@ -479,10 +486,11 @@ UA_StatusCode
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                              UA_TargetVariablesDataType* targetVariables);
 
-/* To Do:Implementation of SubscribedDataSetMirrorType
- * UA_StatusCode
- * A_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
- * UA_SubscribedDataSetMirrorDataType* mirror) */
+/* Return Status Code after creating Mirror variables in Subscriber AddressSpace
+ * For each field of Dataset a mirror variable is created in the Subscriber AddressSpace */
+UA_StatusCode
+UA_Server_DataSetReader_createDataSetMirror(UA_Server *server, UA_String *parentObjectNodeName,
+                                            UA_NodeId dataSetReaderIdentifier);
 
 /**
  * ReaderGroup

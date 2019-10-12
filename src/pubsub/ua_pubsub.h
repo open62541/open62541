@@ -194,12 +194,6 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
 /*               DataSetReader                */
 /**********************************************/
 
-/* SubscribedDataSetDataType Definition */
-typedef enum {
-    UA_PUBSUB_SDS_TARGET,
-    UA_PUBSUB_SDS_MIRROR
-}UA_SubscribedDataSetEnumType;
-
 /* DataSetReader Type definition */
 typedef struct UA_DataSetReader {
     UA_DataSetReaderConfig config;
@@ -209,7 +203,7 @@ typedef struct UA_DataSetReader {
     LIST_ENTRY(UA_DataSetReader) listEntry;
     UA_SubscribedDataSetEnumType subscribedDataSetType;
     UA_TargetVariablesDataType subscribedDataSetTarget;
-    /* To Do UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+    UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
 }UA_DataSetReader;
 
 /* Delete DataSetReader */

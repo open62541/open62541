@@ -582,6 +582,126 @@ UA_Server_DataSetReader_addTargetVariables(UA_Server *server, UA_NodeId *parentN
     return retval;
 }
 
+UA_StatusCode
+UA_Server_DataSetReader_createDataSetMirror(UA_Server *server, UA_String *parentObjectNodeName,
+                                            UA_NodeId dataSetReaderIdentifier) {
+    if(server == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_DataSetReader* dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    if(dataSetReader == NULL) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_NodeId parentNodeId;
+    UA_String parentNodeName = *parentObjectNodeName;
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    UA_QualifiedName parentNodeBrowseName;
+    if(parentNodeName.length > 0) {
+        oAttr.displayName.locale = UA_STRING ("en-US");
+        oAttr.displayName.text = parentNodeName;
+        parentNodeBrowseName.namespaceIndex = 1;
+        parentNodeBrowseName.name = parentNodeName;
+    }
+    else {
+        oAttr.displayName    = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
+        parentNodeBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
+    }
+
+    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+                             UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
+                             UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
+                             parentNodeBrowseName, UA_NODEID_NUMERIC (0,
+                             UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &parentNodeId);
+
+    UA_SubscribedDataSetMirrorDataType mirrorVariable;
+    retval = UA_String_copy(&parentNodeName, &mirrorVariable.parentNodeName);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    mirrorVariable.rolePermissionsSize = dataSetReader->config.dataSetMetaData.fieldsSize;
+    mirrorVariable.rolePermissions     = (UA_RolePermissionType*)
+                                          UA_calloc(mirrorVariable.rolePermissionsSize, sizeof(UA_RolePermissionType));
+
+    for (size_t i = 0; i < dataSetReader->config.dataSetMetaData.fieldsSize; i++) {
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.valueRank = dataSetReader->config.dataSetMetaData.fields[i].valueRank;
+        if(dataSetReader->config.dataSetMetaData.fields[i].arrayDimensionsSize > 0) {
+            retval = UA_Array_copy(dataSetReader->config.dataSetMetaData.fields[i].arrayDimensions,
+                                   dataSetReader->config.dataSetMetaData.fields[i].arrayDimensionsSize,
+                                   (void**)&vAttr.arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+            if(retval == UA_STATUSCODE_GOOD) {
+                vAttr.arrayDimensionsSize =
+                        dataSetReader->config.dataSetMetaData.fields[i].arrayDimensionsSize;
+            }
+        }
+
+        vAttr.dataType = dataSetReader->config.dataSetMetaData.fields[i].dataType;
+        vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+        UA_LocalizedText_copy(&dataSetReader->config.dataSetMetaData.fields[i].description,
+                              &vAttr.description);
+
+        UA_QualifiedName qualifiedName;
+        UA_QualifiedName_init(&qualifiedName);
+        char variableName[UA_MAX_SIZENAME];
+        UA_UInt16 slen = UA_MAX_SIZENAME -1;
+        vAttr.displayName.locale = UA_STRING("en-US");
+        vAttr.displayName.text = dataSetReader->config.dataSetMetaData.fields[i].name;
+        if(dataSetReader->config.dataSetMetaData.fields[i].name.length < slen) {
+            slen = (UA_UInt16)dataSetReader->config.dataSetMetaData.fields[i].name.length;
+            UA_snprintf(variableName, sizeof(variableName), "%.*s", (int)slen,
+                        (const char*)dataSetReader->config.dataSetMetaData.fields[i].name.data);
+        }
+
+        variableName[slen] = '\0';
+        qualifiedName = UA_QUALIFIEDNAME(1, variableName);
+
+        /* Add variable to the created parent node */
+        UA_NodeId newNode;
+        retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), qualifiedName,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           vAttr, NULL, &newNode);
+        if(retval == UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                        "addVariableNode %s succeeded", variableName);
+        }
+        else {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+                         "addVariableNode: error 0x%x", retval);
+        }
+
+        UA_NodeId_copy(&newNode, &mirrorVariable.rolePermissions[i].roleId);
+
+        /* TODO: For now role permissions given as read on the variable. Shall be used once it is integrated into the server */
+        mirrorVariable.rolePermissions[i].permissions = UA_PERMISSIONTYPE_READ;
+
+        UA_NodeId_deleteMembers(&newNode);
+        if(vAttr.arrayDimensionsSize > 0) {
+            UA_Array_delete(vAttr.arrayDimensions, vAttr.arrayDimensionsSize,
+                            &UA_TYPES[UA_TYPES_UINT32]);
+        }
+    }
+
+    /* Check if DataSetReader has subscribedDataSetMirror and clear the values */
+    if(dataSetReader->subscribedDataSetMirror.rolePermissionsSize > 0) {
+        UA_SubscribedDataSetMirrorDataType_deleteMembers(&dataSetReader->subscribedDataSetMirror);
+        dataSetReader->subscribedDataSetMirror.rolePermissionsSize = 0;
+        dataSetReader->subscribedDataSetMirror.rolePermissions     = NULL;
+    }
+
+    /* Set subscribed dataset to DataSetMirror type */
+    dataSetReader->subscribedDataSetType = UA_PUBSUB_SDS_MIRROR;
+    retval = UA_SubscribedDataSetMirrorDataType_copy(&mirrorVariable, &dataSetReader->subscribedDataSetMirror);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_SubscribedDataSetMirrorDataType_deleteMembers(&mirrorVariable);
+    return retval;
+}
+
 void
 UA_Server_DataSetReader_process(UA_Server *server, UA_DataSetReader *dataSetReader,
                                 UA_DataSetMessage* dataSetMsg) {
@@ -654,7 +774,10 @@ void UA_DataSetReader_delete(UA_Server *server, UA_DataSetReader *dataSetReader)
     UA_Variant_deleteMembers(&dataSetReader->config.publisherId);
     UA_DataSetMetaDataType_deleteMembers(&dataSetReader->config.dataSetMetaData);
     UA_UadpDataSetReaderMessageDataType_deleteMembers(&dataSetReader->config.messageSettings);
+
+    /* TODO: Conditional check for deleting members Target and Mirror datatype */
     UA_TargetVariablesDataType_deleteMembers(&dataSetReader->subscribedDataSetTarget);
+    UA_SubscribedDataSetMirrorDataType_deleteMembers(&dataSetReader->subscribedDataSetMirror);
 
     /* Delete DataSetReader */
     UA_ReaderGroup* pGroup = UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);

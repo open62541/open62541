@@ -36,4 +36,7 @@ BrokerWriterGroupTransportType
 UadpDataSetReaderMessageDataType
 TargetVariablesDataType
 FieldTargetDataType
+SubscribedDataSetMirrorDataType
+RolePermissionType
+PermissionType
 OverrideValueHandling
