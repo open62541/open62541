@@ -14,7 +14,7 @@ typedef struct {
 
 struct Nodeset;
 
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_XmlImport_loadFile(const FileHandler *fileHandler);
 _UA_END_DECLS
 #endif
