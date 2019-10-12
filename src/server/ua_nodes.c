@@ -210,15 +210,16 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
                 drefs->refTargets[j].targetHash = srefs->refTargets[j].targetHash;
                 drefs->refTargets[j].zipfields.zip_right = NULL;
                 if(srefs->refTargets[j].zipfields.zip_right)
-                    *(uintptr_t*)&drefs->refTargets[j].zipfields.zip_left =
+                    *(uintptr_t*)&drefs->refTargets[j].zipfields.zip_right =
                         (uintptr_t)srefs->refTargets[j].zipfields.zip_right + arraydiff;
                 drefs->refTargets[j].zipfields.zip_left = NULL;
                 if(srefs->refTargets[j].zipfields.zip_left)
                     *(uintptr_t*)&drefs->refTargets[j].zipfields.zip_left =
                         (uintptr_t)srefs->refTargets[j].zipfields.zip_left + arraydiff;
+                drefs->refTargets[j].zipfields.rank = srefs->refTargets[j].zipfields.rank;
             }
-            srefs->refTargetsTree.zip_root = NULL;
-            if(drefs->refTargetsTree.zip_root)
+            drefs->refTargetsTree.zip_root = NULL;
+            if(srefs->refTargetsTree.zip_root)
                 *(uintptr_t*)&drefs->refTargetsTree.zip_root =
                     (uintptr_t)srefs->refTargetsTree.zip_root + arraydiff;
             drefs->refTargetsSize= srefs->refTargetsSize;
