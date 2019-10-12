@@ -81,8 +81,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     UA_MonitoredItem_unregisterSampleCallback(server, mon);
 
     /* Remove the old samples */
-    UA_ByteString_deleteMembers(&mon->lastSampledValue);
-    UA_Variant_deleteMembers(&mon->lastValue);
+    UA_ByteString_clear(&mon->lastSampledValue);
+    UA_Variant_clear(&mon->lastValue);
 
     /* ClientHandle */
     mon->clientHandle = params->clientHandle;
@@ -175,7 +175,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
        v.status != UA_STATUSCODE_BADNOTREADABLE &&
        v.status != UA_STATUSCODE_BADINDEXRANGENODATA) {
         result->statusCode = v.status;
-        UA_DataValue_deleteMembers(&v);
+        UA_DataValue_clear(&v);
         return;
     }
 
@@ -184,7 +184,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
        (!UA_String_equal(&binaryEncoding, &request->itemToMonitor.dataEncoding.name) ||
         request->itemToMonitor.dataEncoding.namespaceIndex != 0)) {
         result->statusCode = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
-        UA_DataValue_deleteMembers(&v);
+        UA_DataValue_clear(&v);
         return;
     }
 
@@ -192,7 +192,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     if(request->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE &&
        request->itemToMonitor.dataEncoding.name.length > 0) {
         result->statusCode = UA_STATUSCODE_BADDATAENCODINGINVALID;
-        UA_DataValue_deleteMembers(&v);
+        UA_DataValue_clear(&v);
         return;
     }
 
@@ -203,7 +203,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     UA_MonitoredItem *newMon = (UA_MonitoredItem*)UA_malloc(nmsize);
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_DataValue_deleteMembers(&v);
+        UA_DataValue_clear(&v);
         return;
     }
 
@@ -216,7 +216,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session, struct cre
     retval |= UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     retval |= setMonitoredItemSettings(server, newMon, request->monitoringMode,
                                        &request->requestedParameters, v.value.type);
-    UA_DataValue_deleteMembers(&v);
+    UA_DataValue_clear(&v);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "Subscription %u | Could not create a MonitoredItem "
@@ -356,7 +356,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     UA_StatusCode retval = setMonitoredItemSettings(server, mon, mon->monitoringMode,
                                                     &request->requestedParameters,
                                                     v.value.type);
-    UA_DataValue_deleteMembers(&v);
+    UA_DataValue_clear(&v);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = retval;
         return;
@@ -481,8 +481,8 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
         }
 
         /* Initialize lastSampledValue */
-        UA_ByteString_deleteMembers(&mon->lastSampledValue);
-        UA_Variant_deleteMembers(&mon->lastValue);
+        UA_ByteString_clear(&mon->lastSampledValue);
+        UA_Variant_clear(&mon->lastValue);
     }
 }
 

@@ -26,4 +26,3 @@ Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Open source implementation of OPC UA (OPC Unified Architecture) aka IEC 62541
  open62541 is an open source C (C99) implementation of the OPC UA standard
-

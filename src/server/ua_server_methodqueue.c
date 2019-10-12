@@ -106,7 +106,7 @@ UA_Server_CheckQueueIntegrity(UA_Server *server, void *data) {
                 UA_CallMethodResult_clear(result);
                 result->statusCode = UA_STATUSCODE_BADREQUESTTIMEOUT;
                 UA_Server_InsertMethodResponse(server, request_elem->m_nRequestId, &request_elem->m_nSessionId, request_elem->m_nIndex, result);
-                UA_CallMethodResult_deleteMembers(result);
+                UA_CallMethodResult_clear(result);
                 UA_Server_DeleteMethodQueueElement(server, request_elem);
             }
             else {
@@ -138,7 +138,7 @@ UA_Server_CheckQueueIntegrity(UA_Server *server, void *data) {
                 UA_CallMethodResult_clear(result);
                 result->statusCode = UA_STATUSCODE_BADREQUESTTIMEOUT;
                 UA_Server_InsertMethodResponse(server, request_elem->m_nRequestId, &request_elem->m_nSessionId, request_elem->m_nIndex, result);
-                UA_CallMethodResult_deleteMembers(result);
+                UA_CallMethodResult_clear(result);
                 UA_Server_DeleteMethodQueueElement(server, request_elem);
             }
             else {
@@ -221,8 +221,8 @@ UA_Server_GetAsyncMethodResult(UA_Server *server, struct AsyncMethodQueueElement
 /* Deep delete queue Element - only memory we did allocate */
 void
 UA_Server_DeleteMethodQueueElement(UA_Server *server, struct AsyncMethodQueueElement *pElem) {
-    UA_CallMethodRequest_deleteMembers(&pElem->m_Request);
-    UA_CallMethodResult_deleteMembers(&pElem->m_Response);
+    UA_CallMethodRequest_clear(&pElem->m_Request);
+    UA_CallMethodResult_clear(&pElem->m_Response);
     UA_free(pElem);
 }
 

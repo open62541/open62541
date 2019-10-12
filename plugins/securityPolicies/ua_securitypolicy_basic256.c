@@ -18,7 +18,6 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 
-
 #include <mbedtls/aes.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/entropy_poll.h>
@@ -527,7 +526,7 @@ channelContext_compareCertificate_sp_basic256(const Basic256_ChannelContext *cc,
 }
 
 static void
-deleteMembers_sp_basic256(UA_SecurityPolicy *securityPolicy) {
+clear_sp_basic256(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
@@ -599,7 +598,7 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic256(securityPolicy);
+        clear_sp_basic256(securityPolicy);
     return retval;
 }
 
@@ -683,7 +682,7 @@ error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic256(securityPolicy);
+        clear_sp_basic256(securityPolicy);
     return retval;
 }
 
@@ -819,7 +818,7 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
         channelContext_compareCertificate_sp_basic256;
 
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic256;
-    policy->deleteMembers = deleteMembers_sp_basic256;
+    policy->clear = clear_sp_basic256;
 
     return policyContext_newContext_sp_basic256(policy, localPrivateKey);
 }

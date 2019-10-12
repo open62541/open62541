@@ -419,7 +419,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
-        UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
+        UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
 #if UA_MULTITHREADING >= 200
         UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
         registeredServer_entry->delayedCleanup.callback = NULL; /* only free the structure */
@@ -452,7 +452,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         server->discoveryManager.registeredServersSize++;
 #endif
     } else {
-        UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
+        UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
     }
 
     // Always call the callback, if it is set.
@@ -547,7 +547,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                             current->registeredServer.serverUri.data);
             }
             LIST_REMOVE(current, pointers);
-            UA_RegisteredServer_deleteMembers(&current->registeredServer);
+            UA_RegisteredServer_clear(&current->registeredServer);
 #if UA_MULTITHREADING >= 200
             UA_atomic_subSize(&server->discoveryManager.registeredServersSize, 1);
             current->delayedCleanup.callback = NULL; /* Only free the structure */

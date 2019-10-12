@@ -165,11 +165,10 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     UA_Boolean executable = method->executable;
     if(session != &server->adminSession) {
         UA_UNLOCK(server->serviceMutex);
-        executable = executable &&
-                     server->config.accessControl.getUserExecutableOnObject(server,
-                                                                            &server->config.accessControl, &session->sessionId,
-                                                                            session->sessionHandle, &request->methodId, method->context,
-                                                                            &request->objectId, object->context);
+        executable = executable && server->config.accessControl.
+            getUserExecutableOnObject(server, &server->config.accessControl, &session->sessionId,
+                                      session->sessionHandle, &request->methodId, method->context,
+                                      &request->objectId, object->context);
         UA_LOCK(server->serviceMutex);
     }
 
@@ -259,7 +258,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
     /* Get the method node */
     const UA_MethodNode *method = (const UA_MethodNode*)
         UA_Nodestore_getNode(server->nsCtx, &request->methodId);
-    if (!method) {
+    if(!method) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
@@ -267,30 +266,33 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
     /* Get the object node */
     const UA_ObjectNode *object = (const UA_ObjectNode*)
         UA_Nodestore_getNode(server->nsCtx, &request->objectId);
-    if (!object) {
+    if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)method);
         return;
     }
 
-    if (method->async) {
+    if(method->async) {
         /* Async case */        
-        UA_StatusCode res = UA_Server_SetNextAsyncMethod(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, request);
-        if (res != UA_STATUSCODE_GOOD) {
+        UA_StatusCode res = UA_Server_SetNextAsyncMethod(server, pContext->nRequestId,
+                                                         &pContext->nSessionId, pContext->nIndex, request);
+        if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Operation_CallMethodAsync: Adding request to queue: FAILED");
             /* Set this Request as failed */
             UA_CallMethodResult_clear(result);
             result->statusCode = res;
-            UA_Server_InsertMethodResponse(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, result);
-            UA_CallMethodResult_deleteMembers(result);
+            UA_Server_InsertMethodResponse(server, pContext->nRequestId,
+                                           &pContext->nSessionId, pContext->nIndex, result);
+            UA_CallMethodResult_clear(result);
         }
     }
     else {
         /* Sync execution case, continue with method and object as context */
         callWithMethodAndObject(server, session, request, result, method, object);
-        UA_Server_InsertMethodResponse(server, pContext->nRequestId, &pContext->nSessionId, pContext->nIndex, result);
-        UA_CallMethodResult_deleteMembers(result);
+        UA_Server_InsertMethodResponse(server, pContext->nRequestId,
+                                       &pContext->nSessionId, pContext->nIndex, result);
+        UA_CallMethodResult_clear(result);
     }
 
     /* Release the method and object node */
@@ -298,11 +300,11 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
     UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)object);
 }
 
-void Service_CallAsync(UA_Server *server, UA_Session *session, UA_SecureChannel* channel, UA_UInt32 requestId,
-    const UA_CallRequest *request, UA_CallResponse *response) {
-
+void Service_CallAsync(UA_Server *server, UA_Session *session,
+                       UA_SecureChannel* channel, UA_UInt32 requestId,
+                       const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequestAsync");
-    if (server->config.maxNodesPerMethodCall != 0 &&
+    if(server->config.maxNodesPerMethodCall != 0 &&
         request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
@@ -314,7 +316,8 @@ void Service_CallAsync(UA_Server *server, UA_Session *session, UA_SecureChannel*
     context.pRequest = request;
     context.pChannel = (UA_SecureChannel*)channel;
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperationsAsync(server, session, (UA_ServiceOperation)Operation_CallMethodAsync, &context,
+        UA_Server_processServiceOperationsAsync(server, session,
+                                                (UA_ServiceOperation)Operation_CallMethodAsync, &context,
             &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
             &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
 }
@@ -351,8 +354,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                         "Processing CallRequest");
+    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequest");
     UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(server->config.maxNodesPerMethodCall != 0 &&

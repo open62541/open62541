@@ -32,6 +32,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src/server")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
 include_directories("${PROJECT_BINARY_DIR}")
+include_directories("${PROJECT_BINARY_DIR}/../plugins")
 
 if(UA_ENABLE_ENCRYPTION)
     # mbedtls includes
@@ -50,6 +51,7 @@ if (MSVC)
 else()
     set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
+
 
 # Use different plugins for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
@@ -317,10 +319,12 @@ if(UA_ENABLE_PUBSUB)
     #Link libraries for executing subscriber unit test
     add_executable(check_pubsub_subscribe pubsub/check_pubsub_subscribe.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_subscribe ${LIBS})
-    add_test_valgrind(check_pubsub_subscribe ${TESTS_BINARY_DIR}/check_pubsub_subscribe)
     add_executable(check_pubsub_publishspeed pubsub/check_pubsub_publishspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_publishspeed ${LIBS})
     add_test_valgrind(pubsub_publishspeed ${TESTS_BINARY_DIR}/check_pubsub_publish)
+    add_executable(check_pubsub_config_freeze pubsub/check_pubsub_config_freeze.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_config_freeze ${LIBS})
+    add_test_valgrind(check_pubsub_config_freeze ${TESTS_BINARY_DIR}/check_pubsub_config_freeze)
 
     add_executable(check_pubsub_multiple_layer pubsub/check_pubsub_multiple_layer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_multiple_layer ${LIBS})
@@ -335,6 +339,13 @@ if(UA_ENABLE_PUBSUB)
             target_link_libraries(check_pubsub_informationmodel_methods ${LIBS})
             add_test(check_pubsub_informationmodel_methods ${TESTS_BINARY_DIR}/check_pubsub_informationmodel_methods)
 
+        endif()
+    endif()
+    if(UA_ENABLE_PUBSUB_MQTT)
+        if(NOT WIN32)
+            add_executable(check_pubsub_connection_mqtt pubsub/check_pubsub_connection_mqtt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+            target_link_libraries(check_pubsub_connection_mqtt ${LIBS})
+            add_test_valgrind(pubsub_connection_mqtt ${TESTS_BINARY_DIR}/check_pubsub_connection_mqtt)
         endif()
     endif()
 endif()

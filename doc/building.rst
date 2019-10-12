@@ -8,17 +8,6 @@ detected using ``git describe``. This command returns a valid version string bas
 If you did not directly clone the sources, but use the tar or zip package from a release, you need
 to manually specify the version. In that case use e.g. ``cmake -DOPEN62541_VERSION=v1.0.3``.
 
-Building the Examples
----------------------
-
-Using the GCC compiler, the following calls build the examples on Linux.
-
-.. code-block:: bash
-
-   cp /path-to/open62541.* . # copy single-file distribution to the local directory
-   cp /path-to/examples/tutorial_server_variable.c . # copy the example server
-   gcc -std=c99 -DUA_ARCHITECTURE_POSIX open62541.c tutorial_server_variable.c -o server
-
 Building the Library
 --------------------
 
@@ -189,7 +178,7 @@ Detailed SDK Features
    Enable dynamic addition and removal of nodes at runtime
 
 **UA_ENABLE_AMALGAMATION**
-   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not receommended for installation.
+   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not recommended for installation.
 
 **UA_MULTITHREADING (EXPERIMENTAL)**
    Enable multi-threading support. This is a new feature and currently marked as EXPERIMENTAL.
@@ -298,3 +287,19 @@ The RAM requirements of a server are mostly due to the following settings:
 - The size of the information model
 - The number of connected clients
 - The configured maximum message size that is preallocated
+
+
+Building the Examples
+---------------------
+
+Make sure that you can build the shared library as explained in the previous steps. Even easier way
+to build the examples is to install open62541 in your operating system (see :ref:`installing`).
+
+Then the compiler should automatically find the includes and the shared library.
+
+.. code-block:: bash
+
+   cp /path-to/examples/tutorial_server_firststeps.c . # copy the example server
+   gcc -std=c99 -o server tutorial_server_firststeps.c -lopen62541
+
+.. include:: building_arch.rst

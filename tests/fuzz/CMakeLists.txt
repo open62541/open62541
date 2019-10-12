@@ -84,6 +84,7 @@ macro(add_fuzzer FUZZER_NAME FUZZER_SOURCE)
     add_executable(${FUZZER_NAME} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-fuzzplugins> ${FUZZER_SOURCE} ${ARGN})
     target_link_libraries(${FUZZER_NAME} ${LIBS})
     target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
+    target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/deps/mdnsd)
     assign_source_group(${FUZZER_SOURCE})
     list(APPEND FUZZER_TARGETS ${FUZZER_NAME})
 endmacro()
@@ -93,19 +94,31 @@ add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 
+# Add fuzzer for mdns dependency. It's currently not fuzzed separately.
+# See also: https://github.com/google/oss-fuzz/pull/2928
+add_fuzzer(fuzz_mdns_message ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message.cc)
+
+
 if(UA_ENABLE_JSON_ENCODING)
     add_fuzzer(fuzz_json_decode fuzz_json_decode.cc)
     add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
 endif()
 
+# Run fuzzer on existing corpus to avoid regression
 file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
-
 SET(CORPUS_CMDS "")
 FOREACH(f ${CORPUS_FILES})
     LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message "${f}")
+ENDFOREACH(f)
+
+
+file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message_corpus/*)
+FOREACH(f ${CORPUS_FILES})
+    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_mdns_message "${f}")
 ENDFOREACH(f)
 
 add_custom_target(run_fuzzer ${CORPUS_CMDS}
                   WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
                   DEPENDS ${FUZZER_TARGETS}
                   ${MAYBE_USES_TERMINAL})
+

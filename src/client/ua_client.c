@@ -64,14 +64,14 @@ UA_ClientConfig_deleteMembers(UA_ClientConfig *config) {
     UA_EndpointDescription_deleteMembers(&config->endpoint);
     UA_UserTokenPolicy_deleteMembers(&config->userTokenPolicy);
 
-    if(config->certificateVerification.deleteMembers)
-        config->certificateVerification.deleteMembers(&config->certificateVerification);
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
 
     /* Delete the SecurityPolicies */
     if(config->securityPolicies == 0)
         return;
     for(size_t i = 0; i < config->securityPoliciesSize; i++)
-        config->securityPolicies[i].deleteMembers(&config->securityPolicies[i]);
+        config->securityPolicies[i].clear(&config->securityPolicies[i]);
     UA_free(config->securityPolicies);
     config->securityPolicies = 0;
 }
@@ -84,7 +84,7 @@ UA_Client_deleteMembers(UA_Client *client) {
     //UA_SecureChannel_deleteMembersCleanup(&client->channel);
     if (client->connection.free)
         client->connection.free(&client->connection);
-    UA_Connection_deleteMembers(&client->connection);
+    UA_Connection_clear(&client->connection);
     UA_NodeId_deleteMembers(&client->authenticationToken);
     UA_String_deleteMembers(&client->endpointUrl);
 

@@ -25,7 +25,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     /* Networking */
     for(size_t i = 0; i < config->networkLayersSize; ++i)
-        config->networkLayers[i].deleteMembers(&config->networkLayers[i]);
+        config->networkLayers[i].clear(&config->networkLayers[i]);
     UA_free(config->networkLayers);
     config->networkLayers = NULL;
     config->networkLayersSize = 0;
@@ -34,7 +34,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &config->securityPolicies[i];
-        policy->deleteMembers(policy);
+        policy->clear(policy);
     }
     UA_free(config->securityPolicies);
     config->securityPolicies = NULL;
@@ -48,17 +48,17 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->endpointsSize = 0;
 
     /* Certificate Validation */
-    if(config->certificateVerification.deleteMembers)
-        config->certificateVerification.deleteMembers(&config->certificateVerification);
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
 
     /* Access Control */
-    if(config->accessControl.deleteMembers)
-        config->accessControl.deleteMembers(&config->accessControl);
+    if(config->accessControl.clear)
+        config->accessControl.clear(&config->accessControl);
 
     /* Historical data */
 #ifdef UA_ENABLE_HISTORIZING
-    if(config->historyDatabase.deleteMembers)
-        config->historyDatabase.deleteMembers(&config->historyDatabase);
+    if(config->historyDatabase.clear)
+        config->historyDatabase.clear(&config->historyDatabase);
 #endif
 
     /* Logger */

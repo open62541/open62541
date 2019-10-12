@@ -13,7 +13,8 @@
 UA_StatusCode
 UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
-    UA_assert(node->nodeClass == UA_NODECLASS_OBJECT);
+    if (node->nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ObjectNode *on = (UA_ObjectNode*)node;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
@@ -103,9 +104,9 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, newNodeId, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         deleteNode(server, newNodeId, true);
-        UA_NodeId_deleteMembers(&newNodeId);
+        UA_NodeId_clear(&newNodeId);
         UA_UNLOCK(server->serviceMutex);
         return retval;
     }
@@ -115,10 +116,10 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, (void*)(uintptr_t)&eventType, &UA_TYPES[UA_TYPES_NODEID]);
     retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
-        UA_NodeId_deleteMembers(&newNodeId);
+        UA_NodeId_clear(&newNodeId);
         UA_UNLOCK(server->serviceMutex);
         return retval;
     }
@@ -135,7 +136,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventType");
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return false;
     }
     
@@ -148,7 +149,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
             readWithReadValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &tOutVariant);
     if(retval != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return false;
     }
 
@@ -164,8 +165,8 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
        isNodeInTree(server->nsCtx, tEventType, &conditionTypeId, &hasSubtypeId, 1)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Alarms and Conditions are not supported yet!");
-        UA_BrowsePathResult_deleteMembers(&bpr);
-        UA_Variant_deleteMembers(&tOutVariant);
+        UA_BrowsePathResult_clear(&bpr);
+        UA_Variant_clear(&tOutVariant);
         return false;
     }
 
@@ -174,8 +175,8 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server->nsCtx, tEventType,
                                                    &baseEventTypeId, &hasSubtypeId, 1);
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
-    UA_Variant_deleteMembers(&tOutVariant);
+    UA_BrowsePathResult_clear(&bpr);
+    UA_Variant_clear(&tOutVariant);
     return isSubtypeOfBaseEvent;
 }
 
@@ -210,7 +211,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
         bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
     if(bpr.statusCode != UA_STATUSCODE_GOOD) {
         UA_StatusCode retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
 
@@ -221,7 +222,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
         *value = v.value;
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return v.status;
 }
 
@@ -242,7 +243,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
         UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!notification->fields.eventFields) {
         /* EventFilterResult currently isn't being used
-        UA_EventFiterResult_deleteMembers(&notification->result); */
+        UA_EventFiterResult_clear(&notification->result); */
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     notification->fields.eventFieldsSize = filter->selectClausesSize;
@@ -252,8 +253,8 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
     notification->result.selectClauseResults = (UA_StatusCode *)
         UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!notification->result->selectClauseResults) {
-        UA_EventFieldList_deleteMembers(&notification->fields);
-        UA_EventFilterResult_deleteMembers(&notification->result);
+        UA_EventFieldList_clear(&notification->fields);
+        UA_EventFilterResult_clear(&notification->result);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     */
@@ -290,15 +291,15 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *event, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalarCopy(&value, origin, &UA_TYPES[UA_TYPES_NODEID]);
     retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_Variant_deleteMembers(&value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_Variant_clear(&value);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -307,13 +308,13 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     bpr = browseSimplifiedBrowsePath(server, *event, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
     UA_DateTime rcvTime = UA_DateTime_now();
     UA_Variant_setScalar(&value, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
     retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -326,16 +327,16 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     bpr = browseSimplifiedBrowsePath(server, *event, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_ByteString_deleteMembers(&eventId);
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_ByteString_clear(&eventId);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
     retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&eventId);
+        UA_ByteString_clear(&eventId);
         return retval;
     }
 
@@ -343,7 +344,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     if(outEventId)
         *outEventId = eventId;
     else
-        UA_ByteString_deleteMembers(&eventId);
+        UA_ByteString_clear(&eventId);
 
     return UA_STATUSCODE_GOOD;
 }

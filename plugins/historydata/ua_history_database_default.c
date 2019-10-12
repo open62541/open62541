@@ -602,7 +602,7 @@ setValue_service_default(UA_Server *server,
 }
 
 static void
-deleteMembers_service_default(UA_HistoryDatabase *hdb)
+clear_service_default(UA_HistoryDatabase *hdb)
 {
     if (hdb == NULL || hdb->context == NULL)
         return;
@@ -624,6 +624,6 @@ UA_HistoryDatabase_default(UA_HistoryDataGathering gathering)
     hdb.setValue = &setValue_service_default;
     hdb.updateData = &updateData_service_default;
     hdb.deleteRawModified = &deleteRawModified_service_default;
-    hdb.deleteMembers = &deleteMembers_service_default;
+    hdb.clear = clear_service_default;
     return hdb;
 }

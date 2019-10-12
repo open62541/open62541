@@ -185,7 +185,7 @@ typedef struct {
 
 static void
 ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
-    UA_Connection_deleteMembers(connection);
+    UA_Connection_clear(connection);
     UA_free(connection);
 }
 
@@ -546,7 +546,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
                          UA_Logger *logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
+    nl.clear = ServerNetworkLayerTCP_deleteMembers;
     nl.localConnectionConfig = config;
     nl.start = ServerNetworkLayerTCP_start;
     nl.listen = ServerNetworkLayerTCP_listen;
