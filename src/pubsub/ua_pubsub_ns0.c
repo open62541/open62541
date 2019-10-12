@@ -448,7 +448,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     memcpy(dsrName, dataSetReader->config.name.data, dataSetReader->config.name.length);
     dsrName[dataSetReader->config.name.length] = NULL_TERMINATING_STRING;
     //This code block must use a lock
-    UA_Nodestore_removeNode(server->nsCtx, &dataSetReader->identifier);
+    UA_NODESTORE_REMOVE(server, &dataSetReader->identifier);
     retVal |= addPubSubObjectNode(server, dsrName, dataSetReader->identifier.identifier.numeric,
                                    dataSetReader->linkedReaderGroup.identifier.numeric,
                                    UA_NS0ID_HASDATASETREADER, UA_NS0ID_DATASETREADERTYPE);
@@ -976,7 +976,7 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup){
     memcpy(rgName, readerGroup->config.name.data, readerGroup->config.name.length);
     rgName[readerGroup->config.name.length] = NULL_TERMINATING_STRING;
     //This code block must use a lock
-    UA_Nodestore_removeNode(server->nsCtx, &readerGroup->identifier);
+    UA_NODESTORE_REMOVE(server, &readerGroup->identifier);
 
     /* Add object ReaderGroup under PubSubConnectionType object */
     retVal |= addPubSubObjectNode(server, rgName, readerGroup->identifier.identifier.numeric,
