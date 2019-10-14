@@ -210,6 +210,7 @@ static void clear_default(UA_AccessControl *ac) {
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);
         UA_free(ac->context);
+        ac->context = NULL;
     }
 }
 
