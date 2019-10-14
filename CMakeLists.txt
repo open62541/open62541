@@ -127,7 +127,6 @@ endforeach(arch_ ${architectures})
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_HISTORIZING "Enable server and client to provide historical access." OFF)
-option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features." OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
@@ -194,6 +193,9 @@ endif()
 # Advanced options
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
+
+option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features." OFF)
+mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 
 set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading")
 mark_as_advanced(UA_MULTITHREADING)
