@@ -47,7 +47,10 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4840, NULL);
+    if (UA_ServerConfig_setMinimal(config, 4840, NULL) != UA_STATUSCODE_GOOD) {
+        UA_Server_delete(server);
+        return 0;
+    }
 
     // Enable the mDNS announce and response functionality
     config->discovery.mdnsEnable = true;
@@ -89,12 +92,10 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         serv_addr.sin_port = htons(4840);
         serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-        if( connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        if( connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) >= 0)
         {
-            printf("\n Error : Connect Failed \n");
-            return 1;
+            write(sockfd, data, size);
         }
-        write(sockfd, data, size);
 
     }
     running = false;
