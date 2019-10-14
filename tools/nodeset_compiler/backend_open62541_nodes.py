@@ -305,6 +305,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             for subArrayIdx,val in enumerate(subv):
                 code.append(generateNodeValueCode(instanceNameSafe + "_" + memberName + "[" + str(subArrayIdx) + "]" +" = ",
                                                   val, instanceName,instanceName + "_gehtNed_member", global_var_code, asIndirect=False))
+            code.append(instanceName + accessor + memberName + "Size = {0};".format(len(subv)))
             code.append(instanceName + accessor + memberName + " = " + instanceNameSafe+"_"+ memberName+";")
             continue
 
