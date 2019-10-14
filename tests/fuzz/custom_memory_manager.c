@@ -125,7 +125,7 @@ static int removeFromMap(void *addr) {
         e = e->prev;
     }
     pthread_mutex_unlock(&mutex);
-    printf("MemoryManager: Entry with address %p not found", addr);
+    //printf("MemoryManager: Entry with address %p not found", addr);
     return 0;
 }
 
