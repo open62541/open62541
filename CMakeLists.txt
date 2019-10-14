@@ -325,6 +325,7 @@ mark_as_advanced(UA_ENABLE_HARDENING)
 
 if(CMAKE_VERSION VERSION_GREATER 3.6)
     set(UA_ENABLE_STATIC_ANALYZER "OFF" CACHE STRING "Enable installed static analyzer during build process (off/minimal/reduced/full)")
+    mark_as_advanced(UA_ENABLE_STATIC_ANALYZER)
     SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
 endif()
 
