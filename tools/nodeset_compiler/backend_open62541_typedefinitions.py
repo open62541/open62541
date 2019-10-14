@@ -67,28 +67,31 @@ class CGenerator(object):
         self.fc = None
         self.fe = None
 
-    def get_type_index(self, datatype):
-        if type(datatype) == BuiltinType:
+    @staticmethod
+    def get_type_index(datatype):
+        if isinstance(datatype,  BuiltinType):
             return makeCIdentifier("UA_TYPES_" + datatype.name.upper())
-        if type(datatype) == EnumerationType:
+        if isinstance(datatype, EnumerationType):
             return "UA_TYPES_INT32"
 
         if datatype.name is not None:
             return "UA_" + makeCIdentifier(datatype.outname.upper() + "_" + datatype.name.upper())
         return makeCIdentifier(datatype.outname.upper())
 
-    def get_type_kind(self, datatype):
-        if type(datatype) == BuiltinType:
+    @staticmethod
+    def get_type_kind(datatype):
+        if isinstance(datatype, BuiltinType):
             return "UA_DATATYPEKIND_" + datatype.name.upper()
-        if type(datatype) == EnumerationType:
+        if isinstance(datatype, EnumerationType):
             return "UA_DATATYPEKIND_ENUM"
-        if type(datatype) == OpaqueType:
+        if isinstance(datatype, OpaqueType):
             return "UA_DATATYPEKIND_" + datatype.base_type.upper()
-        if type(datatype) == StructType:
+        if isinstance(datatype, StructType):
             return "UA_DATATYPEKIND_STRUCTURE"
         raise RuntimeError("Unknown type")
 
-    def get_struct_overlayable(self, struct):
+    @staticmethod
+    def get_struct_overlayable(struct):
         if not struct.pointerfree == "false":
             return "false"
         before = None
@@ -105,11 +108,11 @@ class CGenerator(object):
         return overlayable
 
     def get_type_overlayable(self, datatype):
-        if type(datatype) == BuiltinType or type(datatype) == OpaqueType:
+        if isinstance(datatype, BuiltinType) or isinstance(datatype, OpaqueType):
             return builtin_overlayable[datatype.name] if datatype.name in builtin_overlayable else "false"
-        if type(datatype) == EnumerationType:
+        if isinstance(datatype, EnumerationType):
             return "UA_BINARY_OVERLAYABLE_INTEGER"
-        if type(datatype) == StructType:
+        if isinstance(datatype, StructType):
             return self.get_struct_overlayable(datatype)
         raise RuntimeError("Unknown datatype")
 
@@ -138,7 +141,8 @@ class CGenerator(object):
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
                "    %s_members" % idName + " /* .members */\n}"
 
-    def print_members(self, datatype):
+    @staticmethod
+    def print_members(datatype):
         idName = makeCIdentifier(datatype.name)
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
@@ -175,7 +179,8 @@ class CGenerator(object):
             before = member
         return members + "};"
 
-    def print_datatype_ptr(self, datatype):
+    @staticmethod
+    def print_datatype_ptr(datatype):
         return "&UA_" + datatype.outname.upper() + "[UA_" + makeCIdentifier(
             datatype.outname.upper() + "_" + datatype.name.upper()) + "]"
 
@@ -184,7 +189,7 @@ class CGenerator(object):
         funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
             idName, idName, idName)
         funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (
-            idName, idName, idName, self.print_datatype_ptr(datatype))
+            idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
         if datatype.pointerfree == "true":
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (
                 idName, idName, idName)
@@ -216,7 +221,8 @@ class CGenerator(object):
         return enc % tuple(
             list(itertools.chain(*itertools.repeat([idName, idName, self.print_datatype_ptr(datatype)], 3))))
 
-    def print_enum_typedef(self, enum):
+    @staticmethod
+    def print_enum_typedef(enum):
         if sys.version_info[0] < 3:
             values = enum.elements.iteritems()
         else:
@@ -228,7 +234,8 @@ class CGenerator(object):
                "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
                    makeCIdentifier(enum.name))
 
-    def print_struct_typedef(self, struct):
+    @staticmethod
+    def print_struct_typedef(struct):
         if len(struct.members) == 0:
             return "typedef void * UA_%s;" % makeCIdentifier(struct.name)
         returnstr = "typedef struct {\n"
@@ -242,13 +249,14 @@ class CGenerator(object):
                     makeCIdentifier(member.member_type.name), makeCIdentifier(member.name))
         return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
-    def print_datatype_typedef(self, datatype):
-        if type(datatype) == EnumerationType:
-            return self.print_enum_typedef(datatype)
-        if type(datatype) == OpaqueType:
+    @staticmethod
+    def print_datatype_typedef(datatype):
+        if isinstance(datatype, EnumerationType):
+            return CGenerator.print_enum_typedef(datatype)
+        if isinstance(datatype, OpaqueType):
             return "typedef UA_" + datatype.base_type + " UA_%s;" % datatype.name
-        if type(datatype) == StructType:
-            return self.print_struct_typedef(datatype)
+        if isinstance(datatype, StructType):
+            return CGenerator.print_struct_typedef(datatype)
         raise RuntimeError("Type does not have an associated typedef")
 
     def write_definitions(self):
@@ -290,7 +298,7 @@ class CGenerator(object):
         if len(self.parser.selected_types) > 0:
             l = list(filter(lambda t: t.name in self.parser.selected_types, l))
         if self.parser.no_builtin:
-            l = list(filter(lambda t: type(t) != BuiltinType, l))
+            l = list(filter(lambda t: not isinstance(t, BuiltinType), l))
         l = list(filter(lambda t: t.name not in self.parser.types_imported, l))
         return l
 
@@ -328,7 +336,7 @@ _UA_BEGIN_DECLS
                 self.printh(" */")
             else:
                 self.printh(" * " + t.description + " */")
-            if type(t) != BuiltinType:
+            if not isinstance(t, BuiltinType):
                 self.printh(self.print_datatype_typedef(t) + "\n")
             self.printh(
                 "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
@@ -381,7 +389,7 @@ _UA_END_DECLS
         for t in self.filtered_types:
             self.printc("")
             self.printc("/* " + t.name + " */")
-            self.printc(self.print_members(t))
+            self.printc(CGenerator.print_members(t))
 
         self.printc(
             "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
