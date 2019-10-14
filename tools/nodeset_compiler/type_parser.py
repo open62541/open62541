@@ -150,7 +150,8 @@ class TypeParser():
         self.namespace = namespace
         self.types = OrderedDict()
 
-    def merge_dicts(self, *dict_args):
+    @staticmethod
+    def merge_dicts(*dict_args):
         """
         Given any number of dicts, shallow copy and merge into a new dict,
         precedence goes to key value pairs in latter dicts.
