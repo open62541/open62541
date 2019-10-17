@@ -98,6 +98,7 @@ add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 # Add fuzzer for mdns dependency. It's currently not fuzzed separately.
 # See also: https://github.com/google/oss-fuzz/pull/2928
 add_fuzzer(fuzz_mdns_message ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message.cc)
+add_fuzzer(fuzz_mdns_xht ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_xht.cc)
 
 
 if(UA_ENABLE_JSON_ENCODING)
