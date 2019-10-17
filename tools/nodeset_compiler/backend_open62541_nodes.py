@@ -48,6 +48,7 @@ def generateReferenceCode(reference):
                  generateNodeIdCode(reference.referenceType),
                  generateExpandedNodeIdCode(reference.target),
                  forwardFlag))
+    code.append("if (retVal != UA_STATUSCODE_GOOD) return retVal;")
     return "\n".join(code)
 
 def generateReferenceTypeNodeCode(node):
@@ -525,6 +526,7 @@ def generateNodeCode_begin(node, nodeset, code_global):
         code.append(" UA_NODEID_NULL,")
     code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
             format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
+    code.append("if (retVal != UA_STATUSCODE_GOOD) return retVal;")
     code.extend(codeCleanup)
 
     return "\n".join(code)
