@@ -42,11 +42,9 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
 /* We use a 16-Byte ByteString as an identifier */
 static UA_StatusCode
 generateEventId(UA_ByteString *generatedId) {
-    generatedId->data = (UA_Byte *) UA_malloc(16 * sizeof(UA_Byte));
-    if(!generatedId->data)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    generatedId->length = 16;
-
+    UA_StatusCode res = UA_ByteString_allocBuffer(generatedId, 16 * sizeof(UA_Byte));
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     UA_UInt32 *ids = (UA_UInt32*)generatedId->data;
     ids[0] = UA_UInt32_random();
     ids[1] = UA_UInt32_random();
