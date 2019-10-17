@@ -13,6 +13,28 @@ static void stopHandler(int sig) {
     running = false;
 }
 
+static UA_StatusCode
+instantiateDog(UA_Server *server,
+               const UA_NodeId *sessionId, void *sessionHandle,
+               const UA_NodeId *methodId, void *methodContext,
+               const UA_NodeId *objectId, void *objectContext,
+               size_t inputSize, const UA_Variant *input,
+               size_t outputSize, UA_Variant *output) {
+    UA_String *inputStr = (UA_String*)input->data;
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "");
+    oAttr.displayName.text = *inputStr;
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "");
+    qn.name = *inputStr;
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            qn, UA_NODEID_NUMERIC(1, 10002),
+                            oAttr, NULL, NULL);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 int main(void) {
     signal(SIGINT,  stopHandler);
     signal(SIGTERM, stopHandler);
@@ -79,6 +101,25 @@ int main(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Bello"), UA_NODEID_NUMERIC(1, 10002),
                             oAttr, NULL, NULL);
+
+    /* Add a method to create dogs at runtime */
+    UA_Argument inputArgument;
+    UA_Argument_init(&inputArgument);
+    inputArgument.description = UA_LOCALIZEDTEXT("en-US", "Dog Name");
+    inputArgument.name = UA_STRING("DogName");
+    inputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    inputArgument.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_MethodAttributes createDogAttr = UA_MethodAttributes_default;
+    createDogAttr.displayName = UA_LOCALIZEDTEXT("en-US","Create Dog");
+    createDogAttr.executable = true;
+    createDogAttr.userExecutable = true;
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "CreateDog"),
+                            createDogAttr, instantiateDog,
+                            1, &inputArgument, 0, NULL, NULL, NULL);
 
     retval = UA_Server_run(server, &running);
 
