@@ -19,13 +19,6 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-#define UA_LOG_NODEID_WRAP(NODEID, LOG) {   \
-    UA_String nodeIdStr = UA_STRING_NULL;   \
-    UA_NodeId_toString(NODEID, &nodeIdStr); \
-    LOG;                                    \
-    UA_String_deleteMembers(&nodeIdStr);    \
-}
-
 /*********************/
 /* Edit Node Context */
 /*********************/
