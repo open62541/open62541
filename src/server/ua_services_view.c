@@ -123,6 +123,13 @@ RefTree_double(RefTree *rt) {
 
 static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target) {
+    /* Is the target already in the tree? */
+    RefEntry dummy;
+    dummy.target = target;
+    dummy.targetHash = UA_ExpandedNodeId_hash(target);
+    if(ZIP_FIND(RefHead, &rt->head, &dummy))
+        return UA_STATUSCODE_GOOD;
+
     UA_StatusCode s = UA_STATUSCODE_GOOD;
     if(rt->capacity <= rt->size) {
         s = RefTree_double(rt);
@@ -136,7 +143,7 @@ RefTree_add(RefTree *rt, const UA_ExpandedNodeId *target) {
                                (sizeof(UA_ExpandedNodeId) * rt->capacity) +
                                (sizeof(RefEntry) * rt->size));
     re->target = &rt->targets[rt->size];
-    re->targetHash = UA_ExpandedNodeId_hash(target);
+    re->targetHash = dummy.targetHash;
     ZIP_INSERT(RefHead, &rt->head, re, ZIP_FFS32(UA_UInt32_random()));
     rt->size++;
     return UA_STATUSCODE_GOOD;
