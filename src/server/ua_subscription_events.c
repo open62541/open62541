@@ -143,8 +143,8 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     UA_Variant_init(&tOutVariant);
 
     /* Read the Value of EventType Property Node (the Value should be a NodeId) */
-    UA_StatusCode retval =
-            readWithReadValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &tOutVariant);
+    UA_StatusCode retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId,
+                                             UA_ATTRIBUTEID_VALUE, &tOutVariant);
     if(retval != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
         UA_BrowsePathResult_clear(&bpr);
@@ -203,8 +203,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 
     /* Resolve the browse path */
     UA_BrowsePathResult bpr =
-        browseSimplifiedBrowsePath(server, *origin, sao->browsePathSize,
-                                             sao->browsePath);
+        browseSimplifiedBrowsePath(server, *origin, sao->browsePathSize, sao->browsePath);
     if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
         bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
     if(bpr.statusCode != UA_STATUSCODE_GOOD) {
@@ -295,7 +294,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalarCopy(&value, origin, &UA_TYPES[UA_TYPES_NODEID]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
+                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
     UA_Variant_clear(&value);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
@@ -311,7 +311,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     }
     UA_DateTime rcvTime = UA_DateTime_now();
     UA_Variant_setScalar(&value, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
+                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -331,7 +332,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     }
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
+                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&eventId);
@@ -361,9 +363,9 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     UA_Session *session = sub->session;
 
     /* Apply the filter */
-    UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
-                                                 &mon->filter.eventFilter,
-                                                 &notification->data.event);
+    UA_StatusCode retval =
+        UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
+                              &notification->data.event);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(notification);
         return retval;
