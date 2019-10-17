@@ -41,16 +41,14 @@ def generateNodeValueInstanceName(node, parent, arrayIndex):
     return generateNodeIdPrintable(parent) + "_" + str(node.alias) + "_" + str(arrayIndex)
 
 def generateReferenceCode(reference):
-    if reference.isForward:
-        return "retVal |= UA_Server_addReference(server, %s, %s, %s, true);" % \
-               (generateNodeIdCode(reference.source),
-                generateNodeIdCode(reference.referenceType),
-                generateExpandedNodeIdCode(reference.target))
-    else:
-        return "retVal |= UA_Server_addReference(server, %s, %s, %s, false);" % \
-               (generateNodeIdCode(reference.source),
-                generateNodeIdCode(reference.referenceType),
-                generateExpandedNodeIdCode(reference.target))
+    code = []
+    forwardFlag = "true" if reference.isForward else "false"
+    code.append("retVal |= UA_Server_addReference(server, %s, %s, %s, %s);" %
+                (generateNodeIdCode(reference.source),
+                 generateNodeIdCode(reference.referenceType),
+                 generateExpandedNodeIdCode(reference.target),
+                 forwardFlag))
+    return "\n".join(code)
 
 def generateReferenceTypeNodeCode(node):
     code = []
