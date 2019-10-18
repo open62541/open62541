@@ -5,6 +5,13 @@ Build-Depends: debhelper (>= 9),
  cmake (>= 2.8),
  graphviz,
  python (>= 2.7),
+ python-sphinx,
+ python-sphinx-rtd-theme | base-files (<= 7.2ubuntu5.6~),
+ graphviz,
+ texlive-fonts-recommended,
+ texlive-latex-extra,
+ texlive-generic-extra,
+ latexmk
 Standards-Version: 4.4.1
 Section: libs
 Homepage: https://open62541.org/
@@ -54,3 +61,19 @@ Description: Open source implementation of OPC UA - shared library
  OPC UA-based communication into existing applications.
  .
  This package provides the open62541 shared library
+
+Package: open62541-doc
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Depends: ${misc:Depends}, ${sphinxdoc:Depends}
+Description: Open source implementation of OPC UA - documentation
+ open62541 (http://open62541.org) is an open source and free implementation
+ of OPC UA (OPC Unified Architecture) written in the common subset of the
+ C99 and C++98 languages.
+ The library is usable with all major compilers and provides the necessary
+ tools to implement dedicated OPC UA clients and servers, or to integrate
+ OPC UA-based communication into existing applications.
+ .
+ This package provides the open62541 documentation as PDF and HTML
+ and example applications
