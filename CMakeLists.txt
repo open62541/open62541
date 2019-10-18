@@ -1218,6 +1218,19 @@ install(DIRECTORY ${UA_install_tools_dirs}
 
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
+if (UA_PACK_DEBIAN)    
+    set(UA_install_examples_dirs "examples/"
+        "examples/access_control"
+        "examples/custom_datatype"
+        "examples/discovery"
+        "examples/encryption"
+        "examples/nodeset"
+        "examples/pubsub")
+
+    set(open62541_install_examples_dir share/open62541/examples)
+    install(DIRECTORY ${UA_install_examples_dirs} COMPONENT examples DESTINATION ${open62541_install_examples_dir} USE_SOURCE_PERMISSIONS)
+endif()
+
 if(NOT UA_ENABLE_AMALGAMATION)
     # Recreate the include folder structure from the source also in /usr/lib/include/open62541
 
