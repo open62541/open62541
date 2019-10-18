@@ -23,6 +23,14 @@ _UA_BEGIN_DECLS
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
 
+/* Print a NodeId in logs */
+#define UA_LOG_NODEID_WRAP(NODEID, LOG) {   \
+    UA_String nodeIdStr = UA_STRING_NULL;   \
+    UA_NodeId_toString(NODEID, &nodeIdStr); \
+    LOG;                                    \
+    UA_String_clear(&nodeIdStr);            \
+}
+
 /* Integer Shortnames
  * ------------------
  * These are not exposed on the public API, since many user-applications make

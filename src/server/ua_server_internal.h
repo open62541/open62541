@@ -201,8 +201,8 @@ isNodeInTree(void *nsCtx, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-/* Returns an array with the hierarchy of nodes. The start nodes are returned as
- * well. The returned array starts at the leaf and continues "upwards" or
+/* Returns an array with the hierarchy of nodes. The start nodes can be returned
+ * as well. The returned array starts at the leaf and continues "upwards" or
  * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
  * indicates the direction of search. */
 UA_StatusCode
