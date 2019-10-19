@@ -185,11 +185,11 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     server->pubSubManager.publishedDataSets = newPubSubDataSetField;
     UA_PublishedDataSet *newPubSubDataSet = &server->pubSubManager.publishedDataSets[(server->pubSubManager.publishedDataSetsSize)];
     memset(newPubSubDataSet, 0, sizeof(UA_PublishedDataSet));
-    LIST_INIT(&newPubSubDataSet->fields);
+    TAILQ_INIT(&newPubSubDataSet->fields);
     //workaround - fixing issue with queue.h and realloc.
     for(size_t n = 0; n < server->pubSubManager.publishedDataSetsSize; n++){
-        if(server->pubSubManager.publishedDataSets[n].fields.lh_first){
-            server->pubSubManager.publishedDataSets[n].fields.lh_first->listEntry.le_prev = &server->pubSubManager.publishedDataSets[n].fields.lh_first;
+        if(server->pubSubManager.publishedDataSets[n].fields.tqh_first){
+            server->pubSubManager.publishedDataSets[n].fields.tqh_first->listEntry.tqe_prev = &server->pubSubManager.publishedDataSets[n].fields.tqh_first;
         }
     }
     newPubSubDataSet->config = tmpPublishedDataSetConfig;
@@ -267,8 +267,8 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
         }
         //workaround - fixing issue with queue.h and realloc.
         for(size_t n = 0; n < server->pubSubManager.publishedDataSetsSize; n++){
-            if(server->pubSubManager.publishedDataSets[n].fields.lh_first){
-                server->pubSubManager.publishedDataSets[n].fields.lh_first->listEntry.le_prev = &server->pubSubManager.publishedDataSets[n].fields.lh_first;
+            if(server->pubSubManager.publishedDataSets[n].fields.tqh_first){
+                server->pubSubManager.publishedDataSets[n].fields.tqh_first->listEntry.tqe_prev = &server->pubSubManager.publishedDataSets[n].fields.tqh_first;
             }
         }
     }

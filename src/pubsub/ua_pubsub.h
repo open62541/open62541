@@ -36,7 +36,7 @@ typedef struct UA_ReaderGroup UA_ReaderGroup;
 typedef struct{
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
-    LIST_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
+    TAILQ_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
     UA_NodeId identifier;
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
@@ -176,7 +176,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Writer
 typedef struct UA_DataSetField{
     UA_DataSetFieldConfig config;
     //internal fields
-    LIST_ENTRY(UA_DataSetField) listEntry;
+    TAILQ_ENTRY(UA_DataSetField) listEntry;
     UA_NodeId identifier;
     UA_NodeId publishedDataSet;             //ref to parent pds
     UA_FieldMetaData fieldMetaData;
