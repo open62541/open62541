@@ -26,7 +26,7 @@ struct ref_history {
 };
 
 static UA_Boolean
-isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
                        struct ref_history *visitedRefs, const UA_NodeId *referenceTypeIds,
                        size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
@@ -35,7 +35,7 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
     if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
         return false;
 
-    const UA_Node *node = UA_Nodestore_getNode(nsCtx, leafNode);
+    const UA_Node *node = UA_NODESTORE_GET(server, leafNode);
     if(!node)
         return false;
 
@@ -80,24 +80,24 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
 
             /* Recurse */
             UA_Boolean foundRecursive =
-                isNodeInTreeNoCircular(nsCtx, &refs->refTargets[j].target.nodeId, nodeToFind,
+                isNodeInTreeNoCircular(server, &refs->refTargets[j].target.nodeId, nodeToFind,
                                        &nextVisitedRefs, referenceTypeIds, referenceTypeIdsSize);
             if(foundRecursive) {
-                UA_Nodestore_releaseNode(nsCtx, node);
+                UA_NODESTORE_RELEASE(server, node);
                 return true;
             }
         }
     }
 
-    UA_Nodestore_releaseNode(nsCtx, node);
+    UA_NODESTORE_RELEASE(server, node);
     return false;
 }
 
 UA_Boolean
-isNodeInTree(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+isNodeInTree(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
     struct ref_history visitedRefs = {NULL, leafNode, 0};
-    return isNodeInTreeNoCircular(nsCtx, leafNode, nodeToFind, &visitedRefs,
+    return isNodeInTreeNoCircular(server, leafNode, nodeToFind, &visitedRefs,
                                   referenceTypeIds, referenceTypeIdsSize);
 }
 
@@ -138,12 +138,12 @@ getNodeType(UA_Server *server, const UA_Node *node) {
             continue;
         UA_assert(node->references[i].refTargetsSize> 0);
         const UA_NodeId *targetId = &node->references[i].refTargets[0].target.nodeId;
-        const UA_Node *type = UA_Nodestore_getNode(server->nsCtx, targetId);
+        const UA_Node *type = UA_NODESTORE_GET(server, targetId);
         if(!type)
             continue;
         if(type->nodeClass == typeNodeClass)
             return type;
-        UA_Nodestore_releaseNode(server->nsCtx, type);
+        UA_NODESTORE_RELEASE(server, type);
     }
 
     return NULL;
@@ -235,30 +235,30 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
                    void *data) {
 #ifndef UA_ENABLE_IMMUTABLE_NODES
     /* Get the node and process it in-situ */
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, nodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     UA_StatusCode retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
-    UA_Nodestore_releaseNode(server->nsCtx, node);
+    UA_NODESTORE_RELEASE(server, node);
     return retval;
 #else
     UA_StatusCode retval;
     do {
         /* Get an editable copy of the node */
         UA_Node *node;
-        retval = UA_Nodestore_getNodeCopy(server->nsCtx, nodeId, &node);
+        retval = UA_NODESTORE_GETCOPY(server, nodeId, &node);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
         /* Run the operation on the copy */
         retval = callback(server, session, node, data);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Nodestore_deleteNode(server->nsCtx, node);
+            UA_NODESTORE_DELETE(server, node);
             return retval;
         }
 
         /* Replace the node */
-        retval = UA_Nodestore_replaceNode(server->nsCtx, node);
+        retval = UA_NODESTORE_REPLACE(server, node);
     } while(retval != UA_STATUSCODE_GOOD);
     return retval;
 #endif

@@ -15,7 +15,7 @@
 #include "ua_types_encoding_binary.h"
 
 /* There is no UA_Node_new() method here. Creating nodes is part of the
- * NodeStore layer */
+ * Nodestore layer */
 
 static enum ZIP_CMP
 cmpRefTarget(const void *a, const void *b) {

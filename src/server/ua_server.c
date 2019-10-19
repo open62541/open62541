@@ -124,7 +124,7 @@ UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
     UA_LOCK(server->serviceMutex);
-    const UA_Node *parent = UA_Nodestore_getNode(server->nsCtx, &parentNodeId);
+    const UA_Node *parent = UA_NODESTORE_GET(server, &parentNodeId);
     if(!parent) {
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -139,7 +139,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
      * */
     UA_Node *parentCopy = UA_Node_copy_alloc(parent);
     if(!parentCopy) {
-        UA_Nodestore_releaseNode(server->nsCtx, parent);
+        UA_NODESTORE_RELEASE(server, parent);
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
@@ -161,7 +161,7 @@ cleanup:
     UA_Node_clear(parentCopy);
     UA_free(parentCopy);
 
-    UA_Nodestore_releaseNode(server->nsCtx, parent);
+    UA_NODESTORE_RELEASE(server, parent);
     UA_UNLOCK(server->serviceMutex);
     return retval;
 }
@@ -214,9 +214,6 @@ void UA_Server_delete(UA_Server *server) {
     /* Delete the timed work */
     UA_Timer_deleteMembers(&server->timer);
 
-    /* Clean up the nodestore */
-    UA_Nodestore_delete(server->nsCtx);
-
     /* Clean up the config */
     UA_ServerConfig_clean(&server->config);
 
@@ -248,6 +245,14 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 
 static UA_Server *
 UA_Server_init(UA_Server *server) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    if(!server->config.nodestore.getNode) {
+        UA_LOG_FATAL(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "No Nodestore configured in the server");
+        goto cleanup;
+    }
+
     /* Init start time to zero, the actual start time will be sampled in
      * UA_Server_run_startup() */
     server->startTime = 0;
@@ -301,12 +306,8 @@ UA_Server_init(UA_Server *server) {
                                   10000.0, NULL);
 
     /* Initialize namespace 0*/
-    UA_StatusCode retVal = UA_Nodestore_new(&server->nsCtx);
-    if(retVal != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    retVal = UA_Server_initNS0(server);
-    if(retVal != UA_STATUSCODE_GOOD)
+    res = UA_Server_initNS0(server);
+    if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     /* Build PubSub information model */

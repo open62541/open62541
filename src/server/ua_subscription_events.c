@@ -68,7 +68,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     /* Make sure the eventType is a subtype of BaseEventType */
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if(!isNodeInTree(server->nsCtx, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree(server, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
         UA_UNLOCK(server->serviceMutex);
@@ -160,7 +160,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) ||
-       isNodeInTree(server->nsCtx, tEventType, &conditionTypeId, &hasSubtypeId, 1)) {
+       isNodeInTree(server, tEventType, &conditionTypeId, &hasSubtypeId, 1)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Alarms and Conditions are not supported yet!");
         UA_BrowsePathResult_clear(&bpr);
@@ -170,7 +170,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
 
     /* check whether Valid Event other than Conditions */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server->nsCtx, tEventType,
+    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server, tEventType,
                                                    &baseEventTypeId, &hasSubtypeId, 1);
 
     UA_BrowsePathResult_clear(&bpr);
@@ -406,17 +406,17 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 #endif
 
     /* Check that the origin node exists */
-    const UA_Node *originNode = UA_Nodestore_getNode(server->nsCtx, &origin);
+    const UA_Node *originNode = UA_NODESTORE_GET(server, &origin);
     if(!originNode) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Origin node for event does not exist.");
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    UA_Nodestore_releaseNode(server->nsCtx, originNode);
+    UA_NODESTORE_RELEASE(server, originNode);
 
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    if(!isNodeInTree(server->nsCtx, &origin, &objectsFolderId,
+    if(!isNodeInTree(server, &origin, &objectsFolderId,
                      emitReferencesRoots, 2)) { /* Only use Organizes and
                                                  * HasComponent to check if we
                                                  * are below the ObjectsFolder */
@@ -492,11 +492,11 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     /* Add the event to the listening MonitoredItems at each relevant node */
     for(size_t i = 0; i < emitNodesSize; i++) {
         const UA_ObjectNode *node = (const UA_ObjectNode*)
-            UA_Nodestore_getNode(server->nsCtx, &emitNodes[i].nodeId);
+            UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
         if(!node)
             continue;
         if(node->nodeClass != UA_NODECLASS_OBJECT) {
-            UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)node);
+            UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
             continue;
         }
         for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
@@ -508,7 +508,7 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                 retval = UA_STATUSCODE_GOOD; /* Only log problems with individual emit nodes */
             }
         }
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)node);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
     }
 
     /* Delete the node representation of the event */

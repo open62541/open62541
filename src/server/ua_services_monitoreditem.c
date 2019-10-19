@@ -92,12 +92,12 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 
     if(mon->attributeId == UA_ATTRIBUTEID_VALUE) {
         const UA_VariableNode *vn = (const UA_VariableNode *)
-            UA_Nodestore_getNode(server->nsCtx, &mon->monitoredNodeId);
+            UA_NODESTORE_GET(server, &mon->monitoredNodeId);
         if(vn) {
             if(vn->nodeClass == UA_NODECLASS_VARIABLE &&
                samplingInterval < vn->minimumSamplingInterval)
                 samplingInterval = vn->minimumSamplingInterval;
-            UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node *)vn);
+            UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
         }
     }
 

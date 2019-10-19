@@ -152,7 +152,7 @@ static void setup(void) {
 
 static UA_VariableNode* makeCompareSequence(void) {
     UA_VariableNode *node = (UA_VariableNode*)
-        UA_Nodestore_newNode(server->nsCtx, UA_NODECLASS_VARIABLE);
+        UA_NODESTORE_NEW(server, UA_NODECLASS_VARIABLE);
 
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -287,7 +287,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     ck_assert(UA_String_equal(&comp.text, &respval->text));
     ck_assert(UA_String_equal(&compNode->displayName.locale, &respval->locale));
     UA_DataValue_deleteMembers(&resp);
-    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
+    UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
@@ -305,7 +305,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     ck_assert(UA_String_equal(&compNode->description.locale, &respval->locale));
     ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
     UA_DataValue_deleteMembers(&resp);
-    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
+    UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp) {
@@ -505,7 +505,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     ck_assert(&UA_TYPES[UA_TYPES_DOUBLE] == resp.value.type);
     ck_assert(*respval == comp);
     UA_DataValue_deleteMembers(&resp);
-    UA_Nodestore_deleteNode(server->nsCtx, (UA_Node*)compNode);
+    UA_NODESTORE_DELETE(server, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {

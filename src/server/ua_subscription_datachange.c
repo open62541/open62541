@@ -344,7 +344,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     UA_assert(monitoredItem->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &monitoredItem->monitoredNodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, &monitoredItem->monitoredNodeId);
 
     /* Sample the value. The sample can still point into the node. */
     UA_DataValue value;
@@ -375,7 +375,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if(!movedValue)
         UA_DataValue_clear(&value); /* Does nothing for UA_VARIANT_DATA_NODELETE */
     if(node)
-        UA_Nodestore_releaseNode(server->nsCtx, node);
+        UA_NODESTORE_RELEASE(server, node);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
