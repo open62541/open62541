@@ -93,7 +93,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
     UA_DataSetField *dsf;
-    LIST_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
+    TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
         ck_assert(dsf->config.configurationFrozen == UA_TRUE);
     }
     //set state to disabled and implicit unlock the configuration
@@ -157,7 +157,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
         ck_assert(publishedDataSet->config.configurationFrozen == UA_TRUE);
         UA_DataSetField *dsf;
-        LIST_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
+        TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
             ck_assert(dsf->config.configurationFrozen == UA_TRUE);
         }
         //set state to disabled and implicit unlock the configuration

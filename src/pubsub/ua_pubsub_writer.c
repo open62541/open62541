@@ -243,7 +243,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         publishedDataSet->config.configurationFrozen = UA_TRUE;
         //DataSetFields freeze
         UA_DataSetField *dataSetField;
-        LIST_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
+        TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
             dataSetField->config.configurationFrozen = UA_TRUE;
         }
     }
@@ -280,7 +280,7 @@ UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId wr
         if(publishedDataSet->configurationFreezeCounter == 0){
             publishedDataSet->config.configurationFrozen = UA_FALSE;
             UA_DataSetField *dataSetField;
-            LIST_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
+            TAILQ_FOREACH(dataSetField, &publishedDataSet->fields, listEntry){
                 dataSetField->config.configurationFrozen = UA_FALSE;
             }
         }
@@ -393,7 +393,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     //delete PDS
     UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
     UA_DataSetField *field, *tmpField;
-    LIST_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
+    TAILQ_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
         UA_Server_removeDataSetField(server, field->identifier);
     }
     UA_NodeId_clear(&publishedDataSet->identifier);
@@ -442,7 +442,13 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
     newField->publishedDataSet = currentDataSet->identifier;
     //update major version of parent published data set
     currentDataSet->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-    LIST_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
+    /* The order of DataSetFields should be the same in both creating and publishing.
+     * So adding DataSetFields at the the end of the DataSets using TAILQ structure */
+    if (currentDataSet->fieldSize != 0)
+        TAILQ_INSERT_TAIL(&currentDataSet->fields, newField, listEntry);
+    else
+        TAILQ_INSERT_HEAD(&currentDataSet->fields, newField, listEntry);
+
     if(newField->config.field.variable.promotedField)
         currentDataSet->promotedFieldsCount++;
     currentDataSet->fieldSize++;
@@ -486,7 +492,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         UA_PubSubConfigurationVersionTimeDifference();
 
     UA_DataSetField_clear(currentField);
-    LIST_REMOVE(currentField, listEntry);
+    TAILQ_REMOVE(&parentPublishedDataSet->fields, currentField, listEntry);
     UA_free(currentField);
 
     result.result = UA_STATUSCODE_GOOD;
@@ -1006,7 +1012,7 @@ UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier) {
     for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; i++){
         UA_DataSetField *tmpField;
-        LIST_FOREACH(tmpField, &server->pubSubManager.publishedDataSets[i].fields, listEntry){
+        TAILQ_FOREACH(tmpField, &server->pubSubManager.publishedDataSets[i].fields, listEntry){
             if(UA_NodeId_equal(&tmpField->identifier, &identifier)){
                 return tmpField;
             }
@@ -1134,7 +1140,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server, UA_DataSetMess
     /* Loop over the fields */
     size_t counter = 0;
     UA_DataSetField *dsf;
-    LIST_FOREACH(dsf, &currentDataSet->fields, listEntry) {
+    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
 
 #ifdef UA_ENABLE_JSON_ENCODING
         /* json: store the fieldNameAlias*/
@@ -1196,7 +1202,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 
     UA_DataSetField *dsf;
     size_t counter = 0;
-    LIST_FOREACH(dsf, &currentDataSet->fields, listEntry) {
+    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry) {
         /* Sample the value */
         UA_DataValue value;
         UA_DataValue_init(&value);
