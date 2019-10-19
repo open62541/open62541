@@ -118,7 +118,7 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                                        session->sessionHandle, &vn->nodeId,
                                        vn->context, rangeptr, &vn->value.data.value);
         UA_LOCK(server->serviceMutex);
-        vn = (const UA_VariableNode*)UA_Nodestore_getNode(server->nsCtx, &vn->nodeId);
+        vn = (const UA_VariableNode*)UA_NODESTORE_GET(server, &vn->nodeId);
         if(!vn)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
@@ -130,7 +130,7 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
 
     /* Clean up */
     if(vn->value.data.callback.onRead)
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node *)vn);
+        UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
     return retval;
 }
 
@@ -468,12 +468,12 @@ static void
 Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
                UA_ReadValueId *rvi, UA_DataValue *result) {
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &rvi->nodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, &rvi->nodeId);
 
     /* Perform the read operation */
     if(node) {
         ReadWithNode(node, server, session, request->timestampsToReturn, rvi, result);
-        UA_Nodestore_releaseNode(server->nsCtx, node);
+        UA_NODESTORE_RELEASE(server, node);
     } else {
         result->hasStatus = true;
         result->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -522,7 +522,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     UA_DataValue_init(&dv);
 
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &item->nodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, &item->nodeId);
     if(!node) {
         dv.hasStatus = true;
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -533,7 +533,7 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
     ReadWithNode(node, server, session, timestampsToReturn, item, &dv);
 
     /* Release the node and return */
-    UA_Nodestore_releaseNode(server->nsCtx, node);
+    UA_NODESTORE_RELEASE(server, node);
     return dv;
 }
 
@@ -668,12 +668,12 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         return true;
 
     /* Is the value-type a subtype of the required type? */
-    if(isNodeInTree(server->nsCtx, dataType, constraintDataType, &subtypeId, 1))
+    if(isNodeInTree(server, dataType, constraintDataType, &subtypeId, 1))
         return true;
 
     /* Enum allows Int32 (only) */
     if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
-       isNodeInTree(server->nsCtx, constraintDataType, &enumNodeId, &subtypeId, 1))
+       isNodeInTree(server, constraintDataType, &enumNodeId, &subtypeId, 1))
         return true;
 
     /* More checks for the data type of real values (variants) */
@@ -685,7 +685,7 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         if(dataType->namespaceIndex == 0 &&
            dataType->identifierType == UA_NODEIDTYPE_NUMERIC &&
            dataType->identifier.numeric <= 25 &&
-           isNodeInTree(server->nsCtx, constraintDataType,
+           isNodeInTree(server, constraintDataType,
                         dataType, &subtypeId, 1))
             return true;
     }
@@ -1389,7 +1389,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         GET_NODETYPE
         retval = writeDataTypeAttribute(server, session, (UA_VariableNode*)node,
                                         type, (const UA_NodeId*)value);
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)type);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -1398,7 +1398,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         GET_NODETYPE
         retval = writeValueRankAttribute(server, session, (UA_VariableNode*)node,
                                          type, *(const UA_Int32*)value);
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)type);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -1408,7 +1408,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         retval = writeArrayDimensionsAttribute(server, session, (UA_VariableNode*)node,
                                                type, wvalue->value.value.arrayLength,
                                                (UA_UInt32 *)wvalue->value.value.data);
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)type);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)type);
         break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);

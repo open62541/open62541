@@ -17,6 +17,7 @@
 #include <open62541/network_ws.h>
 #endif
 #include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
@@ -42,6 +43,7 @@ UA_Server_new() {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     config.logger = UA_Log_Stdout_;
+    UA_Nodestore_ZipTree(&config.nodestore);
     return UA_Server_newWithConfig(&config);
 }
 
@@ -110,10 +112,6 @@ static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf) {
     if (!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    /* Zero out.. All members have a valid initial value */
-    UA_ServerConfig_clean(conf);
-    memset(conf, 0, sizeof(UA_ServerConfig));
 
     /* --> Start setting the default static config <-- */
     conf->nThreads = 1;

@@ -165,7 +165,7 @@ static UA_StatusCode
 addRelevantReferences(UA_Server *server, RefTree *rt, const UA_NodeId *nodeId,
                       size_t refTypesSize, const UA_NodeId *refTypes,
                       UA_BrowseDirection browseDirection) {
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, nodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -191,7 +191,7 @@ addRelevantReferences(UA_Server *server, RefTree *rt, const UA_NodeId *nodeId,
     }
 
  cleanup:
-    UA_Nodestore_releaseNode(server->nsCtx, node);
+    UA_NODESTORE_RELEASE(server, node);
     return retval;
 }
 
@@ -432,7 +432,7 @@ addReferenceDescription(UA_Server *server, RefResult *rr, const UA_NodeReference
             const UA_Node *type = getNodeType(server, curr);
             if(type) {
                 retval |= UA_NodeId_copy(&type->nodeId, &descr->typeDefinition.nodeId);
-                UA_Nodestore_releaseNode(server->nsCtx, type);
+                UA_NODESTORE_RELEASE(server, type);
             }
         }
     }
@@ -486,13 +486,13 @@ browseReferences(UA_Server *server, const UA_Node *node,
             /* Get the node if it is not a remote reference */
             if(rk->refTargets[targetIndex].target.serverIndex == 0 &&
                rk->refTargets[targetIndex].target.namespaceUri.data == NULL) {
-                target = UA_Nodestore_getNode(server->nsCtx,
-                                              &rk->refTargets[targetIndex].target.nodeId);
+                target = UA_NODESTORE_GET(server,
+                                          &rk->refTargets[targetIndex].target.nodeId);
 
                 /* Test if the node class matches */
                 if(target && !matchClassMask(target, bd->nodeClassMask)) {
                     if(target)
-                        UA_Nodestore_releaseNode(server->nsCtx, target);
+                        UA_NODESTORE_RELEASE(server, target);
                     continue;
                 }
             }
@@ -502,14 +502,14 @@ browseReferences(UA_Server *server, const UA_Node *node,
                 cp->referenceKindIndex = referenceKindIndex;
                 cp->targetIndex = targetIndex;
                 if(target)
-                    UA_Nodestore_releaseNode(server->nsCtx, target);
+                    UA_NODESTORE_RELEASE(server, target);
                 return UA_STATUSCODE_GOOD;
             }
 
             /* Copy the node description. Target is on top of the stack */
             retval = addReferenceDescription(server, rr, rk, bd->resultMask,
                                              &rk->refTargets[targetIndex].target, target);
-            UA_Nodestore_releaseNode(server->nsCtx, target);
+            UA_NODESTORE_RELEASE(server, target);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
@@ -541,14 +541,14 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
 
     /* Is the reference type valid? */
     if(!UA_NodeId_isNull(&descr->referenceTypeId)) {
-        const UA_Node *reftype = UA_Nodestore_getNode(server->nsCtx, &descr->referenceTypeId);
+        const UA_Node *reftype = UA_NODESTORE_GET(server, &descr->referenceTypeId);
         if(!reftype) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
             return true;
         }
 
         UA_Boolean isRef = (reftype->nodeClass == UA_NODECLASS_REFERENCETYPE);
-        UA_Nodestore_releaseNode(server->nsCtx, reftype);
+        UA_NODESTORE_RELEASE(server, reftype);
 
         if(!isRef) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
@@ -556,7 +556,7 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
         }
     }
 
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &descr->nodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, &descr->nodeId);
     if(!node) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return true;
@@ -565,14 +565,14 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
     RefResult rr;
     result->statusCode = RefResult_init(&rr);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_Nodestore_releaseNode(server->nsCtx, node);
+        UA_NODESTORE_RELEASE(server, node);
         return true;
     }
 
     /* Browse the references */
     UA_Boolean done = false;
     result->statusCode = browseReferences(server, node, cp, &rr, &done);
-    UA_Nodestore_releaseNode(server->nsCtx, node);
+    UA_NODESTORE_RELEASE(server, node);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         RefResult_clear(&rr);
         return true;
@@ -875,11 +875,11 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
     /* Return all references? */
     UA_Boolean all_refs = UA_NodeId_isNull(&elem->referenceTypeId);
     if(!all_refs) {
-        const UA_Node *rootRef = UA_Nodestore_getNode(server->nsCtx, &elem->referenceTypeId);
+        const UA_Node *rootRef = UA_NODESTORE_GET(server, &elem->referenceTypeId);
         if(!rootRef)
             return;
         UA_Boolean match = (rootRef->nodeClass == UA_NODECLASS_REFERENCETYPE);
-        UA_Nodestore_releaseNode(server->nsCtx, rootRef);
+        UA_NODESTORE_RELEASE(server, rootRef);
         if(!match)
             return;
     }
@@ -887,7 +887,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
     /* Iterate over all nodes at the current depth-level */
     for(size_t i = 0; i < currentCount; ++i) {
         /* Get the node */
-        const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &current[i]);
+        const UA_Node *node = UA_NODESTORE_GET(server, &current[i]);
         if(!node) {
             /* If we cannot find the node at depth 0, the starting node does not exist */
             if(elemDepth == 0)
@@ -897,7 +897,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
 
         /* Test whether the node fits the class mask */
         if(!matchClassMask(node, nodeClassMask)) {
-            UA_Nodestore_releaseNode(server->nsCtx, node);
+            UA_NODESTORE_RELEASE(server, node);
             continue;
         }
 
@@ -905,7 +905,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
          * path element */
         if(targetName && (targetName->namespaceIndex != node->browseName.namespaceIndex ||
                           !UA_String_equal(&targetName->name, &node->browseName.name))) {
-            UA_Nodestore_releaseNode(server->nsCtx, node);
+            UA_NODESTORE_RELEASE(server, node);
             continue;
         }
 
@@ -922,7 +922,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
             if(!all_refs) {
                 if(!elem->includeSubtypes && !UA_NodeId_equal(&rk->referenceTypeId, &elem->referenceTypeId))
                     continue;
-                if(!isNodeInTree(server->nsCtx, &rk->referenceTypeId, &elem->referenceTypeId, &subtypeId, 1))
+                if(!isNodeInTree(server, &rk->referenceTypeId, &elem->referenceTypeId, &subtypeId, 1))
                     continue;
             }
 
@@ -931,7 +931,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session, UA_UInt32 nodeClas
                                                   nextCount, elemDepth, rk);
         }
 
-        UA_Nodestore_releaseNode(server->nsCtx, node);
+        UA_NODESTORE_RELEASE(server, node);
     }
 }
 
@@ -941,7 +941,7 @@ addBrowsePathTargets(UA_Server *server, UA_Session *session, UA_UInt32 nodeClass
                      UA_BrowsePathResult *result, const UA_QualifiedName *targetName,
                      UA_NodeId *current, size_t currentCount) {
     for(size_t i = 0; i < currentCount; i++) {
-        const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &current[i]);
+        const UA_Node *node = UA_NODESTORE_GET(server, &current[i]);
         if(!node) {
             UA_NodeId_clear(&current[i]);
             continue;
@@ -956,7 +956,7 @@ addBrowsePathTargets(UA_Server *server, UA_Session *session, UA_UInt32 nodeClass
            !UA_String_equal(&targetName->name, &node->browseName.name))
             skip = true;
 
-        UA_Nodestore_releaseNode(server->nsCtx, node);
+        UA_NODESTORE_RELEASE(server, node);
 
         if(skip) {
             UA_NodeId_clear(&current[i]);

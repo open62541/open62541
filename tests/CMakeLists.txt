@@ -60,7 +60,7 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c

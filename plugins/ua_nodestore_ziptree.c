@@ -6,17 +6,15 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 
-#ifndef UA_ENABLE_CUSTOM_NODESTORE
-
 #if UA_MULTITHREADING >= 100
-#define BEGIN_CRITSECT(NODEMAP) UA_LOCK(NODEMAP->lock)
-#define END_CRITSECT(NODEMAP) UA_UNLOCK(NODEMAP->lock)
+#define BEGIN_CRITSECT(ctx) UA_LOCK(ctx->lock)
+#define END_CRITSECT(ctx) UA_UNLOCK(ctx->lock)
 #else
-#define BEGIN_CRITSECT(NODEMAP) do {} while(0)
-#define END_CRITSECT(NODEMAP) do {} while(0)
+#define BEGIN_CRITSECT(ctx) do {} while(0)
+#define END_CRITSECT(ctx) do {} while(0)
 #endif
 
 /* container_of */
@@ -61,7 +59,7 @@ typedef struct {
 #if UA_MULTITHREADING >= 100
     UA_LOCK_TYPE(lock) /* Protect access */
 #endif
-} NodeMap;
+} ZipContext;
 
 ZIP_PROTTYPE(NodeTree, NodeEntry, NodeEntry)
 ZIP_IMPL(NodeTree, NodeEntry, zipfields, NodeEntry, zipfields, cmpNodeId)
@@ -121,24 +119,24 @@ cleanupEntry(NodeEntry *entry) {
 /* Interface functions */
 /***********************/
 
-/* Not yet inserted into the NodeMap */
-UA_Node *
-UA_Nodestore_newNode(void *nsCtx, UA_NodeClass nodeClass) {
+/* Not yet inserted into the ZipContext */
+static UA_Node *
+zipNsNewNode(void *nsCtx, UA_NodeClass nodeClass) {
     NodeEntry *entry = newEntry(nodeClass);
     if(!entry)
         return NULL;
     return (UA_Node*)&entry->nodeId;
 }
 
-/* Not yet inserted into the NodeMap */
-void
-UA_Nodestore_deleteNode(void *nsCtx, UA_Node *node) {
+/* Not yet inserted into the ZipContext */
+static void
+zipNsDeleteNode(void *nsCtx, UA_Node *node) {
     deleteEntry(container_of(node, NodeEntry, nodeId));
 }
 
-const UA_Node *
-UA_Nodestore_getNode(void *nsCtx, const UA_NodeId *nodeId) {
-    NodeMap *ns = (NodeMap*)nsCtx;
+static const UA_Node *
+zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
+    ZipContext *ns = (ZipContext*)nsCtx;
     BEGIN_CRITSECT(ns);
     NodeEntry dummy;
     dummy.nodeIdHash = UA_NodeId_hash(nodeId);
@@ -153,12 +151,12 @@ UA_Nodestore_getNode(void *nsCtx, const UA_NodeId *nodeId) {
     return (const UA_Node*)&entry->nodeId;
 }
 
-void
-UA_Nodestore_releaseNode(void *nsCtx, const UA_Node *node) {
+static void
+zipNsReleaseNode(void *nsCtx, const UA_Node *node) {
     if(!node)
         return;
 #if UA_MULTITHREADING >= 100
-        NodeMap *ns = (NodeMap*)nsCtx;
+        ZipContext *ns = (ZipContext*)nsCtx;
 #endif
     BEGIN_CRITSECT(ns);
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
@@ -168,25 +166,25 @@ UA_Nodestore_releaseNode(void *nsCtx, const UA_Node *node) {
     END_CRITSECT(ns);
 }
 
-UA_StatusCode
-UA_Nodestore_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
+static UA_StatusCode
+zipNsGetNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
                          UA_Node **outNode) {
     /* Find the node */
-    const UA_Node *node = UA_Nodestore_getNode(nsCtx, nodeId);
+    const UA_Node *node = zipNsGetNode(nsCtx, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* Create the new entry */
     NodeEntry *ne = newEntry(node->nodeClass);
     if(!ne) {
-        UA_Nodestore_releaseNode(nsCtx, node);
+        zipNsReleaseNode(nsCtx, node);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* Copy the node content */
     UA_Node *nnode = (UA_Node*)&ne->nodeId;
     UA_StatusCode retval = UA_Node_copy(node, nnode);
-    UA_Nodestore_releaseNode(nsCtx, node);
+    zipNsReleaseNode(nsCtx, node);
     if(retval != UA_STATUSCODE_GOOD) {
         deleteEntry(ne);
         return retval;
@@ -197,10 +195,10 @@ UA_Nodestore_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Nodestore_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
+static UA_StatusCode
+zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
-    NodeMap *ns = (NodeMap*)nsCtx;
+    ZipContext *ns = (ZipContext*)nsCtx;
     BEGIN_CRITSECT(ns);
 
     /* Ensure that the NodeId is unique */
@@ -239,10 +237,10 @@ UA_Nodestore_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
+static UA_StatusCode
+zipNsReplaceNode(void *nsCtx, UA_Node *node) {
     /* Find the node */
-    const UA_Node *oldNode = UA_Nodestore_getNode(nsCtx, &node->nodeId);
+    const UA_Node *oldNode = zipNsGetNode(nsCtx, &node->nodeId);
     if(!oldNode) {
         deleteEntry(container_of(node, NodeEntry, nodeId));
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -254,12 +252,12 @@ UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
     if(oldEntry != entry->orig) {
         /* The node was already updated since the copy was made */
         deleteEntry(entry);
-        UA_Nodestore_releaseNode(nsCtx, oldNode);
+        zipNsReleaseNode(nsCtx, oldNode);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Replace */
-    NodeMap *ns = (NodeMap*)nsCtx;
+    ZipContext *ns = (ZipContext*)nsCtx;
     BEGIN_CRITSECT(ns);
     ZIP_REMOVE(NodeTree, &ns->root, oldEntry);
     entry->nodeIdHash = oldEntry->nodeIdHash;
@@ -267,13 +265,13 @@ UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node) {
     oldEntry->deleted = true;
     END_CRITSECT(ns);
 
-    UA_Nodestore_releaseNode(nsCtx, oldNode);
+    zipNsReleaseNode(nsCtx, oldNode);
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Nodestore_removeNode(void *nsCtx, const UA_NodeId *nodeId) {
-    NodeMap *ns = (NodeMap*)nsCtx;
+static UA_StatusCode
+zipNsRemoveNode(void *nsCtx, const UA_NodeId *nodeId) {
+    ZipContext *ns = (ZipContext*)nsCtx;
     BEGIN_CRITSECT(ns);
     NodeEntry dummy;
     dummy.nodeIdHash = UA_NodeId_hash(nodeId);
@@ -301,13 +299,13 @@ nodeVisitor(NodeEntry *entry, void *data) {
     d->visitor(d->visitorContext, (UA_Node*)&entry->nodeId);
 }
 
-void
-UA_Nodestore_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
-                     void *visitorCtx) {
+static void
+zipNsIterate(void *nsCtx, UA_NodestoreVisitor visitor,
+             void *visitorCtx) {
     struct VisitorData d;
     d.visitor = visitor;
     d.visitorContext = visitorCtx;
-    NodeMap *ns = (NodeMap*)nsCtx;
+    ZipContext *ns = (ZipContext*)nsCtx;
     BEGIN_CRITSECT(ns);
     ZIP_ITER(NodeTree, &ns->root, nodeVisitor, &d);
     END_CRITSECT(ns);
@@ -322,31 +320,11 @@ deleteNodeVisitor(NodeEntry *entry, void *data) {
 /* Nodestore Lifecycle */
 /***********************/
 
-const UA_Boolean inPlaceEditAllowed = true;
-
-UA_StatusCode
-UA_Nodestore_new(void **nsCtx) {
-    /* Allocate and initialize the nodemap */
-    NodeMap *nodemap = (NodeMap*)UA_malloc(sizeof(NodeMap));
-    if(!nodemap)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_INIT(nodemap->lock)
-#endif
-
-    ZIP_INIT(&nodemap->root);
-
-    /* Populate the nodestore */
-    *nsCtx = (void*)nodemap;
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_Nodestore_delete(void *nsCtx) {
+static void
+zipNsClear(void *nsCtx) {
     if (!nsCtx)
         return;
-
-    NodeMap *ns = (NodeMap*)nsCtx;
+    ZipContext *ns = (ZipContext*)nsCtx;
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(ns->lock);
 #endif
@@ -354,4 +332,30 @@ UA_Nodestore_delete(void *nsCtx) {
     UA_free(ns);
 }
 
-#endif /* UA_ENABLE_CUSTOM_NODESTORE */
+UA_StatusCode
+UA_Nodestore_ZipTree(UA_Nodestore *ns) {
+    /* Allocate and initialize the context */
+    ZipContext *ctx = (ZipContext*)UA_malloc(sizeof(ZipContext));
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_INIT(ctx->lock)
+#endif
+
+    ZIP_INIT(&ctx->root);
+
+    /* Populate the nodestore */
+    ns->context = (void*)ctx;
+    ns->clear = zipNsClear;
+    ns->newNode = zipNsNewNode;
+    ns->deleteNode = zipNsDeleteNode;
+    ns->getNode = zipNsGetNode;
+    ns->releaseNode = zipNsReleaseNode;
+    ns->getNodeCopy = zipNsGetNodeCopy;
+    ns->insertNode = zipNsInsertNode;
+    ns->replaceNode = zipNsReplaceNode;
+    ns->removeNode = zipNsRemoveNode;
+    ns->iterate = zipNsIterate;
+    
+    return UA_STATUSCODE_GOOD;
+}

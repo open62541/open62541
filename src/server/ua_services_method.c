@@ -34,7 +34,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 
         for(size_t j = 0; j < rk->refTargetsSize; ++j) {
             const UA_Node *refTarget =
-                UA_Nodestore_getNode(server->nsCtx, &rk->refTargets[j].target.nodeId);
+                UA_NODESTORE_GET(server, &rk->refTargets[j].target.nodeId);
             if(!refTarget)
                 continue;
             if(refTarget->nodeClass == UA_NODECLASS_VARIABLE &&
@@ -42,7 +42,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                UA_String_equal(&withBrowseName, &refTarget->browseName.name)) {
                 return (const UA_VariableNode*)refTarget;
             }
-            UA_Nodestore_releaseNode(server->nsCtx, refTarget);
+            UA_NODESTORE_RELEASE(server, refTarget);
         }
     }
     return NULL;
@@ -107,7 +107,7 @@ validMethodArguments(UA_Server *server, UA_Session *session, const UA_MethodNode
                                               inputArgumentResults);
 
     /* Release the input arguments node */
-    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)inputArguments);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)inputArguments);
     return retval;
 }
 
@@ -146,7 +146,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         UA_NodeReferenceKind *rk = &object->references[i];
         if(rk->isInverse)
             continue;
-        if(!isNodeInTree(server->nsCtx, &rk->referenceTypeId,
+        if(!isNodeInTree(server, &rk->referenceTypeId,
                          &hasComponentNodeId, &hasSubTypeNodeId, 1))
             continue;
         for(size_t j = 0; j < rk->refTargetsSize; ++j) {
@@ -218,7 +218,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     result->outputArgumentsSize = outputArgsSize;
 
     /* Release the output arguments node */
-    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)outputArguments);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
     /* Call the method */
     UA_UNLOCK(server->serviceMutex);
@@ -257,7 +257,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
 
     /* Get the method node */
     const UA_MethodNode *method = (const UA_MethodNode*)
-        UA_Nodestore_getNode(server->nsCtx, &request->methodId);
+        UA_NODESTORE_GET(server, &request->methodId);
     if(!method) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
@@ -265,10 +265,10 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
 
     /* Get the object node */
     const UA_ObjectNode *object = (const UA_ObjectNode*)
-        UA_Nodestore_getNode(server->nsCtx, &request->objectId);
+        UA_NODESTORE_GET(server, &request->objectId);
     if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)method);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
         return;
     }
 
@@ -296,8 +296,8 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,
     }
 
     /* Release the method and object node */
-    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)method);
-    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)object);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)object);
 }
 
 void Service_CallAsync(UA_Server *server, UA_Session *session,
@@ -328,7 +328,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
                      const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
     /* Get the method node */
     const UA_MethodNode *method = (const UA_MethodNode*)
-        UA_Nodestore_getNode(server->nsCtx, &request->methodId);
+        UA_NODESTORE_GET(server, &request->methodId);
     if(!method) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
@@ -336,10 +336,10 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 
     /* Get the object node */
     const UA_ObjectNode *object = (const UA_ObjectNode*)
-        UA_Nodestore_getNode(server->nsCtx, &request->objectId);
+        UA_NODESTORE_GET(server, &request->objectId);
     if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)method);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
         return;
     }
 
@@ -347,8 +347,8 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
     callWithMethodAndObject(server, session, request, result, method, object);
 
     /* Release the method and object node */
-    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)method);
-    UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)object);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)method);
+    UA_NODESTORE_RELEASE(server, (const UA_Node*)object);
 }
 
 void Service_Call(UA_Server *server, UA_Session *session,
