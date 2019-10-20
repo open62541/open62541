@@ -158,7 +158,7 @@ expand(UA_NodeMap *ns) {
 }
 
 static UA_NodeMapEntry *
-newEntry(UA_NodeClass nodeClass) {
+createEntry(UA_NodeClass nodeClass) {
     size_t size = sizeof(UA_NodeMapEntry) - sizeof(UA_Node);
     switch(nodeClass) {
     case UA_NODECLASS_OBJECT:
@@ -257,7 +257,7 @@ findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
 
 static UA_Node *
 UA_NodeMap_newNode(void *context, UA_NodeClass nodeClass) {
-    UA_NodeMapEntry *entry = newEntry(nodeClass);
+    UA_NodeMapEntry *entry = createEntry(nodeClass);
     if(!entry)
         return NULL;
     return &entry->node;
@@ -316,7 +316,7 @@ UA_NodeMap_getNodeCopy(void *context, const UA_NodeId *nodeid,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
     UA_NodeMapEntry *entry = *slot;
-    UA_NodeMapEntry *newItem = newEntry(entry->node.nodeClass);
+    UA_NodeMapEntry *newItem = createEntry(entry->node.nodeClass);
     if(!newItem) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -424,39 +424,38 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
 static UA_StatusCode
 UA_NodeMap_replaceNode(void *context, UA_Node *node) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
-    UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
+    UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
 
     BEGIN_CRITSECT(ns);
 
     /* Find the node */
     UA_NodeMapEntry **slot = findOccupiedSlot(ns, &node->nodeId);
     if(!slot) {
-        deleteEntry(newEntryContainer);
+        deleteEntry(newEntry);
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    UA_NodeMapEntry *oldEntryContainer = *slot;
+    UA_NodeMapEntry *oldEntry = *slot;
 
     /* The node was already updated since the copy was made? */
-    if(oldEntryContainer != newEntryContainer->orig) {
-        deleteEntry(newEntryContainer);
+    if(oldEntry != newEntry->orig) {
+        deleteEntry(newEntry);
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Store the hash */
-    newEntryContainer->nodeIdHash = oldEntryContainer->nodeIdHash;
+    newEntry->nodeIdHash = oldEntry->nodeIdHash;
 
     /* Replace the entry with an atomic operation */
-    if(UA_atomic_cmpxchg((void**)slot, oldEntryContainer,
-                         newEntryContainer) != oldEntryContainer) {
-        deleteEntry(newEntryContainer);
+    if(UA_atomic_cmpxchg((void**)slot, oldEntry, newEntry) != oldEntry) {
+        deleteEntry(newEntry);
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    oldEntryContainer->deleted = true;
-    cleanupEntry(oldEntryContainer);
+    oldEntry->deleted = true;
+    cleanupEntry(oldEntry);
     END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }
