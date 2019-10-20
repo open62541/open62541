@@ -44,7 +44,7 @@ UA_Server_new() {
     memset(&config, 0, sizeof(UA_ServerConfig));
     /* Set a default logger and NodeStore for the initialization */
     config.logger = UA_Log_Stdout_;
-    UA_Nodestore_ZipTree(&config.nodestore);
+    UA_Nodestore_HashMap(&config.nodestore);
     return UA_Server_newWithConfig(&config);
 }
 
