@@ -8,14 +8,6 @@
 
 #include <open62541/plugin/nodestore_default.h>
 
-#if UA_MULTITHREADING >= 100
-#define BEGIN_CRITSECT(NODEMAP) UA_LOCK(NODEMAP->lock)
-#define END_CRITSECT(NODEMAP) UA_UNLOCK(NODEMAP->lock)
-#else
-#define BEGIN_CRITSECT(NODEMAP) do {} while(0)
-#define END_CRITSECT(NODEMAP) do {} while(0)
-#endif
-
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
@@ -27,13 +19,9 @@
  * - Matching NodeId: Return the entry
  * - NULL: Abort the search
  *
- * The nodestore uses atomic operations to set entries of the hash-map. If
- * UA_ENABLE_IMMUTABLE_NODES is configured, the nodestore allows read-access
- * from an interrupt without seeing corrupted nodes. For true multi-threaded
- * access, a mutex is used.
- *
- * Multi-threading without a mutex could be realized with the Linux RCU mechanism.
- * But this is not done for this implementation of the nodestore. */
+ * The nodestore uses atomic operations to set entries of the hash-map. So the
+ * nodestore allows read-access from an interrupt without seeing corrupted
+ * nodes. */
 
 typedef struct UA_NodeMapEntry {
     UA_UInt32 nodeIdHash;
@@ -51,9 +39,6 @@ typedef struct {
     UA_UInt32 size;
     UA_UInt32 count;
     UA_UInt32 sizePrimeIndex;
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_TYPE(lock) /* Protect access */
-#endif
 } UA_NodeMap;
 
 /*********************/
@@ -196,15 +181,15 @@ createEntry(UA_NodeClass nodeClass) {
 }
 
 static void
-deleteEntry(UA_NodeMapEntry *entry) {
+deleteNodeMapEntry(UA_NodeMapEntry *entry) {
     UA_Node_clear(&entry->node);
     UA_free(entry);
 }
 
 static void
-cleanupEntry(UA_NodeMapEntry *entry) {
+cleanupNodeMapEntry(UA_NodeMapEntry *entry) {
     if(entry->deleted && entry->refCount == 0)
-        deleteEntry(entry);
+        deleteNodeMapEntry(entry);
 }
 
 static UA_StatusCode
@@ -213,7 +198,7 @@ clearSlot(UA_NodeMap *ns, UA_NodeMapEntry **slot) {
     if(UA_atomic_cmpxchg((void**)slot, entry, UA_NODEMAP_TOMBSTONE) != entry)
         return UA_STATUSCODE_BADINTERNALERROR;
     entry->deleted = true;
-    cleanupEntry(entry);
+    cleanupNodeMapEntry(entry);
     --ns->count;
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
@@ -265,27 +250,18 @@ UA_NodeMap_newNode(void *context, UA_NodeClass nodeClass) {
 
 static void
 UA_NodeMap_deleteNode(void *context, UA_Node *node) {
-#if UA_MULTITHREADING >= 100
-    UA_NodeMap *ns = (UA_NodeMap*)context;
-#endif
-    BEGIN_CRITSECT(ns);
     UA_NodeMapEntry *entry = container_of(node, UA_NodeMapEntry, node);
     UA_assert(&entry->node == node);
-    deleteEntry(entry);
-    END_CRITSECT(ns);
+    deleteNodeMapEntry(entry);
 }
 
 static const UA_Node *
 UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
     UA_NodeMapEntry **entry = findOccupiedSlot(ns, nodeid);
-    if(!entry) {
-        END_CRITSECT(ns);
+    if(!entry)
         return NULL;
-    }
     ++(*entry)->refCount;
-    END_CRITSECT(ns);
     return (const UA_Node*)&(*entry)->node;
 }
 
@@ -293,56 +269,43 @@ static void
 UA_NodeMap_releaseNode(void *context, const UA_Node *node) {
     if (!node)
         return;
-#if UA_MULTITHREADING >= 100
-    UA_NodeMap *ns = (UA_NodeMap*)context;
-#endif
-    BEGIN_CRITSECT(ns);
     UA_NodeMapEntry *entry = container_of(node, UA_NodeMapEntry, node);
     UA_assert(&entry->node == node);
     UA_assert(entry->refCount > 0);
     --entry->refCount;
-    cleanupEntry(entry);
-    END_CRITSECT(ns);
+    cleanupNodeMapEntry(entry);
 }
 
 static UA_StatusCode
 UA_NodeMap_getNodeCopy(void *context, const UA_NodeId *nodeid,
                        UA_Node **outNode) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
     UA_NodeMapEntry **slot = findOccupiedSlot(ns, nodeid);
-    if(!slot) {
-        END_CRITSECT(ns);
+    if(!slot)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
     UA_NodeMapEntry *entry = *slot;
     UA_NodeMapEntry *newItem = createEntry(entry->node.nodeClass);
-    if(!newItem) {
-        END_CRITSECT(ns);
+    if(!newItem)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
     UA_StatusCode retval = UA_Node_copy(&entry->node, &newItem->node);
     if(retval == UA_STATUSCODE_GOOD) {
         newItem->orig = entry; /* Store the pointer to the original */
         *outNode = &newItem->node;
     } else {
-        deleteEntry(newItem);
+        deleteNodeMapEntry(newItem);
     }
-    END_CRITSECT(ns);
     return retval;
 }
 
 static UA_StatusCode
 UA_NodeMap_removeNode(void *context, const UA_NodeId *nodeid) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
     UA_NodeMapEntry **slot = findOccupiedSlot(ns, nodeid);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(slot)
         retval = clearSlot(ns, slot);
     else
         retval = UA_STATUSCODE_BADNODEIDUNKNOWN;
-    END_CRITSECT(ns);
     return retval;
 }
 
@@ -350,12 +313,9 @@ static UA_StatusCode
 UA_NodeMap_insertNode(void *context, UA_Node *node,
                       UA_NodeId *addedNodeId) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
     if(ns->size * 3 <= ns->count * 4) {
-        if(expand(ns) != UA_STATUSCODE_GOOD) {
-            END_CRITSECT(ns);
+        if(expand(ns) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
-        }
     }
 
     UA_NodeMapEntry **slot;
@@ -389,8 +349,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     }
 
     if(!slot) {
-        deleteEntry(container_of(node, UA_NodeMapEntry, node));
-        END_CRITSECT(ns);
+        deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
         return UA_STATUSCODE_BADNODEIDEXISTS;
     }
 
@@ -399,8 +358,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     if(addedNodeId) {
         retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
         if(retval != UA_STATUSCODE_GOOD) {
-            deleteEntry(container_of(node, UA_NodeMapEntry, node));
-            END_CRITSECT(ns);
+            deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
             return retval;
         }
     }
@@ -412,12 +370,11 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     /* Insert the node */
     UA_NodeMapEntry *oldEntry = *slot;
     if(UA_atomic_cmpxchg((void**)slot, oldEntry, newEntry) != oldEntry) {
-        deleteEntry(container_of(node, UA_NodeMapEntry, node));
-        END_CRITSECT(ns);
+        deleteNodeMapEntry(container_of(node, UA_NodeMapEntry, node));
         return UA_STATUSCODE_BADNODEIDEXISTS;
     }
+
     ++ns->count;
-    END_CRITSECT(ns);
     return retval;
 }
 
@@ -426,21 +383,17 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
     UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
 
-    BEGIN_CRITSECT(ns);
-
     /* Find the node */
     UA_NodeMapEntry **slot = findOccupiedSlot(ns, &node->nodeId);
     if(!slot) {
-        deleteEntry(newEntry);
-        END_CRITSECT(ns);
+        deleteNodeMapEntry(newEntry);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
     UA_NodeMapEntry *oldEntry = *slot;
 
     /* The node was already updated since the copy was made? */
     if(oldEntry != newEntry->orig) {
-        deleteEntry(newEntry);
-        END_CRITSECT(ns);
+        deleteNodeMapEntry(newEntry);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -449,14 +402,12 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
 
     /* Replace the entry with an atomic operation */
     if(UA_atomic_cmpxchg((void**)slot, oldEntry, newEntry) != oldEntry) {
-        deleteEntry(newEntry);
-        END_CRITSECT(ns);
+        deleteNodeMapEntry(newEntry);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     oldEntry->deleted = true;
-    cleanupEntry(oldEntry);
-    END_CRITSECT(ns);
+    cleanupNodeMapEntry(oldEntry);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -464,27 +415,20 @@ static void
 UA_NodeMap_iterate(void *context, UA_NodestoreVisitor visitor,
                    void *visitorContext) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
-    BEGIN_CRITSECT(ns);
     for(UA_UInt32 i = 0; i < ns->size; ++i) {
         if(ns->entries[i] > UA_NODEMAP_TOMBSTONE) {
-            END_CRITSECT(ns);
             UA_NodeMapEntry *entry = ns->entries[i];
             entry->refCount++;
             visitor(visitorContext, &entry->node);
             entry->refCount--;
-            cleanupEntry(entry);
-            BEGIN_CRITSECT(ns);
+            cleanupNodeMapEntry(entry);
         }
     }
-    END_CRITSECT(ns);
 }
 
 static void
 UA_NodeMap_delete(void *context) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_DESTROY(ns->lock);
-#endif
     UA_UInt32 size = ns->size;
     UA_NodeMapEntry **entries = ns->entries;
     for(UA_UInt32 i = 0; i < size; ++i) {
@@ -492,7 +436,7 @@ UA_NodeMap_delete(void *context) {
             /* On debugging builds, check that all nodes were release */
             UA_assert(entries[i]->refCount == 0);
             /* Delete the node */
-            deleteEntry(entries[i]);
+            deleteNodeMapEntry(entries[i]);
         }
     }
     UA_free(ns->entries);
@@ -514,10 +458,6 @@ UA_Nodestore_HashMap(UA_Nodestore *ns) {
         UA_free(nodemap);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_INIT(nodemap->lock)
-#endif
 
     /* Populate the nodestore */
     ns->context = nodemap;

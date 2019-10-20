@@ -9,14 +9,6 @@
 #include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 
-#if UA_MULTITHREADING >= 100
-#define BEGIN_CRITSECT(ctx) UA_LOCK(ctx->lock)
-#define END_CRITSECT(ctx) UA_UNLOCK(ctx->lock)
-#else
-#define BEGIN_CRITSECT(ctx) do {} while(0)
-#define END_CRITSECT(ctx) do {} while(0)
-#endif
-
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
@@ -56,9 +48,6 @@ typedef struct NodeTree NodeTree;
 
 typedef struct {
     NodeTree root;
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_TYPE(lock) /* Protect access */
-#endif
 } ZipContext;
 
 ZIP_PROTTYPE(NodeTree, NodeEntry, NodeEntry)
@@ -137,17 +126,13 @@ zipNsDeleteNode(void *nsCtx, UA_Node *node) {
 static const UA_Node *
 zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
     ZipContext *ns = (ZipContext*)nsCtx;
-    BEGIN_CRITSECT(ns);
     NodeEntry dummy;
     dummy.nodeIdHash = UA_NodeId_hash(nodeId);
     dummy.nodeId = *nodeId;
     NodeEntry *entry = ZIP_FIND(NodeTree, &ns->root, &dummy);
-    if(!entry) {
-        END_CRITSECT(ns);
+    if(!entry)
         return NULL;
-    }
     ++entry->refCount;
-    END_CRITSECT(ns);
     return (const UA_Node*)&entry->nodeId;
 }
 
@@ -155,15 +140,10 @@ static void
 zipNsReleaseNode(void *nsCtx, const UA_Node *node) {
     if(!node)
         return;
-#if UA_MULTITHREADING >= 100
-        ZipContext *ns = (ZipContext*)nsCtx;
-#endif
-    BEGIN_CRITSECT(ns);
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     UA_assert(entry->refCount > 0);
     --entry->refCount;
     cleanupEntry(entry);
-    END_CRITSECT(ns);
 }
 
 static UA_StatusCode
@@ -199,7 +179,6 @@ static UA_StatusCode
 zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     ZipContext *ns = (ZipContext*)nsCtx;
-    BEGIN_CRITSECT(ns);
 
     /* Ensure that the NodeId is unique */
     NodeEntry dummy;
@@ -215,7 +194,6 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
         dummy.nodeIdHash = UA_NodeId_hash(&node->nodeId);
         if(ZIP_FIND(NodeTree, &ns->root, &dummy)) { /* The nodeid exists */
             deleteEntry(entry);
-            END_CRITSECT(ns);
             return UA_STATUSCODE_BADNODEIDEXISTS;
         }
     }
@@ -225,7 +203,6 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
         UA_StatusCode retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
         if(retval != UA_STATUSCODE_GOOD) {
             deleteEntry(entry);
-            END_CRITSECT(ns);
             return retval;
         }
     }
@@ -233,7 +210,6 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
     /* Insert the node */
     entry->nodeIdHash = dummy.nodeIdHash;
     ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_FFS32(UA_UInt32_random()));
-    END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -258,12 +234,10 @@ zipNsReplaceNode(void *nsCtx, UA_Node *node) {
 
     /* Replace */
     ZipContext *ns = (ZipContext*)nsCtx;
-    BEGIN_CRITSECT(ns);
     ZIP_REMOVE(NodeTree, &ns->root, oldEntry);
     entry->nodeIdHash = oldEntry->nodeIdHash;
     ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_RANK(entry, zipfields));
     oldEntry->deleted = true;
-    END_CRITSECT(ns);
 
     zipNsReleaseNode(nsCtx, oldNode);
     return UA_STATUSCODE_GOOD;
@@ -272,19 +246,15 @@ zipNsReplaceNode(void *nsCtx, UA_Node *node) {
 static UA_StatusCode
 zipNsRemoveNode(void *nsCtx, const UA_NodeId *nodeId) {
     ZipContext *ns = (ZipContext*)nsCtx;
-    BEGIN_CRITSECT(ns);
     NodeEntry dummy;
     dummy.nodeIdHash = UA_NodeId_hash(nodeId);
     dummy.nodeId = *nodeId;
     NodeEntry *entry = ZIP_FIND(NodeTree, &ns->root, &dummy);
-    if(!entry) {
-        END_CRITSECT(ns);
+    if(!entry)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
     ZIP_REMOVE(NodeTree, &ns->root, entry);
     entry->deleted = true;
     cleanupEntry(entry);
-    END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -306,9 +276,7 @@ zipNsIterate(void *nsCtx, UA_NodestoreVisitor visitor,
     d.visitor = visitor;
     d.visitorContext = visitorCtx;
     ZipContext *ns = (ZipContext*)nsCtx;
-    BEGIN_CRITSECT(ns);
     ZIP_ITER(NodeTree, &ns->root, nodeVisitor, &d);
-    END_CRITSECT(ns);
 }
 
 static void
@@ -325,9 +293,6 @@ zipNsClear(void *nsCtx) {
     if (!nsCtx)
         return;
     ZipContext *ns = (ZipContext*)nsCtx;
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_DESTROY(ns->lock);
-#endif
     ZIP_ITER(NodeTree, &ns->root, deleteNodeVisitor, NULL);
     UA_free(ns);
 }
@@ -338,9 +303,6 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
     ZipContext *ctx = (ZipContext*)UA_malloc(sizeof(ZipContext));
     if(!ctx)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-#if UA_MULTITHREADING >= 100
-    UA_LOCK_INIT(ctx->lock)
-#endif
 
     ZIP_INIT(&ctx->root);
 
