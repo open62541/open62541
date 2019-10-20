@@ -17,8 +17,12 @@
 
 UA_Nodestore ns;
 
-static void setup(void) {
+static void setupZipTree(void) {
     UA_Nodestore_ZipTree(&ns);
+}
+
+static void setupHashMap(void) {
+    UA_Nodestore_HashMap(&ns);
 }
 
 static void teardown(void) {
@@ -207,7 +211,7 @@ static void *profileGetThread(void *arg) {
 }
 #endif
 
-#define N 1000 /* make bigger to test */
+#define N 10000 /* make bigger to test */
 
 START_TEST(profileGetDelete) {
     clock_t begin, end;
@@ -247,8 +251,8 @@ END_TEST
 static Suite * namespace_suite (void) {
     Suite *s = suite_create ("UA_NodeStore");
 
-    TCase* tc_find = tcase_create ("Find");
-    tcase_add_checked_fixture(tc_find, setup, teardown);
+    TCase* tc_find = tcase_create ("Find-ZipTree");
+    tcase_add_checked_fixture(tc_find, setupZipTree, teardown);
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSingleEntry);
     tcase_add_test (tc_find, findNodeInUA_NodeStoreWithSeveralEntries);
     tcase_add_test (tc_find, findNodeInExpandedNamespace);
@@ -256,22 +260,48 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_find, failToFindNodeInOtherUA_NodeStore);
     suite_add_tcase (s, tc_find);
 
-    TCase *tc_replace = tcase_create("Replace");
-    tcase_add_checked_fixture(tc_replace, setup, teardown);
+    TCase *tc_replace = tcase_create("Replace-ZipTree");
+    tcase_add_checked_fixture(tc_replace, setupZipTree, teardown);
     tcase_add_test (tc_replace, replaceExistingNode);
     tcase_add_test (tc_replace, replaceOldNode);
     suite_add_tcase (s, tc_replace);
 
-    TCase* tc_iterate = tcase_create ("Iterate");
-    tcase_add_checked_fixture(tc_iterate, setup, teardown);
+    TCase* tc_iterate = tcase_create ("Iterate-ZipTree");
+    tcase_add_checked_fixture(tc_iterate, setupZipTree, teardown);
     tcase_add_test (tc_iterate, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
     
-    TCase* tc_profile = tcase_create ("Profile");
-    tcase_add_checked_fixture(tc_profile, setup, teardown);
+    TCase* tc_profile = tcase_create ("Profile-ZipTree");
+    tcase_add_checked_fixture(tc_profile, setupZipTree, teardown);
     tcase_add_test (tc_profile, profileGetDelete);
     suite_add_tcase (s, tc_profile);
+
+    TCase* tc_find_hm = tcase_create ("Find-HashMap");
+    tcase_add_checked_fixture(tc_find_hm, setupHashMap, teardown);
+    tcase_add_test (tc_find_hm, findNodeInUA_NodeStoreWithSingleEntry);
+    tcase_add_test (tc_find_hm, findNodeInUA_NodeStoreWithSeveralEntries);
+    tcase_add_test (tc_find_hm, findNodeInExpandedNamespace);
+    tcase_add_test (tc_find_hm, failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries);
+    tcase_add_test (tc_find_hm, failToFindNodeInOtherUA_NodeStore);
+    suite_add_tcase (s, tc_find_hm);
+
+    TCase *tc_replace_hm = tcase_create("Replace-HashMap");
+    tcase_add_checked_fixture(tc_replace_hm, setupHashMap, teardown);
+    tcase_add_test (tc_replace_hm, replaceExistingNode);
+    tcase_add_test (tc_replace_hm, replaceOldNode);
+    suite_add_tcase (s, tc_replace_hm);
+
+    TCase* tc_iterate_hm = tcase_create ("Iterate-HashMap");
+    tcase_add_checked_fixture(tc_iterate_hm, setupHashMap, teardown);
+    tcase_add_test (tc_iterate_hm, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
+    tcase_add_test (tc_iterate_hm, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
+    suite_add_tcase (s, tc_iterate_hm);
+    
+    TCase* tc_profile_hm = tcase_create ("Profile-HashMap");
+    tcase_add_checked_fixture(tc_profile_hm, setupHashMap, teardown);
+    tcase_add_test (tc_profile_hm, profileGetDelete);
+    suite_add_tcase (s, tc_profile_hm);
 
     return s;
 }
