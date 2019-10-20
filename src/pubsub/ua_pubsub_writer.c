@@ -29,6 +29,12 @@ static void
 UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup);
 static void
 UA_DataSetField_clear(UA_DataSetField *field);
+static UA_StatusCode
+generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
+                       UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
+                       UA_ExtensionObject *messageSettings,
+                       UA_ExtensionObject *transportSettings,
+                       UA_NetworkMessage *networkMessage);
 
 /**********************************************/
 /*               Connection                   */
@@ -247,9 +253,13 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
             dataSetField->config.configurationFrozen = UA_TRUE;
         }
     }
-    //if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE){
+    if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE){
+        //UA_NetworkMessage_decodeBinary(, )
         //UA_NetworkMessage_calculateBufferAndOffets(server, w)
-    //}
+        UA_NetworkMessage networkMessage;
+        generateNetworkMessage(pubSubConnection, wg, NULL, NULL, 0,
+                &wg->config.messageSettings, &wg->config.transportSettings, &networkMessage);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1658,64 +1668,71 @@ sendNetworkMessageJson(UA_PubSubConnection *connection, UA_DataSetMessage *dsm,
 }
 
 static UA_StatusCode
-sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
-                   UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
-                   UA_ExtensionObject *messageSettings,
-                   UA_ExtensionObject *transportSettings) {
-
+generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
+                       UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
+                       UA_ExtensionObject *messageSettings,
+                       UA_ExtensionObject *transportSettings,
+                       UA_NetworkMessage *networkMessage) {
     if(messageSettings->content.decoded.type !=
        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
-        messageSettings->content.decoded.data;
+            messageSettings->content.decoded.data;
+    memset(networkMessage, 0, sizeof(UA_NetworkMessage));
 
-    UA_NetworkMessage nm;
-    memset(&nm, 0, sizeof(UA_NetworkMessage));
-
-    nm.publisherIdEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
-    nm.groupHeaderEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER) != 0;
-    nm.groupHeader.writerGroupIdEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID) != 0;
-    nm.groupHeader.groupVersionEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION) != 0;
-    nm.groupHeader.networkMessageNumberEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER) != 0;
-    nm.groupHeader.sequenceNumberEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER) != 0;
-    nm.payloadHeaderEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER) != 0;
-    nm.timestampEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP) != 0;
-    nm.picosecondsEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS) != 0;
-    nm.dataSetClassIdEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
-    nm.promotedFieldsEnabled =
-        ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
-
-    nm.version = 1;
-    nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    networkMessage->publisherIdEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
+    networkMessage->groupHeaderEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER) != 0;
+    networkMessage->groupHeader.writerGroupIdEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID) != 0;
+    networkMessage->groupHeader.groupVersionEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION) != 0;
+    networkMessage->groupHeader.networkMessageNumberEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER) != 0;
+    networkMessage->groupHeader.sequenceNumberEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER) != 0;
+    networkMessage->payloadHeaderEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER) != 0;
+    networkMessage->timestampEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP) != 0;
+    networkMessage->picosecondsEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS) != 0;
+    networkMessage->dataSetClassIdEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
+    networkMessage->promotedFieldsEnabled =
+            ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
+    networkMessage->version = 1;
+    networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
     if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        nm.publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
-        nm.publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_UINT16;
+        networkMessage->publisherId.publisherIdUInt32 = connection->config->publisherId.numeric;
     } else if(connection->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING){
-        nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;
-        nm.publisherId.publisherIdString = connection->config->publisherId.string;
+        networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
+        networkMessage->publisherId.publisherIdString = connection->config->publisherId.string;
     }
-
     /* Compute the length of the dsm separately for the header */
     UA_STACKARRAY(UA_UInt16, dsmLengths, dsmCount);
     for(UA_Byte i = 0; i < dsmCount; i++)
         dsmLengths[i] = (UA_UInt16)UA_DataSetMessage_calcSizeBinary(&dsm[i]);
 
-    nm.payloadHeader.dataSetPayloadHeader.count = dsmCount;
-    nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
-    nm.groupHeader.writerGroupId = wg->config.writerGroupId;
-    nm.groupHeader.networkMessageNumber = 1;
-    nm.payload.dataSetPayload.sizes = dsmLengths;
-    nm.payload.dataSetPayload.dataSetMessages = dsm;
+    networkMessage->payloadHeader.dataSetPayloadHeader.count = dsmCount;
+    networkMessage->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
+    networkMessage->groupHeader.writerGroupId = wg->config.writerGroupId;
+    networkMessage->groupHeader.networkMessageNumber = 1;
+    networkMessage->payload.dataSetPayload.sizes = dsmLengths;
+    networkMessage->payload.dataSetPayload.dataSetMessages = dsm;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
+                   UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
+                   UA_ExtensionObject *messageSettings,
+                   UA_ExtensionObject *transportSettings) {
+
+    UA_NetworkMessage nm;
+    generateNetworkMessage(connection, wg, dsm, writerIds, dsmCount, messageSettings, transportSettings, &nm);
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
