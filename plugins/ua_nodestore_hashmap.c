@@ -222,22 +222,26 @@ findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
     UA_UInt64 idx = mod(h, size); /* Use 64bit container to avoid overflow */
     UA_UInt32 hash2 = mod2(h, size);
     UA_UInt32 startIdx = (UA_UInt32)idx;
-    UA_NodeMapEntry *entry = NULL;
 
     do {
-        entry = ns->entries[(UA_UInt32)idx];
-        if(entry > UA_NODEMAP_TOMBSTONE &&
-           entry->nodeIdHash == h &&
-           UA_NodeId_equal(&entry->node.nodeId, nodeid))
-            return &ns->entries[(UA_UInt32)idx];
+        UA_NodeMapEntry *entry = ns->entries[(UA_UInt32)idx];
+
+        /* Found a candidate */
+        if(entry > UA_NODEMAP_TOMBSTONE) {
+            if(entry->nodeIdHash == h &&
+               UA_NodeId_equal(&entry->node.nodeId, nodeid))
+                return &ns->entries[(UA_UInt32)idx];
+        } else {
+            /* No entry can be found afterwards */
+            if(entry == NULL)
+                return NULL;
+        }
+
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    } while((UA_UInt32)idx != startIdx && entry);
+    } while((UA_UInt32)idx != startIdx);
 
-    /* NULL is returned if there is no free slot (idx == startIdx)
-     * and the node id is not found or if the end of the used slots (!entry)
-     * is reached. */
     return NULL;
 }
 
@@ -350,7 +354,7 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
 
     UA_NodeMapEntry **slot;
     if(node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-            node->nodeId.identifier.numeric == 0) {
+       node->nodeId.identifier.numeric == 0) {
         /* Create a random nodeid: Start at least with 50,000 to make sure we
          * don not conflict with nodes from the spec. If we find a conflict, we
          * just try another identifier until we have tried all possible
