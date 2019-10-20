@@ -90,30 +90,36 @@ higher_prime_index(UA_UInt32 n) {
 /* Returns an empty slot or null if the nodeid exists or if no empty slot is found. */
 static UA_NodeMapEntry **
 findFreeSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
-    UA_NodeMapEntry **retval = NULL;
     UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
     UA_UInt64 idx = mod(h, size); /* Use 64bit container to avoid overflow  */
     UA_UInt32 startIdx = (UA_UInt32)idx;
     UA_UInt32 hash2 = mod2(h, size);
-    UA_NodeMapEntry *entry = NULL;
 
+    UA_NodeMapEntry **candidate = NULL;
     do {
-        entry = ns->entries[(UA_UInt32)idx];
-        if(entry > UA_NODEMAP_TOMBSTONE &&
-           UA_NodeId_equal(&entry->node.nodeId, nodeid))
-            return NULL;
-        if(!retval && entry <= UA_NODEMAP_TOMBSTONE)
-            retval = &ns->entries[(UA_UInt32)idx];
+        UA_NodeMapEntry *entry = ns->entries[(UA_UInt32)idx];
+
+        if(entry > UA_NODEMAP_TOMBSTONE) {
+            /* A Node with the NodeId does already exist */
+            if(entry->nodeIdHash == h &&
+               UA_NodeId_equal(&entry->node.nodeId, nodeid))
+                return NULL;
+        } else {
+            /* Found a candidate node */
+            if(!candidate)
+                candidate = &ns->entries[(UA_UInt32)idx];
+            /* No matching node can come afterwards */
+            if(entry == NULL)
+                return candidate;
+        }
+
         idx += hash2;
         if(idx >= size)
             idx -= size;
-    } while((UA_UInt32)idx != startIdx && entry);
+    } while((UA_UInt32)idx != startIdx);
 
-    /* NULL is returned if there is no free slot (idx == startIdx).
-     * Otherwise the first free slot is returned after we are sure,
-     * that the node id cannot be found in the used hashmap (!entry). */
-    return retval;
+    return candidate;
 }
 
 /* The occupancy of the table after the call will be about 50% */
