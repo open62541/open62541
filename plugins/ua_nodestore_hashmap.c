@@ -36,6 +36,7 @@
  * But this is not done for this implementation of the nodestore. */
 
 typedef struct UA_NodeMapEntry {
+    UA_UInt32 nodeIdHash;
     struct UA_NodeMapEntry *orig; /* the version this is a copy from (or NULL) */
     UA_UInt16 refCount; /* How many consumers have a reference to the node? */
     UA_Boolean deleted; /* Node was marked as deleted and can be deleted when refCount == 0 */
@@ -226,6 +227,7 @@ findOccupiedSlot(const UA_NodeMap *ns, const UA_NodeId *nodeid) {
     do {
         entry = ns->entries[(UA_UInt32)idx];
         if(entry > UA_NODEMAP_TOMBSTONE &&
+           entry->nodeIdHash == h &&
            UA_NodeId_equal(&entry->node.nodeId, nodeid))
             return &ns->entries[(UA_UInt32)idx];
         idx += hash2;
@@ -393,12 +395,13 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
         }
     }
 
+    /* Store the hash */
+    UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
+    newEntry->nodeIdHash = UA_NodeId_hash(&node->nodeId);
+
     /* Insert the node */
-    UA_NodeMapEntry *oldEntryContainer = *slot;
-    UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
-    if(oldEntryContainer > UA_NODEMAP_TOMBSTONE ||
-       UA_atomic_cmpxchg((void**)slot, oldEntryContainer,
-                         newEntryContainer) != oldEntryContainer) {
+    UA_NodeMapEntry *oldEntry = *slot;
+    if(UA_atomic_cmpxchg((void**)slot, oldEntry, newEntry) != oldEntry) {
         deleteEntry(container_of(node, UA_NodeMapEntry, node));
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDEXISTS;
@@ -430,6 +433,9 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* Store the hash */
+    newEntryContainer->nodeIdHash = oldEntryContainer->nodeIdHash;
 
     /* Replace the entry with an atomic operation */
     if(UA_atomic_cmpxchg((void**)slot, oldEntryContainer,
