@@ -52,6 +52,12 @@ static UA_Boolean UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessag
 static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src);
 
 UA_StatusCode
+UA_NetworkMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer, const UA_NetworkMessage* src){
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+}
+
+
+UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
                                const UA_Byte *bufEnd) {
     /* UADPVersion + UADP Flags */

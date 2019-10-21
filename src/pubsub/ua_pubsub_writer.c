@@ -240,6 +240,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
     //WriterGroup freeze
     wg->config.configurationFrozen = UA_TRUE;
     //DataSetWriter freeze
+    size_t dsmCount = 0;
     UA_DataSetWriter *dataSetWriter;
     LIST_FOREACH(dataSetWriter, &wg->writers, listEntry){
         dataSetWriter->config.configurationFrozen = UA_TRUE;
@@ -256,9 +257,44 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
     if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE){
         //UA_NetworkMessage_decodeBinary(, )
         //UA_NetworkMessage_calculateBufferAndOffets(server, w)
+
+        if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "PubSub RT Fail: Non RT capable encoding.");
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+        //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
+        //TODO Clarify: Behaviour if the finale size is more than MTU
+        //TODO Check if there are not allowed promoted fields contained
+        //generate data set messages
+        UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
+        UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
+        UA_DataSetWriter *dsw;
+        LIST_FOREACH(dsw, &wg->writers, listEntry) {
+            /* Find the dataset */
+            UA_PublishedDataSet *pds =
+                    UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+            if(!pds) {
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub Publish: PublishedDataSet not found");
+                continue;
+            }
+            //TODO Check if all fields have an fixed size and static value source
+            /* Generate the DSM */
+            UA_StatusCode res =
+                    UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub RT Offset calculation: DataSetMessage buffering failed");
+                continue;
+            }
+            dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
+            dsmCount++;
+        }
         UA_NetworkMessage networkMessage;
-        generateNetworkMessage(pubSubConnection, wg, NULL, NULL, 0,
-                &wg->config.messageSettings, &wg->config.transportSettings, &networkMessage);
+        generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds, (UA_Byte) dsmCount,
+                               &wg->config.messageSettings, &wg->config.transportSettings, &networkMessage);
+        UA_NetworkMessage_generateOffsetBuffer(&wg->bufferedMessage, &networkMessage);
     }
     return UA_STATUSCODE_GOOD;
 }

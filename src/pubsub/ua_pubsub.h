@@ -117,33 +117,6 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state, UA_Data
 /*          Network Message Offsets           */
 /**********************************************/
 
-/* Offsets for buffered messages in the PubSub fast path.
- * TODO: Implement the generation of the offsets */
-typedef enum {
-	UA_PUBSUB_OFFSETTYPE_SEQUENCENUMBER,
-    UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
-	UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
-	UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
-	UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW
-    /* Add more offset types as needed */
-} UA_NetworkMessageOffsetType;
-
-typedef struct {
-    UA_NetworkMessageOffsetType contentType;
-	union {
-		UA_DateTime *timestamp;
-		UA_DataValue *value;
-	} offsetData;
-	size_t offset;
-} UA_NetworkMessageOffset;
-
-typedef struct {
-    UA_ByteString buffer; /* The precomputed message buffer */
-    UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
-    size_t offsetsSize;
-} UA_NetworkMessageOffsetBuffer;
-
 /**********************************************/
 /*               WriterGroup                  */
 /**********************************************/
