@@ -111,12 +111,24 @@ struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     union {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        UA_EventFilter eventFilter; /* If attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER */
+        /* If attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER */
+        UA_EventFilter eventFilter;
 #endif
+        /* The DataChangeFilter always contains an absolute deadband definition.
+         * Part 8, §6.2 gives the following formula to test for percentage
+         * deadbands:
+         *
+         * DataChange if (absolute value of (last cached value - current value)
+         *                > (deadbandValue/100.0) * ((high–low) of EURange)))
+         *
+         * So we can convert from a percentage to an absolute deadband and keep
+         * the hot code path simple.
+         *
+         * TODO: Store the percentage deadband to recompute when the UARange is
+         * changed at runtime of the MonitoredItem */
         UA_DataChangeFilter dataChangeFilter;
     } filter;
-    UA_Variant lastValue;
-    // TODO: dataEncoding is hardcoded to UA binary
+    UA_Variant lastValue; // TODO: dataEncoding is hardcoded to UA binary
 
     /* Sample Callback */
     UA_UInt64 sampleCallbackId;

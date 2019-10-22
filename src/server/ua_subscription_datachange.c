@@ -13,10 +13,6 @@
 #include "ua_subscription.h"
 #include "ua_types_encoding_binary.h"
 
-#ifdef UA_ENABLE_DA
-#include <math.h> // fabs
-#endif
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 #define UA_VALUENCODING_MAXSTACK 512
@@ -85,16 +81,6 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
     return false;
 }
 
-#ifdef UA_ENABLE_DA
-static UA_Boolean
-updateNeededForStatusCode(const UA_DataValue *value, const UA_MonitoredItem *mon) {
-    if(UA_Variant_isScalar(&value->value) && value->status != mon->lastStatus)
-        return true;
-    return false;
-}
-#endif
-
-
 /* When a change is detected, encoding contains the heap-allocated binary
  * encoded value. The default for changed is false. */
 static UA_StatusCode
@@ -108,38 +94,6 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
                                              mon->filter.dataChangeFilter.deadbandValue))
                 return UA_STATUSCODE_GOOD;
         }
-#ifdef UA_ENABLE_DA
-        else if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
-            /* Browse for the percent range */
-            UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
-            UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
-            if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-                  UA_BrowsePathResult_clear(&bpr);
-                  return UA_STATUSCODE_GOOD;
-            }
-
-            /* Read the range */
-            UA_ReadValueId rvi;
-            UA_ReadValueId_init(&rvi);
-            rvi.nodeId = bpr.targets->targetId.nodeId;
-            rvi.attributeId = UA_ATTRIBUTEID_VALUE;
-            UA_DataValue rangeVal = UA_Server_readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-            if(!UA_Variant_isScalar(&rangeVal.value) || rangeVal.value.type != &UA_TYPES[UA_TYPES_RANGE]) {
-                UA_DataValue_clear(&rangeVal);
-                return UA_STATUSCODE_GOOD;
-            }
-
-            /* Compute the max change */
-            UA_Range* euRange = (UA_Range*)rangeVal.value.data;
-            UA_Double maxDist = (mon->filter.dataChangeFilter.deadbandValue/100.0) * (euRange->high - euRange->low);
-            UA_DataValue_clear(&rangeVal);
-
-            /* Relevant change? */
-            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue, maxDist) &&
-               !updateNeededForStatusCode(value, mon))
-                return UA_STATUSCODE_GOOD;
-        }
-#endif
     }
 
     /* Stack-allocate some memory for the value encoding. We might heap-allocate
