@@ -6,6 +6,7 @@ ADD . /opt/open62541
 WORKDIR /opt/open62541
 RUN git remote add github-upstream https://github.com/open62541/open62541.git
 RUN git fetch --tags github-upstream
+RUN git submodule update --init --recursive
 
 WORKDIR /opt/open62541/build
 RUN cmake -DBUILD_SHARED_LIBS=ON \
