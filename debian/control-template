@@ -3,7 +3,6 @@ Priority: optional
 Maintainer: open62541 Team <open62541-core@googlegroups.com>
 Build-Depends: debhelper (>= 9),
  cmake (>= 2.8),
- git,
  graphviz,
  python (>= 2.7),
 Standards-Version: 4.4.1
