@@ -17,49 +17,49 @@
 
 #define UA_VALUENCODING_MAXSTACK 512
 
-#define ABS_SUBTRACT_TYPE_INDEPENDENT(a,b) ((a)>(b)?(a)-(b):(b)-(a))
+#define UA_ABS(a,b) ((a)>(b)?(a)-(b):(b)-(a))
 
 static UA_Boolean
 outOfDeadBand(const void *data1, const void *data2,
-              const UA_DataType *type, const UA_Double deadbandValue) {
+              const UA_DataType *type, const UA_Double deadband) {
     if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Boolean*)data1, *(const UA_Boolean*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Boolean*)data1, *(const UA_Boolean*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_SByte*)data1, *(const UA_SByte*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_SByte*)data1, *(const UA_SByte*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_BYTE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Byte*)data1, *(const UA_Byte*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Byte*)data1, *(const UA_Byte*)data2) <= deadband)
                 return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT16]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Int16*)data1, *(const UA_Int16*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Int16*)data1, *(const UA_Int16*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT16]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_UInt16*)data1, *(const UA_UInt16*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_UInt16*)data1, *(const UA_UInt16*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT32]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Int32*)data1, *(const UA_Int32*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Int32*)data1, *(const UA_Int32*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT32]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_UInt32*)data1, *(const UA_UInt32*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_UInt32*)data1, *(const UA_UInt32*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT64]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Int64*)data1, *(const UA_Int64*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Int64*)data1, *(const UA_Int64*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT64]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_UInt64*)data1, *(const UA_UInt64*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_UInt64*)data1, *(const UA_UInt64*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_FLOAT]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Float*)data1, *(const UA_Float*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Float*)data1, *(const UA_Float*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_DOUBLE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Double*)data1, *(const UA_Double*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Double*)data1, *(const UA_Double*)data2) <= deadband)
             return false;
     }
     return true;
 }
 
-static UA_INLINE UA_Boolean
+static UA_Boolean
 updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue,
                              const UA_Double deadbandValue) {
     if(value->arrayLength != oldValue->arrayLength)
@@ -250,8 +250,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
         UA_Variant_clear(&mon->lastValue);
         UA_Variant_copy(&value->value, &mon->lastValue);
 #ifdef UA_ENABLE_DA
-        UA_StatusCode_clear(&mon->lastStatus);
-        UA_StatusCode_copy(&value->status, &mon->lastStatus);
+        mon->lastStatus = value->status;
 #endif
     }
 
