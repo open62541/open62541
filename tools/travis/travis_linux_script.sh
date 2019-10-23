@@ -3,7 +3,7 @@ set -e
 
 if [ "$ARCH" = "freertoslwip" ]; then
     echo -e "\r\n==Compile for FREERTOS==" && echo -en 'travis_fold:start:script.build.freertoslwip\\r'
-    cd $HOME/build/open62541
+    cd $HOME/build/open62541/open62541
     mkdir -p build && cd build
     cmake \
     -DUA_ARCHITECTURE:STRING=freertosLWIP \
