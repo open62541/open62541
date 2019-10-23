@@ -35,6 +35,9 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *networkMessage);
+static UA_StatusCode
+UA_DataSetWriter_generateDataSetMessage(UA_Server *server, UA_DataSetMessage *dataSetMessage,
+                                        UA_DataSetWriter *dataSetWriter);
 
 /**********************************************/
 /*               Connection                   */

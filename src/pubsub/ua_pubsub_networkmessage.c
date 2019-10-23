@@ -52,7 +52,405 @@ static UA_Boolean UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessag
 static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src);
 
 UA_StatusCode
-UA_NetworkMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer, const UA_NetworkMessage* src){
+UA_NetworkMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
+        const UA_NetworkMessage* p) {
+    size_t offsetArrayIndex = 0;
+    size_t retval = 0;
+    UA_Byte byte;
+    size_t size = UA_Byte_calcSizeBinary(&byte); // UADPVersion + UADPFlags
+    if(UA_NetworkMessage_ExtendedFlags1Enabled(p)) {
+        size += UA_Byte_calcSizeBinary(&byte);
+        if(UA_NetworkMessage_ExtendedFlags2Enabled(p))
+            size += UA_Byte_calcSizeBinary(&byte);
+    }
+
+    if(p->publisherIdEnabled) {
+        switch (p->publisherIdType) {
+            case UA_PUBLISHERDATATYPE_BYTE:
+                size += UA_Byte_calcSizeBinary(&p->publisherId.publisherIdByte);
+                break;
+
+            case UA_PUBLISHERDATATYPE_UINT16:
+                size += UA_UInt16_calcSizeBinary(&p->publisherId.publisherIdUInt16);
+                break;
+
+            case UA_PUBLISHERDATATYPE_UINT32:
+                size += UA_UInt32_calcSizeBinary(&p->publisherId.publisherIdUInt32);
+                break;
+
+            case UA_PUBLISHERDATATYPE_UINT64:
+                size += UA_UInt64_calcSizeBinary(&p->publisherId.publisherIdUInt64);
+                break;
+
+            case UA_PUBLISHERDATATYPE_STRING:
+                size += UA_String_calcSizeBinary(&p->publisherId.publisherIdString);
+                break;
+        }
+    }
+
+    if(p->dataSetClassIdEnabled)
+        size += UA_Guid_calcSizeBinary(&p->dataSetClassId);
+
+    // Group Header
+    if(p->groupHeaderEnabled) {
+        size += UA_Byte_calcSizeBinary(&byte);
+
+        if(p->groupHeader.writerGroupIdEnabled)
+            size += UA_UInt16_calcSizeBinary(&p->groupHeader.writerGroupId);
+
+        if(p->groupHeader.groupVersionEnabled)
+            size += UA_UInt32_calcSizeBinary(&p->groupHeader.groupVersion);
+
+        if(p->groupHeader.networkMessageNumberEnabled) {
+            offsetBuffer->offsets[offsetArrayIndex++].offset = size;
+            offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGENUMBER;
+            size += UA_UInt16_calcSizeBinary(&p->groupHeader.networkMessageNumber);
+        }
+
+        if(p->groupHeader.sequenceNumberEnabled){
+            offsetBuffer->offsets[offsetArrayIndex++].offset = size;
+            offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_SEQUENCENUMBER;
+            size += UA_UInt16_calcSizeBinary(&p->groupHeader.sequenceNumber);
+        }
+    }
+
+    // Payload Header
+    if(p->payloadHeaderEnabled) {
+        if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
+            size += UA_Byte_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.count);
+            if(p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != NULL) {
+                size += UA_UInt16_calcSizeBinary(&p->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0]) *
+                        p->payloadHeader.dataSetPayloadHeader.count;
+            } else {
+                return 0; /* no dataSetWriterIds given! */
+            }
+        } else {
+            // not implemented
+        }
+    }
+
+    if(p->timestampEnabled) {
+        offsetBuffer->offsets[offsetArrayIndex++].offset = size;
+        offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP;
+        size += UA_DateTime_calcSizeBinary(&p->timestamp);
+    }
+
+    if(p->picosecondsEnabled){
+        offsetBuffer->offsets[offsetArrayIndex++].offset = size;
+        offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS;
+        size += UA_UInt16_calcSizeBinary(&p->picoseconds);
+    }
+
+    if(p->promotedFieldsEnabled) {
+        size += UA_UInt16_calcSizeBinary(&p->promotedFieldsSize);
+        for (UA_UInt16 i = 0; i < p->promotedFieldsSize; i++)
+            size += UA_Variant_calcSizeBinary(&p->promotedFields[i]);
+    }
+
+    if(p->securityEnabled) {
+        size += UA_Byte_calcSizeBinary(&byte);
+        size += UA_UInt32_calcSizeBinary(&p->securityHeader.securityTokenId);
+        size += UA_Byte_calcSizeBinary(&p->securityHeader.nonceLength);
+        if(p->securityHeader.nonceLength > 0)
+            size += (UA_Byte_calcSizeBinary(&p->securityHeader.messageNonce.data[0]) * p->securityHeader.nonceLength);
+        if(p->securityHeader.securityFooterEnabled)
+            size += UA_UInt16_calcSizeBinary(&p->securityHeader.securityFooterSize);
+    }
+
+    if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
+        UA_Byte count = 1;
+        if(p->payloadHeaderEnabled) {
+            count = p->payloadHeader.dataSetPayloadHeader.count;
+            if(count > 1)
+                size += UA_UInt16_calcSizeBinary(&(p->payload.dataSetPayload.sizes[0])) * count;
+        }
+
+        for (size_t i = 0; i < count; i++)
+            size += UA_DataSetMessage_calcSizeBinary(&(p->payload.dataSetPayload.dataSetMessages[i]));
+    }
+
+    if (p->securityEnabled) {
+        if (p->securityHeader.securityFooterEnabled)
+            size += p->securityHeader.securityFooterSize;
+
+        if (p->securityHeader.networkMessageSigned)
+            size += UA_ByteString_calcSizeBinary(&p->signature);
+    }
+
+    retval = size;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_NetworkMessage_generateOffsetBuffer2(UA_NetworkMessageOffsetBuffer *offsetBuffer, const UA_NetworkMessage* src, UA_Byte **bufPos,
+                                       const UA_Byte *bufEnd){
+    size_t currentOffsetCounter = 0;
+    size_t offsetArrayIndex = 0;
+    /* UADPVersion + UADP Flags */
+    UA_Byte v = src->version;
+    if(src->publisherIdEnabled)
+        v |= NM_PUBLISHER_ID_ENABLED_MASK;
+
+    if(src->groupHeaderEnabled)
+        v |= NM_GROUP_HEADER_ENABLED_MASK;
+
+    if(src->payloadHeaderEnabled)
+        v |= NM_PAYLOAD_HEADER_ENABLED_MASK;
+
+    if(UA_NetworkMessage_ExtendedFlags1Enabled(src))
+        v |= NM_EXTENDEDFLAGS1_ENABLED_MASK;
+
+    UA_StatusCode rv = UA_Byte_encodeBinary(&v, bufPos, bufEnd);
+    currentOffsetCounter += UA_Byte_calcSizeBinary(&v);
+    if(rv != UA_STATUSCODE_GOOD)
+        return rv;
+
+    // ExtendedFlags1
+    if(UA_NetworkMessage_ExtendedFlags1Enabled(src)) {
+        v = (UA_Byte)src->publisherIdType;
+
+        if(src->dataSetClassIdEnabled)
+            v |= NM_DATASET_CLASSID_ENABLED_MASK;
+
+        if(src->securityEnabled)
+            v |= NM_SECURITY_ENABLED_MASK;
+
+        if(src->timestampEnabled)
+            v |= NM_TIMESTAMP_ENABLED_MASK;
+
+        if(src->picosecondsEnabled)
+            v |= NM_PICOSECONDS_ENABLED_MASK;
+
+        if(UA_NetworkMessage_ExtendedFlags2Enabled(src))
+            v |= NM_EXTENDEDFLAGS2_ENABLED_MASK;
+
+        rv = UA_Byte_encodeBinary(&v, bufPos, bufEnd);
+        if(UA_NetworkMessage_ExtendedFlags1Enabled(src))
+            currentOffsetCounter += UA_Byte_calcSizeBinary(&v);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+
+        // ExtendedFlags2
+        if(UA_NetworkMessage_ExtendedFlags2Enabled(src)) {
+            v = (UA_Byte)src->networkMessageType;
+            // shift left 2 bit
+            v = (UA_Byte) (v << NM_SHIFT_LEN);
+
+            if(src->chunkMessage)
+                v |= NM_CHUNK_MESSAGE_MASK;
+
+            if(src->promotedFieldsEnabled)
+                v |= NM_PROMOTEDFIELDS_ENABLED_MASK;
+
+            rv = UA_Byte_encodeBinary(&v, bufPos, bufEnd);
+            if(UA_NetworkMessage_ExtendedFlags2Enabled(src))
+                currentOffsetCounter += UA_Byte_calcSizeBinary(&v);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+    }
+
+    // PublisherId
+    if(src->publisherIdEnabled) {
+        switch (src->publisherIdType) {
+            case UA_PUBLISHERDATATYPE_BYTE:
+                currentOffsetCounter += UA_Byte_calcSizeBinary(&(src->publisherId.publisherIdByte));
+                rv = UA_Byte_encodeBinary(&(src->publisherId.publisherIdByte), bufPos, bufEnd);
+                break;
+
+            case UA_PUBLISHERDATATYPE_UINT16:
+                currentOffsetCounter += UA_UInt16_calcSizeBinary(&(src->publisherId.publisherIdUInt16));
+                rv = UA_UInt16_encodeBinary(&(src->publisherId.publisherIdUInt16), bufPos, bufEnd);
+                break;
+
+            case UA_PUBLISHERDATATYPE_UINT32:
+                currentOffsetCounter += UA_UInt32_calcSizeBinary(&(src->publisherId.publisherIdUInt32));
+                rv = UA_UInt32_encodeBinary(&(src->publisherId.publisherIdUInt32), bufPos, bufEnd);
+                break;
+
+            case UA_PUBLISHERDATATYPE_UINT64:
+                currentOffsetCounter += UA_UInt64_calcSizeBinary(&(src->publisherId.publisherIdUInt64));
+                rv = UA_UInt64_encodeBinary(&(src->publisherId.publisherIdUInt64), bufPos, bufEnd);
+                break;
+
+            case UA_PUBLISHERDATATYPE_STRING:
+                currentOffsetCounter += UA_String_calcSizeBinary(&(src->publisherId.publisherIdString));
+                rv = UA_String_encodeBinary(&(src->publisherId.publisherIdString), bufPos, bufEnd);
+                break;
+
+            default:
+                rv = UA_STATUSCODE_BADINTERNALERROR;
+                break;
+        }
+
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+    }
+
+    // DataSetClassId
+    if(src->dataSetClassIdEnabled) {
+        currentOffsetCounter += UA_Guid_calcSizeBinary(&(src->dataSetClassId));
+        rv = UA_Guid_encodeBinary(&(src->dataSetClassId), bufPos, bufEnd);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+    }
+
+    // Group Header
+    if(src->groupHeaderEnabled) {
+        v = 0;
+
+        if(src->groupHeader.writerGroupIdEnabled)
+            v |= GROUP_HEADER_WRITER_GROUPID_ENABLED;
+
+        if(src->groupHeader.groupVersionEnabled)
+            v |= GROUP_HEADER_GROUP_VERSION_ENABLED;
+
+        if(src->groupHeader.networkMessageNumberEnabled)
+            v |= GROUP_HEADER_NM_NUMBER_ENABLED;
+
+        if(src->groupHeader.sequenceNumberEnabled)
+            v |= GROUP_HEADER_SEQUENCE_NUMBER_ENABLED;
+
+        currentOffsetCounter += UA_Byte_calcSizeBinary(&v);
+        rv = UA_Byte_encodeBinary(&v, bufPos, bufEnd);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+
+        if(src->groupHeader.writerGroupIdEnabled) {
+            currentOffsetCounter += UA_UInt16_calcSizeBinary(&(src->groupHeader.writerGroupId));
+            rv = UA_UInt16_encodeBinary(&(src->groupHeader.writerGroupId), bufPos, bufEnd);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+
+        if(src->groupHeader.groupVersionEnabled) {
+            currentOffsetCounter += UA_UInt32_calcSizeBinary(&(src->groupHeader.groupVersion));
+            rv = UA_UInt32_encodeBinary(&(src->groupHeader.groupVersion), bufPos, bufEnd);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+
+        if(src->groupHeader.networkMessageNumberEnabled) {
+            currentOffsetCounter += UA_UInt16_calcSizeBinary(&(src->groupHeader.networkMessageNumber));
+            offsetBuffer->offsets[offsetArrayIndex++].offset = currentOffsetCounter;
+            offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGENUMBER;
+            rv = UA_UInt16_encodeBinary(&(src->groupHeader.networkMessageNumber), bufPos, bufEnd);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+
+        if(src->groupHeader.sequenceNumberEnabled) {
+            currentOffsetCounter += UA_UInt16_calcSizeBinary(&(src->groupHeader.sequenceNumber));
+            offsetBuffer->offsets[offsetArrayIndex++].offset = currentOffsetCounter;
+            offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_SEQUENCENUMBER;
+            rv = UA_UInt16_encodeBinary(&(src->groupHeader.sequenceNumber), bufPos, bufEnd);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+    }
+
+    // Payload-Header
+    if(src->payloadHeaderEnabled) {
+        if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
+            return UA_STATUSCODE_BADNOTIMPLEMENTED;
+
+        currentOffsetCounter += UA_Byte_calcSizeBinary(&(src->payloadHeader.dataSetPayloadHeader.count));
+        rv = UA_Byte_encodeBinary(&(src->payloadHeader.dataSetPayloadHeader.count), bufPos, bufEnd);
+
+        if(src->payloadHeader.dataSetPayloadHeader.dataSetWriterIds == NULL)
+            return UA_STATUSCODE_BADENCODINGERROR;
+
+        for(UA_Byte i = 0; i < src->payloadHeader.dataSetPayloadHeader.count; i++) {
+            currentOffsetCounter += UA_UInt16_calcSizeBinary(&(src->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i]));
+            rv = UA_UInt16_encodeBinary(&(src->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i]),
+                                        bufPos, bufEnd);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+    }
+
+    // Timestamp
+    if(src->timestampEnabled){
+        currentOffsetCounter += UA_DateTime_calcSizeBinary(&(src->timestamp));
+        offsetBuffer->offsets[offsetArrayIndex++].offset = currentOffsetCounter;
+        offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP;
+        rv = UA_DateTime_encodeBinary(&(src->timestamp), bufPos, bufEnd);
+    }
+
+    // Picoseconds
+    if(src->picosecondsEnabled){
+        currentOffsetCounter += UA_UInt16_calcSizeBinary(&(src->picoseconds));
+        offsetBuffer->offsets[offsetArrayIndex++].offset = currentOffsetCounter;
+        offsetBuffer->offsets[offsetArrayIndex++].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS;
+        rv = UA_UInt16_encodeBinary(&(src->picoseconds), bufPos, bufEnd);
+    }
+
+    // PromotedFields
+    if(src->promotedFieldsEnabled) {
+        /* Size (calculate & encode) */
+        UA_UInt16 pfSize = 0;
+        for(UA_UInt16 i = 0; i < src->promotedFieldsSize; i++)
+            pfSize = (UA_UInt16) (pfSize + UA_Variant_calcSizeBinary(&src->promotedFields[i]));
+        currentOffsetCounter += UA_UInt16_calcSizeBinary(&pfSize);
+        rv |= UA_UInt16_encodeBinary(&pfSize, bufPos, bufEnd);
+
+        for (UA_UInt16 i = 0; i < src->promotedFieldsSize; i++){
+            currentOffsetCounter += UA_Variant_calcSizeBinary(&(src->promotedFields[i]));
+            //TODO Clarify promoted fields handling with RT / allow this with rt?
+            rv |= UA_Variant_encodeBinary(&(src->promotedFields[i]), bufPos, bufEnd);
+        }
+    }
+
+    // SecurityHeader
+    if(src->securityEnabled) {
+        // SecurityFlags
+        v = 0;
+        if(src->securityHeader.networkMessageSigned)
+            v |= SECURITY_HEADER_NM_SIGNED;
+
+        if(src->securityHeader.networkMessageEncrypted)
+            v |= SECURITY_HEADER_NM_ENCRYPTED;
+
+        if(src->securityHeader.securityFooterEnabled)
+            v |= SECURITY_HEADER_SEC_FOOTER_ENABLED;
+
+        if(src->securityHeader.forceKeyReset)
+            v |= SECURITY_HEADER_FORCE_KEY_RESET;
+
+        currentOffsetCounter += UA_Byte_calcSizeBinary(&v);
+        rv = UA_Byte_encodeBinary(&v, bufPos, bufEnd);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+
+        // SecurityTokenId
+        currentOffsetCounter += UA_UInt32_calcSizeBinary(&src->securityHeader.securityTokenId);
+        rv = UA_UInt32_encodeBinary(&src->securityHeader.securityTokenId, bufPos, bufEnd);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+
+        // NonceLength
+        currentOffsetCounter += UA_Byte_calcSizeBinary(&src->securityHeader.nonceLength);
+        rv = UA_Byte_encodeBinary(&src->securityHeader.nonceLength, bufPos, bufEnd);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
+
+        // MessageNonce
+        for (UA_Byte i = 0; i < src->securityHeader.nonceLength; i++) {
+            currentOffsetCounter += UA_Byte_calcSizeBinary(&(src->securityHeader.messageNonce.data[i]));
+            rv = UA_Byte_encodeBinary(&(src->securityHeader.messageNonce.data[i]), bufPos, bufEnd);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+
+        // SecurityFooterSize
+        if(src->securityHeader.securityFooterEnabled) {
+            currentOffsetCounter += UA_UInt16_calcSizeBinary(&src->securityHeader.securityFooterSize);
+            rv = UA_UInt16_encodeBinary(&src->securityHeader.securityFooterSize, bufPos, bufEnd);
+            if(rv != UA_STATUSCODE_GOOD)
+                return rv;
+        }
+    }
+
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
