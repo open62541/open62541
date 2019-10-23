@@ -68,6 +68,8 @@ UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
  * TODO: Implement the generation of the offsets */
 typedef enum {
     UA_PUBSUB_OFFSETTYPE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGENUMBER,
+    UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS,
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
     UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
@@ -231,7 +233,12 @@ typedef struct {
 
 UA_StatusCode
 UA_NetworkMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
-                                       const UA_NetworkMessage* src);
+                                       const UA_NetworkMessage* p);
+
+UA_StatusCode
+UA_NetworkMessage_generateOffsetBuffer2(UA_NetworkMessageOffsetBuffer *offsetBuffer,
+                                       const UA_NetworkMessage* src, UA_Byte **bufPos,
+                                       const UA_Byte *bufEnd);
 
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
