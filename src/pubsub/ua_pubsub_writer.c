@@ -507,12 +507,14 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_String_copy(&src->dataSetName, &dst->dataSetName);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
-    dst->dataSetWriterProperties = (UA_KeyValuePair *)
-        UA_calloc(src->dataSetWriterPropertiesSize, sizeof(UA_KeyValuePair));
-    if(!dst->dataSetWriterProperties)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    for(size_t i = 0; i < src->dataSetWriterPropertiesSize; i++){
-        retVal |= UA_KeyValuePair_copy(&src->dataSetWriterProperties[i], &dst->dataSetWriterProperties[i]);
+    if (src->dataSetWriterPropertiesSize > 0) {
+        dst->dataSetWriterProperties = (UA_KeyValuePair *)
+            UA_calloc(src->dataSetWriterPropertiesSize, sizeof(UA_KeyValuePair));
+        if(!dst->dataSetWriterProperties)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        for(size_t i = 0; i < src->dataSetWriterPropertiesSize; i++){
+            retVal |= UA_KeyValuePair_copy(&src->dataSetWriterProperties[i], &dst->dataSetWriterProperties[i]);
+        }
     }
     return retVal;
 }
@@ -668,11 +670,13 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
     retVal |= UA_String_copy(&src->name, &dst->name);
     retVal |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     retVal |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
-    dst->groupProperties = (UA_KeyValuePair *) UA_calloc(src->groupPropertiesSize, sizeof(UA_KeyValuePair));
-    if(!dst->groupProperties)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    for(size_t i = 0; i < src->groupPropertiesSize; i++){
-        retVal |= UA_KeyValuePair_copy(&src->groupProperties[i], &dst->groupProperties[i]);
+    if (src->groupPropertiesSize > 0) {
+        dst->groupProperties = (UA_KeyValuePair *) UA_calloc(src->groupPropertiesSize, sizeof(UA_KeyValuePair));
+        if(!dst->groupProperties)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        for(size_t i = 0; i < src->groupPropertiesSize; i++){
+            retVal |= UA_KeyValuePair_copy(&src->groupProperties[i], &dst->groupProperties[i]);
+        }
     }
     return retVal;
 }
@@ -899,14 +903,16 @@ UA_Server_addDataSetWriter(UA_Server *server,
 
 #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
     //initialize the queue for the last values
-    newDataSetWriter->lastSamples = (UA_DataSetWriterSample * )
-        UA_calloc(currentDataSetContext->fieldSize, sizeof(UA_DataSetWriterSample));
-    if(!newDataSetWriter->lastSamples) {
-        UA_DataSetWriterConfig_clear(&newDataSetWriter->config);
-        UA_free(newDataSetWriter);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if (currentDataSetContext->fieldSize > 0) {
+        newDataSetWriter->lastSamples = (UA_DataSetWriterSample * )
+            UA_calloc(currentDataSetContext->fieldSize, sizeof(UA_DataSetWriterSample));
+        if(!newDataSetWriter->lastSamples) {
+            UA_DataSetWriterConfig_clear(&newDataSetWriter->config);
+            UA_free(newDataSetWriter);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
     }
-    newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
 #endif
 
     //connect PublishedDataSet with DataSetWriter
@@ -1183,6 +1189,10 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
     dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+
+    if (currentDataSet->fieldSize == 0) {
+        return UA_STATUSCODE_GOOD;
+    }
 
     UA_DataSetField *dsf;
     size_t counter = 0;
