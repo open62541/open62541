@@ -182,7 +182,7 @@ checkReaderIdentifier(UA_Server *server, UA_NetworkMessage *pMsg, UA_DataSetRead
 static UA_StatusCode
 getReaderFromIdentifier(UA_Server *server, UA_NetworkMessage *pMsg,
                         UA_DataSetReader **dataSetReader, UA_PubSubConnection *pConnection) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     if(!pMsg->publisherIdEnabled) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Cannot process DataSetReader without PublisherId");
