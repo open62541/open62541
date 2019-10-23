@@ -18,7 +18,7 @@ if [ "$ARCH" = "freertoslwip" ]; then
 
     # Example code to build a flashable binary with xtensa-toolchain
     cd $HOME
-	git clone https://github.com/cmbahadir/opcua-esp32.git opcua-esp32
+	git clone -b open62541_ci https://github.com/cmbahadir/opcua-esp32.git opcua-esp32
 	mv opcua-esp32 $IDF_PATH/examples
     cd $IDF_PATH/examples/opcua-esp32
     cp /home/travis/build/open62541/open62541/build/open62541.c components/open62541lib
