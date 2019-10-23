@@ -17,8 +17,7 @@ typedef struct UA_HistoryDatabase UA_HistoryDatabase;
 struct UA_HistoryDatabase {
     void *context;
 
-    void
-    (*deleteMembers)(UA_HistoryDatabase *hdb);
+    void (*clear)(UA_HistoryDatabase *hdb);
 
     /* This function will be called when a nodes value is set.
      * Use this to insert data into your database(s) if polling is not suitable

@@ -185,7 +185,7 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
         ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name, &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
         ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));
     }
-    UA_PubSubConnectionConfig_deleteMembers(&connectionConfig);
+    UA_PubSubConnectionConfig_clear(&connectionConfig);
     } END_TEST
 
 int main(void) {

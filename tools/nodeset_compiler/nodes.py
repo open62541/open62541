@@ -253,6 +253,8 @@ class VariableNode(Node):
                 self.dataType = RefOrAlias(av)
             elif  at == "ArrayDimensions":
                 self.arrayDimensions = av.split(",")
+            elif at == "Historizing":
+                self.historizing = "false" not in av.lower()
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:
@@ -517,8 +519,7 @@ class DataTypeNode(Node):
 
             return self.__baseTypeEncoding__
 
-        isEnum = True
-        isSubType = True
+        isEnum = False
         # An option set is at the same time also an enum, at least for the encoding below
         isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i==12755
 
@@ -540,26 +541,22 @@ class DataTypeNode(Node):
                         fdtype = str(av)
                         if fdtype in nodeset.aliases:
                             fdtype = nodeset.aliases[fdtype]
-                        isEnum = False
                     elif at == "Name":
                         fname = str(av)
-                    #elif at == "SymbolicName":
+                    elif at == "SymbolicName":
+                        # ignore
+                        continue
                     #    symbolicName = str(av)
                     elif at == "Value":
                         enumVal = int(av)
-                        isSubType = False
+                        isEnum = True
                     elif at == "ValueRank":
                         valueRank = int(av)
                     else:
                         logger.warn("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.
                 # Figure out which of the dictionaries gets the newly read value pair
-                if isEnum == isSubType:
-                    # This is an error
-                    logger.warn("DataType contains both enumeration and subtype (or neither)")
-                    self.__encodable__ = False
-                    break
-                elif isEnum:
+                if isEnum:
                     # This is an enumeration
                     enumDict.append((fname, enumVal))
                     continue
@@ -585,7 +582,7 @@ class DataTypeNode(Node):
                                                   namespaceMapping=namespaceMapping)
                     self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank]]
                     if not dtnode.isEncodable():
-                        # If we inherit an encoding from an unencodable not, this node is
+                        # If we inherit an encoding from an unencodable node, this node is
                         # also not encodable
                         self.__encodable__ = False
                         break

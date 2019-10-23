@@ -12,6 +12,7 @@
 #define UA_SERVER_CONFIG_H_
 
 #include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/pki.h>
@@ -83,6 +84,9 @@ typedef struct {
 
 #endif
 
+typedef void
+(*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
+
 struct UA_ServerConfig {
     UA_UInt16 nThreads; /* only if multithreading is enabled */
     UA_Logger logger;
@@ -139,6 +143,21 @@ struct UA_ServerConfig {
     /**
      * .. note:: See the section for :ref:`access-control
      *    handling<access-control>`. */
+
+    /* Async Operations */
+#if UA_MULTITHREADING >= 100
+    UA_Double asyncOperationTimeout; /* in ms, 0 => unlimited */
+    size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
+    UA_Double asyncCallRequestTimeout; /* in ms, 0 => unlimited */
+    /* Notify workers when an async operation was enqueued */
+    UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
+#endif
+    /**
+     * .. note:: See the section for :ref:`async
+     * operations<async-operations>`. */
+
+    /* Nodestore */
+    UA_Nodestore nodestore;
 
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;

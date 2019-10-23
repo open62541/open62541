@@ -185,7 +185,7 @@ typedef struct {
 
 static void
 ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
-    UA_Connection_deleteMembers(connection);
+    UA_Connection_clear(connection);
     UA_free(connection);
 }
 
@@ -367,7 +367,6 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char discoveryUrlBuffer[256];
-    char hostnameBuffer[256];
     if (customHostname->length) {
         du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%.*s:%d/",
                                         (int)customHostname->length,
@@ -375,12 +374,14 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
                                         layer->port);
         du.data = (UA_Byte*)discoveryUrlBuffer;
     }else{
+        char hostnameBuffer[256];
         if(UA_gethostname(hostnameBuffer, 255) == 0) {
             du.length = (size_t)UA_snprintf(discoveryUrlBuffer, 255, "opc.tcp://%s:%d/",
                                             hostnameBuffer, layer->port);
             du.data = (UA_Byte*)discoveryUrlBuffer;
         } else {
             UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK, "Could not get the hostname");
+            return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
     UA_String_copy(&du, &nl->discoveryUrl);
@@ -545,7 +546,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig config, UA_UInt16 port,
                          UA_Logger *logger) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
+    nl.clear = ServerNetworkLayerTCP_deleteMembers;
     nl.localConnectionConfig = config;
     nl.start = ServerNetworkLayerTCP_start;
     nl.listen = ServerNetworkLayerTCP_listen;

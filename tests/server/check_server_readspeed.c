@@ -40,7 +40,7 @@ static void setup(void) {
 static void teardown(void) {
     UA_SecureChannel_close(&testChannel);
     UA_SecureChannel_deleteMembers(&testChannel);
-    dummyPolicy.deleteMembers(&dummyPolicy);
+    dummyPolicy.clear(&dummyPolicy);
     testingConnection.close(&testingConnection);
 
     UA_Server_delete(server);
@@ -94,7 +94,9 @@ START_TEST(readSpeed) {
         size_t offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
 
+        UA_LOCK(server->serviceMutex);
         Service_Read(server, &server->adminSession, &req, &res);
+        UA_UNLOCK(server->serviceMutex);
 
         UA_Byte *rpos = response_msg.data;
         const UA_Byte *rend = &response_msg.data[response_msg.length];

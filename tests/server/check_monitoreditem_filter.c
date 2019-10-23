@@ -559,7 +559,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLater) {
        UA_Client_MonitoredItems_modify(client, modifyRequest);
 
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
-    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+    ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
 
     UA_ModifyMonitoredItemsResponse_deleteMembers(&modifyResponse);
 
@@ -837,7 +837,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createResponse.resultsSize, 1);
-    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_BADFILTERNOTALLOWED);
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
     UA_CreateMonitoredItemsResponse_deleteMembers(&createResponse);
 

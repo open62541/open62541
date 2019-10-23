@@ -12,11 +12,13 @@
 
 #ifdef UA_ENABLE_DISCOVERY
 
-static UA_StatusCode
+UA_StatusCode
 register_server_with_discovery_server(UA_Server *server,
-                                      UA_Client *client,
+                                      void *pClient,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
+    UA_Client *client = (UA_Client *) pClient;
+
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
@@ -77,7 +79,7 @@ register_server_with_discovery_server(UA_Server *server,
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
     UA_StatusCode serviceResult = response.responseHeader.serviceResult;
-    UA_RegisterServer2Response_deleteMembers(&response);
+    UA_RegisterServer2Response_clear(&response);
     UA_Array_delete(request.discoveryConfiguration,
                     request.discoveryConfigurationSize,
                     &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
@@ -101,7 +103,7 @@ register_server_with_discovery_server(UA_Server *server,
                             &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
         serviceResult = response_fallback.responseHeader.serviceResult;
-        UA_RegisterServerResponse_deleteMembers(&response_fallback);
+        UA_RegisterServerResponse_clear(&response_fallback);
     }
 
     if(serviceResult != UA_STATUSCODE_GOOD) {
@@ -116,14 +118,20 @@ register_server_with_discovery_server(UA_Server *server,
 UA_StatusCode
 UA_Server_register_discovery(UA_Server *server, UA_Client *client,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, client,
-                                                 false, semaphoreFilePath);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = register_server_with_discovery_server(server, client,
+                                                                 false, semaphoreFilePath);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, UA_Client *client) {
-    return register_server_with_discovery_server(server, client,
-                                                 true, NULL);
+    UA_LOCK(server->serviceMutex);
+    UA_StatusCode retval = register_server_with_discovery_server(server, client,
+                                                                 true, NULL);
+    UA_UNLOCK(server->serviceMutex);
+    return retval;
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

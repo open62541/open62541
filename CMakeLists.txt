@@ -127,15 +127,12 @@ endforeach(arch_ ${architectures})
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_HISTORIZING "Enable server and client to provide historical access." OFF)
-option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features." OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
-option(UA_ENABLE_QUERY "Enable query support." OFF)
-option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -192,17 +189,23 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
+option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
+mark_as_advanced(UA_ENABLE_COVERAGE)
+
+option(UA_ENABLE_QUERY "Enable query support in the client (most servers don't support it)" OFF)
+mark_as_advanced(UA_ENABLE_QUERY)
+
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
+
+option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features" OFF)
+mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 
 set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading")
 mark_as_advanced(UA_MULTITHREADING)
 if (UA_MULTITHREADING GREATER 100)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
-
-option(UA_ENABLE_CUSTOM_NODESTORE "Do not compile the default Nodestore implementation into the library" OFF)
-mark_as_advanced(UA_ENABLE_CUSTOM_NODESTORE)
 
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
@@ -250,6 +253,18 @@ endif()
 
 option(UA_ENABLE_JSON_ENCODING "Enable Json encoding (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_JSON_ENCODING)
+
+option(UA_ENABLE_PUBSUB_MQTT "Enable publish/subscribe with mqtt (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_MQTT)
+if(UA_ENABLE_PUBSUB_MQTT)
+    # Warn if run in Windows
+    if(WIN32)
+        MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+    endif()
+    if(NOT UA_ENABLE_PUBSUB)
+    message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
+    endif()
+endif()
 
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
@@ -311,6 +326,7 @@ mark_as_advanced(UA_ENABLE_HARDENING)
 
 if(CMAKE_VERSION VERSION_GREATER 3.6)
     set(UA_ENABLE_STATIC_ANALYZER "OFF" CACHE STRING "Enable installed static analyzer during build process (off/minimal/reduced/full)")
+    mark_as_advanced(UA_ENABLE_STATIC_ANALYZER)
     SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
 endif()
 
@@ -456,7 +472,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
     # Debug
-    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug")
+    if(BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX)
         if("x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
             # Add default sanitizer settings when using clang and Debug build.
             # This allows e.g. CLion to find memory locations for SegFaults
@@ -467,7 +483,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         endif()
     endif()
 
-    if(UA_ENABLE_HARDENING AND (CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo"))
+    if(UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
         check_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
     endif()
 
@@ -575,6 +591,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
+                     ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_config.h
@@ -585,7 +602,6 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
-                     ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/deps/base64.h
@@ -609,7 +625,9 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
-                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_server_methodqueue.h
+					 ${PROJECT_SOURCE_DIR}/src/server/ua_asyncmethod_manager.h)
 
 # TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
@@ -633,9 +651,12 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_methodqueue.c
+				${PROJECT_SOURCE_DIR}/src/server/ua_asyncmethod_manager.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -664,6 +685,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pki_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
@@ -672,7 +694,8 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
 )
@@ -717,6 +740,20 @@ if(UA_ENABLE_PUBSUB)
     if(UA_ENABLE_PUBSUB_ETH_UADP)
         list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
         list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
+    endif()
+    if(UA_ENABLE_PUBSUB_MQTT)
+        if(WIN32)
+            MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
+        else()
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt_pal.h)
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_pal.c)
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.h)
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/mqtt.c)
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.h)
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_pubsub_mqtt.c)
+            list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.h)
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt_adapter.c)
+        endif()
     endif()
 endif()
 
@@ -1260,7 +1297,11 @@ if(NOT UA_ENABLE_AMALGAMATION)
         string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
 
         get_filename_component( dir ${file} DIRECTORY )
-        install( FILES ${full_path} DESTINATION include/open62541${dir} )
+        if(${full_path} MATCHES "deps")
+            install( FILES ${full_path} DESTINATION include${dir} )
+        else()
+            install( FILES ${full_path} DESTINATION include/open62541${dir} )
+        endif()
     endforeach()
 
 else()

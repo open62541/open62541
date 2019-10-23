@@ -51,7 +51,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
         sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
 
     /* Clean up */
-    UA_ByteString_deleteMembers(&dataToSign);
+    UA_ByteString_clear(&dataToSign);
     return retval;
 }
 
@@ -59,6 +59,8 @@ void
 Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                       const UA_CreateSessionRequest *request,
                       UA_CreateSessionResponse *response) {
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
+
     if(!channel) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -151,7 +153,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Mirror back the endpointUrl */
     for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
-        UA_String_deleteMembers(&response->serverEndpoints[i].endpointUrl);
+        UA_String_clear(&response->serverEndpoints[i].endpointUrl);
         response->responseHeader.serviceResult |=
             UA_String_copy(&request->endpointUrl,
                            &response->serverEndpoints[i].endpointUrl);
@@ -242,7 +244,7 @@ checkSignature(const UA_Server *server, const UA_SecureChannel *channel,
 
     retval = securityPolicy->certificateSigningAlgorithm.verify(securityPolicy, channel->channelContext, &dataToVerify,
                                                                 &request->clientSignature.signature);
-    UA_ByteString_deleteMembers(&dataToVerify);
+    UA_ByteString_clear(&dataToVerify);
     return retval;
 }
 
@@ -299,7 +301,7 @@ decryptPassword(UA_SecurityPolicy *securityPolicy, void *tempChannelContext,
     retval = UA_STATUSCODE_GOOD;
 
  cleanup:
-    UA_ByteString_deleteMembers(&decryptedTokenSecret);
+    UA_ByteString_clear(&decryptedTokenSecret);
     return retval;
 }
 #endif
@@ -322,6 +324,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Execute ActivateSession");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
     if(session->validTill < UA_DateTime_nowMonotonic()) {
         UA_LOG_INFO_SESSION(&server->config.logger, session,
@@ -522,10 +525,8 @@ Service_CloseSession(UA_Server *server, UA_Session *session,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
     UA_LOG_INFO_SESSION(&server->config.logger, session, "CloseSession");
+    UA_LOCK_ASSERT(server->serviceMutex, 1);
 
-    /* Callback into userland access control */
-    server->config.accessControl.closeSession(server, &server->config.accessControl,
-                                              &session->sessionId, session->sessionHandle);
     response->responseHeader.serviceResult =
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->header.authenticationToken);

@@ -42,9 +42,14 @@ struct UA_Client;
  * Server Lifecycle
  * ---------------- */
 
-UA_Server UA_EXPORT * UA_Server_new(void);
+/* The method UA_Server_new is defined in server_config_default.h. So default
+ * plugins outside of the core library (for logging, etc) are already available
+ * during the initialization.
+ *
+ * UA_Server UA_EXPORT * UA_Server_new(void);
+ */
 
-/* Makes a (shallow) copy of the config into the server object.
+/* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
 UA_Server UA_EXPORT *
 UA_Server_newWithConfig(const UA_ServerConfig *config);
@@ -103,7 +108,7 @@ typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
  *        identifier is not set.
  * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
  *         otherwise. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId);
 
@@ -120,11 +125,11 @@ UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
  *        identifier is not set.
  * @return Upon success, UA_STATUSCODE_GOOD is returned. An error code
  *         otherwise. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms);
 
@@ -132,7 +137,7 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
  *
  * @param server The server object.
  * @param callbackId The id of the callback */
-void UA_EXPORT
+void UA_EXPORT UA_THREADSAFE
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
@@ -454,18 +459,18 @@ UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
 
 /* Browse the references of a particular node. See the definition of
  * BrowseDescription structure for details. */
-UA_BrowseResult UA_EXPORT
+UA_BrowseResult UA_EXPORT UA_THREADSAFE
 UA_Server_browse(UA_Server *server, UA_UInt32 maxReferences,
                  const UA_BrowseDescription *bd);
 
-UA_BrowseResult UA_EXPORT
+UA_BrowseResult UA_EXPORT UA_THREADSAFE
 UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint);
 
 /* Nonstandard version of the browse service that recurses into child nodes.
  * Possible loops (that can occur for non-hierarchical references) are handled
  * by adding every target node at most once to the results array. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_browseRecursive(UA_Server *server, const UA_BrowseDescription *bd,
                           size_t *resultsSize, UA_ExpandedNodeId **results);
 
@@ -481,7 +486,7 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
  * RelativePath that specifies forward references which are subtypes of the
  * HierarchicalReferences ReferenceType. All Nodes followed by the browsePath
  * shall be of the NodeClass Object or Variable. */
-UA_BrowsePathResult UA_EXPORT
+UA_BrowsePathResult UA_EXPORT UA_THREADSAFE
 UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                                      size_t browsePathSize,
                                      const UA_QualifiedName *browsePath);
@@ -496,7 +501,7 @@ typedef UA_StatusCode
                            UA_NodeId referenceTypeId, void *handle);
 #endif
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle);
 
@@ -517,7 +522,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  * @param client the client which is used to call the RegisterServer. It must
  *        already be connected to the correct endpoint
  * @param semaphoreFilePath optional parameter pointing to semaphore file. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_register_discovery(UA_Server *server, struct UA_Client *client,
                              const char* semaphoreFilePath);
 
@@ -526,7 +531,7 @@ UA_Server_register_discovery(UA_Server *server, struct UA_Client *client,
  * @param server
  * @param client the client which is used to call the RegisterServer. It must
  *        already be connected to the correct endpoint */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
 
  /* Adds a periodic callback to register the server with the LDS (local discovery server)
@@ -552,7 +557,7 @@ UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
   * @param intervalMs
   * @param delayFirstRegisterMs
   * @param periodicCallbackId */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, struct UA_Client *client,
                                             const char* discoveryServerUrl,
                                             UA_Double intervalMs,
@@ -572,7 +577,7 @@ typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *regi
  * @param cb the callback
  * @param data data passed to the callback
  * @return UA_STATUSCODE_SUCCESS on success */
-void UA_EXPORT
+void UA_EXPORT UA_THREADSAFE
 UA_Server_setRegisterServerCallback(UA_Server *server, UA_Server_registerServerCallback cb,
                                     void* data);
 
@@ -600,7 +605,7 @@ typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serv
  * @param cb the callback
  * @param data data passed to the callback
  * @return UA_STATUSCODE_SUCCESS on success */
-void UA_EXPORT
+void UA_EXPORT UA_THREADSAFE
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data);
@@ -670,7 +675,50 @@ typedef struct {
     void (*destructor)(UA_Server *server,
                        const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *nodeId, void *nodeContext);
-} UA_GlobalNodeLifecycle;
+
+    /* Can be NULL. Called during recursive node instantiation. While mandatory
+     * child nodes are automatically created if not already present, optional child
+     * nodes are not. This callback can be used to define whether an optional child
+     * node should be created.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param sourceNodeId Source node from the type definition. If the new node
+     *        shall be created, it will be a copy of this node.
+     * @param targetParentNodeId Parent of the potential new child node
+     * @param referenceTypeId Identifies the reference type which that the parent
+     *        node has to the new node. 
+     * @return Return UA_TRUE if the child node shall be instantiatet, 
+     *         UA_FALSE otherwise. */
+    UA_Boolean (*createOptionalChild)(UA_Server *server,
+                                      const UA_NodeId *sessionId,
+                                      void *sessionContext,
+                                      const UA_NodeId *sourceNodeId,
+                                      const UA_NodeId *targetParentNodeId,
+                                      const UA_NodeId *referenceTypeId);
+
+    /* Can be NULL. Called when a node is to be copied during recursive
+     * node instantiation. Allows definition of the NodeId for the new node.
+     * If the callback is set to NULL or the resulting NodeId is UA_NODEID_NULL,
+     * then a random NodeId will be generated.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param sourceNodeId Source node of the copy operation
+     * @param targetParentNodeId Parent node of the new node
+     * @param referenceTypeId Identifies the reference type which that the parent
+     *        node has to the new node. */
+    UA_StatusCode (*generateChildNodeId)(UA_Server *server,
+                                         const UA_NodeId *sessionId, void *sessionContext,
+                                         const UA_NodeId *sourceNodeId,
+                                         const UA_NodeId *targetParentNodeId,
+                                         const UA_NodeId *referenceTypeId,
+                                         UA_NodeId *targetNodeId);
+    } UA_GlobalNodeLifecycle;
 
 typedef struct {
     /* Can be NULL. May replace the nodeContext */
@@ -686,16 +734,16 @@ typedef struct {
                        const UA_NodeId *nodeId, void **nodeContext);
 } UA_NodeTypeLifecycle;
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void **nodeContext);
 
 /* Careful! The user has to ensure that the destructor callbacks still work. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext);
 
@@ -825,7 +873,7 @@ typedef struct {
                     const UA_DataValue *data);
 } UA_ValueCallback;
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_NodeId nodeId,
                                         const UA_ValueCallback callback);
@@ -867,7 +915,7 @@ typedef void (*UA_Server_EventNotificationCallback)
  * @return Returns a description of the created MonitoredItem. The structure
  * also contains a StatusCode (in case of an error) and the identifier of the
  * new MonitoredItem. */
-UA_MonitoredItemCreateResult UA_EXPORT
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
 UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           UA_TimestampsToReturn timestampsToReturn,
           const UA_MonitoredItemCreateRequest item,
@@ -880,7 +928,7 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
 /*           const UA_MonitoredItemCreateRequest item, void *context, */
 /*           UA_Server_EventNotificationCallback callback); */
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 #endif
@@ -928,13 +976,13 @@ UA_Server_setMethodNode_callback(UA_Server *server,
  * @param propertyName The name of the property
  * @param value The value to be set for the event attribute
  * @return The StatusCode for setting the event attribute */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
                               const UA_Variant value);
 
 /* Directly point to the scalar value instead of a variant */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type);
@@ -946,7 +994,7 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
  * @param propertyName The name of the property
  * @param value Contains the property value after reading. Must not be NULL.
  * @return The StatusCode for setting the event attribute */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
@@ -1272,7 +1320,7 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
  * @param eventType The type of the event for which a node should be created
  * @param outNodeId The NodeId of the newly created node for the event
  * @return The StatusCode of the UA_Server_createEvent method */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId);
 
@@ -1283,7 +1331,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
  * @param outEvent the EventId of the new event
  * @param deleteEventNode Specifies whether the node representation of the event should be deleted
  * @return The StatusCode of the UA_Server_triggerEvent method */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId originId,
                        UA_ByteString *outEventId, const UA_Boolean deleteEventNode);
 
@@ -1301,22 +1349,22 @@ UA_Server_updateCertificate(UA_Server *server,
  * Utility Functions
  * ----------------- */
 /* Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+UA_UInt16 UA_EXPORT UA_THREADSAFE UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /* Get namespace by name from the server. */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t* foundIndex);
 
 #ifdef UA_ENABLE_HISTORIZING
-UA_Boolean UA_EXPORT
+UA_Boolean UA_EXPORT UA_THREADSAFE
 UA_Server_AccessControl_allowHistoryUpdateUpdateData(UA_Server *server,
                                                      const UA_NodeId *sessionId, void *sessionContext,
                                                      const UA_NodeId *nodeId,
                                                      UA_PerformUpdateType performInsertReplace,
                                                      const UA_DataValue *value);
 
-UA_Boolean UA_EXPORT
+UA_Boolean UA_EXPORT UA_THREADSAFE
 UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
                                                             const UA_NodeId *sessionId, void *sessionContext,
                                                             const UA_NodeId *nodeId,
@@ -1324,6 +1372,75 @@ UA_Server_AccessControl_allowHistoryUpdateDeleteRawModified(UA_Server *server,
                                                             UA_DateTime endTimestamp,
                                                             bool isDeleteModified);
 #endif // UA_ENABLE_HISTORIZING
+
+/**
+* .. _async_methods:
+*
+* Async Methods
+* -------------
+* Sample on working with async method calls
+* Check client_method_async and tutorial_server_method_async for working samples.
+*
+* Minimal Server:
+*
+* - Create a method node
+* - mark as async: ``UA_Server_MethodNodeAsync``
+* - set callback to be notified: ``config->asyncOperationNotifyCallback = ...``
+* - fetch MethodCall: ``UA_Server_GetNextAsyncMethod``
+* - execute Method: e.g. UA_Server_call(UA_Server*, UA_CallMethodRequest*)
+* - pass back the result: ``UA_Server_SetAsyncMethodResult``
+* - free memory used: free UA_CallMethodResult */
+
+#if UA_MULTITHREADING >= 100
+
+/* Set the async flag in a method node */
+UA_StatusCode UA_EXPORT
+UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
+                             UA_Boolean isAsync);
+
+typedef enum {
+    UA_ASYNCOPERATIONTYPE_INVALID, /* 0, the default */
+    UA_ASYNCOPERATIONTYPE_CALL
+    /* UA_ASYNCOPERATIONTYPE_READ, */
+    /* UA_ASYNCOPERATIONTYPE_WRITE, */
+} UA_AsyncOperationType;
+
+typedef union {
+    UA_CallMethodRequest callMethodRequest;
+    /* UA_ReadValueId readValueId; */
+    /* UA_WriteValue writeValue; */
+} UA_AsyncOperationRequest;
+
+typedef union {
+    UA_CallMethodResult callMethodResult;
+    /* UA_DataValue readResult; */
+    /* UA_StatusCode writeResult; */
+} UA_AsyncOperationResponse;
+
+/* Get and remove next Method Call Request
+ *
+ * @param server The server object
+ * @param type The type of the async operation
+ * @param request Receives pointer to the operation
+ * @param context Receives the pointer to the operation context
+ * @return UA_FALSE if queue is empty, UA_TRUE else
+ * Note: Timeout is doubled for requests which already got fetched by worker via UA_Server_getAsyncOperation */
+UA_Boolean UA_EXPORT
+UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
+                            const UA_AsyncOperationRequest **request,
+                            void **context);
+
+/* Worker submits Method Call Response
+ *
+ * @param server The server object
+ * @param response Pointer to the operation result
+ * @param context Pointer to the operation context */
+void UA_EXPORT
+UA_Server_setAsyncOperationResult(UA_Server *server,
+                                  const UA_AsyncOperationResponse *response,
+                                  void *context);
+
+#endif /* !UA_MULTITHREADING >= 100 */
 
 _UA_END_DECLS
 

@@ -45,6 +45,7 @@ static void setup(void) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));

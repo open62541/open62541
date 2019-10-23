@@ -170,13 +170,19 @@ UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
-    dateTimeStruct.microSec = (u16)((t % 10000) / 10);
-    dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
+    if(t >= 0) {
+        dateTimeStruct.nanoSec  = (u16)((t % 10) * 100);
+        dateTimeStruct.microSec = (u16)((t % 10000) / 10);
+        dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
+    } else {
+        dateTimeStruct.nanoSec  = (u16)(((t % 10 + t) % 10) * 100);
+        dateTimeStruct.microSec = (u16)(((t % 10000 + t) % 10000) / 10);
+        dateTimeStruct.milliSec = (u16)(((t % 10000000 + t) % 10000000) / 10000);
+    }
 
     /* Calculating the unix time with #include <time.h> */
-    long long secSinceUnixEpoch = (long long)
-        ((t - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
+    long long secSinceUnixEpoch = (long long)(t / UA_DATETIME_SEC)
+        - (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC);
     struct mytm ts;
     memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
@@ -187,6 +193,27 @@ UA_DateTime_toStruct(UA_DateTime t) {
     dateTimeStruct.month  = (u16)(ts.tm_mon + 1);
     dateTimeStruct.year   = (u16)(ts.tm_year + 1900);
     return dateTimeStruct;
+}
+
+UA_DateTime
+UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
+    /* Seconds since the Unix epoch */
+    struct mytm tm;
+    memset(&tm, 0, sizeof(struct mytm));
+    tm.tm_year = ts.year - 1900;
+    tm.tm_mon = ts.month - 1;
+    tm.tm_mday = ts.day;
+    tm.tm_hour = ts.hour;
+    tm.tm_min = ts.min;
+    tm.tm_sec = ts.sec;
+    long long sec_epoch = __tm_to_secs(&tm);
+
+    UA_DateTime t = UA_DATETIME_UNIX_EPOCH;
+    t += sec_epoch * UA_DATETIME_SEC;
+    t += ts.milliSec * UA_DATETIME_MSEC;
+    t += ts.microSec * UA_DATETIME_USEC;
+    t += ts.nanoSec / 100;
+    return t;
 }
 
 /* Guid */

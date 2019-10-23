@@ -27,8 +27,7 @@ _UA_BEGIN_DECLS
  * Usually, implementations of the certificate verification plugin provide an
  * initialization method that takes a trust-list and a revocation-list as input.
  * The lifecycle of the plugin is attached to a server or client config. The
- * ``deleteMembers`` method is called automatically when the config is
- * destroyed. */
+ * ``clear`` method is called automatically when the config is destroyed. */
 
 struct UA_CertificateVerification;
 typedef struct UA_CertificateVerification UA_CertificateVerification;
@@ -46,7 +45,7 @@ struct UA_CertificateVerification {
                                           const UA_String *applicationURI);
 
     /* Delete the certificate verification context */
-    void (*deleteMembers)(UA_CertificateVerification *cv);
+    void (*clear)(UA_CertificateVerification *cv);
 };
 
 _UA_END_DECLS

@@ -6,6 +6,9 @@ env:
     # GITAUTH:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
     - PYTHON=python2
+    # For tag builds we do not have the base branch in TRAVIS_BRANCH, therefore store it in BRANCH_FOR_TAG
+    - BRANCH_FOR_TAG=$(git ls-remote origin | sed -n "\|$TRAVIS_COMMIT\s\+refs/heads/|{s///p}")
+
 
 dist: trusty
 
@@ -307,6 +310,12 @@ before_install: |
    exit $last_rv
  }
  trap errorTrap 0
+
+ #set path for FREERTOS build
+ mkdir -p $HOME/esp-idf
+ export IDF_PATH=$HOME/esp-idf
+ mkdir -p $HOME/esp
+ export PATH=$PATH:$HOME/esp/xtensa-esp32-elf/bin
 
  # set paths for locally installed libs (like liburcu)
  export LOCAL_PKG=$HOME/install

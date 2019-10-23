@@ -39,14 +39,14 @@ verifyApplicationURIAllowAll(void *verificationContext,
 }
 
 static void
-deleteVerifyAllowAll(UA_CertificateVerification *cv) {
+clearVerifyAllowAll(UA_CertificateVerification *cv) {
 
 }
 
 void UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv) {
     cv->verifyCertificate = verifyCertificateAllowAll;
     cv->verifyApplicationURI = verifyApplicationURIAllowAll;
-    cv->deleteMembers = deleteVerifyAllowAll;
+    cv->clear = clearVerifyAllowAll;
 }
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -63,7 +63,7 @@ typedef struct {
     mbedtls_x509_crl certificateRevocationList;
 } CertInfo;
 
-#if __linux__ /* Linux only so far */
+#ifdef __linux__ /* Linux only so far */
 
 #include <dirent.h>
 #include <limits.h>
@@ -196,7 +196,7 @@ certificateVerification_verify(void *verificationContext,
     if(!ci)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-#if __linux__ /* Reload certificates if folder paths are specified */
+#ifdef __linux__ /* Reload certificates if folder paths are specified */
     reloadCertificates(ci);
 #endif
 
@@ -486,7 +486,7 @@ certificateVerification_verifyApplicationURI(void *verificationContext,
 }
 
 static void
-certificateVerification_deleteMembers(UA_CertificateVerification *cv) {
+certificateVerification_clear(UA_CertificateVerification *cv) {
     CertInfo *ci = (CertInfo*)cv->context;
     if(!ci)
         return;
@@ -521,7 +521,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
         cv->verifyCertificate = certificateVerification_verify;
     else
         cv->verifyCertificate = verifyCertificateAllowAll;
-    cv->deleteMembers = certificateVerification_deleteMembers;
+    cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
     int err = 0;
@@ -549,11 +549,11 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
 
     return UA_STATUSCODE_GOOD;
 error:
-    certificateVerification_deleteMembers(cv);
+    certificateVerification_clear(cv);
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
-#if __linux__ /* Linux only so far */
+#ifdef __linux__ /* Linux only so far */
 
 UA_StatusCode
 UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
@@ -578,7 +578,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 
     cv->context = (void*)ci;
     cv->verifyCertificate = certificateVerification_verify;
-    cv->deleteMembers = certificateVerification_deleteMembers;
+    cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
     return UA_STATUSCODE_GOOD;

@@ -18,6 +18,7 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/server.h>
+#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -65,12 +66,24 @@ struct UA_MonitoredItem;
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
 
+/* Ordered tree structure for fast member check */
+typedef struct UA_ReferenceTarget {
+    ZIP_ENTRY(UA_ReferenceTarget) zipfields;
+    UA_UInt32 targetHash; /* Hash of the target nodeid */
+    UA_ExpandedNodeId target;
+} UA_ReferenceTarget;
+
+ZIP_HEAD(UA_ReferenceTargetHead, UA_ReferenceTarget);
+typedef struct UA_ReferenceTargetHead UA_ReferenceTargetHead;
+ZIP_PROTTYPE(UA_ReferenceTargetHead, UA_ReferenceTarget, UA_ReferenceTarget)
+
 /* List of reference targets with the same reference type and direction */
 typedef struct {
     UA_NodeId referenceTypeId;
     UA_Boolean isInverse;
-    size_t targetIdsSize;
-    UA_ExpandedNodeId *targetIds;
+    size_t refTargetsSize;
+    UA_ReferenceTarget *refTargets;
+    UA_ReferenceTargetHead refTargetsTree;
 } UA_NodeReferenceKind;
 
 #define UA_NODE_BASEATTRIBUTES                  \
@@ -235,6 +248,9 @@ typedef struct {
 
     /* Members specific to open62541 */
     UA_MethodCallback method;
+#if UA_MULTITHREADING >= 100
+    UA_Boolean async; /* Indicates an async method call */
+#endif
 } UA_MethodNode;
 
 /**
@@ -430,65 +446,52 @@ typedef struct {
  * nodes. Please use the OPC UA services for that. Otherwise, all consistency
  * checks are omitted. This can crash the application eventually. */
 
-/* For non-multithreaded access, some nodestores allow that nodes are edited
- * without a copy/replace. This is not possible when the node is only an
- * intermediate representation and stored e.g. in a database backend. */
-extern const UA_Boolean inPlaceEditAllowed;
-
-/* Nodestore context and lifecycle */
-UA_StatusCode UA_Nodestore_new(void **nsCtx);
-void UA_Nodestore_delete(void *nsCtx);
-
-/**
- * The following definitions are used to create empty nodes of the different
- * node types. The memory is managed by the nodestore. Therefore, the node has
- * to be removed via a special deleteNode function. (If the new node is not
- * added to the nodestore.) */
-
-UA_Node *
-UA_Nodestore_newNode(void *nsCtx, UA_NodeClass nodeClass);
-
-void
-UA_Nodestore_deleteNode(void *nsCtx, UA_Node *node);
-
-/**
- *``Get`` returns a pointer to an immutable node. ``Release`` indicates that the
- * pointer is no longer accessed afterwards. */
-
-const UA_Node *
-UA_Nodestore_getNode(void *nsCtx, const UA_NodeId *nodeId);
-
-void
-UA_Nodestore_releaseNode(void *nsCtx, const UA_Node *node);
-
-/* Returns an editable copy of a node (needs to be deleted with the
- * deleteNode function or inserted / replaced into the nodestore). */
-UA_StatusCode
-UA_Nodestore_getNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
-                         UA_Node **outNode);
-
-/* Inserts a new node into the nodestore. If the NodeId is zero, then a fresh
- * numeric NodeId is assigned. If insertion fails, the node is deleted. */
-UA_StatusCode
-UA_Nodestore_insertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId);
-
-/* To replace a node, get an editable copy of the node, edit and replace with
- * this function. If the node was already replaced since the copy was made,
- * UA_STATUSCODE_BADINTERNALERROR is returned. If the NodeId is not found,
- * UA_STATUSCODE_BADNODEIDUNKNOWN is returned. In both error cases, the editable
- * node is deleted. */
-UA_StatusCode
-UA_Nodestore_replaceNode(void *nsCtx, UA_Node *node);
-
-/* Removes a node from the nodestore. */
-UA_StatusCode
-UA_Nodestore_removeNode(void *nsCtx, const UA_NodeId *nodeId);
-
-/* Execute a callback for every node in the nodestore. */
 typedef void (*UA_NodestoreVisitor)(void *visitorCtx, const UA_Node *node);
-void
-UA_Nodestore_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
-                     void *visitorCtx);
+
+typedef struct {
+    /* Nodestore context and lifecycle */
+    void *context;
+    void (*clear)(void *nsCtx);
+
+    /* The following definitions are used to create empty nodes of the different
+     * node types. The memory is managed by the nodestore. Therefore, the node
+     * has to be removed via a special deleteNode function. (If the new node is
+     * not added to the nodestore.) */
+    UA_Node * (*newNode)(void *nsCtx, UA_NodeClass nodeClass);
+
+    void (*deleteNode)(void *nsCtx, UA_Node *node);
+
+    /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
+     * that the pointer is no longer accessed afterwards. */
+    const UA_Node * (*getNode)(void *nsCtx, const UA_NodeId *nodeId);
+
+    void (*releaseNode)(void *nsCtx, const UA_Node *node);
+
+    /* Returns an editable copy of a node (needs to be deleted with the
+     * deleteNode function or inserted / replaced into the nodestore). */
+    UA_StatusCode (*getNodeCopy)(void *nsCtx, const UA_NodeId *nodeId,
+                                 UA_Node **outNode);
+
+    /* Inserts a new node into the nodestore. If the NodeId is zero, then a
+     * fresh numeric NodeId is assigned. If insertion fails, the node is
+     * deleted. */
+    UA_StatusCode (*insertNode)(void *nsCtx, UA_Node *node,
+                                UA_NodeId *addedNodeId);
+
+    /* To replace a node, get an editable copy of the node, edit and replace
+     * with this function. If the node was already replaced since the copy was
+     * made, UA_STATUSCODE_BADINTERNALERROR is returned. If the NodeId is not
+     * found, UA_STATUSCODE_BADNODEIDUNKNOWN is returned. In both error cases,
+     * the editable node is deleted. */
+    UA_StatusCode (*replaceNode)(void *nsCtx, UA_Node *node);
+
+    /* Removes a node from the nodestore. */
+    UA_StatusCode (*removeNode)(void *nsCtx, const UA_NodeId *nodeId);
+
+    /* Execute a callback for every node in the nodestore. */
+    void (*iterate)(void *nsCtx, UA_NodestoreVisitor visitor,
+                    void *visitorCtx);
+} UA_Nodestore;
 
 /**
  * Node Handling
@@ -501,8 +504,8 @@ UA_Nodestore_iterate(void *nsCtx, UA_NodestoreVisitor visitor,
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
  * and so on). The attributes are copied. Note that the attributes structs do
  * not contain NodeId, NodeClass and BrowseName. The NodeClass of the node needs
- * to be correctly set before calling this method. UA_Node_deleteMembers is
- * called on the node when an error occurs internally. */
+ * to be correctly set before calling this method. UA_Node_clear is called on
+ * the node when an error occurs internally. */
 UA_StatusCode UA_EXPORT
 UA_Node_setAttributes(UA_Node *node, const void *attributes,
                       const UA_DataType *attributeType);
@@ -527,9 +530,9 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item);
 void UA_EXPORT
 UA_Node_deleteReferences(UA_Node *node);
 
-/* Remove all malloc'ed members of the node */
+/* Remove all malloc'ed members of the node and reset */
 void UA_EXPORT
-UA_Node_deleteMembers(UA_Node *node);
+UA_Node_clear(UA_Node *node);
 
 _UA_END_DECLS
 

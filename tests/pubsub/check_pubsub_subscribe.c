@@ -178,8 +178,9 @@ START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
         ck_assert_int_eq(readerGroupCount, CHECK_READERGROUP_COUNT);
     } END_TEST
 
+      /* Check status of updating ReaderGroup with invalid identifier */
+      /*
 START_TEST(UpdateReaderGroupWithInvalidIdentifier) {
-        /* Check status of updating ReaderGroup with invalid identifier */
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         UA_ReaderGroupConfig readerGroupConfig;
         UA_NodeId localreaderGroup;
@@ -191,6 +192,7 @@ START_TEST(UpdateReaderGroupWithInvalidIdentifier) {
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
         UA_Server_removeReaderGroup(server, localreaderGroup);
     } END_TEST
+    */
 
 START_TEST(GetReaderGroupConfigWithInvalidConfig) {
         /* Check status of getting ReaderGroup configuration with invalid configuration */
@@ -471,9 +473,9 @@ START_TEST(AddTargetVariableWithValidConfiguration) {
         UA_DataSetMetaDataType *pMetaData = &dataSetReaderConfig.dataSetMetaData;
         UA_DataSetMetaDataType_init (pMetaData);
         pMetaData->name = UA_STRING ("DataSet Test");
-        /* Static definition of number of fields size to 4 to create four different
-         * targetVariables of distinct datatype */
-        pMetaData->fieldsSize = 1;
+        /* Static definition of number of fields size to 2 to create targetVariables
+         * with DateTime and ByteString datatype */
+        pMetaData->fieldsSize = 2;
         pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                              &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
@@ -483,6 +485,13 @@ START_TEST(AddTargetVariableWithValidConfiguration) {
                         &pMetaData->fields[0].dataType);
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].valueRank = -1; /* scalar */
+
+        /* ByteString DataType */
+        UA_FieldMetaData_init (&pMetaData->fields[1]);
+        UA_NodeId_copy (&UA_TYPES[UA_TYPES_BYTESTRING].typeId,
+                        &pMetaData->fields[1].dataType);
+        pMetaData->fields[1].builtInType = UA_NS0ID_BYTESTRING;
+        pMetaData->fields[1].valueRank = -1; /* scalar */
 
         retVal |= UA_Server_addDataSetReader(server, localreaderGroupIdentifier, &dataSetReaderConfig, &localDataSetreaderIdentifier);
 
@@ -494,8 +503,8 @@ START_TEST(AddTargetVariableWithValidConfiguration) {
                                  folderBrowseName, UA_NODEID_NUMERIC (0,
                                  UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
         retVal |=  UA_Server_DataSetReader_addTargetVariables(server, &folderId, localDataSetreaderIdentifier, UA_PUBSUB_SDS_TARGET);
-        UA_free(pMetaData->fields);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_free(pMetaData->fields);
     } END_TEST
 
 START_TEST(SinglePublishSubscribeDateTime) {
@@ -530,7 +539,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
         writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
         /* DataSetWriter */
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -661,6 +670,7 @@ START_TEST(SinglePublishSubscribeInt32) {
                                                                   (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -835,6 +845,7 @@ START_TEST(SinglePublishSubscribeInt64) {
                                                                   (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -1010,6 +1021,7 @@ START_TEST(SinglePublishSubscribeBool) {
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* DataSetWriter */
@@ -1184,6 +1196,7 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
                                                                   (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -1307,7 +1320,7 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_readergroup, AddReaderGroupWithInvalidConnectionId);
     tcase_add_test(tc_add_pubsub_readergroup, RemoveReaderGroupWithInvalidIdentifier);
     tcase_add_test(tc_add_pubsub_readergroup, AddRemoveMultipleAddReaderGroupWithValidConfiguration);
-    tcase_add_test(tc_add_pubsub_readergroup, UpdateReaderGroupWithInvalidIdentifier);
+    /* tcase_add_test(tc_add_pubsub_readergroup, UpdateReaderGroupWithInvalidIdentifier); */
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithInvalidConfig);
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithInvalidIdentifier);
     tcase_add_test(tc_add_pubsub_readergroup, GetReaderGroupConfigWithValidConfig);

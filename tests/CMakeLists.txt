@@ -32,6 +32,7 @@ include_directories("${PROJECT_SOURCE_DIR}/src/server")
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
 include_directories("${PROJECT_BINARY_DIR}")
+include_directories("${PROJECT_BINARY_DIR}/../plugins")
 
 if(UA_ENABLE_ENCRYPTION)
     # mbedtls includes
@@ -51,6 +52,7 @@ else()
     set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
+
 # Use different plugins for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
@@ -58,7 +60,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
@@ -221,6 +224,10 @@ if (UA_MULTITHREADING EQUAL 100)
     add_executable(check_mt_addDeleteObject multithreading/check_mt_addDeleteObject.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_mt_addDeleteObject ${LIBS})
     add_test_valgrind(mt_addDeleteObject ${TESTS_BINARY_DIR}/check_mt_addDeleteObject)
+
+    add_executable(check_server_asyncop server/check_server_asyncop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_asyncop ${LIBS})
+    add_test_valgrind(server_asyncop ${TESTS_BINARY_DIR}/check_server_asyncop)
 endif()
 
 add_executable(check_services_call server/check_services_call.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -299,10 +306,12 @@ if(UA_ENABLE_PUBSUB)
     #Link libraries for executing subscriber unit test
     add_executable(check_pubsub_subscribe pubsub/check_pubsub_subscribe.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_subscribe ${LIBS})
-    add_test_valgrind(check_pubsub_subscribe ${TESTS_BINARY_DIR}/check_pubsub_subscribe)
     add_executable(check_pubsub_publishspeed pubsub/check_pubsub_publishspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_publishspeed ${LIBS})
     add_test_valgrind(pubsub_publishspeed ${TESTS_BINARY_DIR}/check_pubsub_publish)
+    add_executable(check_pubsub_config_freeze pubsub/check_pubsub_config_freeze.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_pubsub_config_freeze ${LIBS})
+    add_test_valgrind(check_pubsub_config_freeze ${TESTS_BINARY_DIR}/check_pubsub_config_freeze)
 
     add_executable(check_pubsub_multiple_layer pubsub/check_pubsub_multiple_layer.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(check_pubsub_multiple_layer ${LIBS})
@@ -319,16 +328,33 @@ if(UA_ENABLE_PUBSUB)
 
         endif()
     endif()
+    if(UA_ENABLE_PUBSUB_MQTT)
+        if(NOT WIN32)
+            add_executable(check_pubsub_connection_mqtt pubsub/check_pubsub_connection_mqtt.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+            target_link_libraries(check_pubsub_connection_mqtt ${LIBS})
+            add_test_valgrind(pubsub_connection_mqtt ${TESTS_BINARY_DIR}/check_pubsub_connection_mqtt)
+        endif()
+    endif()
 endif()
 
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})
 add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
 
+add_executable(check_server_speed_addnodes server/check_server_speed_addnodes.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_server_speed_addnodes ${LIBS})
+add_test_valgrind(server_speed_addnodes ${TESTS_BINARY_DIR}/check_server_speed_addnodes)
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_executable(check_server_monitoringspeed server/check_server_monitoringspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_monitoringspeed ${LIBS})
     add_test_valgrind(server_monitoringspeed ${TESTS_BINARY_DIR}/check_server_monitoringspeed)
+endif()
+
+if(UA_ENABLE_ASYNCOPERATIONS)
+    add_executable(check_server_asyncop server/check_server_asyncop.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_server_asyncop ${LIBS})
+    add_test_valgrind(server_asyncop ${TESTS_BINARY_DIR}/check_server_asyncop)
 endif()
 
 # Test Client
