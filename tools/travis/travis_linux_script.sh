@@ -3,6 +3,7 @@ set -e
 
 if [ "$ARCH" = "freertoslwip" ]; then
     echo -e "\r\n==Compile for FREERTOS==" && echo -en 'travis_fold:start:script.build.freertoslwip\\r'
+    cd $HOME/build/open62541
     mkdir -p build && cd build
     cmake \
     -DUA_ARCHITECTURE:STRING=freertosLWIP \
@@ -15,11 +16,13 @@ if [ "$ARCH" = "freertoslwip" ]; then
 	# Compile error ignored and does not cause any problems. Related Issues: #2887 and #2893
     make -j || true
 
+    # Example code to build a flashable binary with xtensa-toolchain
+    cd $HOME
+	git clone https://github.com/cmbahadir/opcua-esp32.git opcua-esp32
+	mv opcua-esp32 $IDF_PATH/examples
     cd $IDF_PATH/examples/opcua-esp32
     cp /home/travis/build/open62541/open62541/build/open62541.c components/open62541lib
-    sed -i '/#define UA_IPV6 LWIP_IPV6/d' /home/travis/build/open62541/open62541/build/open62541.h
     cp /home/travis/build/open62541/open62541/build/open62541.h components/open62541lib/include
-    rm -r components/tcpip_adapter components/lwip components/freertos
     cp -r $IDF_PATH/components/tcpip_adapter components/ && cp -r $IDF_PATH/components/lwip components/ && cp -r $IDF_PATH/components/freertos components/ 
     cp components/freertos/include/freertos/* components/freertos/include
     make

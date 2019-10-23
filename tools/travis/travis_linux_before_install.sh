@@ -8,12 +8,9 @@ if [ "$ARCH" = "freertoslwip" ]; then
 	cd esp-idf && git checkout tags/v3.2
 	git submodule update --init && cd ..
 	python -m pip install --user -r $IDF_PATH/requirements.txt
-	mkdir esp && cd esp
+	cd $HOME/esp
 	wget https://dl.espressif.com/dl/xtensa-esp32-elf-linux64-1.22.0-80-g6c4433a-5.2.0.tar.gz
 	tar -xzf xtensa-esp32-elf-linux64-1.22.0-80-g6c4433a-5.2.0.tar.gz
-	cd .. 
-	git clone https://github.com/cmbahadir/opcua-esp32.git opcua-esp32
-	mv opcua-esp32 $IDF_PATH/examples
     echo -en 'travis_fold:end:before_install.build.freertos\\r'
 	exit 0
 fi
@@ -28,7 +25,7 @@ if ! [ -z ${CLANG_FORMAT+x} ]; then
     exit 0
 fi
 
-if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ] &&  [ -z ${ARCH} ]; then
+if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	# Only on non-docker builds required
 
  	echo "=== Installing from external package sources in $LOCAL_PKG ===" && echo -en 'travis_fold:start:before_install.external\\r'

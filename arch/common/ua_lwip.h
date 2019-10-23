@@ -58,6 +58,11 @@
 #define UA_getsockname lwip_getsockname
 #define UA_getaddrinfo lwip_getaddrinfo
 
+//Added to not redefine UA_IPV6 in FREERTOS build
+#ifdef LWIP_IPV6
+# define UA_IPV6 LWIP_IPV6
+#endif
+
 #if UA_IPV6
 # define UA_inet_pton(af, src, dst) \
     (((af) == AF_INET6) ? ip6addr_aton((src),(ip6_addr_t*)(dst)) \
