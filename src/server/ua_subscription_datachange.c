@@ -13,57 +13,53 @@
 #include "ua_subscription.h"
 #include "ua_types_encoding_binary.h"
 
-#ifdef UA_ENABLE_DA
-#include <math.h> // fabs
-#endif
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 #define UA_VALUENCODING_MAXSTACK 512
 
-#define ABS_SUBTRACT_TYPE_INDEPENDENT(a,b) ((a)>(b)?(a)-(b):(b)-(a))
+#define UA_ABS(a,b) ((a)>(b)?(a)-(b):(b)-(a))
 
 static UA_Boolean
 outOfDeadBand(const void *data1, const void *data2,
-              const UA_DataType *type, const UA_Double deadbandValue) {
+              const UA_DataType *type, const UA_Double deadband) {
     if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Boolean*)data1, *(const UA_Boolean*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Boolean*)data1, *(const UA_Boolean*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_SBYTE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_SByte*)data1, *(const UA_SByte*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_SByte*)data1, *(const UA_SByte*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_BYTE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Byte*)data1, *(const UA_Byte*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Byte*)data1, *(const UA_Byte*)data2) <= deadband)
                 return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT16]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Int16*)data1, *(const UA_Int16*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Int16*)data1, *(const UA_Int16*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT16]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_UInt16*)data1, *(const UA_UInt16*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_UInt16*)data1, *(const UA_UInt16*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT32]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Int32*)data1, *(const UA_Int32*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Int32*)data1, *(const UA_Int32*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT32]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_UInt32*)data1, *(const UA_UInt32*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_UInt32*)data1, *(const UA_UInt32*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_INT64]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Int64*)data1, *(const UA_Int64*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Int64*)data1, *(const UA_Int64*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_UINT64]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_UInt64*)data1, *(const UA_UInt64*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_UInt64*)data1, *(const UA_UInt64*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_FLOAT]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Float*)data1, *(const UA_Float*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Float*)data1, *(const UA_Float*)data2) <= deadband)
             return false;
     } else if(type == &UA_TYPES[UA_TYPES_DOUBLE]) {
-        if(ABS_SUBTRACT_TYPE_INDEPENDENT(*(const UA_Double*)data1, *(const UA_Double*)data2) <= deadbandValue)
+        if(UA_ABS(*(const UA_Double*)data1, *(const UA_Double*)data2) <= deadband)
             return false;
     }
     return true;
 }
 
-static UA_INLINE UA_Boolean
+static UA_Boolean
 updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue,
                              const UA_Double deadbandValue) {
     if(value->arrayLength != oldValue->arrayLength)
@@ -85,16 +81,6 @@ updateNeededForFilteredValue(const UA_Variant *value, const UA_Variant *oldValue
     return false;
 }
 
-#ifdef UA_ENABLE_DA
-static UA_Boolean
-updateNeededForStatusCode(const UA_DataValue *value, const UA_MonitoredItem *mon) {
-    if(UA_Variant_isScalar(&value->value) && value->status != mon->lastStatus)
-        return true;
-    return false;
-}
-#endif
-
-
 /* When a change is detected, encoding contains the heap-allocated binary
  * encoded value. The default for changed is false. */
 static UA_StatusCode
@@ -108,38 +94,6 @@ detectValueChangeWithFilter(UA_Server *server, UA_Session *session, UA_Monitored
                                              mon->filter.dataChangeFilter.deadbandValue))
                 return UA_STATUSCODE_GOOD;
         }
-#ifdef UA_ENABLE_DA
-        else if(mon->filter.dataChangeFilter.deadbandType == UA_DEADBANDTYPE_PERCENT) {
-            /* Browse for the percent range */
-            UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
-            UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, mon->monitoredNodeId, 1, &qn);
-            if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-                  UA_BrowsePathResult_clear(&bpr);
-                  return UA_STATUSCODE_GOOD;
-            }
-
-            /* Read the range */
-            UA_ReadValueId rvi;
-            UA_ReadValueId_init(&rvi);
-            rvi.nodeId = bpr.targets->targetId.nodeId;
-            rvi.attributeId = UA_ATTRIBUTEID_VALUE;
-            UA_DataValue rangeVal = UA_Server_readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-            if(!UA_Variant_isScalar(&rangeVal.value) || rangeVal.value.type != &UA_TYPES[UA_TYPES_RANGE]) {
-                UA_DataValue_clear(&rangeVal);
-                return UA_STATUSCODE_GOOD;
-            }
-
-            /* Compute the max change */
-            UA_Range* euRange = (UA_Range*)rangeVal.value.data;
-            UA_Double maxDist = (mon->filter.dataChangeFilter.deadbandValue/100.0) * (euRange->high - euRange->low);
-            UA_DataValue_clear(&rangeVal);
-
-            /* Relevant change? */
-            if(!updateNeededForFilteredValue(&value->value, &mon->lastValue, maxDist) &&
-               !updateNeededForStatusCode(value, mon))
-                return UA_STATUSCODE_GOOD;
-        }
-#endif
     }
 
     /* Stack-allocate some memory for the value encoding. We might heap-allocate
@@ -296,8 +250,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Session *session,
         UA_Variant_clear(&mon->lastValue);
         UA_Variant_copy(&value->value, &mon->lastValue);
 #ifdef UA_ENABLE_DA
-        UA_StatusCode_clear(&mon->lastStatus);
-        UA_StatusCode_copy(&value->status, &mon->lastStatus);
+        mon->lastStatus = value->status;
 #endif
     }
 
@@ -344,7 +297,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     UA_assert(monitoredItem->attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Get the node */
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, &monitoredItem->monitoredNodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, &monitoredItem->monitoredNodeId);
 
     /* Sample the value. The sample can still point into the node. */
     UA_DataValue value;
@@ -375,7 +328,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     if(!movedValue)
         UA_DataValue_clear(&value); /* Does nothing for UA_VARIANT_DATA_NODELETE */
     if(node)
-        UA_Nodestore_releaseNode(server->nsCtx, node);
+        UA_NODESTORE_RELEASE(server, node);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

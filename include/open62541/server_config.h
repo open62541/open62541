@@ -12,6 +12,7 @@
 #define UA_SERVER_CONFIG_H_
 
 #include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/network.h>
 #include <open62541/plugin/pki.h>
@@ -154,6 +155,9 @@ struct UA_ServerConfig {
     /**
      * .. note:: See the section for :ref:`async
      * operations<async-operations>`. */
+
+    /* Nodestore */
+    UA_Nodestore nodestore;
 
     /* Certificate Verification */
     UA_CertificateVerification certificateVerification;

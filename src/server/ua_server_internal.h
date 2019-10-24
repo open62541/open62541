@@ -197,12 +197,12 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(void *nsCtx, const UA_NodeId *leafNode,
+isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-/* Returns an array with the hierarchy of nodes. The start nodes are returned as
- * well. The returned array starts at the leaf and continues "upwards" or
+/* Returns an array with the hierarchy of nodes. The start nodes can be returned
+ * as well. The returned array starts at the leaf and continues "upwards" or
  * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
  * indicates the direction of search. */
 UA_StatusCode
@@ -438,6 +438,36 @@ UA_StatusCode UA_Server_initNS0(UA_Server *server);
 
 UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type);
+
+/***************************/
+/* Nodestore Access Macros */
+/***************************/
+
+#define UA_NODESTORE_NEW(server, nodeClass)                             \
+    server->config.nodestore.newNode(server->config.nodestore.context, nodeClass)
+
+#define UA_NODESTORE_DELETE(server, node)                               \
+    server->config.nodestore.deleteNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_GET(server, nodeid)                                \
+    server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
+
+#define UA_NODESTORE_RELEASE(server, node)                              \
+    server->config.nodestore.releaseNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_GETCOPY(server, nodeid, outnode)                      \
+    server->config.nodestore.getNodeCopy(server->config.nodestore.context, \
+                                         nodeid, outnode)
+
+#define UA_NODESTORE_INSERT(server, node, addedNodeId)                    \
+    server->config.nodestore.insertNode(server->config.nodestore.context, \
+                                        node, addedNodeId)
+
+#define UA_NODESTORE_REPLACE(server, node)                              \
+    server->config.nodestore.replaceNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_REMOVE(server, nodeId)                             \
+    server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
 
 _UA_END_DECLS
 

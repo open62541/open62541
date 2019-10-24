@@ -127,15 +127,12 @@ endforeach(arch_ ${architectures})
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_HISTORIZING "Enable server and client to provide historical access." OFF)
-option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features." OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
-option(UA_ENABLE_QUERY "Enable query support." OFF)
-option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -192,17 +189,23 @@ if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
 endif()
 
 # Advanced options
+option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
+mark_as_advanced(UA_ENABLE_COVERAGE)
+
+option(UA_ENABLE_QUERY "Enable query support in the client (most servers don't support it)" OFF)
+mark_as_advanced(UA_ENABLE_QUERY)
+
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
+
+option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features" OFF)
+mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 
 set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading")
 mark_as_advanced(UA_MULTITHREADING)
 if (UA_MULTITHREADING GREATER 100)
     set(UA_ENABLE_IMMUTABLE_NODES ON)
 endif()
-
-option(UA_ENABLE_CUSTOM_NODESTORE "Do not compile the default Nodestore implementation into the library" OFF)
-mark_as_advanced(UA_ENABLE_CUSTOM_NODESTORE)
 
 option(UA_ENABLE_XML_IMPORT "Support importing xml nodesets at runtime (libxml required)" OFF)
 mark_as_advanced(UA_ENABLE_XML_IMPORT)
@@ -326,6 +329,7 @@ mark_as_advanced(UA_ENABLE_HARDENING)
 
 if(CMAKE_VERSION VERSION_GREATER 3.6)
     set(UA_ENABLE_STATIC_ANALYZER "OFF" CACHE STRING "Enable installed static analyzer during build process (off/minimal/reduced/full)")
+    mark_as_advanced(UA_ENABLE_STATIC_ANALYZER)
     SET_PROPERTY(CACHE UA_ENABLE_STATIC_ANALYZER PROPERTY STRINGS "OFF" "MINIMAL" "REDUCED" "FULL")
 endif()
 
@@ -688,6 +692,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pki_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
+                           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
@@ -696,7 +701,8 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugi
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
 )
@@ -1318,7 +1324,11 @@ if(NOT UA_ENABLE_AMALGAMATION)
         string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
 
         get_filename_component( dir ${file} DIRECTORY )
-        install( FILES ${full_path} DESTINATION include/open62541${dir} )
+        if(${full_path} MATCHES "deps")
+            install( FILES ${full_path} DESTINATION include${dir} )
+        else()
+            install( FILES ${full_path} DESTINATION include/open62541${dir} )
+        endif()
     endforeach()
 
 else()

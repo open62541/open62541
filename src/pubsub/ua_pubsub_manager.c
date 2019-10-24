@@ -288,8 +288,8 @@ UA_PubSubConfigurationVersionTimeDifference() {
 void
 UA_PubSubManager_generateUniqueNodeId(UA_Server *server, UA_NodeId *nodeId) {
     UA_NodeId newNodeId = UA_NODEID_NUMERIC(0, 0);
-    UA_Node *newNode = UA_Nodestore_newNode(server->nsCtx, UA_NODECLASS_OBJECT);
-    UA_Nodestore_insertNode(server->nsCtx, newNode, &newNodeId);
+    UA_Node *newNode = UA_NODESTORE_NEW(server, UA_NODECLASS_OBJECT);
+    UA_NODESTORE_INSERT(server, newNode, &newNodeId);
     UA_NodeId_copy(&newNodeId, nodeId);
 }
 

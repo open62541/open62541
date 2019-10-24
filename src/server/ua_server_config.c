@@ -47,6 +47,12 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->endpoints = NULL;
     config->endpointsSize = 0;
 
+    /* Nodestore */
+    if(config->nodestore.clear) {
+        config->nodestore.clear(config->nodestore.context);
+        config->nodestore.context = NULL;
+    }
+
     /* Certificate Validation */
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);

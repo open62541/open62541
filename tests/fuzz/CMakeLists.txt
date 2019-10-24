@@ -56,7 +56,8 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
@@ -91,12 +92,14 @@ endmacro()
 
 # Add new fuzzers here
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
+add_fuzzer(fuzz_tcp_message fuzz_tcp_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 
 # Add fuzzer for mdns dependency. It's currently not fuzzed separately.
 # See also: https://github.com/google/oss-fuzz/pull/2928
 add_fuzzer(fuzz_mdns_message ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_message.cc)
+add_fuzzer(fuzz_mdns_xht ${PROJECT_SOURCE_DIR}/deps/mdnsd/tests/fuzz/fuzz_mdns_xht.cc)
 
 
 if(UA_ENABLE_JSON_ENCODING)

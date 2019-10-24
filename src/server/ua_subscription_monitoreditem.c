@@ -34,7 +34,7 @@ UA_Notification_isOverflowEvent(UA_Server *server, UA_Notification *n) {
     UA_EventFieldList *efl = &n->data.event.fields;
     if(efl->eventFieldsSize >= 1 &&
        efl->eventFields[0].type == &UA_TYPES[UA_TYPES_NODEID] &&
-       isNodeInTree(server->nsCtx, (const UA_NodeId *)efl->eventFields[0].data,
+       isNodeInTree(server, (const UA_NodeId *)efl->eventFields[0].data,
                     &overflowEventType, &subtypeId, 1)) {
         return true;
     }

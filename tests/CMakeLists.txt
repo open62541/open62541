@@ -60,7 +60,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
+    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
@@ -123,7 +124,18 @@ macro(add_test_valgrind TEST_NAME)
     else()
         add_test(${TEST_NAME} ${ARGN})
     endif()
-    if (UA_BUILD_FUZZING_CORPUS)
+    if(UA_BUILD_FUZZING_CORPUS)
+        target_sources(check_${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/tests/fuzz/ua_debug_dump_pkgs_file.c)
+        file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/${TEST_NAME})
+        target_compile_definitions(check_${TEST_NAME} PRIVATE UA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/${TEST_NAME}")
+    endif()
+endmacro()
+
+macro(add_test_no_valgrind TEST_NAME)
+    if(NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+        add_test(${TEST_NAME} ${ARGN})
+    endif()
+    if(UA_BUILD_FUZZING_CORPUS)
         target_sources(check_${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/tests/fuzz/ua_debug_dump_pkgs_file.c)
         file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/${TEST_NAME})
         target_compile_definitions(check_${TEST_NAME} PRIVATE UA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/${TEST_NAME}")
@@ -352,16 +364,16 @@ endif()
 
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})
-add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
+add_test_no_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
 
 add_executable(check_server_speed_addnodes server/check_server_speed_addnodes.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_speed_addnodes ${LIBS})
-add_test_valgrind(server_speed_addnodes ${TESTS_BINARY_DIR}/check_server_speed_addnodes)
+add_test_no_valgrind(server_speed_addnodes ${TESTS_BINARY_DIR}/check_server_speed_addnodes)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_executable(check_server_monitoringspeed server/check_server_monitoringspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_server_monitoringspeed ${LIBS})
-    add_test_valgrind(server_monitoringspeed ${TESTS_BINARY_DIR}/check_server_monitoringspeed)
+    add_test_no_valgrind(server_monitoringspeed ${TESTS_BINARY_DIR}/check_server_monitoringspeed)
 endif()
 
 if(UA_ENABLE_ASYNCOPERATIONS)

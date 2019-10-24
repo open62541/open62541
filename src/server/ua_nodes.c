@@ -15,7 +15,7 @@
 #include "ua_types_encoding_binary.h"
 
 /* There is no UA_Node_new() method here. Creating nodes is part of the
- * NodeStore layer */
+ * Nodestore layer */
 
 static enum ZIP_CMP
 cmpRefTarget(const void *a, const void *b) {
@@ -205,23 +205,25 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
             }
             uintptr_t arraydiff = (uintptr_t)drefs->refTargets - (uintptr_t)srefs->refTargets;
             for(size_t j = 0; j < srefs->refTargetsSize; j++) {
-                retval |= UA_ExpandedNodeId_copy(&srefs->refTargets[j].target,
-                                                 &drefs->refTargets[j].target);
-                drefs->refTargets[j].targetHash = srefs->refTargets[j].targetHash;
-                drefs->refTargets[j].zipfields.zip_right = NULL;
-                if(srefs->refTargets[j].zipfields.zip_right)
-                    *(uintptr_t*)&drefs->refTargets[j].zipfields.zip_left =
-                        (uintptr_t)srefs->refTargets[j].zipfields.zip_right + arraydiff;
-                drefs->refTargets[j].zipfields.zip_left = NULL;
-                if(srefs->refTargets[j].zipfields.zip_left)
-                    *(uintptr_t*)&drefs->refTargets[j].zipfields.zip_left =
-                        (uintptr_t)srefs->refTargets[j].zipfields.zip_left + arraydiff;
+                UA_ReferenceTarget *srefTarget = &srefs->refTargets[j];
+                UA_ReferenceTarget *drefTarget = &drefs->refTargets[j];
+                retval |= UA_ExpandedNodeId_copy(&srefTarget->target, &drefTarget->target);
+                drefTarget->targetHash = srefTarget->targetHash;
+                ZIP_RIGHT(drefTarget, zipfields) = NULL;
+                if(ZIP_RIGHT(srefTarget, zipfields))
+                    *(uintptr_t*)&ZIP_RIGHT(drefTarget, zipfields) =
+                        (uintptr_t)ZIP_RIGHT(srefTarget, zipfields) + arraydiff;
+                ZIP_LEFT(drefTarget, zipfields) = NULL;
+                if(ZIP_LEFT(srefTarget, zipfields))
+                    *(uintptr_t*)&ZIP_LEFT(drefTarget, zipfields) =
+                        (uintptr_t)ZIP_LEFT(srefTarget, zipfields) + arraydiff;
+                ZIP_RANK(drefTarget, zipfields) = ZIP_RANK(srefTarget, zipfields);
             }
-            srefs->refTargetsTree.zip_root = NULL;
-            if(drefs->refTargetsTree.zip_root)
-                *(uintptr_t*)&drefs->refTargetsTree.zip_root =
-                    (uintptr_t)srefs->refTargetsTree.zip_root + arraydiff;
-            drefs->refTargetsSize= srefs->refTargetsSize;
+            ZIP_ROOT(&drefs->refTargetsTree) = NULL;
+            if(ZIP_ROOT(&srefs->refTargetsTree))
+                *(uintptr_t*)&ZIP_ROOT(&drefs->refTargetsTree) =
+                    (uintptr_t)ZIP_ROOT(&srefs->refTargetsTree) + arraydiff;
+            drefs->refTargetsSize = srefs->refTargetsSize;
             if(retval != UA_STATUSCODE_GOOD)
                 break;
         }
