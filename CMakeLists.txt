@@ -997,12 +997,13 @@ if(UA_ENABLE_AMALGAMATION)
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
     # the header is already a dependency of open62541 target itself
-    add_dependencies(open62541-object
-                     open62541-amalgamation-header
-                     open62541-generator-types
-                     open62541-generator-transport
-                     open62541-generator-statuscode
-                     open62541-amalgamation-source)
+    add_custom_target(open62541-code-generation DEPENDS
+                      open62541-amalgamation-header
+                      open62541-generator-types
+                      open62541-generator-transport
+                      open62541-generator-statuscode
+                      open62541-amalgamation-source
+    )
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
     # the only directory that needs to be included if open62541 (amalgameted) target from
@@ -1017,12 +1018,14 @@ if(UA_ENABLE_AMALGAMATION)
     add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
 else()
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
-    add_dependencies(open62541-object
-                     open62541-generator-types
-                     open62541-generator-transport
-                     open62541-generator-statuscode
-                     open62541-generator-namespace
-                     )
+
+    add_custom_target(open62541-code-generation DEPENDS
+                      open62541-generator-types
+                      open62541-generator-transport
+                      open62541-generator-statuscode
+                      open62541-generator-namespace
+                      )
+
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${ua_architecture_sources} ${exported_headers})
@@ -1075,6 +1078,8 @@ else()
     endif()
 
 endif()
+
+add_dependencies(open62541-object open62541-code-generation)
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build
 add_library(open62541::open62541 ALIAS open62541)
