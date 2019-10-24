@@ -57,18 +57,12 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     config->discovery.mdns.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
 
-
-    UA_StatusCode retval = UA_ServerConfig_setDefault(config);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Server_delete(server);
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not set the server config");
-        return 0;
-    }
-
-    retval = UA_Server_run_startup(server);
+    UA_StatusCode retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD)
         return 0;
+
+    // Iterate once to initialize the TCP connection. Otherwise the connect below may come before the server is up.
+    UA_Server_run_iterate(server, true);
 
     pthread_t serverThread;
     int rc = pthread_create(&serverThread, NULL, serverLoop, (void *)server);
@@ -92,16 +86,22 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         serv_addr.sin_port = htons(4840);
         serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
-        if( connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) >= 0)
+        int status = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
+        if( status >= 0)
         {
             write(sockfd, data, size);
+        } else {
+            printf("Could not connect to server");
+            return 1;
         }
+
 
     }
     running = false;
     void *status;
     pthread_join(serverThread, &status);
 
+    // Process any remaining data
     UA_Server_run_iterate(server, true);
     close(sockfd);
 
