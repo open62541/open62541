@@ -245,7 +245,6 @@ class TypeParser():
         for f in arg_selected_types:
             self.selected_types += list(filter(len, [line.strip() for line in f]))
         # Use all types if none are selected
-        print("Selected types: ", len(self.selected_types))
         if len(self.selected_types) == 0:
             self.selected_types = self.types.keys()
 
