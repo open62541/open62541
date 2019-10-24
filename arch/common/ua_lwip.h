@@ -27,7 +27,11 @@
 #define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
 
-#define UA_IPV6 LWIP_IPV6
+//Target arch may not be able to support LWIP_IPV6
+#ifdef LWIP_IPV6
+# define UA_IPV6 LWIP_IPV6
+#endif
+
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
@@ -58,10 +62,6 @@
 #define UA_getsockname lwip_getsockname
 #define UA_getaddrinfo lwip_getaddrinfo
 
-//Added to not redefine UA_IPV6 in FREERTOS build
-#ifdef LWIP_IPV6
-# define UA_IPV6 LWIP_IPV6
-#endif
 
 #if UA_IPV6
 # define UA_inet_pton(af, src, dst) \
