@@ -100,18 +100,8 @@ if (UA_PACK_DEBIAN)
         FILES_MATCHING 
         PATTERN "*.*"
         PATTERN "_sources" EXCLUDE
-        PATTERN "_static/ua-wireshark-pubsub.png" EXCLUDE
-        PATTERN "_static/ua-wireshark.png" EXCLUDE
-        PATTERN "_static/nodeset_compiler_pump.png" EXCLUDE
-        PATTERN ".doctrees" EXCLUDE
-        PATTERN ".buildinfo" EXCLUDE
         PATTERN "CMakeFiles" EXCLUDE
-        PATTERN "CMakeLists.txt" EXCLUDE
-        PATTERN "Makefile" EXCLUDE
-        PATTERN "*.map" EXCLUDE
-        PATTERN "*.cmake" EXCLUDE
-        PATTERN "*.inv" EXCLUDE
-        PATTERN "*.py" EXCLUDE
+        PATTERN "cmake_install.cmake" EXCLUDE
         )
     install(FILES ${open62541_debdoc_pdf_files} COMPONENT pdfdoc DESTINATION ${open62541_install_debdoc_dir})
 endif()
