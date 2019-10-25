@@ -287,7 +287,7 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         return;
     }
 
-    connection->channel->receive(connection->channel, &buffer, NULL, 300000);
+    connection->channel->receive(connection->channel, &buffer, NULL, 1000);
     if(buffer.length > 0) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND, "Message received:");
         UA_NetworkMessage currentNetworkMessage;
