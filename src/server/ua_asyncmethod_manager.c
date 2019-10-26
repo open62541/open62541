@@ -32,11 +32,13 @@ void UA_AsyncMethodManager_deleteMembers(UA_AsyncMethodManager *amm) {
     }
 }
 
-asyncmethod_list_entry*
-UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 requestId, const UA_NodeId *sessionId) {
+asyncmethod_list_entry *
+UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 requestId,
+                              const UA_NodeId *sessionId) {
     asyncmethod_list_entry *current = NULL;
     LIST_FOREACH(current, &amm->asyncmethods, pointers) {
-        if ((current->requestId == requestId) && UA_NodeId_equal(current->sessionId, sessionId))
+        if(current->requestId == requestId &&
+           UA_NodeId_equal(&current->sessionId, sessionId))
             return current;
     }
     return NULL;
@@ -53,11 +55,16 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *s
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_LOG_DEBUG(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
-        "UA_AsyncMethodManager_createEntry: Chan: %u. Req# %u", channelId, requestId);
+    UA_StatusCode res = UA_NodeId_copy(sessionId, &newentry->sessionId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
+        UA_free(newentry);
+        return res;
+    }
+
     UA_atomic_addUInt32(&amm->currentCount, 1);
     newentry->requestId = requestId;
-    newentry->sessionId = sessionId;
     newentry->requestHandle = requestHandle;
     newentry->responseType = responseType;
     newentry->nCountdown = nCountdown;
@@ -79,6 +86,10 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *s
         newentry->response.results[i].statusCode = UA_STATUSCODE_BADTIMEOUT;
 
     LIST_INSERT_HEAD(&amm->asyncmethods, newentry, pointers);
+
+    UA_LOG_DEBUG(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
+        "UA_AsyncMethodManager_createEntry: Chan: %u. Req# %u", channelId, requestId);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -89,6 +100,7 @@ UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm, asyncmethod_list_e
         LIST_REMOVE(current, pointers);
         UA_atomic_subUInt32(&amm->currentCount, 1);
         UA_CallResponse_deleteMembers(&current->response);
+        UA_NodeId_clear(&current->sessionId);
         UA_free(current);
     }
     UA_LOG_DEBUG(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -118,7 +130,8 @@ UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *am
 
         /* Get the session */
         UA_LOCK(server->serviceMutex);
-        UA_Session* session = UA_SessionManager_getSessionById(&amm->server->sessionManager, current->sessionId);
+        UA_Session* session = UA_SessionManager_getSessionById(&amm->server->sessionManager,
+                                                               &current->sessionId);
         UA_UNLOCK(server->serviceMutex);
         if(!session) {
             UA_LOG_WARNING(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
