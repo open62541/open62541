@@ -25,7 +25,8 @@ UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm, UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_AsyncMethodManager_deleteMembers(UA_AsyncMethodManager *amm) {
+void
+UA_AsyncMethodManager_deleteMembers(UA_AsyncMethodManager *amm) {
     asyncmethod_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &amm->asyncmethods, pointers, temp) {
         UA_AsyncMethodManager_removeEntry(amm, current);
@@ -48,10 +49,11 @@ UA_StatusCode
 UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *sessionId,
     const UA_UInt32 channelId, const UA_UInt32 requestId, const UA_UInt32 requestHandle,
     const UA_DataType *responseType, const UA_UInt32 nCountdown) {
-    asyncmethod_list_entry *newentry = (asyncmethod_list_entry*)UA_calloc(1, sizeof(asyncmethod_list_entry));
-    if (!newentry) {
+    asyncmethod_list_entry *newentry = (asyncmethod_list_entry*)
+        UA_calloc(1, sizeof(asyncmethod_list_entry));
+    if(!newentry) {
         UA_LOG_ERROR(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
-            "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
+                     "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -70,10 +72,10 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *s
     newentry->nCountdown = nCountdown;
     newentry->dispatchTime = UA_DateTime_now();
     UA_CallResponse_init(&newentry->response);
-    newentry->response.results = (UA_CallMethodResult*)UA_calloc(nCountdown, sizeof(UA_CallMethodResult));
+    newentry->response.results = (UA_CallMethodResult*)
+        UA_calloc(nCountdown, sizeof(UA_CallMethodResult));
     newentry->response.resultsSize = nCountdown;
-    if (newentry->response.results == NULL)
-    {
+    if(newentry->response.results == NULL) {
         UA_LOG_ERROR(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
             "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
         UA_free(newentry);
@@ -125,7 +127,8 @@ UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *am
 
         /* We got an unfinished CallResponse waiting way too long for being finished.
          * Set the remaining StatusCodes and return. */
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_AsyncMethodManager_checkTimeouts: "
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "UA_AsyncMethodManager_checkTimeouts: "
                        "RequestCall #%u was removed due to a timeout (120s)", current->requestId);
 
         /* Get the session */
