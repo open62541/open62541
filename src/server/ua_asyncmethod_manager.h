@@ -52,6 +52,7 @@ UA_StatusCode
 UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *sessionId, const UA_UInt32 channelId,
     const UA_UInt32 requestId, const UA_UInt32 requestHandle, const UA_DataType *responseType, const UA_UInt32 nCountdown);
 
+/* The pointers amm and current must not be NULL */
 UA_StatusCode
 UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm, asyncmethod_list_entry *current);
 
