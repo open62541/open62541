@@ -61,7 +61,7 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *s
     newentry->requestHandle = requestHandle;
     newentry->responseType = responseType;
     newentry->nCountdown = nCountdown;
-    newentry->m_tDispatchTime = UA_DateTime_now();
+    newentry->dispatchTime = UA_DateTime_now();
     UA_CallResponse_init(&newentry->response);
     newentry->response.results = (UA_CallMethodResult*)UA_calloc(nCountdown, sizeof(UA_CallMethodResult));
     newentry->response.resultsSize = nCountdown;
@@ -103,7 +103,7 @@ UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *am
     asyncmethod_list_entry* current_tmp = NULL;
     LIST_FOREACH_SAFE(current, &amm->asyncmethods, pointers, current_tmp) {
         UA_DateTime tNow = UA_DateTime_now();
-        UA_DateTime tReq = current->m_tDispatchTime;
+        UA_DateTime tReq = current->dispatchTime;
         UA_DateTime diff = tNow - tReq;
 
         /* The calls are all done or the timeout has not passed */

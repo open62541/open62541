@@ -31,7 +31,7 @@ typedef struct asyncmethod_list_entry {
     const UA_NodeId *sessionId;
     UA_UInt32 requestHandle;
     const UA_DataType *responseType;
-    UA_DateTime	m_tDispatchTime;	/* Creation time */
+    UA_DateTime	dispatchTime;       /* Creation time */
     UA_UInt32 nCountdown;			/* Counter for open UA_CallResults */
     UA_CallResponse response;		/* The 'collected' CallResponse for our CallMethodResponse(s) */
 } asyncmethod_list_entry;
