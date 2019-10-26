@@ -200,7 +200,7 @@ void UA_Server_delete(UA_Server *server) {
 #if UA_MULTITHREADING >= 100
     UA_Server_removeCallback(server, server->nCBIdResponse);
     UA_Server_MethodQueues_delete(server);
-    UA_AsyncMethodManager_deleteMembers(&server->asyncMethodManager);
+    UA_AsyncMethodManager_clear(&server->asyncMethodManager);
 #endif
 
     /* Clean up the Admin Session */

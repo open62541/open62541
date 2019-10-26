@@ -24,7 +24,7 @@ UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm) {
 }
 
 void
-UA_AsyncMethodManager_deleteMembers(UA_AsyncMethodManager *amm) {
+UA_AsyncMethodManager_clear(UA_AsyncMethodManager *amm) {
     asyncmethod_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &amm->asyncmethods, pointers, temp) {
         UA_AsyncMethodManager_removeEntry(amm, current);
@@ -101,7 +101,7 @@ UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm,
     UA_assert(current);
     LIST_REMOVE(current, pointers);
     UA_atomic_subUInt32(&amm->currentCount, 1);
-    UA_CallResponse_deleteMembers(&current->response);
+    UA_CallResponse_clear(&current->response);
     UA_NodeId_clear(&current->sessionId);
     UA_free(current);
 }
