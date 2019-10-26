@@ -294,7 +294,7 @@ UA_Server_init(UA_Server *server) {
     UA_SessionManager_init(&server->sessionManager, server);
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncMethodManager_init(&server->asyncMethodManager, server);
+    UA_AsyncMethodManager_init(&server->asyncMethodManager);
     UA_Server_MethodQueues_init(server);
     /* Add a regular callback for for checking responmses using a 50ms interval. */
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_CallMethodResponse, NULL,
