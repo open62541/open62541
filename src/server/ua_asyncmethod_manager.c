@@ -93,16 +93,16 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *s
     return UA_STATUSCODE_GOOD;
 }
 
-/* remove entry and free all allocated data */
+/* Remove entry and free all allocated data */
 UA_StatusCode
-UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm, asyncmethod_list_entry *current) {
-    if (current) {
-        LIST_REMOVE(current, pointers);
-        UA_atomic_subUInt32(&amm->currentCount, 1);
-        UA_CallResponse_deleteMembers(&current->response);
-        UA_NodeId_clear(&current->sessionId);
-        UA_free(current);
-    }
+UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm,
+                                  asyncmethod_list_entry *current) {
+    UA_assert(current);
+    LIST_REMOVE(current, pointers);
+    UA_atomic_subUInt32(&amm->currentCount, 1);
+    UA_CallResponse_deleteMembers(&current->response);
+    UA_NodeId_clear(&current->sessionId);
+    UA_free(current);
     UA_LOG_DEBUG(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
                  "UA_AsyncMethodManager_removeEntry: # of open CallRequests: %u", amm->currentCount);
     return UA_STATUSCODE_GOOD;
