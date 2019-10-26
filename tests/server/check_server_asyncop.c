@@ -97,12 +97,11 @@ START_TEST(InternalTestingManager) {
     UA_SecureChannel channel;
     UA_SecureChannel_init(&channel);
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncMethodManager_createEntry: create CallRequests");
-    UA_DataType dataType = UA_TYPES[UA_TYPES_CALLMETHODREQUEST];
     for (UA_Int32 i = 1; i < 7; i++) {
         UA_StatusCode result =
             UA_AsyncMethodManager_createEntry(&globalServer->asyncMethodManager, globalServer,
                                               &session.sessionId, channel.securityToken.channelId,
-                                              i, i, &dataType, 1);
+                                              i, i, UA_ASYNCOPERATIONTYPE_CALL, 1);
         ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
     }
     UA_fakeSleep(121000);

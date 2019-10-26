@@ -510,7 +510,7 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
                                const UA_NodeId *nSessionId, const UA_UInt32 nIndex,
                                const UA_CallMethodResult *response) {
     /* Grab the open Request, so we can continue to construct the response */
-    asyncmethod_list_entry *data =
+    asyncOperationEntry *data =
         UA_AsyncMethodManager_getById(&server->asyncMethodManager, nRequestId, nSessionId);
     if(!data) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -520,7 +520,7 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
     }
 
     /* Add UA_CallMethodResult to UA_CallResponse */
-    UA_CallResponse* pResponse = &data->response;
+    UA_CallResponse* pResponse = &data->response.callResponse;
     UA_CallMethodResult_copy(response, pResponse->results + nIndex);
 
     /* Reduce the number of open results. Are we done yet with all requests? */
@@ -548,7 +548,8 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
 
     /* Okay, here we go, send the UA_CallResponse */
     sendResponse(channel, data->requestId, data->requestHandle,
-                 (UA_ResponseHeader*)&data->response.responseHeader, data->responseType);
+                 (UA_ResponseHeader*)&data->response.callResponse.responseHeader,
+                 &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "UA_Server_SendResponse: Response for Req# %u sent", data->requestId);
     /* Remove this job from the UA_AsyncMethodManager */
