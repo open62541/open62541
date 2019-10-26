@@ -45,7 +45,7 @@ void
 UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm);
 
 /* Deletes all entries */
-void UA_AsyncMethodManager_deleteMembers(UA_AsyncMethodManager *amm);
+void UA_AsyncMethodManager_clear(UA_AsyncMethodManager *amm);
 
 UA_StatusCode
 UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
