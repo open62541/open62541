@@ -3,7 +3,6 @@ Priority: optional
 Maintainer: open62541 Team <open62541-core@googlegroups.com>
 Build-Depends: debhelper (>= 9),
  cmake (>= 2.8),
- graphviz,
  python (>= 2.7),
  python-sphinx,
  python-sphinx-rtd-theme | base-files (<= 7.2ubuntu5.6~),
