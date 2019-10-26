@@ -23,7 +23,7 @@
 #include "ua_connection_internal.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
-#include "ua_asyncmethod_manager.h"
+#include "ua_asyncoperation_manager.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
 #include "ua_workqueue.h"
@@ -100,7 +100,7 @@ struct UA_Server {
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 #if UA_MULTITHREADING >= 100
-    UA_AsyncMethodManager asyncMethodManager;
+    UA_AsyncOperationManager asyncMethodManager;
 #endif
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible

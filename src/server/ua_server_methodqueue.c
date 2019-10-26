@@ -76,7 +76,7 @@ void
 UA_Server_CheckQueueIntegrity(UA_Server *server, void *data) {
     /* for debugging/testing purposes */
     if(server->config.asyncOperationTimeout <= 0.0) {
-        UA_AsyncMethodManager_checkTimeouts(server, &server->asyncMethodManager);
+        UA_AsyncOperationManager_checkTimeouts(server, &server->asyncMethodManager);
         return;
     }
 
@@ -150,7 +150,7 @@ UA_Server_CheckQueueIntegrity(UA_Server *server, void *data) {
     UA_UNLOCK(server->ua_pending_list_lock);
 
     /* Now we check if we still have pending CallRequests */
-    UA_AsyncMethodManager_checkTimeouts(server, &server->asyncMethodManager);
+    UA_AsyncOperationManager_checkTimeouts(server, &server->asyncMethodManager);
 }
 
 /* Enqueue next MethodRequest */

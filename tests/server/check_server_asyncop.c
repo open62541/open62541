@@ -96,17 +96,17 @@ START_TEST(InternalTestingManager) {
     session.sessionId = UA_NODEID_NUMERIC(1, 62541);
     UA_SecureChannel channel;
     UA_SecureChannel_init(&channel);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncMethodManager_createEntry: create CallRequests");
+    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncOperationManager_createEntry: create CallRequests");
     for (UA_Int32 i = 1; i < 7; i++) {
         UA_StatusCode result =
-            UA_AsyncMethodManager_createEntry(&globalServer->asyncMethodManager, globalServer,
+            UA_AsyncOperationManager_createEntry(&globalServer->asyncMethodManager, globalServer,
                                               &session.sessionId, channel.securityToken.channelId,
                                               i, i, UA_ASYNCOPERATIONTYPE_CALL, 1);
         ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
     }
     UA_fakeSleep(121000);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncMethodManager_createEntry: empty CallRequest list");
-    UA_AsyncMethodManager_checkTimeouts(globalServer, &globalServer->asyncMethodManager);
+    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncOperationManager_createEntry: empty CallRequest list");
+    UA_AsyncOperationManager_checkTimeouts(globalServer, &globalServer->asyncMethodManager);
     ck_assert_int_eq(globalServer->asyncMethodManager.currentCount, 0);
 }
 END_TEST
@@ -179,7 +179,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_pending, InternalTestingPendingList);
     suite_add_tcase(s, tc_pending);
 
-    /* UA_AsyncMethodManager */
+    /* UA_AsyncOperationManager */
     TCase* tc_manager = tcase_create("AsyncMethodManager");
     tcase_add_checked_fixture(tc_manager, NULL, NULL);
     tcase_add_test(tc_manager, InternalTestingManager);

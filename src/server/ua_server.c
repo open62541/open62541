@@ -200,7 +200,7 @@ void UA_Server_delete(UA_Server *server) {
 #if UA_MULTITHREADING >= 100
     UA_Server_removeCallback(server, server->nCBIdResponse);
     UA_Server_MethodQueues_delete(server);
-    UA_AsyncMethodManager_clear(&server->asyncMethodManager);
+    UA_AsyncOperationManager_clear(&server->asyncMethodManager);
 #endif
 
     /* Clean up the Admin Session */
@@ -294,7 +294,7 @@ UA_Server_init(UA_Server *server) {
     UA_SessionManager_init(&server->sessionManager, server);
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncMethodManager_init(&server->asyncMethodManager);
+    UA_AsyncOperationManager_init(&server->asyncMethodManager);
     UA_Server_MethodQueues_init(server);
     /* Add a regular callback for for checking responmses using a 50ms interval. */
     UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_CallMethodResponse, NULL,
@@ -511,7 +511,7 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
                                const UA_CallMethodResult *response) {
     /* Grab the open Request, so we can continue to construct the response */
     asyncOperationEntry *data =
-        UA_AsyncMethodManager_getById(&server->asyncMethodManager, nRequestId, nSessionId);
+        UA_AsyncOperationManager_getById(&server->asyncMethodManager, nRequestId, nSessionId);
     if(!data) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "UA_Server_InsertMethodResponse: can not find UA_CallRequest/UA_CallResponse "
@@ -534,7 +534,7 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
     UA_UNLOCK(server->serviceMutex);
     if(!session) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_Server_InsertMethodResponse: Session is gone");
-        UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+        UA_AsyncOperationManager_removeEntry(&server->asyncMethodManager, data);
         return;
     }
 
@@ -542,7 +542,7 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
     UA_SecureChannel* channel = session->header.channel;
     if(!channel) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_Server_InsertMethodResponse: Channel is gone");
-        UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+        UA_AsyncOperationManager_removeEntry(&server->asyncMethodManager, data);
         return;
     }
 
@@ -552,8 +552,8 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
                  &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "UA_Server_SendResponse: Response for Req# %u sent", data->requestId);
-    /* Remove this job from the UA_AsyncMethodManager */
-    UA_AsyncMethodManager_removeEntry(&server->asyncMethodManager, data);
+    /* Remove this job from the UA_AsyncOperationManager */
+    UA_AsyncOperationManager_removeEntry(&server->asyncMethodManager, data);
 }
 
 void
