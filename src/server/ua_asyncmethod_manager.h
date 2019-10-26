@@ -25,19 +25,23 @@
 
 _UA_BEGIN_DECLS
 
-typedef struct asyncmethod_list_entry {
-    LIST_ENTRY(asyncmethod_list_entry) pointers;
+typedef struct asyncOperationEntry {
+    LIST_ENTRY(asyncOperationEntry) pointers;
     UA_UInt32 requestId;
     UA_NodeId sessionId;
     UA_UInt32 requestHandle;
-    const UA_DataType *responseType;
     UA_DateTime	dispatchTime;       /* Creation time */
     UA_UInt32 nCountdown;			/* Counter for open UA_CallResults */
-    UA_CallResponse response;		/* The 'collected' CallResponse for our CallMethodResponse(s) */
-} asyncmethod_list_entry;
+    UA_AsyncOperationType operationType;
+    union {
+        UA_CallResponse callResponse;
+        UA_ReadResponse readResponse;
+        UA_WriteResponse writeResponse;
+    } response;
+} asyncOperationEntry;
 
 typedef struct UA_AsyncMethodManager {
-    LIST_HEAD(asyncmethod_list, asyncmethod_list_entry) asyncmethods; // doubly-linked list of CallRequests/Responses
+    LIST_HEAD(, asyncOperationEntry) asyncOperations;
     UA_UInt32 currentCount;
 } UA_AsyncMethodManager;
 
@@ -51,14 +55,16 @@ UA_StatusCode
 UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
                                   const UA_NodeId *sessionId, const UA_UInt32 channelId,
                                   const UA_UInt32 requestId, const UA_UInt32 requestHandle,
-                                  const UA_DataType *responseType, const UA_UInt32 nCountdown);
+                                  const UA_AsyncOperationType operationType,
+                                  const UA_UInt32 nCountdown);
 
 /* The pointers amm and current must not be NULL */
 void
-UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm, asyncmethod_list_entry *current);
+UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm, asyncOperationEntry *current);
 
-asyncmethod_list_entry*
-UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 requestId, const UA_NodeId *sessionId);
+asyncOperationEntry *
+UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 requestId,
+                              const UA_NodeId *sessionId);
 
 void
 UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *amm);
