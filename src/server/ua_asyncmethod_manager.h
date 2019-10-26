@@ -28,7 +28,7 @@ _UA_BEGIN_DECLS
 typedef struct asyncmethod_list_entry {
     LIST_ENTRY(asyncmethod_list_entry) pointers;
     UA_UInt32 requestId;
-    const UA_NodeId *sessionId;
+    UA_NodeId sessionId;
     UA_UInt32 requestHandle;
     const UA_DataType *responseType;
     UA_DateTime	dispatchTime;       /* Creation time */

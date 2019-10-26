@@ -530,7 +530,7 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
     
     /* Get the session */
     UA_LOCK(server->serviceMutex);
-    UA_Session* session = UA_SessionManager_getSessionById(&server->sessionManager, data->sessionId);
+    UA_Session* session = UA_SessionManager_getSessionById(&server->sessionManager, &data->sessionId);
     UA_UNLOCK(server->serviceMutex);
     if(!session) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_Server_InsertMethodResponse: Session is gone");
