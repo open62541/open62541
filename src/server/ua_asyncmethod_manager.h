@@ -41,7 +41,7 @@ typedef struct UA_AsyncMethodManager {
     UA_UInt32 currentCount;
 } UA_AsyncMethodManager;
 
-UA_StatusCode
+void
 UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm);
 
 /* Deletes all entries */
@@ -54,7 +54,7 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
                                   const UA_DataType *responseType, const UA_UInt32 nCountdown);
 
 /* The pointers amm and current must not be NULL */
-UA_StatusCode
+void
 UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm, asyncmethod_list_entry *current);
 
 asyncmethod_list_entry*

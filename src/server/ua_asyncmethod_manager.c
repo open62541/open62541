@@ -17,11 +17,10 @@
 
 #if UA_MULTITHREADING >= 100
 
-UA_StatusCode
+void
 UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm) {
+    memset(amm, 0, sizeof(UA_AsyncMethodManager));
     LIST_INIT(&amm->asyncmethods);
-    amm->currentCount = 0;
-    return UA_STATUSCODE_GOOD;
 }
 
 void
@@ -96,7 +95,7 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
 }
 
 /* Remove entry and free all allocated data */
-UA_StatusCode
+void
 UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm,
                                   asyncmethod_list_entry *current) {
     UA_assert(current);
@@ -105,7 +104,6 @@ UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm,
     UA_CallResponse_deleteMembers(&current->response);
     UA_NodeId_clear(&current->sessionId);
     UA_free(current);
-    return UA_STATUSCODE_GOOD;
 }
 
 /* Check if CallRequest is waiting way too long (120s) */
