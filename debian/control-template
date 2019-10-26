@@ -9,7 +9,7 @@ Build-Depends: debhelper (>= 9),
  graphviz,
  texlive-fonts-recommended,
  texlive-latex-extra,
- texlive-generic-extra,
+ texlive-plain-generic | texlive-generic-extra,
  latexmk
 Standards-Version: 4.4.1
 Section: libs
