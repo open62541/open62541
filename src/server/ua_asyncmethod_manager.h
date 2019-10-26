@@ -39,18 +39,19 @@ typedef struct asyncmethod_list_entry {
 typedef struct UA_AsyncMethodManager {
     LIST_HEAD(asyncmethod_list, asyncmethod_list_entry) asyncmethods; // doubly-linked list of CallRequests/Responses
     UA_UInt32 currentCount;
-    UA_Server *server;
 } UA_AsyncMethodManager;
 
 UA_StatusCode
-UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm, UA_Server *server);
+UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm);
 
 /* Deletes all entries */
-void UA_AsyncMethodManager_deleteMembers(UA_AsyncMethodManager *ammm);
+void UA_AsyncMethodManager_deleteMembers(UA_AsyncMethodManager *amm);
 
 UA_StatusCode
-UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *sessionId, const UA_UInt32 channelId,
-    const UA_UInt32 requestId, const UA_UInt32 requestHandle, const UA_DataType *responseType, const UA_UInt32 nCountdown);
+UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
+                                  const UA_NodeId *sessionId, const UA_UInt32 channelId,
+                                  const UA_UInt32 requestId, const UA_UInt32 requestHandle,
+                                  const UA_DataType *responseType, const UA_UInt32 nCountdown);
 
 /* The pointers amm and current must not be NULL */
 UA_StatusCode

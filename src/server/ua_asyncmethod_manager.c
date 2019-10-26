@@ -18,10 +18,9 @@
 #if UA_MULTITHREADING >= 100
 
 UA_StatusCode
-UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm, UA_Server *server) {
+UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm) {
     LIST_INIT(&amm->asyncmethods);
     amm->currentCount = 0;
-    amm->server = server;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -46,20 +45,21 @@ UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 reques
 }
 
 UA_StatusCode
-UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *sessionId,
-    const UA_UInt32 channelId, const UA_UInt32 requestId, const UA_UInt32 requestHandle,
-    const UA_DataType *responseType, const UA_UInt32 nCountdown) {
+UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
+                                  const UA_NodeId *sessionId, const UA_UInt32 channelId,
+                                  const UA_UInt32 requestId, const UA_UInt32 requestHandle,
+                                  const UA_DataType *responseType, const UA_UInt32 nCountdown) {
     asyncmethod_list_entry *newentry = (asyncmethod_list_entry*)
         UA_calloc(1, sizeof(asyncmethod_list_entry));
     if(!newentry) {
-        UA_LOG_ERROR(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     UA_StatusCode res = UA_NodeId_copy(sessionId, &newentry->sessionId);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
         UA_free(newentry);
         return res;
@@ -76,8 +76,8 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *s
         UA_calloc(nCountdown, sizeof(UA_CallMethodResult));
     newentry->response.resultsSize = nCountdown;
     if(newentry->response.results == NULL) {
-        UA_LOG_ERROR(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
-            "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
         UA_free(newentry);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -89,8 +89,8 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, const UA_NodeId *s
 
     LIST_INSERT_HEAD(&amm->asyncmethods, newentry, pointers);
 
-    UA_LOG_DEBUG(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
-        "UA_AsyncMethodManager_createEntry: Chan: %u. Req# %u", channelId, requestId);
+    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "UA_AsyncMethodManager_createEntry: Chan: %u. Req# %u", channelId, requestId);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -105,8 +105,6 @@ UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm,
     UA_CallResponse_deleteMembers(&current->response);
     UA_NodeId_clear(&current->sessionId);
     UA_free(current);
-    UA_LOG_DEBUG(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "UA_AsyncMethodManager_removeEntry: # of open CallRequests: %u", amm->currentCount);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -133,11 +131,11 @@ UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *am
 
         /* Get the session */
         UA_LOCK(server->serviceMutex);
-        UA_Session* session = UA_SessionManager_getSessionById(&amm->server->sessionManager,
+        UA_Session* session = UA_SessionManager_getSessionById(&server->sessionManager,
                                                                &current->sessionId);
         UA_UNLOCK(server->serviceMutex);
         if(!session) {
-            UA_LOG_WARNING(&amm->server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "UA_AsyncMethodManager_checkTimeouts: Session is gone");
             goto remove;
         }
