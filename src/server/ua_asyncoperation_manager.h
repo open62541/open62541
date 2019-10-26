@@ -11,8 +11,8 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#ifndef UA_ASYNCMETHOD_MANAGER_H_
-#define UA_ASYNCMETHOD_MANAGER_H_
+#ifndef UA_ASYNCOPERATION_MANAGER_H_
+#define UA_ASYNCOPERATION_MANAGER_H_
 
 #include <open62541/server.h>
 
@@ -40,19 +40,19 @@ typedef struct asyncOperationEntry {
     } response;
 } asyncOperationEntry;
 
-typedef struct UA_AsyncMethodManager {
+typedef struct UA_AsyncOperationManager {
     LIST_HEAD(, asyncOperationEntry) asyncOperations;
     UA_UInt32 currentCount;
-} UA_AsyncMethodManager;
+} UA_AsyncOperationManager;
 
 void
-UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm);
+UA_AsyncOperationManager_init(UA_AsyncOperationManager *amm);
 
 /* Deletes all entries */
-void UA_AsyncMethodManager_clear(UA_AsyncMethodManager *amm);
+void UA_AsyncOperationManager_clear(UA_AsyncOperationManager *amm);
 
 UA_StatusCode
-UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
+UA_AsyncOperationManager_createEntry(UA_AsyncOperationManager *amm, UA_Server *server,
                                   const UA_NodeId *sessionId, const UA_UInt32 channelId,
                                   const UA_UInt32 requestId, const UA_UInt32 requestHandle,
                                   const UA_AsyncOperationType operationType,
@@ -60,17 +60,17 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
 
 /* The pointers amm and current must not be NULL */
 void
-UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm, asyncOperationEntry *current);
+UA_AsyncOperationManager_removeEntry(UA_AsyncOperationManager *amm, asyncOperationEntry *current);
 
 asyncOperationEntry *
-UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 requestId,
+UA_AsyncOperationManager_getById(UA_AsyncOperationManager *amm, const UA_UInt32 requestId,
                               const UA_NodeId *sessionId);
 
 void
-UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *amm);
+UA_AsyncOperationManager_checkTimeouts(UA_Server *server, UA_AsyncOperationManager *amm);
 
 _UA_END_DECLS
 
 #endif
 
-#endif /* UA_ASYNCMETHOD_MANAGER_H_ */
+#endif /* UA_ASYNCOPERATION_MANAGER_H_ */

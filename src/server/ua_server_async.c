@@ -11,28 +11,28 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_asyncmethod_manager.h"
+#include "ua_asyncoperation_manager.h"
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
 #if UA_MULTITHREADING >= 100
 
 void
-UA_AsyncMethodManager_init(UA_AsyncMethodManager *amm) {
-    memset(amm, 0, sizeof(UA_AsyncMethodManager));
+UA_AsyncOperationManager_init(UA_AsyncOperationManager *amm) {
+    memset(amm, 0, sizeof(UA_AsyncOperationManager));
     LIST_INIT(&amm->asyncOperations);
 }
 
 void
-UA_AsyncMethodManager_clear(UA_AsyncMethodManager *amm) {
+UA_AsyncOperationManager_clear(UA_AsyncOperationManager *amm) {
     asyncOperationEntry *current, *temp;
     LIST_FOREACH_SAFE(current, &amm->asyncOperations, pointers, temp) {
-        UA_AsyncMethodManager_removeEntry(amm, current);
+        UA_AsyncOperationManager_removeEntry(amm, current);
     }
 }
 
 asyncOperationEntry *
-UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 requestId,
+UA_AsyncOperationManager_getById(UA_AsyncOperationManager *amm, const UA_UInt32 requestId,
                               const UA_NodeId *sessionId) {
     asyncOperationEntry *current = NULL;
     LIST_FOREACH(current, &amm->asyncOperations, pointers) {
@@ -44,7 +44,7 @@ UA_AsyncMethodManager_getById(UA_AsyncMethodManager *amm, const UA_UInt32 reques
 }
 
 UA_StatusCode
-UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
+UA_AsyncOperationManager_createEntry(UA_AsyncOperationManager *amm, UA_Server *server,
                                   const UA_NodeId *sessionId, const UA_UInt32 channelId,
                                   const UA_UInt32 requestId, const UA_UInt32 requestHandle,
                                   const UA_AsyncOperationType operationType,
@@ -53,14 +53,14 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
         UA_calloc(1, sizeof(asyncOperationEntry));
     if(!newentry) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
+                     "UA_AsyncOperationManager_createEntry: Mem alloc failed.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     UA_StatusCode res = UA_NodeId_copy(sessionId, &newentry->sessionId);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
+                     "UA_AsyncOperationManager_createEntry: Mem alloc failed.");
         UA_free(newentry);
         return res;
     }
@@ -76,7 +76,7 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
     newentry->response.callResponse.resultsSize = nCountdown;
     if(newentry->response.callResponse.results == NULL) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_AsyncMethodManager_createEntry: Mem alloc failed.");
+                     "UA_AsyncOperationManager_createEntry: Mem alloc failed.");
         UA_free(newentry);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -89,14 +89,14 @@ UA_AsyncMethodManager_createEntry(UA_AsyncMethodManager *amm, UA_Server *server,
     LIST_INSERT_HEAD(&amm->asyncOperations, newentry, pointers);
 
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "UA_AsyncMethodManager_createEntry: Chan: %u. Req# %u", channelId, requestId);
+                 "UA_AsyncOperationManager_createEntry: Chan: %u. Req# %u", channelId, requestId);
 
     return UA_STATUSCODE_GOOD;
 }
 
 /* Remove entry and free all allocated data */
 void
-UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm,
+UA_AsyncOperationManager_removeEntry(UA_AsyncOperationManager *amm,
                                   asyncOperationEntry *current) {
     UA_assert(current);
     LIST_REMOVE(current, pointers);
@@ -108,7 +108,7 @@ UA_AsyncMethodManager_removeEntry(UA_AsyncMethodManager *amm,
 
 /* Check if CallRequest is waiting way too long (120s) */
 void
-UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *amm) {
+UA_AsyncOperationManager_checkTimeouts(UA_Server *server, UA_AsyncOperationManager *amm) {
     asyncOperationEntry* current = NULL;
     asyncOperationEntry* current_tmp = NULL;
     LIST_FOREACH_SAFE(current, &amm->asyncOperations, pointers, current_tmp) {
@@ -124,7 +124,7 @@ UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *am
         /* We got an unfinished CallResponse waiting way too long for being finished.
          * Set the remaining StatusCodes and return. */
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "UA_AsyncMethodManager_checkTimeouts: "
+                       "UA_AsyncOperationManager_checkTimeouts: "
                        "RequestCall #%u was removed due to a timeout (120s)", current->requestId);
 
         /* Get the session */
@@ -134,7 +134,7 @@ UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *am
         UA_UNLOCK(server->serviceMutex);
         if(!session) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "UA_AsyncMethodManager_checkTimeouts: Session is gone");
+                           "UA_AsyncOperationManager_checkTimeouts: Session is gone");
             goto remove;
         }
 
@@ -152,7 +152,7 @@ UA_AsyncMethodManager_checkTimeouts(UA_Server *server, UA_AsyncMethodManager *am
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "UA_Server_SendResponse: Response for Req# %u sent", current->requestId);
     remove:
-        UA_AsyncMethodManager_removeEntry(amm, current);
+        UA_AsyncOperationManager_removeEntry(amm, current);
     }
 }
 
