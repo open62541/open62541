@@ -19,10 +19,6 @@
 
 #include "ua_server_internal.h"
 
-#if UA_MULTITHREADING >= 100
-#include "server/ua_server_methodqueue.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
 #endif
@@ -198,9 +194,7 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_Server_removeCallback(server, server->nCBIdResponse);
-    UA_Server_MethodQueues_delete(server);
-    UA_AsyncOperationManager_clear(&server->asyncMethodManager);
+    UA_AsyncOperationManager_clear(&server->asyncMethodManager, server);
 #endif
 
     /* Clean up the Admin Session */
@@ -294,11 +288,7 @@ UA_Server_init(UA_Server *server) {
     UA_SessionManager_init(&server->sessionManager, server);
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncOperationManager_init(&server->asyncMethodManager);
-    UA_Server_MethodQueues_init(server);
-    /* Add a regular callback for for checking responmses using a 50ms interval. */
-    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_Server_CallMethodResponse, NULL,
-                                  50.0, &server->nCBIdResponse);
+    UA_AsyncOperationManager_init(&server->asyncMethodManager, server);
 #endif
 
     /* Add a regular callback for cleanup and maintenance. With a 10s interval. */

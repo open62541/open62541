@@ -62,28 +62,6 @@ typedef enum {
     UA_SERVERLIFECYLE_RUNNING
 } UA_ServerLifecycle;
 
-#if UA_MULTITHREADING >= 100
-struct AsyncMethodQueueElement {
-        UA_CallMethodRequest m_Request;
-        UA_CallMethodResult	m_Response;
-        UA_DateTime	m_tDispatchTime;
-        UA_UInt32	m_nRequestId;
-        UA_NodeId	m_nSessionId;
-        UA_UInt32	m_nIndex;
-
-        SIMPLEQ_ENTRY(AsyncMethodQueueElement) next;
-    };
-	
-/* Internal Helper to transfer info */
-    struct AsyncMethodContextInternal {
-        UA_UInt32 nRequestId;
-        UA_NodeId nSessionId;
-        UA_UInt32 nIndex;
-        const UA_CallRequest* pRequest;
-        UA_SecureChannel* pChannel;
-    };
-#endif	
-	
 struct UA_Server {
     /* Config */
     UA_ServerConfig config;
@@ -141,24 +119,10 @@ struct UA_Server {
     UA_PubSubManager pubSubManager;
 #endif
 
-
 #if UA_MULTITHREADING >= 100
     UA_LOCK_TYPE(networkMutex)
     UA_LOCK_TYPE(serviceMutex)
-
-	/* Async Method Handling */
-    UA_UInt32	nMQCurSize;		/* actual size of queue */
-    UA_UInt64	nCBIdIntegrity;	/* id of callback queue check callback  */
-    UA_UInt64	nCBIdResponse;	/* id of callback check for a response  */
-
-    UA_LOCK_TYPE(ua_request_queue_lock)
-    UA_LOCK_TYPE(ua_response_queue_lock)
-    UA_LOCK_TYPE(ua_pending_list_lock)
-
-    SIMPLEQ_HEAD(ua_method_request_queue, AsyncMethodQueueElement) ua_method_request_queue;    
-    SIMPLEQ_HEAD(ua_method_response_queue, AsyncMethodQueueElement) ua_method_response_queue;
-    SIMPLEQ_HEAD(ua_method_pending_list, AsyncMethodQueueElement) ua_method_pending_list;
-#endif /* UA_MULTITHREADING >= 100 */
+#endif
 };
 
 /*****************/
@@ -232,12 +196,14 @@ writeWithSession(UA_Server *server, UA_Session *session,
                  const UA_WriteValue *value);
 
 #if UA_MULTITHREADING >= 100
+
 void
 UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
                                const UA_NodeId* nSessionId, const UA_UInt32 nIndex,
                                const UA_CallMethodResult* response);
-void 
-    UA_Server_CallMethodResponse(UA_Server *server, void* data);
+void
+UA_Server_CallMethodResponse(UA_Server *server, void* data);
+
 #endif
 
 UA_StatusCode

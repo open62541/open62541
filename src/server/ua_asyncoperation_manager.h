@@ -21,9 +21,28 @@
 #include "ua_util_internal.h"
 #include "ua_workqueue.h"
 
+_UA_BEGIN_DECLS
+
 #if UA_MULTITHREADING >= 100
 
-_UA_BEGIN_DECLS
+struct AsyncMethodQueueElement {
+    SIMPLEQ_ENTRY(AsyncMethodQueueElement) next;
+    UA_CallMethodRequest m_Request;
+    UA_CallMethodResult	m_Response;
+    UA_DateTime	m_tDispatchTime;
+    UA_UInt32	m_nRequestId;
+    UA_NodeId	m_nSessionId;
+    UA_UInt32	m_nIndex;
+};
+    
+/* Internal Helper to transfer info */
+struct AsyncMethodContextInternal {
+    UA_UInt32 nRequestId;
+    UA_NodeId nSessionId;
+    UA_UInt32 nIndex;
+    const UA_CallRequest* pRequest;
+    UA_SecureChannel* pChannel;
+};
 
 typedef struct asyncOperationEntry {
     LIST_ENTRY(asyncOperationEntry) pointers;
@@ -41,15 +60,29 @@ typedef struct asyncOperationEntry {
 } asyncOperationEntry;
 
 typedef struct UA_AsyncOperationManager {
+    /* Requests / Responses */
     LIST_HEAD(, asyncOperationEntry) asyncOperations;
     UA_UInt32 currentCount;
+
+    /* Operations belonging to a request */
+    UA_UInt32	nMQCurSize;		/* actual size of queue */
+    UA_UInt64	nCBIdIntegrity;	/* id of callback queue check callback  */
+    UA_UInt64	nCBIdResponse;	/* id of callback check for a response  */
+
+    UA_LOCK_TYPE(ua_request_queue_lock)
+    UA_LOCK_TYPE(ua_response_queue_lock)
+    UA_LOCK_TYPE(ua_pending_list_lock)
+
+    SIMPLEQ_HEAD(, AsyncMethodQueueElement) ua_method_request_queue;    
+    SIMPLEQ_HEAD(, AsyncMethodQueueElement) ua_method_response_queue;
+    SIMPLEQ_HEAD(, AsyncMethodQueueElement) ua_method_pending_list;
 } UA_AsyncOperationManager;
 
 void
-UA_AsyncOperationManager_init(UA_AsyncOperationManager *amm);
+UA_AsyncOperationManager_init(UA_AsyncOperationManager *amm, UA_Server *server);
 
 /* Deletes all entries */
-void UA_AsyncOperationManager_clear(UA_AsyncOperationManager *amm);
+void UA_AsyncOperationManager_clear(UA_AsyncOperationManager *amm, UA_Server *server);
 
 UA_StatusCode
 UA_AsyncOperationManager_createEntry(UA_AsyncOperationManager *amm, UA_Server *server,
@@ -69,8 +102,21 @@ UA_AsyncOperationManager_getById(UA_AsyncOperationManager *amm, const UA_UInt32 
 void
 UA_AsyncOperationManager_checkTimeouts(UA_Server *server, UA_AsyncOperationManager *amm);
 
-_UA_END_DECLS
+/* Internal definitions for the unit tests */
+void UA_Server_DeleteMethodQueueElement(UA_Server *server, struct AsyncMethodQueueElement *pElem);
+void UA_Server_AddPendingMethodCall(UA_Server* server, struct AsyncMethodQueueElement *pElem);
+void UA_Server_RmvPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement *pElem);
+UA_Boolean UA_Server_IsPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement *pElem);
+UA_StatusCode UA_Server_SetNextAsyncMethod(UA_Server *server, const UA_UInt32 nRequestId,
+                                           const UA_NodeId *nSessionId, const UA_UInt32 nIndex,
+                                           const UA_CallMethodRequest* pRequest);
 
-#endif
+void UA_Server_CheckQueueIntegrity(UA_Server *server, void *_);
+struct AsyncMethodQueueElement *
+UA_Server_GetAsyncMethodResult(UA_AsyncOperationManager *amm);
+
+#endif /* UA_MULTITHREADING >= 100 */
+
+_UA_END_DECLS
 
 #endif /* UA_ASYNCOPERATION_MANAGER_H_ */
