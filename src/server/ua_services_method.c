@@ -17,8 +17,6 @@
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
-#include "ua_server_methodqueue.h"
-
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
