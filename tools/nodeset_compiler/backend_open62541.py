@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 from datatypes import NodeId
 from nodes import *
 from nodeset import *
-from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode
+from backend_open62541_nodes import generateNodeCode_begin, generateNodeCode_finish, generateReferenceCode, generateMethodNodeCodeStub
 
 # Kahn's algorithm: https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
 def sortNodes(nodeset):
@@ -200,12 +200,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
     writeh("""
 _UA_BEGIN_DECLS
 
-extern UA_StatusCode %s(UA_Server *server);
-
-_UA_END_DECLS
-
-#endif /* %s_H_ */""" % \
-           (outfilebase, outfilebase.upper()))
+extern UA_StatusCode %s(UA_Server *server);""" % (outfilebase))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
@@ -263,18 +258,26 @@ _UA_END_DECLS
             writec("#endif /* UA_ENABLE_METHODCALLS */")
         writec("}");
 
+        if isinstance(node, MethodNode):
+            writeh(generateMethodNodeCodeStub(node, outfilebase))
+
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
 
         if isinstance(node, MethodNode):
             writec("#ifdef UA_ENABLE_METHODCALLS")
-        writec("return " + generateNodeCode_finish(node))
-        if isinstance(node, MethodNode):
+            writec(generateNodeCode_finish(node, outfilebase))
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
+        else:
+            writec(generateNodeCode_finish(node, outfilebase))
         writec("}");
 
         functionNumber = functionNumber + 1
+
+    writeh("""_UA_END_DECLS
+
+#endif /* %s_H_ */""" % (outfilebase.upper()))
 
     writec("""
 UA_StatusCode %s(UA_Server *server) {

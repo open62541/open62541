@@ -531,18 +531,53 @@ def generateNodeCode_begin(node, nodeset, code_global):
 
     return "\n".join(code)
 
-def generateNodeCode_finish(node):
+def getNodeMethodCallbackName(node, outfilebase):
+    methodname = "NULL"
+    if isinstance(node, MethodNode):
+        methodname = ""
+        nn = node
+        while nn.parent is not None:
+            methodname = "_" + nn.browseName.name + methodname
+            nn = nn.parent
+        methodname = "methodCallback" +  methodname
+        return outfilebase + "_" + methodname
+    return methodname
+
+
+def generateNodeCode_finish(node, outfilebase):
     code = []
 
+    # prepare methodcall parameters
+    methodname = getNodeMethodCallbackName(node, outfilebase)
+    inputargs_size = "0"
+    inputargs = "NULL"
+    outputargs_size = "0"
+    outputargs = "NULL"
+
     if isinstance(node, MethodNode):
-        code.append("UA_Server_addMethodNode_finish(server, ")
+        code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
+        code.append("retVal |= UA_Server_addMethodNode_finish(server, ")
     else:
-        code.append("UA_Server_addNode_finish(server, ")
+        code.append("return UA_Server_addNode_finish(server, ")
     code.append(generateNodeIdCode(node.id))
 
     if isinstance(node, MethodNode):
         code.append(", NULL, 0, NULL, 0, NULL);")
+        #code.append(", " + methodname + ", " + inputargs_size + ", " + inputargs + ", " + outputargs_size + ", " + outputargs + ");")
+        code.append("retVal |= UA_Server_setMethodNode_callback(server, ")
+        code.append(generateNodeIdCode(node.id))
+        code.append(", " + methodname + ");")
+        code.append("return retVal;")
     else:
         code.append(");")
 
+    return "\n".join(code)
+
+def generateMethodNodeCodeStub(node, outfilebase):
+    code = []
+    if isinstance(node, MethodNode):
+        methodname = getNodeMethodCallbackName(node, outfilebase)
+        code.append("UA_StatusCode ")
+        code.append(methodname)
+        code.append("(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId, void *objectContext, size_t inputSize, const UA_Variant *input, size_t outputSize, UA_Variant *output);")
     return "\n".join(code)
