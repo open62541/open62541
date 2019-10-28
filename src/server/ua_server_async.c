@@ -63,7 +63,7 @@ UA_Server_CheckQueueIntegrity(UA_Server *server, void *_) {
                                        &request_elem->m_nSessionId,
                                        request_elem->m_nIndex, result);
         UA_CallMethodResult_clear(result);
-        UA_Server_DeleteMethodQueueElement(server, request_elem);
+        deleteMethodQueueElement(request_elem);
     }
     UA_UNLOCK(amm->ua_request_queue_lock);
 
@@ -95,7 +95,7 @@ UA_Server_CheckQueueIntegrity(UA_Server *server, void *_) {
                                        &request_elem->m_nSessionId,
                                        request_elem->m_nIndex, result);
         UA_CallMethodResult_clear(result);
-        UA_Server_DeleteMethodQueueElement(server, request_elem);
+        deleteMethodQueueElement(request_elem);
     }
     UA_UNLOCK(amm->ua_pending_list_lock);
 
@@ -137,7 +137,7 @@ UA_AsyncOperationManager_clear(UA_AsyncOperationManager *amm, UA_Server *server)
     while(!SIMPLEQ_EMPTY(&amm->ua_method_request_queue)) {
         struct AsyncMethodQueueElement* request = SIMPLEQ_FIRST(&amm->ua_method_request_queue);
         SIMPLEQ_REMOVE_HEAD(&amm->ua_method_request_queue, next);
-        UA_Server_DeleteMethodQueueElement(server, request);
+        deleteMethodQueueElement(request);
     }
     UA_UNLOCK(amm->ua_request_queue_lock);
 
@@ -146,7 +146,7 @@ UA_AsyncOperationManager_clear(UA_AsyncOperationManager *amm, UA_Server *server)
     while(!SIMPLEQ_EMPTY(&amm->ua_method_response_queue)) {
         struct AsyncMethodQueueElement* response = SIMPLEQ_FIRST(&amm->ua_method_response_queue);
         SIMPLEQ_REMOVE_HEAD(&amm->ua_method_response_queue, next);
-        UA_Server_DeleteMethodQueueElement(server, response);
+        deleteMethodQueueElement(response);
     }
     UA_UNLOCK(amm->ua_response_queue_lock);
 
@@ -155,7 +155,7 @@ UA_AsyncOperationManager_clear(UA_AsyncOperationManager *amm, UA_Server *server)
     while(!SIMPLEQ_EMPTY(&amm->ua_method_pending_list)) {
         struct AsyncMethodQueueElement* response = SIMPLEQ_FIRST(&amm->ua_method_pending_list);
         SIMPLEQ_REMOVE_HEAD(&amm->ua_method_pending_list, next);
-        UA_Server_DeleteMethodQueueElement(server, response);
+        deleteMethodQueueElement(response);
     }
     UA_UNLOCK(amm->ua_pending_list_lock);
 
@@ -349,15 +349,15 @@ UA_Server_SetNextAsyncMethod(UA_Server *server, const UA_UInt32 nRequestId,
 
 /* Deep delete queue Element - only memory we did allocate */
 void
-UA_Server_DeleteMethodQueueElement(UA_Server *server, struct AsyncMethodQueueElement *pElem) {
+deleteMethodQueueElement(struct AsyncMethodQueueElement *pElem) {
     UA_CallMethodRequest_clear(&pElem->m_Request);
     UA_CallMethodResult_clear(&pElem->m_Response);
     UA_free(pElem);
 }
 
-void UA_Server_AddPendingMethodCall(UA_Server* server, struct AsyncMethodQueueElement *pElem) {
-    UA_AsyncOperationManager *amm = &server->asyncMethodManager;
-
+void
+UA_AsyncOperationManager_addPendingMethodCall(UA_AsyncOperationManager *amm,
+                                              struct AsyncMethodQueueElement *pElem) {
     UA_LOCK(amm->ua_pending_list_lock);
     pElem->m_tDispatchTime = UA_DateTime_now(); /* reset timestamp for timeout */
     SIMPLEQ_INSERT_TAIL(&amm->ua_method_pending_list, pElem, next);
@@ -365,9 +365,8 @@ void UA_Server_AddPendingMethodCall(UA_Server* server, struct AsyncMethodQueueEl
 }
 
 void
-UA_Server_RmvPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement *pElem) {
-    UA_AsyncOperationManager *amm = &server->asyncMethodManager;
-
+UA_AsyncOperationManager_rmvPendingMethodCall(UA_AsyncOperationManager *amm,
+                                              struct AsyncMethodQueueElement *pElem) {
     /* Remove element from pending list */
     /* Do NOT delete it because we still need it */
     struct AsyncMethodQueueElement* current = NULL;
@@ -389,9 +388,8 @@ UA_Server_RmvPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement
 }
 
 UA_Boolean
-UA_Server_IsPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement *pElem) {
-    UA_AsyncOperationManager *amm = &server->asyncMethodManager;
-
+UA_AsyncOperationManager_isPendingMethodCall(UA_AsyncOperationManager *amm,
+                                             struct AsyncMethodQueueElement *pElem) {
     UA_Boolean bRV = UA_FALSE;
     struct AsyncMethodQueueElement* current = NULL;
     struct AsyncMethodQueueElement* tmp_iter = NULL;
@@ -405,9 +403,6 @@ UA_Server_IsPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement 
     UA_UNLOCK(amm->ua_pending_list_lock);
     return bRV;
 }
-
-/* ----------------------------------------------------------------- */
-/* Public API */
 
 /* Get and remove next Method Call Request */
 UA_Boolean
@@ -438,7 +433,7 @@ UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
 
     if(bRV && elem) {
         *type = UA_ASYNCOPERATIONTYPE_CALL;
-        UA_Server_AddPendingMethodCall(server, elem);
+        UA_AsyncOperationManager_addPendingMethodCall(amm, elem);
     }
     return bRV;
 }
@@ -448,8 +443,10 @@ void
 UA_Server_setAsyncOperationResult(UA_Server *server,
                                   const UA_AsyncOperationResponse *response,
                                   void *context) {
+    UA_AsyncOperationManager *amm = &server->asyncMethodManager;
+
     struct AsyncMethodQueueElement* elem = (struct AsyncMethodQueueElement*)context;
-    if(!elem || !UA_Server_IsPendingMethodCall(server, elem) ) {
+    if(!elem || !UA_AsyncOperationManager_isPendingMethodCall(amm, elem) ) {
         /* Something went wrong, late call? */
         /* Dismiss response */
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -459,8 +456,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
     
     /* UA_Server_RmvPendingMethodCall MUST be called outside the lock
      * otherwise we can run into a deadlock */
-    UA_Server_RmvPendingMethodCall(server, elem);
-
+    UA_AsyncOperationManager_rmvPendingMethodCall(amm, elem);
 
     UA_StatusCode result = UA_CallMethodResult_copy(&response->callMethodResult,
                                                     &elem->m_Response);
@@ -473,7 +469,6 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
     }
 
     /* Insert response in queue */
-    UA_AsyncOperationManager *amm = &server->asyncMethodManager;
     UA_LOCK(amm->ua_response_queue_lock);
     SIMPLEQ_INSERT_TAIL(&amm->ua_method_response_queue, elem, next);
     UA_UNLOCK(amm->ua_response_queue_lock);
@@ -539,8 +534,8 @@ UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
 /* Get next Method Call Response, user has to call
  * 'UA_DeleteMethodQueueElement(...)' to cleanup memory */
 struct AsyncMethodQueueElement *
-UA_Server_GetAsyncMethodResult(UA_AsyncOperationManager *amm) {
-     struct AsyncMethodQueueElement *elem = NULL;
+UA_AsyncOperationManager_getAsyncMethodResult(UA_AsyncOperationManager *amm) {
+    struct AsyncMethodQueueElement *elem = NULL;
     UA_LOCK(amm->ua_response_queue_lock);
     if(!SIMPLEQ_EMPTY(&amm->ua_method_response_queue)) {
         elem = SIMPLEQ_FIRST(&amm->ua_method_response_queue);
@@ -554,14 +549,14 @@ void
 UA_Server_CallMethodResponse(UA_Server *server, void* data) {
     /* Server fetches Result from queue */
     struct AsyncMethodQueueElement* pResponseServer = NULL;
-    while((pResponseServer = UA_Server_GetAsyncMethodResult(&server->asyncMethodManager))) {
+    while((pResponseServer = UA_AsyncOperationManager_getAsyncMethodResult(&server->asyncMethodManager))) {
         UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "UA_Server_CallMethodResponse: Got Response: OKAY");
         UA_Server_InsertMethodResponse(server, pResponseServer->m_nRequestId,
                                        &pResponseServer->m_nSessionId,
                                        pResponseServer->m_nIndex,
                                        &pResponseServer->m_Response);
-        UA_Server_DeleteMethodQueueElement(server, pResponseServer);
+        deleteMethodQueueElement(pResponseServer);
     }
 }
 
