@@ -205,7 +205,7 @@ endif()
 option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features" OFF)
 mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 
-option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
+option(UA_ENABLE_PUBSUB "Enable publish/subscribe" ON)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
@@ -326,7 +326,7 @@ if(CMAKE_VERSION VERSION_GREATER 3.6)
 endif()
 
 # Build Targets
-option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
+option(UA_BUILD_EXAMPLES "Build example servers and clients" ON)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
