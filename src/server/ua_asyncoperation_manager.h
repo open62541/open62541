@@ -103,17 +103,21 @@ void
 UA_AsyncOperationManager_checkTimeouts(UA_Server *server, UA_AsyncOperationManager *amm);
 
 /* Internal definitions for the unit tests */
-void UA_Server_DeleteMethodQueueElement(UA_Server *server, struct AsyncMethodQueueElement *pElem);
-void UA_Server_AddPendingMethodCall(UA_Server* server, struct AsyncMethodQueueElement *pElem);
-void UA_Server_RmvPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement *pElem);
-UA_Boolean UA_Server_IsPendingMethodCall(UA_Server *server, struct AsyncMethodQueueElement *pElem);
-UA_StatusCode UA_Server_SetNextAsyncMethod(UA_Server *server, const UA_UInt32 nRequestId,
-                                           const UA_NodeId *nSessionId, const UA_UInt32 nIndex,
-                                           const UA_CallMethodRequest* pRequest);
-
-void UA_Server_CheckQueueIntegrity(UA_Server *server, void *_);
 struct AsyncMethodQueueElement *
-UA_Server_GetAsyncMethodResult(UA_AsyncOperationManager *amm);
+UA_AsyncOperationManager_getAsyncMethodResult(UA_AsyncOperationManager *amm);
+void deleteMethodQueueElement(struct AsyncMethodQueueElement *pElem);
+void UA_AsyncOperationManager_addPendingMethodCall(UA_AsyncOperationManager *amm,
+                                                   struct AsyncMethodQueueElement *pElem);
+void UA_AsyncOperationManager_rmvPendingMethodCall(UA_AsyncOperationManager *amm,
+                                                   struct AsyncMethodQueueElement *pElem);
+UA_Boolean
+UA_AsyncOperationManager_isPendingMethodCall(UA_AsyncOperationManager *amm,
+                                             struct AsyncMethodQueueElement *pElem);
+UA_StatusCode
+UA_Server_SetNextAsyncMethod(UA_Server *server, const UA_UInt32 nRequestId,
+                             const UA_NodeId *nSessionId, const UA_UInt32 nIndex,
+                             const UA_CallMethodRequest* pRequest);
+void UA_Server_CheckQueueIntegrity(UA_Server *server, void *_);
 
 #endif /* UA_MULTITHREADING >= 100 */
 
