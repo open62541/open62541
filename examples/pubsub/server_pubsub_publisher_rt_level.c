@@ -48,6 +48,14 @@ addMinimalPubSubConfiguration(UA_Server * server){
     UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
 }
 
+static void
+valueUpdateCallback(UA_Server *server, void *data) {
+    UA_DataValue dataValue = *((UA_DataValue *) data);
+    UA_UInt32 *integerValue = (UA_UInt32 *) dataValue.value.data;
+    *integerValue += 1;
+    UA_Variant_setScalar(&dataValue.value, integerValue, &UA_TYPES[UA_TYPES_UINT32]);
+}
+
 int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
@@ -76,7 +84,18 @@ int main(void) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+    writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
     /* RT Level 0 setup */
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+    /* Change message settings of writerGroup to send PublisherId,
+     * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
+     * of NetworkMessage */
+    writerGroupMessage->networkMessageContentMask = (UA_UadpNetworkMessageContentMask) ((UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                                    (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
+                                                    (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
+                                                    (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent);
     /* Add one DataSetWriter */
@@ -116,8 +135,11 @@ int main(void) {
         return EXIT_FAILURE;
 
     /* Unfreeze the PubSub configuration (and stop implicitly the publish callback) */
-    UA_Server_setWriterGroupDisabled(server, writerGroupIdent);
-    UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
+    //UA_Server_setWriterGroupDisabled(server, writerGroupIdent);
+    //UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
+
+    UA_UInt64 callbackId;
+    UA_Server_addRepeatedCallback(server, valueUpdateCallback, &staticValueSource, 1000, &callbackId);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_Server_run(server, &running);

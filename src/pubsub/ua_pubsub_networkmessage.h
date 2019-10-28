@@ -81,8 +81,11 @@ typedef enum {
 typedef struct {
     UA_NetworkMessageOffsetType contentType;
     union {
+        union {
+            UA_DataValue *value;
+            size_t valueBinarySize;
+        } value;
         UA_DateTime *timestamp;
-        UA_DataValue *value;
     } offsetData;
     size_t offset;
 } UA_NetworkMessageOffset;
@@ -231,14 +234,15 @@ typedef struct {
     UA_ByteString signature;
 } UA_NetworkMessage;
 
-UA_StatusCode
+size_t
 UA_NetworkMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
                                        const UA_NetworkMessage* p);
 
+size_t
+UA_DataSetMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
+                                       const UA_DataSetMessage* p, size_t currentOffset);
 UA_StatusCode
-UA_NetworkMessage_generateOffsetBuffer2(UA_NetworkMessageOffsetBuffer *offsetBuffer,
-                                       const UA_NetworkMessage* src, UA_Byte **bufPos,
-                                       const UA_Byte *bufEnd);
+UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
 
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,

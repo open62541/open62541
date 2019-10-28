@@ -8,11 +8,13 @@
  */
 
 #include <open62541/server_pubsub.h>
+#include <open62541/plugin/log_stdout.h>
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #include "ua_pubsub.h"
+#include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
@@ -258,17 +260,14 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         }
     }
     if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE){
-        //UA_NetworkMessage_decodeBinary(, )
-        //UA_NetworkMessage_calculateBufferAndOffets(server, w)
-
         if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub RT Fail: Non RT capable encoding.");
+                           "PubSub-RT configuration fail: Non-RT capable encoding.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
         //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
         //TODO Clarify: Behaviour if the finale size is more than MTU
-        //TODO Check if there are not allowed promoted fields contained
+
         //generate data set messages
         UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
         UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
@@ -282,7 +281,14 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
                                "PubSub Publish: PublishedDataSet not found");
                 continue;
             }
+            if(pds->promotedFieldsCount > 0) {
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "PubSub-RT configuration fail: PDS contains promoted fields.");
+                return UA_STATUSCODE_BADNOTSUPPORTED;
+            }
             //TODO Check if all fields have an fixed size and static value source
+            //loop over the fields and check value source + type
+
             /* Generate the DSM */
             UA_StatusCode res =
                     UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
@@ -298,6 +304,16 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds, (UA_Byte) dsmCount,
                                &wg->config.messageSettings, &wg->config.transportSettings, &networkMessage);
         UA_NetworkMessage_generateOffsetBuffer(&wg->bufferedMessage, &networkMessage);
+        /* Allocate the buffer. Allocate on the stack if the buffer is small. */
+        UA_ByteString buf;
+        size_t msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage);
+        UA_StatusCode  retval = UA_ByteString_allocBuffer(&buf, msgSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        wg->bufferedMessage.buffer = buf;
+        const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
+        UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
+        UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -1765,6 +1781,15 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 }
 
 static UA_StatusCode
+sendBufferedNetworkMessage(UA_PubSubConnection *connection,
+        UA_NetworkMessageOffsetBuffer *buffer, UA_ExtensionObject *transportSettings) {
+    if(UA_NetworkMessage_updateBufferedMessage(buffer) != UA_STATUSCODE_GOOD)
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub sending. Unknown field type.");
+    UA_StatusCode retval = connection->channel->send(connection->channel, transportSettings, &buffer->buffer);
+    return retval;
+}
+
+static UA_StatusCode
 sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                    UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
                    UA_ExtensionObject *messageSettings,
@@ -1837,6 +1862,12 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(!connection) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Publish failed. PubSubConnection invalid.");
+        return;
+    }
+
+    //TODO Avoid connection lookup while publish! Attention simple pointer vs. realloc in pubsub manager
+    if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+        sendBufferedNetworkMessage(connection, &writerGroup->bufferedMessage, &writerGroup->config.transportSettings);
         return;
     }
 
