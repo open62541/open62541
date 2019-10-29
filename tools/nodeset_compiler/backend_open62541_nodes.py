@@ -543,16 +543,8 @@ def getNodeMethodCallbackName(node, outfilebase):
         return outfilebase + "_" + methodname
     return methodname
 
-
 def generateNodeCode_finish(node, outfilebase):
     code = []
-
-    # prepare methodcall parameters
-    methodname = getNodeMethodCallbackName(node, outfilebase)
-    inputargs_size = "0"
-    inputargs = "NULL"
-    outputargs_size = "0"
-    outputargs = "NULL"
 
     if isinstance(node, MethodNode):
         code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
@@ -563,10 +555,9 @@ def generateNodeCode_finish(node, outfilebase):
 
     if isinstance(node, MethodNode):
         code.append(", NULL, 0, NULL, 0, NULL);")
-        #code.append(", " + methodname + ", " + inputargs_size + ", " + inputargs + ", " + outputargs_size + ", " + outputargs + ");")
         code.append("retVal |= UA_Server_setMethodNode_callback(server, ")
         code.append(generateNodeIdCode(node.id))
-        code.append(", " + methodname + ");")
+        code.append(", " + getNodeMethodCallbackName(node, outfilebase) + ");")
         code.append("return retVal;")
     else:
         code.append(");")
