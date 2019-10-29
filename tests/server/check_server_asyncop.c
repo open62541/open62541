@@ -56,9 +56,9 @@ START_TEST(InternalTestingQueue) {
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: fetch result from response queue");
     struct AsyncMethodQueueElement* pResponseServer =
-        UA_Server_GetAsyncMethodResult(&globalServer->asyncMethodManager);
+        UA_AsyncOperationManager_getAsyncMethodResult(&globalServer->asyncMethodManager);
     ck_assert_ptr_ne(pResponseServer, NULL);
-    UA_Server_DeleteMethodQueueElement(globalServer, pResponseServer);
+    deleteMethodQueueElement(pResponseServer);
     
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: testing queue limit (%zu)", globalServer->config.maxAsyncOperationQueueSize);
     UA_UInt32 i;
@@ -114,42 +114,43 @@ START_TEST(InternalTestingPendingList) {
     globalServer->config.maxAsyncOperationQueueSize = 5;
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList");
+    UA_AsyncOperationManager *amm = &globalServer->asyncMethodManager;
 
     struct AsyncMethodQueueElement* elem1 = (struct AsyncMethodQueueElement*)UA_calloc(1, sizeof(struct AsyncMethodQueueElement));
     struct AsyncMethodQueueElement* elem2 = (struct AsyncMethodQueueElement*)UA_calloc(1, sizeof(struct AsyncMethodQueueElement));
     struct AsyncMethodQueueElement* elem3 = (struct AsyncMethodQueueElement*)UA_calloc(1, sizeof(struct AsyncMethodQueueElement));
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: Adding 3 elements");
-    UA_Server_AddPendingMethodCall(globalServer, elem1);
-    UA_Server_AddPendingMethodCall(globalServer, elem2);
-    UA_Server_AddPendingMethodCall(globalServer, elem3);
+    UA_AsyncOperationManager_addPendingMethodCall(amm, elem1);
+    UA_AsyncOperationManager_addPendingMethodCall(amm, elem2);
+    UA_AsyncOperationManager_addPendingMethodCall(amm, elem3);
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: check if element is found");
-    UA_Boolean bFound = UA_Server_IsPendingMethodCall(globalServer, elem2);
+    UA_Boolean bFound = UA_AsyncOperationManager_isPendingMethodCall(amm, elem2);
     if (!bFound) {
         ck_assert_int_eq(bFound, UA_TRUE);
-        UA_Server_RmvPendingMethodCall(globalServer, elem2);
+        UA_AsyncOperationManager_rmvPendingMethodCall(amm, elem2);
     }
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: remove remaining elements");
-    UA_Server_RmvPendingMethodCall(globalServer, elem1);
-    UA_Server_RmvPendingMethodCall(globalServer, elem3);
+    UA_AsyncOperationManager_rmvPendingMethodCall(amm, elem1);
+    UA_AsyncOperationManager_rmvPendingMethodCall(amm, elem3);
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: check if removed element is NOT found");
-    bFound = UA_Server_IsPendingMethodCall(globalServer, elem1);
+    bFound = UA_AsyncOperationManager_isPendingMethodCall(amm, elem1);
     if (!bFound) {
         ck_assert_int_eq(bFound, UA_FALSE);
-        UA_Server_RmvPendingMethodCall(globalServer, elem1);
+        UA_AsyncOperationManager_rmvPendingMethodCall(amm, elem1);
     }
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: queue integrity");
-    UA_Server_AddPendingMethodCall(globalServer, elem1);
-    UA_Server_AddPendingMethodCall(globalServer, elem2);
-    UA_Server_AddPendingMethodCall(globalServer, elem3);
+    UA_AsyncOperationManager_addPendingMethodCall(amm, elem1);
+    UA_AsyncOperationManager_addPendingMethodCall(amm, elem2);
+    UA_AsyncOperationManager_addPendingMethodCall(amm, elem3);
     UA_fakeSleep((UA_Int32)(globalServer->config.asyncOperationTimeout + 1) * 1000);
     UA_Server_CheckQueueIntegrity(globalServer, NULL);
-    ck_assert_ptr_eq(globalServer->asyncMethodManager.ua_method_pending_list.sqh_first,NULL);    
+    ck_assert_ptr_eq(amm->ua_method_pending_list.sqh_first,NULL);    
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: global removal/delete");
-    UA_Server_AddPendingMethodCall(globalServer, elem1);
+    UA_AsyncOperationManager_addPendingMethodCall(amm, elem1);
 }
 END_TEST
 

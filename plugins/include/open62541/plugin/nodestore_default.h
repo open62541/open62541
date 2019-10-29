@@ -22,10 +22,19 @@ UA_Nodestore_HashMap(UA_Nodestore *ns);
  * time is about O(log n). Adding/removing nodes does not require resizing of
  * the underlying array with the linear overhead.
  *
- *  For most usage scenarios the hash-map Nodestore will be faster.
- */
+ *  For most usage scenarios the hash-map Nodestore will be faster. */
 UA_EXPORT UA_StatusCode
 UA_Nodestore_ZipTree(UA_Nodestore *ns);
+
+#ifdef __linux__
+
+/* The RCU Nodestore implements a lock-free hashmap. It can be used for highly
+ * parallel access. For this, nodes are immutable and only copies can be
+ * edited. */
+UA_EXPORT UA_StatusCode
+UA_Nodestore_RCU(UA_Nodestore *ns);
+
+#endif /* __linux__  */
 
 _UA_END_DECLS
 
