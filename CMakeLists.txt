@@ -416,33 +416,63 @@ endif()
 # Compiler Settings #
 #####################
 
-include(CompilerFlags)
+# Check if a C compiler flag is supported and add it (if supported)
+# Taken from https://stackoverflow.com/a/33266748
+include(CheckCCompilerFlag)
+function(check_add_cc_flag CC_FLAG)
+    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
+    if(flag_already_set EQUAL -1)
+        message(STATUS "Test CC flag ${CC_FLAG}")
+        check_c_compiler_flag("${CC_FLAG}" flag_supported)
+        if(flag_supported)
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" PARENT_SCOPE)
+        endif()
+        unset(flag_supported CACHE)
+    endif()
+endfunction()
+
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
-    # Compiler
-    add_definitions(-std=c99 -pipe
-                    -Wall -Wextra -Wpedantic
-                    -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
-                    -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
-                    -Wno-unused-parameter # some methods may require unused arguments to cast to a method pointer
-                    -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls
-                    -Wformat -Wformat-security -Wformat-nonliteral
-                    -Wuninitialized -Winit-self
-                    -Wcast-qual
-                    -Wstrict-overflow
-                    -Wnested-externs
-                    -Wmultichar
-                    -Wundef
-                    -Wc++-compat
-                    -fno-strict-aliasing # fewer compiler assumptions about pointer types
-                    -fexceptions # recommended for multi-threaded C code, also in combination with C++ code
-                    )
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -Werror")
+    check_add_cc_flag("-std=c99")   # C99 mode
+    check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
+    check_add_cc_flag("-Wall")      # Warnings
+    check_add_cc_flag("-Wextra")    # More warnings
+    check_add_cc_flag("-Wpedantic") # Standard compliance
+    check_add_cc_flag("-Werror")    # All warnings are errors
+
+    check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
+    check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
+    check_add_cc_flag("-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
+
+    # Use a strict subset of the C and C++ languages
+    check_add_cc_flag("-Wc++-compat")
+
+    # Check that format strings (printf/scanf) are sane
+    check_add_cc_flag("-Wformat")
+    check_add_cc_flag("-Wformat-security")
+    check_add_cc_flag("-Wformat-nonliteral")
+
+    # Check prototype definitions
+    check_add_cc_flag("-Wmissing-prototypes")
+    check_add_cc_flag("-Wstrict-prototypes")
+    check_add_cc_flag("-Wredundant-decls")
+
+    check_add_cc_flag("-Wuninitialized")
+    check_add_cc_flag("-Winit-self")
+    check_add_cc_flag("-Wcast-qual")
+    check_add_cc_flag("-Wstrict-overflow")
+    check_add_cc_flag("-Wnested-externs")
+    check_add_cc_flag("-Wmultichar")
+    check_add_cc_flag("-Wundef")
+    check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
+    check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
     if (NOT MINGW)
         if(UA_ENABLE_HARDENING)
-            check_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
-            check_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
-            check_cc_flag_untested("-mcet -fcf-protection") # future use (control flow integrity protection)
+            check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
+            check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
+            # future use (control flow integrity protection)
+            check_add_cc_flag("-mcet")
+            check_add_cc_flag("-fcf-protection")
         endif()
 
         # IPO requires too much memory for unit tests
@@ -484,16 +514,21 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     endif()
 
     if(UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
-        check_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
+        check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
     endif()
 
     # Strip release builds
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        add_definitions(-ffunction-sections -fdata-sections -fno-unwind-tables
-                        -fno-asynchronous-unwind-tables -fno-math-errno -fno-ident)
+        check_add_cc_flag("-ffunction-sections")
+        check_add_cc_flag("-fdata-sections")
+        check_add_cc_flag("-fno-unwind-tables")
+        check_add_cc_flag("-fno-asynchronous-unwind-tables")
+        check_add_cc_flag("-fno-math-errno")
+        check_add_cc_flag("-fno-ident")
+
         # remove stack-protector with MinSizeRel
         if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
-            add_definitions(-fno-stack-protector)
+            check_add_cc_flag("-fno-stack-protector")
         endif()
         if(NOT OS9)
             set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
@@ -512,8 +547,6 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
         endif()
     endif()
 endif()
-
-
 
 if(APPLE)
     set(CMAKE_MACOSX_RPATH 1)
@@ -1333,4 +1366,3 @@ set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
-
