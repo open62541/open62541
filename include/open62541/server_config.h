@@ -100,6 +100,13 @@ struct UA_ServerConfig {
      * - The ApplicationUri set in the ApplicationDescription must match the
      *   URI set in the server certificate */
     UA_BuildInfo buildInfo;
+    /*
+     * For local servers,
+     *  the discovery urls will be copied from the network layers at server initialization.
+     *  This means, that there is no use in setting the discovery urls manually, as they will be overriden.
+     * For registered remote servers,
+     *  the discovery url are set in the registration and contains the url of their endpoints.
+     */
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
 

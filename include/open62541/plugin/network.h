@@ -152,6 +152,9 @@ struct UA_ServerNetworkLayer {
     /* Points to external memory, i.e. handled by server or client */
     UA_NetworkStatistics *statistics;
 
+    /* Describes the url of the network layer which is used by the remote to connect to this network layer.
+     * The url will be used for the discovery and endpoint services.
+     */
     UA_String discoveryUrl;
 
     UA_ConnectionConfig localConnectionConfig;

@@ -46,21 +46,32 @@ register_server_with_discovery_server(UA_Server *server,
     request.server.serverNames = &server->config.applicationDescription.applicationName;
     request.server.serverNamesSize = 1;
 
-    /* Copy the discovery urls from the server config and the network layers*/
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
-    size_t total_discurls = config_discurls + nl_discurls;
-    UA_STACKARRAY(UA_String, urlsBuf, total_discurls);
+    size_t stack_urls = config_discurls;
+    /* Only use the discovery urls from the buffer if present.
+     * Otherwise use the one from the network layers */
+    if (config_discurls == 0) {
+        stack_urls = nl_discurls;
+    }
+    UA_STACKARRAY(UA_String, urlsBuf, stack_urls);
     request.server.discoveryUrls = urlsBuf;
-    request.server.discoveryUrlsSize = total_discurls;
-
-    for(size_t i = 0; i < config_discurls; ++i)
-        request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];
-
-    /* TODO: Add nl only if discoveryUrl not already present */
-    for(size_t i = 0; i < nl_discurls; ++i) {
-        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
+    request.server.discoveryUrlsSize = stack_urls;
+    /* Copy the discovery urls from the server config if existing */
+    if(config_discurls != 0) {
+        for(size_t i = 0; i < config_discurls; ++i)
+            request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];
+    }
+    /* If there are no discovery urls in the server config, copy them from the network layers.
+     * Possibly, this will never happen, except the user changes the ApplicationDescription while the server runs. */
+    else {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "No discovery urls found in the server config. "
+                        "Using the network layers");
+        for(size_t i = 0; i < nl_discurls; ++i) {
+            UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+            request.server.discoveryUrls[i] = nl->discoveryUrl;
+        }
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
