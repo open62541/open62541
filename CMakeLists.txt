@@ -134,6 +134,7 @@ option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable the use of event subscriptions" OF
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
+option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
@@ -209,9 +210,6 @@ endif()
 
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
-
-option(UA_ENABLE_DA "Enable data access" ON)
-mark_as_advanced(UA_ENABLE_DA)
 
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
