@@ -910,6 +910,7 @@ else()
     endif()
 	if(UA_ENABLE_DA)
 		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_dataaccess.txt)
+        set(UA_NODESET_FILE_DA ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Part8_Subset.xml)
     endif()
     if(UA_ENABLE_TYPEDESCRIPTION)
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_typedescription.txt)
@@ -990,7 +991,7 @@ endif()
 
 ua_generate_nodeset(
     NAME "ns0"
-    FILE ${UA_FILE_NODESETS}
+    FILE ${UA_FILE_NODESETS} ${UA_NODESET_FILE_DA}
     INTERNAL
     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
     DEPENDS_TARGET "open62541-generator-types"
