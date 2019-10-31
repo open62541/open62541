@@ -125,7 +125,9 @@ foreach(arch_ ${architectures})
 endforeach(arch_ ${architectures})
 
 # Options
+option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
+set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading (0-99: No Multithreading, 100-199: Thread-Safe API, >=200: Internal Threads")
 option(UA_ENABLE_HISTORIZING "Enable server and client to provide historical access." OFF)
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
@@ -136,7 +138,6 @@ option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast su
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
-option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
 
 # Namespace Zero
@@ -171,7 +172,6 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     set(UA_ENABLE_SUBSCRIPTIONS_EVENTS ON CACHE STRING "" FORCE)
 endif()
 
-
 # It should not be possible to enable events without enabling subscriptions and full ns0
 #if((UA_ENABLE_SUBSCRIPTIONS_EVENTS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS AND UA_NAMESPACE_ZERO STREQUAL "FULL")))
 #    message(FATAL_ERROR "Unable to enable events without UA_ENABLE_SUBSCRIPTIONS and full namespace 0")
@@ -198,15 +198,12 @@ mark_as_advanced(UA_ENABLE_QUERY)
 
 option(UA_ENABLE_IMMUTABLE_NODES "Nodes in the information model are not edited but copied and replaced" OFF)
 mark_as_advanced(UA_ENABLE_IMMUTABLE_NODES)
+if(UA_MULTITHREADING GREATER 100)
+    set(UA_ENABLE_IMMUTABLE_NODES ON)
+endif()
 
 option(UA_ENABLE_EXPERIMENTAL_HISTORIZING "Enable client experimental historical access features" OFF)
 mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
-
-set(UA_MULTITHREADING 0 CACHE STRING "Level of multithreading")
-mark_as_advanced(UA_MULTITHREADING)
-if (UA_MULTITHREADING GREATER 100)
-    set(UA_ENABLE_IMMUTABLE_NODES ON)
-endif()
 
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
@@ -370,8 +367,8 @@ if(BUILD_SHARED_LIBS)
 endif()
 
 # Warn if experimental features are enabled
-if(UA_MULTITHREADING)
-    MESSAGE(WARNING "UA_MULTITHREADING is enabled. The feature is under development and marked as EXPERIMENTAL")
+if(UA_MULTITHREADING GREATER 199)
+    MESSAGE(WARNING "UA_MULTITHREADING >= 200. Internal threads of the server are an EXPERIMENTAL feature. Expect bugs")
 endif()
 
 ########################

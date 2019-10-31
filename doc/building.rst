@@ -139,12 +139,22 @@ Main Build Options
    The SDK logs events of the level defined in ``UA_LOGLEVEL`` and above only.
    The logging event levels are as follows:
 
-     - 600: Fatal
-     - 500: Error
-     - 400: Warning
-     - 300: Info
-     - 200: Debug
-     - 100: Trace
+   - 600: Fatal
+   - 500: Error
+   - 400: Warning
+   - 300: Info
+   - 200: Debug
+   - 100: Trace
+
+**UA_MULTITHREADING**
+   Level of multi-threading support. The supported levels are currently as follows:
+
+  - 0-199: Multithreading support disabled.
+  - 100-199: API functions marked with the UA_THREADSAFE-macro are protected internally with mutexes.
+    Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
+    Furthermore, this level support the handling of asynchronous method calls from external worker threads.
+  - >=200: Work is distributed to a number of internal worker threads. Those worker threads are created within the SDK.
+    (EXPERIMENTAL FEATURE! Expect bugs.)
 
 Select build artefacts
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -179,16 +189,6 @@ Detailed SDK Features
 
 **UA_ENABLE_AMALGAMATION**
    Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not recommended for installation.
-
-**UA_MULTITHREADING (EXPERIMENTAL)**
-   Enable multi-threading support. This is a new feature and currently marked as EXPERIMENTAL.
-   The supported levels are as follows:
-
-        - 0: Multithreading support disabled.
-        - 100: Functions marked with the UA_THREADSAFE-macro are protected with a lock-based enhancement using mutexes.
-        Multiple threads are allowed to call these functions of the SDK at the same time without causing race conditions.
-        Furthermore, this level supports the feature of adding async methods to objects.
-        - 200: Work is distributed to a number of worker threads. Those worker threads are created within the SDK.
 
 **UA_ENABLE_IMMUTABLE_NODES**
    Nodes in the information model are not edited but copied and replaced. The
