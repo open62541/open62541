@@ -7,7 +7,8 @@ try {
 
     if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         Write-Host -ForegroundColor Green "`n### Installing msys64 ###`n"
-        & choco install -y msys2 --no-progress --params="/InstallDir:$env:MSYS2_ROOT /NoUpdate /NoPath"
+        # Install specific version of msys2. See https://github.com/open62541/open62541/issues/3233
+        & choco install -y msys2 --version 20180531.0.0 --no-progress --params="/InstallDir:$env:MSYS2_ROOT /NoUpdate /NoPath"
 
         Write-Host -ForegroundColor Green "`n### Installing mbedtls via PacMan ###`n"
         # pacman may complain that the directory does not exist, thus create it.
