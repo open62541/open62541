@@ -194,7 +194,7 @@ void UA_Server_delete(UA_Server *server) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncOperationManager_clear(&server->asyncMethodManager, server);
+    UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
 
     /* Clean up the Admin Session */
@@ -288,7 +288,7 @@ UA_Server_init(UA_Server *server) {
     UA_SessionManager_init(&server->sessionManager, server);
 
 #if UA_MULTITHREADING >= 100
-    UA_AsyncOperationManager_init(&server->asyncMethodManager, server);
+    UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
     /* Add a regular callback for cleanup and maintenance. With a 10s interval. */

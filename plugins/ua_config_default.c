@@ -226,9 +226,8 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #endif
 
 #if UA_MULTITHREADING >= 100
-    conf->asyncOperationTimeout = 0;
     conf->maxAsyncOperationQueueSize = 0;
-    conf->asyncCallRequestTimeout = 120000; /* Call request Timeout in ms (2 minutes) */
+    conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
 #endif
 
     /* --> Finish setting the default static config <-- */
