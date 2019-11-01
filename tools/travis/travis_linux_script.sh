@@ -455,6 +455,7 @@ if [ "$CC" != "tcc" ]; then
         -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/$PYTHON \
         -DUA_BUILD_EXAMPLES=ON \
         -DUA_BUILD_UNIT_TESTS=ON \
+        -DUA_ENABLE_USE_ENCODED_NODES=ON \
         -DUA_ENABLE_COVERAGE=ON \
         -DUA_ENABLE_DA=ON \
         -DUA_ENABLE_DISCOVERY=ON \

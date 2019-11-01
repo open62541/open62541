@@ -188,6 +188,14 @@ endif()
 
 add_subdirectory(nodeset)
 
+##############################
+#  Example Binary Nodestore  #
+##############################
+
+if(UA_ENABLE_USE_ENCODED_NODES OR UA_ENABLE_ENCODE_AND_DUMP)
+    add_example(server_with_binary_nodestore binary_nodestore/server_with_binary_nodestore.c)
+endif()
+
 ####################
 #  Example PubSub  #
 ####################

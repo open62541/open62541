@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2019 (c) Julius Pfrommer, Fraunhofer IOSB
+ *    Copyright 2020 (c) Kalycito Infotech Pvt Ltd
  */
 
 #ifndef UA_NODESTORE_DEFAULT_H_
@@ -26,6 +27,39 @@ UA_Nodestore_HashMap(UA_Nodestore *ns);
  */
 UA_EXPORT UA_StatusCode
 UA_Nodestore_ZipTree(UA_Nodestore *ns);
+
+#ifdef UA_ENABLE_USE_ENCODED_NODES
+/*
+ * Binary encoded Nodestore contains nodes in a compressed format. The lookupTable
+ * is used to locate the index location of compressed node. The MINIMAL nodes
+ * should be present in the information model for adding datasource and method
+ * nodes. It uses the copy of zipTree to hold the MINIMAL nodes
+ */
+UA_EXPORT UA_StatusCode
+UA_Nodestore_BinaryEncoded(UA_Nodestore *ns, const char *const lookupTablePath,
+                         const char *const enocdedBinPath);
+
+/* Lookup table for the encoded nodes */
+struct lookUpTable;
+typedef struct lookUpTable lookUpTable;
+struct lookUpTable {
+    UA_NodeId nodeId;
+    size_t nodePosition;
+    size_t nodeSize;
+};
+
+UA_Node*
+decodeNode(void *ctx, UA_ByteString encodedBin, size_t offset);
+
+void
+encodeEditedNode(const UA_Node *node, UA_ByteString *encodedBin,
+                          lookUpTable *lt, UA_UInt32 ltSize);
+#endif
+
+#ifdef UA_ENABLE_ENCODE_AND_DUMP
+void
+encodeNodeCallback(void *visitorCtx, const UA_Node *node);
+#endif
 
 _UA_END_DECLS
 

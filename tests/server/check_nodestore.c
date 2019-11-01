@@ -1,15 +1,22 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *     Copyright 2020 (c) Kalycito Infotech Pvt Ltd
+ *
+ * */
 
 #include <open62541/types.h>
 #include <open62541/util.h>
 #include <open62541/plugin/nodestore_default.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include "check.h"
+
+#ifdef UA_ENABLE_USE_ENCODED_NODES
+#include "binary_nodes.h"
+#endif
 
 #if UA_MULTITHREADING >= 200
 #include <pthread.h>
@@ -114,6 +121,102 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     ns.releaseNode(ns.context, nr);
 }
 END_TEST
+
+#ifdef UA_ENABLE_USE_ENCODED_NODES
+START_TEST(decodeNodes) {
+    UA_ByteString encodebin;
+    encodebin.data = encodedBin;
+    encodebin.length = ENCODEDNODESIZE;
+
+    for(UA_UInt32 i = 0; i < ltSize; i++) {
+        if(lt[i].nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
+            const UA_Node* nr = decodeNode(ns.context , encodebin, lt[i].nodePosition);
+            ck_assert_int_eq(nr->nodeId.identifier.numeric, lt[i].nodeId.identifier.numeric);
+            ns.releaseNode(ns.context, nr);
+        }
+        if(lt[i].nodeId.identifierType == UA_NODEIDTYPE_STRING) {
+            const UA_Node* nr = decodeNode(ns.context , encodebin, lt[i].nodePosition);
+            ck_assert_int_eq(UA_String_equal(&nr->nodeId.identifier.string,
+                                    &lt[i].nodeId.identifier.string), true);
+            ns.releaseNode(ns.context, nr);
+        }
+    }
+}
+END_TEST
+
+START_TEST(encodeNodes) {
+
+    /* Copy the compressed nodes */
+    UA_STACKARRAY(UA_Byte, encodedNodes, (ENCODEDNODESIZE + 2048));
+    UA_ByteString encodebin;
+    encodebin.data = encodedNodes;
+
+    /* Extra size for editing the value attribute of nodes with datatype string */
+    encodebin.length = ENCODEDNODESIZE + 2048;
+    for(size_t i = 0;  i < ENCODEDNODESIZE; i++) {
+        encodebin.data[i] = encodedBin[i];
+    }
+
+    /* Check encoding function by fetching a variableType node
+     * by decoding, modifying the value field, encoding it, and
+     * checking the value field again after decoding */
+
+    /* The index 181 contains node of datatype UA_UInt32 */
+    UA_NodeId nodeIdEdited;
+    UA_NodeId_copy(&lt[181].nodeId, &nodeIdEdited);
+    const UA_Node* nr;
+    nr = decodeNode(ns.context , encodebin, lt[181].nodePosition);
+    const UA_VariableTypeNode *varNode = (const UA_VariableTypeNode*) nr;
+
+    UA_DataValue v = varNode->value.data.value;
+    UA_UInt32 value = UA_UINT32_MAX;
+    *(UA_UInt32*)v.value.data = value;
+
+    encodeEditedNode(nr, &encodebin, lt, ltSize);
+    ns.releaseNode(ns.context, nr);
+
+    for(UA_UInt32 i = 0; i < ltSize; i++) {
+        if(lt[i].nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
+            if(lt[i].nodeId.identifier.numeric == nodeIdEdited.identifier.numeric) {
+                const UA_Node* nr2 = nr = decodeNode(ns.context , encodebin, lt[i].nodePosition);
+                const UA_VariableTypeNode *checkVarNode = (const UA_VariableTypeNode*) nr2;
+                UA_UInt32 valAttr = *(UA_UInt32*)checkVarNode->value.data.value.value.data;
+                ck_assert_int_eq(valAttr, UA_UINT32_MAX);
+                ns.releaseNode(ns.context, nr2);
+            }
+        }
+    }
+
+    UA_NodeId_clear(&nodeIdEdited);
+
+    /* The index 144 contains node of datatype UA_String */
+    UA_NodeId_copy(&lt[144].nodeId, &nodeIdEdited);
+    nr = decodeNode(ns.context , encodebin, lt[144].nodePosition);
+    const UA_VariableTypeNode *varNodeStr = (const UA_VariableTypeNode*) nr;
+
+    UA_DataValue v2 = varNodeStr->value.data.value;
+    UA_String str = UA_String_fromChars("test123");
+    *(UA_String*)v2.value.data = UA_String_fromChars("test123");
+
+    encodeEditedNode(nr, &encodebin, lt, ltSize);
+    ns.releaseNode(ns.context, nr);
+
+    for(UA_UInt32 i = 0; i < ltSize; i++) {
+        if(lt[i].nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
+            if(lt[i].nodeId.identifier.numeric == nodeIdEdited.identifier.numeric) {
+                const UA_Node* nr2 = decodeNode(ns.context , encodebin, lt[i].nodePosition);
+                const UA_VariableTypeNode *checkVarNodeStr = (const UA_VariableTypeNode*) nr2;
+                UA_String valAttr = *(UA_String*)checkVarNodeStr->value.data.value.value.data;
+                ck_assert_int_eq(UA_String_equal(&valAttr, &str), true);
+                ns.releaseNode(ns.context, nr2);
+            }
+        }
+    }
+    UA_String_clear(&str);
+
+}
+END_TEST
+#endif
 
 START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
     UA_Node* n1 = createNode(0,2253);
@@ -271,7 +374,17 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
-    
+
+#ifdef UA_ENABLE_USE_ENCODED_NODES
+    TCase* tc_decode = tcase_create ("Decode-Nodes");
+    tcase_add_test (tc_decode, decodeNodes);
+    suite_add_tcase (s, tc_decode);
+
+    TCase* tc_encode = tcase_create ("Encode-Nodes");
+    tcase_add_test (tc_encode, encodeNodes);
+    suite_add_tcase (s, tc_encode);
+#endif
+
     TCase* tc_profile = tcase_create ("Profile-ZipTree");
     tcase_add_checked_fixture(tc_profile, setupZipTree, teardown);
     tcase_add_test (tc_profile, profileGetDelete);

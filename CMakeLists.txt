@@ -140,6 +140,8 @@ option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
 option(UA_ENABLE_MICRO_EMB_DEV_PROFILE "Builds CTT Compliant Micro Embedded Device Server Profile" OFF)
 option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
+option(UA_ENABLE_ENCODE_AND_DUMP "Binary Encode the nodes present in information model and dump it into a file" OFF)
+option(UA_ENABLE_USE_ENCODED_NODES "Use OPC UA binary encoded nodes" OFF)
 
 # Namespace Zero
 set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
@@ -159,6 +161,20 @@ endif()
 if(UA_ENABLE_MICRO_EMB_DEV_PROFILE)
     if(NOT (UA_NAMESPACE_ZERO STREQUAL "FULL"))
         message(FATAL_ERROR "CTT Compliant Micro Embedded Device Server Profile needs full namespace zero")
+    endif()
+endif()
+
+if((UA_ENABLE_AMALGAMATION) AND (UA_ENABLE_USE_ENCODED_NODES))
+        message(FATAL_ERROR "Simultaneous usage of UA_ENABLE_AMALGAMATION AND UA_ENABLE_USE_ENCODED_NODES is not allowed")
+endif()
+
+if((UA_ENABLE_ENCODE_AND_DUMP) AND (UA_ENABLE_USE_ENCODED_NODES))
+        message(FATAL_ERROR "Simultaneous usage of UA_ENABLE_ENCODE_AND_DUMP AND UA_ENABLE_USE_ENCODED_NODES is not allowed")
+endif()
+
+if(UA_ENABLE_USE_ENCODED_NODES)
+    if(NOT (UA_NAMESPACE_ZERO STREQUAL "MINIMAL"))
+        message(FATAL_ERROR "Usage of binary encoded nodes requries 'minimal' information model")
     endif()
 endif()
 
@@ -741,6 +757,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_pki_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_binary_encoded.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_none.c
 )
@@ -1118,6 +1135,7 @@ else()
                                "${PROJECT_SOURCE_DIR}/plugins/include"
                                "${PROJECT_SOURCE_DIR}/deps"
                                "${PROJECT_SOURCE_DIR}/src/pubsub"
+                               "${PROJECT_SOURCE_DIR}/src"
                                "${PROJECT_BINARY_DIR}/src_generated")
 
     # Private includes
