@@ -90,9 +90,6 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 UA_StatusCode UA_EXPORT
 UA_Server_run_shutdown(UA_Server *server);
 
-void *
-UA_Server_getNsCtx(UA_Server *server);
-
 /**
  * Timed Callbacks
  * --------------- */

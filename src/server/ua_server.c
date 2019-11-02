@@ -332,10 +332,6 @@ UA_Server* UA_Server_newWithConfig(const UA_ServerConfig *config) {
     return UA_Server_init(server);
 }
 
-void* UA_Server_getNsCtx(UA_Server *server) {
-    return server->nsCtx;
-}
-
 /* Returns if the server should be shut down immediately */
 static UA_Boolean
 setServerShutdown(UA_Server *server) {
