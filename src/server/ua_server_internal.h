@@ -69,9 +69,6 @@ struct UA_Server {
     UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
                           * down once the time has been reached */
 
-    /* Nodestore */
-    void *nsCtx;
-
     UA_ServerLifecycle state;
 
     /* Security */
