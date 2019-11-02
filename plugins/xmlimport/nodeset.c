@@ -319,10 +319,9 @@ initNode(Nodeset *nodeset, TNamespace *namespaces, UA_Node *node, int nb_attribu
 UA_Node *
 Nodeset_newNode(Nodeset *nodeset, UA_NodeClass nodeClass, int nb_attributes,
                 const char **attributes) {
-    UA_Node *newNode = UA_Nodestore_newNode(UA_Server_getNsCtx(nodeset->server),
-                                            nodeClass);
+    UA_ServerConfig *config = UA_Server_getConfig(nodeset->server);
+    UA_Node *newNode = config->nodestore.newNode(config->nodestore.context, nodeClass);
     initNode(nodeset, nodeset->namespaceTable->ns, newNode, nb_attributes, attributes);
-
     return newNode;
 }
 
@@ -506,8 +505,8 @@ Nodeset_newNodeFinish(Nodeset *nodeset, UA_Node *node) {
         ref->src = UA_NodeId_new();
         UA_NodeId_copy(&node->nodeId, ref->src);
     }
-
-    UA_Nodestore_insertNode(UA_Server_getNsCtx(nodeset->server), node, NULL);
+    UA_ServerConfig* config = UA_Server_getConfig(nodeset->server);
+    config->nodestore.insertNode(config->nodestore.context, node, NULL);
 }
 
 //copied from ua_nodes
