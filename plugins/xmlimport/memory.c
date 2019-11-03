@@ -21,7 +21,7 @@ struct MemoryPool {
 struct MemoryPool*
 MemoryPool_init(size_t elementSize, size_t incrementingSize)
 {
-    struct MemoryPool* memPool = (struct MemoryPool*) UA_malloc(sizeof(struct MemoryPool));
+    struct MemoryPool* memPool = (struct MemoryPool*) UA_calloc(sizeof(struct MemoryPool), 1);
     if(!memPool)
     {
         return NULL;
@@ -31,13 +31,12 @@ MemoryPool_init(size_t elementSize, size_t incrementingSize)
     memPool->incrementCount = incrementingSize;
     memPool->maxSize = incrementingSize;
     memPool->elementSize = elementSize;
-    memPool->mem = (struct RawMem*) malloc(sizeof(struct RawMem));
+    memPool->mem = (struct RawMem*) UA_calloc(sizeof(struct RawMem), 1);
     memPool->mem->mem = UA_calloc(memPool->elementSize, memPool->incrementCount);
     if(!memPool->mem->mem)
     {
         return NULL;
     }
-    memPool->mem->prev = NULL;    
     return memPool;
 }
 
@@ -46,7 +45,7 @@ MemoryPool_getMemoryForElement(struct MemoryPool *memPool)
 {
     if(memPool->size >= memPool->maxSize)
     {
-        struct RawMem* newRawMem = (struct RawMem*) UA_malloc(sizeof(struct RawMem));
+        struct RawMem* newRawMem = (struct RawMem*) UA_calloc(sizeof(struct RawMem), 1);
         if(!newRawMem)
         {
             return NULL;
