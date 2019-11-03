@@ -554,8 +554,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
      * there is an error */
     if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
         responseHeader->serviceResult =
-            UA_AsyncMethodManager_createEntry(&server->asyncMethodManager, &session->sessionId,
-                                              channel->securityToken.channelId, requestId, requestHeader->requestHandle, responseType,
+            UA_AsyncOperationManager_createEntry(&server->asyncMethodManager, server,
+                                              &session->sessionId, channel->securityToken.channelId,
+                                              requestId, requestHeader->requestHandle,
+                                              UA_ASYNCOPERATIONTYPE_CALL,
                                               (UA_UInt32)((const UA_CallRequest*)requestHeader)->methodsToCallSize);
         if(responseHeader->serviceResult == UA_STATUSCODE_GOOD)
             Service_CallAsync(server, session, channel, requestId,

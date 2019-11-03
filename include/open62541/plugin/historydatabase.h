@@ -75,6 +75,54 @@ struct UA_HistoryDatabase {
                UA_HistoryReadResponse *response,
                UA_HistoryData * const * const historyData);
 
+    /* No default implementation is provided by UA_HistoryDatabase_default
+     * for the following function */
+    void
+    (*readModified)(UA_Server *server,
+               void *hdbContext,
+               const UA_NodeId *sessionId,
+               void *sessionContext,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadRawModifiedDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
+               UA_HistoryReadResponse *response,
+               UA_HistoryModifiedData * const * const historyData);
+
+    /* No default implementation is provided by UA_HistoryDatabase_default
+     * for the following function */
+    void
+    (*readProcessed)(UA_Server *server,
+               void *hdbContext,
+               const UA_NodeId *sessionId,
+               void *sessionContext,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadProcessedDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
+               UA_HistoryReadResponse *response,
+               UA_HistoryData * const * const historyData);
+
+    /* No default implementation is provided by UA_HistoryDatabase_default
+     * for the following function */
+    void
+    (*readAtTime)(UA_Server *server,
+               void *hdbContext,
+               const UA_NodeId *sessionId,
+               void *sessionContext,
+               const UA_RequestHeader *requestHeader,
+               const UA_ReadAtTimeDetails *historyReadDetails,
+               UA_TimestampsToReturn timestampsToReturn,
+               UA_Boolean releaseContinuationPoints,
+               size_t nodesToReadSize,
+               const UA_HistoryReadValueId *nodesToRead,
+               UA_HistoryReadResponse *response,
+               UA_HistoryData * const * const historyData);
+
     void
     (*updateData)(UA_Server *server,
                   void *hdbContext,
@@ -94,7 +142,7 @@ struct UA_HistoryDatabase {
                          UA_HistoryUpdateResult *result);
 
     /* Add more function pointer here.
-     * For example for read_event, read_modified, read_processed, read_at_time */
+     * For example for read_event, read_annotation, update_details */
 };
 
 _UA_END_DECLS

@@ -6,6 +6,8 @@ include_directories("${PROJECT_SOURCE_DIR}/src/server")
 # testing_clock.h
 include_directories("${PROJECT_SOURCE_DIR}/tests/testing-plugins")
 
+add_definitions(-DUA_sleep_ms=UA_comboSleep)
+
 if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()

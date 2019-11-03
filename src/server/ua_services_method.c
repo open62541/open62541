@@ -17,8 +17,6 @@
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
-#include "ua_server_methodqueue.h"
-
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
@@ -232,23 +230,6 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 }
 
 #if UA_MULTITHREADING >= 100
-
-static UA_StatusCode
-setMethodNodeAsync(UA_Server *server, UA_Session *session,
-                   UA_Node *node, UA_Boolean *isAsync) {
-    UA_MethodNode *method = (UA_MethodNode*)node;
-    if(method->nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    method->async = *isAsync;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
-                             UA_Boolean isAsync) {
-    return UA_Server_editNode(server, &server->adminSession, &id,
-                              (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
-}
 
 static void
 Operation_CallMethodAsync(UA_Server *server, UA_Session *session, void *context,

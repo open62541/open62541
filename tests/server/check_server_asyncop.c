@@ -8,7 +8,6 @@
 
 #include "server/ua_services.h"
 #include "ua_server_internal.h"
-#include "ua_server_methodqueue.h"
 
 #include <check.h>
 #include <time.h>
@@ -21,7 +20,6 @@
 
 static UA_Server* globalServer;
 static UA_Session session;
-
 
 START_TEST(InternalTestingQueue) {
     globalServer->config.asyncOperationTimeout = 2;
@@ -41,14 +39,14 @@ START_TEST(InternalTestingQueue) {
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: create request queue entry");
     UA_StatusCode result = UA_Server_SetNextAsyncMethod(globalServer, reqId++, &id, 0, pRequest1);
     ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(globalServer->nMQCurSize, 1);
+    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 1);
 
     const UA_AsyncOperationRequest* pRequestWorker = NULL;
     void *pContextWorker = NULL;
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: fetch from queue");
     rv = UA_Server_getAsyncOperation(globalServer, &type, &pRequestWorker, &pContextWorker);
     ck_assert_int_eq(rv, UA_TRUE);
-    ck_assert_int_eq(globalServer->nMQCurSize, 0);
+    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 0);
         
     UA_AsyncOperationResponse pResponse;
     UA_CallMethodResult_init(&pResponse.callMethodResult);
@@ -57,9 +55,9 @@ START_TEST(InternalTestingQueue) {
     UA_CallMethodResult_deleteMembers(&pResponse.callMethodResult);
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: fetch result from response queue");
-    struct AsyncMethodQueueElement* pResponseServer = NULL;
-    rv = UA_Server_GetAsyncMethodResult(globalServer, &pResponseServer);
-    ck_assert_int_eq(rv, UA_TRUE);
+    struct AsyncMethodQueueElement* pResponseServer =
+        UA_Server_GetAsyncMethodResult(&globalServer->asyncMethodManager);
+    ck_assert_ptr_ne(pResponseServer, NULL);
     UA_Server_DeleteMethodQueueElement(globalServer, pResponseServer);
     
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: testing queue limit (%zu)", globalServer->config.maxAsyncOperationQueueSize);
@@ -74,18 +72,18 @@ START_TEST(InternalTestingQueue) {
     }
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: queue should not be empty");
     UA_Server_CheckQueueIntegrity(globalServer,NULL);
-    ck_assert_int_ne(globalServer->nMQCurSize, 0);
+    ck_assert_int_ne(globalServer->asyncMethodManager.nMQCurSize, 0);
     UA_fakeSleep((UA_Int32)(globalServer->config.asyncOperationTimeout + 1) * 1000);
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: empty queue caused by queue timeout (%ds)", (UA_Int32)globalServer->config.asyncOperationTimeout);
     /* has to be done twice due to internal queue delete limit */
     UA_Server_CheckQueueIntegrity(globalServer,NULL);
     UA_Server_CheckQueueIntegrity(globalServer,NULL);
-    ck_assert_int_eq(globalServer->nMQCurSize, 0);    
+    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 0);    
     
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking queue: adding one new entry to empty queue");
     result = UA_Server_SetNextAsyncMethod(globalServer, reqId++, &id, 0, pRequest1);
     ck_assert_int_eq(result, UA_STATUSCODE_GOOD);    
-    ck_assert_int_eq(globalServer->nMQCurSize, 1);
+    ck_assert_int_eq(globalServer->asyncMethodManager.nMQCurSize, 1);
     UA_CallMethodRequest_delete(pRequest1);
 }
 END_TEST
@@ -96,16 +94,17 @@ START_TEST(InternalTestingManager) {
     session.sessionId = UA_NODEID_NUMERIC(1, 62541);
     UA_SecureChannel channel;
     UA_SecureChannel_init(&channel);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncMethodManager_createEntry: create CallRequests");
-    UA_DataType dataType = UA_TYPES[UA_TYPES_CALLMETHODREQUEST];
+    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncOperationManager_createEntry: create CallRequests");
     for (UA_Int32 i = 1; i < 7; i++) {
-        UA_StatusCode result = UA_AsyncMethodManager_createEntry(&globalServer->asyncMethodManager, &session.sessionId,
-            channel.securityToken.channelId, i, i, &dataType, 1);
+        UA_StatusCode result =
+            UA_AsyncOperationManager_createEntry(&globalServer->asyncMethodManager, globalServer,
+                                              &session.sessionId, channel.securityToken.channelId,
+                                              i, i, UA_ASYNCOPERATIONTYPE_CALL, 1);
         ck_assert_int_eq(result, UA_STATUSCODE_GOOD);
     }
     UA_fakeSleep(121000);
-    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncMethodManager_createEntry: empty CallRequest list");
-    UA_AsyncMethodManager_checkTimeouts(globalServer, &globalServer->asyncMethodManager);
+    UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking UA_AsyncOperationManager_createEntry: empty CallRequest list");
+    UA_AsyncOperationManager_checkTimeouts(globalServer, &globalServer->asyncMethodManager);
     ck_assert_int_eq(globalServer->asyncMethodManager.currentCount, 0);
 }
 END_TEST
@@ -147,14 +146,10 @@ START_TEST(InternalTestingPendingList) {
     UA_Server_AddPendingMethodCall(globalServer, elem3);
     UA_fakeSleep((UA_Int32)(globalServer->config.asyncOperationTimeout + 1) * 1000);
     UA_Server_CheckQueueIntegrity(globalServer, NULL);
-    ck_assert_ptr_eq(globalServer->ua_method_pending_list.sqh_first,NULL);    
+    ck_assert_ptr_eq(globalServer->asyncMethodManager.ua_method_pending_list.sqh_first,NULL);    
 
     UA_LOG_INFO(&globalServer->config.logger, UA_LOGCATEGORY_SERVER, "* Checking PendingList: global removal/delete");
     UA_Server_AddPendingMethodCall(globalServer, elem1);
-    /* remove all entries and delete queues */
-    UA_Server_MethodQueues_delete(globalServer);
-    /* re-init queues */    
-    UA_Server_MethodQueues_init(globalServer);
 }
 END_TEST
 
@@ -178,7 +173,7 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_pending, InternalTestingPendingList);
     suite_add_tcase(s, tc_pending);
 
-    /* UA_AsyncMethodManager */
+    /* UA_AsyncOperationManager */
     TCase* tc_manager = tcase_create("AsyncMethodManager");
     tcase_add_checked_fixture(tc_manager, NULL, NULL);
     tcase_add_test(tc_manager, InternalTestingManager);

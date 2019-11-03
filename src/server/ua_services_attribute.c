@@ -1534,6 +1534,20 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
 }
 
 #ifdef UA_ENABLE_HISTORIZING
+typedef void (*UA_HistoryDatabase_readFunc)(
+                 UA_Server *server,
+                 void *hdbContext,
+                 const UA_NodeId *sessionId,
+                 void *sessionContext,
+                 const UA_RequestHeader *requestHeader,
+                 const void *historyReadDetails,
+                 UA_TimestampsToReturn timestampsToReturn,
+                 UA_Boolean releaseContinuationPoints,
+                 size_t nodesToReadSize,
+                 const UA_HistoryReadValueId *nodesToRead,
+                 UA_HistoryReadResponse *response,
+                 void * const * const historyData);
+
 void
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
@@ -1545,17 +1559,30 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return;
     }
 
-    if(request->historyReadDetails.content.decoded.type != &UA_TYPES[UA_TYPES_READRAWMODIFIEDDETAILS]) {
-        /* TODO handle more request->historyReadDetails.content.decoded.type types */
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
-        return;
+    const UA_DataType *historyDataType = &UA_TYPES[UA_TYPES_HISTORYDATA];
+    UA_HistoryDatabase_readFunc readHistory = NULL;
+    switch (request->historyReadDetails.content.decoded.type->typeIndex) {
+        case UA_TYPES_READRAWMODIFIEDDETAILS: {
+            UA_ReadRawModifiedDetails * details = (UA_ReadRawModifiedDetails*)
+                request->historyReadDetails.content.decoded.data;
+            if(!details->isReadModified) {
+                readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readRaw;
+            } else {
+                historyDataType = &UA_TYPES[UA_TYPES_HISTORYMODIFIEDDATA];
+                readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readModified;
+            }
+            break;
+        }
+        case UA_TYPES_READPROCESSEDDETAILS:
+            readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readProcessed;
+            break;
+        case UA_TYPES_READATTIMEDETAILS:
+            readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readAtTime;
+            break;
     }
 
-    /* History read with ReadRawModifiedDetails */
-    UA_ReadRawModifiedDetails * details = (UA_ReadRawModifiedDetails*)
-        request->historyReadDetails.content.decoded.data;
-    if(details->isReadModified) {
-        // TODO add server->config.historyReadService.read_modified
+    if(!readHistory) {
+        /* TODO handle more request->historyReadDetails.content.decoded.type types */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
         return;
     }
@@ -1573,16 +1600,10 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* The history database is not configured */
-    if(!server->config.historyDatabase.readRaw) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
-        return;
-    }
-
     /* Allocate a temporary array to forward the result pointers to the
      * backend */
-    UA_HistoryData ** historyData = (UA_HistoryData **)
-        UA_calloc(request->nodesToReadSize, sizeof(UA_HistoryData*));
+    void ** historyData = (void **)
+        UA_calloc(request->nodesToReadSize, sizeof(void*));
     if(!historyData) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -1599,20 +1620,21 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     response->resultsSize = request->nodesToReadSize;
 
     for(size_t i = 0; i < response->resultsSize; ++i) {
-        UA_HistoryData * data = UA_HistoryData_new();
+        void * data = UA_new(historyDataType);
         response->results[i].historyData.encoding = UA_EXTENSIONOBJECT_DECODED;
-        response->results[i].historyData.content.decoded.type = &UA_TYPES[UA_TYPES_HISTORYDATA];
+        response->results[i].historyData.content.decoded.type = historyDataType;
         response->results[i].historyData.content.decoded.data = data;
         historyData[i] = data;
     }
     UA_UNLOCK(server->serviceMutex);
-    server->config.historyDatabase.readRaw(server, server->config.historyDatabase.context,
-                                           &session->sessionId, session->sessionHandle,
-                                           &request->requestHeader, details,
-                                           request->timestampsToReturn,
-                                           request->releaseContinuationPoints,
-                                           request->nodesToReadSize, request->nodesToRead,
-                                           response, historyData);
+    readHistory(server, server->config.historyDatabase.context,
+                &session->sessionId, session->sessionHandle,
+                &request->requestHeader,
+                request->historyReadDetails.content.decoded.data,
+                request->timestampsToReturn,
+                request->releaseContinuationPoints,
+                request->nodesToReadSize, request->nodesToRead,
+                response, historyData);
     UA_LOCK(server->serviceMutex);
     UA_free(historyData);
 }
