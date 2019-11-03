@@ -124,6 +124,7 @@ Value_start(Value *val, const UA_Node *node, const char *localname) {
                 if(getMem(val) != UA_STATUSCODE_GOOD) {
                     printf("getMem failed, value processing stopped\n");
                     val->state = VALUE_STATE_ERROR;
+                    return;
                 }
                 if(val->typestack->type->members) {
                     val->name =
