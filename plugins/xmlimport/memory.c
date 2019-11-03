@@ -30,7 +30,6 @@ MemoryPool_init(size_t elementSize, size_t incrementingSize)
     memPool->size = 0;
     memPool->incrementCount = incrementingSize;
     memPool->maxSize = incrementingSize;
-    memPool->elementSize = elementSize;
     memPool->mem = (struct RawMem*) UA_calloc(sizeof(struct RawMem), 1);
     memPool->mem->mem = UA_calloc(memPool->elementSize, memPool->incrementCount);
     if(!memPool->mem->mem)
