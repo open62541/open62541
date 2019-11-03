@@ -125,7 +125,6 @@ Value_start(Value *val, const UA_Node *node, const char *localname) {
                     printf("getMem failed, value processing stopped\n");
                     val->state = VALUE_STATE_ERROR;
                 }
-                val->state = VALUE_STATE_DATA;
                 if(val->typestack->type->members) {
                     val->name =
                         val->typestack->type->members[val->typestack->memberIndex].memberName;
