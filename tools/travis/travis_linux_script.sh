@@ -27,7 +27,7 @@ fi
 
 # Docker build test
 if ! [ -z ${DOCKER+x} ]; then
-    docker build -t open62541 .
+    docker build -t open62541 -f docker/Dockerfile .
     docker run -d -p 127.0.0.1:4840:4840 --name open62541 open62541 /bin/sh
     docker ps | grep -q open62541
     # disabled since it randomly fails
