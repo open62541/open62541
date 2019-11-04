@@ -9,7 +9,7 @@
 #ifdef UA_ARCHITECTURE_FREERTOSLWIP
 
 #include <open62541/types.h>
-#include <freertos/task.h>
+#include <task.h>
 
 /* The current time in UTC time */
 UA_DateTime UA_DateTime_now(void) {
