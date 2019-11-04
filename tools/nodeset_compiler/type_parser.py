@@ -79,6 +79,42 @@ class EnumerationType(Type):
         Type.__init__(self, outname, xml, namespace)
         self.pointerfree = True
         self.elements = OrderedDict()
+        self.isOptionSet = True if xml.get("IsOptionSet", "false") == "true" else False
+        self.lengthInBits = 0
+        try:
+            self.lengthInBits = int(xml.get("LengthInBits", "32"))
+        except ValueError as ex:
+            raise Exception("Error at EnumerationType '" + self.name + "': 'LengthInBits' XML attribute '" +
+                xml.get("LengthInBits") + "' is not convertible to integer. " +
+                "Exception: {0}".format(ex));
+
+        # default values for enumerations (encoded as int32):
+        self.strDataType = "UA_Int32"
+        self.strTypeKind = "UA_DATATYPEKIND_ENUM"
+        self.strTypeIndex = "UA_TYPES_INT32"
+
+        # special handling for OptionSet datatype (bitmask)
+        if self.isOptionSet == True:
+            if self.lengthInBits <= 8:
+                self.strDataType = "UA_Byte"
+                self.strTypeKind = "UA_DATATYPEKIND_BYTE"
+                self.strTypeIndex = "UA_TYPES_BYTE"
+            elif self.lengthInBits <= 16:
+                self.strDataType = "UA_UInt16"
+                self.strTypeKind = "UA_DATATYPEKIND_UINT16"
+                self.strTypeIndex = "UA_TYPES_UINT16"
+            elif self.lengthInBits <= 32:
+                self.strDataType = "UA_UInt32"
+                self.strTypeKind = "UA_DATATYPEKIND_UINT32"
+                self.strTypeIndex = "UA_TYPES_UINT32"
+            elif self.lengthInBits <= 64:
+                self.strDataType = "UA_UInt64"
+                self.strTypeKind = "UA_DATATYPEKIND_UINT64"
+                self.strTypeIndex = "UA_TYPES_UINT64"
+            else:
+                raise Exception("Error at EnumerationType() CTOR '" + self.name + "': 'LengthInBits' value '" +
+                    self.lengthInBits + "' is not supported");
+
         for child in xml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
                 self.elements[child.get("Name")] = child.get("Value")

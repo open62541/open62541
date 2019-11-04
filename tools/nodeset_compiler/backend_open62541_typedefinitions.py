@@ -72,7 +72,7 @@ class CGenerator(object):
         if isinstance(datatype,  BuiltinType):
             return makeCIdentifier("UA_TYPES_" + datatype.name.upper())
         if isinstance(datatype, EnumerationType):
-            return "UA_TYPES_INT32"
+            return datatype.strTypeIndex;
 
         if datatype.name is not None:
             return "UA_" + makeCIdentifier(datatype.outname.upper() + "_" + datatype.name.upper())
@@ -83,7 +83,7 @@ class CGenerator(object):
         if isinstance(datatype, BuiltinType):
             return "UA_DATATYPEKIND_" + datatype.name.upper()
         if isinstance(datatype, EnumerationType):
-            return "UA_DATATYPEKIND_ENUM"
+            return datatype.strTypeKind
         if isinstance(datatype, OpaqueType):
             return "UA_DATATYPEKIND_" + datatype.base_type.upper()
         if isinstance(datatype, StructType):
@@ -227,12 +227,18 @@ class CGenerator(object):
             values = enum.elements.iteritems()
         else:
             values = enum.elements.items()
-        return "typedef enum {\n    " + ",\n    ".join(
-            map(lambda kv: makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
-                           " = " + kv[1], values)) + \
-               ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.name.upper())) + "} " + \
-               "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
-                   makeCIdentifier(enum.name))
+
+        if enum.isOptionSet == True:
+            return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(
+                map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
+                " " + kv[1], values))
+        else:
+            return "typedef enum {\n    " + ",\n    ".join(
+                map(lambda kv: makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) +
+                               " = " + kv[1], values)) + \
+                   ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(makeCIdentifier(enum.name.upper())) + "} " + \
+                   "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(
+                       makeCIdentifier(enum.name))
 
     @staticmethod
     def print_struct_typedef(struct):
