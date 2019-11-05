@@ -395,8 +395,8 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
                                         "opc.tcp://%s:%d", hostname, layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
+        UA_String_copy(&du, &nl->discoveryUrl);
     }
-    UA_String_copy(&du, &nl->discoveryUrl);
 
     /* Create the server socket */
     SOCKET newsock = socket(PF_INET, SOCK_STREAM, 0);
