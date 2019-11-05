@@ -358,7 +358,7 @@ struct UA_SecurityPolicy {
                                                     const UA_ByteString newPrivateKey);
 
     /* Deletes the dynamic content of the policy */
-    void (*deleteMembers)(UA_SecurityPolicy *policy);
+    void (*clear)(UA_SecurityPolicy *policy);
 };
 
 /* Gets the number of bytes that are needed by the encryption function in

@@ -1,7 +1,7 @@
 Source: open62541
 Priority: optional
 Maintainer: open62541 Team <open62541-core@googlegroups.com>
-Build-Depends: debhelper (>= 7.0.50~),
+Build-Depends: debhelper (>= 9),
  cmake (>= 2.8),
  git,
  graphviz,
@@ -16,7 +16,7 @@ Package: libopen62541-<soname>-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
-Depends: libopen62541-<soname> (= ${binary:Version}), ${misc:Depends}
+Depends: libopen62541-<soname> (= ${binary:Version}), ${misc:Depends}, python
 Description: Development header files for open62541
  open62541 is an open source C (C99) implementation of the OPC UA standard
 
@@ -25,12 +25,4 @@ Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Open source implementation of OPC UA (OPC Unified Architecture) aka IEC 62541
- open62541 is an open source C (C99) implementation of the OPC UA standard
-
-Package: libopen62541-<soname>-dbg
-Section: debug
-Architecture: any
-Priority: extra
-Depends: libopen62541-<soname> (= ${binary:Version}), ${misc:Depends}
-Description: Debugging symbols for open62541
  open62541 is an open source C (C99) implementation of the OPC UA standard

@@ -13,7 +13,8 @@
 UA_StatusCode
 UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
                                          UA_Node *node, void *data) {
-    UA_assert(node->nodeClass == UA_NODECLASS_OBJECT);
+    if (node->nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_ObjectNode *on = (UA_ObjectNode*)node;
     UA_MonitoredItem *remove = (UA_MonitoredItem*)data;
 
@@ -41,11 +42,9 @@ UA_MonitoredItem_removeNodeEventCallback(UA_Server *server, UA_Session *session,
 /* We use a 16-Byte ByteString as an identifier */
 static UA_StatusCode
 generateEventId(UA_ByteString *generatedId) {
-    generatedId->data = (UA_Byte *) UA_malloc(16 * sizeof(UA_Byte));
-    if(!generatedId->data)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    generatedId->length = 16;
-
+    UA_StatusCode res = UA_ByteString_allocBuffer(generatedId, 16 * sizeof(UA_Byte));
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
     UA_UInt32 *ids = (UA_UInt32*)generatedId->data;
     ids[0] = UA_UInt32_random();
     ids[1] = UA_UInt32_random();
@@ -69,7 +68,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     /* Make sure the eventType is a subtype of BaseEventType */
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if(!isNodeInTree(server->nsCtx, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
+    if(!isNodeInTree(server, &eventType, &baseEventTypeId, &hasSubtypeId, 1)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Event type must be a subtype of BaseEventType!");
         UA_UNLOCK(server->serviceMutex);
@@ -103,9 +102,9 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, newNodeId, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         deleteNode(server, newNodeId, true);
-        UA_NodeId_deleteMembers(&newNodeId);
+        UA_NodeId_clear(&newNodeId);
         UA_UNLOCK(server->serviceMutex);
         return retval;
     }
@@ -115,10 +114,10 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, (void*)(uintptr_t)&eventType, &UA_TYPES[UA_TYPES_NODEID]);
     retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
         deleteNode(server, newNodeId, true);
-        UA_NodeId_deleteMembers(&newNodeId);
+        UA_NodeId_clear(&newNodeId);
         UA_UNLOCK(server->serviceMutex);
         return retval;
     }
@@ -135,7 +134,7 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventType");
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return false;
     }
     
@@ -144,11 +143,11 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     UA_Variant_init(&tOutVariant);
 
     /* Read the Value of EventType Property Node (the Value should be a NodeId) */
-    UA_StatusCode retval =
-            readWithReadValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &tOutVariant);
+    UA_StatusCode retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId,
+                                             UA_ATTRIBUTEID_VALUE, &tOutVariant);
     if(retval != UA_STATUSCODE_GOOD ||
        !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return false;
     }
 
@@ -161,21 +160,21 @@ isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     UA_NodeId hasSubtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(UA_NodeId_equal(validEventParent, &conditionTypeId) ||
-       isNodeInTree(server->nsCtx, tEventType, &conditionTypeId, &hasSubtypeId, 1)) {
+       isNodeInTree(server, tEventType, &conditionTypeId, &hasSubtypeId, 1)) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Alarms and Conditions are not supported yet!");
-        UA_BrowsePathResult_deleteMembers(&bpr);
-        UA_Variant_deleteMembers(&tOutVariant);
+        UA_BrowsePathResult_clear(&bpr);
+        UA_Variant_clear(&tOutVariant);
         return false;
     }
 
     /* check whether Valid Event other than Conditions */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server->nsCtx, tEventType,
+    UA_Boolean isSubtypeOfBaseEvent = isNodeInTree(server, tEventType,
                                                    &baseEventTypeId, &hasSubtypeId, 1);
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
-    UA_Variant_deleteMembers(&tOutVariant);
+    UA_BrowsePathResult_clear(&bpr);
+    UA_Variant_clear(&tOutVariant);
     return isSubtypeOfBaseEvent;
 }
 
@@ -204,13 +203,12 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
 
     /* Resolve the browse path */
     UA_BrowsePathResult bpr =
-        browseSimplifiedBrowsePath(server, *origin, sao->browsePathSize,
-                                             sao->browsePath);
+        browseSimplifiedBrowsePath(server, *origin, sao->browsePathSize, sao->browsePath);
     if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
         bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
     if(bpr.statusCode != UA_STATUSCODE_GOOD) {
         UA_StatusCode retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
 
@@ -221,7 +219,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session, const UA_N
     if(v.status == UA_STATUSCODE_GOOD && v.hasValue)
         *value = v.value;
 
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    UA_BrowsePathResult_clear(&bpr);
     return v.status;
 }
 
@@ -242,7 +240,7 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
         UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!notification->fields.eventFields) {
         /* EventFilterResult currently isn't being used
-        UA_EventFiterResult_deleteMembers(&notification->result); */
+        UA_EventFiterResult_clear(&notification->result); */
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     notification->fields.eventFieldsSize = filter->selectClausesSize;
@@ -252,8 +250,8 @@ UA_Server_filterEvent(UA_Server *server, UA_Session *session,
     notification->result.selectClauseResults = (UA_StatusCode *)
         UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!notification->result->selectClauseResults) {
-        UA_EventFieldList_deleteMembers(&notification->fields);
-        UA_EventFilterResult_deleteMembers(&notification->result);
+        UA_EventFieldList_clear(&notification->fields);
+        UA_EventFilterResult_clear(&notification->result);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     */
@@ -290,15 +288,16 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *event, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
     UA_Variant value;
     UA_Variant_init(&value);
     UA_Variant_setScalarCopy(&value, origin, &UA_TYPES[UA_TYPES_NODEID]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_Variant_deleteMembers(&value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
+                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    UA_Variant_clear(&value);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -307,13 +306,14 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     bpr = browseSimplifiedBrowsePath(server, *event, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
     UA_DateTime rcvTime = UA_DateTime_now();
     UA_Variant_setScalar(&value, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
+                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -326,16 +326,17 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     bpr = browseSimplifiedBrowsePath(server, *event, 1, &name);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         retval = bpr.statusCode;
-        UA_ByteString_deleteMembers(&eventId);
-        UA_BrowsePathResult_deleteMembers(&bpr);
+        UA_ByteString_clear(&eventId);
+        UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
     UA_Variant_init(&value);
     UA_Variant_setScalar(&value, &eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId, UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
-    UA_BrowsePathResult_deleteMembers(&bpr);
+    retval = writeWithWriteValue(server, &bpr.targets[0].targetId.nodeId,
+                                 UA_ATTRIBUTEID_VALUE, &UA_TYPES[UA_TYPES_VARIANT], &value);
+    UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ByteString_deleteMembers(&eventId);
+        UA_ByteString_clear(&eventId);
         return retval;
     }
 
@@ -343,7 +344,7 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
     if(outEventId)
         *outEventId = eventId;
     else
-        UA_ByteString_deleteMembers(&eventId);
+        UA_ByteString_clear(&eventId);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -351,8 +352,8 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 static UA_StatusCode
-UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
-                                 UA_MonitoredItem *mon) {
+addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
+                        const UA_NodeId *source, UA_MonitoredItem *mon) {
     UA_Notification *notification = (UA_Notification *) UA_malloc(sizeof(UA_Notification));
     if(!notification)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -361,10 +362,19 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
     UA_Subscription *sub = mon->subscription;
     UA_Session *session = sub->session;
 
+#if UA_LOGLEVEL <= 200
+    UA_LOG_NODEID_WRAP(source,
+                       UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                            "Subscription %u | MonitoredItem %i | "
+                                            "Node %.*s emits an event notification",
+                                            sub->subscriptionId, mon->monitoredItemId,
+                                            (int)nodeIdStr.length, nodeIdStr.data));
+#endif
+
     /* Apply the filter */
-    UA_StatusCode retval = UA_Server_filterEvent(server, session, event,
-                                                 &mon->filter.eventFilter,
-                                                 &notification->data.event);
+    UA_StatusCode retval =
+        UA_Server_filterEvent(server, session, event, &mon->filter.eventFilter,
+                              &notification->data.event);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(notification);
         return retval;
@@ -377,33 +387,46 @@ UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
 }
 
 static const UA_NodeId objectsFolderId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
-static const UA_NodeId parentReferences_events[2] =
+static const UA_NodeId emitReferencesRoots[3] =
     {{0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ORGANIZES}},
-     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}};
+     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}},
+     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASEVENTSOURCE}}};
 
 UA_StatusCode
-UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_NodeId origin,
-                       UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
+UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
+                       const UA_NodeId origin, UA_ByteString *outEventId,
+                       const UA_Boolean deleteEventNode) {
     UA_LOCK(server->serviceMutex);
+
+#if UA_LOGLEVEL <= 200
+    UA_LOG_NODEID_WRAP(&origin,
+                       UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                    "Events: An event is triggered on node %.*s",
+                                    (int)nodeIdStr.length, nodeIdStr.data));
+#endif
+
     /* Check that the origin node exists */
-    const UA_Node *originNode = UA_Nodestore_getNode(server->nsCtx, &origin);
+    const UA_Node *originNode = UA_NODESTORE_GET(server, &origin);
     if(!originNode) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Origin node for event does not exist.");
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    UA_Nodestore_releaseNode(server->nsCtx, originNode);
+    UA_NODESTORE_RELEASE(server, originNode);
 
     /* Make sure the origin is in the ObjectsFolder (TODO: or in the ViewsFolder) */
-    if(!isNodeInTree(server->nsCtx, &origin, &objectsFolderId,
-                     parentReferences_events, 2)) {
+    if(!isNodeInTree(server, &origin, &objectsFolderId,
+                     emitReferencesRoots, 2)) { /* Only use Organizes and
+                                                 * HasComponent to check if we
+                                                 * are below the ObjectsFolder */
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_USERLAND,
                      "Node for event must be in ObjectsFolder!");
         UA_UNLOCK(server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    /* Update the standard fields of the event */
     UA_StatusCode retval = eventSetStandardFields(server, &eventNodeId, &origin, outEventId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -413,40 +436,80 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
         return retval;
     }
 
-    /* Get the parents */
-    UA_ExpandedNodeId *parents = NULL;
-    size_t parentsSize = 0;
-    retval = browseRecursive(server, 1, &origin, 2, parentReferences_events,
-                             UA_BROWSEDIRECTION_INVERSE, true, &parentsSize, &parents);
+    /* List of nodes that emit the node. Events propagate upwards (bubble up) in
+     * the node hierarchy. */
+    UA_ExpandedNodeId *emitNodes = NULL;
+    size_t emitNodesSize = 0;
+
+    /* Add the server node to the list of nodes from which the event is emitted.
+     * The server node emits all events.
+     *
+     * Part 3, 7.17: In particular, the root notifier of a Server, the Server
+     * Object defined in Part 5, is always capable of supplying all Events from
+     * a Server and as such has implied HasEventSource References to every event
+     * source in a Server. */
+    UA_NodeId emitStartNodes[2];
+    emitStartNodes[0] = origin;
+    emitStartNodes[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+
+    /* Get all ReferenceTypes over which the events propagate */
+    UA_NodeId *emitRefTypes[3] = {NULL, NULL, NULL};
+    size_t emitRefTypesSize[3] = {0, 0, 0};
+    retval |= referenceSubtypes(server, &emitReferencesRoots[0],
+                                &emitRefTypesSize[0], &emitRefTypes[0]);
+    retval |= referenceSubtypes(server, &emitReferencesRoots[1],
+                                &emitRefTypesSize[0], &emitRefTypes[0]);
+    retval |= referenceSubtypes(server, &emitReferencesRoots[2],
+                                &emitRefTypesSize[0], &emitRefTypes[0]);
+    size_t totalEmitRefTypesSize =
+        emitRefTypesSize[0] + emitRefTypesSize[1] + emitRefTypesSize[2];
+    UA_STACKARRAY(UA_NodeId, totalEmitRefTypes, totalEmitRefTypesSize);
+    memcpy(&totalEmitRefTypes[0], emitRefTypes[0],
+           emitRefTypesSize[0] * sizeof(UA_NodeId));
+    memcpy(&totalEmitRefTypes[emitRefTypesSize[0]], emitRefTypes[1],
+           emitRefTypesSize[1] * sizeof(UA_NodeId));
+    memcpy(&totalEmitRefTypes[emitRefTypesSize[0] + emitRefTypesSize[1]],
+           emitRefTypes[2], emitRefTypesSize[2] * sizeof(UA_NodeId));
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Events: Could not create the list of references for event "
+                       "propagation with StatusCode %s", UA_StatusCode_name(retval));
+        goto cleanup;
+    }
+
+    /* Get the list of nodes in the hierarchy that emits the event. */
+    retval = browseRecursive(server, 2, emitStartNodes,
+                             totalEmitRefTypesSize, totalEmitRefTypes,
+                             UA_BROWSEDIRECTION_INVERSE, true,
+                             &emitNodesSize, &emitNodes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of nodes listening on the "
                        "event with StatusCode %s", UA_StatusCode_name(retval));
-        UA_UNLOCK(server->serviceMutex);
-        return retval;
+        goto cleanup;
     }
 
-    /* Add the event to each node's monitored items */
-    for(size_t i = 0; i < parentsSize; i++) {
+    /* Add the event to the listening MonitoredItems at each relevant node */
+    for(size_t i = 0; i < emitNodesSize; i++) {
         const UA_ObjectNode *node = (const UA_ObjectNode*)
-            UA_Nodestore_getNode(server->nsCtx, &parents[i].nodeId);
+            UA_NODESTORE_GET(server, &emitNodes[i].nodeId);
         if(!node)
             continue;
         if(node->nodeClass != UA_NODECLASS_OBJECT) {
-            UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)node);
+            UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
             continue;
         }
-        UA_MonitoredItem *monIter = node->monitoredItemQueue;
-        for(; monIter != NULL; monIter = monIter->next) {
-            retval = UA_Event_addEventToMonitoredItem(server, &eventNodeId, monIter);
-            if(retval != UA_STATUSCODE_GOOD)
+        for(UA_MonitoredItem *mi = node->monitoredItemQueue; mi != NULL; mi = mi->next) {
+            retval = addEventToMonitoredItem(server, &eventNodeId, &emitNodes[i].nodeId, mi);
+            if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "Events: Could not add the event to a listening node with StatusCode %s",
                                UA_StatusCode_name(retval));
+                retval = UA_STATUSCODE_GOOD; /* Only log problems with individual emit nodes */
+            }
         }
-        UA_Nodestore_releaseNode(server->nsCtx, (const UA_Node*)node);
+        UA_NODESTORE_RELEASE(server, (const UA_Node*)node);
     }
-    UA_Array_delete(parents, parentsSize, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* Delete the node representation of the event */
     if(deleteEventNode) {
@@ -455,12 +518,16 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId, const UA_
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Attempt to remove event using deleteNode failed. StatusCode %s",
                            UA_StatusCode_name(retval));
-            UA_UNLOCK(server->serviceMutex);
-            return retval;
         }
     }
+
+ cleanup:
+    UA_Array_delete(emitRefTypes[0], emitRefTypesSize[0], &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Array_delete(emitRefTypes[1], emitRefTypesSize[1], &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Array_delete(emitRefTypes[2], emitRefTypesSize[2], &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_UNLOCK(server->serviceMutex);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */

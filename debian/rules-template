@@ -2,7 +2,7 @@
 
 export DH_VERBOSE = 1
 
-export DEB_BUILD_OPTIONS=parallel=4
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
 
 override_dh_auto_configure:
 	dh_auto_configure -- -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_AMALGAMATION=OFF -DUA_PACK_DEBIAN=ON
@@ -10,10 +10,8 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	dh_auto_test -- ARGS+=--output-on-failure
 
-override_dh_strip:
-	dh_strip --dbg-package=libopen62541-<soname>-dbg
+override_dh_auto_build:
+	dh_auto_build -- -j`nproc --ignore=2`
 
 %:
 	dh $@ --buildsystem=cmake --parallel
-
-

@@ -32,7 +32,7 @@ else
 	export CXX=clang++-6.0
 fi
 # First build and run the unit tests without any specific fuzz settings
-cmake -DUA_BUILD_FUZZING_CORPUS=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_ENABLE_ENCRYPTION=ON ..
+cmake -DUA_BUILD_FUZZING_CORPUS=ON -DUA_BUILD_UNIT_TESTS=ON ..
 make -j && make test ARGS="-V"
 if [ $? -ne 0 ] ; then exit 1 ; fi
 # Run our special generator

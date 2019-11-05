@@ -68,6 +68,7 @@ static void addWriterGroup(UA_NodeId parentConnection, UA_String name, UA_Durati
     writerGroupConfig.publishingInterval = interval;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_Server_addWriterGroup(server, parentConnection, &writerGroupConfig, assignedId);
+    UA_Server_setWriterGroupOperational(server, *assignedId);
 }
 
 static void addDataSetWriter(UA_NodeId parentWriterGroup, UA_NodeId connectedPDS, UA_String name, UA_NodeId *assignedId){
@@ -111,8 +112,11 @@ static void setupBasicPubSubConfiguration(void){
     addPublishedDataSet(UA_STRING("PublishedDataSet 1"), &publishedDataSet1);
     addPublishedDataSet(UA_STRING("PublishedDataSet 2"), &publishedDataSet2);
     addWriterGroup(connection1, UA_STRING("WriterGroup 1"), 10, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
     addWriterGroup(connection1, UA_STRING("WriterGroup 2"), 100, &writerGroup2);
+    UA_Server_setWriterGroupOperational(server, writerGroup2);
     addWriterGroup(connection2, UA_STRING("WriterGroup 3"), 1000, &writerGroup3);
+    UA_Server_setWriterGroupOperational(server, writerGroup3);
     addDataSetWriter(writerGroup1, publishedDataSet1, UA_STRING("DataSetWriter 1"), &dataSetWriter1);
     addDataSetWriter(writerGroup1, publishedDataSet2, UA_STRING("DataSetWriter 2"), &dataSetWriter2);
     addDataSetWriter(writerGroup2, publishedDataSet2, UA_STRING("DataSetWriter 3"), &dataSetWriter3);
@@ -175,6 +179,7 @@ START_TEST(AddSingleWriterGroupAndCheckInformationModelRepresentation){
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
     addWriterGroup(connection1, wgName, 10, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
     UA_QualifiedName browseName;
     ck_assert_int_eq(UA_Server_readBrowseName(server, writerGroup1, &browseName), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &wgName), UA_TRUE);
@@ -188,12 +193,14 @@ START_TEST(AddRemoveAddSingleWriterGroupAndCheckInformationModelRepresentation){
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
     addWriterGroup(connection1, wgName, 10, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
     UA_QualifiedName browseName;
     UA_StatusCode retVal;
     ck_assert_int_eq(UA_Server_removeWriterGroup(server, writerGroup1), UA_STATUSCODE_GOOD);
     retVal = UA_Server_readBrowseName(server, writerGroup1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_BADNODEIDUNKNOWN);
     addWriterGroup(connection1, wgName, 10, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
     retVal = UA_Server_readBrowseName(server, writerGroup1, &browseName);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &wgName), UA_TRUE);
@@ -207,6 +214,7 @@ START_TEST(AddSingleDataSetWriterAndCheckInformationModelRepresentation){
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
     addWriterGroup(connection1, wgName, 10, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
     UA_String dswName = UA_STRING("DataSetWriter 1");
     addDataSetWriter(writerGroup1, publishedDataSet1, dswName, &dataSetWriter1);
     UA_QualifiedName browseName;
@@ -222,6 +230,7 @@ START_TEST(AddRemoveAddSingleDataSetWriterAndCheckInformationModelRepresentation
     addPublishedDataSet(pdsName, &publishedDataSet1);
     UA_String wgName = UA_STRING("WriterGroup 1");
     addWriterGroup(connection1, wgName, 10, &writerGroup1);
+    UA_Server_setWriterGroupOperational(server, writerGroup1);
     UA_String dswName = UA_STRING("DataSetWriter 1");
     addDataSetWriter(writerGroup1, publishedDataSet1, dswName, &dataSetWriter1);
     UA_QualifiedName browseName;
@@ -284,7 +293,7 @@ START_TEST(ReadAddressAndCompareWithInternalValue){
         UA_Variant_deleteMembers(&value);
         ck_assert_int_eq(UA_Server_readValue(server, networkInterface, &value), UA_STATUSCODE_GOOD);
         ck_assert(UA_String_equal(((UA_String *) value.data), &networkAddressUrlDataType->networkInterface));
-        UA_PubSubConnectionConfig_deleteMembers(&connectionConfig);
+        UA_PubSubConnectionConfig_clear(&connectionConfig);
         UA_Variant_deleteMembers(&value);
     } END_TEST
 

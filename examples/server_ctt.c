@@ -1188,7 +1188,7 @@ int main(int argc, char **argv) {
     UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
                                                    &certificate, &privateKey,
                                                    NULL, 0, NULL, 0, NULL, 0);
-    config.certificateVerification.deleteMembers(&config.certificateVerification);
+    config.certificateVerification.clear(&config.certificateVerification);
     UA_CertificateVerification_CertFolders(&config.certificateVerification,
                                            trustlistFolder, issuerlistFolder,
                                            revocationlistFolder);

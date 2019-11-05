@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
+ *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Sten Grüner
@@ -22,6 +23,7 @@
 #include "ua_connection_internal.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
+#include "ua_asyncoperation_manager.h"
 #include "ua_timer.h"
 #include "ua_util_internal.h"
 #include "ua_workqueue.h"
@@ -67,14 +69,14 @@ struct UA_Server {
     UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
                           * down once the time has been reached */
 
-    /* Nodestore */
-    void *nsCtx;
-
     UA_ServerLifecycle state;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
+#if UA_MULTITHREADING >= 100
+    UA_AsyncOperationManager asyncMethodManager;
+#endif
     UA_Session adminSession; /* Local access to the services (for startup and
                               * maintenance) uses this Session with all possible
                               * access rights (Session Id: 1) */
@@ -156,12 +158,12 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(void *nsCtx, const UA_NodeId *leafNode,
+isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-/* Returns an array with the hierarchy of nodes. The start nodes are returned as
- * well. The returned array starts at the leaf and continues "upwards" or
+/* Returns an array with the hierarchy of nodes. The start nodes can be returned
+ * as well. The returned array starts at the leaf and continues "upwards" or
  * "downwards". Duplicate entries are removed. The parameter `walkDownwards`
  * indicates the direction of search. */
 UA_StatusCode
@@ -190,6 +192,20 @@ UA_StatusCode
 writeWithSession(UA_Server *server, UA_Session *session,
                  const UA_WriteValue *value);
 
+#if UA_MULTITHREADING >= 100
+
+void
+UA_Server_InsertMethodResponse(UA_Server *server, const UA_UInt32 nRequestId,
+                               const UA_NodeId* nSessionId, const UA_UInt32 nIndex,
+                               const UA_CallMethodResult* response);
+void
+UA_Server_CallMethodResponse(UA_Server *server, void* data);
+
+#endif
+
+UA_StatusCode
+sendResponse(UA_SecureChannel *channel, UA_UInt32 requestId, UA_UInt32 requestHandle,
+             UA_ResponseHeader *responseHeader, const UA_DataType *responseType);
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
@@ -208,6 +224,15 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+UA_StatusCode
+UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
+                                        UA_ServiceOperation operationCallback,
+                                        void *context,
+                                        const size_t *requestOperations,
+                                        const UA_DataType *requestOperationsType,
+                                        size_t *responseOperations,
+                                        const UA_DataType *responseOperationsType)
+UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /******************************************/
 /* Internal function calls, without locks */
@@ -252,13 +277,39 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 void
 monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+#endif
 
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath);
 
+UA_StatusCode
+writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                    const UA_QualifiedName propertyName, const UA_Variant value);
+
+UA_StatusCode
+getNodeContext(UA_Server *server, UA_NodeId nodeId, void **nodeContext);
+
+void
+removeCallback(UA_Server *server, UA_UInt64 callbackId);
+
+UA_StatusCode
+changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId, UA_Double interval_ms);
+
+UA_StatusCode
+addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                    void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
+
+#ifdef UA_ENABLE_DISCOVERY
+UA_StatusCode
+register_server_with_discovery_server(UA_Server *server,
+                                      void *client,
+                                      const UA_Boolean isUnregister,
+                                      const char* semaphoreFilePath);
+#endif
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
@@ -350,6 +401,36 @@ UA_StatusCode UA_Server_initNS0(UA_Server *server);
 
 UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type);
+
+/***************************/
+/* Nodestore Access Macros */
+/***************************/
+
+#define UA_NODESTORE_NEW(server, nodeClass)                             \
+    server->config.nodestore.newNode(server->config.nodestore.context, nodeClass)
+
+#define UA_NODESTORE_DELETE(server, node)                               \
+    server->config.nodestore.deleteNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_GET(server, nodeid)                                \
+    server->config.nodestore.getNode(server->config.nodestore.context, nodeid)
+
+#define UA_NODESTORE_RELEASE(server, node)                              \
+    server->config.nodestore.releaseNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_GETCOPY(server, nodeid, outnode)                      \
+    server->config.nodestore.getNodeCopy(server->config.nodestore.context, \
+                                         nodeid, outnode)
+
+#define UA_NODESTORE_INSERT(server, node, addedNodeId)                    \
+    server->config.nodestore.insertNode(server->config.nodestore.context, \
+                                        node, addedNodeId)
+
+#define UA_NODESTORE_REPLACE(server, node)                              \
+    server->config.nodestore.replaceNode(server->config.nodestore.context, node)
+
+#define UA_NODESTORE_REMOVE(server, nodeId)                             \
+    server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
 
 _UA_END_DECLS
 

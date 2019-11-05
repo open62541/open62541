@@ -20,7 +20,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
-void UA_Connection_deleteMembers(UA_Connection *connection) {
+void UA_Connection_clear(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteChunk);
 }
 

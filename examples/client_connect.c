@@ -102,8 +102,8 @@ int main(int argc, char *argv[]) {
         UA_ByteString privateKey  = loadFile(keyfile);
         UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                              NULL, 0, NULL, 0);
-        UA_ByteString_deleteMembers(&certificate);
-        UA_ByteString_deleteMembers(&privateKey);
+        UA_ByteString_clear(&certificate);
+        UA_ByteString_clear(&privateKey);
     } else {
         UA_ClientConfig_setDefault(cc);
     }

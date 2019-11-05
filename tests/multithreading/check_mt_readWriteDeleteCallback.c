@@ -76,7 +76,6 @@ static void setup(void) {
 
 static
 void server_deleteValue(void *value) {
-    //UA_fakeSleep(100);
     UA_StatusCode ret = UA_Server_deleteNode(tc.server, pumpTypeId, true);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, ret);
 }

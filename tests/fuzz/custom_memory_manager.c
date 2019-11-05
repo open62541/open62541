@@ -49,7 +49,10 @@ int UA_memoryManager_setLimitFromLast4Bytes(const uint8_t *data, size_t size) {
         return 0;
     // just cast the last 4 bytes to uint32
     const uint32_t *newLimit = (const uint32_t*)(uintptr_t)&(data[size-4]);
-    UA_memoryManager_setLimit(*newLimit);
+    uint32_t limit;
+    // use memcopy to avoid asan complaining on misaligned memory
+    memcpy(&limit, newLimit, sizeof(uint32_t));
+    UA_memoryManager_setLimit(limit);
     return 1;
 }
 
@@ -122,7 +125,7 @@ static int removeFromMap(void *addr) {
         e = e->prev;
     }
     pthread_mutex_unlock(&mutex);
-    printf("MemoryManager: Entry with address %p not found", addr);
+    //printf("MemoryManager: Entry with address %p not found", addr);
     return 0;
 }
 

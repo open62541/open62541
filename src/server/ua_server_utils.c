@@ -26,7 +26,7 @@ struct ref_history {
 };
 
 static UA_Boolean
-isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+isNodeInTreeNoCircular(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
                        struct ref_history *visitedRefs, const UA_NodeId *referenceTypeIds,
                        size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
@@ -35,7 +35,7 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
     if(visitedRefs->depth >= UA_MAX_TREE_RECURSE)
         return false;
 
-    const UA_Node *node = UA_Nodestore_getNode(nsCtx, leafNode);
+    const UA_Node *node = UA_NODESTORE_GET(server, leafNode);
     if(!node)
         return false;
 
@@ -57,7 +57,7 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
             continue;
 
         /* Match the targets or recurse */
-        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
+        for(size_t j = 0; j < refs->refTargetsSize; ++j) {
             /* Check if we already have seen the referenced node and skip to
              * avoid endless recursion. Do this only at every 5th depth to save
              * effort. Circular dependencies are rare and forbidden for most
@@ -66,7 +66,7 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
                 struct ref_history *last = visitedRefs;
                 UA_Boolean skip = false;
                 while(!skip && last) {
-                    if(UA_NodeId_equal(last->id, &refs->targetIds[j].nodeId))
+                    if(UA_NodeId_equal(last->id, &refs->refTargets[j].target.nodeId))
                         skip = true;
                     last = last->parent;
                 }
@@ -75,29 +75,29 @@ isNodeInTreeNoCircular(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *
             }
 
             /* Stack-allocate the visitedRefs structure for the next depth */
-            struct ref_history nextVisitedRefs = {visitedRefs, &refs->targetIds[j].nodeId,
+            struct ref_history nextVisitedRefs = {visitedRefs, &refs->refTargets[j].target.nodeId,
                                                   (UA_UInt16)(visitedRefs->depth+1)};
 
             /* Recurse */
             UA_Boolean foundRecursive =
-                isNodeInTreeNoCircular(nsCtx, &refs->targetIds[j].nodeId, nodeToFind, &nextVisitedRefs,
-                                       referenceTypeIds, referenceTypeIdsSize);
+                isNodeInTreeNoCircular(server, &refs->refTargets[j].target.nodeId, nodeToFind,
+                                       &nextVisitedRefs, referenceTypeIds, referenceTypeIdsSize);
             if(foundRecursive) {
-                UA_Nodestore_releaseNode(nsCtx, node);
+                UA_NODESTORE_RELEASE(server, node);
                 return true;
             }
         }
     }
 
-    UA_Nodestore_releaseNode(nsCtx, node);
+    UA_NODESTORE_RELEASE(server, node);
     return false;
 }
 
 UA_Boolean
-isNodeInTree(void *nsCtx, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+isNodeInTree(UA_Server *server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
     struct ref_history visitedRefs = {NULL, leafNode, 0};
-    return isNodeInTreeNoCircular(nsCtx, leafNode, nodeToFind, &visitedRefs,
+    return isNodeInTreeNoCircular(server, leafNode, nodeToFind, &visitedRefs,
                                   referenceTypeIds, referenceTypeIdsSize);
 }
 
@@ -136,14 +136,14 @@ getNodeType(UA_Server *server, const UA_Node *node) {
             continue;
         if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef))
             continue;
-        UA_assert(node->references[i].targetIdsSize > 0);
-        const UA_NodeId *targetId = &node->references[i].targetIds[0].nodeId;
-        const UA_Node *type = UA_Nodestore_getNode(server->nsCtx, targetId);
+        UA_assert(node->references[i].refTargetsSize> 0);
+        const UA_NodeId *targetId = &node->references[i].refTargets[0].target.nodeId;
+        const UA_Node *type = UA_NODESTORE_GET(server, targetId);
         if(!type)
             continue;
         if(type->nodeClass == typeNodeClass)
             return type;
-        UA_Nodestore_releaseNode(server->nsCtx, type);
+        UA_NODESTORE_RELEASE(server, type);
     }
 
     return NULL;
@@ -235,30 +235,30 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
                    void *data) {
 #ifndef UA_ENABLE_IMMUTABLE_NODES
     /* Get the node and process it in-situ */
-    const UA_Node *node = UA_Nodestore_getNode(server->nsCtx, nodeId);
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     UA_StatusCode retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
-    UA_Nodestore_releaseNode(server->nsCtx, node);
+    UA_NODESTORE_RELEASE(server, node);
     return retval;
 #else
     UA_StatusCode retval;
     do {
         /* Get an editable copy of the node */
         UA_Node *node;
-        retval = UA_Nodestore_getNodeCopy(server->nsCtx, nodeId, &node);
+        retval = UA_NODESTORE_GETCOPY(server, nodeId, &node);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
         /* Run the operation on the copy */
         retval = callback(server, session, node, data);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Nodestore_deleteNode(server->nsCtx, node);
+            UA_NODESTORE_DELETE(server, node);
             return retval;
         }
 
         /* Replace the node */
-        retval = UA_Nodestore_replaceNode(server->nsCtx, node);
+        retval = UA_NODESTORE_REPLACE(server, node);
     } while(retval != UA_STATUSCODE_GOOD);
     return retval;
 #endif

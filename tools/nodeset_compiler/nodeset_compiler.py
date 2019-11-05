@@ -12,6 +12,7 @@
 
 import logging
 import argparse
+import sys
 from datatypes import NodeId
 from nodeset import *
 
@@ -79,6 +80,9 @@ parser.add_argument('--backend',
 args = parser.parse_args()
 
 # Set up logging
+# By default logging outputs to stderr. We want to redirect it to stdout, otherwise build output from cmake
+# is in stdout and nodeset compiler in stderr
+logging.basicConfig(stream=sys.stdout)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 verbosity = 0
@@ -95,6 +99,8 @@ elif (verbosity >= 4):
 else:
     logging.basicConfig(level=logging.CRITICAL)
 
+# Set up logging
+logger = logging.getLogger(__name__)
 # Create a new nodeset. The nodeset name is not significant.
 # Parse the XML files
 ns = NodeSet()

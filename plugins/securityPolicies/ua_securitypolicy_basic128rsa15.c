@@ -578,7 +578,7 @@ channelContext_compareCertificate_sp_basic128rsa15(const Basic128Rsa15_ChannelCo
 }
 
 static void
-deleteMembers_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
+clear_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
@@ -648,7 +648,7 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic128rsa15(securityPolicy);
+        clear_sp_basic128rsa15(securityPolicy);
     return retval;
 }
 
@@ -658,6 +658,12 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(securityPolicy == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    if (localPrivateKey.length == 0) {
+        UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Can not initialize security policy. Private key is empty.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)
         UA_malloc(sizeof(Basic128Rsa15_PolicyContext));
@@ -725,9 +731,9 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
 
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not create securityContext");
+                 "Could not create securityContext: %s", UA_StatusCode_name(retval));
     if(securityPolicy->policyContext != NULL)
-        deleteMembers_sp_basic128rsa15(securityPolicy);
+        clear_sp_basic128rsa15(securityPolicy);
     return retval;
 }
 
@@ -863,7 +869,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
         channelContext_compareCertificate_sp_basic128rsa15;
 
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic128rsa15;
-    policy->deleteMembers = deleteMembers_sp_basic128rsa15;
+    policy->clear = clear_sp_basic128rsa15;
 
     return policyContext_newContext_sp_basic128rsa15(policy, localPrivateKey);
 }

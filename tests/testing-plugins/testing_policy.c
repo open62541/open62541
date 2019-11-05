@@ -371,7 +371,7 @@ compareCertificate_testing(const void *channelContext,
 }
 
 static void
-policy_deletemembers_testing(UA_SecurityPolicy *policy) {
+policy_clear_testing(UA_SecurityPolicy *policy) {
     UA_ByteString_deleteMembers(&policy->localCertificate);
 }
 
@@ -437,7 +437,7 @@ TestingPolicy(UA_SecurityPolicy *policy, UA_ByteString localCertificate,
     policy->channelModule.setRemoteSymSigningKey = setRemoteSymSigningKey_testing;
     policy->channelModule.setRemoteSymIv = setRemoteSymIv_testing;
     policy->channelModule.compareCertificate = compareCertificate_testing;
-    policy->deleteMembers = policy_deletemembers_testing;
+    policy->clear = policy_clear_testing;
 
     return UA_STATUSCODE_GOOD;
 }
