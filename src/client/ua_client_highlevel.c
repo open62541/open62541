@@ -753,6 +753,11 @@ cleanup:
 
 /* Async Functions */
 
+typedef struct {
+    UA_AttributeId attributeId;
+    const UA_DataType *outDataType;
+} AsyncReadData;
+
 static
 void ValueAttributeRead(UA_Client *client, void *userdata,
                         UA_UInt32 requestId, void *response) {
@@ -760,28 +765,25 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
         return;
 
     /* Find the callback for the response */
-    CustomCallback *cc;
-    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
-        if(cc->callbackId == requestId)
-            break;
-    }
+    CustomCallback *cc = UA_Client_findCustomCallback(client, requestId);
     if(!cc)
         return;
 
     UA_ReadResponse *rr = (UA_ReadResponse *) response;
     UA_DataValue *res = rr->results;
     UA_Boolean done = false;
+    AsyncReadData *data = (AsyncReadData *)cc->clientData;
     if(rr->resultsSize == 1 && res != NULL && res->hasValue) {
-        if(cc->attributeId == UA_ATTRIBUTEID_VALUE) {
+        if(data->attributeId == UA_ATTRIBUTEID_VALUE) {
             /* Call directly with the variant */
-            cc->callback(client, userdata, requestId, &res->value);
+            cc->userCallback(client, cc->userData, requestId, &res->value);
             done = true;
         } else if(UA_Variant_isScalar(&res->value) &&
-                  res->value.type == cc->outDataType) {
+                  res->value.type == data->outDataType) {
             /* Unpack the value */
-            UA_STACKARRAY(UA_Byte, value, cc->outDataType->memSize);
-            memcpy(&value, res->value.data, cc->outDataType->memSize);
-            cc->callback(client, userdata, requestId, &value);
+            UA_STACKARRAY(UA_Byte, value, data->outDataType->memSize);
+            memcpy(&value, res->value.data, data->outDataType->memSize);
+            cc->userCallback(client, cc->userData, requestId, &value);
             done = true;
         }
     }
@@ -792,6 +794,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
                     "Cannot process the response to the async read "
                     "request %u", requestId);
 
+    UA_free(cc->clientData);
     LIST_REMOVE(cc, pointers);
     UA_free(cc);
 }
@@ -811,17 +814,25 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
     request.nodesToReadSize = 1;
 
     __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                             ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE],
-                             userdata, reqId);
+                             ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE], NULL,
+                             reqId);
 
     CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
     if (!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    cc->callback = callback;
+    memset(cc, 0, sizeof(CustomCallback));
+    cc->userCallback = callback;
+    cc->userData = userdata;
     cc->callbackId = *reqId;
 
-    cc->attributeId = attributeId;
-    cc->outDataType = outDataType;
+    cc->clientData = UA_malloc(sizeof(AsyncReadData));
+    if(!cc->clientData) {
+        UA_free(cc);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    AsyncReadData *rd = (AsyncReadData *)cc->clientData;
+    rd->attributeId = attributeId;
+    rd->outDataType = outDataType;
 
     LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
 

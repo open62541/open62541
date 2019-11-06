@@ -118,10 +118,11 @@ typedef struct CustomCallback {
     //to find the correct callback
     UA_UInt32 callbackId;
 
-    UA_ClientAsyncServiceCallback callback;
+    UA_ClientAsyncServiceCallback userCallback;
+    void *userData;
 
-    UA_AttributeId attributeId;
-    const UA_DataType *outDataType;
+    bool isAsync;
+    void *clientData;
 } CustomCallback;
 
 struct UA_Client {
@@ -168,6 +169,16 @@ struct UA_Client {
     UA_DateTime lastConnectivityCheck;
     UA_Boolean pendingConnectivityCheck;
 };
+
+static UA_INLINE CustomCallback *
+UA_Client_findCustomCallback(UA_Client *client, UA_UInt32 requestId) {
+    CustomCallback *cc;
+    LIST_FOREACH(cc, &client->customCallbacks, pointers) {
+        if(cc->callbackId == requestId)
+            break;
+    }
+    return cc;
+}
 
 void
 setClientState(UA_Client *client, UA_ClientState state);
