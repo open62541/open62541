@@ -780,8 +780,8 @@ void ValueAttributeRead(UA_Client *client, void *userdata,
                   res->value.type == cc->outDataType) {
             /* Unpack the value */
             UA_STACKARRAY(UA_Byte, value, cc->outDataType->memSize);
-            memcpy(&value, res->value.data, cc->outDataType->memSize);
-            cc->callback(client, userdata, requestId, &value);
+            memcpy(value, res->value.data, cc->outDataType->memSize);
+            cc->callback(client, userdata, requestId, value);
             done = true;
         }
     }

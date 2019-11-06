@@ -84,3 +84,4 @@ Makefile
 Pipfile
 Pipfile.lock
 .vscode
+/.vs

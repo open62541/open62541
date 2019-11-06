@@ -120,15 +120,23 @@ stopMulticastDiscoveryServer(UA_Server *server) {
     if (!server->discoveryManager.mdnsDaemon)
         return;
 
+	UA_ServerConfig *sc = UA_Server_getConfig(server);
     char hostname[256];
-    if(UA_gethostname(hostname, 255) == 0) {
-        UA_String hnString = UA_STRING(hostname);
+    if(sc->customHostname.length) {
         UA_Discovery_removeRecord(server, &server->config.discovery.mdns.mdnsServerName,
-                                  &hnString, 4840, true);
+                                  &sc->customHostname, 4840, true);
     } else {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Could not get hostname for multicast discovery.");
+        if(UA_gethostname(hostname, 255) == 0) {
+            UA_String hnString = UA_STRING(hostname);
+            UA_Discovery_removeRecord(server,
+                                      &server->config.discovery.mdns.mdnsServerName,
+                                      &hnString, 4840, true);
+        } else {
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Could not get hostname for multicast discovery.");
+        }
     }
+
 
 #if UA_MULTITHREADING >= 200
     multicastListenStop(server);
