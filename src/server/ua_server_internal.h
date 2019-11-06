@@ -253,6 +253,11 @@ UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId, void *v);
 
+UA_StatusCode
+readObjectProperty(UA_Server *server, const UA_NodeId objectId,
+                   const UA_QualifiedName propertyName,
+                   UA_Variant *value);
+
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
