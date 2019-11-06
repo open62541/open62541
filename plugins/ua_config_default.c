@@ -539,6 +539,64 @@ UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
 
     return UA_STATUSCODE_GOOD;
 }
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicy_Pubsub_Aes128ctr(UA_ServerConfig *config, 
+                                                const UA_ByteString *certificate,
+                                                const UA_ByteString *privateKey) {
+    UA_StatusCode retval;
+
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+    
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+       localPrivateKey = *privateKey;
+    retval = UA_SecurityPolicy_Pubsub_Aes128ctr(&config->securityPolicies[config->securityPoliciesSize],
+                                              &config->certificateVerification,
+                                              localCertificate, localPrivateKey, &config->logger);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    config->securityPoliciesSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicy_Pubsub_Aes256ctr(UA_ServerConfig *config, 
+                                                const UA_ByteString *certificate,
+                                                const UA_ByteString *privateKey) {
+    UA_StatusCode retval;
+
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+       localPrivateKey = *privateKey;
+    retval = UA_SecurityPolicy_Pubsub_Aes256ctr(&config->securityPolicies[config->securityPoliciesSize],
+                                              &config->certificateVerification,
+                                              localCertificate, localPrivateKey, &config->logger);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    config->securityPoliciesSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
@@ -772,7 +830,6 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     ++config->securityPoliciesSize;
-
     return UA_STATUSCODE_GOOD;
 }
 #endif

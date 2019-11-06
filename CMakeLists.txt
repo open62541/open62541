@@ -208,6 +208,9 @@ mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
 
+option(UA_ENABLE_PUBSUB_SECURITY "Enable Security Key Service (SKS) support for publish/subscribe" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_SECURITY)
+
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
 if(UA_ENABLE_PUBSUB_ETH_UADP)
@@ -618,6 +621,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server_sks.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
@@ -651,6 +655,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks_ns0.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
@@ -683,6 +689,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_security.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks_ns0.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -737,7 +746,9 @@ list(APPEND default_plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes128ctr.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes256ctr.c)
 
 if(UA_ENABLE_HISTORIZING)
 

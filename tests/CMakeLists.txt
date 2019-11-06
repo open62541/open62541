@@ -79,7 +79,9 @@ if(UA_ENABLE_ENCRYPTION)
        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes128ctr.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes256ctr.c)
 endif()
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
@@ -346,6 +348,12 @@ if(UA_ENABLE_PUBSUB)
             add_test_valgrind(pubsub_connection_mqtt ${TESTS_BINARY_DIR}/check_pubsub_connection_mqtt)
         endif()
     endif()
+endif()
+
+if(UA_ENABLE_PUBSUB_SECURITY)
+    add_executable(check_sks sks/check_sks.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    target_link_libraries(check_sks ${LIBS})
+    add_test_valgrind(check_sks ${TESTS_BINARY_DIR}/check_sks)
 endif()
 
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)

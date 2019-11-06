@@ -8,6 +8,7 @@
  */
 
 #include <open62541/server_pubsub.h>
+
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -29,6 +30,10 @@ static void
 UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup);
 static void
 UA_DataSetField_clear(UA_DataSetField *field);
+
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+#include "ua_pubsub_sks.h"
+#endif
 
 /**********************************************/
 /*               Connection                   */
@@ -159,6 +164,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
 
     //allocate memory for new WriterGroup
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup *) UA_calloc(1, sizeof(UA_WriterGroup));
+
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -179,6 +185,22 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         tmpWriterGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
     newWriterGroup->config = tmpWriterGroupConfig;
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    if(tmpWriterGroupConfig.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       tmpWriterGroupConfig.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+
+        retVal = UA_initializeSksConfig(
+            server, newWriterGroup->config.securityParameters.securityGroupId,
+            &newWriterGroup->config.sksConfig, tmpWriterGroupConfig.securityParameters.getSecurityKeysEnabled);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_WriterGroup_clear(server, newWriterGroup);
+            UA_free(newWriterGroup);
+            return retVal;
+        }
+    }
+#endif /*UA_ENABLE_PUBSUB_SECURITY*/
+    retVal |= UA_WriterGroup_addPublishCallback(server, newWriterGroup);
+
     LIST_INSERT_HEAD(&currentConnectionContext->writerGroups, newWriterGroup, listEntry);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addWriterGroupRepresentation(server, newWriterGroup);
@@ -212,6 +234,7 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup){
         //unregister the publish callback
         UA_PubSubManager_removeRepeatedPubSubCallback(server, wg->publishCallbackId);
     }
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     removeGroupRepresentation(server, wg);
 #endif
@@ -773,6 +796,11 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig){
 
 static void
 UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    if(writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
+       writerGroup->config.securityMode == UA_MESSAGESECURITYMODE_SIGN)
+        UA_PubSubKey_deleteSKSConfig(&writerGroup->config.sksConfig, server);
+#endif
     UA_WriterGroupConfig_clear(&writerGroup->config);
     //delete WriterGroup
     //delete all writers. Therefore removeDataSetWriter is called from PublishedDataSet
@@ -1520,6 +1548,7 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
         messageSettings->content.decoded.data;
 
+    UA_StatusCode retval;
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
@@ -1555,6 +1584,17 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         nm.publisherIdType = UA_PUBLISHERDATATYPE_STRING;
         nm.publisherId.publisherIdString = connection->config->publisherId.string;
     }
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    UA_Byte messageNonceArray[UA_PUBSUB_ENCODED_NONCELENGTH_IN_MESSAGE];
+    nm.securityHeader.nonceLength = UA_PUBSUB_ENCODED_NONCELENGTH_IN_MESSAGE;
+    nm.securityHeader.messageNonce.data = messageNonceArray;
+    nm.securityHeader.messageNonce.length = UA_PUBSUB_ENCODED_NONCELENGTH_IN_MESSAGE;
+
+    retval = UA_Publisher_encodeSecurityHeaderBinary_Internal(wg, &nm);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+#endif /*UA_ENABLE_PUBSUB_SECURITY*/
 
     /* Compute the length of the dsm separately for the header */
     UA_STACKARRAY(UA_UInt16, dsmLengths, dsmCount);
@@ -1577,7 +1617,6 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     UA_STACKARRAY(UA_Byte, stackBuf, stackSize);
     buf.data = stackBuf;
     buf.length = msgSize;
-    UA_StatusCode retval;
     if(msgSize > UA_MAX_STACKBUF) {
         retval = UA_ByteString_allocBuffer(&buf, msgSize);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1588,7 +1627,18 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     UA_Byte *bufPos = buf.data;
     memset(bufPos, 0, msgSize);
     const UA_Byte *bufEnd = &buf.data[buf.length];
-    retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd);
+
+    if(nm.securityEnabled) {
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+        retval = UA_Publisher_signAndEncryptNetWorkMessageBinary_Internal(wg, &nm, &buf);
+        if(retval != UA_STATUSCODE_GOOD) {
+            goto cleanup;
+        }
+#endif /*UA_ENABLE_PUBSUB_SECURITY*/
+    } else {
+        retval = UA_NetworkMessage_encodeBinary(&nm, &bufPos, bufEnd, NULL);
+    }
+
     if(retval != UA_STATUSCODE_GOOD) {
         if(msgSize > UA_MAX_STACKBUF)
             UA_ByteString_clear(&buf);
@@ -1597,6 +1647,12 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     /* Send the prepared messages */
     retval = connection->channel->send(connection->channel, transportSettings, &buf);
+cleanup:
+
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    UA_ByteString_deleteMembers(&nm.signature);
+#endif /*UA_ENABLE_PUBSUB_SECURITY*/
+
     if(msgSize > UA_MAX_STACKBUF)
         UA_ByteString_clear(&buf);
     return retval;
@@ -1719,7 +1775,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     for(size_t i = 0; i < dsmCount; i++)
         UA_DataSetMessage_free(&dsmStore[i]);
 }
-
 /* Add new publishCallback. The first execution is triggered directly after
  * creation. */
 UA_StatusCode

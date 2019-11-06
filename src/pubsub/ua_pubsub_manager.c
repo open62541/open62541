@@ -11,6 +11,10 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+#include "ua_pubsub_sks.h"
+#endif
+
 #define UA_DATETIMESTAMP_2000 125911584000000000
 
 UA_StatusCode
@@ -319,6 +323,15 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     while(pubSubManager->publishedDataSetsSize > 0){
         UA_Server_removePublishedDataSet(server, pubSubManager->publishedDataSets[pubSubManager->publishedDataSetsSize-1].identifier);
     }
+
+    // remove sks key storages
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    UA_PubSubSKSKeyStorage *keyStorage, *keyStorageTemp;
+    LIST_FOREACH_SAFE(keyStorage, &server->pubSubSKSKeyList, keyStorageList,
+                      keyStorageTemp) {
+        UA_PubSubKeySKSStorage_delete(server, keyStorage);
+    }
+#endif
 }
 
 /***********************************/

@@ -60,7 +60,7 @@ subscriberListen(UA_PubSubChannel *psc) {
     UA_NetworkMessage networkMessage;
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &networkMessage);
+    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &networkMessage,NULL);
     UA_ByteString_clear(&buffer);
 
     /* Is this the correct message type? */
@@ -73,7 +73,7 @@ subscriberListen(UA_PubSubChannel *psc) {
         goto cleanup;
 
     /* Is this a KeyFrame-DataSetMessage? */
-    for(size_t j = 0; j < networkMessage.payloadHeader.dataSetPayloadHeader.count; j++) {
+    for(size_t j = 0; j <=networkMessage.payloadHeader.dataSetPayloadHeader.count; j++) {
         UA_DataSetMessage *dsm = &networkMessage.payload.dataSetPayload.dataSetMessages[j];
         if(dsm->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
             continue;

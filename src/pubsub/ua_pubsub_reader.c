@@ -22,6 +22,10 @@
 #include "ua_types_encoding_binary.h"
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+#include "ua_pubsub_sks.h"
+#endif
+
 #define UA_MAX_SIZENAME 64  /* Max size of Qualified Name of Subscribed Variable */
 
 /***************/
@@ -63,6 +67,18 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
     /* Deep copy of the config */
     retval |= UA_ReaderGroupConfig_copy(readerGroupConfig, &tmpReaderGroupConfig);
     newGroup->config = tmpReaderGroupConfig;
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    if(tmpReaderGroupConfig.securityParameters.securityMode ==
+           UA_MESSAGESECURITYMODE_SIGN ||
+       tmpReaderGroupConfig.securityParameters.securityMode ==
+           UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+
+        retval |= UA_initializeSksConfig(
+            server, newGroup->config.securityParameters.securityGroupId,
+            &newGroup->config.sksConfig,newGroup->config.securityParameters.getSecurityKeysEnabled);
+        newGroup->config.keyIdInChannelContext = newGroup->config.sksConfig.keyStorage->currentItem->keyID;
+    }
+#endif /*UA_ENABLE_PUBSUB_SECURITY*/
     retval |= UA_ReaderGroup_addSubscribeCallback(server, newGroup);
     LIST_INSERT_HEAD(&currentConnectionContext->readerGroups, newGroup, listEntry);
     currentConnectionContext->readerGroupsSize++;
@@ -144,6 +160,15 @@ UA_Server_ReaderGroup_delete(UA_Server* server, UA_ReaderGroup *readerGroup) {
     }
 
     /* Delete ReaderGroup and its members */
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    if(readerGroup->config.securityParameters.securityMode ==
+           UA_MESSAGESECURITYMODE_SIGN ||
+       readerGroup->config.securityParameters.securityMode ==
+           UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+
+        UA_PubSubKey_deleteSKSConfig(&readerGroup->config.sksConfig, server);
+    }
+#endif
     UA_String_deleteMembers(&readerGroup->config.name);
     UA_NodeId_deleteMembers(&readerGroup->linkedConnection);
     UA_NodeId_deleteMembers(&readerGroup->identifier);
@@ -155,6 +180,11 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     /* Currently simple memcpy only */
     memcpy(&dst->securityParameters, &src->securityParameters, sizeof(UA_PubSubSecurityParameters));
     UA_String_copy(&src->name, &dst->name);
+
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    memcpy(&dst->sksConfig, &src->sksConfig, sizeof(UA_PubSub_SKSConfig));
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -293,7 +323,61 @@ void UA_ReaderGroup_subscribeCallback(UA_Server *server, UA_ReaderGroup *readerG
         UA_NetworkMessage currentNetworkMessage;
         memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
         size_t currentPosition = 0;
-        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage);
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+        if(readerGroup->config.securityParameters.securityMode ==
+               UA_MESSAGESECURITYMODE_SIGN ||
+           readerGroup->config.securityParameters.securityMode ==
+               UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            UA_StatusCode retVal;
+            UA_Byte *dataToDecryptStart = NULL;
+
+            /*First decrypt the header,get theSecurityTokenId and the start
+            index of payload,  UA_NetworkMessage_decodeBinary will
+            return after the header is decoded*/
+            retVal = UA_NetworkMessage_decodeBinary(
+                &buffer, &currentPosition, &currentNetworkMessage, &dataToDecryptStart);
+            if(retVal != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Decode Header Error");
+                UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+                UA_ByteString_deleteMembers(&buffer);
+                return;
+            }
+
+            /*Check if the tokenId in the message matches the one in the channelcontext
+            , if not,try find it in keyStorage or ask SKS for it. We dont change currentItem in
+            keyStorage since it should be managed by moveToNextKey callBack*/
+            if(currentNetworkMessage.securityHeader.securityTokenId !=
+               readerGroup->config.keyIdInChannelContext) {
+                retVal = UA_PubSub_subscriberUpdateKeybyKeyID(
+                    currentNetworkMessage.securityHeader.securityTokenId,
+                    &readerGroup->config.sksConfig);
+                if(retVal != UA_STATUSCODE_GOOD) {
+                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                 "Can not find securityKey");
+
+                    UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+                    UA_ByteString_deleteMembers(&buffer);
+                    return;
+                }
+
+                readerGroup->config.keyIdInChannelContext =
+                    currentNetworkMessage.securityHeader.securityTokenId;
+            }
+
+            /*Then verify signature and decrypt message*/
+            retVal = UA_Subscriber_verifyAndDecryptNetWorkMessageBinary_Internal(
+                readerGroup, &buffer, &currentPosition, &currentNetworkMessage,
+                dataToDecryptStart);
+            if(retVal != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "VerifyAndDecryptError");
+                UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
+                UA_ByteString_deleteMembers(&buffer);
+                return;
+            }
+        }
+#endif /*UA_ENABLE_PUBSUB_SECURITY*/
+        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage, NULL);
         UA_Server_processNetworkMessage(server, &currentNetworkMessage, connection);
         UA_NetworkMessage_deleteMembers(&currentNetworkMessage);
     }
