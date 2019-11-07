@@ -357,16 +357,17 @@ main(int argc, char **argv) {
             } else if(strncmp(argv[3], "opc.eth://", 10) == 0) {
                 transportProfile = UA_STRING(
                     "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-                if(argc < 3) {
-                    printf("Error: UADP/ETH needs an interface name\n");
-                    return EXIT_FAILURE;
-                }
+    
                 networkAddressUrl.networkInterface = UA_STRING(argv[4]);
                 networkAddressUrl.url = UA_STRING(argv[3]);
             } else {
                 printf("Error: unknown URI\n");
                 return EXIT_FAILURE;
             }
+        }
+        else if(argc < 3) {
+            printf("Error: UADP/ETH needs an interface name\n");
+            return EXIT_FAILURE;
         }
         clientCertPath = UA_STRING(argv[1]);
         clientKeyPath = UA_STRING(argv[2]);

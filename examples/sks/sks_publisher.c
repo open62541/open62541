@@ -86,7 +86,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-		connectionConfig.publisherId.numeric = 2234;
+        connectionConfig.publisherId.numeric = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -148,14 +148,14 @@ addWriterGroup(UA_Server *server, UA_Client *client) {
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-		writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
+        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
     /*SKS and Security Parameters*/
     writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_TESTLEVEL;
     writerGroupConfig.securityParameters.securityGroupId = UA_STRING("SecurityGroup1");
     writerGroupConfig.securityParameters.getSecurityKeysEnabled = UA_TRUE;
     writerGroupConfig.sksConfig.client=client;
-	/* The configuration flags for the messages are encapsulated inside the
+    /* The configuration flags for the messages are encapsulated inside the
      * message- and transport settings extension objects. These extension
      * objects are defined by the standard. e.g.
      * UadpWriterGroupMessageDataType */
@@ -344,21 +344,22 @@ main(int argc, char **argv) {
         if(argc>3)
         {
             if(strncmp(argv[3], "opc.udp://", 10) == 0) {
-            networkAddressUrl.url = UA_STRING(argv[1]);
-        } else if(strncmp(argv[3], "opc.eth://", 10) == 0) {
-            transportProfile = UA_STRING(
+                networkAddressUrl.url = UA_STRING(argv[1]);
+            } else if(strncmp(argv[3], "opc.eth://", 10) == 0) {
+                transportProfile = UA_STRING(
                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-            if(argc < 3) {
-                printf("Error: UADP/ETH needs an interface name\n");
-                return EXIT_FAILURE;
-            }
+
             networkAddressUrl.networkInterface = UA_STRING(argv[4]);
             networkAddressUrl.url = UA_STRING(argv[3]);
-        } else {
-            printf("Error: unknown URI\n");
+            } else {
+                printf("Error: unknown URI\n");
+                return EXIT_FAILURE;
+            }
+        } 
+        else if(argc < 3) {
+            printf("Error: UADP/ETH needs an interface name\n");
             return EXIT_FAILURE;
         }
-        } 
         clientCertPath=UA_STRING(argv[1]);
         clientKeyPath=UA_STRING(argv[2]);
         
