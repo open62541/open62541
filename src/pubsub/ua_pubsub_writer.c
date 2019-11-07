@@ -1647,9 +1647,9 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     /* Send the prepared messages */
     retval = connection->channel->send(connection->channel, transportSettings, &buf);
-cleanup:
 
 #ifdef UA_ENABLE_PUBSUB_SECURITY
+cleanup:
     UA_ByteString_deleteMembers(&nm.signature);
 #endif /*UA_ENABLE_PUBSUB_SECURITY*/
 
