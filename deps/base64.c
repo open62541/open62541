@@ -67,7 +67,8 @@ static const uint32_t from_b64[256] = {
 
 unsigned char *
 UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
-    if(len == 0) {
+    // we need a minimum length
+    if(len <= 2) {
         *out_len = 0;
         return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
     }
