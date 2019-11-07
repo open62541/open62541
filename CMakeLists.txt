@@ -155,6 +155,23 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+option(UA_ENABLE_PUBSUB_SECURITY "Enable Security Key Service (SKS) support for publish/subscribe" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_SECURITY)
+if(UA_ENABLE_PUBSUB_SECURITY)
+    if(NOT UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+        message(FATAL_ERROR "PubSub security cannot be used with disabled PubSub information model.")
+    endif()
+
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "PubSub security cannot be used with NAMESPACE ZERO != FULL.")
+    endif()
+    
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "PubSub security cannot be used with disabled encryption.")
+    endif()
+endif()
+
+
 if(UA_ENABLE_MICRO_EMB_DEV_PROFILE)
     if(NOT (UA_NAMESPACE_ZERO STREQUAL "FULL"))
         message(FATAL_ERROR "CTT Compliant Micro Embedded Device Server Profile needs full namespace zero")
@@ -207,9 +224,6 @@ mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 
 option(UA_ENABLE_PUBSUB "Enable publish/subscribe" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB)
-
-option(UA_ENABLE_PUBSUB_SECURITY "Enable Security Key Service (SKS) support for publish/subscribe" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_SECURITY)
 
 option(UA_ENABLE_PUBSUB_ETH_UADP "Enable publish/subscribe UADP over Ethernet" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
