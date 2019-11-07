@@ -1582,6 +1582,10 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
             }
             break;
         }
+        case UA_TYPES_READEVENTDETAILS:
+            historyDataType = &UA_TYPES[UA_TYPES_HISTORYEVENT];
+            readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readEvent;
+            break;
         case UA_TYPES_READPROCESSEDDETAILS:
             readHistory = (UA_HistoryDatabase_readFunc)server->config.historyDatabase.readProcessed;
             break;
