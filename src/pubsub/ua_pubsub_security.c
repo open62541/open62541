@@ -1128,7 +1128,7 @@ UA_Subscriber_verifyAndDecryptNetWorkMessageBinary_Internal(
        !dataToDecryptStart)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_StatusCode retVal;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_SecurityPolicy *policy = readerGroup->config.sksConfig.keyStorage->policy;
 
     /*Actually this "if"  can be omitted, since a securityEnabled message should be signed
