@@ -64,7 +64,7 @@ typedef struct {
 /* AsymmetricModule */
 /********************/
 static UA_StatusCode
-asym_verify_sp_pubsub_none(const UA_SecurityPolicy *securityPolicy,
+asym_verify_sp_pubsub_none_256ctr(const UA_SecurityPolicy *securityPolicy,
                            PUBSUB_AES256CTR_ChannelContext *cc,
                            const UA_ByteString *message, const UA_ByteString *signature) {
 
@@ -72,20 +72,20 @@ asym_verify_sp_pubsub_none(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-asym_sign_sp_pubsub_none(const UA_SecurityPolicy *securityPolicy,
+asym_sign_sp_pubsub_none_256ctr(const UA_SecurityPolicy *securityPolicy,
                          PUBSUB_AES256CTR_ChannelContext *cc,
                          const UA_ByteString *message, UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-asym_encrypt_sp_pubsub_none(const UA_SecurityPolicy *securityPolicy,
+asym_encrypt_sp_pubsub_none_256ctr(const UA_SecurityPolicy *securityPolicy,
                             PUBSUB_AES256CTR_ChannelContext *cc, UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-asym_decrypt_sp_pubsub_none(const UA_SecurityPolicy *securityPolicy,
+asym_decrypt_sp_pubsub_none_256ctr(const UA_SecurityPolicy *securityPolicy,
                             PUBSUB_AES256CTR_ChannelContext *cc, UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
@@ -123,19 +123,19 @@ asym_getRemoteSignatureSize_sp_pubsub_length_none(
 */
 
 static UA_StatusCode
-asym_makeThumbprint_sp_pubsub_none(const UA_SecurityPolicy *securityPolicy,
+asym_makeThumbprint_sp_pubsub_none_256ctr(const UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *certificate,
                                    UA_ByteString *thumbprint) {
     return UA_STATUSCODE_GOOD;
 }
 static size_t
-asym_sp_pubsub_length_none(const UA_SecurityPolicy *securityPolicy,
+asym_sp_pubsub_length_none_256ctr(const UA_SecurityPolicy *securityPolicy,
                            const PUBSUB_AES256CTR_ChannelContext *cc) {
     return 0;
 }
 
 static UA_StatusCode
-asymmetricModule_compareCertificateThumbprint_sp_pubsub_none(
+asymmetricModule_compareCertificateThumbprint_sp_pubsub_none_256ctr(
     const UA_SecurityPolicy *securityPolicy, const UA_ByteString *certificateThumbprint) {
 
     return UA_STATUSCODE_GOOD;
@@ -302,7 +302,7 @@ sym_generateNonce_sp_pubsub_aes256ctr(const UA_SecurityPolicy *securityPolicy,
 
 /* Assumes that the certificate has been verified externally */
 static UA_StatusCode
-parseRemoteCertificate_sp_pubsub_none(PUBSUB_AES256CTR_ChannelContext *cc,
+parseRemoteCertificate_sp_pubsub_none_256ctr(PUBSUB_AES256CTR_ChannelContext *cc,
                                       const UA_ByteString *remoteCertificate) {
 
     return UA_STATUSCODE_GOOD;
@@ -353,7 +353,7 @@ channelContext_newContext_sp_pubsub_aes256ctr(const UA_SecurityPolicy *securityP
 
     mbedtls_x509_crt_init(&cc->remoteCertificate);
 
-    UA_StatusCode retval = parseRemoteCertificate_sp_pubsub_none(cc, remoteCertificate);
+    UA_StatusCode retval = parseRemoteCertificate_sp_pubsub_none_256ctr(cc, remoteCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
         channelContext_deleteContext_sp_pubsub_aes256ctr(cc);
         *pp_contextData = NULL;
@@ -410,7 +410,7 @@ channelContext_setRemoteSymIv_sp_pubsub_aes256ctr(PUBSUB_AES256CTR_ChannelContex
 } 
 
 static UA_StatusCode
-channelContext_compareCertificate_sp_pubsub_none(
+channelContext_compareCertificate_sp_pubsub_none_256ctr(
     const PUBSUB_AES256CTR_ChannelContext *cc, const UA_ByteString *certificate) {
 
     return UA_STATUSCODE_GOOD;
@@ -444,7 +444,7 @@ deleteMembers_sp_pubsub_aes256ctr(UA_SecurityPolicy *securityPolicy) {
 }
 
 static UA_StatusCode
-updateCertificateAndPrivateKey_sp_pubsub_none(UA_SecurityPolicy *securityPolicy,
+updateCertificateAndPrivateKey_sp_pubsub_none_256ctr(UA_SecurityPolicy *securityPolicy,
                                               const UA_ByteString newCertificate,
                                               const UA_ByteString newPrivateKey) {
 
@@ -554,46 +554,46 @@ UA_SecurityPolicy_Pubsub_Aes256ctr(UA_SecurityPolicy *policy,
     asym_signatureAlgorithm->uri = UA_STRING_NULL;
     asym_signatureAlgorithm->verify =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, const UA_ByteString *,
-                          const UA_ByteString *))asym_verify_sp_pubsub_none;
+                          const UA_ByteString *))asym_verify_sp_pubsub_none_256ctr;
     asym_signatureAlgorithm->sign =
         (UA_StatusCode(*)(const UA_SecurityPolicy *, void *, const UA_ByteString *,
-                          UA_ByteString *))asym_sign_sp_pubsub_none;
+                          UA_ByteString *))asym_sign_sp_pubsub_none_256ctr;
     asym_signatureAlgorithm->getLocalSignatureSize =
-        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none;
+        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none_256ctr;
     asym_signatureAlgorithm->getRemoteSignatureSize =
-        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none;
+        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none_256ctr;
     asym_signatureAlgorithm->getLocalKeyLength =
         (size_t(*)(const UA_SecurityPolicy *,
-                   const void *))asym_sp_pubsub_length_none;  /* TODO: Write function */
+                   const void *))asym_sp_pubsub_length_none_256ctr;  /* TODO: Write function */
     asym_signatureAlgorithm->getRemoteKeyLength =
         (size_t(*)(const UA_SecurityPolicy *,
-                   const void *))asym_sp_pubsub_length_none;  /* TODO: Write function */
+                   const void *))asym_sp_pubsub_length_none_256ctr;  /* TODO: Write function */
 
     UA_SecurityPolicyEncryptionAlgorithm *asym_encryptionAlgorithm =
         &asymmetricModule->cryptoModule.encryptionAlgorithm;
     asym_encryptionAlgorithm->uri = UA_STRING_NULL;
     asym_encryptionAlgorithm->encrypt = (UA_StatusCode(*)(
-        const UA_SecurityPolicy *, void *, UA_ByteString *))asym_encrypt_sp_pubsub_none;
+        const UA_SecurityPolicy *, void *, UA_ByteString *))asym_encrypt_sp_pubsub_none_256ctr;
     asym_encryptionAlgorithm->decrypt = (UA_StatusCode(*)(
-        const UA_SecurityPolicy *, void *, UA_ByteString *))asym_decrypt_sp_pubsub_none;
+        const UA_SecurityPolicy *, void *, UA_ByteString *))asym_decrypt_sp_pubsub_none_256ctr;
     asym_encryptionAlgorithm->getLocalKeyLength =
         (size_t(*)(const UA_SecurityPolicy *,
-                   const void *))asym_sp_pubsub_length_none;  /* TODO: Write function */
+                   const void *))asym_sp_pubsub_length_none_256ctr;  /* TODO: Write function */
     asym_encryptionAlgorithm->getRemoteKeyLength =
-        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none;
+        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none_256ctr;
     asym_encryptionAlgorithm->getLocalBlockSize =
         (size_t(*)(const UA_SecurityPolicy *,
-                   const void *))asym_sp_pubsub_length_none;  /* TODO: Write function */
+                   const void *))asym_sp_pubsub_length_none_256ctr;  /* TODO: Write function */
     asym_encryptionAlgorithm->getRemoteBlockSize =
-        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none;
+        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none_256ctr;
     asym_encryptionAlgorithm->getLocalPlainTextBlockSize =
         (size_t(*)(const UA_SecurityPolicy *,
-                   const void *))asym_sp_pubsub_length_none;  /* TODO: Write function */
+                   const void *))asym_sp_pubsub_length_none_256ctr;  /* TODO: Write function */
     asym_encryptionAlgorithm->getRemotePlainTextBlockSize =
-        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none;
-    asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_pubsub_none;
+        (size_t(*)(const UA_SecurityPolicy *, const void *))asym_sp_pubsub_length_none_256ctr;
+    asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_pubsub_none_256ctr;
     asymmetricModule->compareCertificateThumbprint =
-        asymmetricModule_compareCertificateThumbprint_sp_pubsub_none;
+        asymmetricModule_compareCertificateThumbprint_sp_pubsub_none_256ctr;
 
     /* SymmetricModule */
     symmetricModule->generateKey = sym_generateKey_sp_pubsub_aes256ctr;
@@ -680,10 +680,10 @@ UA_SecurityPolicy_Pubsub_Aes256ctr(UA_SecurityPolicy *policy,
 
     channelModule->compareCertificate =
         (UA_StatusCode(*)(const void *, const UA_ByteString *))
-            channelContext_compareCertificate_sp_pubsub_none;
+            channelContext_compareCertificate_sp_pubsub_none_256ctr;
 
     policy->updateCertificateAndPrivateKey =
-        updateCertificateAndPrivateKey_sp_pubsub_none;
+        updateCertificateAndPrivateKey_sp_pubsub_none_256ctr;
 
     policy->clear = deleteMembers_sp_pubsub_aes256ctr;
 

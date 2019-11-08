@@ -463,9 +463,12 @@ typedef struct UA_PubSubSKSKeyStorage {
     UA_Duration keyLifeTime;
 
     /**
-     * Pointer to the key storage list
+     * Internal pointer to the key storage list
      */
-    LIST_ENTRY(UA_PubSubSKSKeyStorage) keyStorageList;
+    struct {								\
+        struct UA_PubSubSKSKeyStorage *le_next;	/* next element */			\
+        struct UA_PubSubSKSKeyStorage **le_prev;	/* address of previous next element */	\
+    } keyStorageList;
 
 } UA_PubSubSKSKeyStorage;
 
@@ -476,7 +479,7 @@ typedef struct {
     /**
      * UA client used for the pull method. Can be NULL when push is used
      */
-    UA_Client *client;
+    struct UA_Client *client;
     /**
      * non-owning pointer to the list of keys and related info
      */
