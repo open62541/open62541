@@ -1196,3 +1196,4 @@ UA_Subscriber_verifyAndDecryptNetWorkMessageBinary_Internal(
 }
 
 #endif
+
