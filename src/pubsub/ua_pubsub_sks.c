@@ -772,7 +772,6 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         }
     }
 
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     /*prepare input */
     UA_String *securityGroupId = (UA_String *)input[0].data;
     UA_UInt32 startingTokenId = *(UA_UInt32 *)input[1].data;
@@ -781,7 +780,7 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     /* look for the security group object in the server. this contains all necessary
      information to create / return the requested keys */
     UA_NodeId securityGroupNodeId;
-    ret = getSecurityGroup(server, securityGroupId, &securityGroupNodeId);
+    UA_StatusCode ret = getSecurityGroup(server, securityGroupId, &securityGroupNodeId);
     if(ret != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Can't find security group");
         goto error;
@@ -1100,9 +1099,7 @@ UA_Server_addSKS(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    retval = UA_Server_setMethodNode_callback(server, NODEID_SKS_GetSecurityKeys,
+    UA_StatusCode retval = UA_Server_setMethodNode_callback(server, NODEID_SKS_GetSecurityKeys,
                                               getSecurityKeysAction);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

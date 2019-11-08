@@ -947,15 +947,10 @@ UA_setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId,
 UA_StatusCode UA_EXPORT
 UA_Server_addPubSubSKSPush(UA_Server *server) {
 
-    /* this is not totally implemented by now */
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
-
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    retval = UA_Server_setMethodNode_callback(server, NODEID_SKS_SetSecurityKeys,
+    UA_StatusCode retval = UA_Server_setMethodNode_callback(server, NODEID_SKS_SetSecurityKeys,
                                               UA_setSecurityKeysAction);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

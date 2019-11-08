@@ -70,7 +70,9 @@ if(UA_ENABLE_ENCRYPTION)
        ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
               ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes128ctr.c
+              ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes256ctr.c)
 endif()
 
 add_library(open62541-fuzzplugins OBJECT

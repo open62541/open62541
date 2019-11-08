@@ -211,7 +211,7 @@ connectToSKS(UA_Client *client,UA_String clientCertPath,UA_String clientKeyPath)
 
     UA_ClientConfig *config = UA_Client_getConfig(client);
     config->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    UA_ClientConfig_setDefaultEncryption(config, certificate, privateKey, trustList,
+    UA_StatusCode ret = UA_ClientConfig_setDefaultEncryption(config, certificate, privateKey, trustList,
                                          trustListSize, revocationList,
                                          revocationListSize);
 
@@ -220,6 +220,10 @@ connectToSKS(UA_Client *client,UA_String clientCertPath,UA_String clientKeyPath)
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
         UA_ByteString_clear(&trustList[deleteCount]);
     }
+
+    if (ret != UA_STATUSCODE_GOOD)
+        return ret;
+
     return UA_Client_connect_username(client, "opc.tcp://localhost:4841", "peter",
                                       "peter123");
 }
@@ -272,9 +276,8 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     config->pubsubTransportLayersSize++;
 #endif
     /*Connect To SKS */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Client *client = UA_Client_new();
-    retval = connectToSKS(client,clientCertPath,clientKeyPath);
+    UA_StatusCode retval = connectToSKS(client,clientCertPath,clientKeyPath);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -333,7 +336,7 @@ main(int argc, char **argv) {
     UA_String transportProfile =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_NetworkAddressUrlDataType networkAddressUrl = {
-        UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+        UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4841/")};
     UA_String clientCertPath=UA_STRING_NULL;
     UA_String clientKeyPath=UA_STRING_NULL;
     if(argc > 1) {
