@@ -511,7 +511,7 @@ policyContext_newContext_sp_pubsub_aes128ctr(UA_SecurityPolicy *securityPolicy,
         }
     }
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 
 error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,

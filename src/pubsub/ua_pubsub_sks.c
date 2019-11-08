@@ -35,37 +35,6 @@
  */
 #define NUMBER_OF_CURRENT_KEYS 1
 
-/**
- * Debug output for byte string.
- * Todo: remove
- */
-static void
-UA_Print_ByteStringHex(const UA_ByteString byteString, const char *name) {
-    printf("\n%s:\n", name);
-    for(size_t i = 0; i < byteString.length; i++) {
-        printf("%02x", byteString.data[i]);
-    }
-}
-
-/**
- * Debug output of security keys
- * Todo: remove
- */
-static void
-UA_tempDebugger(const UA_Server *server, int loglevel) {
-    UA_PubSubSKSKeyStorage *keyStorageEntry;
-    if(UA_LOGLEVEL < loglevel) {
-        LIST_FOREACH(keyStorageEntry, &server->pubSubSKSKeyList, keyStorageList) {
-            printf("\n%s\n", (char *)keyStorageEntry->securityGroupID.data);
-            for(size_t i = 0; i < keyStorageEntry->keyListSize; ++i) {
-                printf("\nKeyID%d\n", keyStorageEntry->keyList[i].keyID);
-                UA_Print_ByteStringHex(keyStorageEntry->keyList[i].key, "");
-            }
-        }
-    }
-    return;
-}
-
 /* see header for documentation */
 UA_StatusCode
 UA_SecurityPolicy_findPolicyBySecurityPolicyUri(const UA_Server *server,
@@ -794,7 +763,6 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         UA_Variant_init(&output[i]);
 
     /*Get current session, check whether it is encrypted */
-    UA_tempDebugger(server, UA_CUSTOM_SHOW_KEYSTORAGE_LOGLEVEL);
     session_list_entry *session_entry;
     LIST_FOREACH(session_entry, &server->sessionManager.sessions, pointers) {
         if(UA_NodeId_equal(&session_entry->session.sessionId, sessionId)) {
