@@ -283,9 +283,6 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         /* A value is present */
         UA_DataValue_clear(&orig);
     } else {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                             "AddNodes: No value given; Copy the value "
-                             "from the TypeDefinition");
         UA_WriteValue v;
         UA_WriteValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v.value);
