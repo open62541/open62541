@@ -15,6 +15,7 @@ CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug \
     -DUA_ENABLE_AMALGAMATION=OFF \
     -DCMAKE_TOOLCHAIN_FILE=${IDF_PATH}/tools/cmake/toolchain-esp32.cmake \
     -DUA_ARCHITECTURE=freertosLWIP \
+    -DUA_ARCH_EXTRA_INCLUDES=${IDF_PATH}/components/freertos/include/freertos \
     -DUA_BUILD_EXAMPLES=OFF"
 
 
