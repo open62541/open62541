@@ -8,7 +8,6 @@
  */
 
 #include <open62541/server_pubsub.h>
-#include <open62541/plugin/log_stdout.h>
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -267,8 +266,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         }
         //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
         //TODO Clarify: Behaviour if the finale size is more than MTU
-
-        //generate data set messages
+        /* Generate data set messages  */
         UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
         UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
         UA_DataSetWriter *dsw;
@@ -286,9 +284,25 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
                                "PubSub-RT configuration fail: PDS contains promoted fields.");
                 return UA_STATUSCODE_BADNOTSUPPORTED;
             }
-            //TODO Check if all fields have an fixed size and static value source
-            //loop over the fields and check value source + type
-
+            UA_DataSetField *dsf;
+            TAILQ_FOREACH(dsf, &pds->fields, listEntry){
+                if(!dsf->config.field.variable.staticValueSourceEnabled){
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "PubSub-RT configuration fail: PDS contains variables with dynamic length types.");
+                    return UA_STATUSCODE_BADNOTSUPPORTED;
+                }
+                if((UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
+                                    UA_NodeId_equal(&dsf->fieldMetaData.dataType, &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
+                                    dsf->fieldMetaData.maxStringLength == 0){
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "PubSub-RT configuration fail: PDS contains String/ByteString with dynamic length.");
+                    return UA_STATUSCODE_BADNOTSUPPORTED;
+                } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType))){
+                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                                   "PubSub-RT configuration fail: PDS contains variable with dynamic size.");
+                    return UA_STATUSCODE_BADNOTSUPPORTED;
+                }
+            }
             /* Generate the DSM */
             UA_StatusCode res =
                     UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
@@ -301,14 +315,16 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
             dsmCount++;
         }
         UA_NetworkMessage networkMessage;
-        generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds, (UA_Byte) dsmCount,
-                               &wg->config.messageSettings, &wg->config.transportSettings, &networkMessage);
+        UA_StatusCode  res = generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds, (UA_Byte) dsmCount,
+                                &wg->config.messageSettings, &wg->config.transportSettings, &networkMessage);
+        if(res != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADINTERNALERROR;
         UA_NetworkMessage_generateOffsetBuffer(&wg->bufferedMessage, &networkMessage);
         /* Allocate the buffer. Allocate on the stack if the buffer is small. */
         UA_ByteString buf;
         size_t msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage);
-        UA_StatusCode  retval = UA_ByteString_allocBuffer(&buf, msgSize);
-        if(retval != UA_STATUSCODE_GOOD)
+        res = UA_ByteString_allocBuffer(&buf, msgSize);
+        if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         wg->bufferedMessage.buffer = buf;
         const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
@@ -627,6 +643,11 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         UA_Server_removeDataSetField(server, newField->identifier);
         result.result =  UA_STATUSCODE_BADINTERNALERROR;
         return result;
+    }
+    UA_DataSetField *dsf;
+    size_t counter = 0;
+    TAILQ_FOREACH(dsf, &currentDataSet->fields, listEntry){
+        dsf->fieldMetaData = fieldMetaData[counter++];
     }
     result.result = retVal;
     result.configurationVersion.majorVersion = currentDataSet->dataSetMetaData.configurationVersion.majorVersion;

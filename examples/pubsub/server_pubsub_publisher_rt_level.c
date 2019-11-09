@@ -108,6 +108,7 @@ int main(void) {
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
     /* Add one DataSetField with static value source to PDS */
     UA_DataSetFieldConfig dsfConfig;
+    memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     UA_Server_getDataSetFieldConfig(server, dataSetFieldIdent, &dsfConfig);
     /* Create Variant and configure as DataSetField source */
     UA_UInt32 *intValue = UA_UInt32_new();
