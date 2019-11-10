@@ -181,7 +181,7 @@ THREAD_CALLBACK(ThreadWorker) {
         const UA_AsyncOperationRequest* request = NULL;
         void *context = NULL;
         UA_AsyncOperationType type;
-        if(UA_Server_getAsyncOperation(globalServer, &type, &request, &context) == true) {
+        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL) == true) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
             UA_CallMethodResult response = UA_Server_call(globalServer, &request->callMethodRequest);
             UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response,
