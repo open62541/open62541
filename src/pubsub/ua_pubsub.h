@@ -127,12 +127,14 @@ struct UA_WriterGroup{
     LIST_ENTRY(UA_WriterGroup) listEntry;
     UA_NodeId identifier;
     UA_NodeId linkedConnection;
+    UA_PubSubConnection *linkedConnectionPtr;
     LIST_HEAD(UA_ListOfDataSetWriter, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
+    UA_UInt16 sequenceNumber;
 };
 
 UA_StatusCode

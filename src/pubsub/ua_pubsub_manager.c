@@ -96,6 +96,16 @@ UA_Server_addPubSubConnection(UA_Server *server,
     if(connectionIdentifier)
         UA_NodeId_copy(&newConnection->identifier, connectionIdentifier);
 
+    /* update all writerGroups and set new PTR */
+    for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &server->pubSubManager.connections[i].writerGroups, listEntry){
+            UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
+            /* TODO Check if the value is null -> how can we ensure consistency in this case? */
+            if(connection)
+                wg->linkedConnectionPtr = connection;
+        }
+    }
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addPubSubConnectionRepresentation(server, newConnection);
 #endif
@@ -142,6 +152,16 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         for(size_t n = 0; n < server->pubSubManager.connectionsSize; n++){
             if(server->pubSubManager.connections[n].writerGroups.lh_first){
                 server->pubSubManager.connections[n].writerGroups.lh_first->listEntry.le_prev = &server->pubSubManager.connections[n].writerGroups.lh_first;
+            }
+        }
+        /* update all writerGroups and set new PTR */
+        for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
+            UA_WriterGroup *wg;
+            LIST_FOREACH(wg, &server->pubSubManager.connections[i].writerGroups, listEntry){
+                UA_PubSubConnection *tmp_connection = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
+                /* TODO Check if the value is null -> how can we ensure consistency in this case? */
+                if(tmp_connection)
+                    wg->linkedConnectionPtr = tmp_connection;
             }
         }
     }

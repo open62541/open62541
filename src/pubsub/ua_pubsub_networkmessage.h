@@ -67,8 +67,8 @@ UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
 /* Offsets for buffered messages in the PubSub fast path.
  * TODO: Implement the generation of the offsets */
 typedef enum {
-    UA_PUBSUB_OFFSETTYPE_SEQUENCENUMBER,
-    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGENUMBER,
+    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
+    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS,
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
     UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
@@ -236,11 +236,11 @@ typedef struct {
 
 size_t
 UA_NetworkMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
-                                       const UA_NetworkMessage* p);
+                                       UA_NetworkMessage* p);
 
 size_t
 UA_DataSetMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
-                                       const UA_DataSetMessage* p, size_t currentOffset);
+                                       UA_DataSetMessage* p, size_t currentOffset);
 UA_StatusCode
 UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
 
