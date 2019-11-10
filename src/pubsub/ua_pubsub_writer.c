@@ -13,7 +13,6 @@
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #include "ua_pubsub.h"
-#include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
@@ -173,6 +172,7 @@ UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newWriterGroup->linkedConnection = currentConnectionContext->identifier;
+    newWriterGroup->linkedConnectionPtr = currentConnectionContext;
     UA_PubSubManager_generateUniqueNodeId(server, &newWriterGroup->identifier);
     if(writerGroupIdentifier){
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
@@ -330,6 +330,10 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         const UA_Byte *bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
         UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd);
+        /* Clean up DSM */
+        for(size_t i = 0; i < dsmCount; i++)
+            UA_free(dsmStore[i].data.keyFrameData.dataSetFields);
+            //UA_DataSetMessage_free(&dsmStore[i]);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -1014,6 +1018,15 @@ UA_WriterGroup_clear(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_DataSetWriter *dataSetWriter, *tmpDataSetWriter;
     LIST_FOREACH_SAFE(dataSetWriter, &writerGroup->writers, listEntry, tmpDataSetWriter){
         UA_Server_removeDataSetWriter(server, dataSetWriter->identifier);
+    }
+    if(writerGroup->bufferedMessage.offsetsSize > 0){
+        for (size_t i = 0; i < writerGroup->bufferedMessage.offsetsSize; i++) {
+            if(writerGroup->bufferedMessage.offsets[i].contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT){
+                UA_DataValue_delete(writerGroup->bufferedMessage.offsets[i].offsetData.value.value);
+            }
+        }
+        UA_ByteString_deleteMembers(&writerGroup->bufferedMessage.buffer);
+        UA_free(writerGroup->bufferedMessage.offsets);
     }
     UA_NodeId_clear(&writerGroup->linkedConnection);
     UA_NodeId_clear(&writerGroup->identifier);
@@ -1787,6 +1800,8 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         networkMessage->publisherIdType = UA_PUBLISHERDATATYPE_STRING;
         networkMessage->publisherId.publisherIdString = connection->config->publisherId.string;
     }
+    if(networkMessage->groupHeader.sequenceNumberEnabled)
+        networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;
     /* Compute the length of the dsm separately for the header */
     UA_STACKARRAY(UA_UInt16, dsmLengths, dsmCount);
     for(UA_Byte i = 0; i < dsmCount; i++)
@@ -1795,6 +1810,7 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     networkMessage->payloadHeader.dataSetPayloadHeader.count = dsmCount;
     networkMessage->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     networkMessage->groupHeader.writerGroupId = wg->config.writerGroupId;
+    /* number of the NetworkMessage inside a PublishingInterval */
     networkMessage->groupHeader.networkMessageNumber = 1;
     networkMessage->payload.dataSetPayload.sizes = dsmLengths;
     networkMessage->payload.dataSetPayload.dataSetMessages = dsm;
@@ -1802,10 +1818,10 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 }
 
 static UA_StatusCode
-sendBufferedNetworkMessage(UA_PubSubConnection *connection,
+sendBufferedNetworkMessage(UA_Server *server, UA_PubSubConnection *connection,
         UA_NetworkMessageOffsetBuffer *buffer, UA_ExtensionObject *transportSettings) {
     if(UA_NetworkMessage_updateBufferedMessage(buffer) != UA_STATUSCODE_GOOD)
-        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub sending. Unknown field type.");
+        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "PubSub sending. Unknown field type.");
     UA_StatusCode retval = connection->channel->send(connection->channel, transportSettings, &buffer->buffer);
     return retval;
 }
@@ -1878,17 +1894,16 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     /* Find the connection associated with the writer */
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, writerGroup->linkedConnection);
+    UA_PubSubConnection *connection = writerGroup->linkedConnectionPtr;
     if(!connection) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Publish failed. PubSubConnection invalid.");
         return;
     }
 
-    //TODO Avoid connection lookup while publish! Attention simple pointer vs. realloc in pubsub manager
     if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        sendBufferedNetworkMessage(connection, &writerGroup->bufferedMessage, &writerGroup->config.transportSettings);
+        sendBufferedNetworkMessage(server, connection, &writerGroup->bufferedMessage, &writerGroup->config.transportSettings);
+        writerGroup->sequenceNumber++;
         return;
     }
 
@@ -1963,9 +1978,11 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                       &dsWriterIds[i * maxDSM], nmDsmCount,
                                       &writerGroup->config.messageSettings,
                                       &writerGroup->config.transportSettings);
+            writerGroup->sequenceNumber++;
         }else if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON){
             res3 = sendNetworkMessageJson(connection, &dsmStore[i * maxDSM],
                     &dsWriterIds[i * maxDSM], nmDsmCount, &writerGroup->config.transportSettings);
+            writerGroup->sequenceNumber++;
         }
         if(res3 != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,

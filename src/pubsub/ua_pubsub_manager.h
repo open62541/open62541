@@ -17,6 +17,7 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 typedef struct UA_PubSubManager{
+    //TODO connection and pds store to linked list
     //Connections and PublishedDataSets can exist alone (own lifecycle) -> top level components
     size_t connectionsSize;
     UA_PubSubConnection *connections;

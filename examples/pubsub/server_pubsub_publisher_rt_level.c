@@ -10,21 +10,30 @@
 #include <stdlib.h>
 #include <open62541/server_pubsub.h>
 
+#define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
+#define PUBSUB_CONFIG_PUBLISH_CYCLES 100
+/* possible values: PUBSUB_CONFIG_FASTPATH_NONE (WIP not implemented), PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS, PUBSUB_CONFIG_FASTPATH_STATIC_VALUES (WIP  not implemented)*/
+#define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
+#define PUBSUB_CONFIG_FIELD_COUNT 10
+
+/**
+ * The PubSub RT level example points out the configuration of different PubSub RT levels. These levels will be later
+ * used for deterministic message generation. The main target is to reduce the time spread and effort during the publish cycle.
+ * Most of the RT levels are based on a pre-generated and buffered DataSetMesseges and
+ * NetworkMessages. Since changes in the PubSub-configuration will invalidate the buffered frames, the PubSub
+ * configuration can be frozen after the configuration phase.
+ *
+ * This example can be configured to compare and measure the different PubSub options.
+ */
+
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
+UA_UInt32 *valueStore[PUBSUB_CONFIG_FIELD_COUNT];
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
-
-/**
- * The PubSub RT level example points out the configuration of different PubSub RT levels. These levels will be later
- * used for deterministic message generation. The underlying base concept is the target to reduce the time spread and
- * affort during the publish cycle. Most of the RT levels are based on a pregenerated and buffered DataSetMesseges and
- * NetworkMessages. Since changes in the PubSub configuration will invalidate the buffered frames, the pubsub
- * configuration can be frozen after the configuration phase
- */
 
 /* The following PubSub configuration does not differ from the 'normal' configuration */
 static void
@@ -50,10 +59,10 @@ addMinimalPubSubConfiguration(UA_Server * server){
 
 static void
 valueUpdateCallback(UA_Server *server, void *data) {
-    UA_DataValue dataValue = *((UA_DataValue *) data);
-    UA_UInt32 *integerValue = (UA_UInt32 *) dataValue.value.data;
-    *integerValue += 1;
-    UA_Variant_setScalar(&dataValue.value, integerValue, &UA_TYPES[UA_TYPES_UINT32]);
+    for (int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i)
+        *valueStore[i] = *valueStore[i]+1;
+    if(*valueStore[0] > PUBSUB_CONFIG_PUBLISH_CYCLES)
+        running = false;
 }
 
 int main(void) {
@@ -80,23 +89,26 @@ int main(void) {
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
-    writerGroupConfig.publishingInterval = 100;
+    writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
     /* RT Level 0 setup */
-    UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
+    UA_UadpWriterGroupMessageDataType writerGroupMessage;
+    UA_UadpWriterGroupMessageDataType_init(&writerGroupMessage);
     /* Change message settings of writerGroup to send PublisherId,
      * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
      * of NetworkMessage */
-    writerGroupMessage->networkMessageContentMask = (UA_UadpNetworkMessageContentMask) ((UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+    writerGroupMessage.networkMessageContentMask = (UA_UadpNetworkMessageContentMask) ((UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
                                                     (UA_UadpNetworkMessageContentMask) UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
-    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+    writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+#endif
     UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent);
     /* Add one DataSetWriter */
     UA_NodeId dataSetWriterIdent;
@@ -106,24 +118,29 @@ int main(void) {
     dataSetWriterConfig.dataSetWriterId = 62541;
     dataSetWriterConfig.keyFrameCount = 10;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent);
+
+#if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
     /* Add one DataSetField with static value source to PDS */
     UA_DataSetFieldConfig dsfConfig;
-    memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
-    UA_Server_getDataSetFieldConfig(server, dataSetFieldIdent, &dsfConfig);
-    /* Create Variant and configure as DataSetField source */
-    UA_UInt32 *intValue = UA_UInt32_new();
-    UA_Variant variant;
-    memset(&variant, 0, sizeof(UA_Variant));
-    UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_DataValue staticValueSource;
-    memset(&staticValueSource, 0, sizeof(staticValueSource));
-    staticValueSource.value = variant;
-    dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
-    dsfConfig.field.variable.staticValueSource.value = variant;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
-
+    for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++){
+        memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+        /* Create Variant and configure as DataSetField source */
+        UA_UInt32 *intValue = UA_UInt32_new();
+        *intValue = (UA_UInt32) i * 1000;
+        valueStore[i] = intValue;
+        UA_Variant variant;
+        memset(&variant, 0, sizeof(UA_Variant));
+        UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_DataValue staticValueSource;
+        memset(&staticValueSource, 0, sizeof(staticValueSource));
+        staticValueSource.value = variant;
+        dsfConfig.field.variable.staticValueSourceEnabled = UA_TRUE;
+        dsfConfig.field.variable.staticValueSource.value = variant;
+        UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
+    }
+#endif
     /* The PubSub configuration is currently editable and the publish callback is not running */
-    writerGroupConfig.publishingInterval = 1000;
+    writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */
@@ -140,7 +157,7 @@ int main(void) {
     //UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent);
 
     UA_UInt64 callbackId;
-    UA_Server_addRepeatedCallback(server, valueUpdateCallback, &staticValueSource, 1000, &callbackId);
+    UA_Server_addRepeatedCallback(server, valueUpdateCallback, NULL, PUBSUB_CONFIG_PUBLISH_CYCLE_MS, &callbackId);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_Server_run(server, &running);
