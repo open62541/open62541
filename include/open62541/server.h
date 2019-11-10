@@ -1417,19 +1417,27 @@ typedef union {
     /* UA_StatusCode writeResult; */
 } UA_AsyncOperationResponse;
 
-/* Get the next async operation
+/* Get the next async operation without blocking
  *
  * @param server The server object
  * @param type The type of the async operation
  * @param request Receives pointer to the operation
  * @param context Receives the pointer to the operation context
+ * @param timeout The timestamp when the operation times out and can
+ *        no longer be returned to the client. The response has to
+ *        be set in UA_Server_setAsyncOperationResult in any case.
  * @return false if queue is empty, true else */
 UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context);
+UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
+                                       const UA_AsyncOperationRequest **request,
+                                       void **context, UA_DateTime *timeout);
 
-/* Submit the next async operation
+/* UA_Boolean UA_EXPORT */
+/* UA_Server_getAsyncOperationBlocking(UA_Server *server, UA_AsyncOperationType *type, */
+/*                                     const UA_AsyncOperationRequest **request, */
+/*                                     void **context, UA_DateTime *timeout); */
+
+/* Submit an async operation result
  *
  * @param server The server object
  * @param response Pointer to the operation result
@@ -1438,6 +1446,13 @@ void UA_EXPORT
 UA_Server_setAsyncOperationResult(UA_Server *server,
                                   const UA_AsyncOperationResponse *response,
                                   void *context);
+
+/* Get the next async operation. Attention! This method is deprecated and has
+ * been replaced by UA_Server_getAsyncOperationNonBlocking! */
+UA_DEPRECATED UA_Boolean UA_EXPORT
+UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
+                            const UA_AsyncOperationRequest **request,
+                            void **context);
 
 #endif /* !UA_MULTITHREADING >= 100 */
 

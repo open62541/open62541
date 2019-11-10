@@ -278,9 +278,9 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
 
 /* Get and remove next Method Call Request */
 UA_Boolean
-UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
-                            const UA_AsyncOperationRequest **request,
-                            void **context) {
+UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
+                                       const UA_AsyncOperationRequest **request,
+                                       void **context, UA_DateTime *timeout) {
     UA_AsyncManager *am = &server->asyncManager;
 
     UA_Boolean bRV = false;
@@ -293,11 +293,20 @@ UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
         *type = UA_ASYNCOPERATIONTYPE_CALL;
         *request = (UA_AsyncOperationRequest*)&ao->request;
         *context = (void*)ao;
+        if(timeout)
+            *timeout = ao->parent->timeout;
         bRV = true;
     }
     UA_UNLOCK(am->queueLock);
 
     return bRV;
+}
+
+UA_Boolean
+UA_Server_getAsyncOperation(UA_Server *server, UA_AsyncOperationType *type,
+                            const UA_AsyncOperationRequest **request,
+                            void **context) {
+    return UA_Server_getAsyncOperationNonBlocking(server, type, request, context, NULL);
 }
 
 /* Worker submits Method Call Response */
