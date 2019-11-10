@@ -74,16 +74,16 @@ struct UA_WorkQueue {
 
     /* Work queue */
     SIMPLEQ_HEAD(, UA_DelayedCallback) dispatchQueue; /* Dispatch queue for the worker threads */
-    pthread_mutex_t dispatchQueue_accessMutex; /* mutex for access to queue */
+    UA_LOCK_TYPE(dispatchQueue_accessMutex) /* mutex for access to queue */
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    pthread_mutex_t dispatchQueue_conditionMutex; /* mutex for access to condition variable */
+    UA_LOCK_TYPE(dispatchQueue_conditionMutex) /* mutex for access to condition variable */
 #endif
 
     /* Delayed callbacks
      * To be executed after all curretly dispatched works has finished */
     SIMPLEQ_HEAD(, UA_DelayedCallback) delayedCallbacks;
 #if UA_MULTITHREADING >= 200
-    pthread_mutex_t delayedCallbacks_accessMutex;
+    UA_LOCK_TYPE(delayedCallbacks_accessMutex)
     UA_DelayedCallback *delayedCallbacks_checkpoint;
     size_t delayedCallbacks_sinceDispatch; /* How many have been added since we
                                             * tried to dispatch callbacks? */
