@@ -40,7 +40,9 @@
 #ifdef    UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 #ifndef   SOCKET_TRANSMISSION_TIME
 #define   SOCKET_TRANSMISSION_TIME                        61
-#define   SCM_TRANSMISSION_TIME                           SOCKET_TRANSMISSION_TIME
+#ifndef   SCM_TXTIME
+#define   SCM_TXTIME                                      SOCKET_TRANSMISSION_TIME
+#endif
 #endif
 #define   TIMEOUT_REALTIME                                1
 #define   pr_err(s)                                       fprintf(stderr, s "\n")
