@@ -59,34 +59,48 @@ UA_DataSetReaderConfig readerConfig;
 /* To run only subscriber, enable SUBSCRIBER define alone
  * (comment PUBLISHER) */
 #define             SUBSCRIBER
+#define             UPDATE_MEASUREMENTS
+#define             UA_ENABLE_STATICVALUESOURCE
 /* Publish interval in milliseconds */
-#define             PUB_INTERVAL                    250
-/* Cycle time in ns. Eg: For 250us: 250*1000 */
-#define             CYCLE_TIME                      250 * 1000
-#define             SECONDS_SLEEP                   1
-#define             NANO_SECONDS_SLEEP_PUB          999900000L
-#define             NANO_SECONDS_SLEEP_SUB          20000L /* 20us sleep time */
-#define             MILLI_SECONDS                   1000 * 1000
-#define             SECONDS                         1000 * 1000 * 1000
-#define             PUB_SCHED_PRIORITY              88
-#define             SUB_SCHED_PRIORITY              87
-#define             DATA_SET_WRITER_ID              62541
-#define             KEY_FRAME_COUNT                 10
-#define             MAX_MEASUREMENTS                30000000
-#define             CORE_TWO                        2
-#define             SECONDS_INCREMENT               1
-#define             CONNECTION_NUMBER               2
-#define             PORT_NUMBER                     62541
-#define             FAILURE_EXIT                    -1
-#define             DATETIME_NODECOUNTS             25
-#define             CLOCKID                         CLOCK_TAI
-#define             ETH_TRANSPORT_PROFILE           "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
-#define             UDP_TRANSPORT_PROFILE           "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"
+#define             PUB_INTERVAL                          250
+/* Cycle time in ns. Eg: For 100us: 100*1000 */
+#define             CYCLE_TIME                            200 * 1000
+#define             SECONDS_SLEEP                         1
+/* Publisher will sleep for 80% of cycle time and then prepares the */
+/* transmission packet within 20% */
+#define             NANO_SECONDS_SLEEP_PUB                CYCLE_TIME * 0.8
+/* Subscriber will wakeup only during start of cycle and check whether */
+/* the packets are received */
+#define             NANO_SECONDS_SLEEP_SUB                0
+/* User application Pub/Sub will wakeup at the 30% of cycle time and handles the */
+/* user data such as read and write in Information model */
+#define             NANO_SECONDS_SLEEP_USER_APPLICATION   CYCLE_TIME * 0.3
+#define             MILLI_SECONDS                         1000 * 1000
+#define             SECONDS                               1000 * 1000 * 1000
+/* Priority of Publisher, subscriber, User application and server are kept */
+/* after some prototyping and analyzing it */
+#define             PUB_SCHED_PRIORITY                    78
+#define             SUB_SCHED_PRIORITY                    81
+#define             USERAPPLICATION_SCHED_PRIORITY        75
+#define             SERVER_SCHED_PRIORITY                 1
+#define             DATA_SET_WRITER_ID                    62541
+#define             KEY_FRAME_COUNT                       10
+#define             MAX_MEASUREMENTS                      30000000
+#define             CORE_TWO                              2
+#define             CORE_THREE                            3
+#define             SECONDS_INCREMENT                     1
+#define             CONNECTION_NUMBER                     2
+#define             PORT_NUMBER                           62541
+#define             FAILURE_EXIT                          -1
+#define             DATETIME_NODECOUNTS                   4
+#define             CLOCKID                               CLOCK_TAI
+#define             ETH_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"
+#define             UDP_TRANSPORT_PROFILE                 "http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"
 
 /* This is a hardcoded publisher/subscriber IP address. If the IP address need
  * to be changed for running over UDP, change it in the below lines.
  * If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING is enabled,
- * change in line number 46 and 47 in plugins/ua_pubsub_realtime.c and line number 30 in plugins/ua_pubsub_udp.c
+ * change in line number 40 and 41 in plugins/ua_pubsub_realtime.c and line number 27 in plugins/ua_pubsub_udp.c
  */
 
 #define             PUBSUB_IP_ADDRESS              "192.168.9.10"
@@ -95,15 +109,13 @@ UA_DataSetReaderConfig readerConfig;
 
 /* If UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING and UA_ENABLE_PUBSUB_ETH_UADP is enabled,
  * If the Hardcoded publisher/subscriber MAC addresses need to be changed,
- * change in line number 669 and 672  ,
+ * change in line number 667 and 668,
  * If the Hardcoded interface name need to be changed,
- * change in line number 668 and 673
- * To pass the MAC addresses as arguments,
- * Two nodes connected in peer-to-peer network - Run TSN_ETF_pubsliher.c in node1 and TSN_ETF_loopback.c in node2
- * use the command  ./executable "publsiher_mac(MAC of node2)" "subscriber_mac(MAC of node 1)" interface_name
- * To run only subscriber, use the command ./executable "publisher_mac(MAC of node 2)" interface_name
- * Interface_name - i210 NIC interface
-*/
+ * change in line number 666 and 671
+ * To pass the MAC addresses as arguments, use the command ./executable "publsiher_mac" "subscriber_mac" interface name
+ * To run only publisher, use the command ./executable "publsiher_mac" interface name
+ * if UA_ENABLE_PUBSUB_ETH_UADP is enabled
+ */
 
 /* When the timer was created */
 struct timespec     pubStartTime;
@@ -116,7 +128,8 @@ UA_NodeId           publishedDataSetIdent;
 UA_NodeId           writerGroupIdent;
 UA_NodeId           pubNodeID;
 UA_NodeId           subNodeID;
-UA_NodeId           DateNodeID;
+UA_NodeId           DateNodeIDPub;
+UA_NodeId           DateNodeIDSub;
 /* Variable for PubSub callback */
 UA_ServerCallback   pubCallback;
 /* Variables for counter data handling in address space */
@@ -124,7 +137,6 @@ UA_UInt64           pubCounterData         = 0;
 UA_UInt64           subCounterData         = 0;
 UA_Variant          pubCounter;
 UA_Variant          subCounter;
-UA_Server           *serverCopy;
 
 /* For adding nodes in the server information model */
 static void addServerNodes(UA_Server *server);
@@ -133,49 +145,60 @@ static void addServerNodes(UA_Server *server);
 static void removeServerNodes(UA_Server *server);
 
 #if defined(PUBLISHER)
+
+#if defined(UPDATE_MEASUREMENTS)
+
 /* File to store the data and timestamps for different traffic */
 FILE               *fpPublisher;
 char               *filePublishedData      = "publisher_T1.csv";
-
-/* Thread for publisher */
-pthread_t           pubThreadID;
 
 /* Array to store published counter data */
 UA_UInt64           publishCounterValue[MAX_MEASUREMENTS];
 size_t              measurementsPublisher  = 0;
 
+/* Array to store timestamp */
+struct timespec     publishTimestamp[MAX_MEASUREMENTS];
+#endif
+
+/* Thread for publisher */
+pthread_t           pubThreadID;
+
 /* Process scheduling parameter for publisher */
 struct sched_param  schedParamPublisher;
 
-/* Array to store timestamp */
-struct timespec     publishTimestamp[MAX_MEASUREMENTS];
 struct timespec     dataModificationTime;
-
+UA_WriterGroup      *currentWriterGroupCallback;
 /* Publisher thread routine for ETF */
 void               *publisherETF(void *arg);
 #endif
 
 #if defined(SUBSCRIBER)
-/* Variable for PubSub connection creation */
-UA_NodeId           connectionIdentSubscriber;
-UA_ReaderGroup     *currentReaderGroupCallback;
 
+#if defined(UPDATE_MEASUREMENTS)
 /* File to store the data and timestamps for different traffic */
 FILE               *fpSubscriber;
 char               *fileSubscribedData     = "subscriber_T8.csv";
-
-/* Thread for subscriber */
-pthread_t           subThreadID;
 
 /* Array to store subscribed counter data */
 UA_UInt64           subscribeCounterValue[MAX_MEASUREMENTS];
 size_t              measurementsSubscriber = 0;
 
+/* Array to store timestamp */
+struct timespec     subscribeTimestamp[MAX_MEASUREMENTS];
+#endif
+
+/* Variable for PubSub connection creation */
+UA_NodeId           connectionIdentSubscriber;
+UA_ReaderGroup     *currentReaderGroupCallback;
+
+/* Thread for subscriber */
+pthread_t           subThreadID;
+
+
+
 /* Process scheduling parameter for subscriber */
 struct sched_param  schedParamSubscriber;
 
-/* Array to store timestamp */
-struct timespec     subscribeTimestamp[MAX_MEASUREMENTS];
 struct timespec     dataReceiveTime;
 
 /* Subscriber thread routine */
@@ -183,6 +206,20 @@ void               *subscriber(void *arg);
 
 /* OPCUA Subscribe API */
 void                subscribe(void);
+#endif
+/* Thread for server */
+pthread_t           serverThreadID;
+/* Process scheduling parameter for server */
+struct sched_param  schedParamServer;
+
+typedef struct {
+UA_Server*                   ServerRun;
+} serverConfigStruct;
+
+#if defined(PUBLISHER) || defined(SUBSCRIBER)
+pthread_t           userApplicationThreadID;
+struct sched_param  schedParamUserApplication;
+void *userApplicationPubSub(void *arg);
 #endif
 
 /* Stop signal */
@@ -192,6 +229,29 @@ static void stopHandler(int sign) {
 }
 
 #if defined(SUBSCRIBER)
+static void
+addPubSubConnection1(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddressUrlSubscriber){
+    UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
+    /* Details about the connection configuration and handling are located
+     * in the pubsub connection tutorial */
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(connectionConfig));
+    connectionConfig.name                = UA_STRING("Subscriber Connection");
+    connectionConfig.enabled             = UA_TRUE;
+#if defined(UA_ENABLE_PUBSUB_ETH_UADP)
+    UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
+    connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
+#else
+    UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = {UA_STRING(PUBSUB_IP_ADDRESS),
+                                                               UA_STRING(SUBSCRIBER_MULTICAST_ADDRESS)};
+    connectionConfig.transportProfileUri                    = UA_STRING(UDP_TRANSPORT_PROFILE);
+#endif
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
+    if (retval == UA_STATUSCODE_GOOD)
+         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
+}
 /* Add ReaderGroup to the created connection */
 static void
 addReaderGroup(UA_Server *server) {
@@ -270,7 +330,7 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
     {
         UA_FieldTargetDataType_init(&targetVars.targetVariables[iterator]);
         targetVars.targetVariables[iterator].attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+1);
+        targetVars.targetVariables[iterator].targetNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
     }
 
     /* For creating Targetvariable */
@@ -283,17 +343,11 @@ static void addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId
 
 #endif
 
-/* For one publish callback only... */
-UA_Server      *pubServer;
-void           *pubData;
-
 /* Add a callback for cyclic repetition */
 UA_StatusCode
 UA_PubSubManager_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                                      void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
-    pubServer                       = server;
-    pubCallback                     = callback;
-    pubData                         = data;
+    /* TODO: Need to handle for Thread based Implementation */
     return UA_STATUSCODE_GOOD;
 }
 
@@ -336,6 +390,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
 /**
  * **PublishedDataSet handling**
  *
+ * Details about the connection configuration and handling are located
+ * in the pubsub connection tutorial
  */
 static void
 addPublishedDataSet(UA_Server *server) {
@@ -416,7 +472,7 @@ addDataSetWriter(UA_Server *server) {
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
-
+#if defined(UPDATE_MEASUREMENTS)
 /**
  * **Published data handling**
  *
@@ -429,7 +485,7 @@ updateMeasurementsPublisher(struct timespec start_time,
     publishCounterValue[measurementsPublisher]     = counterValue;
     measurementsPublisher++;
 }
-
+#endif
 /**
  * **Nanosecond field handling**
  *
@@ -455,8 +511,12 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
  */
 void *publisherETF(void *arg) {
     struct timespec nextnanosleeptime;
+    UA_Server* server;
     /* Initialise value for nextnanosleeptime timespec */
     nextnanosleeptime.tv_nsec                      = 0;
+    serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
+    server = serverConfig->ServerRun;
+    currentWriterGroupCallback = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
     /* Get current time and compute the next nanosleeptime */
     clock_gettime(CLOCKID, &nextnanosleeptime);
     /* Variable to nano Sleep until 1ms before a 1 second boundary */
@@ -465,13 +525,11 @@ void *publisherETF(void *arg) {
     nanoSecondFieldConversion(&nextnanosleeptime);
     while (running) {
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptime, NULL);
-        pubCounterData++;
         clock_gettime(CLOCKID, &dataModificationTime);
-        UA_Variant_setScalar(&pubCounter, &pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
-        UA_NodeId currentNodeId = UA_NODEID_STRING(1, "PublisherCounter");
-        UA_Server_writeValue(pubServer, currentNodeId, pubCounter);
-        pubCallback(pubServer, pubData);
+        UA_WriterGroup_publishCallback(server, currentWriterGroupCallback);
+#if defined(UPDATE_MEASUREMENTS)
         updateMeasurementsPublisher(dataModificationTime, pubCounterData);
+#endif
         nextnanosleeptime.tv_nsec += CYCLE_TIME;
         nanoSecondFieldConversion(&nextnanosleeptime);
     }
@@ -481,10 +539,11 @@ void *publisherETF(void *arg) {
 #endif
 
 #if defined(SUBSCRIBER)
+
+#if defined(UPDATE_MEASUREMENTS)
 /**
- * **Subscribed data handling**
- *
- * The subscribed data is updated in the array using this function
+ * Subscribed data handling**
+ * The subscribed data is updated in the array using this function Subscribed data handling**
  */
 static void
 updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValue) {
@@ -492,7 +551,7 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
     subscribeCounterValue[measurementsSubscriber]  = counterValue;
     measurementsSubscriber++;
 }
-
+#endif
 /**
  * **Subscriber thread routine**
  *
@@ -500,39 +559,136 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
  */
 
 void *subscriber(void *arg) {
+    UA_Server* server;
+    struct timespec nextnanosleeptimeSub;
+    serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
+    server = serverConfig->ServerRun;
+    /* Get current time and compute the next nanosleeptime */
+    clock_gettime(CLOCKID, &nextnanosleeptimeSub);
+    /* Variable to nano Sleep until 1ms before a 1 second boundary */
+    nextnanosleeptimeSub.tv_sec                      += SECONDS_SLEEP;
+    nextnanosleeptimeSub.tv_nsec                      = NANO_SECONDS_SLEEP_SUB;
+    nanoSecondFieldConversion(&nextnanosleeptimeSub);
     /* Identify the readergroup through the readerGroupIdentifier */
-    currentReaderGroupCallback = UA_ReaderGroup_findRGbyId(serverCopy, readerGroupIdentifier);
+    currentReaderGroupCallback = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     while (running) {
-       subscribe();
+        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
+        /* Read subscribed data from the SubscriberCounter variable */
+        UA_ReaderGroup_subscribeCallback(server, currentReaderGroupCallback);
+        clock_gettime(CLOCKID, &dataReceiveTime);
+        nextnanosleeptimeSub.tv_nsec += CYCLE_TIME;
+        nanoSecondFieldConversion(&nextnanosleeptimeSub);
     }
 
     return (void*)NULL;
 }
 #endif
-
+#if defined(PUBLISHER) || defined(SUBSCRIBER)
+/**
+ * **UserApplication thread routine**
+ *
+ */
+void *userApplicationPubSub(void *arg) {
+    UA_Server* server;
+    struct timespec nextnanosleeptimeUserApplication;
+    /* Get current time and compute the next nanosleeptime */
+    clock_gettime(CLOCKID, &nextnanosleeptimeUserApplication);
+    /* Variable to nano Sleep until 1ms before a 1 second boundary */
+    nextnanosleeptimeUserApplication.tv_sec                      += SECONDS_SLEEP;
+    nextnanosleeptimeUserApplication.tv_nsec                      = NANO_SECONDS_SLEEP_USER_APPLICATION;
+    nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
+    serverConfigStruct *serverConfig = (serverConfigStruct*)arg;
+    server = serverConfig->ServerRun;
+    while (running) {
+        clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeUserApplication, NULL);
+#if defined(PUBLISHER)
+        pubCounterData++;
+        UA_Variant_setScalar(&pubCounter, &pubCounterData, &UA_TYPES[UA_TYPES_UINT64]);
+        UA_NodeId currentNodeId = UA_NODEID_STRING(1, "PublisherCounter");
+        UA_Server_writeValue(server, currentNodeId, pubCounter);
+#endif
 #if defined(SUBSCRIBER)
-void subscribe(void) {
-    /* TODO  Modify Packet preparation logic **
-     * The existing implementation in nanosleep*/
-    struct timespec sleepTime;
-    sleepTime.tv_sec = 0;
-    sleepTime.tv_nsec = NANO_SECONDS_SLEEP_SUB;
-    nanosleep(&sleepTime, NULL);
-    /* Read subscribed data from the SubscriberCounter variable */
-    UA_ReaderGroup_subscribeCallback(serverCopy, currentReaderGroupCallback);
-    const UA_NodeId nodeid = UA_NODEID_STRING(1,"SubscriberCounter");
-    UA_Variant_init(&subCounter);
-    clock_gettime(CLOCKID, &dataReceiveTime);
-    UA_Server_readValue(serverCopy, nodeid, &subCounter);
-    if (*(UA_UInt64 *)subCounter.data > subCounterData) {
-        updateMeasurementsSubscriber(dataReceiveTime, *(UA_UInt64 *)subCounter.data);
+        const UA_NodeId nodeid = UA_NODEID_STRING(1,"SubscriberCounter");
+        UA_Variant_init(&subCounter);
+        UA_Server_readValue(server, nodeid, &subCounter);
+        subCounterData = *(UA_UInt64 *)subCounter.data;
+#if defined(UPDATE_MEASUREMENTS)
+        if (subCounterData > 0)
+            updateMeasurementsSubscriber(dataReceiveTime, subCounterData);
+#endif
+        UA_Variant_deleteMembers(&subCounter);
+#endif
+        nextnanosleeptimeUserApplication.tv_nsec += CYCLE_TIME;
+        nanoSecondFieldConversion(&nextnanosleeptimeUserApplication);
     }
-
-    subCounterData = *(UA_UInt64 *)subCounter.data;
-    UA_Variant_deleteMembers(&subCounter);
+    return (void*)NULL;
 }
 #endif
+/**
+ * **Deletion of nodes**
+ *
+ * The removeServerNodes function is used to delete the publisher and subscriber
+ * nodes.
+ */
+static void removeServerNodes(UA_Server *server) {
+    /* Delete the Publisher Counter Node*/
+    UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
+    UA_NodeId_deleteMembers(&pubNodeID);
 
+    /* Delete the Subscriber Counter Node*/
+    UA_Server_deleteNode(server, subNodeID, UA_TRUE);
+    UA_NodeId_deleteMembers(&subNodeID);
+    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    {
+        UA_Server_deleteNode(server, DateNodeIDPub, UA_TRUE);
+        UA_NodeId_deleteMembers(&DateNodeIDPub);
+    }
+    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    {
+        UA_Server_deleteNode(server, DateNodeIDSub, UA_TRUE);
+        UA_NodeId_deleteMembers(&DateNodeIDSub);
+    }
+}
+
+static pthread_t threadCreation(UA_Int16 threadPriority, size_t coreAffinity, void *(*thread) (void *), char *applicationName, \
+                                void *serverConfig){
+    /* Core affinity set */
+    cpu_set_t           cpuset;
+    pthread_t           threadID;
+    struct sched_param  schedParam;
+    UA_Int32         returnValue         = 0;
+    UA_Int32         errorSetAffinity    = 0;
+    /* Return the ID for thread */
+    threadID = pthread_self();
+    schedParam.sched_priority = threadPriority;
+    returnValue = pthread_setschedparam(threadID, SCHED_FIFO, &schedParam);
+    if (returnValue != 0) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"pthread_setschedparam: failed\n");
+        exit(1);
+    }
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,\
+                "\npthread_setschedparam:%s Thread priority is %d \n", \
+                applicationName, schedParam.sched_priority);
+    CPU_ZERO(&cpuset);
+    CPU_SET(coreAffinity, &cpuset);
+    errorSetAffinity = pthread_setaffinity_np(threadID, sizeof(cpu_set_t), &cpuset);
+    if (errorSetAffinity) {
+        fprintf(stderr, "pthread_setaffinity_np: %s\n", strerror(errorSetAffinity));
+        exit(1);
+    }
+
+    returnValue = pthread_create(&threadID, NULL, thread, serverConfig);
+    if (returnValue != 0) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,":%s Cannot create thread\n", applicationName);
+    }
+
+    if (CPU_ISSET(coreAffinity, &cpuset)) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"%s CPU CORE: %ld\n", applicationName, coreAffinity);
+    }
+
+   return threadID;
+
+}
 /**
  * **Creation of nodes**
  *
@@ -550,8 +706,9 @@ static void addServerNodes(UA_Server *server) {
                             oAttr, NULL, &counterId);
 
     UA_VariableAttributes p4Attr = UA_VariableAttributes_default;
-    UA_UInt64 pubcountervalue      = 0;
-    UA_Variant_setScalar(&p4Attr.value, &pubcountervalue, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_UInt64 axis4position      = 0;
+    p4Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&p4Attr.value, &axis4position, &UA_TYPES[UA_TYPES_UINT64]);
     p4Attr.displayName           = UA_LOCALIZEDTEXT("en-US", "Publisher Counter");
     UA_NodeId newNodeId          = UA_NODEID_STRING(1, "PublisherCounter");
     UA_Server_addVariableNode(server, newNodeId, counterId,
@@ -560,8 +717,9 @@ static void addServerNodes(UA_Server *server) {
                               UA_NODEID_NULL, p4Attr, NULL, &pubNodeID);
 
     UA_VariableAttributes p5Attr = UA_VariableAttributes_default;
-    UA_UInt64 subcountervalue      = 0;
-    UA_Variant_setScalar(&p5Attr.value, &subcountervalue, &UA_TYPES[UA_TYPES_UINT64]);
+    UA_UInt64 axis5position      = 0;
+    p5Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Variant_setScalar(&p5Attr.value, &axis5position, &UA_TYPES[UA_TYPES_UINT64]);
     p5Attr.displayName           = UA_LOCALIZEDTEXT("en-US", "Subscriber Counter");
     newNodeId                    = UA_NODEID_STRING(1, "SubscriberCounter");
     UA_Server_addVariableNode(server, newNodeId, counterId,
@@ -573,31 +731,31 @@ static void addServerNodes(UA_Server *server) {
     {
         UA_VariableAttributes p6Attr = UA_VariableAttributes_default;
         UA_UInt64 axis6position = 0;
+        p6Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         UA_Variant_setScalar(&p6Attr.value, &axis6position, &UA_TYPES[UA_TYPES_DATETIME]);
         p6Attr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTime");
-        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+1), counterId,
+        newNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+10000);
+        UA_Server_addVariableNode(server, newNodeId, counterId,
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                 UA_QUALIFIEDNAME(1, "DateTime"),
-                                 UA_NODEID_NULL, p6Attr, NULL, &DateNodeID);
+                                 UA_QUALIFIEDNAME(1, "DateTimePub"),
+                                 UA_NODEID_NULL, p6Attr, NULL, &DateNodeIDPub);
+    }
+    for (UA_Int32 iterator = 0; iterator < DATETIME_NODECOUNTS; iterator++)
+    {
+        UA_VariableAttributes p7Attr = UA_VariableAttributes_default;
+        UA_DateTime  axis7position;
+        UA_Variant_setScalar(&p7Attr.value, &axis7position, &UA_TYPES[UA_TYPES_DATETIME]);
+        p7Attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        p7Attr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTimeSub");
+        newNodeId = UA_NODEID_NUMERIC(1, (UA_UInt32)iterator+50000);
+        UA_Server_addVariableNode(server, newNodeId, counterId,
+                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                 UA_QUALIFIEDNAME(1, "DateTimeSub"),
+                                 UA_NODEID_NULL, p7Attr, NULL, &DateNodeIDSub);
     }
 
 }
 
-/**
- * **Deletion of nodes**
- *
- * The removeServerNodes function is used to delete the publisher and subscriber
- * nodes.
- */
-static void removeServerNodes(UA_Server *server) {
-    /* Delete the Publisher Counter Node*/
-    UA_Server_deleteNode(server, pubNodeID, UA_TRUE);
-    UA_NodeId_deleteMembers(&pubNodeID);
-
-    /* Delete the Subscriber Counter Node*/
-    UA_Server_deleteNode(server, subNodeID, UA_TRUE);
-    UA_NodeId_deleteMembers(&subNodeID);
-}
 
 #if defined(UA_ENABLE_PUBSUB_ETH_UADP)
 static void
@@ -617,16 +775,19 @@ int main(int argc, char **argv) {
 
     UA_Int32         returnValue         = 0;
     UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
-    UA_Int32         errorSetAffinity    = 0;
     UA_Server       *server              = UA_Server_new();
     UA_ServerConfig *config              = UA_Server_getConfig(server);
+    pthread_t           pubthreadID;
+    pthread_t           subthreadID;
+    pthread_t           userThreadID;
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
     UA_NetworkAddressUrlDataType networkAddressUrlEthernet;
 
-#if defined(UA_ENABLE_PUBSUB_ETH_UADP)
 #if defined(SUBSCRIBER)
     UA_NetworkAddressUrlDataType networkAddressUrlSub;
 #endif
+
+#if defined(UA_ENABLE_PUBSUB_ETH_UADP)
     if (argc > 1) {
         if (strcmp(argv[1], "-h") == 0) {
             usage(argv[0]);
@@ -677,10 +838,14 @@ int main(int argc, char **argv) {
 #endif
 
 #if defined(PUBLISHER)
+#if defined(UPDATE_MEASUREMENTS)
     fpPublisher                   = fopen(filePublishedData, "w");
 #endif
+#endif
 #if defined(SUBSCRIBER)
+#if defined(UPDATE_MEASUREMENTS)
     fpSubscriber                  = fopen(fileSubscribedData, "w");
+#endif
 #endif
 
 #if defined(PUBLISHER) && defined(SUBSCRIBER)
@@ -739,112 +904,30 @@ int main(int argc, char **argv) {
 #endif
 
 #if defined(SUBSCRIBER)
-    /* Details about the connection configuration and handling are located
-     * in the pubsub connection tutorial */
-    UA_PubSubConnectionConfig connectionConfig;
-    memset(&connectionConfig, 0, sizeof(connectionConfig));
-    connectionConfig.name                = UA_STRING("Subscriber Connection");
-    connectionConfig.enabled             = UA_TRUE;
-#if defined(UA_ENABLE_PUBSUB_ETH_UADP)
-    UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = networkAddressUrlSub;
-    connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
-#else
-    UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = {UA_STRING(PUBSUB_IP_ADDRESS),
-                                                               UA_STRING(SUBSCRIBER_MULTICAST_ADDRESS)};
-    connectionConfig.transportProfileUri                    = UA_STRING(UDP_TRANSPORT_PROFILE);
+    addPubSubConnection1(server, &networkAddressUrlSub);
+    addReaderGroup(server);
+    addDataSetReader(server);
+    addSubscribedVariables(server, readerIdentifier);
 #endif
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
-    retval = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
-    if (retval == UA_STATUSCODE_GOOD)
-              UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-        "The PubSub Connection was created successfully!");
-
-    serverCopy = server;
-    addReaderGroup(serverCopy);
-    addDataSetReader(serverCopy);
-    addSubscribedVariables(serverCopy, readerIdentifier);
-#endif
-
+    serverConfigStruct *serverConfig;
+    serverConfig = (serverConfigStruct*)malloc(sizeof(serverConfigStruct));
+    serverConfig->ServerRun = server;
 #if defined(PUBLISHER)
-    /* Core affinity set for publisher */
-    cpu_set_t cpusetPub;
-    /* Return the ID for publisher thread */
-    pubThreadID = pthread_self();
-    schedParamPublisher.sched_priority = PUB_SCHED_PRIORITY; /* sched_get_priority_max(SCHED_FIFO) */
-
-    returnValue = pthread_setschedparam(pubThreadID, SCHED_FIFO, &schedParamPublisher);
-    if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"pthread_setschedparam: failed\n");
-        exit(1);
-    }
-
-    CPU_ZERO(&cpusetPub);
-    CPU_SET(CORE_TWO, &cpusetPub);
-    errorSetAffinity = pthread_setaffinity_np(pubThreadID, sizeof(cpu_set_t), &cpusetPub);
-    if (errorSetAffinity) {
-        fprintf(stderr, "pthread_setaffinity_np: %s\n", strerror(errorSetAffinity));
-        return -1;
-    }
-    /* TODO: Bring Generic code logic for Multiple Publisher thread creation */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "pthread_setschedparam: publisher thread priority is %d \n", schedParamPublisher.sched_priority);
-    returnValue = pthread_create(&pubThreadID, NULL, &publisherETF, NULL);
-    if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"publisherETF: cannot create thread\n");
-        exit(1);
-    }
-
-    returnValue = pthread_getaffinity_np(pubThreadID, sizeof(cpu_set_t), &cpusetPub);
-    if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"Get affinity fail\n");
-    }
-
-    if (CPU_ISSET(CORE_TWO, &cpusetPub)) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"CPU CORE: %d\n", CORE_TWO);
-    }
-
+    char threadNamePub[10] = "Publisher";
+    pubthreadID = threadCreation(PUB_SCHED_PRIORITY, CORE_TWO, publisherETF, threadNamePub, serverConfig);
 #endif
 
 #if defined(SUBSCRIBER)
-    /* Data structure for representing CPU for subscriber */
-    cpu_set_t cpusetSub;
-    /* Return the ID for subscriber thread */
-    subThreadID = pthread_self();
-    /* Get maximum priority for subscriber thread */
-    schedParamSubscriber.sched_priority = SUB_SCHED_PRIORITY;
-    returnValue = pthread_setschedparam(subThreadID, SCHED_FIFO, &schedParamSubscriber);
-    if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"pthread_setschedparam: failed\n");
-        exit(1);
-    }
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\npthread_setschedparam: subscriber thread priority is %d \n", schedParamSubscriber.sched_priority);
-    CPU_ZERO(&cpusetSub);
-    CPU_SET(CORE_TWO, &cpusetSub);
-    errorSetAffinity = pthread_setaffinity_np(subThreadID, sizeof(cpu_set_t), &cpusetSub);
-    if (errorSetAffinity) {
-        fprintf(stderr, "pthread_setaffinity_np: %s\n", strerror(errorSetAffinity));
-        return -1;
-    }
-
-    /* TODO: Bring Generic code logic for Multiple Subscriber thread creation */
-    returnValue = pthread_create(&subThreadID, NULL, &subscriber, NULL);
-    if (returnValue != 0) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"subscriber: cannot create thread\n");
-    }
-
-    if (CPU_ISSET(CORE_TWO, &cpusetSub)) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"CPU CORE: %d\n", CORE_TWO);
-    }
-
+    char threadNameSub[11] = "Subscriber";
+    subthreadID = threadCreation(SUB_SCHED_PRIORITY, CORE_TWO, subscriber, threadNameSub, serverConfig);
 #endif
-
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
-    retval |= UA_Server_run(server, &running);
+    char threadNameUserAppl[22] = "UserApplicationPubSub";
+    userThreadID = threadCreation(USERAPPLICATION_SCHED_PRIORITY, CORE_THREE, userApplicationPubSub, threadNameUserAppl, serverConfig);
 #endif
-
+    retval |= UA_Server_run(server, &running);
 #if defined(PUBLISHER)
-    returnValue = pthread_join(pubThreadID, NULL);
+    returnValue = pthread_join(pubthreadID, NULL);
     if (returnValue != 0) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for publisher thread:%d\n", returnValue);
     }
@@ -852,14 +935,20 @@ int main(int argc, char **argv) {
 #endif
 
 #if defined(SUBSCRIBER)
-    returnValue = pthread_join(subThreadID, NULL);
+    returnValue = pthread_join(subthreadID, NULL);
     if (returnValue != 0) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for subscriber thread:%d\n", returnValue);
     }
-
+#endif
+#if defined(PUBLISHER) || defined(SUBSCRIBER)
+    returnValue = pthread_join(userThreadID, NULL);
+    if (returnValue != 0) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for User thread:%d\n", returnValue);
+    }
 #endif
 
 #if defined(PUBLISHER)
+#if defined(UPDATE_MEASUREMENTS)
     /* Write the published data in the publisher_T1.csv file */
    size_t pubLoopVariable               = 0;
    for (pubLoopVariable = 0; pubLoopVariable < measurementsPublisher;
@@ -869,9 +958,11 @@ int main(int argc, char **argv) {
                 publishTimestamp[pubLoopVariable].tv_sec,
                 publishTimestamp[pubLoopVariable].tv_nsec);
     }
-
+#endif
 #endif
 #if defined(SUBSCRIBER)
+
+#if defined(UPDATE_MEASUREMENTS)
     /* Write the subscribed data in the subscriber_T8.csv file */
     size_t subLoopVariable               = 0;
     for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
@@ -881,21 +972,23 @@ int main(int argc, char **argv) {
                 subscribeTimestamp[subLoopVariable].tv_sec,
                 subscribeTimestamp[subLoopVariable].tv_nsec);
     }
-
 #endif
-
+#endif
 #if defined(PUBLISHER) || defined(SUBSCRIBER)
     removeServerNodes(server);
     UA_Server_delete(server);
+    free(serverConfig);
 #endif
-
 #if defined(PUBLISHER)
+#if defined(UPDATE_MEASUREMENTS)
     fclose(fpPublisher);
+#endif
 #endif
 
 #if defined(SUBSCRIBER)
+#if defined(UPDATE_MEASUREMENTS)
     fclose(fpSubscriber);
 #endif
-
+#endif
     return (int)retval;
 }
