@@ -22,7 +22,7 @@ UA_PubSubTransportLayerUDPMP(void);
 #ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 /* Function for real time pubsub - txtime calculation*/
 UA_StatusCode
-txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns, const UA_ByteString *buf);
+txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf);
 #endif
 _UA_END_DECLS
 

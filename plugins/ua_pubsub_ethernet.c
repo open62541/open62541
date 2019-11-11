@@ -26,7 +26,6 @@
 #include <netinet/ether.h>
 #endif
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <linux/types.h>
 #include <time.h>
 #include <linux/errqueue.h>
@@ -39,7 +38,9 @@
 #ifdef    UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 #ifndef   SOCKET_TRANSMISSION_TIME
 #define   SOCKET_TRANSMISSION_TIME                        61
-#define   SCM_TRANSMISSION_TIME                           SOCKET_TRANSMISSION_TIME
+#ifndef   SCM_TXTIME
+#define   SCM_TXTIME                                      SOCKET_TRANSMISSION_TIME
+#endif
 #endif
 #define   TIMEOUT_REALTIME                                1
 #define   pr_err(s)                                       fprintf(stderr, s "\n")
@@ -251,6 +252,7 @@ UA_PubSubChannelEthernet_open(const UA_PubSubConnectionConfig *connectionConfig)
         pr_err("setsockopt SOCKET_TRANSMISSION_TIME failed");
     }
 
+    /* TODO: Set SO_PRIORITY through command line argument from application instead of hardcoding */
     int priority = 3;
     if (setsockopt(newChannel->sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(int))) {
         perror("setsockopt SO_PRIORITY failed: %m");
@@ -390,8 +392,7 @@ UA_PubSubChannelEthernet_send(UA_PubSubChannel *channel,
 #ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
     /* Function for real time pubsub - txtime calculation*/
     txtimecalc_ethernet(channel, transportSettings,bufSend, (int)lenBuf ,sll);
-#endif
-#ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#else
     ssize_t rc;
     rc = UA_send(channel->sockfd, bufSend, lenBuf, 0);
     if(rc  < 0) {
