@@ -25,10 +25,11 @@
 #include <netinet/ether.h>
 
 #define       CLOCKIDENTITY                                     CLOCK_TAI
+/* TODO: Take CYCLE_TIME value from application */
 #define       CYCLE_TIME                                        250 * 1000
 #define       SECONDS                                           1000 * 1000 * 1000
-#define       SECONDS_INCREMENT                                 1
-#define       FAILURE_EXIT                                     -1
+#define       SECONDS_INCREMENT                                  1
+#define       FAILURE_EXIT                                      -1
 #define       SHIFT_32BITS                                      32
 
 #ifndef       SOCKET_TRANSMISSION_TIME
@@ -54,8 +55,7 @@ UA_Boolean             firstPacket     = UA_TRUE;
 ssize_t                dataCount;
 UA_Int32               errorCount;
 __u64                  txtime;
-/* Qbv offset in us. Eg: For 25us: 25*1000 */
-/* To make the packet available at offset of 25us(in window 1) */
+/* Qbv offset is 5us for i5. For Mbox, qbv offset is 25us */
 __u64                  qbv_offset      = 25 * 1000;
 static UA_Int32        txTimeEnable    = 1;
 static unsigned char txBuffer[256];
@@ -144,7 +144,6 @@ static int sockErrorQueueProcess(int fd) {
     unsigned char errorBuffer[sizeof(txBuffer)];
     /* Structure for storing the error data */
     struct cmsghdr* controlErrorMsg;
-    __u64 timeStamp;
 
     /* Structure for gathering of input/output error buffers */
     struct iovec inputOutputErrorVec = {
@@ -171,6 +170,7 @@ static int sockErrorQueueProcess(int fd) {
         struct sock_extended_err* sockErrorQueue;
         sockErrorQueue = (struct sock_extended_err *) CMSG_DATA(controlErrorMsg);
         if (sockErrorQueue->ee_origin == SOCKET_EE_ORIGIN_TRANSMISSION_TIME) {
+            __u64 timeStamp = 0;
             timeStamp = ((__u64) sockErrorQueue->ee_data << SHIFT_32BITS) + sockErrorQueue->ee_info;
             switch (sockErrorQueue->ee_code) {
             case SOCKET_EE_CODE_TRANSMISSION_TIME_INVALID_PARAM:
@@ -201,7 +201,7 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 /* txtime calculation */
 
 UA_StatusCode
-txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns, const UA_ByteString *buf) {
+txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf) {
     /* Function for txtime calculation */
     UA_Int32 errorQueueCheck;
     struct   pollfd p_fd = {
@@ -211,8 +211,7 @@ txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns,
     if (firstPacket == UA_TRUE)
    {
         clock_gettime(CLOCKIDENTITY, &nextCycleStartTime);
-        nextCycleStartTime.tv_sec += START_TIME_BOUNDARY;
-        nextCycleStartTime.tv_nsec = 0;
+        nextCycleStartTime.tv_nsec = CYCLE_TIME + (__syscall_slong_t)qbv_offset;
         firstPacket = UA_FALSE;
     }
     else
@@ -221,19 +220,15 @@ txtimecalc_udp(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns,
         nanoSecondFieldConversion(&nextCycleStartTime);
     }
     struct sockaddr_ll sll = {0};
-    /* Calculate the txtime and use txtime to publish the packet at the configured time
-     * with qbv_offset */
+/* Calculate the txtime and use txtime to publish the packet at the configured time */
     txtime = (long long unsigned int)nextCycleStartTime.tv_sec * SECONDS + (long long unsigned int)nextCycleStartTime.tv_nsec;
-    /* Realtime publisher is scheduled to be launched at a offset
-     * of 25us in window 1 (between 0 to 62.5us) */
-    txtime += qbv_offset;
     if (errorCount == 0) {
         dataCount = sendfunc(channel->sockfd, buf->data, (UA_Int32)buf->length, txtime, sll);
         if (dataCount != (UA_Int32)(buf->length)) {
             return UA_STATUSCODE_BADINTERNALERROR;
          }
 
-    /* Check if errors are pending on the error queue. */
+/* Check if errors are pending on the error queue. */
     errorQueueCheck = poll(&p_fd, 1, 0);
     if (errorQueueCheck == 1 && p_fd.revents & POLLERR) {
         if (!sockErrorQueueProcess(channel->sockfd))
@@ -245,7 +240,7 @@ return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns, void *bufSend, int lenBuf, struct sockaddr_ll sll) {
+txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, int lenBuf, struct sockaddr_ll sll) {
     UA_Int32 errorQueueCheck;
     struct   pollfd p_fd = {
     .fd = channel->sockfd,
@@ -254,8 +249,8 @@ txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSett
     if (firstPacket == UA_TRUE)
     {
         clock_gettime(CLOCKIDENTITY, &nextCycleStartTime);
-        nextCycleStartTime.tv_sec += START_TIME_BOUNDARY;
-        nextCycleStartTime.tv_nsec = 0;
+
+        nextCycleStartTime.tv_nsec = CYCLE_TIME + (__syscall_slong_t)qbv_offset;
         firstPacket = UA_FALSE;
     }
     else
@@ -264,19 +259,16 @@ txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSett
         nanoSecondFieldConversion(&nextCycleStartTime);
    }
 
-    /* Calculate the txtime and use txtime to publish the packet at the configured time
-     * with qbv_offset */
+/* Calculate the txtime and use txtime to publish the packet at the configured time */
     txtime = (long long unsigned int)nextCycleStartTime.tv_sec * SECONDS + (long long unsigned int)nextCycleStartTime.tv_nsec;
-    /* Realtime publisher is scheduled to be launched at a offset
-     * of 25us in window 1 (between 0 to 62.5us) */
-    txtime += qbv_offset;
+
     if (errorCount == 0) {
         dataCount = sendfunc(channel->sockfd, bufSend, (int)lenBuf, txtime, sll);
         if (dataCount != (UA_Int32)lenBuf) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
 
-    /* Check if errors are pending on the error queue. */
+/* Check if errors are pending on the error queue. */
     errorQueueCheck = poll(&p_fd, 1, 0);
     if (errorQueueCheck == 1 && p_fd.revents & POLLERR) {
         if (!sockErrorQueueProcess(channel->sockfd))

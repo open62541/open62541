@@ -22,7 +22,7 @@ UA_PubSubTransportLayerEthernet(void);
 #ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
 /* Function for real time pubsub - txtime calculation*/
 UA_StatusCode
-txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns, void *bufSend, int lenBuf, struct sockaddr_ll sll);
+txtimecalc_ethernet(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, void *bufSend, int lenBuf, struct sockaddr_ll sll);
 #endif
 _UA_END_DECLS
 

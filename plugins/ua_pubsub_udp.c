@@ -303,7 +303,7 @@ UA_PubSubChannelUDPMC_open(const UA_PubSubConnectionConfig *connectionConfig) {
     if (setsockopt(newChannel->sockfd, SOL_SOCKET, SOCKET_TRANSMISSION_TIME, &txtimeSocket, sizeof(txtimeSocket))) {
         PRINT_ERROR("setsockopt SOCKET_TRANSMISSION_TIME failed");
     }
-
+    /* TODO: Set SO_PRIORITY through command line argument from application instead of hardcoding */
     if (setsockopt(newChannel->sockfd, SOL_SOCKET, SO_PRIORITY, &soPriority, sizeof(int))) {
         perror("setsockopt SO_PRIORITY failed: %m");
     }
@@ -343,8 +343,7 @@ UA_PubSubChannelUDPMC_regist(UA_PubSubChannel *channel, UA_ExtensionObject *tran
          */
 #ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
         groupV4.imr_interface.s_addr = UA_htonl(INADDR_ANY);
-#endif
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
+#else
         groupV4.imr_interface.s_addr = inet_addr(PUBSUB_IP_ADDRESS);
 #endif
         //multihomed hosts can join several groups on different IF, INADDR_ANY -> kernel decides
@@ -403,7 +402,7 @@ UA_PubSubChannelUDPMC_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tr
  */
 
 static UA_StatusCode
-UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettigns, const UA_ByteString *buf) {
+UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf) {
 
 #ifndef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
     UA_PubSubChannelDataUDPMC *channelConfigUDPMC = (UA_PubSubChannelDataUDPMC *) channel->handle;
@@ -422,10 +421,8 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
         }
         nWritten += n;
     }
-#endif
-
-#ifdef UA_ENABLE_PUBSUB_CUSTOM_PUBLISH_HANDLING
-     txtimecalc_udp(channel, transportSettigns, buf);
+#else
+     txtimecalc_udp(channel, transportSettings, buf);
 #endif
 
     return UA_STATUSCODE_GOOD;
@@ -438,7 +435,7 @@ UA_PubSubChannelUDPMC_send(UA_PubSubChannel *channel, UA_ExtensionObject *transp
  * @return
  */
 static UA_StatusCode
-UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message, UA_ExtensionObject *transportSettigns, UA_UInt32 timeout){
+UA_PubSubChannelUDPMC_receive(UA_PubSubChannel *channel, UA_ByteString *message, UA_ExtensionObject *transportSettings, UA_UInt32 timeout){
     if(!(channel->state == UA_PUBSUB_CHANNEL_PUB || channel->state == UA_PUBSUB_CHANNEL_PUB_SUB)) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub Connection receive failed. Invalid state.");
         return UA_STATUSCODE_BADINTERNALERROR;
