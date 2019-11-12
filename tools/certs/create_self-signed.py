@@ -23,6 +23,7 @@ parser.add_argument('outdir',
 parser.add_argument('-u', '--uri',
                     metavar="<ApplicationUri>",
                     type=str,
+                    default="",
                     dest="uri")
 
 parser.add_argument('-k', '--keysize',
@@ -40,8 +41,12 @@ keysize = 2048
 if args.keysize:
     keysize = args.keysize
 
+if args.uri == "":
+    args.uri = "urn:open62541.server.application"
+    print("No ApplicationUri given for the certificate. Setting to %s" % args.uri)
+os.environ['URI1'] = args.uri
+
 certsdir = os.path.dirname(os.path.abspath(__file__))
-print(certsdir)
 
 # Function return TRUE (1) when an IP address is associated with the
 # given interface
