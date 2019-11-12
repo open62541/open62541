@@ -1016,9 +1016,9 @@ int main(int argc, char **argv) {
     const char *trustlistFolder = NULL;
     const char *issuerlistFolder = NULL;
     const char *revocationlistFolder = NULL;
-#endif
+#endif /* __linux__ */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
     UA_Boolean enableAnon = false;
 
@@ -1139,7 +1139,7 @@ int main(int argc, char **argv) {
             revocationListSize++;
             continue;
         }
-#else
+#else /* __linux__ */
         if(strcmp(argv[pos], "--trustlistFolder") == 0) {
             filetype = 't';
             continue;
@@ -1169,9 +1169,9 @@ int main(int argc, char **argv) {
             revocationlistFolder = argv[pos];
             continue;
         }
-#endif
+#endif /* __linux__ */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
         usage();
         return EXIT_FAILURE;
@@ -1184,7 +1184,7 @@ int main(int argc, char **argv) {
                                                    trustList, trustListSize,
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
-#else
+#else /* __linux__ */
     UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
                                                    &certificate, &privateKey,
                                                    NULL, 0, NULL, 0, NULL, 0);
@@ -1192,7 +1192,7 @@ int main(int argc, char **argv) {
     UA_CertificateVerification_CertFolders(&config.certificateVerification,
                                            trustlistFolder, issuerlistFolder,
                                            revocationlistFolder);
-#endif
+#endif /* __linux__ */
 
     if(!enableUnencr)
         disableUnencrypted(&config);
@@ -1222,9 +1222,9 @@ int main(int argc, char **argv) {
     if(enableTime)
         config.verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
 
-#else
+#else /* UA_ENABLE_ENCRYPTION */
     UA_ServerConfig_setMinimal(&config, 4840, &certificate);
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
     if(!enableAnon)
         disableAnonymous(&config);
