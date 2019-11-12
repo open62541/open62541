@@ -114,6 +114,9 @@ setDefaultConfig(UA_ServerConfig *conf) {
     if (!conf)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    if(conf->nodestore.context == NULL)
+        UA_Nodestore_HashMap(&conf->nodestore);
+
     /* --> Start setting the default static config <-- */
     conf->nThreads = 1;
     conf->logger = UA_Log_Stdout_;
@@ -405,7 +408,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
                                        const UA_ByteString *certificate,
                                        UA_UInt32 sendBufferSize,
                                        UA_UInt32 recvBufferSize) {
-    if (!config)
+    if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = setDefaultConfig(config);
