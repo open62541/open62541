@@ -87,11 +87,6 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
             removeSecureChannel(cm, entry);
             continue;
         }
-
-        /* Revolve the channel tokens */
-        if(entry->channel.nextSecurityToken.tokenId > 0) {
-            UA_SecureChannel_revolveTokens(&entry->channel);
-        }
     }
 }
 
