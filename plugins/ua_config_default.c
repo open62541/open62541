@@ -240,7 +240,11 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
-    return setDefaultConfig(conf);
+    UA_StatusCode res = setDefaultConfig(conf);
+    UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+                   "AcceptAll Certificate Verification. "
+                   "Any remote certificate will be accepted.");
+    return res;
 }
 
 static UA_StatusCode
@@ -447,6 +451,10 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
+    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                   "AcceptAll Certificate Verification. "
+                   "Any remote certificate will be accepted.");
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -617,11 +625,6 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(trustListSize == 0)
-        UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
-                       "No CA trust-list provided. "
-                       "Any remote certificate will be accepted.");
-
     retval = addDefaultNetworkLayers(conf, portNumber, 0, 0);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
@@ -685,6 +688,9 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                   "AcceptAll Certificate Verification. "
+                   "Any remote certificate will be accepted.");
 
     /* With encryption enabled, the applicationUri needs to match the URI from
      * the certificate */
