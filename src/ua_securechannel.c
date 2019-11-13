@@ -1326,6 +1326,7 @@ checkSymHeader(UA_SecureChannel *const channel,
         if(channel->securityToken.tokenId == tokenId) {
             retval = UA_SecureChannel_generateRemoteKeys(channel, channel->securityPolicy);
             UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
+            UA_ChannelSecurityToken_init(&channel->previousSecurityToken);
             return retval;
         }
     }
@@ -1338,6 +1339,7 @@ checkSymHeader(UA_SecureChannel *const channel,
         UA_StatusCode retval =
             UA_SecureChannel_generateRemoteKeys(channel, channel->securityPolicy);
         UA_ChannelSecurityToken_deleteMembers(&channel->previousSecurityToken);
+        UA_ChannelSecurityToken_init(&channel->previousSecurityToken);
         return retval;
     }
 
