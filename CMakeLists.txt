@@ -1132,6 +1132,9 @@ GET_PROPERTY(ua_architecture_remove_definitions GLOBAL PROPERTY UA_ARCHITECTURE_
 if (NOT "${ua_architecture_remove_definitions}" STREQUAL "")
   string(REPLACE " " ";" ua_architecture_remove_definitions_list ${ua_architecture_remove_definitions})
   remove_definitions(${ua_architecture_remove_definitions_list})
+  foreach ( flag ${ua_architecture_remove_definitions} )
+      string(REPLACE "${flag}" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+  endforeach()
 endif(NOT "${ua_architecture_remove_definitions}" STREQUAL "")
 
 GET_PROPERTY(ua_architecture_append_to_library GLOBAL PROPERTY UA_ARCHITECTURE_APPEND_TO_LIBRARY)
