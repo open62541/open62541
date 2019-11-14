@@ -145,7 +145,9 @@ static UA_StatusCode myNodestore_insertNode(void *nsCtx, UA_Node *node,
 			UA_Node_deleteMembers(node);
 			return retval;
 		}
-	}	return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
+    retval |= UA_STATUSCODE_BADOUTOFMEMORY;
+    return retval;
 }
 
 static UA_StatusCode myNodestore_removeNode(void *nsCtx,
