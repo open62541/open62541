@@ -948,11 +948,11 @@ usage(void) {
 #endif
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
-                   "\t[--enableTimestampCheck]\n"
                    "\t[--disableBasic128]\n"
                    "\t[--disableBasic256]\n"
                    "\t[--disableBasic256Sha256]\n"
 #endif
+                   "\t[--enableTimestampCheck]\n"
                    "\t[--enableAnonymous]\n");
 }
 
@@ -1000,7 +1000,6 @@ int main(int argc, char **argv) {
     char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
     UA_Boolean enableUnencr = false;
     UA_Boolean enableSec = false;
-    UA_Boolean enableTime = false;
     UA_Boolean disableBasic128 = false;
     UA_Boolean disableBasic256 = false;
     UA_Boolean disableBasic256Sha256 = false;
@@ -1021,12 +1020,18 @@ int main(int argc, char **argv) {
 #endif /* UA_ENABLE_ENCRYPTION */
 
     UA_Boolean enableAnon = false;
+    UA_Boolean enableTime = false;
 
     /* Loop over the remaining arguments */
     for(; pos < (size_t)argc; pos++) {
 
         if(strcmp(argv[pos], "--enableAnonymous") == 0) {
             enableAnon = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--enableTimestampCheck") == 0) {
+            enableTime = true;
             continue;
         }
 
@@ -1038,11 +1043,6 @@ int main(int argc, char **argv) {
 
         if(strcmp(argv[pos], "--enableOutdatedSecurityPolicy") == 0) {
             enableSec = true;
-            continue;
-        }
-
-        if(strcmp(argv[pos], "--enableTimestampCheck") == 0) {
-            enableTime = true;
             continue;
         }
 
@@ -1216,6 +1216,16 @@ int main(int argc, char **argv) {
     if(disableBasic256Sha256)
         disableBasic256Sha256SecurityPolicy(&config);
 
+#else /* UA_ENABLE_ENCRYPTION */
+    UA_StatusCode res =
+        UA_ServerConfig_setMinimal(&config, 4840, &certificate);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#endif /* UA_ENABLE_ENCRYPTION */
+
+    if(!enableAnon)
+        disableAnonymous(&config);
+
     /* Set operation limits */
     config.maxNodesPerRead = MAX_OPERATION_LIMIT;
     config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
@@ -1228,17 +1238,8 @@ int main(int argc, char **argv) {
 
     /* If RequestTimestamp is '0', log the warning and proceed */
     config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;
-
     if(enableTime)
         config.verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
-
-#else /* UA_ENABLE_ENCRYPTION */
-    UA_StatusCode res =
-        UA_ServerConfig_setMinimal(&config, 4840, &certificate);
-#endif /* UA_ENABLE_ENCRYPTION */
-
-    if(!enableAnon)
-        disableAnonymous(&config);
 
     /* Override with a custom access control policy */
     config.accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
