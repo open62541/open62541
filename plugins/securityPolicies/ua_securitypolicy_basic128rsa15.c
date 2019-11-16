@@ -582,10 +582,10 @@ clear_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
+    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
+
     if(securityPolicy->policyContext == NULL)
         return;
-
-    UA_ByteString_deleteMembers(&securityPolicy->localCertificate);
 
     /* delete all allocated members in the context */
     Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)
@@ -871,7 +871,11 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic128rsa15;
     policy->clear = clear_sp_basic128rsa15;
 
-    return policyContext_newContext_sp_basic128rsa15(policy, localPrivateKey);
+    UA_StatusCode res = policyContext_newContext_sp_basic128rsa15(policy, localPrivateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        clear_sp_basic128rsa15(policy);
+
+    return res;
 }
 
 #endif
