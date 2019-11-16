@@ -468,9 +468,8 @@ UA_SecurityPolicy_getSecurityPolicyByUri(const UA_Server *server,
 #ifdef UA_ENABLE_ENCRYPTION
 /* The local ApplicationURI has to match the certificates of the
  * SecurityPolicies */
-static void
+static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
-#if UA_LOGLEVEL <= 400
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(!sp->certificateVerification)
@@ -481,13 +480,14 @@ verifyServerApplicationURI(const UA_Server *server) {
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "The configured ApplicationURI does not match the URI "
-                           "specified in the certificate for the SecurityPolicy %.*s",
-                           (int)sp->policyUri.length, sp->policyUri.data);
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The configured ApplicationURI does not match the URI "
+                         "specified in the certificate for the SecurityPolicy %.*s",
+                         (int)sp->policyUri.length, sp->policyUri.data);
+            return retval;
         }
     }
-#endif
+    return UA_STATUSCODE_GOOD;
 }
 #endif
 
@@ -532,7 +532,9 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Does the ApplicationURI match the local certificates? */
 #ifdef UA_ENABLE_ENCRYPTION
-    verifyServerApplicationURI(server);
+    retVal = verifyServerApplicationURI(server);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
 #endif
 
     /* Sample the start time and set it to the Server object */

@@ -69,11 +69,16 @@ static void setup(void) {
     size_t revocationListSize = 0;
 
     server = UA_Server_new();
-    UA_ServerConfig_setDefaultWithSecurityPolicies(UA_Server_getConfig(server),
-                                                   4840, &certificate, &privateKey,
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
                                                    trustList, trustListSize,
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
+
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
 
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_deleteMembers(&trustList[i]);
