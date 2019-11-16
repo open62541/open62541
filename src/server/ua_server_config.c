@@ -48,7 +48,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->endpointsSize = 0;
 
     /* Nodestore */
-    if(config->nodestore.clear) {
+    if(config->nodestore.context && config->nodestore.clear) {
         config->nodestore.clear(config->nodestore.context);
         config->nodestore.context = NULL;
     }
