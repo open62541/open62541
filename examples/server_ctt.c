@@ -1177,21 +1177,31 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
+    UA_Server *server = NULL;
+
 #ifdef UA_ENABLE_ENCRYPTION
 #ifndef __linux__
-    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                   &certificate, &privateKey,
-                                                   trustList, trustListSize,
-                                                   issuerList, issuerListSize,
-                                                   revocationList, revocationListSize);
-#else /* __linux__ */
-    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                   &certificate, &privateKey,
-                                                   NULL, 0, NULL, 0, NULL, 0);
+    UA_StatusCode res =
+        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
+                                                       &certificate, &privateKey,
+                                                       trustList, trustListSize,
+                                                       issuerList, issuerListSize,
+                                                       revocationList, revocationListSize);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#else /* On Linux we can monitor the certs folder and reload when changes are made */
+    UA_StatusCode res =
+        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
+                                                       &certificate, &privateKey,
+                                                       NULL, 0, NULL, 0, NULL, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
     config.certificateVerification.clear(&config.certificateVerification);
-    UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                           trustlistFolder, issuerlistFolder,
-                                           revocationlistFolder);
+    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
+                                                 trustlistFolder, issuerlistFolder,
+                                                 revocationlistFolder);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 #endif /* __linux__ */
 
     if(!enableUnencr)
@@ -1223,23 +1233,12 @@ int main(int argc, char **argv) {
         config.verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
 
 #else /* UA_ENABLE_ENCRYPTION */
-    UA_ServerConfig_setMinimal(&config, 4840, &certificate);
+    UA_StatusCode res =
+        UA_ServerConfig_setMinimal(&config, 4840, &certificate);
 #endif /* UA_ENABLE_ENCRYPTION */
 
     if(!enableAnon)
         disableAnonymous(&config);
-
-    /* Clean up temp values */
-    UA_ByteString_clear(&certificate);
-#if defined(UA_ENABLE_ENCRYPTION) && !defined(__linux__)
-    UA_ByteString_clear(&privateKey);
-    for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_clear(&trustList[i]);
-    for(size_t i = 0; i < issuerListSize; i++)
-        UA_ByteString_clear(&issuerList[i]);
-    for(size_t i = 0; i < revocationListSize; i++)
-        UA_ByteString_clear(&revocationList[i]);
-#endif
 
     /* Override with a custom access control policy */
     config.accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
@@ -1249,15 +1248,35 @@ int main(int argc, char **argv) {
 
     config.shutdownDelay = 5000.0; /* 5s */
 
-    UA_Server *server = UA_Server_newWithConfig(&config);
-    if(server == NULL)
-        return EXIT_FAILURE;
+    server = UA_Server_newWithConfig(&config);
+    if(!server) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
 
     setInformationModel(server);
 
     /* run server */
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    res = UA_Server_run(server, &running);
 
-    UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+ cleanup:
+    if(server)
+        UA_Server_delete(server);
+    else
+        UA_ServerConfig_clean(&config);
+
+    UA_ByteString_clear(&certificate);
+#if defined(UA_ENABLE_ENCRYPTION)
+    UA_ByteString_clear(&privateKey);
+#ifndef __linux__
+    for(size_t i = 0; i < trustListSize; i++)
+        UA_ByteString_clear(&trustList[i]);
+    for(size_t i = 0; i < issuerListSize; i++)
+        UA_ByteString_clear(&issuerList[i]);
+    for(size_t i = 0; i < revocationListSize; i++)
+        UA_ByteString_clear(&revocationList[i]);
+#endif
+#endif
+
+    return res == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
