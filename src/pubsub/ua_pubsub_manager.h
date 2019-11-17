@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_MANAGER_H_

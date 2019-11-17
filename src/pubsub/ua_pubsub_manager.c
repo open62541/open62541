@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
@@ -100,10 +100,7 @@ UA_Server_addPubSubConnection(UA_Server *server,
     for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
         UA_WriterGroup *wg;
         LIST_FOREACH(wg, &server->pubSubManager.connections[i].writerGroups, listEntry){
-            UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
-            /* TODO Check if the value is null -> how can we ensure consistency in this case? */
-            if(connection)
-                wg->linkedConnectionPtr = connection;
+            wg->linkedConnectionPtr = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
         }
     }
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -158,10 +155,7 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
             UA_WriterGroup *wg;
             LIST_FOREACH(wg, &server->pubSubManager.connections[i].writerGroups, listEntry){
-                UA_PubSubConnection *tmp_connection = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
-                /* TODO Check if the value is null -> how can we ensure consistency in this case? */
-                if(tmp_connection)
-                    wg->linkedConnectionPtr = tmp_connection;
+                wg->linkedConnectionPtr = UA_PubSubConnection_findConnectionbyId(server, wg->linkedConnection);
             }
         }
     }
