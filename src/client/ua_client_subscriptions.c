@@ -499,13 +499,14 @@ __MonitoredItems_create_handler(UA_Client *client, void *d, UA_UInt32 requestId,
     /* Add internally */
     for(size_t i = 0; i < request->itemsToCreateSize; i++) {
         if(response->results[i].statusCode != UA_STATUSCODE_GOOD) {
-            if (deleteCallbacks[i])
+            if(deleteCallbacks[i])
                 deleteCallbacks[i](client, sub->subscriptionId, sub->context, 0, contexts[i]);
             UA_free(mis[i]);
             mis[i] = NULL;
             continue;
         }
 
+        UA_assert(mis[i] != NULL);
         UA_Client_MonitoredItem *newMon = mis[i];
         newMon->clientHandle = request->itemsToCreate[i].requestedParameters.clientHandle;
         newMon->monitoredItemId = response->results[i].monitoredItemId;
@@ -522,6 +523,7 @@ __MonitoredItems_create_handler(UA_Client *client, void *d, UA_UInt32 requestId,
                      sub->subscriptionId, newMon->clientHandle);
         mis[i] = NULL;
     }
+
 cleanup:
     MonitoredItems_CreateData_deleteItems(data, client);
     if(cc->isAsync) {
