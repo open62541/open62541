@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
@@ -13,6 +13,7 @@
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 #include "ua_pubsub.h"
+#include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
@@ -244,7 +245,6 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
     //WriterGroup freeze
     wg->config.configurationFrozen = UA_TRUE;
     //DataSetWriter freeze
-    size_t dsmCount = 0;
     UA_DataSetWriter *dataSetWriter;
     LIST_FOREACH(dataSetWriter, &wg->writers, listEntry){
         dataSetWriter->config.configurationFrozen = UA_TRUE;
@@ -259,6 +259,7 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         }
     }
     if(wg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE){
+        size_t dsmCount = 0;
         if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
             UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                            "PubSub-RT configuration fail: Non-RT capable encoding.");
@@ -315,14 +316,15 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
             dsmCount++;
         }
         UA_NetworkMessage networkMessage;
+        memset(&networkMessage, 0, sizeof(networkMessage));
         UA_StatusCode  res = generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds, (UA_Byte) dsmCount,
                                 &wg->config.messageSettings, &wg->config.transportSettings, &networkMessage);
         if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
-        UA_NetworkMessage_generateOffsetBuffer(&wg->bufferedMessage, &networkMessage);
+        UA_NetworkMessage_calcSizeBinary(&networkMessage, &wg->bufferedMessage);
         /* Allocate the buffer. Allocate on the stack if the buffer is small. */
         UA_ByteString buf;
-        size_t msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage);
+        size_t msgSize = UA_NetworkMessage_calcSizeBinary(&networkMessage, NULL);
         res = UA_ByteString_allocBuffer(&buf, msgSize);
         if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -331,8 +333,13 @@ UA_Server_freezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writ
         UA_Byte *bufPos = wg->bufferedMessage.buffer.data;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd);
         /* Clean up DSM */
-        for(size_t i = 0; i < dsmCount; i++)
+        for(size_t i = 0; i < dsmCount; i++){
             UA_free(dsmStore[i].data.keyFrameData.dataSetFields);
+#ifdef UA_ENABLE_JSON_ENCODING
+            UA_free(dsmStore[i].data.keyFrameData.fieldNames);
+#endif
+        }
+
             //UA_DataSetMessage_free(&dsmStore[i]);
     }
     return UA_STATUSCODE_GOOD;
@@ -711,7 +718,6 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         UA_free(parentPublishedDataSet->dataSetMetaData.fields);
         UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *) UA_calloc(parentPublishedDataSet->dataSetMetaData.fieldsSize,
                                                                          sizeof(UA_FieldMetaData));
-
         if(!fieldMetaData){
             result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
             return result;
@@ -1144,6 +1150,17 @@ UA_Server_addDataSetWriter(UA_Server *server,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    if(wg->config.rtLevel != UA_PUBSUB_RT_NONE){
+        UA_DataSetField *tmpDSF;
+        TAILQ_FOREACH(tmpDSF, &currentDataSetContext->fields, listEntry){
+            if(tmpDSF->config.field.variable.staticValueSourceEnabled != UA_TRUE){
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "Adding DataSetWriter failed. Fields in PDS are not RT capable.");
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+        }
+    }
+
     UA_DataSetWriter *newDataSetWriter = (UA_DataSetWriter *) UA_calloc(1, sizeof(UA_DataSetWriter));
     if(!newDataSetWriter)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1357,7 +1374,6 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
         *value = field->config.field.variable.staticValueSource;
     }
-
 }
 
 static UA_StatusCode
@@ -1767,7 +1783,6 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
             messageSettings->content.decoded.data;
-    memset(networkMessage, 0, sizeof(UA_NetworkMessage));
 
     networkMessage->publisherIdEnabled =
             ((u64)wgm->networkMessageContentMask & (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
@@ -1805,7 +1820,7 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     /* Compute the length of the dsm separately for the header */
     UA_STACKARRAY(UA_UInt16, dsmLengths, dsmCount);
     for(UA_Byte i = 0; i < dsmCount; i++)
-        dsmLengths[i] = (UA_UInt16)UA_DataSetMessage_calcSizeBinary(&dsm[i]);
+        dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
 
     networkMessage->payloadHeader.dataSetPayloadHeader.count = dsmCount;
     networkMessage->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
@@ -1833,11 +1848,12 @@ sendNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                    UA_ExtensionObject *transportSettings) {
 
     UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
     generateNetworkMessage(connection, wg, dsm, writerIds, dsmCount, messageSettings, transportSettings, &nm);
 
     /* Allocate the buffer. Allocate on the stack if the buffer is small. */
     UA_ByteString buf;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm, NULL);
     size_t stackSize = 1;
     if(msgSize <= UA_MAX_STACKBUF)
         stackSize = msgSize;
@@ -1884,6 +1900,12 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     /* Nothing to do? */
     if(writerGroup->writersCount <= 0)
         return;
+
+    if(!writerGroup->linkedConnectionPtr){
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                       "Publish failed: Invalid reference to PubSubConnection");
+        return;
+    }
 
     /* Binary or Json encoding?  */
     if(writerGroup->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP &&
@@ -1957,8 +1979,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
            if(res != UA_STATUSCODE_GOOD)
                 UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                                "PubSub Publish: Could not send a NetworkMessage");
-            UA_DataSetMessage_free(&dsmStore[dsmCount]);
-            continue;
+           if(writerGroup->config.rtLevel == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS){
+               for (size_t i = 0; i < dsmStore[dsmCount].data.keyFrameData.fieldCount; ++i) {
+                   dsmStore[dsmCount].data.keyFrameData.dataSetFields[i].value.data = NULL;
+               }
+           }
+           UA_DataSetMessage_free(&dsmStore[dsmCount]);
+           continue;
         }
 
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;

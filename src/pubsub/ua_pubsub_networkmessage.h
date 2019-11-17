@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Tino Bischoff)
+ * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_PUBSUB_NETWORKMESSAGE_H_
@@ -64,8 +65,7 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
 size_t
 UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
 
-/* Offsets for buffered messages in the PubSub fast path.
- * TODO: Implement the generation of the offsets */
+/* Offsets for buffered messages in the PubSub fast path. */
 typedef enum {
     UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
     UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
@@ -134,7 +134,8 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_DataSetMessage* dst);
 
 size_t
-UA_DataSetMessage_calcSizeBinary(const UA_DataSetMessage* p);
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer,
+                                 size_t currentOffset);
 
 void UA_DataSetMessage_free(const UA_DataSetMessage* p);
 
@@ -234,13 +235,6 @@ typedef struct {
     UA_ByteString signature;
 } UA_NetworkMessage;
 
-size_t
-UA_NetworkMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
-                                       UA_NetworkMessage* p);
-
-size_t
-UA_DataSetMessage_generateOffsetBuffer(UA_NetworkMessageOffsetBuffer *offsetBuffer,
-                                       UA_DataSetMessage* p, size_t currentOffset);
 UA_StatusCode
 UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
 
@@ -253,7 +247,7 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst);
 
 size_t
-UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage* p);
+UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer);
 
 void
 UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p);
