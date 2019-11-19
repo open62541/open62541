@@ -332,20 +332,23 @@ _UA_BEGIN_DECLS
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
         self.printh("#define UA_" + self.parser.outname.upper() + "_COUNT %s" % (str(len(self.filtered_types))))
-        self.printh(
-            "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
-        for i, t in enumerate(self.filtered_types):
-            self.printh("\n/**\n * " + t.name)
-            self.printh(" * " + "^" * len(t.name))
-            if t.description == "":
-                self.printh(" */")
-            else:
-                self.printh(" * " + t.description + " */")
-            if not isinstance(t, BuiltinType):
-                self.printh(self.print_datatype_typedef(t) + "\n")
+        if len(self.filtered_types) > 0:
+
             self.printh(
-                "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+
+            for i, t in enumerate(self.filtered_types):
+                self.printh("\n/**\n * " + t.name)
+                self.printh(" * " + "^" * len(t.name))
+                if t.description == "":
+                    self.printh(" */")
+                else:
+                    self.printh(" * " + t.description + " */")
+                if not isinstance(t, BuiltinType):
+                    self.printh(self.print_datatype_typedef(t) + "\n")
+                self.printh(
+                    "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
 
         self.printh('''
 
@@ -397,13 +400,14 @@ _UA_END_DECLS
             self.printc("/* " + t.name + " */")
             self.printc(CGenerator.print_members(t))
 
-        self.printc(
-            "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
+        if len(self.filtered_types) > 0:
+            self.printc(
+                "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
 
-        for t in self.filtered_types:
-            self.printc("/* " + t.name + " */")
-            self.printc(self.print_datatype(t) + ",")
-        self.printc("};\n")
+            for t in self.filtered_types:
+                self.printc("/* " + t.name + " */")
+                self.printc(self.print_datatype(t) + ",")
+            self.printc("};\n")
 
     def print_encoding(self):
         self.printe('''/* Generated from ''' + self.inname + ''' with script ''' + sys.argv[0] + '''
