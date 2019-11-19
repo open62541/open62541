@@ -136,6 +136,9 @@ def setNodeValueRankRecursive(node, nodeset):
             # Default value
             node.valueRank = -1
     else:
+        if node.parent is None:
+            raise RuntimeError("Node {}: does not have a parent. Probably the parent node was blacklisted?".format(str(node.id)))
+
         # Check if parent node limits the value rank
         setNodeValueRankRecursive(node.parent, nodeset)
 
