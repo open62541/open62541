@@ -24,7 +24,9 @@
 #else
 # include <sys/time.h> // for struct timeval
 # include <netinet/in.h> // for struct ip_mreq
-# include <ifaddrs.h>
+# if defined(UA_HAS_GETIFADDR)
+#  include <ifaddrs.h>
+# endif /* UA_HAS_GETIFADDR */
 # include <net/if.h> /* for IFF_RUNNING */
 # include <netdb.h> // for recvfrom in cygwin
 #endif
@@ -200,11 +202,17 @@ mdns_is_self_announce(const UA_Server *server, const struct serverOnNetwork_list
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
         return false;
     }
-#else
+#elif defined(UA_HAS_GETIFADDR)
     struct ifaddrs *ifaddr, *ifa;
     if(getifaddrs(&ifaddr) == -1) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
+        return false;
+    }
+#else
+    if (server->config.discovery.ipAddressListSize == 0) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "If UA_HAS_GETIFADDR is false, config.discovery.ipAddressList must be set");
         return false;
     }
 #endif
@@ -255,7 +263,7 @@ mdns_is_self_announce(const UA_Server *server, const struct serverOnNetwork_list
             if (isSelf)
                 break;
         }
-#else
+#elif defined(UA_HAS_GETIFADDR)
         /* Walk through linked list, maintaining head pointer so we can free
          * list later */
         int n;
@@ -282,6 +290,15 @@ mdns_is_self_announce(const UA_Server *server, const struct serverOnNetwork_list
 
             /* IPv6 not implemented yet */
         }
+#else
+        for(size_t idx=0; i<server->config.discovery.ipAddressListSize; idx++) {
+            char *ipStr = inet_ntoa(*( (struct in_addr *) &server->config.discovery.ipAddressList[idx]));
+            if(strncmp((const char*)hostnameRemote.data, ipStr,
+                       hostnameRemote.length) == 0) {
+                isSelf = true;
+                break;
+            }
+        }
 #endif
         if (isSelf)
             break;
@@ -291,7 +308,7 @@ mdns_is_self_announce(const UA_Server *server, const struct serverOnNetwork_list
     /* Cleanup */
     UA_free(adapter_addresses);
     adapter_addresses = NULL;
-#else
+#elif defined(UA_HAS_GETIFADDR)
     /* Clean up */
     freeifaddrs(ifaddr);
 #endif
@@ -669,7 +686,7 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
     adapter_addresses = NULL;
 }
 
-#else /* _WIN32 */
+#elif defined(UA_HAS_GETIFADDR)
 
 void
 mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
@@ -704,6 +721,23 @@ mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
 
     /* Clean up */
     freeifaddrs(ifaddr);
+}
+#else /* _WIN32 */
+
+void
+mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
+                        const char *localDomain) {
+
+    if (server->config.discovery.ipAddressListSize == 0) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "If UA_HAS_GETIFADDR is false, config.discovery.ipAddressList must be set");
+        return;
+    }
+
+    for(size_t i=0; i<server->config.discovery.ipAddressListSize; i++) {
+        mdns_set_address_record_if(&server->discoveryManager, fullServiceDomain,
+                                   localDomain, (char*)&server->config.discovery.ipAddressList[i], 4);
+    }
 }
 
 #endif /* _WIN32 */

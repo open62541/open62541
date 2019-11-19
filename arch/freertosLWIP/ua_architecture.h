@@ -26,6 +26,9 @@
 #define UA_LOCK_ASSERT(mutexName, num)
 #endif
 
+// freeRTOS does not have getifaddr
+#undef UA_HAS_GETIFADDR
+
 #include <open62541/architecture_functions.h>
 
 #endif /* PLUGINS_ARCH_FREERTOSLWIP_UA_ARCHITECTURE_H_ */

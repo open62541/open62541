@@ -152,6 +152,10 @@ setDefaultConfig(UA_ServerConfig *conf) {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&conf->discovery.mdns);
     conf->discovery.mdnsInterfaceIP = UA_STRING_NULL;
+# if !defined(UA_HAS_GETIFADDR)
+    conf->discovery.ipAddressList = NULL;
+    conf->discovery.ipAddressListSize = 0;
+# endif
 #endif
 
     /* Custom DataTypes */
