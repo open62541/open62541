@@ -321,7 +321,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     retval = UA_Server_run(server, &running);
 cleanup:
     UA_Server_delete(server);
-    UA_Client_delete(client);
     UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "%s", UA_StatusCode_name(retval));
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

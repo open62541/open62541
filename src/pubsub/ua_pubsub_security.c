@@ -835,6 +835,12 @@ UA_PubSubKey_deleteSKSConfig(UA_PubSub_SKSConfig *sksConfig, UA_Server *server) 
 
     if(sksConfig->keyNonce.data)
         UA_ByteString_clear(&sksConfig->keyNonce);
+
+    
+    if (sksConfig->client) {
+        UA_Client_delete(sksConfig->client);
+        sksConfig->client = NULL;
+    }
 }
 
 /**
