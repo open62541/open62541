@@ -45,10 +45,10 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(server->pubSubManager.connections[0].channel != NULL);
+    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(server->pubSubManager.connections[1].channel != NULL);
+    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 2);
 } END_TEST
 
@@ -65,13 +65,13 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
         retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert(server->pubSubManager.connections[0].channel != NULL);
+        ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
         retVal |= UA_Server_removePubSubConnection(server, connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
-        ck_assert(server->pubSubManager.connections[0].channel != NULL);
+        ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -142,7 +142,7 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(server->pubSubManager.connections[0].channel != NULL);
+    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
 } END_TEST
 
 START_TEST(GetMaximalConnectionConfigurationAndCompareValues){

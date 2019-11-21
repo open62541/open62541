@@ -624,10 +624,11 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
 #if defined(UA_ENABLE_PUBSUB_MQTT)
     /* Listen on the pubsublayer, but only if the yield function is set */
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; ++i) {
-        UA_PubSubConnection *ps = &server->pubSubManager.connections[i];
-            if(ps && ps->channel->yield){
-                ps->channel->yield(ps->channel, timeout);
+    UA_PubSubConnection *connection;
+    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
+        UA_PubSubConnection *ps = connection;
+        if(ps && ps->channel->yield){
+            ps->channel->yield(ps->channel, timeout);
         }
     }
 #endif

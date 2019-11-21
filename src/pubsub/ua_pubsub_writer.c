@@ -89,9 +89,10 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
 
 UA_PubSubConnection *
 UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionIdentifier) {
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
-        if(UA_NodeId_equal(&connectionIdentifier, &server->pubSubManager.connections[i].identifier)){
-            return &server->pubSubManager.connections[i];
+    UA_PubSubConnection *pubSubConnection;
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
+        if(UA_NodeId_equal(&connectionIdentifier, &pubSubConnection->identifier)){
+            return pubSubConnection;
         }
     }
     return NULL;
@@ -790,9 +791,10 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
 
 UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier) {
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
+    UA_PubSubConnection *pubSubConnection;
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
         UA_WriterGroup *tmpWriterGroup;
-        LIST_FOREACH(tmpWriterGroup, &server->pubSubManager.connections[i].writerGroups, listEntry){
+        LIST_FOREACH(tmpWriterGroup, &pubSubConnection->writerGroups, listEntry){
             UA_DataSetWriter *tmpWriter;
             LIST_FOREACH(tmpWriter, &tmpWriterGroup->writers, listEntry){
                 if(UA_NodeId_equal(&tmpWriter->identifier, &identifier)){
@@ -993,9 +995,10 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
 
 UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier){
-    for(size_t i = 0; i < server->pubSubManager.connectionsSize; i++){
+    UA_PubSubConnection *tmpConnection;
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry){
         UA_WriterGroup *tmpWriterGroup;
-        LIST_FOREACH(tmpWriterGroup, &server->pubSubManager.connections[i].writerGroups, listEntry) {
+        LIST_FOREACH(tmpWriterGroup, &tmpConnection->writerGroups, listEntry) {
             if(UA_NodeId_equal(&identifier, &tmpWriterGroup->identifier)){
                 return tmpWriterGroup;
             }
