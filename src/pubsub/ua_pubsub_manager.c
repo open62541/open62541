@@ -136,8 +136,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     }
     //create new PDS and add to UA_PubSubManager
     UA_PublishedDataSet *newPubSubDataSetField = (UA_PublishedDataSet *)
-            UA_realloc(server->pubSubManager.publishedDataSets,
-                       sizeof(UA_PublishedDataSet) * (server->pubSubManager.publishedDataSetsSize + 1));
+            UA_calloc(1, sizeof(UA_PublishedDataSet));
     if(!newPubSubDataSetField) {
         UA_PublishedDataSetConfig_clear(&tmpPublishedDataSetConfig);
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -145,24 +144,23 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
         result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return result;
     }
-    server->pubSubManager.publishedDataSets = newPubSubDataSetField;
-    UA_PublishedDataSet *newPubSubDataSet = &server->pubSubManager.publishedDataSets[(server->pubSubManager.publishedDataSetsSize)];
-    memset(newPubSubDataSet, 0, sizeof(UA_PublishedDataSet));
-    TAILQ_INIT(&newPubSubDataSet->fields);
-    //workaround - fixing issue with queue.h and realloc.
-    for(size_t n = 0; n < server->pubSubManager.publishedDataSetsSize; n++){
-        if(server->pubSubManager.publishedDataSets[n].fields.tqh_first){
-            server->pubSubManager.publishedDataSets[n].fields.tqh_first->listEntry.tqe_prev = &server->pubSubManager.publishedDataSets[n].fields.tqh_first;
-        }
+    memset(newPubSubDataSetField, 0, sizeof(UA_PublishedDataSet));
+    TAILQ_INIT(&newPubSubDataSetField->fields);
+    newPubSubDataSetField->config = tmpPublishedDataSetConfig;
+
+    if (server->pubSubManager.publishedDataSetsSize != 0)
+        TAILQ_INSERT_TAIL(&server->pubSubManager.publishedDataSets, newPubSubDataSetField, listEntry);
+    else {
+        TAILQ_INIT(&server->pubSubManager.publishedDataSets);
+        TAILQ_INSERT_HEAD(&server->pubSubManager.publishedDataSets, newPubSubDataSetField, listEntry);
     }
-    newPubSubDataSet->config = tmpPublishedDataSetConfig;
     if(tmpPublishedDataSetConfig.publishedDataSetType == UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE){
         //parse template config and add fields (later PubSub batch)
     }
     //generate unique nodeId
-    UA_PubSubManager_generateUniqueNodeId(server, &newPubSubDataSet->identifier);
+    UA_PubSubManager_generateUniqueNodeId(server, &newPubSubDataSetField->identifier);
     if(pdsIdentifier != NULL){
-        UA_NodeId_copy(&newPubSubDataSet->identifier, pdsIdentifier);
+        UA_NodeId_copy(&newPubSubDataSetField->identifier, pdsIdentifier);
     }
 
     result.addResult = UA_STATUSCODE_GOOD;
@@ -173,37 +171,37 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     switch(tmpPublishedDataSetConfig.publishedDataSetType){
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE:
             if(UA_DataSetMetaDataType_copy(&tmpPublishedDataSetConfig.config.itemsTemplate.metaData,
-                    &newPubSubDataSet->dataSetMetaData) != UA_STATUSCODE_GOOD){
-                UA_Server_removeDataSetField(server, newPubSubDataSet->identifier);
+                    &newPubSubDataSetField->dataSetMetaData) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
                 result.addResult = UA_STATUSCODE_BADINTERNALERROR;
             }
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
             if(UA_DataSetMetaDataType_copy(&tmpPublishedDataSetConfig.config.eventTemplate.metaData,
-                    &newPubSubDataSet->dataSetMetaData) != UA_STATUSCODE_GOOD){
-                UA_Server_removeDataSetField(server, newPubSubDataSet->identifier);
+                    &newPubSubDataSetField->dataSetMetaData) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
                 result.addResult = UA_STATUSCODE_BADINTERNALERROR;
             }
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
-            newPubSubDataSet->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-            newPubSubDataSet->dataSetMetaData.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
-            newPubSubDataSet->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
-            if(UA_String_copy(&tmpPublishedDataSetConfig.name, &newPubSubDataSet->dataSetMetaData.name) != UA_STATUSCODE_GOOD){
-                UA_Server_removeDataSetField(server, newPubSubDataSet->identifier);
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            newPubSubDataSetField->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
+            if(UA_String_copy(&tmpPublishedDataSetConfig.name, &newPubSubDataSetField->dataSetMetaData.name) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
                 result.addResult = UA_STATUSCODE_BADINTERNALERROR;
             }
-            newPubSubDataSet->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            newPubSubDataSetField->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
             break;
         case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
-            newPubSubDataSet->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-            newPubSubDataSet->dataSetMetaData.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
-            if(UA_String_copy(&tmpPublishedDataSetConfig.name, &newPubSubDataSet->dataSetMetaData.name) != UA_STATUSCODE_GOOD){
-                UA_Server_removeDataSetField(server, newPubSubDataSet->identifier);
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            newPubSubDataSetField->dataSetMetaData.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+            if(UA_String_copy(&tmpPublishedDataSetConfig.name, &newPubSubDataSetField->dataSetMetaData.name) != UA_STATUSCODE_GOOD){
+                UA_Server_removeDataSetField(server, newPubSubDataSetField->identifier);
                 result.addResult = UA_STATUSCODE_BADINTERNALERROR;
             }
-            newPubSubDataSet->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
-            newPubSubDataSet->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
+            newPubSubDataSetField->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
+            newPubSubDataSetField->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
             break;
     }
 
@@ -211,7 +209,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
     result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
     result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addPublishedDataItemsRepresentation(server, newPubSubDataSet);
+    addPublishedDataItemsRepresentation(server, newPubSubDataSetField);
 #endif
     return result;
 }
@@ -219,14 +217,7 @@ UA_Server_addPublishedDataSet(UA_Server *server, const UA_PublishedDataSetConfig
 UA_StatusCode
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     //search the identified PublishedDataSet and store the PDS index
-    UA_PublishedDataSet *publishedDataSet = NULL;
-    size_t publishedDataSetIndex;
-    for(publishedDataSetIndex = 0; publishedDataSetIndex < server->pubSubManager.publishedDataSetsSize; publishedDataSetIndex++){
-        if(UA_NodeId_equal(&server->pubSubManager.publishedDataSets[publishedDataSetIndex].identifier, &pds)){
-            publishedDataSet = &server->pubSubManager.publishedDataSets[publishedDataSetIndex];
-            break;
-        }
-    }
+    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, pds);
     if(!publishedDataSet){
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -254,28 +245,9 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
 #endif
     UA_PublishedDataSet_clear(server, publishedDataSet);
     server->pubSubManager.publishedDataSetsSize--;
-    //copy the last PDS to the removed PDS inside the allocated memory block
-    if(server->pubSubManager.publishedDataSetsSize != publishedDataSetIndex){
-        memcpy(&server->pubSubManager.publishedDataSets[publishedDataSetIndex],
-               &server->pubSubManager.publishedDataSets[server->pubSubManager.publishedDataSetsSize],
-               sizeof(UA_PublishedDataSet));
-    }
-    if(server->pubSubManager.publishedDataSetsSize <= 0){
-        UA_free(server->pubSubManager.publishedDataSets);
-        server->pubSubManager.publishedDataSets = NULL;
-    } else {
-        server->pubSubManager.publishedDataSets = (UA_PublishedDataSet *)
-                UA_realloc(server->pubSubManager.publishedDataSets, sizeof(UA_PublishedDataSet) * server->pubSubManager.publishedDataSetsSize);
-        if(!server->pubSubManager.publishedDataSets){
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        //workaround - fixing issue with queue.h and realloc.
-        for(size_t n = 0; n < server->pubSubManager.publishedDataSetsSize; n++){
-            if(server->pubSubManager.publishedDataSets[n].fields.tqh_first){
-                server->pubSubManager.publishedDataSets[n].fields.tqh_first->listEntry.tqe_prev = &server->pubSubManager.publishedDataSets[n].fields.tqh_first;
-            }
-        }
-    }
+
+    TAILQ_REMOVE(&server->pubSubManager.publishedDataSets, publishedDataSet, listEntry);
+    UA_free(publishedDataSet);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -324,8 +296,9 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections, listEntry, tmpConnection2){
         UA_Server_removePubSubConnection(server, tmpConnection1->identifier);
     }
-    while(pubSubManager->publishedDataSetsSize > 0){
-        UA_Server_removePublishedDataSet(server, pubSubManager->publishedDataSets[pubSubManager->publishedDataSetsSize-1].identifier);
+    UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
+    TAILQ_FOREACH_SAFE(tmpPDS1, &server->pubSubManager.publishedDataSets, listEntry, tmpPDS2){
+        UA_Server_removePublishedDataSet(server, tmpPDS1->identifier);
     }
 }
 

@@ -48,7 +48,7 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+    ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
     ck_assert_int_eq(server->pubSubManager.connectionsSize, 2);
 } END_TEST
 
@@ -71,7 +71,7 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
         ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
-        ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+        ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 

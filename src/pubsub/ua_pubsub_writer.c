@@ -466,9 +466,10 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds, UA
 
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier){
-    for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; i++){
-        if(UA_NodeId_equal(&server->pubSubManager.publishedDataSets[i].identifier, &identifier)){
-            return &server->pubSubManager.publishedDataSets[i];
+    UA_PublishedDataSet *tmpPDS;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+        if(UA_NodeId_equal(&tmpPDS->identifier, &identifier)){
+            return tmpPDS;
         }
     }
     return NULL;
@@ -1278,9 +1279,10 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
 
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier) {
-    for(size_t i = 0; i < server->pubSubManager.publishedDataSetsSize; i++){
+    UA_PublishedDataSet *tmpPDS;
+    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
         UA_DataSetField *tmpField;
-        TAILQ_FOREACH(tmpField, &server->pubSubManager.publishedDataSets[i].fields, listEntry){
+        TAILQ_FOREACH(tmpField, &tmpPDS->fields, listEntry){
             if(UA_NodeId_equal(&tmpField->identifier, &identifier)){
                 return tmpField;
             }
