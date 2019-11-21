@@ -54,7 +54,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
 /*               Connection                   */
 /**********************************************/
 //the connection config (public part of connection) object is defined in include/ua_plugin_pubsub.h
-typedef struct{
+typedef struct UA_PubSubConnection{
     UA_PubSubConnectionConfig *config;
     //internal fields
     UA_PubSubChannel *channel;
@@ -62,7 +62,7 @@ typedef struct{
     LIST_HEAD(UA_ListOfWriterGroup, UA_WriterGroup) writerGroups;
     LIST_HEAD(UA_ListOfPubSubReaderGroup, UA_ReaderGroup) readerGroups;
     size_t readerGroupsSize;
-
+    TAILQ_ENTRY(UA_PubSubConnection) listEntry;
     UA_UInt16 configurationFreezeCounter;
 } UA_PubSubConnection;
 
