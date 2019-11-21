@@ -33,7 +33,7 @@ typedef struct UA_ReaderGroup UA_ReaderGroup;
 /**********************************************/
 /*            PublishedDataSet                */
 /**********************************************/
-typedef struct{
+typedef struct UA_PublishedDataSet{
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
     TAILQ_HEAD(UA_ListOfDataSetField, UA_DataSetField) fields;
@@ -41,6 +41,7 @@ typedef struct{
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
     UA_UInt16 configurationFreezeCounter;
+    TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
 } UA_PublishedDataSet;
 
 UA_StatusCode
