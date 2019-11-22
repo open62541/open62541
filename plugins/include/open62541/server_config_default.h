@@ -182,6 +182,30 @@ UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
                                                 const UA_ByteString *certificate,
                                                 const UA_ByteString *privateKey);
 
+
+/* Adds the security policy ``SecurityPolicy#Pubsub_Aes128ctr`` to the server. 
+ * server certificate is not necessary
+ *
+ * @param config The configuration to manipulate
+ * @param optional,certificate The server certificate.
+ * @param optional,privateKey The private key that corresponds to the certificate.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicy_Pubsub_Aes128ctr(UA_ServerConfig *config, 
+                                                const UA_ByteString *certificate,
+                                                const UA_ByteString *privateKey);
+/* Adds the security policy ``SecurityPolicy#Pubsub_Aes128ctr`` to the server. 
+ * server certificate is not necessary
+ *
+ * @param config The configuration to manipulate
+ * @param optional,certificate The server certificate.
+ * @param optional,privateKey The private key that corresponds to the certificate.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicy_Pubsub_Aes256ctr(UA_ServerConfig *config, 
+                                                const UA_ByteString *certificate,
+                                                const UA_ByteString *privateKey);
+
 /* Adds all supported security policies and sets up certificate
  * validation procedures.
  *

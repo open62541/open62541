@@ -11,6 +11,10 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+#include <open62541/plugin/securitypolicy_default.h>
+#endif
+
 _UA_BEGIN_DECLS
 
 /* DataSet Payload Header */
@@ -57,6 +61,7 @@ UA_StatusCode
 UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src,
                                      UA_Byte **bufPos, const UA_Byte *bufEnd);
 
+
 UA_StatusCode
 UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
                                      UA_DataSetMessageHeader* dst);
@@ -92,6 +97,7 @@ typedef struct {
         UA_DataSetMessage_DataDeltaFrameData deltaFrameData;
     } data;
 } UA_DataSetMessage;
+
 
 UA_StatusCode
 UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
@@ -204,12 +210,11 @@ typedef struct {
 
 UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
-                               UA_Byte **bufPos, const UA_Byte *bufEnd);
+                               UA_Byte **bufPos, const UA_Byte *bufEnd, UA_Byte **dataToEncryptStart);
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_NetworkMessage* dst);
-
+                               UA_NetworkMessage* dst, UA_Byte** dataToEncryptStart);
 size_t
 UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage* p);
 

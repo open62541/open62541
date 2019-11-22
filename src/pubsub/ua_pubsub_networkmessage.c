@@ -52,9 +52,9 @@ static UA_Boolean UA_NetworkMessage_ExtendedFlags2Enabled(const UA_NetworkMessag
 static UA_Boolean UA_DataSetMessageHeader_DataSetFlags2Enabled(const UA_DataSetMessageHeader* src);
 
 UA_StatusCode
-UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
-                               const UA_Byte *bufEnd) {
-    /* UADPVersion + UADP Flags */
+UA_NetworkMessage_encodeBinary(const UA_NetworkMessage *src, UA_Byte **bufPos,
+                               const UA_Byte *bufEnd,UA_Byte **dataToEncryptStart) {
+   /* UADPVersion + UADP Flags */
     UA_Byte v = src->version;
     if(src->publisherIdEnabled)
         v |= NM_PUBLISHER_ID_ENABLED_MASK;
@@ -279,7 +279,9 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
                 return rv;
         }
     }
-
+    if (src->securityEnabled&&dataToEncryptStart)
+    //dataToEncryptStart = *bufPos;
+    *dataToEncryptStart=*bufPos;
     // Payload
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -335,10 +337,17 @@ UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
 
 static UA_StatusCode
 UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
-                                       UA_NetworkMessage* dst) {
+                                       UA_NetworkMessage *dst, UA_Byte ** dataToEncryptStart) {
+    UA_StatusCode rv;
+    /*if encryptedflag is alreay decoded, directly go decrypt payload*/
+    /*if offset !=0 and dst->securityHeader.networkMessageEncrypted, 
+    it means the message is "predecoded" so no need to decode headers again*/
+    if (*offset==0){
+
     memset(dst, 0, sizeof(UA_NetworkMessage));
     UA_Byte v = 0;
-    UA_StatusCode rv = UA_Byte_decodeBinary(src, offset, &v);
+
+    rv = UA_Byte_decodeBinary(src, offset, &v);
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
 
@@ -591,8 +600,16 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
         }
+        /* get dataToEncryptStart pointer, then return,
+        cause need to first verify signature & key ID
+        and payload cant be decoded correctly without decryption*/
+        if(dataToEncryptStart) {
+            *dataToEncryptStart = src->data + *offset;
+            return rv;
+        }
+        }
+            
     }
-
     // Payload
     if(dst->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -634,9 +651,9 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                     return rv;
             }
         }
-
-        // Signature
-        if(dst->securityHeader.networkMessageSigned) {
+        /*Todo: it still decode signature twice*/
+        /*If signature.length!=0 means it is already decoded*/
+        if(dst->securityHeader.networkMessageSigned&&dst->signature.length==0) {
             rv = UA_ByteString_decodeBinary(src, offset, &(dst->signature));
             if (rv != UA_STATUSCODE_GOOD)
                 return rv;
@@ -647,8 +664,9 @@ UA_NetworkMessage_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
 }
 
 UA_StatusCode
-UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_NetworkMessage* dst) {
-    UA_StatusCode retval = UA_NetworkMessage_decodeBinaryInternal(src, offset, dst);
+UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
+                               UA_NetworkMessage *dst, UA_Byte** dataToEncryptStart) {
+    UA_StatusCode retval = UA_NetworkMessage_decodeBinaryInternal(src, offset, dst,dataToEncryptStart);
 
     if(retval != UA_STATUSCODE_GOOD)
         UA_NetworkMessage_deleteMembers(dst);
@@ -807,12 +825,16 @@ UA_NetworkMessage_deleteMembers(UA_NetworkMessage* p) {
     if(p->securityHeader.securityFooterEnabled && (p->securityHeader.securityFooterSize > 0))
         UA_ByteString_deleteMembers(&p->securityFooter);
 
-    if(p->messageIdEnabled){
-           UA_String_deleteMembers(&p->messageId);
+    if(p->messageIdEnabled) {
+        UA_String_deleteMembers(&p->messageId);
     }
 
-    if(p->publisherIdEnabled && p->publisherIdType == UA_PUBLISHERDATATYPE_STRING){
-       UA_String_deleteMembers(&p->publisherId.publisherIdString);
+    if(p->publisherIdEnabled && p->publisherIdType == UA_PUBLISHERDATATYPE_STRING) {
+        UA_String_deleteMembers(&p->publisherId.publisherIdString);
+    }
+
+    if(p->securityEnabled && p->signature.length > 0) {
+        UA_ByteString_deleteMembers(&p->signature);
     }
 
     memset(p, 0, sizeof(UA_NetworkMessage));

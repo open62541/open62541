@@ -114,8 +114,12 @@ struct UA_Server {
     /* Publish/Subscribe */
 #ifdef UA_ENABLE_PUBSUB
     UA_PubSubManager pubSubManager;
+    
+#ifdef UA_ENABLE_PUBSUB_SECURITY
+    LIST_HEAD(PubSubSKSKeyList,UA_PubSubSKSKeyStorage) pubSubSKSKeyList;
 #endif
 
+#endif
 #if UA_MULTITHREADING >= 100
     UA_LOCK_TYPE(networkMutex)
     UA_LOCK_TYPE(serviceMutex)

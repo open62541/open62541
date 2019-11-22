@@ -155,6 +155,23 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+option(UA_ENABLE_PUBSUB_SECURITY "Enable Security Key Service (SKS) support for publish/subscribe" OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_SECURITY)
+if(UA_ENABLE_PUBSUB_SECURITY)
+    if(NOT UA_ENABLE_PUBSUB_INFORMATIONMODEL)
+        message(FATAL_ERROR "PubSub security cannot be used with disabled PubSub information model.")
+    endif()
+
+    if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+        message(FATAL_ERROR "PubSub security cannot be used with NAMESPACE ZERO != FULL.")
+    endif()
+    
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "PubSub security cannot be used with disabled encryption.")
+    endif()
+endif()
+
+
 if(UA_ENABLE_MICRO_EMB_DEV_PROFILE)
     if(NOT (UA_NAMESPACE_ZERO STREQUAL "FULL"))
         message(FATAL_ERROR "CTT Compliant Micro Embedded Device Server Profile needs full namespace zero")
@@ -625,6 +642,7 @@ set(exported_headers ${exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server_sks.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
                      ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
@@ -658,6 +676,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.h
                      ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks.h
+                     ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks_ns0.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
@@ -690,6 +710,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_security.c
+				${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_sks_ns0.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -744,7 +767,9 @@ list(APPEND default_plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/securitypolicy_mbedtls_common.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic128rsa15.c
      ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256.c
-     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c)
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_basic256sha256.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes128ctr.c
+     ${PROJECT_SOURCE_DIR}/plugins/securityPolicies/ua_securitypolicy_pubsub_aes256ctr.c)
 
 if(UA_ENABLE_HISTORIZING)
 
