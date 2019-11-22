@@ -65,6 +65,10 @@ UA_DataSetMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
 size_t
 UA_DataSetMessageHeader_calcSizeBinary(const UA_DataSetMessageHeader* p);
 
+/**********************************************/
+/*          Network Message Offsets           */
+/**********************************************/
+
 /* Offsets for buffered messages in the PubSub fast path. */
 typedef enum {
     UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,

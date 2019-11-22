@@ -115,10 +115,6 @@ UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server, UA_PubSubState state, UA_DataSetWriter *dataSetWriter);
 
 /**********************************************/
-/*          Network Message Offsets           */
-/**********************************************/
-
-/**********************************************/
 /*               WriterGroup                  */
 /**********************************************/
 
@@ -135,7 +131,7 @@ struct UA_WriterGroup{
     UA_Boolean publishCallbackIsRegistered;
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
-    UA_UInt16 sequenceNumber;
+    UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
 };
 
 UA_StatusCode
